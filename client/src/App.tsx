@@ -6,6 +6,8 @@ import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
 import TrainerDetail from "./pages/TrainerDetail";
+import Trainers from "./pages/Trainers";
+import Admin from "./pages/Admin";
 import PT from "./pages/PT";
 import Layout from "./components/Layout";
 
@@ -36,10 +38,12 @@ function App() {
         <Route path="/members/:id">
           {(params) => <MemberDetail memberId={parseInt(params.id)} />}
         </Route>
+        <Route path="/pt" component={PT} />
+        <Route path="/trainers" component={Trainers} />
         <Route path="/trainers/:id">
           {(params) => <TrainerDetail trainerId={parseInt(params.id)} />}
         </Route>
-        <Route path="/pt" component={PT} />
+        <Route path="/admin" component={Admin} />
         <Route>
           <Redirect to="/" />
         </Route>
