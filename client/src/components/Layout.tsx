@@ -8,14 +8,10 @@ import {
   LogOut,
   Menu,
   X,
+  UserCog,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
-
-const navItems = [
-  { path: "/", label: "대시보드", icon: LayoutDashboard },
-  { path: "/members", label: "회원 관리", icon: Users },
-  { path: "/pt", label: "PT 관리", icon: Dumbbell },
-];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -25,6 +21,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     onSuccess: () => window.location.reload(),
     onError: () => toast.error("로그아웃 실패"),
   });
+
+  const baseNavItems = [
+    { path: "/", label: "대시보드", icon: LayoutDashboard },
+    { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/pt", label: "PT 관리", icon: Dumbbell },
+  ];
+
+  const adminNavItems = [
+    { path: "/trainers", label: "트레이너", icon: UserCog },
+    { path: "/admin", label: "관리", icon: Settings },
+  ];
+
+  const navItems = user?.role === "admin" ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+
+  const isActive = (path: string) => {
+    if (path === "/") return location === "/";
+    return location.startsWith(path);
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -37,7 +51,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           >
             {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <span className="font-bold text-primary text-lg">💪 트레이너앱</span>
+          <button
+            onClick={() => setLocation("/")}
+            className="font-bold text-primary text-lg"
+          >
+            💪 트레이너앱
+          </button>
         </div>
 
         {/* 데스크탑 네비게이션 */}
@@ -47,7 +66,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               key={item.path}
               onClick={() => setLocation(item.path)}
               className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
-                location === item.path
+                isActive(item.path)
                   ? "bg-primary/20 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent"
               }`}
@@ -61,6 +80,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground hidden sm:block">
             {user?.username}
+            {user?.role === "admin" && (
+              <span className="ml-1 text-primary text-xs">(관리자)</span>
+            )}
           </span>
           <button
             onClick={() => logoutMutation.mutate()}
@@ -82,7 +104,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 setMenuOpen(false);
               }}
               className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm transition-colors mb-1 ${
-                location === item.path
+                isActive(item.path)
                   ? "bg-primary/20 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent"
               }`}

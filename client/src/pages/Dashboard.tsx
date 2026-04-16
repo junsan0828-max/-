@@ -1,9 +1,24 @@
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Activity, Dumbbell, TrendingUp, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Users,
+  Activity,
+  Dumbbell,
+  TrendingUp,
+  Calendar,
+  AlertTriangle,
+  UserPlus,
+  ChevronRight,
+} from "lucide-react";
+import { differenceInDays } from "date-fns";
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
+  const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
+  const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
 
   if (isLoading) {
     return (
@@ -45,11 +60,19 @@ export default function Dashboard() {
     },
   ];
 
+  const today = new Date();
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">대시보드</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">대시보드</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
+        </div>
+        <Button size="sm" onClick={() => setLocation("/members/new")} className="gap-1.5">
+          <UserPlus className="h-4 w-4" />
+          신규 등록
+        </Button>
       </div>
 
       {/* 통계 카드 */}
@@ -67,7 +90,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* 정산 정보 */}
+      {/* 정산 현황 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -90,6 +113,85 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 만료 임박 회원 */}
+      {expiring && expiring.length > 0 && (
+        <Card className="bg-card border-border border-yellow-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-400" />
+              <span className="text-yellow-400">만료 임박 회원</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">7일 이내</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {expiring.map((member) => {
+              const daysLeft = member.membershipEnd
+                ? differenceInDays(new Date(member.membershipEnd), today)
+                : null;
+              return (
+                <button
+                  key={member.id}
+                  onClick={() => setLocation(`/members/${member.id}`)}
+                  className="w-full flex items-center justify-between p-2.5 rounded-md bg-yellow-500/10 border border-yellow-500/20 hover:border-yellow-500/40 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 font-bold text-xs">
+                      {member.name.charAt(0)}
+                    </div>
+                    <span className="text-sm font-medium">{member.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-yellow-400">
+                      {daysLeft === 0 ? "오늘 만료" : daysLeft !== null ? `D-${daysLeft}` : "-"}
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 미수금 회원 */}
+      {unpaid && unpaid.length > 0 && (
+        <Card className="bg-card border-border border-orange-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-400" />
+              <span className="text-orange-400">미수금 회원</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unpaid.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setLocation(`/members/${item.id}`)}
+                className="w-full flex items-center justify-between p-2.5 rounded-md bg-orange-500/10 border border-orange-500/20 hover:border-orange-500/40 transition-colors text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold text-xs">
+                    {item.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{item.name}</p>
+                    {item.packageName && (
+                      <p className="text-xs text-muted-foreground">{item.packageName}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-orange-400">
+                    {(item.unpaidAmount ?? 0).toLocaleString()}원
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
