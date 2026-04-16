@@ -32,9 +32,21 @@ app.use(
   })
 );
 
-// 테스트 페이지
+// 자체 포함 테스트 페이지 (외부 의존성 없음)
 app.get("/test", (req, res) => {
-  res.send('<html><body style="background:green;color:white;font-size:24px;padding:20px;font-family:sans-serif">✅ 서버 연결 성공!</body></html>');
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0;background:#1a1a2e;color:white;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center}</style>
+</head><body>
+<div>
+  <div style="font-size:60px">✅</div>
+  <h1 style="color:#4caf50">서버 연결 성공!</h1>
+  <p>IP: ${req.ip}</p>
+  <p id="js">JavaScript: ❌ 비활성</p>
+  <script>document.getElementById('js').innerHTML='JavaScript: ✅ 활성'</script>
+</div>
+</body></html>`);
 });
 
 app.use(
