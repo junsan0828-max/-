@@ -6,7 +6,7 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
-import { db, client } from "./db";
+import { sqlite, db } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
@@ -55,11 +55,11 @@ if (fs.existsSync(clientDistPath)) {
   });
 }
 
-// DB 초기화: 테이블 생성 + 시드 (execSync 없이 순수 async)
-async function initDatabase() {
+// DB 초기화: 동기식 (better-sqlite3)
+function initDatabase() {
   console.log("🔧 DB 초기화 중...");
 
-  await client.execute(`CREATE TABLE IF NOT EXISTS users (
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
@@ -68,7 +68,7 @@ async function initDatabase() {
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
-  await client.execute(`CREATE TABLE IF NOT EXISTS trainers (
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS trainers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     userId INTEGER NOT NULL UNIQUE,
     trainerName TEXT NOT NULL,
@@ -78,7 +78,7 @@ async function initDatabase() {
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
-  await client.execute(`CREATE TABLE IF NOT EXISTS trainer_settings (
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS trainer_settings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     trainerId INTEGER NOT NULL UNIQUE,
     settlementRate INTEGER NOT NULL DEFAULT 50,
@@ -86,7 +86,7 @@ async function initDatabase() {
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
-  await client.execute(`CREATE TABLE IF NOT EXISTS members (
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     trainerId INTEGER NOT NULL,
     name TEXT NOT NULL,
@@ -103,7 +103,7 @@ async function initDatabase() {
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
-  await client.execute(`CREATE TABLE IF NOT EXISTS pt_packages (
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS pt_packages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     memberId INTEGER NOT NULL,
     trainerId INTEGER,
@@ -123,7 +123,7 @@ async function initDatabase() {
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
-  await client.execute(`CREATE TABLE IF NOT EXISTS attendances (
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS attendances (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     memberId INTEGER NOT NULL,
     trainerId INTEGER NOT NULL,
@@ -132,7 +132,7 @@ async function initDatabase() {
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
-  await client.execute(`CREATE TABLE IF NOT EXISTS pt_session_logs (
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS pt_session_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     memberId INTEGER NOT NULL,
     trainerId INTEGER NOT NULL,
@@ -142,7 +142,7 @@ async function initDatabase() {
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
-  await client.execute(`CREATE TABLE IF NOT EXISTS payments (
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     memberId INTEGER NOT NULL,
     trainerId INTEGER,
@@ -156,17 +156,17 @@ async function initDatabase() {
   console.log("✅ 테이블 준비 완료");
 
   // 관리자 계정 생성 (없으면)
-  const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin"));
-  if (existingAdmin.length === 0) {
+  const existingAdmin = sqlite.prepare("SELECT id FROM users WHERE username = ?").get("admin");
+  if (!existingAdmin) {
     console.log("🌱 초기 데이터 생성 중...");
-    const adminPw = await bcrypt.hash("admin123", 10);
-    await db.insert(users).values({ username: "admin", password: adminPw, role: "admin" });
+    const adminPw = bcrypt.hashSync("admin123", 10);
+    sqlite.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run("admin", adminPw, "admin");
     console.log("✅ 관리자: admin / admin123");
 
-    const trainerPw = await bcrypt.hash("trainer123", 10);
-    const [userRow] = await db.insert(users).values({ username: "trainer1", password: trainerPw, role: "trainer" }).returning({ id: users.id });
-    const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: "김트레이너", phone: "010-1234-5678", email: "trainer1@example.com" }).returning({ id: trainers.id });
-    await db.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 60 });
+    const trainerPw = bcrypt.hashSync("trainer123", 10);
+    const trainerUser = sqlite.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run("trainer1", trainerPw, "trainer");
+    const trainerRow = sqlite.prepare("INSERT INTO trainers (userId, trainerName, phone, email) VALUES (?, ?, ?, ?)").run(trainerUser.lastInsertRowid, "김트레이너", "010-1234-5678", "trainer1@example.com");
+    sqlite.prepare("INSERT INTO trainer_settings (trainerId, settlementRate) VALUES (?, ?)").run(trainerRow.lastInsertRowid, 60);
     console.log("✅ 트레이너: trainer1 / trainer123");
   } else {
     console.log("ℹ️  계정 존재 확인");
@@ -175,17 +175,9 @@ async function initDatabase() {
   console.log("✨ DB 초기화 완료!");
 }
 
-// 서버 시작 (DB 초기화 완료 후)
-async function main() {
-  try {
-    await initDatabase();
-  } catch (e) {
-    console.error("❌ DB 초기화 실패:", e);
-  }
+// 서버 시작
+initDatabase();
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-  });
-}
-
-main();
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+});

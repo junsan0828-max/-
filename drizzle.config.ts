@@ -3,8 +3,8 @@ import { defineConfig } from "drizzle-kit";
 export default defineConfig({
   schema: "./drizzle/schema.ts",
   out: "./drizzle/migrations",
-  dialect: "turso",
+  dialect: "sqlite",
   dbCredentials: {
-    url: "file:./trainer.db",
+    url: "./trainer.db",
   },
 });
