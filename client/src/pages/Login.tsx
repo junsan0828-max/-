@@ -8,13 +8,16 @@ import { Label } from "@/components/ui/label";
 
 export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
+  const [errorMsg, setErrorMsg] = useState("");
   const utils = trpc.useUtils();
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
+      setErrorMsg("");
       utils.auth.me.invalidate();
     },
     onError: (err) => {
+      setErrorMsg(err.message || "로그인 실패");
       toast.error(err.message || "로그인 실패");
     },
   });
