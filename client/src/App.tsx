@@ -1,6 +1,7 @@
 import { Switch, Route, Redirect } from "wouter";
 import { trpc } from "./lib/trpc";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
@@ -23,6 +24,7 @@ function App() {
   }
 
   if (!user) {
+    if (window.location.pathname === "/register") return <Register />;
     return <Login />;
   }
 

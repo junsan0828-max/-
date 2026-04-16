@@ -86,6 +86,31 @@ const authRouter = t.router({
   me: publicProcedure.query(({ ctx }) => {
     return ctx.user ?? null;
   }),
+
+  register: publicProcedure
+    .input(z.object({
+      username: z.string().min(3).max(50),
+      password: z.string().min(6),
+      trainerName: z.string().min(1),
+      phone: z.string().optional(),
+      email: z.string().email().optional().or(z.literal("")),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1);
+      if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
+
+      const hashed = await bcrypt.hash(input.password, 10);
+      const [userRow] = await db.insert(users).values({ username: input.username, password: hashed, role: "trainer" }).returning({ id: users.id });
+      const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: input.trainerName, phone: input.phone, email: input.email || undefined }).returning({ id: trainers.id });
+      await db.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
+
+      const authUser = { id: userRow.id, username: input.username, role: "trainer" as const, trainerId: trainerRow.id };
+      ctx.req.session.user = authUser;
+      return authUser;
+    }),
 });
 
 // ─── Members ─────────────────────────────────────────────────────────────────

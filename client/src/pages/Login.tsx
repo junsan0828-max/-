@@ -78,6 +78,10 @@ export default function Login() {
             >
               {loginMutation.isPending ? "로그인 중..." : "로그인"}
             </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              계정이 없으신가요?{" "}
+              <a href="/register" className="text-primary underline">트레이너 회원가입</a>
+            </p>
           </form>
         </CardContent>
       </Card>
