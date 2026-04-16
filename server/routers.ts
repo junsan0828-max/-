@@ -12,6 +12,7 @@ import {
   attendances,
   ptSessionLogs,
   payments,
+  workoutMemos,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -324,6 +325,66 @@ const membersRouter = t.router({
         .from(payments)
         .where(eq(payments.memberId, input.memberId))
         .orderBy(desc(payments.createdAt));
+    }),
+
+  // PT 잔여 횟수 5회 이하 회원 (재등록 안내)
+  getLowSessions: protectedProcedure
+    .input(z.object({ threshold: z.number().default(5) }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const rows = await db
+        .select({
+          id: members.id,
+          name: members.name,
+          phone: members.phone,
+          packageName: ptPackages.packageName,
+          totalSessions: ptPackages.totalSessions,
+          usedSessions: ptPackages.usedSessions,
+        })
+        .from(members)
+        .innerJoin(ptPackages, and(eq(ptPackages.memberId, members.id), eq(ptPackages.status, "active")))
+        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")))
+        .orderBy(members.name);
+
+      return rows.filter(r => (r.totalSessions - r.usedSessions) <= input.threshold);
+    }),
+
+  // 장기 미출석 회원 (2주 이상)
+  getLongAbsent: protectedProcedure
+    .input(z.object({ days: z.number().default(14) }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const cutoff = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+      const allMembers = await db
+        .select({ id: members.id, name: members.name, phone: members.phone })
+        .from(members)
+        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")));
+
+      const result = await Promise.all(
+        allMembers.map(async (m) => {
+          const last = await db
+            .select({ attendDate: attendances.attendDate })
+            .from(attendances)
+            .where(and(eq(attendances.memberId, m.id), eq(attendances.status, "attended")))
+            .orderBy(desc(attendances.attendDate))
+            .limit(1);
+          const lastDate = last[0]?.attendDate ?? null;
+          return { ...m, lastAttendDate: lastDate };
+        })
+      );
+
+      return result.filter(m => !m.lastAttendDate || m.lastAttendDate < cutoff);
     }),
 });
 
@@ -899,6 +960,54 @@ const dashboardRouter = t.router({
   }),
 });
 
+// ─── Workout Memos ────────────────────────────────────────────────────────────
+const workoutMemosRouter = t.router({
+  listByMember: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      return db
+        .select()
+        .from(workoutMemos)
+        .where(eq(workoutMemos.memberId, input.memberId))
+        .orderBy(desc(workoutMemos.memoDate));
+    }),
+
+  create: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      memoDate: z.string(),
+      content: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const [row] = await db.insert(workoutMemos).values({
+        memberId: input.memberId,
+        trainerId,
+        memoDate: input.memoDate,
+        content: input.content,
+      }).returning();
+      return row;
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      await db.delete(workoutMemos).where(eq(workoutMemos.id, input.id));
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({
   auth: authRouter,
@@ -908,6 +1017,7 @@ export const appRouter = t.router({
   trainers: trainersRouter,
   admin: adminRouter,
   dashboard: dashboardRouter,
+  workoutMemos: workoutMemosRouter,
 });
 
 export type AppRouter = typeof appRouter;

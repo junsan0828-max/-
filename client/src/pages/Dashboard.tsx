@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
-  AlertTriangle, UserPlus, ChevronRight, UserCog,
+  AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 
@@ -82,6 +82,8 @@ function TrainerDashboard() {
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
   const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
+  const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
+  const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -194,6 +196,94 @@ function TrainerDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* 재등록 안내 회원 (PT 5회 이하) */}
+      {lowSessions && lowSessions.length > 0 && (
+        <Card className="bg-card border-border border-blue-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-blue-400" />
+              <span className="text-blue-400">재등록 안내 회원</span>
+              <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">5세션 이하</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {lowSessions.map((item) => {
+              const remaining = item.totalSessions - item.usedSessions;
+              return (
+                <button key={`${item.id}-${item.packageName}`} onClick={() => setLocation(`/members/${item.id}`)}
+                  className="w-full flex items-center justify-between p-2.5 rounded-md bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 transition-colors text-left">
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xs">{item.name.charAt(0)}</div>
+                    <div>
+                      <p className="text-sm font-medium">{item.name}</p>
+                      {item.packageName && <p className="text-xs text-muted-foreground">{item.packageName}</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-blue-400">잔여 {remaining}회</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 장기 미출석 회원 (2주 이상) */}
+      {longAbsent && longAbsent.length > 0 && (
+        <Card className="bg-card border-border border-red-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-4 w-4 text-red-400" />
+              <span className="text-red-400">장기 미출석 회원</span>
+              <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">2주 이상</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {longAbsent.map((item) => (
+              <button key={item.id} onClick={() => setLocation(`/members/${item.id}`)}
+                className="w-full flex items-center justify-between p-2.5 rounded-md bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-colors text-left">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 font-bold text-xs">{item.name.charAt(0)}</div>
+                  <div>
+                    <p className="text-sm font-medium">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.lastAttendDate ? `마지막 출석: ${item.lastAttendDate}` : "출석 기록 없음"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-red-400">미출석</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 빠른 액션 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">빠른 액션</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setLocation("/members/new")}
+            className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-colors"
+          >
+            <UserPlus className="h-6 w-6 text-primary" />
+            <span className="text-sm font-medium text-primary">회원 등록</span>
+          </button>
+          <button
+            onClick={() => setLocation("/members")}
+            className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-green-500/10 border border-green-500/20 hover:bg-green-500/20 transition-colors"
+          >
+            <Calendar className="h-6 w-6 text-green-400" />
+            <span className="text-sm font-medium text-green-400">출석 관리</span>
+          </button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

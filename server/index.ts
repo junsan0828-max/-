@@ -154,6 +154,15 @@ function initDatabase() {
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS workout_memos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memberId INTEGER NOT NULL,
+    trainerId INTEGER NOT NULL,
+    memoDate TEXT NOT NULL,
+    content TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   console.log("✅ 테이블 준비 완료");
 
   // 관리자 계정 생성 (없으면)

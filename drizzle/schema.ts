@@ -97,6 +97,16 @@ export const ptSessionLogs = sqliteTable("pt_session_logs", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+// 운동 메모
+export const workoutMemos = sqliteTable("workout_memos", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  memoDate: text("memoDate").notNull(),
+  content: text("content").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 // 결제 내역
 export const payments = sqliteTable("payments", {
   id: integer("id").primaryKey({ autoIncrement: true }),

@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   Crown,
@@ -37,6 +38,7 @@ import {
   Plus,
   Dumbbell,
   Trash2,
+  BookOpen,
 } from "lucide-react";
 
 interface Props {
@@ -85,6 +87,8 @@ export default function MemberDetail({ memberId }: Props) {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [unpaidOpen, setUnpaidOpen] = useState(false);
+  const [memoOpen, setMemoOpen] = useState(false);
+  const [memoForm, setMemoForm] = useState({ memoDate: new Date().toISOString().split("T")[0], content: "" });
   const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
     packageId: 0,
     current: 0,
@@ -97,6 +101,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
   const { data: trainers } = trpc.trainers.list.useQuery();
+  const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -116,6 +121,22 @@ export default function MemberDetail({ memberId }: Props) {
     },
     onError: (err) =>
       toast.error(err.message === "CONFLICT" ? "오늘 이미 출석 체크되었습니다." : err.message),
+  });
+
+  // 운동 메모 추가
+  const createMemoMutation = trpc.workoutMemos.create.useMutation({
+    onSuccess: () => {
+      toast.success("운동 메모가 저장되었습니다.");
+      setMemoOpen(false);
+      setMemoForm({ memoDate: new Date().toISOString().split("T")[0], content: "" });
+      refetchMemos();
+    },
+    onError: (err) => toast.error(err.message || "저장 실패"),
+  });
+
+  const deleteMemoMutation = trpc.workoutMemos.delete.useMutation({
+    onSuccess: () => { toast.success("메모가 삭제되었습니다."); refetchMemos(); },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
   // PT 세션 사용
@@ -177,6 +198,12 @@ export default function MemberDetail({ memberId }: Props) {
   const trainer = trainers?.find((t) => t.id === member.trainerId);
   const todayStr = new Date().toISOString().split("T")[0];
   const checkedInToday = attendanceList?.some((a) => a.attendDate === todayStr);
+
+  const remainingPt = ptPackages
+    ?.filter(p => p.status === "active")
+    .reduce((sum, p) => sum + (p.totalSessions - p.usedSessions), 0) ?? 0;
+  const totalAttendance = attendanceList?.filter(a => a.status === "attended").length ?? 0;
+  const memoCount = memoList?.length ?? 0;
 
   return (
     <div className="space-y-4">
@@ -243,12 +270,30 @@ export default function MemberDetail({ memberId }: Props) {
         </div>
       </div>
 
+      {/* 요약 통계 카드 */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 PT 횟수" },
+          { icon: <CheckCircle className="h-5 w-5 text-green-400" />, value: totalAttendance, label: "총 출석 횟수" },
+          { icon: <BookOpen className="h-5 w-5 text-blue-400" />, value: memoCount, label: "운동 메모" },
+        ].map((item) => (
+          <Card key={item.label} className="bg-card border-border">
+            <CardContent className="p-3 flex flex-col items-start gap-1">
+              {item.icon}
+              <p className="text-xl font-bold">{item.value}</p>
+              <p className="text-xs text-muted-foreground leading-tight">{item.label}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       {/* 탭 */}
       <Tabs defaultValue="info">
         <TabsList className="w-full">
-          <TabsTrigger value="info" className="flex-1">기본 정보</TabsTrigger>
-          <TabsTrigger value="pt" className="flex-1">PT 프로그램</TabsTrigger>
-          <TabsTrigger value="attendance" className="flex-1">출석</TabsTrigger>
+          <TabsTrigger value="info" className="flex-1 text-xs">기본 정보</TabsTrigger>
+          <TabsTrigger value="pt" className="flex-1 text-xs">PT 프로그램</TabsTrigger>
+          <TabsTrigger value="memo" className="flex-1 text-xs">운동 메모</TabsTrigger>
+          <TabsTrigger value="attendance" className="flex-1 text-xs">출석</TabsTrigger>
         </TabsList>
 
         {/* ── 기본 정보 탭 ── */}
@@ -513,6 +558,86 @@ export default function MemberDetail({ memberId }: Props) {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── 운동 메모 탭 ── */}
+        <TabsContent value="memo" className="mt-4">
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 sm:px-6 pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-blue-400" />운동 메모
+              </CardTitle>
+              <Dialog open={memoOpen} onOpenChange={setMemoOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1.5 text-xs">
+                    <Plus className="h-3.5 w-3.5" />
+                    메모 작성
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>운동 메모 작성</DialogTitle>
+                    <DialogDescription>{member.name}님의 운동 메모를 작성합니다.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">날짜</Label>
+                      <Input
+                        type="date"
+                        value={memoForm.memoDate}
+                        onChange={(e) => setMemoForm(p => ({ ...p, memoDate: e.target.value }))}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">내용</Label>
+                      <Textarea
+                        value={memoForm.content}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMemoForm(p => ({ ...p, content: e.target.value }))}
+                        placeholder="오늘의 운동 내용, 특이사항 등을 기록하세요."
+                        rows={5}
+                        className="text-sm resize-none"
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <Button variant="outline" className="flex-1" onClick={() => setMemoOpen(false)}>취소</Button>
+                      <Button
+                        className="flex-1"
+                        disabled={!memoForm.content.trim() || createMemoMutation.isPending}
+                        onClick={() => createMemoMutation.mutate({ memberId, memoDate: memoForm.memoDate, content: memoForm.content })}
+                      >
+                        {createMemoMutation.isPending ? "저장 중..." : "저장"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              {!memoList?.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">운동 메모가 없습니다.</p>
+              ) : (
+                <div className="space-y-3">
+                  {memoList.map((memo) => (
+                    <div key={memo.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-primary">
+                          {format(new Date(memo.memoDate), "yyyy.MM.dd (EEE)", { locale: ko })}
+                        </p>
+                        <button
+                          onClick={() => deleteMemoMutation.mutate({ id: memo.id })}
+                          className="text-muted-foreground hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{memo.content}</p>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
