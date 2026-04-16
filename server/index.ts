@@ -61,19 +61,18 @@ if (fs.existsSync(clientDistPath)) {
 
 // DB 초기화 + 시드 (첫 실행 시 자동)
 async function initDb() {
-  const db = getDb();
-  if (!db) return;
   try {
+    const { db } = await import("./db");
     const { users } = await import("../drizzle/schema");
     const { eq } = await import("drizzle-orm");
-    const existing = db.select({ id: users.id }).from(users).where(eq(users.username, "admin")).all();
+    const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin"));
     if (existing.length === 0) {
       console.log("🌱 초기 데이터 생성 중...");
       const { execSync } = await import("child_process");
       execSync("npx tsx server/seed.ts", { stdio: "inherit", cwd: process.cwd() });
     }
   } catch (e) {
-    // 시드 실패해도 서버는 계속 실행
+    console.error("initDb error:", e);
   }
 }
 
