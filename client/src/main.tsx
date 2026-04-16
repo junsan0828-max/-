@@ -1,3 +1,12 @@
+// 맨 처음 실행 - JS 로딩 여부 표시
+(function() {
+  const d = document.createElement('div');
+  d.id = '_jstest';
+  d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#0066cc;color:white;padding:12px;font-size:16px;z-index:99999;text-align:center';
+  d.textContent = '⏳ 앱 초기화 중...';
+  document.documentElement.appendChild(d);
+})();
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
