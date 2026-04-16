@@ -12,7 +12,7 @@ const PORT = parseInt(process.env.PORT || "3000");
 
 app.use(
   cors({
-    origin: process.env.NODE_ENV === "production" ? false : "http://localhost:5173",
+    origin: true, // 동일 서버에서 클라이언트 서빙하므로 모든 origin 허용
     credentials: true,
   })
 );
