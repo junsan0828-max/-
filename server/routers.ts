@@ -300,6 +300,46 @@ const membersRouter = t.router({
         .where(eq(payments.memberId, input.memberId))
         .orderBy(desc(payments.createdAt));
     }),
+
+  addPayment: protectedProcedure
+    .input(
+      z.object({
+        memberId: z.number(),
+        amount: z.number().min(1),
+        paymentDate: z.string().optional(),
+        paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
+        memo: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const today = new Date().toISOString().split("T")[0];
+      await db.insert(payments).values({
+        memberId: input.memberId,
+        trainerId,
+        amount: input.amount,
+        paymentDate: input.paymentDate ?? today,
+        paymentMethod: input.paymentMethod,
+        memo: input.memo,
+      });
+
+      return { success: true };
+    }),
+
+  deletePayment: protectedProcedure
+    .input(z.object({ paymentId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      await db.delete(payments).where(eq(payments.id, input.paymentId));
+      return { success: true };
+    }),
 });
 
 // ─── PT Packages ─────────────────────────────────────────────────────────────
@@ -325,11 +365,59 @@ const ptRouter = t.router({
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
     return db
-      .select()
+      .select({
+        id: ptPackages.id,
+        memberId: ptPackages.memberId,
+        trainerId: ptPackages.trainerId,
+        totalSessions: ptPackages.totalSessions,
+        usedSessions: ptPackages.usedSessions,
+        packageName: ptPackages.packageName,
+        startDate: ptPackages.startDate,
+        expiryDate: ptPackages.expiryDate,
+        status: ptPackages.status,
+        price: ptPackages.price,
+        pricePerSession: ptPackages.pricePerSession,
+        paymentAmount: ptPackages.paymentAmount,
+        unpaidAmount: ptPackages.unpaidAmount,
+        paymentMethod: ptPackages.paymentMethod,
+        paymentMemo: ptPackages.paymentMemo,
+        createdAt: ptPackages.createdAt,
+        updatedAt: ptPackages.updatedAt,
+        memberName: members.name,
+        memberPhone: members.phone,
+      })
       .from(ptPackages)
+      .leftJoin(members, eq(ptPackages.memberId, members.id))
       .where(eq(ptPackages.trainerId, trainerId))
       .orderBy(desc(ptPackages.createdAt));
   }),
+
+  listSessionLogs: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      return db
+        .select()
+        .from(ptSessionLogs)
+        .where(eq(ptSessionLogs.memberId, input.memberId))
+        .orderBy(desc(ptSessionLogs.sessionDate));
+    }),
+
+  updateUnpaid: protectedProcedure
+    .input(z.object({ packageId: z.number(), unpaidAmount: z.number().min(0) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      await db
+        .update(ptPackages)
+        .set({ unpaidAmount: input.unpaidAmount })
+        .where(eq(ptPackages.id, input.packageId));
+
+      return { success: true };
+    }),
 
   // 기존 회원에게 PT 패키지 추가
   addPackage: protectedProcedure
@@ -465,6 +553,52 @@ const attendancesRouter = t.router({
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
       await db.insert(attendances).values({ ...input, trainerId });
+      return { success: true };
+    }),
+
+  // 수동 출석 기록 (날짜 + 상태 직접 입력)
+  createManual: protectedProcedure
+    .input(
+      z.object({
+        memberId: z.number(),
+        attendDate: z.string(),
+        status: z.enum(["attended", "absent", "noshow"]).default("attended"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      // 같은 날짜 기록 있으면 업데이트, 없으면 삽입
+      const existing = await db
+        .select({ id: attendances.id })
+        .from(attendances)
+        .where(
+          and(
+            eq(attendances.memberId, input.memberId),
+            eq(attendances.trainerId, trainerId),
+            sql`${attendances.attendDate} = ${input.attendDate}`
+          )
+        )
+        .limit(1);
+
+      if (existing[0]) {
+        await db
+          .update(attendances)
+          .set({ status: input.status })
+          .where(eq(attendances.id, existing[0].id));
+      } else {
+        await db.insert(attendances).values({
+          memberId: input.memberId,
+          trainerId,
+          attendDate: input.attendDate,
+          status: input.status,
+        });
+      }
+
       return { success: true };
     }),
 

@@ -84,10 +84,23 @@ export async function getDashboardStats(trainerId: number) {
         )
       );
 
+    // 이번 달 노쇼 카운트
+    const monthNoShowResult = await db
+      .select({ count: sql`COUNT(*)` })
+      .from(attendances)
+      .where(
+        and(
+          eq(attendances.trainerId, trainerId),
+          eq(attendances.status, "noshow"),
+          sql`${attendances.attendDate} >= ${new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0]}`
+        )
+      );
+
     const totalMembers = Number((totalMembersResult[0] as any)?.count ?? 0);
     const activeMembers = Number((activeMembersResult[0] as any)?.count ?? 0);
     const totalPtSessions = Number((totalPtResult[0] as any)?.count ?? 0);
     const todayAttendances = Number((todayAttendancesResult[0] as any)?.count ?? 0);
+    const noShowCount = Number((monthNoShowResult[0] as any)?.count ?? 0);
 
     // 트레이너 정산 비율 조회 (기본값: 50%)
     const trainerSettingsResult = await db
@@ -153,7 +166,7 @@ export async function getDashboardStats(trainerId: number) {
       todayAttendances,
       totalPtSessions,
       settlementAmount: monthlySettlement,
-      noShowCount: 0,
+      noShowCount,
       dailySettlement,
       monthlySettlement,
     };
