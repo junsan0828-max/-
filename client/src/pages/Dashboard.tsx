@@ -25,20 +25,22 @@ function AdminDashboard() {
       {/* 전체 통계 */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400" },
-          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400" },
-          { label: "이번달 매출", value: `${(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원`, icon: TrendingUp, color: "text-yellow-400" },
-          { label: "이번달 정산", value: `${(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원`, icon: Activity, color: "text-purple-400" },
+          { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400", path: "/trainers" },
+          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400", path: "/trainers" },
+          { label: "이번달 매출", value: `${(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원`, icon: TrendingUp, color: "text-yellow-400", path: "/admin" },
+          { label: "이번달 정산", value: `${(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원`, icon: Activity, color: "text-purple-400", path: "/admin" },
         ].map((card) => (
-          <Card key={card.label} className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs text-muted-foreground">{card.label}</p>
-                <card.icon className={`h-4 w-4 ${card.color}`} />
-              </div>
-              <p className="text-xl font-bold">{card.value}</p>
-            </CardContent>
-          </Card>
+          <button key={card.label} onClick={() => setLocation(card.path)} className="text-left">
+            <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-muted-foreground">{card.label}</p>
+                  <card.icon className={`h-4 w-4 ${card.color}`} />
+                </div>
+                <p className="text-xl font-bold">{card.value}</p>
+              </CardContent>
+            </Card>
+          </button>
         ))}
       </div>
 
@@ -103,20 +105,22 @@ function TrainerDashboard() {
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400" },
-          { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400" },
-          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400" },
-          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400" },
+          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", path: "/members" },
+          { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", path: "/members" },
+          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", path: "/members" },
+          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", path: "/pt" },
         ].map((card) => (
-          <Card key={card.label} className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs text-muted-foreground">{card.label}</p>
-                <card.icon className={`h-4 w-4 ${card.color}`} />
-              </div>
-              <p className="text-2xl font-bold">{card.value}</p>
-            </CardContent>
-          </Card>
+          <button key={card.label} onClick={() => setLocation(card.path)} className="text-left">
+            <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-muted-foreground">{card.label}</p>
+                  <card.icon className={`h-4 w-4 ${card.color}`} />
+                </div>
+                <p className="text-2xl font-bold">{card.value}</p>
+              </CardContent>
+            </Card>
+          </button>
         ))}
       </div>
 
@@ -127,14 +131,14 @@ function TrainerDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
-          <div className="p-3 rounded-lg bg-accent/30 border border-border">
+          <button onClick={() => setLocation("/pt")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
             <p className="text-xs text-muted-foreground mb-1">일일 정산</p>
             <p className="text-xl font-bold text-primary">{(stats?.dailySettlement ?? 0).toLocaleString()}원</p>
-          </div>
-          <div className="p-3 rounded-lg bg-accent/30 border border-border">
+          </button>
+          <button onClick={() => setLocation("/pt")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
             <p className="text-xs text-muted-foreground mb-1">월 정산</p>
             <p className="text-xl font-bold text-primary">{(stats?.monthlySettlement ?? 0).toLocaleString()}원</p>
-          </div>
+          </button>
         </CardContent>
       </Card>
 
