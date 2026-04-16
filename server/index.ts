@@ -32,8 +32,12 @@ app.use(
   })
 );
 
+// 테스트 페이지
+app.get("/test", (req, res) => {
+  res.send('<html><body style="background:green;color:white;font-size:24px;padding:20px;font-family:sans-serif">✅ 서버 연결 성공!</body></html>');
+});
+
 app.use(
-  "/trpc",
   createExpressMiddleware({
     router: appRouter,
     createContext: ({ req, res }) => ({
