@@ -3,23 +3,19 @@ import session from "express-session";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
+import bcrypt from "bcryptjs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
-import { getDb } from "./db";
+import { db, client } from "./db";
 import type { AuthUser } from "./auth";
+import { users, trainers, trainerSettings } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
-
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
-
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "trainer-app-secret",
@@ -59,24 +55,137 @@ if (fs.existsSync(clientDistPath)) {
   });
 }
 
-// DB 초기화 + 시드 (첫 실행 시 자동)
-async function initDb() {
-  try {
-    const { db } = await import("./db");
-    const { users } = await import("../drizzle/schema");
-    const { eq } = await import("drizzle-orm");
-    const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin"));
-    if (existing.length === 0) {
-      console.log("🌱 초기 데이터 생성 중...");
-      const { execSync } = await import("child_process");
-      execSync("npx tsx server/seed.ts", { stdio: "inherit", cwd: process.cwd() });
-    }
-  } catch (e) {
-    console.error("initDb error:", e);
+// DB 초기화: 테이블 생성 + 시드 (execSync 없이 순수 async)
+async function initDatabase() {
+  console.log("🔧 DB 초기화 중...");
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'trainer',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS trainers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL UNIQUE,
+    trainerName TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS trainer_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trainerId INTEGER NOT NULL UNIQUE,
+    settlementRate INTEGER NOT NULL DEFAULT 50,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trainerId INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    birthDate TEXT,
+    gender TEXT,
+    grade TEXT NOT NULL DEFAULT 'basic',
+    status TEXT NOT NULL DEFAULT 'active',
+    membershipStart TEXT,
+    membershipEnd TEXT,
+    profileNote TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS pt_packages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memberId INTEGER NOT NULL,
+    trainerId INTEGER,
+    totalSessions INTEGER NOT NULL,
+    usedSessions INTEGER NOT NULL DEFAULT 0,
+    packageName TEXT,
+    startDate TEXT,
+    expiryDate TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    price INTEGER,
+    pricePerSession INTEGER,
+    paymentAmount INTEGER,
+    unpaidAmount INTEGER,
+    paymentMethod TEXT,
+    paymentMemo TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS attendances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memberId INTEGER NOT NULL,
+    trainerId INTEGER NOT NULL,
+    attendDate TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'attended',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS pt_session_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memberId INTEGER NOT NULL,
+    trainerId INTEGER NOT NULL,
+    packageId INTEGER,
+    sessionDate TEXT NOT NULL,
+    notes TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  await client.execute(`CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memberId INTEGER NOT NULL,
+    trainerId INTEGER,
+    amount INTEGER NOT NULL,
+    paymentDate TEXT,
+    paymentMethod TEXT,
+    memo TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  console.log("✅ 테이블 준비 완료");
+
+  // 관리자 계정 생성 (없으면)
+  const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin"));
+  if (existingAdmin.length === 0) {
+    console.log("🌱 초기 데이터 생성 중...");
+    const adminPw = await bcrypt.hash("admin123", 10);
+    await db.insert(users).values({ username: "admin", password: adminPw, role: "admin" });
+    console.log("✅ 관리자: admin / admin123");
+
+    const trainerPw = await bcrypt.hash("trainer123", 10);
+    const [userRow] = await db.insert(users).values({ username: "trainer1", password: trainerPw, role: "trainer" }).returning({ id: users.id });
+    const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: "김트레이너", phone: "010-1234-5678", email: "trainer1@example.com" }).returning({ id: trainers.id });
+    await db.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 60 });
+    console.log("✅ 트레이너: trainer1 / trainer123");
+  } else {
+    console.log("ℹ️  계정 존재 확인");
   }
+
+  console.log("✨ DB 초기화 완료!");
 }
 
-app.listen(PORT, "0.0.0.0", async () => {
-  console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-  await initDb();
-});
+// 서버 시작 (DB 초기화 완료 후)
+async function main() {
+  try {
+    await initDatabase();
+  } catch (e) {
+    console.error("❌ DB 초기화 실패:", e);
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+  });
+}
+
+main();
