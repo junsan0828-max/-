@@ -10,6 +10,7 @@ import TrainerDetail from "./pages/TrainerDetail";
 import Trainers from "./pages/Trainers";
 import Admin from "./pages/Admin";
 import PT from "./pages/PT";
+import Profile from "./pages/Profile";
 import Layout from "./components/Layout";
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
         <Route path="/admin">{() => <Admin />}</Route>
+        <Route path="/profile">{() => <Profile />}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
       </Switch>
     </Layout>

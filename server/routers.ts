@@ -665,6 +665,50 @@ const trainersRouter = t.router({
 
       return { success: true };
     }),
+
+  // 내 프로필 조회 (트레이너 본인)
+  getMyProfile: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+    const [trainer, settings] = await Promise.all([
+      db.select().from(trainers).where(eq(trainers.id, ctx.user.trainerId)).limit(1),
+      db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, ctx.user.trainerId!)).limit(1),
+    ]);
+    if (!trainer[0]) throw new TRPCError({ code: "NOT_FOUND" });
+    return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50 };
+  }),
+
+  // 내 프로필 수정 (트레이너 본인)
+  updateMyProfile: protectedProcedure
+    .input(z.object({ trainerName: z.string().min(1), phone: z.string().optional(), email: z.string().email().optional().or(z.literal("")) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      await db.update(trainers).set({ trainerName: input.trainerName, phone: input.phone, email: input.email || undefined }).where(eq(trainers.id, ctx.user.trainerId));
+      return { success: true };
+    }),
+
+  // 비밀번호 변경
+  changePassword: protectedProcedure
+    .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const userResult = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (!userResult[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const valid = await bcrypt.compare(input.currentPassword, userResult[0].password);
+      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "현재 비밀번호가 올바르지 않습니다." });
+
+      const hashed = await bcrypt.hash(input.newPassword, 10);
+      await db.update(users).set({ password: hashed }).where(eq(users.id, ctx.user.id));
+      return { success: true };
+    }),
 });
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
@@ -771,20 +815,77 @@ const adminRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 트레이너의 userId 조회
-      const trainerResult = await db
-        .select({ userId: trainers.userId })
-        .from(trainers)
-        .where(eq(trainers.id, input.trainerId))
-        .limit(1);
-
+      const trainerResult = await db.select({ userId: trainers.userId }).from(trainers).where(eq(trainers.id, input.trainerId)).limit(1);
       if (!trainerResult[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
-      // 트레이너 설정, 트레이너, 유저 순으로 삭제
       await db.delete(trainerSettings).where(eq(trainerSettings.trainerId, input.trainerId));
       await db.delete(trainers).where(eq(trainers.id, input.trainerId));
       await db.delete(users).where(eq(users.id, trainerResult[0].userId));
 
+      return { success: true };
+    }),
+
+  // 관리자 전체 통계
+  getStats: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString().split("T")[0];
+
+    const [totalTrainersResult, totalMembersResult, activeMembersResult] = await Promise.all([
+      db.select({ count: sql<number>`COUNT(*)` }).from(trainers),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.status, "active")),
+    ]);
+
+    // 트레이너별 상세 통계
+    const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
+    const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
+      const [memberCnt, settings, monthPt] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
+        db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainer.id)).limit(1),
+        db.select({ total: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession},0)),0)` })
+          .from(attendances)
+          .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
+          .where(and(eq(attendances.trainerId, trainer.id), eq(attendances.status, "attended"), sql`${attendances.attendDate} >= ${monthStart}`, sql`${attendances.attendDate} < ${monthEnd}`)),
+      ]);
+      const rate = settings[0]?.settlementRate ?? 50;
+      const revenue = Number(monthPt[0]?.total ?? 0);
+      return {
+        id: trainer.id,
+        trainerName: trainer.trainerName,
+        phone: trainer.phone,
+        memberCount: Number(memberCnt[0]?.count ?? 0),
+        settlementRate: rate,
+        monthlyRevenue: revenue,
+        monthlySettlement: Math.round(revenue * rate / 100),
+      };
+    }));
+
+    const totalMonthlyRevenue = trainerStats.reduce((s, t) => s + t.monthlyRevenue, 0);
+    const totalMonthlySettlement = trainerStats.reduce((s, t) => s + t.monthlySettlement, 0);
+
+    return {
+      totalTrainers: Number(totalTrainersResult[0]?.count ?? 0),
+      totalMembers: Number(totalMembersResult[0]?.count ?? 0),
+      activeMembers: Number(activeMembersResult[0]?.count ?? 0),
+      totalMonthlyRevenue,
+      totalMonthlySettlement,
+      trainerStats,
+    };
+  }),
+
+  // 정산 비율 수정 (관리자)
+  updateSettlementRate: protectedProcedure
+    .input(z.object({ trainerId: z.number(), settlementRate: z.number().min(0).max(100) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(trainerSettings).set({ settlementRate: input.settlementRate }).where(eq(trainerSettings.trainerId, input.trainerId));
       return { success: true };
     }),
 });
