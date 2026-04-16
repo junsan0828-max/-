@@ -12,12 +12,11 @@ export default function Login() {
   const utils = trpc.useUtils();
 
   const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: (user) => {
-      setErrorMsg("");
-      utils.auth.me.setData(undefined, user);
+    onSuccess: () => {
+      window.location.href = "/";
     },
     onError: (err) => {
-      setErrorMsg(err.message || "로그인 실패");
+      setErrorMsg(err.message || "로그인 실패. 아이디/비밀번호를 확인하세요.");
     },
   });
 
@@ -67,6 +66,11 @@ export default function Login() {
                 autoComplete="current-password"
               />
             </div>
+            {errorMsg && (
+              <div className="text-red-500 text-sm text-center bg-red-500/10 rounded p-2">
+                {errorMsg}
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full"
