@@ -317,6 +317,7 @@ const ptRouter = t.router({
         .orderBy(desc(ptPackages.createdAt));
     }),
 
+  // 회원 이름 포함 전체 PT 패키지 목록
   list: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -325,8 +326,29 @@ const ptRouter = t.router({
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
     return db
-      .select()
+      .select({
+        id: ptPackages.id,
+        memberId: ptPackages.memberId,
+        memberName: members.name,
+        memberPhone: members.phone,
+        trainerId: ptPackages.trainerId,
+        totalSessions: ptPackages.totalSessions,
+        usedSessions: ptPackages.usedSessions,
+        packageName: ptPackages.packageName,
+        startDate: ptPackages.startDate,
+        expiryDate: ptPackages.expiryDate,
+        status: ptPackages.status,
+        price: ptPackages.price,
+        pricePerSession: ptPackages.pricePerSession,
+        paymentAmount: ptPackages.paymentAmount,
+        unpaidAmount: ptPackages.unpaidAmount,
+        paymentMethod: ptPackages.paymentMethod,
+        paymentMemo: ptPackages.paymentMemo,
+        createdAt: ptPackages.createdAt,
+        updatedAt: ptPackages.updatedAt,
+      })
       .from(ptPackages)
+      .innerJoin(members, eq(ptPackages.memberId, members.id))
       .where(eq(ptPackages.trainerId, trainerId))
       .orderBy(desc(ptPackages.createdAt));
   }),
@@ -431,6 +453,38 @@ const ptRouter = t.router({
       });
 
       return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
+    }),
+
+  // 미수금 업데이트 (결제 완료 처리)
+  updatePayment: protectedProcedure
+    .input(
+      z.object({
+        packageId: z.number(),
+        unpaidAmount: z.number().min(0),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const pkgResult = await db
+        .select()
+        .from(ptPackages)
+        .where(eq(ptPackages.id, input.packageId))
+        .limit(1);
+
+      const pkg = pkgResult[0];
+      if (!pkg) throw new TRPCError({ code: "NOT_FOUND", message: "패키지를 찾을 수 없습니다." });
+
+      await db
+        .update(ptPackages)
+        .set({ unpaidAmount: input.unpaidAmount })
+        .where(eq(ptPackages.id, input.packageId));
+
+      return { success: true };
     }),
 });
 

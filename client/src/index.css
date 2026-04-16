@@ -20,6 +20,8 @@
     --input: 216 34% 17%;
     --ring: 210 100% 60%;
     --radius: 0.5rem;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
   }
 }
 

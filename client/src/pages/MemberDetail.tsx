@@ -36,6 +36,7 @@ import {
   CheckCircle,
   Plus,
   Dumbbell,
+  Trash2,
 } from "lucide-react";
 
 interface Props {
@@ -82,12 +83,29 @@ export default function MemberDetail({ memberId }: Props) {
     paymentMemo: "",
   });
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [unpaidOpen, setUnpaidOpen] = useState(false);
+  const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
+    packageId: 0,
+    current: 0,
+    value: "",
+  });
+
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
   const { data: ptPackages, refetch: refetchPt } = trpc.pt.listByMember.useQuery({ memberId });
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
   const { data: trainers } = trpc.trainers.list.useQuery();
+
+  // 회원 삭제
+  const deleteMutation = trpc.members.delete.useMutation({
+    onSuccess: () => {
+      toast.success("회원이 삭제되었습니다.");
+      setLocation("/members");
+    },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
 
   // 출석 체크인
   const checkInMutation = trpc.attendances.checkIn.useMutation({
@@ -107,6 +125,16 @@ export default function MemberDetail({ memberId }: Props) {
       refetchPt();
     },
     onError: (err) => toast.error(err.message || "세션 사용 실패"),
+  });
+
+  // 미수금 업데이트
+  const updatePaymentMutation = trpc.pt.updatePayment.useMutation({
+    onSuccess: () => {
+      toast.success("미수금이 업데이트되었습니다.");
+      setUnpaidOpen(false);
+      refetchPt();
+    },
+    onError: (err) => toast.error(err.message || "업데이트 실패"),
   });
 
   // PT 패키지 추가
@@ -173,15 +201,46 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
           </div>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setLocation(`/members/${memberId}/edit`)}
-          className="gap-1.5"
-        >
-          <Edit className="h-3.5 w-3.5" />
-          수정
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setLocation(`/members/${memberId}/edit`)}
+            className="gap-1.5"
+          >
+            <Edit className="h-3.5 w-3.5" />
+            수정
+          </Button>
+          {/* 삭제 확인 다이얼로그 */}
+          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1.5 text-red-400 hover:text-red-400 border-red-500/30 hover:bg-red-500/10">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-xs">
+              <DialogHeader>
+                <DialogTitle>회원 삭제</DialogTitle>
+                <DialogDescription>
+                  {member.name}님을 삭제하시겠습니까? 모든 데이터가 삭제되며 되돌릴 수 없습니다.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setDeleteOpen(false)}>
+                  취소
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => deleteMutation.mutate({ id: memberId })}
+                >
+                  {deleteMutation.isPending ? "삭제 중..." : "삭제"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* 탭 */}
@@ -422,7 +481,18 @@ export default function MemberDetail({ memberId }: Props) {
                               {pkg.unpaidAmount ? (
                                 <div>
                                   <p className="text-muted-foreground">미수금</p>
-                                  <p className="font-medium text-orange-400">{pkg.unpaidAmount.toLocaleString()}원</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-orange-400">{pkg.unpaidAmount.toLocaleString()}원</p>
+                                    <button
+                                      className="text-xs text-orange-400 underline hover:text-orange-300"
+                                      onClick={() => {
+                                        setUnpaidEdit({ packageId: pkg.id, current: pkg.unpaidAmount ?? 0, value: String(pkg.unpaidAmount ?? 0) });
+                                        setUnpaidOpen(true);
+                                      }}
+                                    >
+                                      수정
+                                    </button>
+                                  </div>
                                 </div>
                               ) : null}
                               {pkg.paymentMethod ? (
@@ -505,6 +575,45 @@ export default function MemberDetail({ memberId }: Props) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 미수금 수정 다이얼로그 */}
+      <Dialog open={unpaidOpen} onOpenChange={setUnpaidOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>미수금 수정</DialogTitle>
+            <DialogDescription>현재 미수금: {unpaidEdit.current.toLocaleString()}원</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">새 미수금 금액</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={unpaidEdit.value}
+                onChange={(e) => setUnpaidEdit((p) => ({ ...p, value: e.target.value }))}
+                className="h-9 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">0원 입력 시 미수금 완납 처리됩니다.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setUnpaidOpen(false)}>취소</Button>
+              <Button
+                className="flex-1"
+                disabled={updatePaymentMutation.isPending}
+                onClick={() =>
+                  updatePaymentMutation.mutate({
+                    packageId: unpaidEdit.packageId,
+                    unpaidAmount: parseInt(unpaidEdit.value) || 0,
+                  })
+                }
+              >
+                {updatePaymentMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
