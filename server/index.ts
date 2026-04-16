@@ -1,6 +1,8 @@
 import express from "express";
 import session from "express-session";
 import cors from "cors";
+import path from "path";
+import fs from "fs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import type { AuthUser } from "./auth";
@@ -42,6 +44,16 @@ app.use(
   })
 );
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+// 프론트엔드 정적 파일 서빙 (빌드된 경우)
+const clientDistPath = path.join(process.cwd(), "client", "dist");
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/trpc")) return next();
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
 });

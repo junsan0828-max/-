@@ -29,24 +29,22 @@ function App() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/members" component={Members} />
-        <Route path="/members/new" component={MemberForm} />
+        <Route path="/">{() => <Dashboard />}</Route>
+        <Route path="/members">{() => <Members />}</Route>
+        <Route path="/members/new">{() => <MemberForm />}</Route>
         <Route path="/members/:id/edit">
-          {(params) => <MemberForm memberId={parseInt(params.id)} />}
+          {(params) => <MemberForm memberId={parseInt(params.id!)} />}
         </Route>
         <Route path="/members/:id">
-          {(params) => <MemberDetail memberId={parseInt(params.id)} />}
+          {(params) => <MemberDetail memberId={parseInt(params.id!)} />}
         </Route>
-        <Route path="/pt" component={PT} />
-        <Route path="/trainers" component={Trainers} />
+        <Route path="/pt">{() => <PT />}</Route>
+        <Route path="/trainers">{() => <Trainers />}</Route>
         <Route path="/trainers/:id">
-          {(params) => <TrainerDetail trainerId={parseInt(params.id)} />}
+          {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
-        <Route path="/admin" component={Admin} />
-        <Route>
-          <Redirect to="/" />
-        </Route>
+        <Route path="/admin">{() => <Admin />}</Route>
+        <Route>{() => <Redirect to="/" />}</Route>
       </Switch>
     </Layout>
   );

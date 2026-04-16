@@ -1,5 +1,6 @@
-import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import path from "path";
 import { eq, and, sql } from "drizzle-orm";
 import {
   members,
@@ -12,22 +13,18 @@ import {
   users,
 } from "../drizzle/schema";
 
-let db: ReturnType<typeof drizzle> | null = null;
+let _db: ReturnType<typeof drizzle> | null = null;
 
-export async function getDb() {
-  if (db) return db;
-
+export function getDb() {
+  if (_db) return _db;
   try {
-    const connection = await mysql.createPool({
-      host: process.env.DB_HOST || "localhost",
-      port: parseInt(process.env.DB_PORT || "3306"),
-      user: process.env.DB_USER || "root",
-      password: process.env.DB_PASSWORD || "",
-      database: process.env.DB_NAME || "trainer_app",
-    });
-    db = drizzle(connection);
-    console.log("[DB] Connected successfully");
-    return db;
+    const dbPath = path.join(process.cwd(), "trainer.db");
+    const sqlite = new Database(dbPath);
+    sqlite.pragma("journal_mode = WAL");
+    sqlite.pragma("foreign_keys = ON");
+    _db = drizzle(sqlite);
+    console.log("[DB] SQLite connected:", dbPath);
+    return _db;
   } catch (error) {
     console.error("[DB] Connection failed:", error);
     return null;
@@ -35,8 +32,8 @@ export async function getDb() {
 }
 
 // 대시보드 통계
-export async function getDashboardStats(trainerId: number) {
-  const db = await getDb();
+export function getDashboardStats(trainerId: number) {
+  const db = getDb();
   if (!db)
     return {
       totalMembers: 0,
@@ -50,55 +47,51 @@ export async function getDashboardStats(trainerId: number) {
     };
 
   try {
-    const totalMembersResult = await db
-      .select({ count: sql`COUNT(*)` })
+    const totalMembersResult = db
+      .select({ count: sql<number>`COUNT(*)` })
       .from(members)
-      .where(eq(members.trainerId, trainerId));
+      .where(eq(members.trainerId, trainerId))
+      .all();
 
-    const activeMembersResult = await db
-      .select({ count: sql`COUNT(*)` })
+    const activeMembersResult = db
+      .select({ count: sql<number>`COUNT(*)` })
       .from(members)
-      .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")));
+      .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")))
+      .all();
 
-    const totalPtResult = await db
-      .select({ count: sql`COUNT(*)` })
+    const totalPtResult = db
+      .select({ count: sql<number>`COUNT(*)` })
       .from(ptSessionLogs)
-      .where(eq(ptSessionLogs.trainerId, trainerId));
+      .where(eq(ptSessionLogs.trainerId, trainerId))
+      .all();
 
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
-    const todayStart = todayStr;
-    const todayEnd = new Date(today.getTime() + 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
 
-    const todayAttendancesResult = await db
-      .select({ count: sql`COUNT(*)` })
+    const todayAttendancesResult = db
+      .select({ count: sql<number>`COUNT(*)` })
       .from(attendances)
       .where(
         and(
           eq(attendances.trainerId, trainerId),
           eq(attendances.status, "attended"),
-          sql`${attendances.attendDate} >= ${todayStart}`,
-          sql`${attendances.attendDate} < ${todayEnd}`
+          eq(attendances.attendDate, todayStr)
         )
-      );
+      )
+      .all();
 
-    const totalMembers = Number((totalMembersResult[0] as any)?.count ?? 0);
-    const activeMembers = Number((activeMembersResult[0] as any)?.count ?? 0);
-    const totalPtSessions = Number((totalPtResult[0] as any)?.count ?? 0);
-    const todayAttendances = Number((todayAttendancesResult[0] as any)?.count ?? 0);
+    const totalMembers = Number(totalMembersResult[0]?.count ?? 0);
+    const activeMembers = Number(activeMembersResult[0]?.count ?? 0);
+    const totalPtSessions = Number(totalPtResult[0]?.count ?? 0);
+    const todayAttendances = Number(todayAttendancesResult[0]?.count ?? 0);
 
-    // 트레이너 정산 비율 조회 (기본값: 50%)
-    const trainerSettingsResult = await db
+    const trainerSettingsResult = db
       .select({ settlementRate: trainerSettings.settlementRate })
       .from(trainerSettings)
-      .where(eq(trainerSettings.trainerId, trainerId));
-    const settlementRate = Number(
-      (trainerSettingsResult[0] as any)?.settlementRate ?? 50
-    );
+      .where(eq(trainerSettings.trainerId, trainerId))
+      .all();
+    const settlementRate = Number(trainerSettingsResult[0]?.settlementRate ?? 50);
 
-    // 월 정산금액 계산
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
       .toISOString()
       .split("T")[0];
@@ -106,9 +99,9 @@ export async function getDashboardStats(trainerId: number) {
       .toISOString()
       .split("T")[0];
 
-    const monthSettlementResult = await db
+    const monthSettlementResult = db
       .select({
-        totalSettlement: sql`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession}, 0)), 0)`,
+        totalSettlement: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession}, 0)), 0)`,
       })
       .from(attendances)
       .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
@@ -119,17 +112,15 @@ export async function getDashboardStats(trainerId: number) {
           sql`${attendances.attendDate} >= ${monthStart}`,
           sql`${attendances.attendDate} < ${monthEnd}`
         )
-      );
+      )
+      .all();
 
-    const totalSettlement = Number(
-      (monthSettlementResult[0] as any)?.totalSettlement ?? 0
-    );
+    const totalSettlement = Number(monthSettlementResult[0]?.totalSettlement ?? 0);
     const monthlySettlement = Math.round((totalSettlement * settlementRate) / 100);
 
-    // 일일 정산금액 계산
-    const todaySettlementResult = await db
+    const todaySettlementResult = db
       .select({
-        totalSettlement: sql`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession}, 0)), 0)`,
+        totalSettlement: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession}, 0)), 0)`,
       })
       .from(attendances)
       .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
@@ -137,14 +128,12 @@ export async function getDashboardStats(trainerId: number) {
         and(
           eq(attendances.trainerId, trainerId),
           eq(attendances.status, "attended"),
-          sql`${attendances.attendDate} >= ${todayStart}`,
-          sql`${attendances.attendDate} < ${todayEnd}`
+          eq(attendances.attendDate, todayStr)
         )
-      );
+      )
+      .all();
 
-    const todayTotalSettlement = Number(
-      (todaySettlementResult[0] as any)?.totalSettlement ?? 0
-    );
+    const todayTotalSettlement = Number(todaySettlementResult[0]?.totalSettlement ?? 0);
     const dailySettlement = Math.round((todayTotalSettlement * settlementRate) / 100);
 
     return {

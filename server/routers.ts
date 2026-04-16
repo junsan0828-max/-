@@ -218,8 +218,8 @@ const membersRouter = t.router({
       const [insertResult] = await db.insert(members).values({
         ...memberData,
         trainerId,
-      });
-      const memberId = (insertResult as any).insertId;
+      }).returning({ id: members.id });
+      const memberId = insertResult.id;
 
       if (ptSessions) {
         const sessionCount = parseInt(ptSessions);
@@ -716,8 +716,8 @@ const adminRouter = t.router({
         username: input.username,
         password: hashed,
         role: "trainer",
-      });
-      const userId = (userInsert as any).insertId;
+      }).returning({ id: users.id });
+      const userId = userInsert.id;
 
       // 트레이너 프로필 생성
       const [trainerInsert] = await db.insert(trainers).values({
@@ -725,8 +725,8 @@ const adminRouter = t.router({
         trainerName: input.trainerName,
         phone: input.phone,
         email: input.email,
-      });
-      const trainerId = (trainerInsert as any).insertId;
+      }).returning({ id: trainers.id });
+      const trainerId = trainerInsert.id;
 
       // 트레이너 설정 생성
       await db.insert(trainerSettings).values({
@@ -766,7 +766,7 @@ const adminRouter = t.router({
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 const dashboardRouter = t.router({
-  getStats: protectedProcedure.query(async ({ ctx }) => {
+  getStats: protectedProcedure.query(({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
     return getDashboardStats(trainerId);
