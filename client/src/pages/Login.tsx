@@ -12,13 +12,12 @@ export default function Login() {
   const utils = trpc.useUtils();
 
   const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: () => {
+    onSuccess: (user) => {
       setErrorMsg("");
-      utils.auth.me.invalidate();
+      utils.auth.me.setData(undefined, user);
     },
     onError: (err) => {
       setErrorMsg(err.message || "로그인 실패");
-      toast.error(err.message || "로그인 실패");
     },
   });
 

@@ -14,6 +14,7 @@ import { eq } from "drizzle-orm";
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
 
+app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(
