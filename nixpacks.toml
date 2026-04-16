@@ -5,7 +5,7 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = ["npm run build", "npx drizzle-kit push --config=drizzle.config.ts"]
+cmds = ["npm run build", "npx drizzle-kit push --config=drizzle.config.ts", "npx tsx server/seed.ts"]
 
 [start]
 cmd = "npm start"
