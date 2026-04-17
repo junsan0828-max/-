@@ -8,6 +8,8 @@ import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
 import TrainerDetail from "./pages/TrainerDetail";
 import ParQ from "./pages/ParQ";
+import AttendancePage from "./pages/AttendancePage";
+import AttendanceCheck from "./pages/AttendanceCheck";
 import Trainers from "./pages/Trainers";
 import Admin from "./pages/Admin";
 import PT from "./pages/PT";
@@ -47,6 +49,10 @@ function App() {
         </Route>
         <Route path="/members/:id">
           {(params) => <MemberDetail memberId={parseInt(params.id!)} />}
+        </Route>
+        <Route path="/attendance">{() => <AttendancePage />}</Route>
+        <Route path="/attendance/:id">
+          {(params) => <AttendanceCheck memberId={parseInt(params.id!)} />}
         </Route>
         <Route path="/pt">{() => <PT />}</Route>
         <Route path="/trainers">{() => <Trainers />}</Route>

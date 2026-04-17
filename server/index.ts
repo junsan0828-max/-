@@ -163,6 +163,25 @@ function initDatabase() {
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS attendance_checks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memberId INTEGER NOT NULL,
+    trainerId INTEGER NOT NULL,
+    checkDate TEXT NOT NULL,
+    checkTime TEXT,
+    status TEXT NOT NULL DEFAULT 'attended',
+    conditionScore INTEGER,
+    sleepHours TEXT,
+    energyLevel TEXT,
+    diet TEXT,
+    painLevel INTEGER,
+    painArea TEXT,
+    painSide TEXT,
+    notes TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   sqlite.exec(`CREATE TABLE IF NOT EXISTS par_q (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     memberId INTEGER NOT NULL UNIQUE,

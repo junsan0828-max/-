@@ -3,7 +3,7 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
-  UserCog, Settings, User,
+  UserCog, Settings, User, ClipboardCheck,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -24,6 +24,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
     { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
     { path: "/profile", label: "내 프로필", icon: User },
   ];

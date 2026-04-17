@@ -150,6 +150,27 @@ export const parQ = sqliteTable("par_q", {
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
+
+// 수업 전 컨디션 체크
+export const attendanceChecks = sqliteTable("attendance_checks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  checkDate: text("checkDate").notNull(),
+  checkTime: text("checkTime"),
+  status: text("status", { enum: ["attended", "noshow", "cancelled"] }).default("attended").notNull(),
+  conditionScore: integer("conditionScore"),
+  sleepHours: text("sleepHours"),
+  energyLevel: text("energyLevel"),
+  diet: text("diet"),
+  painLevel: integer("painLevel"),
+  painArea: text("painArea"),
+  painSide: text("painSide"),
+  notes: text("notes"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
 export const payments = sqliteTable("payments", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   memberId: integer("memberId").notNull(),

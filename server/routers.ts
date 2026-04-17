@@ -14,6 +14,7 @@ import {
   payments,
   workoutMemos,
   parQ,
+  attendanceChecks,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -1132,6 +1133,116 @@ const workoutMemosRouter = t.router({
     }),
 });
 
+// ─── Attendance Checks ────────────────────────────────────────────────────────
+const attendanceChecksRouter = t.router({
+  listByDate: protectedProcedure
+    .input(z.object({ date: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const memberList = await db
+        .select({ id: members.id, name: members.name, status: members.status })
+        .from(members)
+        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")))
+        .orderBy(members.name);
+
+      const checks = await db
+        .select()
+        .from(attendanceChecks)
+        .where(and(eq(attendanceChecks.trainerId, trainerId), eq(attendanceChecks.checkDate, input.date)));
+
+      const checkMap = new Map(checks.map((c) => [c.memberId, c]));
+
+      return memberList.map((m) => ({ ...m, check: checkMap.get(m.id) ?? null }));
+    }),
+
+  recentSummary: protectedProcedure.query(async ({ ctx }) => {
+    const db = getDb();
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+    const rows = await db
+      .select({ checkDate: attendanceChecks.checkDate })
+      .from(attendanceChecks)
+      .where(and(eq(attendanceChecks.trainerId, trainerId), eq(attendanceChecks.status, "attended")))
+      .orderBy(desc(attendanceChecks.checkDate));
+
+    const grouped: Record<string, number> = {};
+    for (const r of rows) {
+      grouped[r.checkDate] = (grouped[r.checkDate] ?? 0) + 1;
+    }
+    return Object.entries(grouped)
+      .map(([date, count]) => ({ date, count }))
+      .slice(0, 10);
+  }),
+
+  getByMemberDate: protectedProcedure
+    .input(z.object({ memberId: z.number(), date: z.string() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(attendanceChecks)
+        .where(and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.date)))
+        .limit(1);
+      return rows[0] ?? null;
+    }),
+
+  upsert: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      checkDate: z.string(),
+      checkTime: z.string().optional(),
+      status: z.enum(["attended", "noshow", "cancelled"]).default("attended"),
+      conditionScore: z.number().min(1).max(5).optional(),
+      sleepHours: z.string().optional(),
+      energyLevel: z.string().optional(),
+      diet: z.string().optional(),
+      painLevel: z.number().min(0).max(10).optional(),
+      painArea: z.string().optional(),
+      painSide: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { memberId, checkDate, ...fields } = input;
+      const existing = await db
+        .select({ id: attendanceChecks.id })
+        .from(attendanceChecks)
+        .where(and(eq(attendanceChecks.memberId, memberId), eq(attendanceChecks.checkDate, checkDate)))
+        .limit(1);
+
+      if (existing[0]) {
+        await db.update(attendanceChecks)
+          .set({ ...fields, updatedAt: sql`(datetime('now'))` })
+          .where(eq(attendanceChecks.id, existing[0].id));
+      } else {
+        await db.insert(attendanceChecks).values({ memberId, trainerId, checkDate, ...fields });
+      }
+
+      // attendances 테이블도 동기화
+      const today = checkDate;
+      const existingAtt = await db
+        .select({ id: attendances.id })
+        .from(attendances)
+        .where(and(eq(attendances.memberId, memberId), eq(attendances.attendDate, today)))
+        .limit(1);
+      const attStatus = input.status === "attended" ? "attended" : input.status === "noshow" ? "noshow" : "absent";
+      if (existingAtt[0]) {
+        await db.update(attendances).set({ status: attStatus }).where(eq(attendances.id, existingAtt[0].id));
+      } else {
+        await db.insert(attendances).values({ memberId, trainerId, attendDate: today, status: attStatus });
+      }
+
+      return { success: true };
+    }),
+});
+
 // ─── PAR-Q ────────────────────────────────────────────────────────────────────
 const parQSchema = z.object({
   memberId: z.number(),
@@ -1185,6 +1296,7 @@ export const appRouter = t.router({
   dashboard: dashboardRouter,
   workoutMemos: workoutMemosRouter,
   parQ: parQRouter,
+  attendanceChecks: attendanceChecksRouter,
 });
 
 export type AppRouter = typeof appRouter;
