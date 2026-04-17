@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -39,6 +39,8 @@ import {
   Dumbbell,
   Trash2,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface Props {
@@ -85,6 +87,10 @@ export default function MemberDetail({ memberId }: Props) {
     paymentMemo: "",
   });
 
+  const [calendarDate, setCalendarDate] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [unpaidOpen, setUnpaidOpen] = useState(false);
   const [memoOpen, setMemoOpen] = useState(false);
@@ -198,6 +204,33 @@ export default function MemberDetail({ memberId }: Props) {
   const trainer = trainers?.find((t) => t.id === member.trainerId);
   const todayStr = new Date().toISOString().split("T")[0];
   const checkedInToday = attendanceList?.some((a) => a.attendDate === todayStr);
+
+  // 달력 계산
+  const attendanceMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    attendanceList?.forEach((a) => { if (a.attendDate) map[a.attendDate] = a.status; });
+    return map;
+  }, [attendanceList]);
+
+  const calendarDays = useMemo(() => {
+    const { year, month } = calendarDate;
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const days: (number | null)[] = Array(firstDay).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) days.push(d);
+    while (days.length % 7 !== 0) days.push(null);
+    return days;
+  }, [calendarDate]);
+
+  const moveMonth = (delta: number) => {
+    setCalendarDate((prev) => {
+      let m = prev.month + delta;
+      let y = prev.year;
+      if (m < 0) { m = 11; y--; }
+      if (m > 11) { m = 0; y++; }
+      return { year: y, month: m };
+    });
+  };
 
   const remainingPt = ptPackages
     ?.filter(p => p.status === "active")
@@ -645,56 +678,87 @@ export default function MemberDetail({ memberId }: Props) {
         </TabsContent>
 
         {/* ── 출석 탭 ── */}
-        <TabsContent value="attendance" className="mt-4">
-          <Card className="bg-card border-border">
-            <CardHeader className="px-4 sm:px-6 pb-3">
-              <CardTitle className="text-base">출석 기록</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 sm:px-6 space-y-4">
-              {/* 오늘 출석 체크 버튼 */}
-              <Button
-                className={`w-full gap-2 ${
-                  checkedInToday
-                    ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
-                    : ""
-                }`}
-                disabled={checkedInToday || checkInMutation.isPending}
-                onClick={() => checkInMutation.mutate({ memberId })}
-              >
-                <CheckCircle className="h-4 w-4" />
-                {checkedInToday ? "오늘 출석 완료 ✓" : checkInMutation.isPending ? "체크 중..." : "오늘 출석 체크"}
-              </Button>
+        <TabsContent value="attendance" className="mt-4 space-y-3">
+          {/* 출석 체크 버튼 */}
+          <Button
+            className={`w-full gap-2 ${
+              checkedInToday
+                ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
+                : ""
+            }`}
+            disabled={checkedInToday || checkInMutation.isPending}
+            onClick={() => checkInMutation.mutate({ memberId })}
+          >
+            <CheckCircle className="h-4 w-4" />
+            {checkedInToday ? "오늘 출석 완료 ✓" : checkInMutation.isPending ? "체크 중..." : "오늘 출석 체크"}
+          </Button>
 
-              {/* 출석 기록 목록 */}
-              {!attendanceList?.length ? (
-                <p className="text-muted-foreground text-sm text-center py-6">출석 기록이 없습니다.</p>
-              ) : (
-                <div className="space-y-2">
-                  {attendanceList.slice(0, 30).map((att) => (
+          {/* 달력 카드 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 pb-2 pt-4">
+              <div className="flex items-center justify-between">
+                <button onClick={() => moveMonth(-1)} className="p-1.5 rounded-md hover:bg-accent transition-colors">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <p className="text-sm font-semibold">
+                  {calendarDate.year}년 {calendarDate.month + 1}월
+                </p>
+                <button onClick={() => moveMonth(1)} className="p-1.5 rounded-md hover:bg-accent transition-colors">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-3 pb-4">
+              {/* 요일 헤더 */}
+              <div className="grid grid-cols-7 mb-1">
+                {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
+                  <div key={d} className="text-center text-xs text-muted-foreground py-1">{d}</div>
+                ))}
+              </div>
+              {/* 날짜 그리드 */}
+              <div className="grid grid-cols-7 gap-0.5">
+                {calendarDays.map((day, i) => {
+                  if (!day) return <div key={i} />;
+                  const dateStr = `${calendarDate.year}-${String(calendarDate.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const status = attendanceMap[dateStr];
+                  const isToday = dateStr === todayStr;
+                  return (
                     <div
-                      key={att.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border"
+                      key={i}
+                      className={`aspect-square flex items-center justify-center rounded-full text-xs font-medium transition-colors ${
+                        status === "attended"
+                          ? "bg-green-500 text-white"
+                          : status === "noshow"
+                          ? "bg-red-500/80 text-white"
+                          : status === "absent"
+                          ? "bg-yellow-500/60 text-white"
+                          : isToday
+                          ? "border border-primary text-primary"
+                          : "text-foreground"
+                      }`}
                     >
-                      <p className="text-sm">
-                        {att.attendDate
-                          ? format(new Date(att.attendDate), "yyyy.MM.dd (EEE)", { locale: ko })
-                          : "-"}
-                      </p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                        att.status === "attended"
-                          ? "bg-green-500/20 text-green-400 border-green-500/30"
-                          : att.status === "noshow"
-                          ? "bg-red-500/20 text-red-400 border-red-500/30"
-                          : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                      }`}>
-                        {att.status === "attended" ? "출석" : att.status === "noshow" ? "노쇼" : "결석"}
-                      </span>
+                      {day}
                     </div>
-                  ))}
-                  <p className="text-xs text-muted-foreground text-center pt-1">
-                    총 {attendanceList.length}회 기록
-                  </p>
-                </div>
+                  );
+                })}
+              </div>
+              {/* 범례 */}
+              <div className="flex items-center gap-3 mt-3 justify-center">
+                {[
+                  { color: "bg-green-500", label: "출석" },
+                  { color: "bg-red-500/80", label: "노쇼" },
+                  { color: "bg-yellow-500/60", label: "결석" },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-1">
+                    <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                    <span className="text-xs text-muted-foreground">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+              {attendanceList && (
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  총 출석 {attendanceList.filter(a => a.status === "attended").length}회
+                </p>
               )}
             </CardContent>
           </Card>

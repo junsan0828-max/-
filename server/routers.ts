@@ -1004,6 +1004,51 @@ const dashboardRouter = t.router({
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
     return getDashboardStats(trainerId);
   }),
+
+  // 최근 6개월 월별 회원 수 / 출석 수 추이
+  getMonthlyChart: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const months: { label: string; start: string; end: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      const start = d.toISOString().split("T")[0];
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split("T")[0];
+      months.push({ label: `${d.getMonth() + 1}월`, start, end });
+    }
+
+    const rows = await Promise.all(months.map(async (m) => {
+      const [attendCount, newMembers] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(attendances)
+          .where(and(
+            eq(attendances.trainerId, trainerId),
+            eq(attendances.status, "attended"),
+            sql`${attendances.attendDate} >= ${m.start}`,
+            sql`${attendances.attendDate} < ${m.end}`
+          )),
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(members)
+          .where(and(
+            eq(members.trainerId, trainerId),
+            sql`${members.createdAt} >= ${m.start}`,
+            sql`${members.createdAt} < ${m.end}`
+          )),
+      ]);
+      return {
+        month: m.label,
+        출석: Number(attendCount[0]?.count ?? 0),
+        신규회원: Number(newMembers[0]?.count ?? 0),
+      };
+    }));
+
+    return rows;
+  }),
 });
 
 // ─── Workout Memos ────────────────────────────────────────────────────────────
