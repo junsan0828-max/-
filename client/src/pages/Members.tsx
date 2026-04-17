@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { UserPlus, ChevronRight, Search } from "lucide-react";
+import { UserPlus, ChevronRight, Search, AlertCircle, Dumbbell, Clock, XCircle } from "lucide-react";
 import { differenceInDays } from "date-fns";
 
 const gradeLabels: Record<string, string> = {
@@ -19,23 +19,19 @@ const statusColors: Record<string, string> = {
 
 type StatusFilter = "all" | "active" | "paused";
 type GradeFilter = "all" | "basic" | "premium" | "vip";
+type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
 export default function Members() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>("all");
+  const [specialFilter, setSpecialFilter] = useState<SpecialFilter>("none");
+
   const { data: members, isLoading } = trpc.members.list.useQuery();
   const { data: ptPackages } = trpc.pt.list.useQuery();
 
   const today = new Date();
-
-  const filtered = members?.filter((m) => {
-    const matchSearch = m.name.includes(search) || (m.phone && m.phone.includes(search));
-    const matchStatus = statusFilter === "all" || m.status === statusFilter;
-    const matchGrade = gradeFilter === "all" || m.grade === gradeFilter;
-    return matchSearch && matchStatus && matchGrade;
-  });
 
   // 회원별 활성 PT 잔여 횟수 맵
   const remainingMap: Record<number, number> = {};
@@ -50,12 +46,60 @@ export default function Members() {
     ptPackages?.filter((pkg) => pkg.unpaidAmount && pkg.unpaidAmount > 0).map((pkg) => pkg.memberId) ?? []
   );
 
+  // 특수 필터 건수
+  const counts = {
+    unpaid: members?.filter((m) => unpaidSet.has(m.id)).length ?? 0,
+    lowSessions: members?.filter((m) => {
+      const r = remainingMap[m.id];
+      return r !== undefined && r <= 3;
+    }).length ?? 0,
+    expiring: members?.filter((m) => {
+      const d = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
+      return d !== null && d >= 0 && d <= 7;
+    }).length ?? 0,
+    expired: members?.filter((m) => {
+      const d = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
+      return d !== null && d < 0;
+    }).length ?? 0,
+  };
+
+  const filtered = members?.filter((m) => {
+    const matchSearch =
+      m.name.includes(search) || (m.phone && m.phone.includes(search));
+    const matchStatus = statusFilter === "all" || m.status === statusFilter;
+    const matchGrade = gradeFilter === "all" || m.grade === gradeFilter;
+
+    const daysLeft = m.membershipEnd
+      ? differenceInDays(new Date(m.membershipEnd), today)
+      : null;
+    const remaining = remainingMap[m.id];
+
+    let matchSpecial = true;
+    if (specialFilter === "unpaid") matchSpecial = unpaidSet.has(m.id);
+    else if (specialFilter === "low_sessions")
+      matchSpecial = remaining !== undefined && remaining <= 3;
+    else if (specialFilter === "expiring")
+      matchSpecial = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+    else if (specialFilter === "expired")
+      matchSpecial = daysLeft !== null && daysLeft < 0;
+
+    return matchSearch && matchStatus && matchGrade && matchSpecial;
+  });
+
+  const toggleSpecial = (f: SpecialFilter) =>
+    setSpecialFilter((prev) => (prev === f ? "none" : f));
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">회원 관리</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">총 {members?.length ?? 0}명</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            총 {members?.length ?? 0}명
+            {filtered && filtered.length !== members?.length && (
+              <span className="text-primary ml-1">· 필터 {filtered.length}명</span>
+            )}
+          </p>
         </div>
         <Button size="sm" onClick={() => setLocation("/members/new")} className="gap-1.5">
           <UserPlus className="h-4 w-4" />
@@ -74,7 +118,61 @@ export default function Members() {
         />
       </div>
 
-      {/* 필터 */}
+      {/* 특수 필터 (빠른 필터) */}
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          {
+            key: "unpaid" as SpecialFilter,
+            label: "미수금",
+            count: counts.unpaid,
+            icon: <AlertCircle className="h-3.5 w-3.5" />,
+            activeClass: "bg-orange-500/20 text-orange-400 border-orange-500/40",
+            inactiveClass: "text-orange-400/70 border-orange-500/20 hover:border-orange-500/40",
+          },
+          {
+            key: "low_sessions" as SpecialFilter,
+            label: "PT 3회 이하",
+            count: counts.lowSessions,
+            icon: <Dumbbell className="h-3.5 w-3.5" />,
+            activeClass: "bg-primary/20 text-primary border-primary/40",
+            inactiveClass: "text-primary/60 border-primary/20 hover:border-primary/40",
+          },
+          {
+            key: "expiring" as SpecialFilter,
+            label: "만료 임박 (7일)",
+            count: counts.expiring,
+            icon: <Clock className="h-3.5 w-3.5" />,
+            activeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40",
+            inactiveClass: "text-yellow-400/70 border-yellow-500/20 hover:border-yellow-500/40",
+          },
+          {
+            key: "expired" as SpecialFilter,
+            label: "만료됨",
+            count: counts.expired,
+            icon: <XCircle className="h-3.5 w-3.5" />,
+            activeClass: "bg-red-500/20 text-red-400 border-red-500/40",
+            inactiveClass: "text-red-400/70 border-red-500/20 hover:border-red-500/40",
+          },
+        ].map((f) => (
+          <button
+            key={f.key}
+            onClick={() => toggleSpecial(f.key)}
+            className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+              specialFilter === f.key ? f.activeClass : `bg-card ${f.inactiveClass}`
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              {f.icon}
+              {f.label}
+            </span>
+            <span className={`text-base font-bold ${specialFilter === f.key ? "" : "opacity-60"}`}>
+              {f.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* 상태 · 등급 필터 */}
       <div className="space-y-2">
         <div className="flex gap-1.5 flex-wrap">
           {(["all", "active", "paused"] as StatusFilter[]).map((s) => (
@@ -117,7 +215,11 @@ export default function Members() {
         </div>
       ) : filtered?.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          <p className="text-sm">{search ? "검색 결과가 없습니다." : "등록된 회원이 없습니다."}</p>
+          <p className="text-sm">
+            {search || specialFilter !== "none"
+              ? "조건에 맞는 회원이 없습니다."
+              : "등록된 회원이 없습니다."}
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -130,13 +232,20 @@ export default function Members() {
             const isExpired = daysLeft !== null && daysLeft < 0;
             const hasUnpaid = unpaidSet.has(member.id);
             const remainingSessions = remainingMap[member.id];
+            const isLowSessions = remainingSessions !== undefined && remainingSessions <= 3;
 
             return (
               <button
                 key={member.id}
                 onClick={() => setLocation(`/members/${member.id}`)}
                 className={`w-full text-left p-4 rounded-lg bg-card border transition-colors hover:border-primary/50 ${
-                  isExpiringSoon ? "border-yellow-500/40" : isExpired ? "border-red-500/30" : "border-border"
+                  isExpiringSoon
+                    ? "border-yellow-500/40"
+                    : isExpired
+                    ? "border-red-500/30"
+                    : hasUnpaid
+                    ? "border-orange-500/30"
+                    : "border-border"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -147,11 +256,16 @@ export default function Members() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-medium text-foreground">{member.name}</p>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full border ${statusColors[member.status] ?? ""}`}>
+                        <span
+                          className={`text-xs px-1.5 py-0.5 rounded-full border ${
+                            statusColors[member.status] ?? ""
+                          }`}
+                        >
                           {member.status === "active" ? "활성" : "정지"}
                         </span>
-                        <span className="text-xs text-muted-foreground">{gradeLabels[member.grade]}</span>
-                        {/* 만료 임박 배지 */}
+                        <span className="text-xs text-muted-foreground">
+                          {gradeLabels[member.grade]}
+                        </span>
                         {isExpiringSoon && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                             D-{daysLeft}
@@ -162,10 +276,14 @@ export default function Members() {
                             만료
                           </span>
                         )}
-                        {/* 미수금 배지 */}
                         {hasUnpaid && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
                             미수금
+                          </span>
+                        )}
+                        {isLowSessions && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">
+                            PT {remainingSessions}회
                           </span>
                         )}
                       </div>
@@ -173,8 +291,10 @@ export default function Members() {
                         <p className="text-xs text-muted-foreground truncate">
                           {member.phone ?? member.email ?? "연락처 없음"}
                         </p>
-                        {remainingSessions !== undefined && (
-                          <span className="text-xs text-primary shrink-0">PT {remainingSessions}회</span>
+                        {remainingSessions !== undefined && !isLowSessions && (
+                          <span className="text-xs text-primary shrink-0">
+                            PT {remainingSessions}회
+                          </span>
                         )}
                       </div>
                     </div>
