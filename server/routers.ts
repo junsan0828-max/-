@@ -293,6 +293,7 @@ const membersRouter = t.router({
         membershipStart: z.string().optional(),
         membershipEnd: z.string().optional(),
         profileNote: z.string().optional(),
+        trainerId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

@@ -125,6 +125,12 @@ function TrainerDashboard() {
 
   const today = new Date();
 
+  const alertItems = [
+    expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" } : null,
+    unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30" } : null,
+    longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30" } : null,
+  ].filter(Boolean) as { label: string; color: string }[];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -136,6 +142,17 @@ function TrainerDashboard() {
           <UserPlus className="h-4 w-4" />신규 등록
         </Button>
       </div>
+
+      {/* 알림 뱃지 */}
+      {alertItems.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {alertItems.map((item) => (
+            <span key={item.label} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color}`}>
+              ⚠ {item.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         {[

@@ -95,12 +95,17 @@ export default function MemberDetail({ memberId }: Props) {
   const [unpaidOpen, setUnpaidOpen] = useState(false);
   const [memoOpen, setMemoOpen] = useState(false);
   const [memoForm, setMemoForm] = useState({ memoDate: new Date().toISOString().split("T")[0], content: "" });
+  const [sessionMemoOpen, setSessionMemoOpen] = useState(false);
+  const [sessionMemoContent, setSessionMemoContent] = useState("");
+  const [trainerChangeOpen, setTrainerChangeOpen] = useState(false);
+  const [selectedTrainerId, setSelectedTrainerId] = useState<string>("");
   const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
     packageId: 0,
     current: 0,
     value: "",
   });
 
+  const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
   const { data: ptPackages, refetch: refetchPt } = trpc.pt.listByMember.useQuery({ memberId });
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
@@ -145,13 +150,25 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
-  // PT 세션 사용
+  // PT 세션 사용 (완료 후 메모 입력 유도)
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onSuccess: (data) => {
       toast.success(`세션 사용 완료! 잔여 ${data.remaining}회`);
       refetchPt();
+      setSessionMemoContent("");
+      setSessionMemoOpen(true);
     },
     onError: (err) => toast.error(err.message || "세션 사용 실패"),
+  });
+
+  // 담당 트레이너 변경
+  const updateMemberMutation = trpc.members.update.useMutation({
+    onSuccess: () => {
+      toast.success("담당 트레이너가 변경되었습니다.");
+      setTrainerChangeOpen(false);
+      utils.members.getById.invalidate({ id: memberId });
+    },
+    onError: (err) => toast.error(err.message || "변경 실패"),
   });
 
   // 미수금 업데이트
@@ -363,7 +380,23 @@ export default function MemberDetail({ memberId }: Props) {
                   label="등록일"
                   value={format(new Date(member.createdAt), "yyyy.MM.dd", { locale: ko })}
                 />
-                <InfoRow icon={<User className="h-4 w-4" />} label="담당 트레이너" value={trainer?.trainerName ?? "-"} />
+                <div className="flex items-start gap-3">
+                  <div className="text-muted-foreground mt-0.5"><User className="h-4 w-4" /></div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">담당 트레이너</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">{trainer?.trainerName ?? "-"}</p>
+                      {currentUser?.role === "admin" && (
+                        <button
+                          onClick={() => { setSelectedTrainerId(String(member.trainerId ?? "")); setTrainerChangeOpen(true); }}
+                          className="text-xs text-primary underline hover:text-primary/70"
+                        >
+                          변경
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"
@@ -798,6 +831,76 @@ export default function MemberDetail({ memberId }: Props) {
                 }
               >
                 {updatePaymentMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 세션 사용 후 운동 메모 입력 다이얼로그 */}
+      <Dialog open={sessionMemoOpen} onOpenChange={setSessionMemoOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>운동 메모 작성</DialogTitle>
+            <DialogDescription>오늘 세션 내용을 간단히 기록해두세요. (선택)</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={sessionMemoContent}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setSessionMemoContent(e.target.value)}
+              placeholder="오늘 운동 내용, 특이사항 등..."
+              rows={4}
+              className="text-sm resize-none"
+            />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setSessionMemoOpen(false)}>
+                건너뛰기
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!sessionMemoContent.trim() || createMemoMutation.isPending}
+                onClick={() => {
+                  createMemoMutation.mutate({
+                    memberId,
+                    memoDate: new Date().toISOString().split("T")[0],
+                    content: sessionMemoContent,
+                  });
+                  setSessionMemoOpen(false);
+                }}
+              >
+                저장
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 담당 트레이너 변경 다이얼로그 */}
+      <Dialog open={trainerChangeOpen} onOpenChange={setTrainerChangeOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>담당 트레이너 변경</DialogTitle>
+            <DialogDescription>{member?.name}님의 담당 트레이너를 변경합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Select value={selectedTrainerId} onValueChange={setSelectedTrainerId}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue placeholder="트레이너 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {trainers?.map((t) => (
+                  <SelectItem key={t.id} value={String(t.id)}>{t.trainerName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setTrainerChangeOpen(false)}>취소</Button>
+              <Button
+                className="flex-1"
+                disabled={!selectedTrainerId || updateMemberMutation.isPending}
+                onClick={() => updateMemberMutation.mutate({ id: memberId, trainerId: parseInt(selectedTrainerId) })}
+              >
+                {updateMemberMutation.isPending ? "변경 중..." : "변경"}
               </Button>
             </div>
           </div>
