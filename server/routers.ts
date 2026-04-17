@@ -13,6 +13,7 @@ import {
   ptSessionLogs,
   payments,
   workoutMemos,
+  parQ,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -1131,6 +1132,48 @@ const workoutMemosRouter = t.router({
     }),
 });
 
+// ─── PAR-Q ────────────────────────────────────────────────────────────────────
+const parQSchema = z.object({
+  memberId: z.number(),
+  height: z.string().optional(), weight: z.string().optional(), muscleMass: z.string().optional(),
+  bodyFatPercent: z.string().optional(), bodyFatKg: z.string().optional(), waistCircumference: z.string().optional(),
+  systolicBp: z.string().optional(), diastolicBp: z.string().optional(), totalCholesterol: z.string().optional(),
+  hdlCholesterol: z.string().optional(), ldlCholesterol: z.string().optional(), triglycerides: z.string().optional(),
+  fastingBloodSugar: z.string().optional(), postMealBloodSugar: z.string().optional(),
+  hba1c: z.string().optional(), boneDensity: z.string().optional(),
+  occupation: z.string().optional(), workEnvironment: z.string().optional(),
+  exerciseExperience: z.string().optional(), visitRoute: z.string().optional(),
+  goal1: z.string().optional(), goal2: z.string().optional(), goal3: z.string().optional(),
+  dietIssues: z.string().optional(), alcoholIssues: z.string().optional(),
+  sleepIssues: z.string().optional(), activityIssues: z.string().optional(),
+  chronicDiseases: z.string().optional(), musculoskeletalIssues: z.string().optional(),
+  posturalIssues: z.string().optional(),
+});
+
+const parQRouter = t.router({
+  get: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const rows = await db.select().from(parQ).where(eq(parQ.memberId, input.memberId)).limit(1);
+      return rows[0] ?? null;
+    }),
+
+  upsert: protectedProcedure
+    .input(parQSchema)
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const { memberId, ...fields } = input;
+      const existing = await db.select({ id: parQ.id }).from(parQ).where(eq(parQ.memberId, memberId)).limit(1);
+      if (existing[0]) {
+        await db.update(parQ).set({ ...fields, updatedAt: sql`(datetime('now'))` }).where(eq(parQ.memberId, memberId));
+      } else {
+        await db.insert(parQ).values({ memberId, ...fields });
+      }
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({
   auth: authRouter,
@@ -1141,6 +1184,7 @@ export const appRouter = t.router({
   admin: adminRouter,
   dashboard: dashboardRouter,
   workoutMemos: workoutMemosRouter,
+  parQ: parQRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -163,6 +163,20 @@ function initDatabase() {
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS par_q (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memberId INTEGER NOT NULL UNIQUE,
+    height TEXT, weight TEXT, muscleMass TEXT, bodyFatPercent TEXT, bodyFatKg TEXT, waistCircumference TEXT,
+    systolicBp TEXT, diastolicBp TEXT, totalCholesterol TEXT, hdlCholesterol TEXT, ldlCholesterol TEXT,
+    triglycerides TEXT, fastingBloodSugar TEXT, postMealBloodSugar TEXT, hba1c TEXT, boneDensity TEXT,
+    occupation TEXT, workEnvironment TEXT, exerciseExperience TEXT, visitRoute TEXT,
+    goal1 TEXT, goal2 TEXT, goal3 TEXT,
+    dietIssues TEXT, alcoholIssues TEXT, sleepIssues TEXT, activityIssues TEXT,
+    chronicDiseases TEXT, musculoskeletalIssues TEXT, posturalIssues TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   console.log("✅ 테이블 준비 완료");
 
   // 관리자 계정 생성 (없으면 초기 씨드 전체 실행)

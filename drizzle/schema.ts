@@ -107,7 +107,49 @@ export const workoutMemos = sqliteTable("workout_memos", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
-// 결제 내역
+// PAR-Q 사전건강검사
+export const parQ = sqliteTable("par_q", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull().unique(),
+  // 신체 정보
+  height: text("height"),
+  weight: text("weight"),
+  muscleMass: text("muscleMass"),
+  bodyFatPercent: text("bodyFatPercent"),
+  bodyFatKg: text("bodyFatKg"),
+  waistCircumference: text("waistCircumference"),
+  // 건강 정보
+  systolicBp: text("systolicBp"),
+  diastolicBp: text("diastolicBp"),
+  totalCholesterol: text("totalCholesterol"),
+  hdlCholesterol: text("hdlCholesterol"),
+  ldlCholesterol: text("ldlCholesterol"),
+  triglycerides: text("triglycerides"),
+  fastingBloodSugar: text("fastingBloodSugar"),
+  postMealBloodSugar: text("postMealBloodSugar"),
+  hba1c: text("hba1c"),
+  boneDensity: text("boneDensity"),
+  // 직업 및 생활
+  occupation: text("occupation"),
+  workEnvironment: text("workEnvironment"),
+  exerciseExperience: text("exerciseExperience"),
+  visitRoute: text("visitRoute"),
+  // 운동 목적
+  goal1: text("goal1"),
+  goal2: text("goal2"),
+  goal3: text("goal3"),
+  // 생활 습관
+  dietIssues: text("dietIssues"),
+  alcoholIssues: text("alcoholIssues"),
+  sleepIssues: text("sleepIssues"),
+  activityIssues: text("activityIssues"),
+  // 질환 정보
+  chronicDiseases: text("chronicDiseases"),
+  musculoskeletalIssues: text("musculoskeletalIssues"),
+  posturalIssues: text("posturalIssues"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
 export const payments = sqliteTable("payments", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   memberId: integer("memberId").notNull(),

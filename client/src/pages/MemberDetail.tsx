@@ -347,7 +347,15 @@ export default function MemberDetail({ memberId }: Props) {
         </TabsList>
 
         {/* ── 기본 정보 탭 ── */}
-        <TabsContent value="info" className="mt-4">
+        <TabsContent value="info" className="mt-4 space-y-3">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 w-full border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => setLocation(`/members/${memberId}/parq`)}
+          >
+            PAR-Q 사전건강검사
+          </Button>
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">

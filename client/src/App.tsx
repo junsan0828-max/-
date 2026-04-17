@@ -7,6 +7,7 @@ import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
 import TrainerDetail from "./pages/TrainerDetail";
+import ParQ from "./pages/ParQ";
 import Trainers from "./pages/Trainers";
 import Admin from "./pages/Admin";
 import PT from "./pages/PT";
@@ -40,6 +41,9 @@ function App() {
         </Route>
         <Route path="/members/:id/edit">
           {(params) => <MemberForm memberId={parseInt(params.id!)} />}
+        </Route>
+        <Route path="/members/:id/parq">
+          {(params) => <ParQ memberId={parseInt(params.id!)} />}
         </Route>
         <Route path="/members/:id">
           {(params) => <MemberDetail memberId={parseInt(params.id!)} />}
