@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql, lte, gte, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb, getDashboardStats } from "./db";
 import {
@@ -12,6 +12,7 @@ import {
   attendances,
   ptSessionLogs,
   payments,
+  workoutMemos,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -45,10 +46,18 @@ const authRouter = t.router({
         .limit(1);
 
       const user = userResult[0];
-      if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+      if (!user)
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "아이디 또는 비밀번호가 잘못되었습니다.",
+        });
 
       const valid = await bcrypt.compare(input.password, user.password);
-      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+      if (!valid)
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "아이디 또는 비밀번호가 잘못되었습니다.",
+        });
 
       let trainerId: number | undefined;
       if (user.role === "trainer") {
@@ -78,6 +87,31 @@ const authRouter = t.router({
   me: publicProcedure.query(({ ctx }) => {
     return ctx.user ?? null;
   }),
+
+  register: publicProcedure
+    .input(z.object({
+      username: z.string().min(3).max(50),
+      password: z.string().min(6),
+      trainerName: z.string().min(1),
+      phone: z.string().optional(),
+      email: z.string().email().optional().or(z.literal("")),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1);
+      if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
+
+      const hashed = await bcrypt.hash(input.password, 10);
+      const [userRow] = await db.insert(users).values({ username: input.username, password: hashed, role: "trainer" }).returning({ id: users.id });
+      const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: input.trainerName, phone: input.phone, email: input.email || undefined }).returning({ id: trainers.id });
+      await db.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
+
+      const authUser = { id: userRow.id, username: input.username, role: "trainer" as const, trainerId: trainerRow.id };
+      ctx.req.session.user = authUser;
+      return authUser;
+    }),
 });
 
 // ─── Members ─────────────────────────────────────────────────────────────────
@@ -111,6 +145,64 @@ const membersRouter = t.router({
       return result[0];
     }),
 
+  // N일 내 만료 예정 회원
+  getExpiring: protectedProcedure
+    .input(z.object({ days: z.number().default(7) }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const today = new Date().toISOString().split("T")[0];
+      const future = new Date(Date.now() + input.days * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+
+      return db
+        .select()
+        .from(members)
+        .where(
+          and(
+            eq(members.trainerId, trainerId),
+            eq(members.status, "active"),
+            sql`${members.membershipEnd} IS NOT NULL`,
+            sql`${members.membershipEnd} >= ${today}`,
+            sql`${members.membershipEnd} <= ${future}`
+          )
+        )
+        .orderBy(members.membershipEnd);
+    }),
+
+  // 미수금 있는 회원
+  getWithUnpaid: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+    return db
+      .select({
+        id: members.id,
+        name: members.name,
+        phone: members.phone,
+        unpaidAmount: ptPackages.unpaidAmount,
+        packageName: ptPackages.packageName,
+      })
+      .from(members)
+      .innerJoin(ptPackages, eq(members.id, ptPackages.memberId))
+      .where(
+        and(
+          eq(members.trainerId, trainerId),
+          sql`${ptPackages.unpaidAmount} IS NOT NULL`,
+          gt(ptPackages.unpaidAmount, 0)
+        )
+      )
+      .orderBy(desc(ptPackages.unpaidAmount));
+  }),
+
   create: protectedProcedure
     .input(
       z.object({
@@ -130,24 +222,35 @@ const membersRouter = t.router({
         unpaidAmount: z.number().optional(),
         paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
         paymentMemo: z.string().optional(),
+        adminTrainerId: z.number().optional(), // 관리자가 직접 담당 트레이너 지정
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      // 관리자는 adminTrainerId 필수, 트레이너는 본인 ID 사용
+      const trainerId = ctx.user.role === "admin"
+        ? input.adminTrainerId ?? (() => { throw new TRPCError({ code: "BAD_REQUEST", message: "담당 트레이너를 선택해주세요." }); })()
+        : ctx.user.trainerId ?? (() => { throw new TRPCError({ code: "FORBIDDEN" }); })();
 
-      const { ptProgram, ptSessions, paymentAmount, unpaidAmount, paymentMethod, paymentMemo, ...memberData } = input;
+      const {
+        ptProgram,
+        ptSessions,
+        paymentAmount,
+        unpaidAmount,
+        paymentMethod,
+        paymentMemo,
+        adminTrainerId: _,
+        ...memberData
+      } = input;
 
       const [insertResult] = await db.insert(members).values({
         ...memberData,
         trainerId,
-      });
-      const memberId = (insertResult as any).insertId;
+      }).returning({ id: members.id });
+      const memberId = insertResult.id;
 
-      // PT 패키지 생성
       if (ptSessions) {
         const sessionCount = parseInt(ptSessions);
         const programNames: Record<string, string> = {
@@ -194,6 +297,7 @@ const membersRouter = t.router({
         membershipStart: z.string().optional(),
         membershipEnd: z.string().optional(),
         profileNote: z.string().optional(),
+        trainerId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -227,6 +331,66 @@ const membersRouter = t.router({
         .where(eq(payments.memberId, input.memberId))
         .orderBy(desc(payments.createdAt));
     }),
+
+  // PT 잔여 횟수 5회 이하 회원 (재등록 안내)
+  getLowSessions: protectedProcedure
+    .input(z.object({ threshold: z.number().default(5) }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const rows = await db
+        .select({
+          id: members.id,
+          name: members.name,
+          phone: members.phone,
+          packageName: ptPackages.packageName,
+          totalSessions: ptPackages.totalSessions,
+          usedSessions: ptPackages.usedSessions,
+        })
+        .from(members)
+        .innerJoin(ptPackages, and(eq(ptPackages.memberId, members.id), eq(ptPackages.status, "active")))
+        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")))
+        .orderBy(members.name);
+
+      return rows.filter(r => (r.totalSessions - r.usedSessions) <= input.threshold);
+    }),
+
+  // 장기 미출석 회원 (2주 이상)
+  getLongAbsent: protectedProcedure
+    .input(z.object({ days: z.number().default(14) }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const cutoff = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+      const allMembers = await db
+        .select({ id: members.id, name: members.name, phone: members.phone })
+        .from(members)
+        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")));
+
+      const result = await Promise.all(
+        allMembers.map(async (m) => {
+          const last = await db
+            .select({ attendDate: attendances.attendDate })
+            .from(attendances)
+            .where(and(eq(attendances.memberId, m.id), eq(attendances.status, "attended")))
+            .orderBy(desc(attendances.attendDate))
+            .limit(1);
+          const lastDate = last[0]?.attendDate ?? null;
+          return { ...m, lastAttendDate: lastDate };
+        })
+      );
+
+      return result.filter(m => !m.lastAttendDate || m.lastAttendDate < cutoff);
+    }),
 });
 
 // ─── PT Packages ─────────────────────────────────────────────────────────────
@@ -244,6 +408,7 @@ const ptRouter = t.router({
         .orderBy(desc(ptPackages.createdAt));
     }),
 
+  // 회원 이름 포함 전체 PT 패키지 목록
   list: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -252,11 +417,166 @@ const ptRouter = t.router({
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
     return db
-      .select()
+      .select({
+        id: ptPackages.id,
+        memberId: ptPackages.memberId,
+        memberName: members.name,
+        memberPhone: members.phone,
+        trainerId: ptPackages.trainerId,
+        totalSessions: ptPackages.totalSessions,
+        usedSessions: ptPackages.usedSessions,
+        packageName: ptPackages.packageName,
+        startDate: ptPackages.startDate,
+        expiryDate: ptPackages.expiryDate,
+        status: ptPackages.status,
+        price: ptPackages.price,
+        pricePerSession: ptPackages.pricePerSession,
+        paymentAmount: ptPackages.paymentAmount,
+        unpaidAmount: ptPackages.unpaidAmount,
+        paymentMethod: ptPackages.paymentMethod,
+        paymentMemo: ptPackages.paymentMemo,
+        createdAt: ptPackages.createdAt,
+        updatedAt: ptPackages.updatedAt,
+      })
       .from(ptPackages)
+      .innerJoin(members, eq(ptPackages.memberId, members.id))
       .where(eq(ptPackages.trainerId, trainerId))
       .orderBy(desc(ptPackages.createdAt));
   }),
+
+  // 기존 회원에게 PT 패키지 추가
+  addPackage: protectedProcedure
+    .input(
+      z.object({
+        memberId: z.number(),
+        ptProgram: z.enum(["care_pt", "weight_pt", "pilates"]).optional(),
+        totalSessions: z.number().min(1),
+        startDate: z.string().optional(),
+        expiryDate: z.string().optional(),
+        paymentAmount: z.number().optional(),
+        unpaidAmount: z.number().optional(),
+        paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
+        paymentMemo: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const programNames: Record<string, string> = {
+        care_pt: "케어피티",
+        weight_pt: "웨이트피티",
+        pilates: "필라테스",
+      };
+      const packageName = input.ptProgram ? programNames[input.ptProgram] : undefined;
+      const pricePerSession =
+        input.paymentAmount && input.totalSessions
+          ? Math.round(input.paymentAmount / input.totalSessions)
+          : undefined;
+
+      await db.insert(ptPackages).values({
+        memberId: input.memberId,
+        trainerId,
+        totalSessions: input.totalSessions,
+        usedSessions: 0,
+        packageName,
+        startDate: input.startDate,
+        expiryDate: input.expiryDate,
+        pricePerSession,
+        paymentAmount: input.paymentAmount,
+        unpaidAmount: input.unpaidAmount,
+        paymentMethod: input.paymentMethod,
+        paymentMemo: input.paymentMemo,
+      });
+
+      return { success: true };
+    }),
+
+  // PT 세션 1회 사용 기록
+  useSession: protectedProcedure
+    .input(
+      z.object({
+        packageId: z.number(),
+        memberId: z.number(),
+        sessionDate: z.string().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      // 패키지 조회
+      const pkgResult = await db
+        .select()
+        .from(ptPackages)
+        .where(eq(ptPackages.id, input.packageId))
+        .limit(1);
+
+      const pkg = pkgResult[0];
+      if (!pkg) throw new TRPCError({ code: "NOT_FOUND", message: "패키지를 찾을 수 없습니다." });
+      if (pkg.usedSessions >= pkg.totalSessions)
+        throw new TRPCError({ code: "BAD_REQUEST", message: "잔여 세션이 없습니다." });
+
+      const newUsed = pkg.usedSessions + 1;
+      const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
+
+      // usedSessions 증가 + 완료 시 status 업데이트
+      await db
+        .update(ptPackages)
+        .set({ usedSessions: newUsed, status: newStatus as any })
+        .where(eq(ptPackages.id, input.packageId));
+
+      // 세션 로그 기록
+      const today = new Date().toISOString().split("T")[0];
+      await db.insert(ptSessionLogs).values({
+        memberId: input.memberId,
+        trainerId,
+        packageId: input.packageId,
+        sessionDate: input.sessionDate ?? today,
+        notes: input.notes,
+      });
+
+      return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
+    }),
+
+  // 미수금 업데이트 (결제 완료 처리)
+  updatePayment: protectedProcedure
+    .input(
+      z.object({
+        packageId: z.number(),
+        unpaidAmount: z.number().min(0),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const pkgResult = await db
+        .select()
+        .from(ptPackages)
+        .where(eq(ptPackages.id, input.packageId))
+        .limit(1);
+
+      const pkg = pkgResult[0];
+      if (!pkg) throw new TRPCError({ code: "NOT_FOUND", message: "패키지를 찾을 수 없습니다." });
+
+      await db
+        .update(ptPackages)
+        .set({ unpaidAmount: input.unpaidAmount })
+        .where(eq(ptPackages.id, input.packageId));
+
+      return { success: true };
+    }),
 });
 
 // ─── Attendances ─────────────────────────────────────────────────────────────
@@ -292,6 +612,45 @@ const attendancesRouter = t.router({
       await db.insert(attendances).values({ ...input, trainerId });
       return { success: true };
     }),
+
+  // 오늘 출석 체크 (중복 방지)
+  checkIn: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const today = new Date().toISOString().split("T")[0];
+
+      // 오늘 출석 여부 확인
+      const existing = await db
+        .select({ id: attendances.id })
+        .from(attendances)
+        .where(
+          and(
+            eq(attendances.memberId, input.memberId),
+            eq(attendances.trainerId, trainerId),
+            sql`${attendances.attendDate} = ${today}`
+          )
+        )
+        .limit(1);
+
+      if (existing[0]) {
+        throw new TRPCError({ code: "CONFLICT", message: "오늘 이미 출석 체크되었습니다." });
+      }
+
+      await db.insert(attendances).values({
+        memberId: input.memberId,
+        trainerId,
+        attendDate: today,
+        status: "attended",
+      });
+
+      return { success: true };
+    }),
 });
 
 // ─── Trainers ─────────────────────────────────────────────────────────────────
@@ -323,9 +682,17 @@ const trainersRouter = t.router({
         .where(eq(trainerSettings.trainerId, input.id))
         .limit(1);
 
+      // 담당 회원 수
+      const memberCountResult = await db
+        .select({ count: sql`COUNT(*)` })
+        .from(members)
+        .where(eq(members.trainerId, input.id));
+      const memberCount = Number((memberCountResult[0] as any)?.count ?? 0);
+
       return {
         ...trainerResult[0],
         settlementRate: settingsResult[0]?.settlementRate ?? 50,
+        memberCount,
       };
     }),
 
@@ -344,40 +711,424 @@ const trainersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      try {
-        const existing = await db
-          .select({ id: trainerSettings.id })
-          .from(trainerSettings)
-          .where(eq(trainerSettings.trainerId, input.trainerId))
-          .limit(1);
+      const existing = await db
+        .select({ id: trainerSettings.id })
+        .from(trainerSettings)
+        .where(eq(trainerSettings.trainerId, input.trainerId))
+        .limit(1);
 
-        if (existing[0]) {
-          await db
-            .update(trainerSettings)
-            .set({ settlementRate: input.settlementRate })
-            .where(eq(trainerSettings.trainerId, input.trainerId));
-        } else {
-          await db.insert(trainerSettings).values({
-            trainerId: input.trainerId,
-            settlementRate: input.settlementRate,
-          });
-        }
-
-        return { success: true };
-      } catch (error) {
-        console.error("[updateSettlementRate] Error:", error);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (existing[0]) {
+        await db
+          .update(trainerSettings)
+          .set({ settlementRate: input.settlementRate })
+          .where(eq(trainerSettings.trainerId, input.trainerId));
+      } else {
+        await db.insert(trainerSettings).values({
+          trainerId: input.trainerId,
+          settlementRate: input.settlementRate,
+        });
       }
+
+      return { success: true };
+    }),
+
+  // 내 프로필 조회 (트레이너 본인)
+  getMyProfile: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+    const [trainer, settings] = await Promise.all([
+      db.select().from(trainers).where(eq(trainers.id, ctx.user.trainerId)).limit(1),
+      db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, ctx.user.trainerId!)).limit(1),
+    ]);
+    if (!trainer[0]) throw new TRPCError({ code: "NOT_FOUND" });
+    return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50 };
+  }),
+
+  // 내 프로필 수정 (트레이너 본인)
+  updateMyProfile: protectedProcedure
+    .input(z.object({ trainerName: z.string().min(1), phone: z.string().optional(), email: z.string().email().optional().or(z.literal("")) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      await db.update(trainers).set({ trainerName: input.trainerName, phone: input.phone, email: input.email || undefined }).where(eq(trainers.id, ctx.user.trainerId));
+      return { success: true };
+    }),
+
+  // 비밀번호 변경
+  changePassword: protectedProcedure
+    .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const userResult = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if (!userResult[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const valid = await bcrypt.compare(input.currentPassword, userResult[0].password);
+      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "현재 비밀번호가 올바르지 않습니다." });
+
+      const hashed = await bcrypt.hash(input.newPassword, 10);
+      await db.update(users).set({ password: hashed }).where(eq(users.id, ctx.user.id));
+      return { success: true };
+    }),
+});
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+const adminRouter = t.router({
+  // 트레이너 목록 (회원 수 포함)
+  listTrainers: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const trainerList = await db
+      .select()
+      .from(trainers)
+      .orderBy(trainers.trainerName);
+
+    const result = await Promise.all(
+      trainerList.map(async (trainer) => {
+        const [memberCount, settings] = await Promise.all([
+          db
+            .select({ count: sql`COUNT(*)` })
+            .from(members)
+            .where(eq(members.trainerId, trainer.id)),
+          db
+            .select({ settlementRate: trainerSettings.settlementRate })
+            .from(trainerSettings)
+            .where(eq(trainerSettings.trainerId, trainer.id))
+            .limit(1),
+        ]);
+        return {
+          ...trainer,
+          memberCount: Number((memberCount[0] as any)?.count ?? 0),
+          settlementRate: settings[0]?.settlementRate ?? 50,
+        };
+      })
+    );
+
+    return result;
+  }),
+
+  // 트레이너 계정 생성
+  createTrainer: protectedProcedure
+    .input(
+      z.object({
+        username: z.string().min(3).max(50),
+        password: z.string().min(6),
+        trainerName: z.string().min(1),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+        settlementRate: z.number().min(0).max(100).default(50),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 중복 아이디 확인
+      const existing = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, input.username))
+        .limit(1);
+
+      if (existing[0]) {
+        throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
+      }
+
+      const hashed = await bcrypt.hash(input.password, 10);
+
+      // 유저 생성
+      const [userInsert] = await db.insert(users).values({
+        username: input.username,
+        password: hashed,
+        role: "trainer",
+      }).returning({ id: users.id });
+      const userId = userInsert.id;
+
+      // 트레이너 프로필 생성
+      const [trainerInsert] = await db.insert(trainers).values({
+        userId,
+        trainerName: input.trainerName,
+        phone: input.phone,
+        email: input.email,
+      }).returning({ id: trainers.id });
+      const trainerId = trainerInsert.id;
+
+      // 트레이너 설정 생성
+      await db.insert(trainerSettings).values({
+        trainerId,
+        settlementRate: input.settlementRate,
+      });
+
+      return { success: true, trainerId };
+    }),
+
+  // 트레이너 삭제
+  deleteTrainer: protectedProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerResult = await db.select({ userId: trainers.userId }).from(trainers).where(eq(trainers.id, input.trainerId)).limit(1);
+      if (!trainerResult[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await db.delete(trainerSettings).where(eq(trainerSettings.trainerId, input.trainerId));
+      await db.delete(trainers).where(eq(trainers.id, input.trainerId));
+      await db.delete(users).where(eq(users.id, trainerResult[0].userId));
+
+      return { success: true };
+    }),
+
+  // 관리자 전체 통계
+  getStats: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString().split("T")[0];
+
+    const [totalTrainersResult, totalMembersResult, activeMembersResult] = await Promise.all([
+      db.select({ count: sql<number>`COUNT(*)` }).from(trainers),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.status, "active")),
+    ]);
+
+    // 트레이너별 상세 통계
+    const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
+    const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
+      const [memberCnt, settings, monthPt] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
+        db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainer.id)).limit(1),
+        db.select({ total: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession},0)),0)` })
+          .from(attendances)
+          .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
+          .where(and(eq(attendances.trainerId, trainer.id), eq(attendances.status, "attended"), sql`${attendances.attendDate} >= ${monthStart}`, sql`${attendances.attendDate} < ${monthEnd}`)),
+      ]);
+      const rate = settings[0]?.settlementRate ?? 50;
+      const revenue = Number(monthPt[0]?.total ?? 0);
+      return {
+        id: trainer.id,
+        trainerName: trainer.trainerName,
+        phone: trainer.phone,
+        memberCount: Number(memberCnt[0]?.count ?? 0),
+        settlementRate: rate,
+        monthlyRevenue: revenue,
+        monthlySettlement: Math.round(revenue * rate / 100),
+      };
+    }));
+
+    const totalMonthlyRevenue = trainerStats.reduce((s, t) => s + t.monthlyRevenue, 0);
+    const totalMonthlySettlement = trainerStats.reduce((s, t) => s + t.monthlySettlement, 0);
+
+    return {
+      totalTrainers: Number(totalTrainersResult[0]?.count ?? 0),
+      totalMembers: Number(totalMembersResult[0]?.count ?? 0),
+      activeMembers: Number(activeMembersResult[0]?.count ?? 0),
+      totalMonthlyRevenue,
+      totalMonthlySettlement,
+      trainerStats,
+    };
+  }),
+
+  // 최근 6개월 트레이너별 월간 매출 차트 데이터
+  getMonthlyChart: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName }).from(trainers).orderBy(trainers.trainerName);
+
+    // 최근 6개월 범위 생성
+    const months: { label: string; start: string; end: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      const start = d.toISOString().split("T")[0];
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split("T")[0];
+      const label = `${d.getMonth() + 1}월`;
+      months.push({ label, start, end });
+    }
+
+    // 월별 데이터 조합
+    const rows = await Promise.all(
+      months.map(async (m) => {
+        const entry: Record<string, string | number> = { month: m.label };
+        await Promise.all(
+          trainerList.map(async (trainer) => {
+            const res = await db
+              .select({ total: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession},0)),0)` })
+              .from(attendances)
+              .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
+              .where(and(
+                eq(attendances.trainerId, trainer.id),
+                eq(attendances.status, "attended"),
+                sql`${attendances.attendDate} >= ${m.start}`,
+                sql`${attendances.attendDate} < ${m.end}`
+              ));
+            entry[trainer.trainerName] = Number(res[0]?.total ?? 0);
+          })
+        );
+        return entry;
+      })
+    );
+
+    return { rows, trainerNames: trainerList.map(t => t.trainerName) };
+  }),
+
+  // 정산 비율 수정 (관리자)
+  updateSettlementRate: protectedProcedure
+    .input(z.object({ trainerId: z.number(), settlementRate: z.number().min(0).max(100) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(trainerSettings).set({ settlementRate: input.settlementRate }).where(eq(trainerSettings.trainerId, input.trainerId));
+      return { success: true };
+    }),
+
+  // 관리자: 특정 트레이너의 회원 목록 + PT 잔여 횟수
+  getMembersByTrainer: protectedProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const memberList = await db
+        .select()
+        .from(members)
+        .where(eq(members.trainerId, input.trainerId))
+        .orderBy(desc(members.createdAt));
+
+      const withPt = await Promise.all(memberList.map(async (m) => {
+        const pkgs = await db
+          .select({ totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions, unpaidAmount: ptPackages.unpaidAmount })
+          .from(ptPackages)
+          .where(and(eq(ptPackages.memberId, m.id), eq(ptPackages.status, "active")));
+        const remainingPt = pkgs.reduce((s, p) => s + (p.totalSessions - p.usedSessions), 0);
+        const hasUnpaid = pkgs.some(p => p.unpaidAmount && p.unpaidAmount > 0);
+        return { ...m, remainingPt, hasUnpaid };
+      }));
+
+      return withPt;
     }),
 });
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 const dashboardRouter = t.router({
-  getStats: protectedProcedure.query(async ({ ctx }) => {
+  getStats: protectedProcedure.query(({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
     return getDashboardStats(trainerId);
   }),
+
+  // 최근 6개월 월별 회원 수 / 출석 수 추이
+  getMonthlyChart: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const months: { label: string; start: string; end: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      const start = d.toISOString().split("T")[0];
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split("T")[0];
+      months.push({ label: `${d.getMonth() + 1}월`, start, end });
+    }
+
+    const rows = await Promise.all(months.map(async (m) => {
+      const [attendCount, newMembers] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(attendances)
+          .where(and(
+            eq(attendances.trainerId, trainerId),
+            eq(attendances.status, "attended"),
+            sql`${attendances.attendDate} >= ${m.start}`,
+            sql`${attendances.attendDate} < ${m.end}`
+          )),
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(members)
+          .where(and(
+            eq(members.trainerId, trainerId),
+            sql`${members.createdAt} >= ${m.start}`,
+            sql`${members.createdAt} < ${m.end}`
+          )),
+      ]);
+      return {
+        month: m.label,
+        출석: Number(attendCount[0]?.count ?? 0),
+        신규회원: Number(newMembers[0]?.count ?? 0),
+      };
+    }));
+
+    return rows;
+  }),
+});
+
+// ─── Workout Memos ────────────────────────────────────────────────────────────
+const workoutMemosRouter = t.router({
+  listByMember: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      return db
+        .select()
+        .from(workoutMemos)
+        .where(eq(workoutMemos.memberId, input.memberId))
+        .orderBy(desc(workoutMemos.memoDate));
+    }),
+
+  create: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      memoDate: z.string(),
+      content: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const [row] = await db.insert(workoutMemos).values({
+        memberId: input.memberId,
+        trainerId,
+        memoDate: input.memoDate,
+        content: input.content,
+      }).returning();
+      return row;
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      await db.delete(workoutMemos).where(eq(workoutMemos.id, input.id));
+      return { success: true };
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
@@ -387,7 +1138,9 @@ export const appRouter = t.router({
   pt: ptRouter,
   attendances: attendancesRouter,
   trainers: trainersRouter,
+  admin: adminRouter,
   dashboard: dashboardRouter,
+  workoutMemos: workoutMemosRouter,
 });
 
 export type AppRouter = typeof appRouter;

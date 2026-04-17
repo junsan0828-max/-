@@ -1,21 +1,23 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import Logo from "@/components/Logo";
 
 export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
+  const [errorMsg, setErrorMsg] = useState("");
   const utils = trpc.useUtils();
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
-      utils.auth.me.invalidate();
+      window.location.href = "/";
     },
     onError: (err) => {
-      toast.error(err.message || "로그인 실패");
+      setErrorMsg(err.message || "로그인 실패. 아이디/비밀번호를 확인하세요.");
     },
   });
 
@@ -31,10 +33,9 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-sm bg-card border-border">
-        <CardHeader className="text-center pb-6">
-          <div className="text-4xl mb-2">💪</div>
-          <CardTitle className="text-xl">트레이너 회원 관리</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">로그인하여 시작하세요</p>
+        <CardHeader className="flex flex-col items-center pb-6 pt-6">
+          <Logo className="h-12" textSize="text-lg" />
+          <p className="text-sm text-muted-foreground mt-3">로그인하여 시작하세요</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -65,6 +66,11 @@ export default function Login() {
                 autoComplete="current-password"
               />
             </div>
+            {errorMsg && (
+              <div className="text-red-500 text-sm text-center bg-red-500/10 rounded p-2">
+                {errorMsg}
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full"
@@ -72,6 +78,10 @@ export default function Login() {
             >
               {loginMutation.isPending ? "로그인 중..." : "로그인"}
             </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              계정이 없으신가요?{" "}
+              <a href="/register" className="text-primary underline">트레이너 회원가입</a>
+            </p>
           </form>
         </CardContent>
       </Card>

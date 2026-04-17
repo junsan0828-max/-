@@ -1,114 +1,120 @@
 import {
-  mysqlTable,
-  int,
-  varchar,
+  sqliteTable,
+  integer,
   text,
-  date,
-  timestamp,
-  mysqlEnum,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+
+const now = sql`(datetime('now'))`;
 
 // 사용자 (관리자 / 트레이너)
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
-  username: varchar("username", { length: 50 }).notNull().unique(),
-  password: varchar("password", { length: 255 }).notNull(),
-  role: mysqlEnum("role", ["admin", "trainer"]).default("trainer").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  role: text("role", { enum: ["admin", "trainer"] }).default("trainer").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
 });
 
 // 트레이너 프로필
-export const trainers = mysqlTable("trainers", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique(),
-  trainerName: varchar("trainerName", { length: 100 }).notNull(),
-  phone: varchar("phone", { length: 20 }),
-  email: varchar("email", { length: 100 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const trainers = sqliteTable("trainers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("userId").notNull().unique(),
+  trainerName: text("trainerName").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
 });
 
 // 트레이너 설정
-export const trainerSettings = mysqlTable("trainer_settings", {
-  id: int("id").autoincrement().primaryKey(),
-  trainerId: int("trainerId").notNull().unique(),
-  settlementRate: int("settlementRate").default(50).notNull(), // 정산 비율 (기본값: 50%)
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const trainerSettings = sqliteTable("trainer_settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  trainerId: integer("trainerId").notNull().unique(),
+  settlementRate: integer("settlementRate").default(50).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
 });
 
 // 회원
-export const members = mysqlTable("members", {
-  id: int("id").autoincrement().primaryKey(),
-  trainerId: int("trainerId").notNull(),
-  name: varchar("name", { length: 100 }).notNull(),
-  phone: varchar("phone", { length: 20 }),
-  email: varchar("email", { length: 100 }),
-  birthDate: date("birthDate"),
-  gender: mysqlEnum("gender", ["male", "female", "other"]),
-  grade: mysqlEnum("grade", ["basic", "premium", "vip"]).default("basic").notNull(),
-  status: mysqlEnum("status", ["active", "paused"]).default("active").notNull(),
-  membershipStart: date("membershipStart"),
-  membershipEnd: date("membershipEnd"),
+export const members = sqliteTable("members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  trainerId: integer("trainerId").notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  birthDate: text("birthDate"),
+  gender: text("gender", { enum: ["male", "female", "other"] }),
+  grade: text("grade", { enum: ["basic", "premium", "vip"] }).default("basic").notNull(),
+  status: text("status", { enum: ["active", "paused"] }).default("active").notNull(),
+  membershipStart: text("membershipStart"),
+  membershipEnd: text("membershipEnd"),
   profileNote: text("profileNote"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
 });
 
 // PT 패키지
-export const ptPackages = mysqlTable("pt_packages", {
-  id: int("id").autoincrement().primaryKey(),
-  memberId: int("memberId").notNull(),
-  trainerId: int("trainerId"),
-  totalSessions: int("totalSessions").notNull(),
-  usedSessions: int("usedSessions").default(0).notNull(),
-  packageName: varchar("packageName", { length: 100 }),
-  startDate: date("startDate"),
-  expiryDate: date("expiryDate"),
-  status: mysqlEnum("status", ["active", "completed", "expired"]).default("active").notNull(),
-  price: int("price"),
-  pricePerSession: int("pricePerSession"),
-
-  // 결제 정보 필드
-  paymentAmount: int("paymentAmount"),
-  unpaidAmount: int("unpaidAmount"),
-  paymentMethod: mysqlEnum("paymentMethod", ["현금영수증", "이체", "지역화폐", "카드"]),
+export const ptPackages = sqliteTable("pt_packages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId"),
+  totalSessions: integer("totalSessions").notNull(),
+  usedSessions: integer("usedSessions").default(0).notNull(),
+  packageName: text("packageName"),
+  startDate: text("startDate"),
+  expiryDate: text("expiryDate"),
+  status: text("status", { enum: ["active", "completed", "expired"] }).default("active").notNull(),
+  price: integer("price"),
+  pricePerSession: integer("pricePerSession"),
+  paymentAmount: integer("paymentAmount"),
+  unpaidAmount: integer("unpaidAmount"),
+  paymentMethod: text("paymentMethod", { enum: ["현금영수증", "이체", "지역화폐", "카드"] }),
   paymentMemo: text("paymentMemo"),
-
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
 });
 
 // 출석
-export const attendances = mysqlTable("attendances", {
-  id: int("id").autoincrement().primaryKey(),
-  memberId: int("memberId").notNull(),
-  trainerId: int("trainerId").notNull(),
-  attendDate: date("attendDate").notNull(),
-  status: mysqlEnum("status", ["attended", "absent", "noshow"]).default("attended").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+export const attendances = sqliteTable("attendances", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  attendDate: text("attendDate").notNull(),
+  status: text("status", { enum: ["attended", "absent", "noshow"] }).default("attended").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
 });
 
 // PT 세션 로그
-export const ptSessionLogs = mysqlTable("pt_session_logs", {
-  id: int("id").autoincrement().primaryKey(),
-  memberId: int("memberId").notNull(),
-  trainerId: int("trainerId").notNull(),
-  packageId: int("packageId"),
-  sessionDate: date("sessionDate").notNull(),
+export const ptSessionLogs = sqliteTable("pt_session_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  packageId: integer("packageId"),
+  sessionDate: text("sessionDate").notNull(),
   notes: text("notes"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 운동 메모
+export const workoutMemos = sqliteTable("workout_memos", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  memoDate: text("memoDate").notNull(),
+  content: text("content").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
 });
 
 // 결제 내역
-export const payments = mysqlTable("payments", {
-  id: int("id").autoincrement().primaryKey(),
-  memberId: int("memberId").notNull(),
-  trainerId: int("trainerId"),
-  amount: int("amount").notNull(),
-  paymentDate: date("paymentDate"),
-  paymentMethod: mysqlEnum("paymentMethod", ["현금영수증", "이체", "지역화폐", "카드"]),
+export const payments = sqliteTable("payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId"),
+  amount: integer("amount").notNull(),
+  paymentDate: text("paymentDate"),
+  paymentMethod: text("paymentMethod", { enum: ["현금영수증", "이체", "지역화폐", "카드"] }),
   memo: text("memo"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
 });

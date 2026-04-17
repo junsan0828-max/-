@@ -9,8 +9,13 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    // crossorigin 속성 제거 (same-origin 서버 배포 시 불필요)
+    modulePreload: { polyfill: false },
+  },
   server: {
     port: 5173,
+    host: "0.0.0.0",
     proxy: {
       "/trpc": {
         target: "http://localhost:3000",
