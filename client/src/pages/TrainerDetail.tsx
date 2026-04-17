@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { differenceInDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Settings, Phone, Mail } from "lucide-react";
+import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight } from "lucide-react";
 import { trpc as trpcHook } from "@/lib/trpc";
 
 interface Props {
@@ -29,6 +32,7 @@ export default function TrainerDetail({ trainerId }: Props) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
+  const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
   const trainer = trainerQuery.data;
 
   const updateSettlementRateMutation = trpc.trainers.updateSettlementRate.useMutation({
@@ -173,6 +177,70 @@ export default function TrainerDetail({ trainerId }: Props) {
               <p className="text-sm font-medium text-primary">{trainer.settlementRate}%</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 담당 회원 목록 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            담당 회원
+            <span className="ml-auto text-xs font-normal text-muted-foreground">총 {memberList?.length ?? 0}명</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {!memberList?.length ? (
+            <p className="text-sm text-muted-foreground text-center py-6">담당 회원이 없습니다.</p>
+          ) : (
+            memberList.map((m) => {
+              const today = new Date();
+              const daysLeft = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
+              const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setLocation(`/members/${m.id}`)}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                      {m.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-medium">{m.name}</p>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
+                          m.status === "active"
+                            ? "bg-green-500/20 text-green-400 border-green-500/30"
+                            : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                        }`}>
+                          {m.status === "active" ? "활성" : "정지"}
+                        </span>
+                        {isExpiringSoon && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                            D-{daysLeft}
+                          </span>
+                        )}
+                        {m.hasUnpaid && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                            미수금
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {m.membershipEnd
+                          ? `만료 ${format(new Date(m.membershipEnd), "yyyy.MM.dd", { locale: ko })}`
+                          : "만료일 없음"}
+                        {m.remainingPt > 0 && ` · PT ${m.remainingPt}회`}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+                </button>
+              );
+            })
+          )}
         </CardContent>
       </Card>
     </div>

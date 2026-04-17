@@ -996,6 +996,33 @@ const adminRouter = t.router({
       await db.update(trainerSettings).set({ settlementRate: input.settlementRate }).where(eq(trainerSettings.trainerId, input.trainerId));
       return { success: true };
     }),
+
+  // 관리자: 특정 트레이너의 회원 목록 + PT 잔여 횟수
+  getMembersByTrainer: protectedProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const memberList = await db
+        .select()
+        .from(members)
+        .where(eq(members.trainerId, input.trainerId))
+        .orderBy(desc(members.createdAt));
+
+      const withPt = await Promise.all(memberList.map(async (m) => {
+        const pkgs = await db
+          .select({ totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions, unpaidAmount: ptPackages.unpaidAmount })
+          .from(ptPackages)
+          .where(and(eq(ptPackages.memberId, m.id), eq(ptPackages.status, "active")));
+        const remainingPt = pkgs.reduce((s, p) => s + (p.totalSessions - p.usedSessions), 0);
+        const hasUnpaid = pkgs.some(p => p.unpaidAmount && p.unpaidAmount > 0);
+        return { ...m, remainingPt, hasUnpaid };
+      }));
+
+      return withPt;
+    }),
 });
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
