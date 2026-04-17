@@ -71,28 +71,26 @@ export default function TrainerDetail({ trainerId }: Props) {
   return (
     <div className="space-y-4">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setLocation("/")}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-              {trainer.trainerName.charAt(0)}
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">{trainer.trainerName}</h1>
-              <p className="text-xs text-muted-foreground">트레이너</p>
-            </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setLocation("/")}
+          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold shrink-0">
+            {trainer.trainerName.charAt(0)}
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold truncate">{trainer.trainerName}</h1>
+            <p className="text-xs text-muted-foreground">트레이너</p>
           </div>
         </div>
 
         {/* 관리자 버튼 영역 */}
         {user?.role === "admin" && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               size="sm"
               className="gap-1.5"

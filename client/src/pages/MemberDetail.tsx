@@ -201,28 +201,7 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "패키지 추가 실패"),
   });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="h-8 w-48 rounded bg-card animate-pulse" />
-        <div className="h-64 rounded-lg bg-card animate-pulse" />
-      </div>
-    );
-  }
-
-  if (!member) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        <p>회원을 찾을 수 없습니다.</p>
-      </div>
-    );
-  }
-
-  const trainer = trainers?.find((t) => t.id === member.trainerId);
-  const todayStr = new Date().toISOString().split("T")[0];
-  const checkedInToday = attendanceList?.some((a) => a.attendDate === todayStr);
-
-  // 달력 계산
+  // 달력 계산 (hooks는 조건부 return 이전에 호출해야 함)
   const attendanceMap = useMemo(() => {
     const map: Record<string, string> = {};
     attendanceList?.forEach((a) => { if (a.attendDate) map[a.attendDate] = a.status; });
@@ -248,6 +227,27 @@ export default function MemberDetail({ memberId }: Props) {
       return { year: y, month: m };
     });
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-8 w-48 rounded bg-card animate-pulse" />
+        <div className="h-64 rounded-lg bg-card animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!member) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <p>회원을 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  const trainer = trainers?.find((t) => t.id === member.trainerId);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const checkedInToday = attendanceList?.some((a) => a.attendDate === todayStr);
 
   const remainingPt = ptPackages
     ?.filter(p => p.status === "active")
