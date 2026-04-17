@@ -171,6 +171,15 @@ export const attendanceChecks = sqliteTable("attendance_checks", {
   updatedAt: text("updatedAt").default(now).notNull(),
 });
 
+// 보고서 공유 토큰
+export const reportTokens = sqliteTable("report_tokens", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  token: text("token").notNull().unique(),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const payments = sqliteTable("payments", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   memberId: integer("memberId").notNull(),

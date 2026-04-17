@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useRoute } from "wouter";
 import { trpc } from "./lib/trpc";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -10,6 +10,7 @@ import TrainerDetail from "./pages/TrainerDetail";
 import ParQ from "./pages/ParQ";
 import AttendancePage from "./pages/AttendancePage";
 import AttendanceCheck from "./pages/AttendanceCheck";
+import MemberReport from "./pages/MemberReport";
 import Trainers from "./pages/Trainers";
 import Admin from "./pages/Admin";
 import PT from "./pages/PT";
@@ -17,7 +18,13 @@ import Profile from "./pages/Profile";
 import Layout from "./components/Layout";
 
 function App() {
+  const [reportMatch, reportParams] = useRoute("/report/:token");
   const { data: user, isLoading } = trpc.auth.me.useQuery();
+
+  // 공개 보고서 페이지 - 인증 불필요
+  if (reportMatch && reportParams) {
+    return <MemberReport token={reportParams.token} />;
+  }
 
   if (isLoading) {
     return (

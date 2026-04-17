@@ -41,6 +41,9 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  Share2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface Props {
@@ -99,6 +102,9 @@ export default function MemberDetail({ memberId }: Props) {
   const [sessionMemoContent, setSessionMemoContent] = useState("");
   const [trainerChangeOpen, setTrainerChangeOpen] = useState(false);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>("");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
     packageId: 0,
     current: 0,
@@ -182,6 +188,24 @@ export default function MemberDetail({ memberId }: Props) {
     },
     onError: (err) => toast.error(err.message || "업데이트 실패"),
   });
+
+  // 보고서 공유 토큰 발급
+  const generateReportMutation = trpc.reports.generate.useMutation({
+    onSuccess: (data) => {
+      setShareToken(data.token);
+      setShareOpen(true);
+    },
+    onError: (err) => toast.error(err.message || "링크 발급 실패"),
+  });
+
+  const handleCopyLink = () => {
+    if (!shareToken) return;
+    const url = `${window.location.origin}/report/${shareToken}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   // PT 패키지 추가
   const addPackageMutation = trpc.pt.addPackage.useMutation({
@@ -281,6 +305,19 @@ export default function MemberDetail({ memberId }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (shareToken) { setShareOpen(true); }
+              else { generateReportMutation.mutate({ memberId }); }
+            }}
+            disabled={generateReportMutation.isPending}
+            className="gap-1.5"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            공유
+          </Button>
           <Button
             size="sm"
             variant="outline"
@@ -953,6 +990,41 @@ export default function MemberDetail({ memberId }: Props) {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 보고서 공유 다이얼로그 */}
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-4 w-4" />
+              보고서 공유 링크
+            </DialogTitle>
+            <DialogDescription>
+              아래 링크를 {member?.name}님께 공유하세요. 로그인 없이 열람 가능합니다.
+            </DialogDescription>
+          </DialogHeader>
+          {shareToken && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 p-3 bg-accent/30 rounded-lg border border-border">
+                <p className="text-xs text-foreground flex-1 break-all">
+                  {`${window.location.origin}/report/${shareToken}`}
+                </p>
+              </div>
+              <Button
+                className="w-full gap-2"
+                onClick={handleCopyLink}
+                variant={copied ? "outline" : "default"}
+              >
+                {copied ? (
+                  <><Check className="h-4 w-4 text-green-400" />복사 완료</>
+                ) : (
+                  <><Copy className="h-4 w-4" />링크 복사</>
+                )}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

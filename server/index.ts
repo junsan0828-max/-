@@ -182,6 +182,14 @@ function initDatabase() {
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS report_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL UNIQUE,
+    memberId INTEGER NOT NULL,
+    trainerId INTEGER NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   sqlite.exec(`CREATE TABLE IF NOT EXISTS par_q (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     memberId INTEGER NOT NULL UNIQUE,

@@ -15,7 +15,9 @@ import {
   workoutMemos,
   parQ,
   attendanceChecks,
+  reportTokens,
 } from "../drizzle/schema";
+import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -1308,6 +1310,72 @@ const parQRouter = t.router({
     }),
 });
 
+// ─── Reports ─────────────────────────────────────────────────────────────────
+const reportsRouter = t.router({
+  // 공유 토큰 발급 (기존 토큰 재사용)
+  generate: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const existing = await db
+        .select()
+        .from(reportTokens)
+        .where(
+          and(
+            eq(reportTokens.memberId, input.memberId),
+            eq(reportTokens.trainerId, trainerId)
+          )
+        )
+        .limit(1);
+
+      if (existing[0]) return { token: existing[0].token };
+
+      const token = randomUUID().replace(/-/g, "");
+      await db.insert(reportTokens).values({ token, memberId: input.memberId, trainerId });
+      return { token };
+    }),
+
+  // 공개 보고서 조회 (토큰으로, 인증 불필요)
+  getPublic: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+
+      const tokenRows = await db
+        .select()
+        .from(reportTokens)
+        .where(eq(reportTokens.token, input.token))
+        .limit(1);
+
+      if (!tokenRows[0])
+        throw new TRPCError({ code: "NOT_FOUND", message: "유효하지 않은 링크입니다." });
+
+      const memberId = tokenRows[0].memberId;
+
+      const [memberRows, checks, memos, packages, attendanceList] = await Promise.all([
+        db.select().from(members).where(eq(members.id, memberId)).limit(1),
+        db.select().from(attendanceChecks).where(eq(attendanceChecks.memberId, memberId)).orderBy(desc(attendanceChecks.checkDate)),
+        db.select().from(workoutMemos).where(eq(workoutMemos.memberId, memberId)).orderBy(desc(workoutMemos.memoDate)),
+        db.select().from(ptPackages).where(eq(ptPackages.memberId, memberId)).orderBy(desc(ptPackages.createdAt)),
+        db.select().from(attendances).where(eq(attendances.memberId, memberId)).orderBy(desc(attendances.attendDate)),
+      ]);
+
+      if (!memberRows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return {
+        member: memberRows[0],
+        conditionChecks: checks,
+        workoutMemos: memos,
+        ptPackages: packages,
+        attendances: attendanceList,
+        generatedAt: new Date().toISOString(),
+      };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({
   auth: authRouter,
@@ -1320,6 +1388,7 @@ export const appRouter = t.router({
   workoutMemos: workoutMemosRouter,
   parQ: parQRouter,
   attendanceChecks: attendanceChecksRouter,
+  reports: reportsRouter,
 });
 
 export type AppRouter = typeof appRouter;
