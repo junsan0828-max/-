@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, UserPlus, Edit } from "lucide-react";
+import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, UserPlus, Edit, KeyRound } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { trpc as trpcHook } from "@/lib/trpc";
 
@@ -35,6 +35,11 @@ export default function TrainerDetail({ trainerId }: Props) {
   // 트레이너 정보 수정
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ trainerName: "", phone: "", email: "" });
+
+  // 비밀번호 초기화
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwForm, setPwForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [pwError, setPwError] = useState("");
 
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
@@ -57,6 +62,30 @@ export default function TrainerDetail({ trainerId }: Props) {
     },
     onError: (err) => toast.error(err.message || "수정 실패"),
   });
+
+  const resetPasswordMutation = trpc.trainers.resetPassword.useMutation({
+    onSuccess: () => {
+      toast.success("비밀번호가 초기화되었습니다.");
+      setPwOpen(false);
+      setPwForm({ newPassword: "", confirmPassword: "" });
+      setPwError("");
+    },
+    onError: (err) => toast.error(err.message || "초기화 실패"),
+  });
+
+  const handleResetPassword = () => {
+    if (!pwForm.newPassword || !pwForm.confirmPassword) {
+      setPwError("모든 항목을 입력해주세요."); return;
+    }
+    if (pwForm.newPassword.length < 6) {
+      setPwError("비밀번호는 6자 이상이어야 합니다."); return;
+    }
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      setPwError("비밀번호가 일치하지 않습니다."); return;
+    }
+    setPwError("");
+    resetPasswordMutation.mutate({ trainerId, newPassword: pwForm.newPassword });
+  };
 
   // 트레이너 정보 로드 시 초기값 설정
   useEffect(() => {
@@ -178,22 +207,37 @@ export default function TrainerDetail({ trainerId }: Props) {
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base">트레이너 정보</CardTitle>
           {user?.role === "admin" && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5 h-7 text-xs"
-              onClick={() => {
-                setEditForm({
-                  trainerName: trainer.trainerName,
-                  phone: trainer.phone ?? "",
-                  email: trainer.email ?? "",
-                });
-                setEditOpen(true);
-              }}
-            >
-              <Edit className="h-3 w-3" />
-              수정
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-7 text-xs"
+                onClick={() => {
+                  setPwForm({ newPassword: "", confirmPassword: "" });
+                  setPwError("");
+                  setPwOpen(true);
+                }}
+              >
+                <KeyRound className="h-3 w-3" />
+                비밀번호
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-7 text-xs"
+                onClick={() => {
+                  setEditForm({
+                    trainerName: trainer.trainerName,
+                    phone: trainer.phone ?? "",
+                    email: trainer.email ?? "",
+                  });
+                  setEditOpen(true);
+                }}
+              >
+                <Edit className="h-3 w-3" />
+                수정
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-3">
@@ -220,6 +264,60 @@ export default function TrainerDetail({ trainerId }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {/* 비밀번호 초기화 다이얼로그 */}
+      <Dialog open={pwOpen} onOpenChange={setPwOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              비밀번호 초기화
+            </DialogTitle>
+            <DialogDescription>
+              {trainer.trainerName} 트레이너의 비밀번호를 새로 설정합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">새 비밀번호 <span className="text-primary">*</span></Label>
+              <Input
+                type="password"
+                value={pwForm.newPassword}
+                onChange={(e) => { setPwForm((p) => ({ ...p, newPassword: e.target.value })); setPwError(""); }}
+                placeholder="6자 이상"
+                className="h-9 text-sm"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">비밀번호 확인 <span className="text-primary">*</span></Label>
+              <Input
+                type="password"
+                value={pwForm.confirmPassword}
+                onChange={(e) => { setPwForm((p) => ({ ...p, confirmPassword: e.target.value })); setPwError(""); }}
+                placeholder="동일하게 입력"
+                className="h-9 text-sm"
+                autoComplete="new-password"
+              />
+            </div>
+            {pwError && (
+              <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{pwError}</p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setPwOpen(false)}>
+                취소
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={resetPasswordMutation.isPending}
+                onClick={handleResetPassword}
+              >
+                {resetPasswordMutation.isPending ? "초기화 중..." : "초기화"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 트레이너 정보 수정 다이얼로그 */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

@@ -748,6 +748,26 @@ const trainersRouter = t.router({
       return { success: true };
     }),
 
+  // 트레이너 비밀번호 초기화 (관리자)
+  resetPassword: protectedProcedure
+    .input(z.object({ trainerId: z.number(), newPassword: z.string().min(6) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerRow = await db
+        .select({ userId: trainers.userId })
+        .from(trainers)
+        .where(eq(trainers.id, input.trainerId))
+        .limit(1);
+      if (!trainerRow[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const hashed = await bcrypt.hash(input.newPassword, 10);
+      await db.update(users).set({ password: hashed }).where(eq(users.id, trainerRow[0].userId));
+      return { success: true };
+    }),
+
   // 트레이너 정보 수정 (관리자)
   updateInfo: protectedProcedure
     .input(
