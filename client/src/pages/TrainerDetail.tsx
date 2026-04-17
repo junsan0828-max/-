@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight } from "lucide-react";
+import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, UserPlus } from "lucide-react";
 import { trpc as trpcHook } from "@/lib/trpc";
 
 interface Props {
@@ -90,9 +90,18 @@ export default function TrainerDetail({ trainerId }: Props) {
           </div>
         </div>
 
-        {/* 관리자만 정산 비율 설정 가능 */}
+        {/* 관리자 버튼 영역 */}
         {user?.role === "admin" && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setLocation(`/trainers/${trainerId}/members/new`)}
+            >
+              <UserPlus className="h-4 w-4" />
+              회원 등록
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <Settings className="h-4 w-4" />
@@ -143,6 +152,7 @@ export default function TrainerDetail({ trainerId }: Props) {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         )}
       </div>
 

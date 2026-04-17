@@ -222,14 +222,17 @@ const membersRouter = t.router({
         unpaidAmount: z.number().optional(),
         paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
         paymentMemo: z.string().optional(),
+        adminTrainerId: z.number().optional(), // 관리자가 직접 담당 트레이너 지정
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      // 관리자는 adminTrainerId 필수, 트레이너는 본인 ID 사용
+      const trainerId = ctx.user.role === "admin"
+        ? input.adminTrainerId ?? (() => { throw new TRPCError({ code: "BAD_REQUEST", message: "담당 트레이너를 선택해주세요." }); })()
+        : ctx.user.trainerId ?? (() => { throw new TRPCError({ code: "FORBIDDEN" }); })();
 
       const {
         ptProgram,
@@ -238,6 +241,7 @@ const membersRouter = t.router({
         unpaidAmount,
         paymentMethod,
         paymentMemo,
+        adminTrainerId: _,
         ...memberData
       } = input;
 

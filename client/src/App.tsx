@@ -35,6 +35,9 @@ function App() {
         <Route path="/">{() => <Dashboard />}</Route>
         <Route path="/members">{() => <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
+        <Route path="/trainers/:id/members/new">
+          {(params) => <MemberForm defaultTrainerId={parseInt(params.id!)} />}
+        </Route>
         <Route path="/members/:id/edit">
           {(params) => <MemberForm memberId={parseInt(params.id!)} />}
         </Route>

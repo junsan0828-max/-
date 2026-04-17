@@ -17,9 +17,10 @@ import { ArrowLeft } from "lucide-react";
 
 interface Props {
   memberId?: number;
+  defaultTrainerId?: number;
 }
 
-export default function MemberForm({ memberId }: Props) {
+export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!memberId;
 
@@ -29,24 +30,24 @@ export default function MemberForm({ memberId }: Props) {
     email: "",
     birthDate: "",
     gender: "" as "male" | "female" | "other" | "",
-
     grade: "basic" as "basic" | "premium" | "vip",
     status: "active" as "active" | "paused",
-
     membershipStart: "",
     membershipEnd: "",
     profileNote: "",
     ptProgram: "" as "" | "care_pt" | "weight_pt" | "pilates",
     ptSessions: "" as "" | "10" | "20" | "30" | "40" | "50",
-
     paymentAmount: "",
     unpaidAmount: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
     paymentMemo: "",
+    adminTrainerId: defaultTrainerId ? String(defaultTrainerId) : "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const { data: currentUser } = trpc.auth.me.useQuery();
+  const { data: trainerList } = trpc.trainers.list.useQuery();
   const { data: existingMember } = trpc.members.getById.useQuery(
     { id: memberId! },
     { enabled: isEdit }
@@ -89,6 +90,7 @@ export default function MemberForm({ memberId }: Props) {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
+    if (currentUser?.role === "admin" && !isEdit && !form.adminTrainerId) newErrors.adminTrainerId = "담당 트레이너를 선택해주세요.";
     return newErrors;
   };
 
@@ -117,6 +119,7 @@ export default function MemberForm({ memberId }: Props) {
       unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
       paymentMethod: form.paymentMethod || undefined,
       paymentMemo: form.paymentMemo || undefined,
+      adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
     };
 
     if (isEdit) {
@@ -147,6 +150,29 @@ export default function MemberForm({ memberId }: Props) {
             <CardTitle className="text-base font-semibold">기본 정보</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* 관리자: 담당 트레이너 선택 */}
+            {currentUser?.role === "admin" && !isEdit && (
+              <div className="space-y-1.5">
+                <Label className="text-sm text-muted-foreground">
+                  담당 트레이너 <span className="text-primary">*</span>
+                </Label>
+                <Select
+                  value={form.adminTrainerId}
+                  onValueChange={(v) => setForm((p) => ({ ...p, adminTrainerId: v }))}
+                >
+                  <SelectTrigger className={`bg-input border-border ${errors.adminTrainerId ? "border-red-500" : ""}`}>
+                    <SelectValue placeholder="트레이너 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trainerList?.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>{t.trainerName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.adminTrainerId && <p className="text-xs text-red-500">{errors.adminTrainerId}</p>}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="name" className="text-sm text-muted-foreground">
