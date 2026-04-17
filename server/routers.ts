@@ -220,8 +220,8 @@ const membersRouter = t.router({
         membershipStart: z.string().optional(),
         membershipEnd: z.string().optional(),
         profileNote: z.string().optional(),
-        ptProgram: z.enum(["care_pt", "weight_pt", "pilates"]).optional(),
-        ptSessions: z.enum(["10", "20", "30", "40", "50"]).optional(),
+        ptProgram: z.string().optional(),
+        ptSessions: z.string().optional(),
         paymentAmount: z.number().optional(),
         unpaidAmount: z.number().optional(),
         paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
@@ -257,12 +257,7 @@ const membersRouter = t.router({
 
       if (ptSessions) {
         const sessionCount = parseInt(ptSessions);
-        const programNames: Record<string, string> = {
-          care_pt: "케어피티",
-          weight_pt: "웨이트피티",
-          pilates: "필라테스",
-        };
-        const packageName = ptProgram ? programNames[ptProgram] : undefined;
+        const packageName = ptProgram || undefined;
         const pricePerSession =
           paymentAmount && sessionCount
             ? Math.round(paymentAmount / sessionCount)
@@ -453,7 +448,7 @@ const ptRouter = t.router({
     .input(
       z.object({
         memberId: z.number(),
-        ptProgram: z.enum(["care_pt", "weight_pt", "pilates"]).optional(),
+        ptProgram: z.string().optional(),
         totalSessions: z.number().min(1),
         startDate: z.string().optional(),
         expiryDate: z.string().optional(),
@@ -470,12 +465,7 @@ const ptRouter = t.router({
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
-      const programNames: Record<string, string> = {
-        care_pt: "케어피티",
-        weight_pt: "웨이트피티",
-        pilates: "필라테스",
-      };
-      const packageName = input.ptProgram ? programNames[input.ptProgram] : undefined;
+      const packageName = input.ptProgram || undefined;
       const pricePerSession =
         input.paymentAmount && input.totalSessions
           ? Math.round(input.paymentAmount / input.totalSessions)

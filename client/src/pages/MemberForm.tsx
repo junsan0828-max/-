@@ -35,8 +35,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     membershipStart: "",
     membershipEnd: "",
     profileNote: "",
-    ptProgram: "" as "" | "care_pt" | "weight_pt" | "pilates",
-    ptSessions: "" as "" | "10" | "20" | "30" | "40" | "50",
+    ptProgram: "",
+    ptSessions: "",
     paymentAmount: "",
     unpaidAmount: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
@@ -330,40 +330,57 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
             {!isEdit && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">PT 프로그램</Label>
-                    <Select
-                      value={form.ptProgram}
-                      onValueChange={(v) => setForm((p) => ({ ...p, ptProgram: v as any }))}
-                    >
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="프로그램 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="care_pt">케어피티</SelectItem>
-                        <SelectItem value="weight_pt">웨이트피티</SelectItem>
-                        <SelectItem value="pilates">필라테스</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-muted-foreground">PT 패키지명</Label>
+                  <Input
+                    value={form.ptProgram}
+                    onChange={(e) => setForm((p) => ({ ...p, ptProgram: e.target.value }))}
+                    placeholder="패키지명 직접 입력"
+                    className="bg-input border-border"
+                  />
+                  <div className="flex gap-1.5 flex-wrap">
+                    {["케어피티", "웨이트피티", "필라테스"].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
+                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                          form.ptProgram === preset
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border text-muted-foreground hover:border-primary/40"
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">횟수</Label>
-                    <Select
-                      value={form.ptSessions}
-                      onValueChange={(v) => setForm((p) => ({ ...p, ptSessions: v as any }))}
-                    >
-                      <SelectTrigger className="bg-input border-border">
-                        <SelectValue placeholder="횟수 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10회</SelectItem>
-                        <SelectItem value="20">20회</SelectItem>
-                        <SelectItem value="30">30회</SelectItem>
-                        <SelectItem value="40">40회</SelectItem>
-                        <SelectItem value="50">50회</SelectItem>
-                      </SelectContent>
-                    </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-muted-foreground">PT 횟수</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={form.ptSessions}
+                    onChange={(e) => setForm((p) => ({ ...p, ptSessions: e.target.value }))}
+                    placeholder="횟수 직접 입력"
+                    className="bg-input border-border"
+                  />
+                  <div className="flex gap-1.5 flex-wrap">
+                    {["10", "20", "30", "40", "50"].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setForm((p) => ({ ...p, ptSessions: p.ptSessions === preset ? "" : preset }))}
+                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                          form.ptSessions === preset
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border text-muted-foreground hover:border-primary/40"
+                        }`}
+                      >
+                        {preset}회
+                      </button>
+                    ))}
                   </div>
                 </div>
 
