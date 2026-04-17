@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import Logo from "@/components/Logo";
 
 export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
@@ -32,10 +33,9 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-sm bg-card border-border">
-        <CardHeader className="text-center pb-6">
-          <div className="text-4xl mb-2">💪</div>
-          <CardTitle className="text-xl">트레이너 회원 관리</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">로그인하여 시작하세요</p>
+        <CardHeader className="flex flex-col items-center pb-6 pt-6">
+          <Logo className="h-12" textSize="text-lg" />
+          <p className="text-sm text-muted-foreground mt-3">로그인하여 시작하세요</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
