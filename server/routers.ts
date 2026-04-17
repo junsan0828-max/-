@@ -748,6 +748,30 @@ const trainersRouter = t.router({
       return { success: true };
     }),
 
+  // 트레이너 정보 수정 (관리자)
+  updateInfo: protectedProcedure
+    .input(
+      z.object({
+        trainerId: z.number(),
+        trainerName: z.string().min(1),
+        phone: z.string().optional(),
+        email: z.string().email().optional().or(z.literal("")),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const { trainerId, ...data } = input;
+      await db
+        .update(trainers)
+        .set({ trainerName: data.trainerName, phone: data.phone, email: data.email || undefined })
+        .where(eq(trainers.id, trainerId));
+
+      return { success: true };
+    }),
+
   // 내 프로필 조회 (트레이너 본인)
   getMyProfile: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();

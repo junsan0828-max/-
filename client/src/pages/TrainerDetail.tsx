@@ -16,7 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, UserPlus } from "lucide-react";
+import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, UserPlus, Edit } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { trpc as trpcHook } from "@/lib/trpc";
 
 interface Props {
@@ -31,6 +32,10 @@ export default function TrainerDetail({ trainerId }: Props) {
   const [settlementRate, setSettlementRate] = useState(50);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  // 트레이너 정보 수정
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ trainerName: "", phone: "", email: "" });
+
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
   const trainer = trainerQuery.data;
@@ -44,10 +49,24 @@ export default function TrainerDetail({ trainerId }: Props) {
     onError: (err) => toast.error(err.message || "저장 실패"),
   });
 
-  // 트레이너 정보 로드 시 정산 비율 설정
+  const updateInfoMutation = trpc.trainers.updateInfo.useMutation({
+    onSuccess: () => {
+      toast.success("트레이너 정보가 수정되었습니다.");
+      setEditOpen(false);
+      trainerQuery.refetch();
+    },
+    onError: (err) => toast.error(err.message || "수정 실패"),
+  });
+
+  // 트레이너 정보 로드 시 초기값 설정
   useEffect(() => {
-    if (trainer?.settlementRate) {
+    if (trainer) {
       setSettlementRate(trainer.settlementRate);
+      setEditForm({
+        trainerName: trainer.trainerName,
+        phone: trainer.phone ?? "",
+        email: trainer.email ?? "",
+      });
     }
   }, [trainer]);
 
@@ -156,30 +175,44 @@ export default function TrainerDetail({ trainerId }: Props) {
 
       {/* 트레이너 정보 카드 */}
       <Card className="bg-card border-border">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base">트레이너 정보</CardTitle>
+          {user?.role === "admin" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 h-7 text-xs"
+              onClick={() => {
+                setEditForm({
+                  trainerName: trainer.trainerName,
+                  phone: trainer.phone ?? "",
+                  email: trainer.email ?? "",
+                });
+                setEditOpen(true);
+              }}
+            >
+              <Edit className="h-3 w-3" />
+              수정
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
-          {trainer.phone && (
-            <div className="flex items-center gap-3">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">연락처</p>
-                <p className="text-sm font-medium">{trainer.phone}</p>
-              </div>
-            </div>
-          )}
-          {trainer.email && (
-            <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">이메일</p>
-                <p className="text-sm font-medium">{trainer.email}</p>
-              </div>
-            </div>
-          )}
           <div className="flex items-center gap-3">
-            <Settings className="h-4 w-4 text-muted-foreground" />
+            <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">연락처</p>
+              <p className="text-sm font-medium">{trainer.phone || "-"}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">이메일</p>
+              <p className="text-sm font-medium">{trainer.email || "-"}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground">정산 비율</p>
               <p className="text-sm font-medium text-primary">{trainer.settlementRate}%</p>
@@ -187,6 +220,65 @@ export default function TrainerDetail({ trainerId }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {/* 트레이너 정보 수정 다이얼로그 */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>트레이너 정보 수정</DialogTitle>
+            <DialogDescription>이름, 연락처, 이메일을 수정합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">이름 <span className="text-primary">*</span></Label>
+              <Input
+                value={editForm.trainerName}
+                onChange={(e) => setEditForm((p) => ({ ...p, trainerName: e.target.value }))}
+                placeholder="트레이너 이름"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">연락처</Label>
+              <Input
+                value={editForm.phone}
+                onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
+                placeholder="010-0000-0000"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">이메일</Label>
+              <Input
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}
+                placeholder="example@email.com"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)}>
+                취소
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!editForm.trainerName.trim() || updateInfoMutation.isPending}
+                onClick={() =>
+                  updateInfoMutation.mutate({
+                    trainerId,
+                    trainerName: editForm.trainerName,
+                    phone: editForm.phone || undefined,
+                    email: editForm.email || undefined,
+                  })
+                }
+              >
+                {updateInfoMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 담당 회원 목록 */}
       <Card className="bg-card border-border">
