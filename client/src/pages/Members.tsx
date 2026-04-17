@@ -17,17 +17,25 @@ const statusColors: Record<string, string> = {
   paused: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
 };
 
+type StatusFilter = "all" | "active" | "paused";
+type GradeFilter = "all" | "basic" | "premium" | "vip";
+
 export default function Members() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [gradeFilter, setGradeFilter] = useState<GradeFilter>("all");
   const { data: members, isLoading } = trpc.members.list.useQuery();
   const { data: ptPackages } = trpc.pt.list.useQuery();
 
   const today = new Date();
 
-  const filtered = members?.filter(
-    (m) => m.name.includes(search) || (m.phone && m.phone.includes(search))
-  );
+  const filtered = members?.filter((m) => {
+    const matchSearch = m.name.includes(search) || (m.phone && m.phone.includes(search));
+    const matchStatus = statusFilter === "all" || m.status === statusFilter;
+    const matchGrade = gradeFilter === "all" || m.grade === gradeFilter;
+    return matchSearch && matchStatus && matchGrade;
+  });
 
   // 회원별 활성 PT 잔여 횟수 맵
   const remainingMap: Record<number, number> = {};
@@ -64,6 +72,40 @@ export default function Members() {
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9 bg-input border-border"
         />
+      </div>
+
+      {/* 필터 */}
+      <div className="space-y-2">
+        <div className="flex gap-1.5 flex-wrap">
+          {(["all", "active", "paused"] as StatusFilter[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                statusFilter === s
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:border-primary/40"
+              }`}
+            >
+              {s === "all" ? "전체 상태" : s === "active" ? "활성" : "정지"}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {(["all", "basic", "premium", "vip"] as GradeFilter[]).map((g) => (
+            <button
+              key={g}
+              onClick={() => setGradeFilter(g)}
+              className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                gradeFilter === g
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:border-primary/40"
+              }`}
+            >
+              {g === "all" ? "전체 등급" : gradeLabels[g]}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 회원 목록 */}

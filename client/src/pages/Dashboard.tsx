@@ -7,11 +7,17 @@ import {
   AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
+
+const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
 
 // ─── 관리자 대시보드 ──────────────────────────────────────────────────────────
 function AdminDashboard() {
   const [, setLocation] = useLocation();
   const { data: stats, isLoading } = trpc.admin.getStats.useQuery();
+  const { data: chart } = trpc.admin.getMonthlyChart.useQuery();
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -43,6 +49,33 @@ function AdminDashboard() {
           </button>
         ))}
       </div>
+
+      {/* 월간 매출 차트 */}
+      {chart && chart.rows.length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 트레이너별 매출
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-2 pb-4">
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={chart.rows} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v === 0 ? "0" : `${(v / 10000).toFixed(0)}만`} />
+                <Tooltip
+                  contentStyle={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 8, fontSize: 12 }}
+                  formatter={(value) => [`${Number(value ?? 0).toLocaleString()}원`]}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                {chart.trainerNames.map((name, i) => (
+                  <Bar key={name} dataKey={name} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={[3, 3, 0, 0]} maxBarSize={32} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 트레이너별 현황 */}
       <Card className="bg-card border-border">

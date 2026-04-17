@@ -939,6 +939,52 @@ const adminRouter = t.router({
     };
   }),
 
+  // 최근 6개월 트레이너별 월간 매출 차트 데이터
+  getMonthlyChart: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName }).from(trainers).orderBy(trainers.trainerName);
+
+    // 최근 6개월 범위 생성
+    const months: { label: string; start: string; end: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      const start = d.toISOString().split("T")[0];
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split("T")[0];
+      const label = `${d.getMonth() + 1}월`;
+      months.push({ label, start, end });
+    }
+
+    // 월별 데이터 조합
+    const rows = await Promise.all(
+      months.map(async (m) => {
+        const entry: Record<string, string | number> = { month: m.label };
+        await Promise.all(
+          trainerList.map(async (trainer) => {
+            const res = await db
+              .select({ total: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession},0)),0)` })
+              .from(attendances)
+              .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
+              .where(and(
+                eq(attendances.trainerId, trainer.id),
+                eq(attendances.status, "attended"),
+                sql`${attendances.attendDate} >= ${m.start}`,
+                sql`${attendances.attendDate} < ${m.end}`
+              ));
+            entry[trainer.trainerName] = Number(res[0]?.total ?? 0);
+          })
+        );
+        return entry;
+      })
+    );
+
+    return { rows, trainerNames: trainerList.map(t => t.trainerName) };
+  }),
+
   // 정산 비율 수정 (관리자)
   updateSettlementRate: protectedProcedure
     .input(z.object({ trainerId: z.number(), settlementRate: z.number().min(0).max(100) }))
