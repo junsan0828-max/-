@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { ArrowLeft, Plus, X, Dumbbell } from "lucide-react";
 
 interface Props {
   memberId: number;
@@ -53,9 +53,22 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [painArea, setPainArea] = useState("");
   const [painSide, setPainSide] = useState("");
   const [notes, setNotes] = useState("");
+  const [deductSession, setDeductSession] = useState(false);
+  const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
 
   const { data: member } = trpc.members.getById.useQuery({ id: memberId });
   const { data: existing } = trpc.attendanceChecks.getByMemberDate.useQuery({ memberId, date: dateParam });
+  const { data: ptPackageList } = trpc.pt.listByMember.useQuery({ memberId });
+
+  const activePkgs = ptPackageList?.filter(
+    (p) => p.status === "active" && p.totalSessions > p.usedSessions
+  ) ?? [];
+
+  useEffect(() => {
+    if (activePkgs.length > 0 && selectedPkgId === null) {
+      setSelectedPkgId(activePkgs[0].id);
+    }
+  }, [activePkgs.length]);
 
   useEffect(() => {
     if (!existing) return;
@@ -72,10 +85,26 @@ export default function AttendanceCheck({ memberId }: Props) {
     setNotes(existing.notes ?? "");
   }, [existing]);
 
+  const useSessionMutation = trpc.pt.useSession.useMutation({
+    onError: (err) => toast.error(err.message || "세션 차감 실패"),
+  });
+
   const upsertMutation = trpc.attendanceChecks.upsert.useMutation({
     onSuccess: () => {
-      toast.success("출석이 저장되었습니다.");
-      setLocation(`/attendance?date=${checkDate}`);
+      if (deductSession && status === "attended" && selectedPkgId) {
+        useSessionMutation.mutate(
+          { packageId: selectedPkgId, memberId, sessionDate: checkDate },
+          {
+            onSettled: () => {
+              toast.success("출석 및 세션이 저장되었습니다.");
+              setLocation(`/attendance?date=${checkDate}`);
+            },
+          }
+        );
+      } else {
+        toast.success("출석이 저장되었습니다.");
+        setLocation(`/attendance?date=${checkDate}`);
+      }
     },
     onError: (err) => toast.error(err.message || "저장 실패"),
   });
@@ -102,6 +131,8 @@ export default function AttendanceCheck({ memberId }: Props) {
   const removeDietItem = (i: number) => setDietItems((p) => p.filter((_, idx) => idx !== i));
   const updateDietItem = (i: number, val: string) =>
     setDietItems((p) => p.map((d, idx) => (idx === i ? val : d)));
+
+  const isSaving = upsertMutation.isPending || useSessionMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -209,7 +240,7 @@ export default function AttendanceCheck({ memberId }: Props) {
                 <Input
                   value={item}
                   onChange={(e) => updateDietItem(i, e.target.value)}
-                  placeholder="예: 아침 - 계란 2개, 도스트"
+                  placeholder="예: 아침 - 계란 2개, 토스트"
                 />
                 {dietItems.length > 1 && (
                   <button onClick={() => removeDietItem(i)} className="text-muted-foreground hover:text-red-400">
@@ -264,10 +295,54 @@ export default function AttendanceCheck({ memberId }: Props) {
           />
         </Section>
 
+        {/* PT 세션 차감 */}
+        {activePkgs.length > 0 && status === "attended" && (
+          <Section title="PT 세션 차감">
+            <div className="space-y-3">
+              <button
+                onClick={() => setDeductSession((d) => !d)}
+                className={`flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border text-sm transition-colors ${
+                  deductSession
+                    ? "bg-primary/20 border-primary/40 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/30"
+                }`}
+              >
+                <Dumbbell className="h-4 w-4 shrink-0" />
+                PT 세션 1회 차감
+                <span className="ml-auto text-xs opacity-70">
+                  {deductSession ? "ON" : "OFF"}
+                </span>
+              </button>
+              {deductSession && activePkgs.length > 1 && (
+                <div className="flex gap-2 flex-wrap">
+                  {activePkgs.map((pkg) => (
+                    <button
+                      key={pkg.id}
+                      onClick={() => setSelectedPkgId(pkg.id)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+                        selectedPkgId === pkg.id
+                          ? "bg-primary/20 border-primary/40 text-primary"
+                          : "border-border text-muted-foreground hover:border-primary/30"
+                      }`}
+                    >
+                      {pkg.packageName || "PT"} ({pkg.totalSessions - pkg.usedSessions}회 잔여)
+                    </button>
+                  ))}
+                </div>
+              )}
+              {deductSession && activePkgs.length === 1 && (
+                <p className="text-xs text-muted-foreground">
+                  {activePkgs[0].packageName || "PT"} — 잔여 {activePkgs[0].totalSessions - activePkgs[0].usedSessions}회
+                </p>
+              )}
+            </div>
+          </Section>
+        )}
+
         {/* 버튼 */}
         <div className="flex gap-3 pt-2">
-          <Button onClick={handleSave} disabled={upsertMutation.isPending}>
-            {upsertMutation.isPending ? "저장 중..." : "저장"}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "저장 중..." : "저장"}
           </Button>
           <Button variant="outline" onClick={() => setLocation(`/attendance?date=${dateParam}`)}>
             취소

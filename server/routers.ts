@@ -548,6 +548,18 @@ const ptRouter = t.router({
       return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
     }),
 
+  // 세션 로그 목록 (회원별)
+  sessionLogs: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      return db
+        .select()
+        .from(ptSessionLogs)
+        .where(eq(ptSessionLogs.memberId, input.memberId))
+        .orderBy(desc(ptSessionLogs.sessionDate));
+    }),
+
   // 미수금 업데이트 (결제 완료 처리)
   updatePayment: protectedProcedure
     .input(
@@ -1177,6 +1189,17 @@ const attendanceChecksRouter = t.router({
       .map(([date, count]) => ({ date, count }))
       .slice(0, 10);
   }),
+
+  listByMember: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      return db
+        .select()
+        .from(attendanceChecks)
+        .where(eq(attendanceChecks.memberId, input.memberId))
+        .orderBy(desc(attendanceChecks.checkDate));
+    }),
 
   getByMemberDate: protectedProcedure
     .input(z.object({ memberId: z.number(), date: z.string() }))

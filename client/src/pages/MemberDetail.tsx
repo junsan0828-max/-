@@ -113,6 +113,8 @@ export default function MemberDetail({ memberId }: Props) {
     trpc.attendances.listByMember.useQuery({ memberId });
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
+  const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
+  const { data: conditionChecks } = trpc.attendanceChecks.listByMember.useQuery({ memberId });
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -587,6 +589,32 @@ export default function MemberDetail({ memberId }: Props) {
                           </div>
                         )}
 
+                        {/* 세션 사용 기록 */}
+                        {(() => {
+                          const logs = sessionLogs?.filter(l => l.packageId === pkg.id) ?? [];
+                          if (!logs.length) return null;
+                          return (
+                            <div className="mt-3 pt-3 border-t border-border/50">
+                              <p className="text-xs text-muted-foreground mb-1.5">최근 세션 기록</p>
+                              <div className="space-y-1">
+                                {logs.slice(0, 5).map(log => (
+                                  <div key={log.id} className="flex items-center justify-between text-xs">
+                                    <span className="text-foreground/70">
+                                      {format(new Date(log.sessionDate), "yyyy.MM.dd (EEE)", { locale: ko })}
+                                    </span>
+                                    {log.notes && (
+                                      <span className="text-muted-foreground truncate ml-2 max-w-[140px]">{log.notes}</span>
+                                    )}
+                                  </div>
+                                ))}
+                                {logs.length > 5 && (
+                                  <p className="text-xs text-muted-foreground">외 {logs.length - 5}회 더</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* 결제 정보 */}
                         {(pkg.paymentAmount || pkg.unpaidAmount || pkg.paymentMethod || pkg.paymentMemo) && (
                           <div className="mt-3 pt-3 border-t border-border/50">
@@ -803,6 +831,51 @@ export default function MemberDetail({ memberId }: Props) {
               )}
             </CardContent>
           </Card>
+
+          {/* 컨디션 체크 이력 */}
+          {conditionChecks && conditionChecks.length > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader className="px-4 pb-2 pt-4">
+                <CardTitle className="text-sm">컨디션 체크 이력</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="space-y-0">
+                  {conditionChecks.map((check) => (
+                    <div key={check.id} className="flex items-start gap-3 py-2.5 border-b border-border last:border-0">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium">
+                            {format(new Date(check.checkDate), "MM.dd (EEE)", { locale: ko })}
+                          </p>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            check.status === "attended"
+                              ? "bg-green-500/20 text-green-400"
+                              : check.status === "noshow"
+                              ? "bg-red-500/20 text-red-400"
+                              : "bg-yellow-500/20 text-yellow-400"
+                          }`}>
+                            {check.status === "attended" ? "출석" : check.status === "noshow" ? "노쇼" : "캔슬"}
+                          </span>
+                        </div>
+                        <div className="flex gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
+                          {check.conditionScore != null && (
+                            <span>컨디션 {check.conditionScore}/5</span>
+                          )}
+                          {check.energyLevel && <span>에너지 {check.energyLevel}</span>}
+                          {check.sleepHours && <span>수면 {check.sleepHours}h</span>}
+                          {check.painLevel != null && check.painLevel > 0 && (
+                            <span className="text-orange-400">
+                              통증 {check.painLevel}/10{check.painArea ? ` (${check.painArea})` : ""}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
