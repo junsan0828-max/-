@@ -165,21 +165,56 @@ function initDatabase() {
 
   console.log("✅ 테이블 준비 완료");
 
-  // 관리자 계정 생성 (없으면)
-  const existingAdmin = sqlite.prepare("SELECT id FROM users WHERE username = ?").get("admin");
+  // 관리자 계정 생성 (없으면 초기 씨드 전체 실행)
+  const existingAdmin = sqlite.prepare("SELECT id FROM users WHERE username = ?").get("admin") as { id: number } | undefined;
   if (!existingAdmin) {
     console.log("🌱 초기 데이터 생성 중...");
+
     const adminPw = bcrypt.hashSync("admin123", 10);
     sqlite.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run("admin", adminPw, "admin");
     console.log("✅ 관리자: admin / admin123");
 
     const trainerPw = bcrypt.hashSync("trainer123", 10);
-    const trainerUser = sqlite.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run("trainer1", trainerPw, "trainer");
-    const trainerRow = sqlite.prepare("INSERT INTO trainers (userId, trainerName, phone, email) VALUES (?, ?, ?, ?)").run(trainerUser.lastInsertRowid, "김트레이너", "010-1234-5678", "trainer1@example.com");
+    const trainerUser = sqlite.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)").run("trainer1", trainerPw, "trainer") as { lastInsertRowid: number };
+    const trainerRow = sqlite.prepare("INSERT INTO trainers (userId, trainerName, phone, email) VALUES (?, ?, ?, ?)").run(trainerUser.lastInsertRowid, "김트레이너", "010-1234-5678", "trainer1@example.com") as { lastInsertRowid: number };
     sqlite.prepare("INSERT INTO trainer_settings (trainerId, settlementRate) VALUES (?, ?)").run(trainerRow.lastInsertRowid, 60);
     console.log("✅ 트레이너: trainer1 / trainer123");
+
+    const tid = trainerRow.lastInsertRowid;
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+    const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
+    const today = new Date();
+
+    // 샘플 회원 1: 만료 임박 + PT 잔여 있음
+    const m1 = sqlite.prepare(
+      "INSERT INTO members (trainerId, name, phone, gender, grade, status, membershipStart, membershipEnd, profileNote) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(tid, "홍길동", "010-1111-2222", "male", "premium", "active", fmt(today), fmt(addDays(today, 5)), "무릎 부상 주의") as { lastInsertRowid: number };
+    sqlite.prepare(
+      "INSERT INTO pt_packages (memberId, trainerId, totalSessions, usedSessions, packageName, startDate, expiryDate, pricePerSession, paymentAmount, paymentMethod) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(m1.lastInsertRowid, tid, 20, 15, "웨이트PT", fmt(today), fmt(addDays(today, 5)), 50000, 1000000, "카드");
+
+    // 샘플 회원 2: 미수금 있음
+    const m2 = sqlite.prepare(
+      "INSERT INTO members (trainerId, name, phone, gender, grade, status, membershipStart, membershipEnd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(tid, "이영희", "010-3333-4444", "female", "basic", "active", fmt(addDays(today, -30)), fmt(addDays(today, 60))) as { lastInsertRowid: number };
+    sqlite.prepare(
+      "INSERT INTO pt_packages (memberId, trainerId, totalSessions, usedSessions, packageName, startDate, expiryDate, pricePerSession, paymentAmount, unpaidAmount, paymentMethod, paymentMemo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(m2.lastInsertRowid, tid, 10, 3, "케어PT", fmt(addDays(today, -30)), fmt(addDays(today, 60)), 60000, 400000, 200000, "이체", "분납 중");
+
+    // 샘플 회원 3: 장기 미출석 (마지막 출석 40일 전)
+    const m3 = sqlite.prepare(
+      "INSERT INTO members (trainerId, name, phone, gender, grade, status, membershipStart, membershipEnd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(tid, "박민준", "010-5555-6666", "male", "vip", "active", fmt(addDays(today, -90)), fmt(addDays(today, 90))) as { lastInsertRowid: number };
+    sqlite.prepare(
+      "INSERT INTO pt_packages (memberId, trainerId, totalSessions, usedSessions, packageName, startDate, expiryDate, pricePerSession, paymentAmount, paymentMethod) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(m3.lastInsertRowid, tid, 30, 10, "필라테스", fmt(addDays(today, -90)), fmt(addDays(today, 90)), 70000, 2100000, "현금");
+    sqlite.prepare(
+      "INSERT INTO attendances (memberId, trainerId, attendDate) VALUES (?, ?, ?)"
+    ).run(m3.lastInsertRowid, tid, fmt(addDays(today, -40)));
+
+    console.log("✅ 샘플 회원 3명 생성 (홍길동·이영희·박민준)");
   } else {
-    console.log("ℹ️  계정 존재 확인");
+    console.log("ℹ️  기존 데이터 유지");
   }
 
   console.log("✨ DB 초기화 완료!");
