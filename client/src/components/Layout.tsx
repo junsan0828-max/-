@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   UserCog, Settings, User,
 } from "lucide-react";
+import Logo from "./Logo";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -39,9 +40,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* ── 데스크탑 사이드바 ── */}
       <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
         {/* 로고 */}
-        <div className="px-5 py-5 border-b border-border">
-          <button onClick={() => setLocation("/")} className="font-bold text-primary text-lg">
-            💪 트레이너앱
+        <div className="px-5 py-4 border-b border-border">
+          <button onClick={() => setLocation("/")} className="text-primary">
+            <Logo className="h-9" textSize="text-sm" />
           </button>
         </div>
 
@@ -85,8 +86,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col flex-1 min-w-0">
         {/* 모바일 상단 바 */}
         <header className="md:hidden sticky top-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-          <button onClick={() => setLocation("/")} className="font-bold text-primary text-lg">
-            💪 트레이너앱
+          <button onClick={() => setLocation("/")} className="text-primary">
+            <Logo className="h-7" textSize="text-sm" />
           </button>
           <div className="flex items-center gap-1">
             <span className="text-xs text-muted-foreground mr-1">{user?.username}</span>
