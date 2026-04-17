@@ -198,6 +198,16 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "링크 발급 실패"),
   });
 
+  // 보고서 토큰 재발급
+  const regenerateReportMutation = trpc.reports.regenerate.useMutation({
+    onSuccess: (data) => {
+      setShareToken(data.token);
+      setCopied(false);
+      toast.success("새 링크가 발급되었습니다. 기존 링크는 무효화됩니다.");
+    },
+    onError: (err) => toast.error(err.message || "링크 재발급 실패"),
+  });
+
   const handleCopyLink = () => {
     if (!shareToken) return;
     const url = `${window.location.origin}/report/${shareToken}`;
@@ -1007,8 +1017,8 @@ export default function MemberDetail({ memberId }: Props) {
           </DialogHeader>
           {shareToken && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 p-3 bg-accent/30 rounded-lg border border-border">
-                <p className="text-xs text-foreground flex-1 break-all">
+              <div className="p-3 bg-accent/30 rounded-lg border border-border">
+                <p className="text-xs text-foreground break-all">
                   {`${window.location.origin}/report/${shareToken}`}
                 </p>
               </div>
@@ -1022,6 +1032,14 @@ export default function MemberDetail({ memberId }: Props) {
                 ) : (
                   <><Copy className="h-4 w-4" />링크 복사</>
                 )}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full gap-2 text-muted-foreground text-xs"
+                disabled={regenerateReportMutation.isPending}
+                onClick={() => regenerateReportMutation.mutate({ memberId })}
+              >
+                {regenerateReportMutation.isPending ? "발급 중..." : "새 링크 발급 (기존 링크 무효화)"}
               </Button>
             </div>
           )}

@@ -1338,6 +1338,26 @@ const reportsRouter = t.router({
       return { token };
     }),
 
+  // 토큰 재발급 (기존 토큰 삭제 후 신규 생성)
+  regenerate: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      await db.delete(reportTokens).where(
+        and(
+          eq(reportTokens.memberId, input.memberId),
+          eq(reportTokens.trainerId, trainerId)
+        )
+      );
+
+      const token = randomUUID().replace(/-/g, "");
+      await db.insert(reportTokens).values({ token, memberId: input.memberId, trainerId });
+      return { token };
+    }),
+
   // 공개 보고서 조회 (토큰으로, 인증 불필요)
   getPublic: publicProcedure
     .input(z.object({ token: z.string() }))
