@@ -10,6 +10,17 @@ export function sheetUrlToCsvUrl(url: string): string {
   return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
 }
 
+export async function fetchSheetCsv(csvUrl: string): Promise<string> {
+  const res = await fetch(csvUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; ZIANTGYM/1.0)",
+      "Accept": "text/csv, text/plain, */*",
+    },
+    redirect: "follow",
+  });
+  return res.text();
+}
+
 export function parseCSV(text: string): string[][] {
   return text
     .split(/\r?\n/)
@@ -41,8 +52,7 @@ export async function syncSheetNow(): Promise<{ newMembers: number; message: str
   let text: string;
   try {
     const csvUrl = sheetUrlToCsvUrl(config.sheetUrl);
-    const res = await fetch(csvUrl);
-    text = await res.text();
+    text = await fetchSheetCsv(csvUrl);
   } catch {
     return { newMembers: 0, message: "네트워크 오류" };
   }

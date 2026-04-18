@@ -18,7 +18,7 @@ import {
   reportTokens,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
-import { sheetUrlToCsvUrl, parseCSV, syncSheetNow } from "./sheetSync";
+import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
 import {
   sheetSyncConfig,
   sheetPendingMembers,
@@ -1029,8 +1029,7 @@ const adminRouter = t.router({
       const csvUrl = sheetUrlToCsvUrl(input.sheetUrl);
       let text: string;
       try {
-        const res = await fetch(csvUrl);
-        text = await res.text();
+        text = await fetchSheetCsv(csvUrl);
       } catch {
         throw new TRPCError({ code: "BAD_REQUEST", message: "시트를 불러올 수 없습니다." });
       }
@@ -1060,8 +1059,7 @@ const adminRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const csvUrl = sheetUrlToCsvUrl(input.sheetUrl);
-      const res = await fetch(csvUrl);
-      const text = await res.text();
+      const text = await fetchSheetCsv(csvUrl);
       if (text.trimStart().startsWith("<!")) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "시트를 불러올 수 없습니다." });
       }
