@@ -80,7 +80,7 @@ export default function MemberDetail({ memberId }: Props) {
   // 패키지 추가 다이얼로그 상태
   const [addPkgOpen, setAddPkgOpen] = useState(false);
   const [pkgForm, setPkgForm] = useState({
-    ptProgram: "" as "" | "care_pt" | "weight_pt" | "pilates",
+    ptProgram: "",
     totalSessions: "",
     startDate: "",
     expiryDate: "",
@@ -105,6 +105,8 @@ export default function MemberDetail({ memberId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [editMemoOpen, setEditMemoOpen] = useState(false);
+  const [editMemoForm, setEditMemoForm] = useState({ id: 0, memoDate: "", content: "" });
   const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
     packageId: 0,
     current: 0,
@@ -156,6 +158,15 @@ export default function MemberDetail({ memberId }: Props) {
   const deleteMemoMutation = trpc.workoutMemos.delete.useMutation({
     onSuccess: () => { toast.success("메모가 삭제되었습니다."); refetchMemos(); },
     onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
+  const updateMemoMutation = trpc.workoutMemos.update.useMutation({
+    onSuccess: () => {
+      toast.success("메모가 수정되었습니다.");
+      setEditMemoOpen(false);
+      refetchMemos();
+    },
+    onError: (err) => toast.error(err.message || "수정 실패"),
   });
 
   // PT 세션 사용 (완료 후 메모 입력 유도)
@@ -489,27 +500,39 @@ export default function MemberDetail({ memberId }: Props) {
                     <DialogDescription>{member.name}님에게 새 PT 패키지를 추가합니다.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">PT 프로그램</Label>
-                        <Select value={pkgForm.ptProgram} onValueChange={(v) => setPkgForm((p) => ({ ...p, ptProgram: v as any }))}>
-                          <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="care_pt">케어피티</SelectItem>
-                            <SelectItem value="weight_pt">웨이트피티</SelectItem>
-                            <SelectItem value="pilates">필라테스</SelectItem>
-                          </SelectContent>
-                        </Select>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">PT 패키지명</Label>
+                      <Input
+                        value={pkgForm.ptProgram}
+                        onChange={(e) => setPkgForm((p) => ({ ...p, ptProgram: e.target.value }))}
+                        placeholder="패키지명 직접 입력"
+                        className="h-9 text-sm"
+                      />
+                      <div className="flex gap-1.5 flex-wrap">
+                        {["케어피티", "웨이트피티", "필라테스"].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setPkgForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
+                            className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${
+                              pkgForm.ptProgram === preset
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "border-border text-muted-foreground hover:border-primary/40"
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">총 횟수 <span className="text-primary">*</span></Label>
-                        <Input
-                          type="number" min="1" placeholder="20"
-                          value={pkgForm.totalSessions}
-                          onChange={(e) => setPkgForm((p) => ({ ...p, totalSessions: e.target.value }))}
-                          className="h-9 text-sm"
-                        />
-                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">총 횟수 <span className="text-primary">*</span></Label>
+                      <Input
+                        type="number" min="1" placeholder="20"
+                        value={pkgForm.totalSessions}
+                        onChange={(e) => setPkgForm((p) => ({ ...p, totalSessions: e.target.value }))}
+                        className="h-9 text-sm"
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
@@ -777,12 +800,23 @@ export default function MemberDetail({ memberId }: Props) {
                         <p className="text-xs font-medium text-primary">
                           {format(new Date(memo.memoDate), "yyyy.MM.dd (EEE)", { locale: ko })}
                         </p>
-                        <button
-                          onClick={() => deleteMemoMutation.mutate({ id: memo.id })}
-                          className="text-muted-foreground hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setEditMemoForm({ id: memo.id, memoDate: memo.memoDate, content: memo.content });
+                              setEditMemoOpen(true);
+                            }}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => deleteMemoMutation.mutate({ id: memo.id })}
+                            className="text-muted-foreground hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-sm text-foreground whitespace-pre-wrap">{memo.content}</p>
                     </div>
@@ -997,6 +1031,44 @@ export default function MemberDetail({ memberId }: Props) {
                 }}
               >
                 저장
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 운동 메모 수정 다이얼로그 */}
+      <Dialog open={editMemoOpen} onOpenChange={setEditMemoOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>운동 메모 수정</DialogTitle>
+            <DialogDescription>
+              {editMemoForm.memoDate
+                ? format(new Date(editMemoForm.memoDate), "yyyy.MM.dd (EEE)", { locale: ko })
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              value={editMemoForm.content}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setEditMemoForm((p) => ({ ...p, content: e.target.value }))
+              }
+              rows={5}
+              className="text-sm resize-none"
+            />
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setEditMemoOpen(false)}>
+                취소
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!editMemoForm.content.trim() || updateMemoMutation.isPending}
+                onClick={() =>
+                  updateMemoMutation.mutate({ id: editMemoForm.id, content: editMemoForm.content })
+                }
+              >
+                {updateMemoMutation.isPending ? "저장 중..." : "저장"}
               </Button>
             </div>
           </div>

@@ -825,6 +825,50 @@ const trainersRouter = t.router({
       await db.update(users).set({ password: hashed }).where(eq(users.id, ctx.user.id));
       return { success: true };
     }),
+
+  // 월별 정산 조회
+  getMonthlySettlement: protectedProcedure
+    .input(z.object({ trainerId: z.number(), yearMonth: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.trainerId !== input.trainerId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const settingsRow = await db
+        .select({ settlementRate: trainerSettings.settlementRate })
+        .from(trainerSettings)
+        .where(eq(trainerSettings.trainerId, input.trainerId))
+        .limit(1);
+      const settlementRate = settingsRow[0]?.settlementRate ?? 50;
+
+      const logs = await db
+        .select({
+          id: ptSessionLogs.id,
+          sessionDate: ptSessionLogs.sessionDate,
+          pricePerSession: ptPackages.pricePerSession,
+          packageName: ptPackages.packageName,
+          memberName: members.name,
+        })
+        .from(ptSessionLogs)
+        .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+        .leftJoin(members, eq(ptSessionLogs.memberId, members.id))
+        .where(
+          and(
+            eq(ptSessionLogs.trainerId, input.trainerId),
+            gte(ptSessionLogs.sessionDate, `${input.yearMonth}-01`),
+            lte(ptSessionLogs.sessionDate, `${input.yearMonth}-31`),
+          )
+        )
+        .orderBy(desc(ptSessionLogs.sessionDate));
+
+      const sessionCount = logs.length;
+      const revenue = logs.reduce((sum, l) => sum + (l.pricePerSession ?? 0), 0);
+      const settlementAmount = Math.round(revenue * settlementRate / 100);
+
+      return { sessionCount, revenue, settlementAmount, settlementRate, logs };
+    }),
 });
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
@@ -1177,6 +1221,16 @@ const workoutMemosRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       await db.delete(workoutMemos).where(eq(workoutMemos.id, input.id));
+      return { success: true };
+    }),
+
+  update: protectedProcedure
+    .input(z.object({ id: z.number(), content: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      await db.update(workoutMemos).set({ content: input.content }).where(eq(workoutMemos.id, input.id));
       return { success: true };
     }),
 });

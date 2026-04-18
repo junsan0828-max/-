@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, UserPlus, Edit, KeyRound } from "lucide-react";
+import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, ChevronLeft, UserPlus, Edit, KeyRound, BarChart3 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { trpc as trpcHook } from "@/lib/trpc";
 
@@ -41,8 +41,22 @@ export default function TrainerDetail({ trainerId }: Props) {
   const [pwForm, setPwForm] = useState({ newPassword: "", confirmPassword: "" });
   const [pwError, setPwError] = useState("");
 
+  // 월별 정산
+  const [settlementMonth, setSettlementMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const moveSettlementMonth = (delta: number) => {
+    setSettlementMonth((prev) => {
+      const [y, m] = prev.split("-").map(Number);
+      const d = new Date(y, m - 1 + delta, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    });
+  };
+
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
+  const { data: settlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
   const trainer = trainerQuery.data;
 
   const updateSettlementRateMutation = trpc.trainers.updateSettlementRate.useMutation({
@@ -377,6 +391,65 @@ export default function TrainerDetail({ trainerId }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 월별 정산 카드 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              월별 정산
+            </CardTitle>
+            <div className="flex items-center gap-1">
+              <button onClick={() => moveSettlementMonth(-1)} className="p-1.5 rounded hover:bg-accent transition-colors">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-sm font-medium px-1">{settlementMonth}</span>
+              <button onClick={() => moveSettlementMonth(1)} className="p-1.5 rounded hover:bg-accent transition-colors">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="text-center p-2.5 rounded-lg bg-accent/20">
+              <p className="text-xl font-bold">{settlement?.sessionCount ?? 0}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">세션 수</p>
+            </div>
+            <div className="text-center p-2.5 rounded-lg bg-accent/20">
+              <p className="text-lg font-bold">{(settlement?.revenue ?? 0).toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">매출 (원)</p>
+            </div>
+            <div className="text-center p-2.5 rounded-lg bg-primary/10 border border-primary/20">
+              <p className="text-lg font-bold text-primary">{(settlement?.settlementAmount ?? 0).toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">정산 (원)</p>
+            </div>
+          </div>
+          {settlement?.logs && settlement.logs.length > 0 ? (
+            <div className="space-y-0">
+              {settlement.logs.map((log) => (
+                <div key={log.id} className="flex items-center justify-between text-xs py-2 border-b border-border last:border-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-muted-foreground shrink-0">
+                      {format(new Date(log.sessionDate), "MM.dd (EEE)", { locale: ko })}
+                    </span>
+                    <span className="font-medium truncate">{log.memberName}</span>
+                    {log.packageName && (
+                      <span className="text-muted-foreground truncate">· {log.packageName}</span>
+                    )}
+                  </div>
+                  <span className="font-medium text-primary shrink-0 ml-2">
+                    {log.pricePerSession ? `${log.pricePerSession.toLocaleString()}원` : "-"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-xs text-muted-foreground py-4">이번 달 세션 기록이 없습니다.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 담당 회원 목록 */}
       <Card className="bg-card border-border">
