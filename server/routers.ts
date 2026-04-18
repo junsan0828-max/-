@@ -872,6 +872,37 @@ const trainersRouter = t.router({
 });
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
+
+// 구글시트 URL → CSV 내보내기 URL 변환
+function sheetUrlToCsvUrl(url: string): string {
+  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!idMatch) throw new TRPCError({ code: "BAD_REQUEST", message: "올바른 구글시트 URL이 아닙니다." });
+  const sheetId = idMatch[1];
+  const gidMatch = url.match(/[#&?]gid=([0-9]+)/);
+  const gid = gidMatch ? gidMatch[1] : "0";
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+}
+
+// CSV 파싱 (따옴표 안 쉼표 처리)
+function parseCSV(text: string): string[][] {
+  return text.split(/\r?\n/).filter((l) => l.trim()).map((line) => {
+    const cells: string[] = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') {
+        if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (line[i] === "," && !inQ) {
+        cells.push(cur.trim()); cur = "";
+      } else {
+        cur += line[i];
+      }
+    }
+    cells.push(cur.trim());
+    return cells;
+  });
+}
 const adminRouter = t.router({
   // 트레이너 목록 (회원 수 포함)
   listTrainers: protectedProcedure.query(async ({ ctx }) => {
@@ -983,6 +1014,113 @@ const adminRouter = t.router({
       await db.delete(users).where(eq(users.id, trainerResult[0].userId));
 
       return { success: true };
+    }),
+
+  // 구글시트 미리보기
+  previewSheet: protectedProcedure
+    .input(z.object({ sheetUrl: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const csvUrl = sheetUrlToCsvUrl(input.sheetUrl);
+      let text: string;
+      try {
+        const res = await fetch(csvUrl);
+        text = await res.text();
+      } catch {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "시트를 불러올 수 없습니다." });
+      }
+      if (text.trimStart().startsWith("<!")) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "시트가 공개되지 않았거나 URL이 올바르지 않습니다." });
+      }
+      const rows = parseCSV(text);
+      if (rows.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: "데이터가 없습니다." });
+      return { headers: rows[0], sampleRows: rows.slice(1, 4), totalRows: rows.length - 1 };
+    }),
+
+  // 구글시트에서 회원 일괄 등록
+  importFromSheet: protectedProcedure
+    .input(
+      z.object({
+        sheetUrl: z.string(),
+        trainerId: z.number(),
+        mapping: z.record(z.string()),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const csvUrl = sheetUrlToCsvUrl(input.sheetUrl);
+      const res = await fetch(csvUrl);
+      const text = await res.text();
+      if (text.trimStart().startsWith("<!")) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "시트를 불러올 수 없습니다." });
+      }
+      const rows = parseCSV(text);
+      if (rows.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: "데이터가 없습니다." });
+
+      const headers = rows[0];
+      const dataRows = rows.slice(1);
+
+      // 컬럼명 → 행 인덱스 매핑
+      const fi: Record<string, number> = {};
+      for (const [col, field] of Object.entries(input.mapping)) {
+        if (field === "skip") continue;
+        const idx = headers.indexOf(col);
+        if (idx !== -1) fi[field] = idx;
+      }
+
+      const get = (row: string[], field: string) =>
+        fi[field] !== undefined ? row[fi[field]] || undefined : undefined;
+
+      let imported = 0;
+      let skipped = 0;
+
+      for (const row of dataRows) {
+        const name = get(row, "name");
+        if (!name) { skipped++; continue; }
+
+        const [newMember] = await db.insert(members).values({
+          trainerId: input.trainerId,
+          name,
+          phone: get(row, "phone") ?? null,
+          email: get(row, "email") ?? null,
+          birthDate: get(row, "birthDate") ?? null,
+          gender: (get(row, "gender") as any) ?? null,
+          grade: (get(row, "grade") as any) ?? "basic",
+          status: (get(row, "status") as any) ?? "active",
+          membershipStart: get(row, "membershipStart") ?? null,
+          membershipEnd: get(row, "membershipEnd") ?? null,
+          profileNote: get(row, "profileNote") ?? null,
+        }).returning({ id: members.id });
+
+        const ptSessionsRaw = get(row, "ptSessions");
+        if (ptSessionsRaw) {
+          const totalSessions = parseInt(ptSessionsRaw.replace(/[^0-9]/g, "")) || 0;
+          if (totalSessions > 0) {
+            const paymentRaw = get(row, "paymentAmount");
+            const unpaidRaw = get(row, "unpaidAmount");
+            const paymentAmount = paymentRaw ? parseInt(paymentRaw.replace(/[^0-9]/g, "")) : undefined;
+            const unpaidAmount = unpaidRaw ? parseInt(unpaidRaw.replace(/[^0-9]/g, "")) : undefined;
+            const pricePerSession = paymentAmount && totalSessions ? Math.round(paymentAmount / totalSessions) : undefined;
+            await db.insert(ptPackages).values({
+              memberId: newMember.id,
+              trainerId: input.trainerId,
+              totalSessions,
+              usedSessions: 0,
+              packageName: get(row, "ptProgram") ?? null,
+              pricePerSession,
+              paymentAmount,
+              unpaidAmount,
+              paymentMethod: (get(row, "paymentMethod") as any) ?? null,
+            });
+          }
+        }
+        imported++;
+      }
+
+      return { imported, skipped };
     }),
 
   // 관리자 전체 통계
