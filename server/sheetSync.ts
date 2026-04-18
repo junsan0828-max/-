@@ -10,15 +10,37 @@ export function sheetUrlToCsvUrl(url: string): string {
   return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
 }
 
-export async function fetchSheetCsv(csvUrl: string): Promise<string> {
-  const res = await fetch(csvUrl, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; ZIANTGYM/1.0)",
-      "Accept": "text/csv, text/plain, */*",
-    },
-    redirect: "follow",
-  });
-  return res.text();
+export async function fetchSheetCsv(sheetUrl: string): Promise<string> {
+  const idMatch = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!idMatch) throw new Error("올바른 구글시트 URL이 아닙니다.");
+  const sheetId = idMatch[1];
+  const gidMatch = sheetUrl.match(/[#&?]gid=([0-9]+)/);
+  const gid = gidMatch ? gidMatch[1] : "0";
+
+  const candidates = [
+    `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`,
+    `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`,
+    `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv&gid=${gid}`,
+  ];
+
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/csv, text/plain, */*",
+  };
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, { headers, redirect: "follow" });
+      const text = await res.text();
+      if (!text.trimStart().startsWith("<!") && text.trim().length > 0) {
+        return text;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error("시트에 접근할 수 없습니다.");
 }
 
 export function parseCSV(text: string): string[][] {
@@ -51,8 +73,7 @@ export async function syncSheetNow(): Promise<{ newMembers: number; message: str
 
   let text: string;
   try {
-    const csvUrl = sheetUrlToCsvUrl(config.sheetUrl);
-    text = await fetchSheetCsv(csvUrl);
+    text = await fetchSheetCsv(config.sheetUrl);
   } catch {
     return { newMembers: 0, message: "네트워크 오류" };
   }

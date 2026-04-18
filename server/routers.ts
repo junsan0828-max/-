@@ -1026,15 +1026,11 @@ const adminRouter = t.router({
     .input(z.object({ sheetUrl: z.string(), columnOffset: z.number().default(1) }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      const csvUrl = sheetUrlToCsvUrl(input.sheetUrl);
       let text: string;
       try {
-        text = await fetchSheetCsv(csvUrl);
-      } catch {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "시트를 불러올 수 없습니다." });
-      }
-      if (text.trimStart().startsWith("<!")) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "시트가 공개되지 않았거나 URL이 올바르지 않습니다." });
+        text = await fetchSheetCsv(input.sheetUrl);
+      } catch (e: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: e?.message ?? "시트를 불러올 수 없습니다." });
       }
       const rows = parseCSV(text);
       if (rows.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: "데이터가 없습니다." });
@@ -1058,11 +1054,7 @@ const adminRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const csvUrl = sheetUrlToCsvUrl(input.sheetUrl);
-      const text = await fetchSheetCsv(csvUrl);
-      if (text.trimStart().startsWith("<!")) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "시트를 불러올 수 없습니다." });
-      }
+      const text = await fetchSheetCsv(input.sheetUrl);
       const rows = parseCSV(text);
       if (rows.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: "데이터가 없습니다." });
 
