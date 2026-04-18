@@ -10,6 +10,7 @@ import { sqlite, db } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { syncSheetNow } from "./sheetSync";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -190,6 +191,37 @@ function initDatabase() {
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS sheet_sync_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sheetUrl TEXT NOT NULL,
+    columnOffset INTEGER NOT NULL DEFAULT 1,
+    lastSyncedCount INTEGER NOT NULL DEFAULT 0,
+    mappingJson TEXT NOT NULL DEFAULT '{}',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    syncedAt TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS sheet_pending_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    birthDate TEXT,
+    gender TEXT,
+    grade TEXT,
+    membershipStart TEXT,
+    membershipEnd TEXT,
+    profileNote TEXT,
+    ptProgram TEXT,
+    ptSessions INTEGER,
+    paymentAmount INTEGER,
+    unpaidAmount INTEGER,
+    paymentMethod TEXT,
+    sheetRowIndex INTEGER,
+    importedAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
   sqlite.exec(`CREATE TABLE IF NOT EXISTS par_q (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     memberId INTEGER NOT NULL UNIQUE,
@@ -263,6 +295,16 @@ function initDatabase() {
 
 // 서버 시작
 initDatabase();
+
+// 구글시트 자동 동기화 (5분마다)
+setInterval(async () => {
+  try {
+    const result = await syncSheetNow();
+    if (result.newMembers > 0) console.log(`📋 시트 동기화: ${result.message}`);
+  } catch (e) {
+    console.error("시트 동기화 오류:", e);
+  }
+}, 5 * 60 * 1000);
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);

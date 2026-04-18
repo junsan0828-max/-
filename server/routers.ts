@@ -18,6 +18,11 @@ import {
   reportTokens,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
+import { sheetUrlToCsvUrl, parseCSV, syncSheetNow } from "./sheetSync";
+import {
+  sheetSyncConfig,
+  sheetPendingMembers,
+} from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -872,37 +877,6 @@ const trainersRouter = t.router({
 });
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
-
-// 구글시트 URL → CSV 내보내기 URL 변환
-function sheetUrlToCsvUrl(url: string): string {
-  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if (!idMatch) throw new TRPCError({ code: "BAD_REQUEST", message: "올바른 구글시트 URL이 아닙니다." });
-  const sheetId = idMatch[1];
-  const gidMatch = url.match(/[#&?]gid=([0-9]+)/);
-  const gid = gidMatch ? gidMatch[1] : "0";
-  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-}
-
-// CSV 파싱 (따옴표 안 쉼표 처리)
-function parseCSV(text: string): string[][] {
-  return text.split(/\r?\n/).filter((l) => l.trim()).map((line) => {
-    const cells: string[] = [];
-    let cur = "";
-    let inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      if (line[i] === '"') {
-        if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
-        else inQ = !inQ;
-      } else if (line[i] === "," && !inQ) {
-        cells.push(cur.trim()); cur = "";
-      } else {
-        cur += line[i];
-      }
-    }
-    cells.push(cur.trim());
-    return cells;
-  });
-}
 const adminRouter = t.router({
   // 트레이너 목록 (회원 수 포함)
   listTrainers: protectedProcedure.query(async ({ ctx }) => {
@@ -1016,9 +990,9 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
-  // 구글시트 미리보기
+  // 구글시트 미리보기 (columnOffset: B열=1)
   previewSheet: protectedProcedure
-    .input(z.object({ sheetUrl: z.string() }))
+    .input(z.object({ sheetUrl: z.string(), columnOffset: z.number().default(1) }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       const csvUrl = sheetUrlToCsvUrl(input.sheetUrl);
@@ -1034,7 +1008,10 @@ const adminRouter = t.router({
       }
       const rows = parseCSV(text);
       if (rows.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: "데이터가 없습니다." });
-      return { headers: rows[0], sampleRows: rows.slice(1, 4), totalRows: rows.length - 1 };
+      const offset = input.columnOffset ?? 1;
+      const headers = rows[0].slice(offset);
+      const sampleRows = rows.slice(1, 4).map((r) => r.slice(offset));
+      return { headers, sampleRows, totalRows: rows.length - 1 };
     }),
 
   // 구글시트에서 회원 일괄 등록
@@ -1121,6 +1098,117 @@ const adminRouter = t.router({
       }
 
       return { imported, skipped };
+    }),
+
+  // 시트 동기화 설정 저장
+  saveSyncConfig: protectedProcedure
+    .input(z.object({
+      sheetUrl: z.string(),
+      columnOffset: z.number().default(1),
+      mapping: z.record(z.string()),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await db.select({ id: sheetSyncConfig.id }).from(sheetSyncConfig).limit(1);
+      if (existing[0]) {
+        await db.update(sheetSyncConfig).set({
+          sheetUrl: input.sheetUrl,
+          columnOffset: input.columnOffset,
+          mappingJson: JSON.stringify(input.mapping),
+          enabled: 1,
+        });
+      } else {
+        await db.insert(sheetSyncConfig).values({
+          sheetUrl: input.sheetUrl,
+          columnOffset: input.columnOffset,
+          mappingJson: JSON.stringify(input.mapping),
+          enabled: 1,
+        });
+      }
+      return { success: true };
+    }),
+
+  // 동기화 설정 조회
+  getSyncConfig: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) return null;
+    const rows = await db.select().from(sheetSyncConfig).limit(1);
+    if (!rows[0]) return null;
+    return { ...rows[0], mapping: JSON.parse(rows[0].mappingJson) as Record<string, string> };
+  }),
+
+  // 수동 동기화
+  syncNow: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    return await syncSheetNow();
+  }),
+
+  // 미배정 회원 목록
+  listPending: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(sheetPendingMembers).orderBy(desc(sheetPendingMembers.importedAt));
+  }),
+
+  // 미배정 회원 → 트레이너 배정 후 정식 등록
+  assignPending: protectedProcedure
+    .input(z.object({ pendingId: z.number(), trainerId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const rows = await db.select().from(sheetPendingMembers).where(eq(sheetPendingMembers.id, input.pendingId)).limit(1);
+      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      const p = rows[0];
+
+      const [newMember] = await db.insert(members).values({
+        trainerId: input.trainerId,
+        name: p.name,
+        phone: p.phone ?? null,
+        email: p.email ?? null,
+        birthDate: p.birthDate ?? null,
+        gender: (p.gender as any) ?? null,
+        grade: (p.grade as any) ?? "basic",
+        status: "active",
+        membershipStart: p.membershipStart ?? null,
+        membershipEnd: p.membershipEnd ?? null,
+        profileNote: p.profileNote ?? null,
+      }).returning({ id: members.id });
+
+      if (p.ptSessions && p.ptSessions > 0) {
+        const pricePerSession = p.paymentAmount && p.ptSessions ? Math.round(p.paymentAmount / p.ptSessions) : undefined;
+        await db.insert(ptPackages).values({
+          memberId: newMember.id,
+          trainerId: input.trainerId,
+          totalSessions: p.ptSessions,
+          usedSessions: 0,
+          packageName: p.ptProgram ?? null,
+          pricePerSession,
+          paymentAmount: p.paymentAmount ?? null,
+          unpaidAmount: p.unpaidAmount ?? null,
+          paymentMethod: (p.paymentMethod as any) ?? null,
+        });
+      }
+
+      await db.delete(sheetPendingMembers).where(eq(sheetPendingMembers.id, input.pendingId));
+      return { memberId: newMember.id };
+    }),
+
+  // 미배정 회원 삭제 (무시 처리)
+  deletePending: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(sheetPendingMembers).where(eq(sheetPendingMembers.id, input.id));
+      return { success: true };
     }),
 
   // 관리자 전체 통계

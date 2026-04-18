@@ -190,3 +190,36 @@ export const payments = sqliteTable("payments", {
   memo: text("memo"),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+// 구글시트 자동 동기화 설정
+export const sheetSyncConfig = sqliteTable("sheet_sync_config", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  sheetUrl: text("sheetUrl").notNull(),
+  columnOffset: integer("columnOffset").default(1).notNull(),
+  lastSyncedCount: integer("lastSyncedCount").default(0).notNull(),
+  mappingJson: text("mappingJson").notNull().default("{}"),
+  enabled: integer("enabled").default(1).notNull(),
+  syncedAt: text("syncedAt"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 시트에서 가져온 미배정 회원 (트레이너 배정 대기)
+export const sheetPendingMembers = sqliteTable("sheet_pending_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  birthDate: text("birthDate"),
+  gender: text("gender"),
+  grade: text("grade"),
+  membershipStart: text("membershipStart"),
+  membershipEnd: text("membershipEnd"),
+  profileNote: text("profileNote"),
+  ptProgram: text("ptProgram"),
+  ptSessions: integer("ptSessions"),
+  paymentAmount: integer("paymentAmount"),
+  unpaidAmount: integer("unpaidAmount"),
+  paymentMethod: text("paymentMethod"),
+  sheetRowIndex: integer("sheetRowIndex"),
+  importedAt: text("importedAt").default(now).notNull(),
+});

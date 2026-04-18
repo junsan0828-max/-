@@ -64,6 +64,8 @@ export default function Admin() {
   const [, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
   const { data: trainers, refetch } = trpc.admin.listTrainers.useQuery();
+  const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery();
+  const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
   const utils = trpc.useUtils();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -77,7 +79,7 @@ export default function Admin() {
     settlementRate: "50",
   });
 
-  // 구글시트 가져오기 상태
+  // 시트 자동 동기화 설정
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
   const [sheetPreview, setSheetPreview] = useState<{
@@ -86,14 +88,16 @@ export default function Admin() {
     totalRows: number;
   } | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
-  const [importTrainerId, setImportTrainerId] = useState("");
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ newMembers: number; message: string } | null>(null);
+
+  // 미배정 회원 트레이너 선택
+  const [assigningId, setAssigningId] = useState<number | null>(null);
+  const [assignTrainerId, setAssignTrainerId] = useState("");
 
   const previewMutation = trpc.admin.previewSheet.useMutation({
     onSuccess: (data) => {
+      // column B(offset=1)부터 헤더 취득
       setSheetPreview(data);
-      setImportResult(null);
-      // 자동 컬럼 매핑
       const autoMap: Record<string, string> = {};
       data.headers.forEach((h) => {
         const key = h.trim();
@@ -104,13 +108,40 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "시트 불러오기 실패"),
   });
 
-  const importMutation = trpc.admin.importFromSheet.useMutation({
-    onSuccess: (data) => {
-      setImportResult(data);
-      toast.success(`${data.imported}명 등록 완료${data.skipped ? ` (${data.skipped}명 건너뜀)` : ""}`);
-      utils.members.list.invalidate();
+  const saveSyncMutation = trpc.admin.saveSyncConfig.useMutation({
+    onSuccess: () => {
+      toast.success("동기화 설정이 저장되었습니다. 5분마다 자동 동기화됩니다.");
+      refetchConfig();
+      setSheetOpen(false);
     },
-    onError: (err) => toast.error(err.message || "가져오기 실패"),
+    onError: (err) => toast.error(err.message || "저장 실패"),
+  });
+
+  const syncNowMutation = trpc.admin.syncNow.useMutation({
+    onSuccess: (data) => {
+      setSyncResult(data);
+      refetchPending();
+      refetchConfig();
+      if (data.newMembers > 0) toast.success(`${data.newMembers}명이 미배정 목록에 추가되었습니다.`);
+      else toast.info("새로운 데이터가 없습니다.");
+    },
+    onError: (err) => toast.error(err.message || "동기화 실패"),
+  });
+
+  const assignMutation = trpc.admin.assignPending.useMutation({
+    onSuccess: (data) => {
+      toast.success("회원이 배정되었습니다.");
+      setAssigningId(null);
+      setAssignTrainerId("");
+      refetchPending();
+      setLocation(`/members/${data.memberId}`);
+    },
+    onError: (err) => toast.error(err.message || "배정 실패"),
+  });
+
+  const deletePendingMutation = trpc.admin.deletePending.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다."); refetchPending(); },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
   // 관리자 권한 확인
@@ -254,16 +285,19 @@ export default function Admin() {
         </Dialog>
       </div>
 
-      {/* 구글시트 가져오기 */}
+      {/* ── 구글시트 자동 동기화 설정 ── */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <button
             className="flex items-center justify-between w-full"
-            onClick={() => { setSheetOpen((v) => !v); setSheetPreview(null); setImportResult(null); }}
+            onClick={() => setSheetOpen((v) => !v)}
           >
             <CardTitle className="text-base flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4 text-green-400" />
-              구글시트에서 회원 가져오기
+              구글시트 자동 동기화
+              {syncConfig && (
+                <span className="text-xs font-normal text-green-400 border border-green-500/30 bg-green-500/10 px-1.5 py-0.5 rounded-full">활성</span>
+              )}
             </CardTitle>
             {sheetOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
@@ -271,124 +305,191 @@ export default function Admin() {
 
         {sheetOpen && (
           <CardContent className="space-y-4">
-            {/* URL 입력 */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">구글시트 공유 URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={sheetUrl}
-                  onChange={(e) => setSheetUrl(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
-                  className="h-9 text-sm flex-1"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => previewMutation.mutate({ sheetUrl })}
-                  disabled={!sheetUrl.trim() || previewMutation.isPending}
-                >
-                  {previewMutation.isPending ? "불러오는 중..." : "미리보기"}
-                </Button>
+            {/* 현재 설정 상태 */}
+            {syncConfig && !sheetPreview && (
+              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 space-y-2">
+                <p className="text-xs text-green-400 font-medium">✓ 동기화 설정됨 · 5분마다 자동 실행</p>
+                <p className="text-xs text-muted-foreground truncate">{syncConfig.sheetUrl}</p>
+                <p className="text-xs text-muted-foreground">
+                  동기화된 행: {syncConfig.lastSyncedCount}행
+                  {syncConfig.syncedAt && ` · 마지막: ${syncConfig.syncedAt.slice(0, 16).replace("T", " ")}`}
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    disabled={syncNowMutation.isPending}
+                    onClick={() => { setSyncResult(null); syncNowMutation.mutate(); }}
+                  >
+                    {syncNowMutation.isPending ? "동기화 중..." : "지금 동기화"}
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setSheetUrl(syncConfig.sheetUrl); setSheetPreview(null); }}>
+                    설정 변경
+                  </Button>
+                </div>
+                {syncResult && (
+                  <p className="text-xs text-green-400">{syncResult.message}</p>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground">시트가 "링크가 있는 모든 사용자" 공개 설정이어야 합니다.</p>
-            </div>
+            )}
 
-            {/* 미리보기 테이블 */}
-            {sheetPreview && (
+            {/* 신규 설정 or 변경 */}
+            {(!syncConfig || sheetUrl) && (
               <>
                 <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">총 {sheetPreview.totalRows}행 감지됨 · 미리보기 (최대 3행)</p>
-                  <div className="overflow-x-auto rounded-lg border border-border">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-accent/30">
-                          {sheetPreview.headers.map((h, i) => (
-                            <th key={i} className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sheetPreview.sampleRows.map((row, ri) => (
-                          <tr key={ri} className="border-t border-border">
-                            {sheetPreview.headers.map((_, ci) => (
-                              <td key={ci} className="px-2 py-1.5 text-foreground/80 whitespace-nowrap">{row[ci] ?? ""}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <Label className="text-xs">구글시트 공유 URL</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={sheetUrl}
+                      onChange={(e) => setSheetUrl(e.target.value)}
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      className="h-9 text-sm flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => previewMutation.mutate({ sheetUrl, columnOffset: 1 } as any)}
+                      disabled={!sheetUrl.trim() || previewMutation.isPending}
+                    >
+                      {previewMutation.isPending ? "불러오는 중..." : "미리보기"}
+                    </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">B열부터 데이터 인식 · "링크가 있는 모든 사용자" 뷰어 공개 필요</p>
                 </div>
 
-                {/* 컬럼 매핑 */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">컬럼 매핑 (각 컬럼을 앱 필드에 연결하세요)</Label>
-                  <div className="space-y-2">
-                    {sheetPreview.headers.map((header) => (
-                      <div key={header} className="flex items-center gap-2">
-                        <span className="text-xs text-foreground/70 w-28 shrink-0 truncate">{header}</span>
-                        <span className="text-xs text-muted-foreground">→</span>
-                        <Select
-                          value={mapping[header] ?? "skip"}
-                          onValueChange={(v) => setMapping((p) => ({ ...p, [header]: v }))}
-                        >
-                          <SelectTrigger className="h-8 text-xs flex-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {FIELD_OPTIONS.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                {opt.label}
-                              </SelectItem>
+                {sheetPreview && (
+                  <>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground">총 {sheetPreview.totalRows}행 · B열부터 미리보기</p>
+                      <div className="overflow-x-auto rounded-lg border border-border">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-accent/30">
+                              {sheetPreview.headers.map((h, i) => (
+                                <th key={i} className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sheetPreview.sampleRows.map((row, ri) => (
+                              <tr key={ri} className="border-t border-border">
+                                {sheetPreview.headers.map((_, ci) => (
+                                  <td key={ci} className="px-2 py-1.5 text-foreground/80 whitespace-nowrap">{row[ci] ?? ""}</td>
+                                ))}
+                              </tr>
                             ))}
-                          </SelectContent>
-                        </Select>
+                          </tbody>
+                        </table>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
 
-                {/* 담당 트레이너 선택 */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">담당 트레이너 <span className="text-primary">*</span></Label>
-                  <Select value={importTrainerId} onValueChange={setImportTrainerId}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="트레이너 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {trainers?.map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>{t.trainerName}</SelectItem>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">컬럼 매핑</Label>
+                      {sheetPreview.headers.map((header) => (
+                        <div key={header} className="flex items-center gap-2">
+                          <span className="text-xs text-foreground/70 w-24 shrink-0 truncate">{header}</span>
+                          <span className="text-xs text-muted-foreground">→</span>
+                          <Select
+                            value={mapping[header] ?? "skip"}
+                            onValueChange={(v) => setMapping((p) => ({ ...p, [header]: v }))}
+                          >
+                            <SelectTrigger className="h-8 text-xs flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FIELD_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    </div>
 
-                {/* 결과 표시 */}
-                {importResult && (
-                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm text-green-400">
-                    ✓ {importResult.imported}명 등록 완료
-                    {importResult.skipped > 0 && ` · ${importResult.skipped}명 건너뜀 (이름 없음)`}
-                  </div>
+                    <Button
+                      className="w-full gap-2"
+                      disabled={saveSyncMutation.isPending}
+                      onClick={() => saveSyncMutation.mutate({ sheetUrl, columnOffset: 1, mapping })}
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                      {saveSyncMutation.isPending ? "저장 중..." : "동기화 설정 저장 (자동 활성화)"}
+                    </Button>
+                  </>
                 )}
-
-                <Button
-                  className="w-full gap-2"
-                  disabled={!importTrainerId || importMutation.isPending}
-                  onClick={() =>
-                    importMutation.mutate({
-                      sheetUrl,
-                      trainerId: parseInt(importTrainerId),
-                      mapping,
-                    })
-                  }
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  {importMutation.isPending ? "가져오는 중..." : `${sheetPreview.totalRows}명 가져오기`}
-                </Button>
               </>
             )}
           </CardContent>
         )}
       </Card>
+
+      {/* ── 미배정 회원 (시트에서 가져온 후 트레이너 미배정) ── */}
+      {pendingMembers && pendingMembers.length > 0 && (
+        <Card className="bg-card border-orange-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-orange-400" />
+              <span className="text-orange-400">트레이너 미배정 회원</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{pendingMembers.length}명</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pendingMembers.map((p) => (
+              <div key={p.id} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.phone ?? "연락처 없음"}
+                      {p.membershipEnd && ` · 만료 ${p.membershipEnd}`}
+                      {p.ptSessions && ` · PT ${p.ptSessions}회`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => deletePendingMutation.mutate({ id: p.id })}
+                    className="text-muted-foreground hover:text-red-400 transition-colors p-1 shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {assigningId === p.id ? (
+                  <div className="flex gap-2">
+                    <Select value={assignTrainerId} onValueChange={setAssignTrainerId}>
+                      <SelectTrigger className="h-8 text-xs flex-1">
+                        <SelectValue placeholder="트레이너 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {trainers?.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)} className="text-xs">{t.trainerName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      disabled={!assignTrainerId || assignMutation.isPending}
+                      onClick={() => assignMutation.mutate({ pendingId: p.id, trainerId: parseInt(assignTrainerId) })}
+                    >
+                      배정
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setAssigningId(null); setAssignTrainerId(""); }}>
+                      취소
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs h-7 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                    onClick={() => { setAssigningId(p.id); setAssignTrainerId(""); }}
+                  >
+                    트레이너 배정
+                  </Button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 트레이너 목록 */}
       <Card className="bg-card border-border">
