@@ -1,9 +1,10 @@
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
-  UserCog, Settings, User, ClipboardCheck,
+  UserCog, Settings, User, ClipboardCheck, Download, X,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -14,6 +15,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     onSuccess: () => window.location.reload(),
     onError: () => toast.error("로그아웃 실패"),
   });
+
+  // PWA 설치 프롬프트
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      const dismissed = sessionStorage.getItem("pwa-banner-dismissed");
+      if (!dismissed) setShowInstallBanner(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") setShowInstallBanner(false);
+    setInstallPrompt(null);
+  };
+
+  const dismissBanner = () => {
+    setShowInstallBanner(false);
+    sessionStorage.setItem("pwa-banner-dismissed", "1");
+  };
 
   const adminNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
@@ -100,6 +129,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
+
+        {/* PWA 설치 배너 */}
+        {showInstallBanner && (
+          <div className="md:hidden bg-primary/10 border-b border-primary/20 px-4 py-2.5 flex items-center gap-3 shrink-0">
+            <Download className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-xs text-foreground flex-1">홈 화면에 ZIANTGYM을 추가하세요</p>
+            <button
+              onClick={handleInstall}
+              className="text-xs font-medium text-primary bg-primary/20 px-2.5 py-1 rounded-md shrink-0"
+            >
+              설치
+            </button>
+            <button onClick={dismissBanner} className="text-muted-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* 콘텐츠 */}
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">

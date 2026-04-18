@@ -395,6 +395,37 @@ const membersRouter = t.router({
 
       return result.filter(m => !m.lastAttendDate || m.lastAttendDate < cutoff);
     }),
+
+  // 일괄 만료일 연장
+  bulkExtend: protectedProcedure
+    .input(z.object({ memberIds: z.array(z.number()).min(1), days: z.number().min(1).max(3650) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId && ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+      let updated = 0;
+      for (const memberId of input.memberIds) {
+        const rows = await db.select({ membershipEnd: members.membershipEnd })
+          .from(members).where(eq(members.id, memberId)).limit(1);
+        const current = rows[0];
+        if (!current) continue;
+
+        const base = current.membershipEnd
+          ? new Date(current.membershipEnd)
+          : new Date();
+        if (isNaN(base.getTime())) continue;
+
+        base.setDate(base.getDate() + input.days);
+        const newEnd = base.toISOString().split("T")[0];
+        await db.update(members).set({ membershipEnd: newEnd }).where(eq(members.id, memberId));
+        updated++;
+      }
+
+      return { updated };
+    }),
 });
 
 // ─── PT Packages ─────────────────────────────────────────────────────────────
