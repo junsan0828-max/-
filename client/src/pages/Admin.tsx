@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -82,7 +82,11 @@ export default function Admin() {
 
   // 시트 자동 동기화 설정
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetUrl, setSheetUrl] = useState("");
+  const [sheetUrl, setSheetUrl] = useState("https://docs.google.com/spreadsheets/d/1jZbMrBQM_vr2PpvxyprpH1qQlfp_w2hQwdortv65C5w/edit?usp=drivesdk");
+
+  useEffect(() => {
+    if (syncConfig?.sheetUrl) setSheetUrl(syncConfig.sheetUrl);
+  }, [syncConfig?.sheetUrl]);
   const [sheetPreview, setSheetPreview] = useState<{
     headers: string[];
     sampleRows: string[][];
