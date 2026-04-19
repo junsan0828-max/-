@@ -134,12 +134,11 @@ export default function Admin() {
   });
 
   const assignMutation = trpc.admin.assignPending.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success("회원이 배정되었습니다.");
       setAssigningId(null);
       setAssignTrainerId("");
       refetchPending();
-      setLocation(`/members/${data.memberId}`);
     },
     onError: (err) => toast.error(err.message || "배정 실패"),
   });
