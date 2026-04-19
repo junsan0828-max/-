@@ -300,7 +300,11 @@ async function start() {
     console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
   });
 
-  await initDatabase();
+  try {
+    await initDatabase();
+  } catch (e) {
+    console.error("DB 초기화 오류 (서버는 계속 실행):", e);
+  }
 
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
@@ -313,7 +317,4 @@ async function start() {
   }, 5 * 60 * 1000);
 }
 
-start().catch((e) => {
-  console.error("서버 시작 실패:", e);
-  process.exit(1);
-});
+start().catch(console.error);
