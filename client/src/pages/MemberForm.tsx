@@ -39,7 +39,9 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     ptSessions: "",
     paymentAmount: "",
     unpaidAmount: "",
+    visitRoute: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentDate: "",
     paymentMemo: "",
     adminTrainerId: defaultTrainerId ? String(defaultTrainerId) : "",
   });
@@ -67,6 +69,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
         membershipStart: existingMember.membershipStart ?? "",
         membershipEnd: existingMember.membershipEnd ?? "",
         profileNote: existingMember.profileNote ?? "",
+        visitRoute: (existingMember as any).visitRoute ?? "",
       }));
     }
   }, [existingMember]);
@@ -117,7 +120,9 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       profileNote: form.profileNote || undefined,
       paymentAmount: form.paymentAmount ? parseInt(form.paymentAmount) : undefined,
       unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
+      visitRoute: form.visitRoute || undefined,
       paymentMethod: form.paymentMethod || undefined,
+      paymentDate: form.paymentDate || undefined,
       paymentMemo: form.paymentMemo || undefined,
       adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
     };
@@ -281,16 +286,13 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="profileNote" className="text-sm text-muted-foreground">
-                특이사항
-              </Label>
-              <Input
-                id="profileNote"
-                value={form.profileNote}
-                onChange={(e) => setForm((p) => ({ ...p, profileNote: e.target.value }))}
-                placeholder="특이사항 입력"
-                className="bg-input border-border"
-              />
+              <Label htmlFor="visitRoute" className="text-sm text-muted-foreground">유입경로</Label>
+              <Input id="visitRoute" value={form.visitRoute} onChange={(e) => setForm((p) => ({ ...p, visitRoute: e.target.value }))} placeholder="지인 소개, SNS, 검색 등" className="bg-input border-border"/>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="profileNote" className="text-sm text-muted-foreground">특이사항</Label>
+              <Input id="profileNote" value={form.profileNote} onChange={(e) => setForm((p) => ({ ...p, profileNote: e.target.value }))} placeholder="특이사항 입력" className="bg-input border-border"/>
             </div>
           </CardContent>
         </Card>
@@ -435,17 +437,13 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="paymentMemo" className="text-sm text-muted-foreground">
-                    결제 메모 <span className="text-xs text-muted-foreground/60">(선택)</span>
-                  </Label>
-                  <Input
-                    id="paymentMemo"
-                    type="text"
-                    placeholder="분납 등 메모를 입력하세요"
-                    value={form.paymentMemo}
-                    onChange={(e) => setForm((p) => ({ ...p, paymentMemo: e.target.value }))}
-                    className="bg-input border-border"
-                  />
+                  <Label htmlFor="paymentDate" className="text-sm text-muted-foreground">결제일자</Label>
+                  <Input id="paymentDate" type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} className="bg-input border-border"/>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="paymentMemo" className="text-sm text-muted-foreground">결제 메모</Label>
+                  <Input id="paymentMemo" type="text" placeholder="분납 등 메모" value={form.paymentMemo} onChange={(e) => setForm((p) => ({ ...p, paymentMemo: e.target.value }))} className="bg-input border-border"/>
                 </div>
               </>
             )}

@@ -44,6 +44,11 @@ import {
   Share2,
   Copy,
   Check,
+  BarChart3,
+  PauseCircle,
+  Clock,
+  RefreshCw,
+  MapPin,
 } from "lucide-react";
 
 interface Props {
@@ -112,6 +117,10 @@ export default function MemberDetail({ memberId }: Props) {
     current: 0,
     value: "",
   });
+  const [pauseOpen, setPauseOpen] = useState(false);
+  const [pauseForm, setPauseForm] = useState({ packageId: 0, pauseStart: "", pauseEnd: "", reason: "" });
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({ scheduledDate: "", scheduledTime: "", notes: "" });
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
@@ -123,6 +132,9 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
   const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
   const { data: conditionChecks } = trpc.attendanceChecks.listByMember.useQuery({ memberId });
+  const { data: stats } = trpc.members.getStats.useQuery({ memberId });
+  const { data: pauses, refetch: refetchPauses } = trpc.pt.listPauses.useQuery({ memberId });
+  const { data: memberSchedules, refetch: refetchSchedules } = trpc.schedules.listByMember.useQuery({ memberId });
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -227,6 +239,27 @@ export default function MemberDetail({ memberId }: Props) {
       setTimeout(() => setCopied(false), 2000);
     });
   };
+
+  const updateStatusMutation = trpc.pt.updateStatus.useMutation({
+    onSuccess: () => { toast.success("상태가 변경되었습니다."); refetchPt(); },
+    onError: () => toast.error("상태 변경 실패"),
+  });
+  const addPauseMutation = trpc.pt.addPause.useMutation({
+    onSuccess: () => { toast.success("정지 내역이 등록되었습니다."); setPauseOpen(false); refetchPauses(); },
+    onError: () => toast.error("등록 실패"),
+  });
+  const removePauseMutation = trpc.pt.removePause.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다."); refetchPauses(); },
+    onError: () => toast.error("삭제 실패"),
+  });
+  const createScheduleMutation = trpc.schedules.create.useMutation({
+    onSuccess: () => { toast.success("일정이 등록되었습니다."); setScheduleOpen(false); setScheduleForm({ scheduledDate: "", scheduledTime: "", notes: "" }); refetchSchedules(); },
+    onError: () => toast.error("등록 실패"),
+  });
+  const deleteScheduleMutation = trpc.schedules.delete.useMutation({
+    onSuccess: () => { toast.success("일정이 삭제되었습니다."); refetchSchedules(); },
+    onError: () => toast.error("삭제 실패"),
+  });
 
   // PT 패키지 추가
   const addPackageMutation = trpc.pt.addPackage.useMutation({
@@ -399,11 +432,12 @@ export default function MemberDetail({ memberId }: Props) {
 
       {/* 탭 */}
       <Tabs defaultValue="info">
-        <TabsList className="w-full">
-          <TabsTrigger value="info" className="flex-1 text-xs">기본 정보</TabsTrigger>
-          <TabsTrigger value="pt" className="flex-1 text-xs">PT 프로그램</TabsTrigger>
-          <TabsTrigger value="memo" className="flex-1 text-xs">운동 메모</TabsTrigger>
-          <TabsTrigger value="attendance" className="flex-1 text-xs">출석</TabsTrigger>
+        <TabsList className="w-full grid grid-cols-5">
+          <TabsTrigger value="info" className="text-xs px-1">기본정보</TabsTrigger>
+          <TabsTrigger value="pt" className="text-xs px-1">PT정보</TabsTrigger>
+          <TabsTrigger value="stats" className="text-xs px-1">통계</TabsTrigger>
+          <TabsTrigger value="memo" className="text-xs px-1">메모</TabsTrigger>
+          <TabsTrigger value="attendance" className="text-xs px-1">출석</TabsTrigger>
         </TabsList>
 
         {/* ── 기본 정보 탭 ── */}
@@ -445,9 +479,12 @@ export default function MemberDetail({ memberId }: Props) {
                 />
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
-                  label="등록일"
+                  label="최초 등록일"
                   value={format(new Date(member.createdAt), "yyyy.MM.dd", { locale: ko })}
                 />
+                {member.visitRoute && (
+                  <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
+                )}
                 <div className="flex items-start gap-3">
                   <div className="text-muted-foreground mt-0.5"><User className="h-4 w-4" /></div>
                   <div className="flex-1">
@@ -685,14 +722,47 @@ export default function MemberDetail({ memberId }: Props) {
                           );
                         })()}
 
+                        {/* 상태 변경 버튼 */}
+                        <div className="mt-3 flex gap-1.5 flex-wrap">
+                          {(["active","paused","completed","refunded"] as const).map((s) => {
+                            const labels: Record<string, string> = { active:"진행", paused:"정지", completed:"완료", refunded:"환불" };
+                            const colors: Record<string, string> = { active:"border-green-500/40 text-green-400", paused:"border-yellow-500/40 text-yellow-400", completed:"border-gray-500/40 text-gray-400", refunded:"border-red-500/40 text-red-400" };
+                            const isCur = pkg.status === s;
+                            return (
+                              <button key={s} onClick={() => !isCur && updateStatusMutation.mutate({ packageId: pkg.id, status: s })}
+                                className={`px-2 py-0.5 rounded-full text-xs border transition-colors ${isCur ? `${colors[s]} bg-opacity-20` : "border-border text-muted-foreground hover:border-primary/40"} ${isCur ? "font-semibold" : ""}`}>
+                                {labels[s]}
+                              </button>
+                            );
+                          })}
+                          <button onClick={() => { setPauseForm(p => ({ ...p, packageId: pkg.id })); setPauseOpen(true); }}
+                            className="px-2 py-0.5 rounded-full text-xs border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-1">
+                            <PauseCircle className="h-3 w-3" />정지 추가
+                          </button>
+                        </div>
+
+                        {/* 정지 내역 */}
+                        {pauses?.filter(p => p.packageId === pkg.id).map(pause => (
+                          <div key={pause.id} className="mt-2 flex items-center justify-between text-xs bg-yellow-500/10 border border-yellow-500/20 rounded px-2 py-1">
+                            <span className="text-yellow-400">{pause.pauseStart} ~ {pause.pauseEnd ?? "진행중"}{pause.reason ? ` · ${pause.reason}` : ""}</span>
+                            <button onClick={() => removePauseMutation.mutate({ pauseId: pause.id })} className="text-muted-foreground hover:text-red-400 ml-2"><Trash2 className="h-3 w-3"/></button>
+                          </div>
+                        ))}
+
                         {/* 결제 정보 */}
-                        {(pkg.paymentAmount || pkg.unpaidAmount || pkg.paymentMethod || pkg.paymentMemo) && (
+                        {(pkg.paymentAmount || pkg.unpaidAmount || pkg.paymentMethod || (pkg as any).paymentDate || pkg.paymentMemo) && (
                           <div className="mt-3 pt-3 border-t border-border/50">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
                               {pkg.paymentAmount ? (
                                 <div>
                                   <p className="text-muted-foreground">결제 금액</p>
                                   <p className="font-medium">{pkg.paymentAmount.toLocaleString()}원</p>
+                                </div>
+                              ) : null}
+                              {(pkg as any).paymentDate ? (
+                                <div>
+                                  <p className="text-muted-foreground">결제일자</p>
+                                  <p className="font-medium">{(pkg as any).paymentDate}</p>
                                 </div>
                               ) : null}
                               {pkg.unpaidAmount ? (
@@ -700,15 +770,8 @@ export default function MemberDetail({ memberId }: Props) {
                                   <p className="text-muted-foreground">미수금</p>
                                   <div className="flex items-center gap-2">
                                     <p className="font-medium text-orange-400">{pkg.unpaidAmount.toLocaleString()}원</p>
-                                    <button
-                                      className="text-xs text-orange-400 underline hover:text-orange-300"
-                                      onClick={() => {
-                                        setUnpaidEdit({ packageId: pkg.id, current: pkg.unpaidAmount ?? 0, value: String(pkg.unpaidAmount ?? 0) });
-                                        setUnpaidOpen(true);
-                                      }}
-                                    >
-                                      수정
-                                    </button>
+                                    <button className="text-xs text-orange-400 underline hover:text-orange-300"
+                                      onClick={() => { setUnpaidEdit({ packageId: pkg.id, current: pkg.unpaidAmount ?? 0, value: String(pkg.unpaidAmount ?? 0) }); setUnpaidOpen(true); }}>수정</button>
                                   </div>
                                 </div>
                               ) : null}
@@ -719,7 +782,7 @@ export default function MemberDetail({ memberId }: Props) {
                                 </div>
                               ) : null}
                               {pkg.paymentMemo ? (
-                                <div className="sm:col-span-2">
+                                <div className="col-span-2">
                                   <p className="text-muted-foreground">결제 메모</p>
                                   <p className="font-medium">{pkg.paymentMemo}</p>
                                 </div>
@@ -730,6 +793,96 @@ export default function MemberDetail({ memberId }: Props) {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── 통계 탭 ── */}
+        <TabsContent value="stats" className="mt-4 space-y-3">
+          {/* 수업 통계 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 pb-2 pt-4">
+              <CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="h-4 w-4 text-primary"/>수업 통계</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {[
+                  { label: "진행 수업 수", value: `${stats?.totalSessions ?? 0}회` },
+                  { label: "총 예약 수", value: `${stats?.totalChecks ?? 0}회` },
+                  { label: "취소 횟수", value: `${stats?.cancelCount ?? 0}회` },
+                  { label: "노쇼 횟수", value: `${stats?.noshowCount ?? 0}회` },
+                ].map(item => (
+                  <div key={item.label} className="p-3 rounded-lg bg-accent/20 border border-border">
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <p className="font-bold text-lg mt-0.5">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 space-y-2 text-sm">
+                {stats?.lastSessionDate && (
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/50">
+                    <span className="text-muted-foreground flex items-center gap-1.5"><Clock className="h-3.5 w-3.5"/>마지막 수업일</span>
+                    <span className="font-medium">{stats.lastSessionDate}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5"/>재등록 여부</span>
+                  <span className={`font-medium ${stats?.reregistered ? "text-primary" : "text-muted-foreground"}`}>{stats?.reregistered ? `재등록 ${stats.reregistrationCount}회` : "첫 등록"}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 다음 예약/일정 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 pb-2 pt-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4 text-blue-400"/>다음 예약일</CardTitle>
+              <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1 text-xs h-7"><Plus className="h-3 w-3"/>추가</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader><DialogTitle>일정 등록</DialogTitle></DialogHeader>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">날짜 *</Label>
+                      <Input type="date" value={scheduleForm.scheduledDate} onChange={e => setScheduleForm(p => ({ ...p, scheduledDate: e.target.value }))} className="h-9 text-sm"/>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">시간 (선택)</Label>
+                      <Input type="time" value={scheduleForm.scheduledTime} onChange={e => setScheduleForm(p => ({ ...p, scheduledTime: e.target.value }))} className="h-9 text-sm"/>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">메모</Label>
+                      <Input placeholder="메모" value={scheduleForm.notes} onChange={e => setScheduleForm(p => ({ ...p, notes: e.target.value }))} className="h-9 text-sm"/>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1" onClick={() => setScheduleOpen(false)}>취소</Button>
+                      <Button className="flex-1" disabled={!scheduleForm.scheduledDate || createScheduleMutation.isPending}
+                        onClick={() => createScheduleMutation.mutate({ memberId, scheduledDate: scheduleForm.scheduledDate, scheduledTime: scheduleForm.scheduledTime || undefined, notes: scheduleForm.notes || undefined })}>
+                        {createScheduleMutation.isPending ? "저장 중..." : "저장"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {!memberSchedules?.length ? (
+                <p className="text-sm text-muted-foreground text-center py-4">등록된 일정이 없습니다.</p>
+              ) : (
+                <div className="space-y-2">
+                  {memberSchedules.map(s => (
+                    <div key={s.id} className={`flex items-center justify-between p-2.5 rounded-lg border text-sm ${s.status === "pending" ? "border-primary/30 bg-primary/5" : "border-border bg-accent/10 opacity-60"}`}>
+                      <div>
+                        <span className="font-medium">{s.scheduledDate}{s.scheduledTime ? ` ${s.scheduledTime}` : ""}</span>
+                        {s.notes && <span className="text-xs text-muted-foreground ml-2">{s.notes}</span>}
+                      </div>
+                      <button onClick={() => deleteScheduleMutation.mutate({ scheduleId: s.id })} className="text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5"/></button>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -1115,6 +1268,36 @@ export default function MemberDetail({ memberId }: Props) {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 정지 추가 다이얼로그 */}
+      <Dialog open={pauseOpen} onOpenChange={setPauseOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>정지 내역 추가</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">시작일 *</Label>
+                <Input type="date" value={pauseForm.pauseStart} onChange={e => setPauseForm(p => ({ ...p, pauseStart: e.target.value }))} className="h-9 text-sm"/>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">종료일</Label>
+                <Input type="date" value={pauseForm.pauseEnd} onChange={e => setPauseForm(p => ({ ...p, pauseEnd: e.target.value }))} className="h-9 text-sm"/>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">사유</Label>
+              <Input placeholder="부상, 여행 등" value={pauseForm.reason} onChange={e => setPauseForm(p => ({ ...p, reason: e.target.value }))} className="h-9 text-sm"/>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setPauseOpen(false)}>취소</Button>
+              <Button className="flex-1" disabled={!pauseForm.pauseStart || addPauseMutation.isPending}
+                onClick={() => addPauseMutation.mutate({ packageId: pauseForm.packageId, memberId, pauseStart: pauseForm.pauseStart, pauseEnd: pauseForm.pauseEnd || undefined, reason: pauseForm.reason || undefined })}>
+                {addPauseMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
