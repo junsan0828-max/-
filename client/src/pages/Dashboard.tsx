@@ -552,29 +552,25 @@ function TrainerDashboard() {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">운동 형태</label>
-              <div className="overflow-x-auto pb-1">
-                <div className="flex gap-1.5 w-max">
+              <Select value={journalForm.exerciseType} onValueChange={v => setJournalForm(p => ({ ...p, exerciseType: v === "__none" ? "" : v }))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 형태를 선택하세요" /></SelectTrigger>
+                <SelectContent>
                   {["다이어트","체형교정","재활","근비대","퍼포먼스","일반건강","스트레칭","유산소","기능성훈련","밸런스","체력증진"].map(t => (
-                    <button key={t} onClick={() => setJournalForm(p => ({ ...p, exerciseType: p.exerciseType === t ? "" : t }))}
-                      className={`px-2.5 py-1 rounded-full text-xs border whitespace-nowrap transition-colors ${journalForm.exerciseType === t ? "bg-blue-500/20 border-blue-500/50 text-blue-400" : "border-border text-muted-foreground hover:border-primary/40"}`}>
-                      {t}
-                    </button>
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}
-                </div>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">운동 부위</label>
-              <div className="overflow-x-auto pb-1">
-                <div className="flex gap-1.5 w-max">
+              <Select value={journalForm.bodyPart} onValueChange={v => setJournalForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 부위를 선택하세요" /></SelectTrigger>
+                <SelectContent>
                   {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
-                    <button key={bp} onClick={() => setJournalForm(p => ({ ...p, bodyPart: p.bodyPart === bp ? "" : bp }))}
-                      className={`px-2.5 py-1 rounded-full text-xs border whitespace-nowrap transition-colors ${journalForm.bodyPart === bp ? "bg-primary/20 border-primary/50 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
-                      {bp}
-                    </button>
+                    <SelectItem key={bp} value={bp}>{bp}</SelectItem>
                   ))}
-                </div>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
