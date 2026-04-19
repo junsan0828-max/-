@@ -559,7 +559,7 @@ const ptRouter = t.router({
   useSession: protectedProcedure
     .input(
       z.object({
-        packageId: z.number(),
+        packageId: z.number().optional(),
         memberId: z.number(),
         sessionDate: z.string().optional(),
         notes: z.string().optional(),
@@ -574,11 +574,23 @@ const ptRouter = t.router({
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
+      // packageId 미입력 시 활성 패키지 자동 탐색
+      let resolvedPackageId = input.packageId;
+      if (!resolvedPackageId) {
+        const activePkgs = await db
+          .select({ id: ptPackages.id })
+          .from(ptPackages)
+          .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active")))
+          .limit(1);
+        if (!activePkgs[0]) throw new TRPCError({ code: "BAD_REQUEST", message: "활성 PT 패키지가 없습니다." });
+        resolvedPackageId = activePkgs[0].id;
+      }
+
       // 패키지 조회
       const pkgResult = await db
         .select()
         .from(ptPackages)
-        .where(eq(ptPackages.id, input.packageId))
+        .where(eq(ptPackages.id, resolvedPackageId!))
         .limit(1);
 
       const pkg = pkgResult[0];
@@ -589,18 +601,16 @@ const ptRouter = t.router({
       const newUsed = pkg.usedSessions + 1;
       const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
 
-      // usedSessions 증가 + 완료 시 status 업데이트
       await db
         .update(ptPackages)
         .set({ usedSessions: newUsed, status: newStatus as any })
-        .where(eq(ptPackages.id, input.packageId));
+        .where(eq(ptPackages.id, resolvedPackageId!));
 
-      // 세션 로그 기록
       const today = new Date().toISOString().split("T")[0];
       await db.insert(ptSessionLogs).values({
         memberId: input.memberId,
         trainerId,
-        packageId: input.packageId,
+        packageId: resolvedPackageId,
         sessionDate: input.sessionDate ?? today,
         notes: input.notes,
         bodyPart: input.bodyPart,

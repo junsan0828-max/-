@@ -1,11 +1,18 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
-  AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock,
+  AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock, BookOpen, Trash2,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { differenceInDays } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
@@ -115,9 +122,29 @@ function AdminDashboard() {
 // ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
 function TrainerDashboard() {
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
   const { data: chartData } = trpc.dashboard.getMonthlyChart.useQuery();
   const { data: revenueData } = trpc.dashboard.getMonthlyRevenue.useQuery();
+  const { data: allMembers } = trpc.members.list.useQuery();
+
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
+  const [journalForm, setJournalForm] = useState({
+    sessionDate: new Date().toISOString().split("T")[0],
+    bodyPart: "",
+    notes: "",
+    exercises: [] as { name: string; sets: string; reps: string; weight: string }[],
+  });
+
+  const useSessionMutation = trpc.pt.useSession.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${selectedMember?.name} 수업 기록 완료! 잔여 ${data.remaining}회`);
+      setJournalOpen(false);
+      utils.dashboard.getStats.invalidate();
+    },
+    onError: (err) => toast.error(err.message || "기록 실패"),
+  });
   const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
@@ -381,28 +408,107 @@ function TrainerDashboard() {
         </Card>
       )}
 
-      {/* 빠른 액션 */}
+      {/* 트레이닝 일지 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">빠른 액션</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-primary" />트레이닝 일지
+          </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setLocation("/members/new")}
-            className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-colors"
-          >
-            <UserPlus className="h-6 w-6 text-primary" />
-            <span className="text-sm font-medium text-primary">회원 등록</span>
-          </button>
-          <button
-            onClick={() => setLocation("/members")}
-            className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-green-500/10 border border-green-500/20 hover:bg-green-500/20 transition-colors"
-          >
-            <Calendar className="h-6 w-6 text-green-400" />
-            <span className="text-sm font-medium text-green-400">출석 관리</span>
-          </button>
+        <CardContent className="space-y-2">
+          {(!allMembers || allMembers.filter(m => m.status === "active").length === 0) && (
+            <p className="text-sm text-muted-foreground text-center py-4">활성 회원이 없습니다</p>
+          )}
+          {allMembers?.filter(m => m.status === "active").map((m) => (
+            <button
+              key={m.id}
+              onClick={() => {
+                setSelectedMember({ id: m.id, name: m.name });
+                setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], bodyPart: "", notes: "", exercises: [] });
+                setJournalOpen(true);
+              }}
+              className="w-full flex items-center justify-between p-3 rounded-md bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">{m.name.charAt(0)}</div>
+                <div>
+                  <p className="text-sm font-medium">{m.name}</p>
+                  {m.membershipEnd && <p className="text-xs text-muted-foreground">{m.membershipEnd} 만료</p>}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-primary border border-primary/30 rounded-full px-2.5 py-1 bg-primary/10">
+                <BookOpen className="h-3 w-3" />기록
+              </div>
+            </button>
+          ))}
         </CardContent>
       </Card>
+
+      {/* 트레이닝 일지 기록 다이얼로그 */}
+      <Dialog open={journalOpen} onOpenChange={setJournalOpen}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-primary" />트레이닝 일지</DialogTitle>
+            <DialogDescription>{selectedMember?.name} 수업 기록</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">수업일</label>
+              <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">운동 부위</label>
+              <div className="flex flex-wrap gap-1.5">
+                {["상체","하체","전신","코어","유산소","상체+하체","재활"].map(bp => (
+                  <button key={bp} onClick={() => setJournalForm(p => ({ ...p, bodyPart: p.bodyPart === bp ? "" : bp }))}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${journalForm.bodyPart === bp ? "bg-primary/20 border-primary/50 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                    {bp}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
+                <button onClick={() => setJournalForm(p => ({ ...p, exercises: [...p.exercises, { name: "", sets: "", reps: "", weight: "" }] }))}
+                  className="text-xs text-primary hover:underline">+ 추가</button>
+              </div>
+              {journalForm.exercises.length === 0 && <p className="text-xs text-muted-foreground">종목을 추가하세요 (선택)</p>}
+              <div className="space-y-2">
+                {journalForm.exercises.map((ex, i) => (
+                  <div key={i} className="flex gap-1 items-center">
+                    <Input placeholder="종목명" value={ex.name} onChange={e => setJournalForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], name: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs flex-1" />
+                    <Input placeholder="세트" value={ex.sets} onChange={e => setJournalForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], sets: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
+                    <Input placeholder="횟수" value={ex.reps} onChange={e => setJournalForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], reps: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
+                    <Input placeholder="kg" value={ex.weight} onChange={e => setJournalForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], weight: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
+                    <button onClick={() => setJournalForm(p => ({ ...p, exercises: p.exercises.filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5"/></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">메모</label>
+              <Textarea value={journalForm.notes} onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="오늘 수업 특이사항..." rows={2} className="text-sm resize-none" />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
+              <Button className="flex-1" disabled={useSessionMutation.isPending}
+                onClick={() => {
+                  if (!selectedMember) return;
+                  useSessionMutation.mutate({
+                    memberId: selectedMember.id,
+                    sessionDate: journalForm.sessionDate,
+                    bodyPart: journalForm.bodyPart || undefined,
+                    notes: journalForm.notes || undefined,
+                    exercisesJson: journalForm.exercises.length > 0 ? JSON.stringify(journalForm.exercises) : undefined,
+                  });
+                }}>
+                {useSessionMutation.isPending ? "기록 중..." : "기록 완료"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
