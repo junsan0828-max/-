@@ -5,3 +5,6 @@ healthcheckTimeout = 30
 
 [build]
 builder = "NIXPACKS"
+
+# 아래 설정은 Railway 대시보드에서 Volume을 생성한 후 자동 적용됩니다.
+# Volume 생성: 서비스 → Volumes → Add Volume → Mount Path: /data

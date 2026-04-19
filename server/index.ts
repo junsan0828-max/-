@@ -6,7 +6,7 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
-import { sqlite, db } from "./db";
+import { sqlite, db, DB_PATH } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
@@ -68,6 +68,7 @@ app.post("/api/db-restore", express.raw({ type: "*/*", limit: "200mb" }), (req, 
     sqlite.close();
     if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
     fs.writeFileSync(dbPath, body);
+    fs.writeFileSync(backupPath, body); // .bak도 동기화
     res.json({ success: true, message: "DB 복원 완료. 서버를 재시작합니다." });
     setTimeout(() => process.exit(0), 500); // Railway가 자동 재시작
   } catch (e: any) {
@@ -356,7 +357,13 @@ function initDatabase() {
   console.log("✨ DB 초기화 완료!");
 }
 
-// 서버 시작
+// 서버 시작 (백업 파일 자동 복원 후 DB 초기화)
+const backupFile = DB_PATH + ".bak";
+if (!fs.existsSync(DB_PATH) && fs.existsSync(backupFile)) {
+  console.log("🔄 DB 파일 없음 → 백업에서 자동 복원 중...");
+  fs.copyFileSync(backupFile, DB_PATH);
+  console.log("✅ DB 복원 완료");
+}
 initDatabase();
 
 // 구글시트 자동 동기화 (5분마다)
@@ -369,6 +376,34 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000);
 
+// ─── DB 자동 백업 (10분마다) ──────────────────────────────────────────────────
+function runAutoBackup() {
+  try {
+    const backupPath = DB_PATH + ".bak";
+    sqlite.backup(backupPath)
+      .then(() => console.log(`💾 DB 자동 백업 완료: ${backupPath}`))
+      .catch((e: Error) => console.error("DB 백업 오류:", e.message));
+  } catch (e) {
+    console.error("DB 백업 오류:", e);
+  }
+}
+setInterval(runAutoBackup, 10 * 60 * 1000); // 10분마다
+
+// 프로세스 종료 시 최종 백업
+process.on("SIGTERM", () => {
+  try {
+    const backupPath = DB_PATH + ".bak";
+    sqlite.backup(backupPath).then(() => {
+      console.log("💾 종료 전 최종 DB 백업 완료");
+      process.exit(0);
+    }).catch(() => process.exit(0));
+  } catch {
+    process.exit(0);
+  }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+  // 시작 직후 1회 백업
+  setTimeout(runAutoBackup, 5000);
 });
