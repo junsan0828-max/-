@@ -121,6 +121,14 @@ export default function MemberDetail({ memberId }: Props) {
   const [pauseForm, setPauseForm] = useState({ packageId: 0, pauseStart: "", pauseEnd: "", reason: "" });
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({ scheduledDate: "", scheduledTime: "", notes: "" });
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  const [sessionDialogPkgId, setSessionDialogPkgId] = useState(0);
+  const [sessionForm, setSessionForm] = useState({
+    sessionDate: new Date().toISOString().split("T")[0],
+    notes: "",
+    bodyPart: "",
+    exercises: [] as { name: string; sets: string; reps: string; weight: string }[],
+  });
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
@@ -688,7 +696,11 @@ export default function MemberDetail({ memberId }: Props) {
                               size="sm"
                               className="w-full gap-2 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30"
                               disabled={useSessionMutation.isPending}
-                              onClick={() => useSessionMutation.mutate({ packageId: pkg.id, memberId })}
+                              onClick={() => {
+                                setSessionDialogPkgId(pkg.id);
+                                setSessionForm({ sessionDate: new Date().toISOString().split("T")[0], notes: "", bodyPart: "", exercises: [] });
+                                setSessionDialogOpen(true);
+                              }}
                             >
                               <Dumbbell className="h-3.5 w-3.5" />
                               세션 1회 사용
@@ -704,16 +716,32 @@ export default function MemberDetail({ memberId }: Props) {
                             <div className="mt-3 pt-3 border-t border-border/50">
                               <p className="text-xs text-muted-foreground mb-1.5">최근 세션 기록</p>
                               <div className="space-y-1">
-                                {logs.slice(0, 5).map(log => (
-                                  <div key={log.id} className="flex items-center justify-between text-xs">
-                                    <span className="text-foreground/70">
-                                      {format(new Date(log.sessionDate), "yyyy.MM.dd (EEE)", { locale: ko })}
-                                    </span>
-                                    {log.notes && (
-                                      <span className="text-muted-foreground truncate ml-2 max-w-[140px]">{log.notes}</span>
-                                    )}
-                                  </div>
-                                ))}
+                                {logs.slice(0, 5).map(log => {
+                                  const exs = log.exercisesJson ? (() => { try { return JSON.parse(log.exercisesJson as string) as {name:string;sets:string;reps:string;weight:string}[]; } catch { return []; } })() : [];
+                                  return (
+                                    <div key={log.id} className="text-xs py-1.5 border-b border-border/30 last:border-0">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-foreground/70">{format(new Date(log.sessionDate), "yyyy.MM.dd (EEE)", { locale: ko })}</span>
+                                        <div className="flex items-center gap-1.5">
+                                          {(log as any).bodyPart && <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">{(log as any).bodyPart}</span>}
+                                          {log.notes && <span className="text-muted-foreground truncate max-w-[100px]">{log.notes}</span>}
+                                        </div>
+                                      </div>
+                                      {exs.length > 0 && (
+                                        <div className="mt-1 space-y-0.5 pl-1">
+                                          {exs.map((ex, i) => (
+                                            <div key={i} className="flex gap-2 text-muted-foreground">
+                                              <span className="font-medium text-foreground/60">{ex.name}</span>
+                                              <span>{ex.sets}세트</span>
+                                              <span>{ex.reps}회</span>
+                                              {ex.weight && <span>{ex.weight}kg</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                                 {logs.length > 5 && (
                                   <p className="text-xs text-muted-foreground">외 {logs.length - 5}회 더</p>
                                 )}
@@ -1295,6 +1323,80 @@ export default function MemberDetail({ memberId }: Props) {
               <Button className="flex-1" disabled={!pauseForm.pauseStart || addPauseMutation.isPending}
                 onClick={() => addPauseMutation.mutate({ packageId: pauseForm.packageId, memberId, pauseStart: pauseForm.pauseStart, pauseEnd: pauseForm.pauseEnd || undefined, reason: pauseForm.reason || undefined })}>
                 {addPauseMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 세션 사용 기록 다이얼로그 (운동 부위 + 종목) */}
+      <Dialog open={sessionDialogOpen} onOpenChange={setSessionDialogOpen}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>수업 기록</DialogTitle>
+            <DialogDescription>세션 내용을 기록해주세요.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">수업일</label>
+              <Input type="date" value={sessionForm.sessionDate} onChange={e => setSessionForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">운동 부위</label>
+              <div className="flex flex-wrap gap-1.5">
+                {["상체","하체","전신","코어","유산소","상체+하체","재활"].map(bp => (
+                  <button key={bp} onClick={() => setSessionForm(p => ({ ...p, bodyPart: p.bodyPart === bp ? "" : bp }))}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${sessionForm.bodyPart === bp ? "bg-primary/20 border-primary/50 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                    {bp}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
+                <button onClick={() => setSessionForm(p => ({ ...p, exercises: [...p.exercises, { name: "", sets: "", reps: "", weight: "" }] }))}
+                  className="text-xs text-primary hover:underline flex items-center gap-1">
+                  <span>+ 추가</span>
+                </button>
+              </div>
+              {sessionForm.exercises.length === 0 && (
+                <p className="text-xs text-muted-foreground py-1">종목을 추가하세요 (선택)</p>
+              )}
+              <div className="space-y-2">
+                {sessionForm.exercises.map((ex, i) => (
+                  <div key={i} className="flex gap-1 items-center">
+                    <Input placeholder="종목명" value={ex.name} onChange={e => setSessionForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], name: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs flex-1" />
+                    <Input placeholder="세트" value={ex.sets} onChange={e => setSessionForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], sets: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
+                    <Input placeholder="횟수" value={ex.reps} onChange={e => setSessionForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], reps: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
+                    <Input placeholder="kg" value={ex.weight} onChange={e => setSessionForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], weight: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
+                    <button onClick={() => setSessionForm(p => ({ ...p, exercises: p.exercises.filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-red-400 flex-shrink-0"><Trash2 className="h-3.5 w-3.5"/></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">메모 (선택)</label>
+              <Textarea value={sessionForm.notes} onChange={e => setSessionForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항, 컨디션 등..." rows={2} className="text-sm resize-none" />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setSessionDialogOpen(false)}>취소</Button>
+              <Button
+                className="flex-1"
+                disabled={useSessionMutation.isPending}
+                onClick={() => {
+                  useSessionMutation.mutate({
+                    packageId: sessionDialogPkgId,
+                    memberId,
+                    sessionDate: sessionForm.sessionDate,
+                    notes: sessionForm.notes || undefined,
+                    bodyPart: sessionForm.bodyPart || undefined,
+                    exercisesJson: sessionForm.exercises.length > 0 ? JSON.stringify(sessionForm.exercises) : undefined,
+                  });
+                  setSessionDialogOpen(false);
+                }}
+              >
+                {useSessionMutation.isPending ? "기록 중..." : "기록 완료"}
               </Button>
             </div>
           </div>

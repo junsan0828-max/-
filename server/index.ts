@@ -265,6 +265,8 @@ function initDatabase() {
   };
   addCol("members", "visitRoute", "TEXT");
   addCol("pt_packages", "paymentDate", "TEXT");
+  addCol("pt_session_logs", "bodyPart", "TEXT");
+  addCol("pt_session_logs", "exercisesJson", "TEXT");
 
   console.log("✅ 테이블 준비 완료");
 

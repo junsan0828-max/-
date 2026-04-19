@@ -119,6 +119,8 @@ export const ptSessionLogs = sqliteTable("pt_session_logs", {
   packageId: integer("packageId"),
   sessionDate: text("sessionDate").notNull(),
   notes: text("notes"),
+  bodyPart: text("bodyPart"),
+  exercisesJson: text("exercisesJson"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 
