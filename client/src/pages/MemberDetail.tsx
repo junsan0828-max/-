@@ -1346,7 +1346,7 @@ export default function MemberDetail({ memberId }: Props) {
               <label className="text-xs font-medium text-muted-foreground">운동 형태</label>
               <Select value={sessionForm.exerciseType || "__none"} onValueChange={v => setSessionForm(p => ({ ...p, exerciseType: v === "__none" ? "" : v }))}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 형태를 선택하세요" /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                   <SelectItem value="__none">선택 안함</SelectItem>
                   {["다이어트","체형교정","재활","근비대","퍼포먼스","일반건강","스트레칭","유산소","기능성훈련","밸런스","체력증진"].map(t => (
                     <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -1358,7 +1358,7 @@ export default function MemberDetail({ memberId }: Props) {
               <label className="text-xs font-medium text-muted-foreground">운동 부위</label>
               <Select value={sessionForm.bodyPart || "__none"} onValueChange={v => setSessionForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 부위를 선택하세요" /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
                   <SelectItem value="__none">선택 안함</SelectItem>
                   {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
                     <SelectItem key={bp} value={bp}>{bp}</SelectItem>
