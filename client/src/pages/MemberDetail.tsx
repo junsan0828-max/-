@@ -159,7 +159,7 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: () => {
       toast.success("출석 체크 완료!");
       refetchAttendance();
-      utils.dashboard.getStats.invalidate();
+      try { utils.dashboard.getStats.invalidate(); } catch {}
     },
     onError: (err) =>
       toast.error(err.message === "CONFLICT" ? "오늘 이미 출석 체크되었습니다." : err.message),

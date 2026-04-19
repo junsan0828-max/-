@@ -1,5 +1,28 @@
 import { Switch, Route, Redirect, useRoute } from "wouter";
+import { Component, type ReactNode } from "react";
 import { trpc } from "./lib/trpc";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-6">
+          <p className="text-red-400 font-semibold">오류가 발생했습니다</p>
+          <p className="text-sm text-muted-foreground">{(this.state.error as Error).message}</p>
+          <button
+            className="text-sm text-primary underline"
+            onClick={() => { this.setState({ error: null }); window.history.back(); }}
+          >
+            뒤로가기
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -41,6 +64,7 @@ function App() {
 
   return (
     <Layout>
+      <ErrorBoundary>
       <Switch>
         <Route path="/">{() => <Dashboard />}</Route>
         <Route path="/members">{() => <Members />}</Route>
@@ -70,6 +94,7 @@ function App() {
         <Route path="/profile">{() => <Profile />}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
       </Switch>
+      </ErrorBoundary>
     </Layout>
   );
 }
