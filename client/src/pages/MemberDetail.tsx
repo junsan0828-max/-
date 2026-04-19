@@ -489,7 +489,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
                   label="최초 등록일"
-                  value={format(new Date(member.createdAt), "yyyy.MM.dd", { locale: ko })}
+                  value={format(new Date(member.createdAt.slice(0, 10)), "yyyy.MM.dd", { locale: ko })}
                 />
                 {member.visitRoute && (
                   <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
