@@ -11,12 +11,14 @@ import {
 } from "../drizzle/schema";
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL 환경변수가 설정되지 않았습니다.");
+  console.error("⚠️  DATABASE_URL 환경변수가 설정되지 않았습니다. Railway Variables 탭에서 추가하세요.");
 }
 
+const dbUrl = process.env.DATABASE_URL || "postgresql://localhost/fallback";
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes("localhost") ? false : { rejectUnauthorized: false },
+  connectionString: dbUrl,
+  ssl: dbUrl.includes("localhost") ? false : { rejectUnauthorized: false },
 });
 
 export const db = drizzle(pool);
