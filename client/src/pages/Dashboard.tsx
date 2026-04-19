@@ -48,6 +48,11 @@ function AdminDashboard() {
     onError: (e: { message: string }) => toast.error(e.message),
   });
 
+  const syncNowMutation = trpc.admin.syncNow.useMutation({
+    onSuccess: (res) => { toast.success(res.message); refetchPending(); },
+    onError: (e: { message: string }) => toast.error(e.message),
+  });
+
   if (isLoading) return <LoadingSkeleton />;
 
   return (
@@ -140,12 +145,18 @@ function AdminDashboard() {
       {/* 미배정 회원 명단 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-orange-400" />
-            미배정 회원 명단
-            {pendingMembers && pendingMembers.length > 0 && (
-              <span className="ml-1 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">{pendingMembers.length}명</span>
-            )}
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-orange-400" />
+              미배정 회원 명단
+              {pendingMembers && pendingMembers.length > 0 && (
+                <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">{pendingMembers.length}명</span>
+              )}
+            </span>
+            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={syncNowMutation.isPending} onClick={() => syncNowMutation.mutate()}>
+              <RefreshCw className={`h-3 w-3 mr-1 ${syncNowMutation.isPending ? "animate-spin" : ""}`} />
+              시트 동기화
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
