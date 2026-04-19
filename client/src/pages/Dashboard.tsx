@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
-  AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock, BookOpen, Trash2,
+  AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock, BookOpen, Trash2, UserCheck,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -26,6 +27,26 @@ function AdminDashboard() {
   const [, setLocation] = useLocation();
   const { data: stats, isLoading } = trpc.admin.getStats.useQuery();
   const { data: chart } = trpc.admin.getMonthlyChart.useQuery();
+  const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
+  const [assignDialogId, setAssignDialogId] = useState<number | null>(null);
+  const [assignTrainerId, setAssignTrainerId] = useState<string>("");
+  const utils = trpc.useUtils();
+
+  const assignMutation = trpc.admin.assignPending.useMutation({
+    onSuccess: () => {
+      toast.success("회원 배정 완료");
+      setAssignDialogId(null);
+      setAssignTrainerId("");
+      refetchPending();
+      utils.admin.getStats.invalidate();
+    },
+    onError: (e: { message: string }) => toast.error(e.message),
+  });
+
+  const deletePendingMutation = trpc.admin.deletePending.useMutation({
+    onSuccess: () => { toast.success("삭제됨"); refetchPending(); },
+    onError: (e: { message: string }) => toast.error(e.message),
+  });
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -115,6 +136,67 @@ function AdminDashboard() {
           ))}
         </CardContent>
       </Card>
+
+      {/* 미배정 회원 명단 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-orange-400" />
+            미배정 회원 명단
+            {pendingMembers && pendingMembers.length > 0 && (
+              <span className="ml-1 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">{pendingMembers.length}명</span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {(!pendingMembers || pendingMembers.length === 0) && (
+            <p className="text-sm text-muted-foreground text-center py-4">미배정 회원 없음</p>
+          )}
+          {pendingMembers?.map((p) => (
+            <div key={p.id} className="flex items-center justify-between p-3 rounded-md bg-accent/20 border border-border">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{p.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {[p.phone, p.gender, p.ptSessions ? `PT ${p.ptSessions}회` : null].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+              <div className="flex gap-1.5 ml-2 shrink-0">
+                <Button size="sm" className="h-7 text-xs" onClick={() => { setAssignDialogId(p.id); setAssignTrainerId(""); }}>배정</Button>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-red-400" onClick={() => deletePendingMutation.mutate({ id: p.id })}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* 트레이너 배정 다이얼로그 */}
+      <Dialog open={assignDialogId !== null} onOpenChange={(o) => { if (!o) setAssignDialogId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>트레이너 배정</DialogTitle>
+            <DialogDescription>이 회원을 담당할 트레이너를 선택하세요.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <Select value={assignTrainerId} onValueChange={setAssignTrainerId}>
+              <SelectTrigger><SelectValue placeholder="트레이너 선택" /></SelectTrigger>
+              <SelectContent>
+                {stats?.trainerStats?.map((t) => (
+                  <SelectItem key={t.id} value={String(t.id)}>{t.trainerName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              className="w-full"
+              disabled={!assignTrainerId || assignMutation.isPending}
+              onClick={() => assignDialogId !== null && assignMutation.mutate({ pendingId: assignDialogId, trainerId: Number(assignTrainerId) })}
+            >
+              배정 완료
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
