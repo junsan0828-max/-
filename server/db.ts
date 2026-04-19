@@ -11,9 +11,16 @@ import {
   ptSessionLogs,
 } from "../drizzle/schema";
 
-const dbPath = path.join(process.cwd(), "trainer.db");
+// Railway Volume을 사용할 때는 DB_PATH=/data/trainer.db 환경변수를 설정하세요
+const dbPath = process.env.DB_PATH ?? path.join(process.cwd(), "trainer.db");
+
+// 디렉토리 없으면 생성 (Railway Volume 마운트 경로 대비)
+import fs from "fs";
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
 export const sqlite = new Database(dbPath);
+console.log(`📂 DB 경로: ${dbPath}`);
 export const db = drizzle(sqlite);
 
 export function getDb() {
