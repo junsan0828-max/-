@@ -83,7 +83,7 @@ const authRouter = t.router({
       const authUser: AuthUser = {
         id: user.id,
         username: user.username,
-        role: user.role,
+        role: user.role as "admin" | "trainer",
         trainerId,
       };
       ctx.req.session.user = authUser;

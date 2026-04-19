@@ -57,7 +57,7 @@ export default function AttendancePage() {
         {members?.map((m) => {
           const check = m.check;
           const isChecked = !!check;
-          const st = check?.status ?? null;
+          const st = (check?.status ?? null) as "attended" | "noshow" | "cancelled" | null;
 
           return (
             <button
