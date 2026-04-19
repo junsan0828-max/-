@@ -6,7 +6,7 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
-import { db } from "./db";
+import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
@@ -251,7 +251,7 @@ async function initDatabase() {
   ];
 
   for (const sql of tables) {
-    await db.execute(sql as any);
+    await pool.query(sql);
   }
   console.log("✅ 테이블 준비 완료");
 

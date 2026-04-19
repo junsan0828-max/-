@@ -16,7 +16,7 @@ if (!process.env.DATABASE_URL) {
 
 const dbUrl = process.env.DATABASE_URL || "postgresql://localhost/fallback";
 
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: dbUrl,
   ssl: dbUrl.includes("localhost") ? false : { rejectUnauthorized: false },
 });
