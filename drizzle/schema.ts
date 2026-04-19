@@ -51,6 +51,7 @@ export const members = sqliteTable("members", {
   membershipStart: text("membershipStart"),
   membershipEnd: text("membershipEnd"),
   profileNote: text("profileNote"),
+  visitRoute: text("visitRoute"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -65,15 +66,39 @@ export const ptPackages = sqliteTable("pt_packages", {
   packageName: text("packageName"),
   startDate: text("startDate"),
   expiryDate: text("expiryDate"),
-  status: text("status", { enum: ["active", "completed", "expired"] }).default("active").notNull(),
+  status: text("status", { enum: ["active", "paused", "completed", "expired", "refunded"] }).default("active").notNull(),
   price: integer("price"),
   pricePerSession: integer("pricePerSession"),
   paymentAmount: integer("paymentAmount"),
   unpaidAmount: integer("unpaidAmount"),
   paymentMethod: text("paymentMethod", { enum: ["현금영수증", "이체", "지역화폐", "카드"] }),
+  paymentDate: text("paymentDate"),
   paymentMemo: text("paymentMemo"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// PT 정지 내역
+export const ptPauses = sqliteTable("pt_pauses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  packageId: integer("packageId").notNull(),
+  memberId: integer("memberId").notNull(),
+  pauseStart: text("pauseStart").notNull(),
+  pauseEnd: text("pauseEnd"),
+  reason: text("reason"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 예약/일정
+export const schedules = sqliteTable("schedules", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  memberId: integer("memberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  scheduledDate: text("scheduledDate").notNull(),
+  scheduledTime: text("scheduledTime"),
+  notes: text("notes"),
+  status: text("status", { enum: ["pending", "done", "cancelled"] }).default("pending").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
 });
 
 // 출석

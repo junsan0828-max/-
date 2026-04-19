@@ -236,6 +236,36 @@ function initDatabase() {
     updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
+  // PT 정지 내역
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS pt_pauses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    packageId INTEGER NOT NULL,
+    memberId INTEGER NOT NULL,
+    pauseStart TEXT NOT NULL,
+    pauseEnd TEXT,
+    reason TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  // 예약/일정
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    memberId INTEGER NOT NULL,
+    trainerId INTEGER NOT NULL,
+    scheduledDate TEXT NOT NULL,
+    scheduledTime TEXT,
+    notes TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  // 기존 테이블 컬럼 마이그레이션 (ADD COLUMN IF NOT EXISTS 미지원 → try/catch)
+  const addCol = (table: string, col: string, def: string) => {
+    try { sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch {}
+  };
+  addCol("members", "visitRoute", "TEXT");
+  addCol("pt_packages", "paymentDate", "TEXT");
+
   console.log("✅ 테이블 준비 완료");
 
   // 관리자 계정 생성 (없으면 초기 씨드 전체 실행)
