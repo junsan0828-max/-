@@ -275,19 +275,19 @@ async function initDatabase() {
 
   // 고정 트레이너 계정 복구 (없으면 생성)
   const fixedTrainers = [
-    { username: "ljunsan",   trainerName: "이준산",  settlementRate: 60 },
-    { username: "khyunseok", trainerName: "김현석",  settlementRate: 50 },
-    { username: "knayeon",   trainerName: "김나연",  settlementRate: 50 },
-    { username: "csungil",   trainerName: "최성길",  settlementRate: 50 },
+    { username: "trainer1", trainerName: "이준산", settlementRate: 60 },
+    { username: "trainer2", trainerName: "최성길", settlementRate: 50 },
+    { username: "trainer3", trainerName: "김현석", settlementRate: 50 },
+    { username: "trainer4", trainerName: "김나연", settlementRate: 50 },
   ];
   for (const t of fixedTrainers) {
     const existingUser = await db.select({ id: users.id }).from(users).where(eq(users.username, t.username)).limit(1);
     if (!existingUser[0]) {
-      const pw = bcrypt.hashSync("trainer123", 10);
+      const pw = bcrypt.hashSync("123123", 10);
       const [u] = await db.insert(users).values({ username: t.username, password: pw, role: "trainer" }).returning();
       const [tr] = await db.insert(trainers).values({ userId: u.id, trainerName: t.trainerName }).returning();
       await db.insert(trainerSettings).values({ trainerId: tr.id, settlementRate: t.settlementRate });
-      console.log(`✅ 트레이너 복구: ${t.trainerName} (${t.username} / trainer123)`);
+      console.log(`✅ 트레이너 복구: ${t.trainerName} (${t.username} / 123123)`);
     }
   }
 
