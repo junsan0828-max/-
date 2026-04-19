@@ -864,8 +864,15 @@ const trainersRouter = t.router({
         .where(eq(members.trainerId, input.id));
       const memberCount = Number((memberCountResult[0] as any)?.count ?? 0);
 
+      const userResult = await db
+        .select({ username: users.username })
+        .from(users)
+        .where(eq(users.id, trainerResult[0].userId))
+        .limit(1);
+
       return {
         ...trainerResult[0],
+        username: userResult[0]?.username ?? "",
         settlementRate: settingsResult[0]?.settlementRate ?? 50,
         memberCount,
       };

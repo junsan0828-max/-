@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, ChevronLeft, UserPlus, Edit, KeyRound, BarChart3 } from "lucide-react";
+import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, ChevronLeft, UserPlus, Edit, KeyRound, BarChart3, AtSign } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { trpc as trpcHook } from "@/lib/trpc";
 
@@ -255,6 +255,13 @@ export default function TrainerDetail({ trainerId }: Props) {
           )}
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex items-center gap-3">
+            <AtSign className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">로그인 아이디</p>
+              <p className="text-sm font-medium text-primary">{(trainer as any).username || "-"}</p>
+            </div>
+          </div>
           <div className="flex items-center gap-3">
             <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
             <div>
