@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp } from "lucide-react";
+import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database } from "lucide-react";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -70,6 +70,7 @@ export default function Admin() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [dbRestoring, setDbRestoring] = useState(false);
   const [form, setForm] = useState({
     username: "",
     password: "",
@@ -490,6 +491,66 @@ export default function Admin() {
           </CardContent>
         </Card>
       )}
+
+      {/* DB 백업 / 복원 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database className="h-4 w-4 text-primary" />
+            데이터베이스 관리
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">DB 파일을 다운로드하거나, 기존 백업 파일로 복원할 수 있습니다.</p>
+          <div className="flex gap-2">
+            {/* 백업 다운로드 */}
+            <a href="/api/db-backup" download className="flex-1">
+              <button className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md border border-border bg-accent/20 hover:bg-accent/40 transition-colors text-sm">
+                <Download className="h-4 w-4 text-green-400" />
+                <span>DB 다운로드</span>
+              </button>
+            </a>
+            {/* 복원 업로드 */}
+            <label className="flex-1 cursor-pointer">
+              <input
+                type="file"
+                accept=".db"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!confirm(`"${file.name}" 파일로 DB를 복원하시겠습니까?\n현재 데이터가 모두 교체됩니다.`)) return;
+                  setDbRestoring(true);
+                  try {
+                    const buf = await file.arrayBuffer();
+                    const res = await fetch("/api/db-restore", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/octet-stream" },
+                      body: buf,
+                      credentials: "include",
+                    });
+                    const json = await res.json();
+                    if (res.ok) {
+                      alert("복원 완료! 서버가 재시작됩니다. 잠시 후 새로고침해주세요.");
+                    } else {
+                      alert("복원 실패: " + json.error);
+                      setDbRestoring(false);
+                    }
+                  } catch {
+                    alert("복원 중 오류가 발생했습니다.");
+                    setDbRestoring(false);
+                  }
+                }}
+              />
+              <div className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md border transition-colors text-sm ${dbRestoring ? "border-orange-500/40 text-orange-400 bg-orange-500/10" : "border-border bg-accent/20 hover:bg-accent/40"}`}>
+                <Upload className="h-4 w-4 text-orange-400" />
+                <span>{dbRestoring ? "복원 중..." : "DB 복원"}</span>
+              </div>
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground">⚠ DB 복원 시 현재 모든 데이터가 업로드한 파일로 교체됩니다.</p>
+        </CardContent>
+      </Card>
 
       {/* 트레이너 목록 */}
       <Card className="bg-card border-border">

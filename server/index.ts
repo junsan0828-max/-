@@ -44,6 +44,37 @@ app.use(
   })
 );
 
+// ─── DB 백업 / 복원 (관리자 전용) ────────────────────────────────────────────
+
+// DB 다운로드
+app.get("/api/db-backup", (req, res) => {
+  const user = (req.session as any)?.user as AuthUser | undefined;
+  if (!user || user.role !== "admin") return res.status(401).json({ error: "관리자만 접근 가능합니다." });
+  const dbPath = process.env.DB_PATH ?? path.join(process.cwd(), "trainer.db");
+  if (!fs.existsSync(dbPath)) return res.status(404).json({ error: "DB 파일이 없습니다." });
+  res.download(dbPath, "trainer_backup.db");
+});
+
+// DB 복원 (업로드된 .db 파일로 교체 후 재시작)
+app.post("/api/db-restore", express.raw({ type: "*/*", limit: "200mb" }), (req, res) => {
+  const user = (req.session as any)?.user as AuthUser | undefined;
+  if (!user || user.role !== "admin") return res.status(401).json({ error: "관리자만 접근 가능합니다." });
+  const body = req.body as Buffer;
+  if (!body || body.length < 100) return res.status(400).json({ error: "유효하지 않은 DB 파일입니다." });
+  const dbPath = process.env.DB_PATH ?? path.join(process.cwd(), "trainer.db");
+  const backupPath = dbPath + ".bak";
+  try {
+    // 현재 DB 백업 후 교체
+    sqlite.close();
+    if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, backupPath);
+    fs.writeFileSync(dbPath, body);
+    res.json({ success: true, message: "DB 복원 완료. 서버를 재시작합니다." });
+    setTimeout(() => process.exit(0), 500); // Railway가 자동 재시작
+  } catch (e: any) {
+    res.status(500).json({ error: "복원 실패: " + e.message });
+  }
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
