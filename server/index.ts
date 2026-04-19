@@ -295,6 +295,11 @@ async function initDatabase() {
 
 // 서버 시작
 async function start() {
+  // 헬스체크 통과를 위해 먼저 리슨 시작
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+  });
+
   await initDatabase();
 
   // 구글시트 자동 동기화 (5분마다)
@@ -306,10 +311,6 @@ async function start() {
       console.error("시트 동기화 오류:", e);
     }
   }, 5 * 60 * 1000);
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-  });
 }
 
 start().catch((e) => {
