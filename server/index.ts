@@ -8,7 +8,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings } from "../drizzle/schema";
+import { users, trainers, trainerSettings, sheetSyncConfig } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
 
@@ -271,6 +271,23 @@ async function initDatabase() {
     console.log("✅ 트레이너: trainer1 / trainer123");
   } else {
     console.log("ℹ️  기존 데이터 유지");
+  }
+
+  // 구글시트 URL 고정 설정 (없으면 자동 생성, 있으면 URL만 갱신)
+  const FIXED_SHEET_URL = "https://docs.google.com/spreadsheets/d/1jZbMrBQM_vr2PpvxyprpH1qQlfp_w2hQwdortv65C5w/edit?usp=drivesdk";
+  const existingConfig = await db.select({ id: sheetSyncConfig.id }).from(sheetSyncConfig).limit(1);
+  if (!existingConfig[0]) {
+    await db.insert(sheetSyncConfig).values({
+      sheetUrl: FIXED_SHEET_URL,
+      columnOffset: 1,
+      lastSyncedCount: 0,
+      mappingJson: "{}",
+      enabled: 1,
+    });
+    console.log("✅ 구글시트 URL 고정 설정 완료");
+  } else {
+    await db.update(sheetSyncConfig).set({ sheetUrl: FIXED_SHEET_URL });
+    console.log("✅ 구글시트 URL 갱신 완료");
   }
 
   console.log("✨ DB 초기화 완료!");

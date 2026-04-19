@@ -92,9 +92,36 @@ export async function syncSheetNow(): Promise<{ newMembers: number; message: str
 
   if (!newRows.length) return { newMembers: 0, message: "새 데이터 없음" };
 
-  const mapping = JSON.parse(config.mappingJson) as Record<string, string>;
+  // 컬럼 자동 매핑 (저장된 매핑 없으면 헤더명으로 자동 추론)
+  const AUTO_GUESS: Record<string, string> = {
+    이름: "name", 성명: "name",
+    연락처: "phone", 전화번호: "phone", 휴대폰: "phone", 핸드폰: "phone",
+    이메일: "email",
+    생년월일: "birthDate", 생일: "birthDate",
+    성별: "gender",
+    등급: "grade",
+    상태: "status",
+    시작일: "membershipStart", 등록일: "membershipStart", 가입일: "membershipStart", 회원권시작: "membershipStart",
+    만료일: "membershipEnd", 종료일: "membershipEnd", 회원권만료: "membershipEnd",
+    특이사항: "profileNote", 메모: "profileNote", 비고: "profileNote",
+    패키지: "ptProgram", PT프로그램: "ptProgram", 프로그램: "ptProgram",
+    횟수: "ptSessions", PT횟수: "ptSessions", 세션: "ptSessions", 등록횟수: "ptSessions",
+    결제금액: "paymentAmount", 금액: "paymentAmount",
+    미수금: "unpaidAmount",
+    결제방법: "paymentMethod",
+  };
+
+  let savedMapping = JSON.parse(config.mappingJson) as Record<string, string>;
+  // 저장된 매핑이 비어있으면 헤더 자동 추론
+  if (Object.keys(savedMapping).length === 0) {
+    savedMapping = {};
+    for (const h of headers) {
+      const key = h.trim().replace(/\s/g, "");
+      savedMapping[h] = AUTO_GUESS[h] ?? AUTO_GUESS[key] ?? "skip";
+    }
+  }
   const fi: Record<string, number> = {};
-  for (const [col, field] of Object.entries(mapping)) {
+  for (const [col, field] of Object.entries(savedMapping)) {
     if (field === "skip") continue;
     const idx = headers.indexOf(col);
     if (idx !== -1) fi[field] = idx;
