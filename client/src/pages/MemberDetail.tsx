@@ -4,6 +4,23 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+
+function parseDate(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  // normalize "2024-01-15 12:30:45+00" → "2024-01-15T12:30:45+00:00"
+  const normalized = s.replace(" ", "T").replace(/\+(\d{2})$/, "+$1:00");
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function fmtDate(s: string | null | undefined, fmt: string): string {
+  try {
+    const d = parseDate(s);
+    return d ? format(d, fmt, { locale: ko }) : "-";
+  } catch {
+    return "-";
+  }
+}
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -467,7 +484,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
                   label="생년월일"
-                  value={member.birthDate ? format(new Date(member.birthDate), "yyyy년 MM월 dd일", { locale: ko }) : "-"}
+                  value={fmtDate(member.birthDate, "yyyy년 MM월 dd일")}
                 />
                 <InfoRow
                   icon={<User className="h-4 w-4" />}
@@ -479,17 +496,17 @@ export default function MemberDetail({ memberId }: Props) {
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
                   label="회원권 시작"
-                  value={member.membershipStart ? format(new Date(member.membershipStart), "yyyy.MM.dd", { locale: ko }) : "-"}
+                  value={fmtDate(member.membershipStart, "yyyy.MM.dd")}
                 />
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
                   label="회원권 만료"
-                  value={member.membershipEnd ? format(new Date(member.membershipEnd), "yyyy.MM.dd", { locale: ko }) : "-"}
+                  value={fmtDate(member.membershipEnd, "yyyy.MM.dd")}
                 />
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
                   label="최초 등록일"
-                  value={format(new Date(member.createdAt.slice(0, 10)), "yyyy.MM.dd", { locale: ko })}
+                  value={fmtDate(member.createdAt, "yyyy.MM.dd")}
                 />
                 {member.visitRoute && (
                   <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
@@ -669,8 +686,8 @@ export default function MemberDetail({ memberId }: Props) {
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                              {pkg.startDate ? format(new Date(pkg.startDate), "yyyy.MM.dd", { locale: ko }) : ""}{" "}~{" "}
-                              {pkg.expiryDate ? format(new Date(pkg.expiryDate), "yyyy.MM.dd", { locale: ko }) : ""}
+                              {fmtDate(pkg.startDate, "yyyy.MM.dd")}{" "}~{" "}
+                              {fmtDate(pkg.expiryDate, "yyyy.MM.dd")}
                             </p>
                           </div>
                           <div className="text-right shrink-0">
@@ -722,7 +739,7 @@ export default function MemberDetail({ memberId }: Props) {
                                   return (
                                     <div key={log.id} className="text-xs py-1.5 border-b border-border/30 last:border-0">
                                       <div className="flex items-center justify-between">
-                                        <span className="text-foreground/70">{format(new Date(log.sessionDate), "yyyy.MM.dd (EEE)", { locale: ko })}</span>
+                                        <span className="text-foreground/70">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
                                         <div className="flex items-center gap-1.5">
                                           {(log as any).bodyPart && <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">{(log as any).bodyPart}</span>}
                                           {log.notes && <span className="text-muted-foreground truncate max-w-[100px]">{log.notes}</span>}
@@ -980,7 +997,7 @@ export default function MemberDetail({ memberId }: Props) {
                     <div key={memo.id} className="p-3 rounded-lg bg-accent/20 border border-border">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-xs font-medium text-primary">
-                          {format(new Date(memo.memoDate), "yyyy.MM.dd (EEE)", { locale: ko })}
+                          {fmtDate(memo.memoDate, "yyyy.MM.dd (EEE)")}
                         </p>
                         <div className="flex items-center gap-2">
                           <button
@@ -1108,7 +1125,7 @@ export default function MemberDetail({ memberId }: Props) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-medium">
-                            {format(new Date(check.checkDate), "MM.dd (EEE)", { locale: ko })}
+                            {fmtDate(check.checkDate, "MM.dd (EEE)")}
                           </p>
                           <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                             check.status === "attended"
@@ -1226,7 +1243,7 @@ export default function MemberDetail({ memberId }: Props) {
             <DialogTitle>운동 메모 수정</DialogTitle>
             <DialogDescription>
               {editMemoForm.memoDate
-                ? format(new Date(editMemoForm.memoDate), "yyyy.MM.dd (EEE)", { locale: ko })
+                ? fmtDate(editMemoForm.memoDate, "yyyy.MM.dd (EEE)")
                 : ""}
             </DialogDescription>
           </DialogHeader>
