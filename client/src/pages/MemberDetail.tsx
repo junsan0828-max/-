@@ -24,6 +24,7 @@ function fmtDate(s: string | null | undefined, fmt: string): string {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import ExerciseEditor, { type Exercise, parseExercisesJson } from "@/components/ExerciseEditor";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -145,7 +146,7 @@ export default function MemberDetail({ memberId }: Props) {
     notes: "",
     exerciseType: "",
     bodyPart: "",
-    exercises: [] as { name: string; sets: string; reps: string; weight: string }[],
+    exercises: [] as Exercise[],
   });
 
   const { data: currentUser } = trpc.auth.me.useQuery();
@@ -735,7 +736,7 @@ export default function MemberDetail({ memberId }: Props) {
                               <p className="text-xs text-muted-foreground mb-1.5">최근 세션 기록</p>
                               <div className="space-y-1">
                                 {logs.slice(0, 5).map(log => {
-                                  const exs = log.exercisesJson ? (() => { try { return JSON.parse(log.exercisesJson as string) as {name:string;sets:string;reps:string;weight:string}[]; } catch { return []; } })() : [];
+                                  const exs = parseExercisesJson(log.exercisesJson as string | null);
                                   return (
                                     <div key={log.id} className="text-xs py-1.5 border-b border-border/30 last:border-0">
                                       <div className="flex items-center justify-between">
@@ -748,11 +749,13 @@ export default function MemberDetail({ memberId }: Props) {
                                       {exs.length > 0 && (
                                         <div className="mt-1 space-y-0.5 pl-1">
                                           {exs.map((ex, i) => (
-                                            <div key={i} className="flex gap-2 text-muted-foreground">
+                                            <div key={i} className="text-muted-foreground">
                                               <span className="font-medium text-foreground/60">{ex.name}</span>
-                                              <span>{ex.sets}세트</span>
-                                              <span>{ex.reps}회</span>
-                                              {ex.weight && <span>{ex.weight}kg</span>}
+                                              {ex.sets.map((s, j) => (
+                                                <span key={j} className="ml-2">
+                                                  {j + 1}세트 {s.reps && `${s.reps}회`}{s.weight && ` ${s.weight}kg`}
+                                                </span>
+                                              ))}
                                             </div>
                                           ))}
                                         </div>
@@ -1384,27 +1387,11 @@ export default function MemberDetail({ memberId }: Props) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
-                <button onClick={() => setSessionForm(p => ({ ...p, exercises: [...p.exercises, { name: "", sets: "", reps: "", weight: "" }] }))}
-                  className="text-xs text-primary hover:underline flex items-center gap-1">
-                  <span>+ 추가</span>
-                </button>
-              </div>
-              {sessionForm.exercises.length === 0 && (
-                <p className="text-xs text-muted-foreground py-1">종목을 추가하세요 (선택)</p>
-              )}
-              <div className="space-y-2">
-                {sessionForm.exercises.map((ex, i) => (
-                  <div key={i} className="flex gap-1 items-center">
-                    <Input placeholder="종목명" value={ex.name} onChange={e => setSessionForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], name: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs flex-1" />
-                    <Input placeholder="세트" value={ex.sets} onChange={e => setSessionForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], sets: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
-                    <Input placeholder="횟수" value={ex.reps} onChange={e => setSessionForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], reps: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
-                    <Input placeholder="kg" value={ex.weight} onChange={e => setSessionForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], weight: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
-                    <button onClick={() => setSessionForm(p => ({ ...p, exercises: p.exercises.filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-red-400 flex-shrink-0"><Trash2 className="h-3.5 w-3.5"/></button>
-                  </div>
-                ))}
-              </div>
+              <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
+              <ExerciseEditor
+                exercises={sessionForm.exercises}
+                onChange={exs => setSessionForm(p => ({ ...p, exercises: exs }))}
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">메모 (선택)</label>
