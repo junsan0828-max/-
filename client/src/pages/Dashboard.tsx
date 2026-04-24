@@ -20,6 +20,7 @@ import {
   AreaChart, Area, LineChart, Line,
 } from "recharts";
 import ExerciseEditor, { type Exercise } from "@/components/ExerciseEditor";
+import BodyPartPicker from "@/components/BodyPartPicker";
 
 const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
 
@@ -566,15 +567,8 @@ function TrainerDashboard() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 부위</label>
-              <Select value={journalForm.bodyPart} onValueChange={v => setJournalForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 부위를 선택하세요" /></SelectTrigger>
-                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                  {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
-                    <SelectItem key={bp} value={bp}>{bp}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-xs font-medium text-muted-foreground">운동 부위 (최대 3개)</label>
+              <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">운동 종목</label>

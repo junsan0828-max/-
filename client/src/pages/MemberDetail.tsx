@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ExerciseEditor, { type Exercise, parseExercisesJson } from "@/components/ExerciseEditor";
+import BodyPartPicker from "@/components/BodyPartPicker";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -786,7 +787,9 @@ export default function MemberDetail({ memberId }: Props) {
                                       <div className="flex items-center justify-between">
                                         <span className="text-foreground/70">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
                                         <div className="flex items-center gap-1.5">
-                                          {(log as any).bodyPart && <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">{(log as any).bodyPart}</span>}
+                                          {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
+                                            <span key={bp} className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">{bp}</span>
+                                          ))}
                                           {log.notes && <span className="text-muted-foreground truncate max-w-[100px]">{log.notes}</span>}
                                         </div>
                                       </div>
@@ -974,9 +977,9 @@ export default function MemberDetail({ memberId }: Props) {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
-                            {(log as any).bodyPart && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{(log as any).bodyPart}</span>
-                            )}
+                            {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
+                              <span key={bp} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{bp}</span>
+                            ))}
                             {log.packageId && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
                             )}
@@ -1384,16 +1387,8 @@ export default function MemberDetail({ memberId }: Props) {
               <Input value={journalForm.goal} onChange={e => setJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">운동 부위</Label>
-              <Select value={journalForm.bodyPart || "__none"} onValueChange={v => setJournalForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택 안함" /></SelectTrigger>
-                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                  <SelectItem value="__none">선택 안함</SelectItem>
-                  {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
-                    <SelectItem key={bp} value={bp}>{bp}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">운동 부위 (최대 3개)</Label>
+              <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
@@ -1443,16 +1438,8 @@ export default function MemberDetail({ memberId }: Props) {
               <Input value={editJournalForm.goal} onChange={e => setEditJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">운동 부위</Label>
-              <Select value={editJournalForm.bodyPart || "__none"} onValueChange={v => setEditJournalForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택 안함" /></SelectTrigger>
-                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                  <SelectItem value="__none">선택 안함</SelectItem>
-                  {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
-                    <SelectItem key={bp} value={bp}>{bp}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">운동 부위 (최대 3개)</Label>
+              <BodyPartPicker value={editJournalForm.bodyPart} onChange={v => setEditJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
@@ -1583,16 +1570,8 @@ export default function MemberDetail({ memberId }: Props) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 부위</label>
-              <Select value={sessionForm.bodyPart || "__none"} onValueChange={v => setSessionForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 부위를 선택하세요" /></SelectTrigger>
-                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                  <SelectItem value="__none">선택 안함</SelectItem>
-                  {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
-                    <SelectItem key={bp} value={bp}>{bp}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-xs font-medium text-muted-foreground">운동 부위 (최대 3개)</label>
+              <BodyPartPicker value={sessionForm.bodyPart} onChange={v => setSessionForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
