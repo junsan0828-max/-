@@ -117,6 +117,8 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   notes: text("notes"),
   bodyPart: text("bodyPart"),
   exercisesJson: text("exercisesJson"),
+  goal: text("goal"),
+  feedback: text("feedback"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 

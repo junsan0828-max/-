@@ -137,8 +137,6 @@ export default function MemberDetail({ memberId }: Props) {
   });
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseForm, setPauseForm] = useState({ packageId: 0, pauseStart: "", pauseEnd: "", reason: "" });
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [scheduleForm, setScheduleForm] = useState({ scheduledDate: "", scheduledTime: "", notes: "" });
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [sessionDialogPkgId, setSessionDialogPkgId] = useState(0);
   const [sessionForm, setSessionForm] = useState({
@@ -147,7 +145,34 @@ export default function MemberDetail({ memberId }: Props) {
     exerciseType: "",
     bodyPart: "",
     exercises: [] as Exercise[],
+    goal: "",
+    feedback: "",
   });
+
+  // 트레이닝 일지 상태
+  const [trainingSubTab, setTrainingSubTab] = useState<"journal" | "memo">("journal");
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [journalForm, setJournalForm] = useState({
+    sessionDate: new Date().toISOString().split("T")[0],
+    goal: "",
+    bodyPart: "",
+    exercises: [] as Exercise[],
+    feedback: "",
+    notes: "",
+  });
+  const [editJournalOpen, setEditJournalOpen] = useState(false);
+  const [editJournalForm, setEditJournalForm] = useState({
+    id: 0,
+    sessionDate: "",
+    goal: "",
+    bodyPart: "",
+    exercises: [] as Exercise[],
+    feedback: "",
+    notes: "",
+  });
+
+  // 메모 검색
+  const [memoSearch, setMemoSearch] = useState("");
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
@@ -161,7 +186,6 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: conditionChecks } = trpc.attendanceChecks.listByMember.useQuery({ memberId });
   const { data: stats } = trpc.members.getStats.useQuery({ memberId });
   const { data: pauses, refetch: refetchPauses } = trpc.pt.listPauses.useQuery({ memberId });
-  const { data: memberSchedules, refetch: refetchSchedules } = trpc.schedules.listByMember.useQuery({ memberId });
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -206,6 +230,34 @@ export default function MemberDetail({ memberId }: Props) {
       refetchMemos();
     },
     onError: (err) => toast.error(err.message || "수정 실패"),
+  });
+
+  // 트레이닝 일지 CRUD
+  const createLogMutation = trpc.pt.createLog.useMutation({
+    onSuccess: () => {
+      toast.success("트레이닝 일지가 저장되었습니다.");
+      setJournalOpen(false);
+      setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "" });
+      utils.pt.sessionLogs.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "저장 실패"),
+  });
+
+  const updateLogMutation = trpc.pt.updateLog.useMutation({
+    onSuccess: () => {
+      toast.success("일지가 수정되었습니다.");
+      setEditJournalOpen(false);
+      utils.pt.sessionLogs.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "수정 실패"),
+  });
+
+  const deleteLogMutation = trpc.pt.deleteLog.useMutation({
+    onSuccess: () => {
+      toast.success("일지가 삭제되었습니다.");
+      utils.pt.sessionLogs.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
   // PT 세션 사용 (완료 후 메모 입력 유도)
@@ -277,14 +329,6 @@ export default function MemberDetail({ memberId }: Props) {
   });
   const removePauseMutation = trpc.pt.removePause.useMutation({
     onSuccess: () => { toast.success("삭제되었습니다."); refetchPauses(); },
-    onError: () => toast.error("삭제 실패"),
-  });
-  const createScheduleMutation = trpc.schedules.create.useMutation({
-    onSuccess: () => { toast.success("일정이 등록되었습니다."); setScheduleOpen(false); setScheduleForm({ scheduledDate: "", scheduledTime: "", notes: "" }); refetchSchedules(); },
-    onError: () => toast.error("등록 실패"),
-  });
-  const deleteScheduleMutation = trpc.schedules.delete.useMutation({
-    onSuccess: () => { toast.success("일정이 삭제되었습니다."); refetchSchedules(); },
     onError: () => toast.error("삭제 실패"),
   });
 
@@ -463,7 +507,7 @@ export default function MemberDetail({ memberId }: Props) {
           <TabsTrigger value="info" className="text-xs px-1">기본정보</TabsTrigger>
           <TabsTrigger value="pt" className="text-xs px-1">PT정보</TabsTrigger>
           <TabsTrigger value="stats" className="text-xs px-1">통계</TabsTrigger>
-          <TabsTrigger value="memo" className="text-xs px-1">메모</TabsTrigger>
+          <TabsTrigger value="training" className="text-xs px-1">트레이닝</TabsTrigger>
           <TabsTrigger value="attendance" className="text-xs px-1">출석</TabsTrigger>
         </TabsList>
 
@@ -717,7 +761,7 @@ export default function MemberDetail({ memberId }: Props) {
                               disabled={useSessionMutation.isPending}
                               onClick={() => {
                                 setSessionDialogPkgId(pkg.id);
-                                setSessionForm({ sessionDate: new Date().toISOString().split("T")[0], notes: "", exerciseType: "", bodyPart: "", exercises: [] });
+                                setSessionForm({ sessionDate: new Date().toISOString().split("T")[0], notes: "", exerciseType: "", bodyPart: "", exercises: [], goal: "", feedback: "" });
                                 setSessionDialogOpen(true);
                               }}
                             >
@@ -884,149 +928,195 @@ export default function MemberDetail({ memberId }: Props) {
             </CardContent>
           </Card>
 
-          {/* 다음 예약/일정 */}
-          <Card className="bg-card border-border">
-            <CardHeader className="px-4 pb-2 pt-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4 text-blue-400"/>다음 예약일</CardTitle>
-              <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="gap-1 text-xs h-7"><Plus className="h-3 w-3"/>추가</Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-sm">
-                  <DialogHeader><DialogTitle>일정 등록</DialogTitle></DialogHeader>
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">날짜 *</Label>
-                      <Input type="date" value={scheduleForm.scheduledDate} onChange={e => setScheduleForm(p => ({ ...p, scheduledDate: e.target.value }))} className="h-9 text-sm"/>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">시간 (선택)</Label>
-                      <Input type="time" value={scheduleForm.scheduledTime} onChange={e => setScheduleForm(p => ({ ...p, scheduledTime: e.target.value }))} className="h-9 text-sm"/>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">메모</Label>
-                      <Input placeholder="메모" value={scheduleForm.notes} onChange={e => setScheduleForm(p => ({ ...p, notes: e.target.value }))} className="h-9 text-sm"/>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1" onClick={() => setScheduleOpen(false)}>취소</Button>
-                      <Button className="flex-1" disabled={!scheduleForm.scheduledDate || createScheduleMutation.isPending}
-                        onClick={() => createScheduleMutation.mutate({ memberId, scheduledDate: scheduleForm.scheduledDate, scheduledTime: scheduleForm.scheduledTime || undefined, notes: scheduleForm.notes || undefined })}>
-                        {createScheduleMutation.isPending ? "저장 중..." : "저장"}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              {!memberSchedules?.length ? (
-                <p className="text-sm text-muted-foreground text-center py-4">등록된 일정이 없습니다.</p>
-              ) : (
-                <div className="space-y-2">
-                  {memberSchedules.map(s => (
-                    <div key={s.id} className={`flex items-center justify-between p-2.5 rounded-lg border text-sm ${s.status === "pending" ? "border-primary/30 bg-primary/5" : "border-border bg-accent/10 opacity-60"}`}>
-                      <div>
-                        <span className="font-medium">{s.scheduledDate}{s.scheduledTime ? ` ${s.scheduledTime}` : ""}</span>
-                        {s.notes && <span className="text-xs text-muted-foreground ml-2">{s.notes}</span>}
-                      </div>
-                      <button onClick={() => deleteScheduleMutation.mutate({ scheduleId: s.id })} className="text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5"/></button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
-        {/* ── 운동 메모 탭 ── */}
-        <TabsContent value="memo" className="mt-4">
-          <Card className="bg-card border-border">
-            <CardHeader className="px-4 sm:px-6 pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-blue-400" />운동 메모
-              </CardTitle>
-              <Dialog open={memoOpen} onOpenChange={setMemoOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="gap-1.5 text-xs">
-                    <Plus className="h-3.5 w-3.5" />
-                    메모 작성
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-sm">
-                  <DialogHeader>
-                    <DialogTitle>운동 메모 작성</DialogTitle>
-                    <DialogDescription>{member.name}님의 운동 메모를 작성합니다.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">날짜</Label>
-                      <Input
-                        type="date"
-                        value={memoForm.memoDate}
-                        onChange={(e) => setMemoForm(p => ({ ...p, memoDate: e.target.value }))}
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">내용</Label>
-                      <Textarea
-                        value={memoForm.content}
-                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMemoForm(p => ({ ...p, content: e.target.value }))}
-                        placeholder="오늘의 운동 내용, 특이사항 등을 기록하세요."
-                        rows={5}
-                        className="text-sm resize-none"
-                      />
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                      <Button variant="outline" className="flex-1" onClick={() => setMemoOpen(false)}>취소</Button>
-                      <Button
-                        className="flex-1"
-                        disabled={!memoForm.content.trim() || createMemoMutation.isPending}
-                        onClick={() => createMemoMutation.mutate({ memberId, memoDate: memoForm.memoDate, content: memoForm.content })}
-                      >
-                        {createMemoMutation.isPending ? "저장 중..." : "저장"}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent className="px-4 sm:px-6">
-              {!memoList?.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">운동 메모가 없습니다.</p>
+        {/* ── 트레이닝 탭 ── */}
+        <TabsContent value="training" className="mt-4">
+          {/* 서브탭 */}
+          <div className="flex gap-1 mb-4 bg-accent/20 p-1 rounded-lg">
+            <button
+              onClick={() => setTrainingSubTab("journal")}
+              className={`flex-1 py-1.5 text-xs rounded-md font-medium transition-colors ${trainingSubTab === "journal" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              트레이닝 일지
+            </button>
+            <button
+              onClick={() => setTrainingSubTab("memo")}
+              className={`flex-1 py-1.5 text-xs rounded-md font-medium transition-colors ${trainingSubTab === "memo" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              메모
+            </button>
+          </div>
+
+          {/* ── 트레이닝 일지 서브탭 ── */}
+          {trainingSubTab === "journal" && (
+            <div className="space-y-3">
+              <Button
+                size="sm"
+                className="w-full gap-1.5 text-xs"
+                onClick={() => {
+                  setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "" });
+                  setJournalOpen(true);
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                트레이닝 일지 작성
+              </Button>
+
+              {!sessionLogs?.length ? (
+                <p className="text-muted-foreground text-sm text-center py-8">트레이닝 기록이 없습니다.</p>
               ) : (
                 <div className="space-y-3">
-                  {memoList.map((memo) => (
-                    <div key={memo.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-medium text-primary">
-                          {fmtDate(memo.memoDate, "yyyy.MM.dd (EEE)")}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setEditMemoForm({ id: memo.id, memoDate: memo.memoDate, content: memo.content });
-                              setEditMemoOpen(true);
-                            }}
-                            className="text-muted-foreground hover:text-primary transition-colors"
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => deleteMemoMutation.mutate({ id: memo.id })}
-                            className="text-muted-foreground hover:text-red-400 transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                  {sessionLogs.map((log) => {
+                    const exs = parseExercisesJson((log as any).exercisesJson as string | null);
+                    return (
+                      <div key={log.id} className="p-3 rounded-lg bg-accent/20 border border-border space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
+                            {(log as any).bodyPart && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{(log as any).bodyPart}</span>
+                            )}
+                            {log.packageId && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setEditJournalForm({
+                                  id: log.id,
+                                  sessionDate: log.sessionDate,
+                                  goal: (log as any).goal ?? "",
+                                  bodyPart: (log as any).bodyPart ?? "",
+                                  exercises: exs,
+                                  feedback: (log as any).feedback ?? "",
+                                  notes: log.notes ?? "",
+                                });
+                                setEditJournalOpen(true);
+                              }}
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => deleteLogMutation.mutate({ id: log.id })}
+                              className="text-muted-foreground hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
+                        {(log as any).goal && (
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">목표</span>
+                            <p className="text-xs text-foreground mt-0.5">{(log as any).goal}</p>
+                          </div>
+                        )}
+                        {exs.length > 0 && (
+                          <div className="space-y-1">
+                            {exs.map((ex, i) => (
+                              <div key={i} className="text-xs">
+                                <span className="font-medium text-foreground/80">{ex.name}</span>
+                                <span className="text-muted-foreground ml-2">
+                                  {ex.sets.map((s, j) => `${j + 1}세트 ${s.reps ? s.reps + "회" : ""}${s.weight ? " " + s.weight + "kg" : ""}`).join(" · ")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(log as any).feedback && (
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">피드백</span>
+                            <p className="text-xs text-foreground mt-0.5 whitespace-pre-wrap">{(log as any).feedback}</p>
+                          </div>
+                        )}
+                        {log.notes && (
+                          <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
+                        )}
                       </div>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{memo.content}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          )}
+
+          {/* ── 메모 서브탭 ── */}
+          {trainingSubTab === "memo" && (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="메모 검색..."
+                  value={memoSearch}
+                  onChange={e => setMemoSearch(e.target.value)}
+                  className="h-9 text-sm flex-1"
+                />
+                <Dialog open={memoOpen} onOpenChange={setMemoOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1.5 text-xs shrink-0">
+                      <Plus className="h-3.5 w-3.5" />
+                      작성
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                      <DialogTitle>메모 작성</DialogTitle>
+                      <DialogDescription>{member.name}님의 메모를 작성합니다.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">날짜</Label>
+                        <Input type="date" value={memoForm.memoDate} onChange={e => setMemoForm(p => ({ ...p, memoDate: e.target.value }))} className="h-9 text-sm" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">내용</Label>
+                        <Textarea value={memoForm.content} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMemoForm(p => ({ ...p, content: e.target.value }))} placeholder="내용을 입력하세요." rows={5} className="text-sm resize-none" />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <Button variant="outline" className="flex-1" onClick={() => setMemoOpen(false)}>취소</Button>
+                        <Button className="flex-1" disabled={!memoForm.content.trim() || createMemoMutation.isPending}
+                          onClick={() => createMemoMutation.mutate({ memberId, memoDate: memoForm.memoDate, content: memoForm.content })}>
+                          {createMemoMutation.isPending ? "저장 중..." : "저장"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {(() => {
+                const filtered = (memoList ?? []).filter(m =>
+                  !memoSearch.trim() || m.content.toLowerCase().includes(memoSearch.toLowerCase())
+                );
+                if (!filtered.length) return (
+                  <p className="text-muted-foreground text-sm text-center py-8">
+                    {memoSearch ? "검색 결과가 없습니다." : "메모가 없습니다."}
+                  </p>
+                );
+                return (
+                  <div className="space-y-3">
+                    {filtered.map((memo) => (
+                      <div key={memo.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-primary">{fmtDate(memo.memoDate, "yyyy.MM.dd (EEE)")}</p>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => { setEditMemoForm({ id: memo.id, memoDate: memo.memoDate, content: memo.content }); setEditMemoOpen(true); }} className="text-muted-foreground hover:text-primary transition-colors">
+                              <Edit className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => deleteMemoMutation.mutate({ id: memo.id })} className="text-muted-foreground hover:text-red-400 transition-colors">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-foreground whitespace-pre-wrap">{memo.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </TabsContent>
 
         {/* ── 출석 탭 ── */}
@@ -1277,6 +1367,124 @@ export default function MemberDetail({ memberId }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* 트레이닝 일지 작성 다이얼로그 */}
+      <Dialog open={journalOpen} onOpenChange={setJournalOpen}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>트레이닝 일지 작성</DialogTitle>
+            <DialogDescription>{member?.name}님의 트레이닝 기록을 작성합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">날짜</Label>
+              <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">오늘의 목표</Label>
+              <Input value={journalForm.goal} onChange={e => setJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">운동 부위</Label>
+              <Select value={journalForm.bodyPart || "__none"} onValueChange={v => setJournalForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택 안함" /></SelectTrigger>
+                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
+                  <SelectItem value="__none">선택 안함</SelectItem>
+                  {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
+                    <SelectItem key={bp} value={bp}>{bp}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">운동 종목</Label>
+              <ExerciseEditor exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">피드백</Label>
+              <Textarea value={journalForm.feedback} onChange={e => setJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">메모 (선택)</Label>
+              <Textarea value={journalForm.notes} onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항..." rows={2} className="text-sm resize-none" />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
+              <Button className="flex-1" disabled={createLogMutation.isPending}
+                onClick={() => createLogMutation.mutate({
+                  memberId,
+                  sessionDate: journalForm.sessionDate,
+                  goal: journalForm.goal || undefined,
+                  bodyPart: journalForm.bodyPart || undefined,
+                  exercisesJson: journalForm.exercises.length > 0 ? JSON.stringify(journalForm.exercises) : undefined,
+                  feedback: journalForm.feedback || undefined,
+                  notes: journalForm.notes || undefined,
+                })}>
+                {createLogMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 트레이닝 일지 수정 다이얼로그 */}
+      <Dialog open={editJournalOpen} onOpenChange={setEditJournalOpen}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>트레이닝 일지 수정</DialogTitle>
+            <DialogDescription>{editJournalForm.sessionDate ? fmtDate(editJournalForm.sessionDate, "yyyy.MM.dd (EEE)") : ""}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">날짜</Label>
+              <Input type="date" value={editJournalForm.sessionDate} onChange={e => setEditJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">오늘의 목표</Label>
+              <Input value={editJournalForm.goal} onChange={e => setEditJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">운동 부위</Label>
+              <Select value={editJournalForm.bodyPart || "__none"} onValueChange={v => setEditJournalForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택 안함" /></SelectTrigger>
+                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
+                  <SelectItem value="__none">선택 안함</SelectItem>
+                  {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
+                    <SelectItem key={bp} value={bp}>{bp}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">운동 종목</Label>
+              <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">피드백</Label>
+              <Textarea value={editJournalForm.feedback} onChange={e => setEditJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">메모 (선택)</Label>
+              <Textarea value={editJournalForm.notes} onChange={e => setEditJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항..." rows={2} className="text-sm resize-none" />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setEditJournalOpen(false)}>취소</Button>
+              <Button className="flex-1" disabled={updateLogMutation.isPending}
+                onClick={() => updateLogMutation.mutate({
+                  id: editJournalForm.id,
+                  sessionDate: editJournalForm.sessionDate || undefined,
+                  goal: editJournalForm.goal || undefined,
+                  bodyPart: editJournalForm.bodyPart || undefined,
+                  exercisesJson: editJournalForm.exercises.length > 0 ? JSON.stringify(editJournalForm.exercises) : undefined,
+                  feedback: editJournalForm.feedback || undefined,
+                  notes: editJournalForm.notes || undefined,
+                })}>
+                {updateLogMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* 보고서 공유 다이얼로그 */}
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
         <DialogContent className="max-w-sm">
@@ -1394,6 +1602,14 @@ export default function MemberDetail({ memberId }: Props) {
               />
             </div>
             <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">오늘의 목표</label>
+              <Input value={sessionForm.goal} onChange={e => setSessionForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">피드백</label>
+              <Textarea value={sessionForm.feedback} onChange={e => setSessionForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={2} className="text-sm resize-none" />
+            </div>
+            <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">메모 (선택)</label>
               <Textarea value={sessionForm.notes} onChange={e => setSessionForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항, 컨디션 등..." rows={2} className="text-sm resize-none" />
             </div>
@@ -1410,6 +1626,8 @@ export default function MemberDetail({ memberId }: Props) {
                     notes: sessionForm.notes || undefined,
                     bodyPart: sessionForm.bodyPart || undefined,
                     exercisesJson: sessionForm.exercises.length > 0 ? JSON.stringify(sessionForm.exercises) : undefined,
+                    goal: sessionForm.goal || undefined,
+                    feedback: sessionForm.feedback || undefined,
                   });
                   setSessionDialogOpen(false);
                 }}

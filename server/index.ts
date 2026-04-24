@@ -253,6 +253,16 @@ async function initDatabase() {
   for (const sql of tables) {
     await pool.query(sql);
   }
+
+  // 신규 컬럼 마이그레이션 (IF NOT EXISTS)
+  const alterStatements = [
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS goal TEXT`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
+  ];
+  for (const stmt of alterStatements) {
+    await pool.query(stmt);
+  }
+
   console.log("✅ 테이블 준비 완료");
 
   // 관리자 계정 생성 (없으면 초기 씨드)

@@ -555,6 +555,65 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
+  // 트레이닝 일지 단독 생성 (세션 차감 없음)
+  createLog: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      sessionDate: z.string(),
+      goal: z.string().optional(),
+      bodyPart: z.string().optional(),
+      exercisesJson: z.string().optional(),
+      feedback: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [row] = await db.insert(ptSessionLogs).values({
+        memberId: input.memberId,
+        trainerId,
+        packageId: undefined,
+        sessionDate: input.sessionDate,
+        goal: input.goal,
+        bodyPart: input.bodyPart,
+        exercisesJson: input.exercisesJson,
+        feedback: input.feedback,
+        notes: input.notes,
+      }).returning();
+      return row;
+    }),
+
+  // 트레이닝 일지 수정
+  updateLog: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      sessionDate: z.string().optional(),
+      goal: z.string().optional(),
+      bodyPart: z.string().optional(),
+      exercisesJson: z.string().optional(),
+      feedback: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { id, ...fields } = input;
+      await db.update(ptSessionLogs).set(fields).where(eq(ptSessionLogs.id, id));
+      return { success: true };
+    }),
+
+  // 트레이닝 일지 삭제
+  deleteLog: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(ptSessionLogs).where(eq(ptSessionLogs.id, input.id));
+      return { success: true };
+    }),
+
   // PT 세션 1회 사용 기록
   useSession: protectedProcedure
     .input(
@@ -565,6 +624,8 @@ const ptRouter = t.router({
         notes: z.string().optional(),
         bodyPart: z.string().optional(),
         exercisesJson: z.string().optional(),
+        goal: z.string().optional(),
+        feedback: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -615,6 +676,8 @@ const ptRouter = t.router({
         notes: input.notes,
         bodyPart: input.bodyPart,
         exercisesJson: input.exercisesJson,
+        goal: input.goal,
+        feedback: input.feedback,
       });
 
       return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
