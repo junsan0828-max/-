@@ -57,6 +57,7 @@ export default function TrainerDetail({ trainerId }: Props) {
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
   const { data: settlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
+  const { data: trainerStats } = trpc.trainers.getMyStats.useQuery({ trainerId });
   const trainer = trainerQuery.data;
 
   const updateSettlementRateMutation = trpc.trainers.updateSettlementRate.useMutation({
@@ -398,6 +399,57 @@ export default function TrainerDetail({ trainerId }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 트레이너 통계 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />활동 통계
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* 누적 */}
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">누적</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "회원 수", value: `${trainerStats?.totalMembers ?? 0}명`, color: "text-blue-400" },
+              { label: "수업 수", value: `${trainerStats?.totalSessions ?? 0}회`, color: "text-green-400" },
+              { label: "재등록", value: `${trainerStats?.totalRereg ?? 0}회`, color: "text-primary" },
+              { label: "노쇼", value: `${trainerStats?.totalNoShow ?? 0}회`, color: "text-orange-400" },
+              { label: "이탈", value: `${trainerStats?.totalChurned ?? 0}명`, color: "text-red-400" },
+              { label: "잔여 PT", value: `${trainerStats?.remainingPt ?? 0}회`, color: "text-purple-400" },
+            ].map(s => (
+              <div key={s.label} className="p-2.5 rounded-lg bg-accent/20 border border-border text-center">
+                <p className="text-xs text-muted-foreground mb-1">{s.label}</p>
+                <p className={`text-base font-bold ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+          {/* 월평균 */}
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1">월평균</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "신규배정", value: `${trainerStats?.avgMonthlyNewMembers ?? 0}명` },
+              { label: "재등록", value: `${trainerStats?.avgMonthlyRereg ?? 0}회` },
+              { label: "PT 수", value: `${trainerStats?.avgMonthlyPt ?? 0}회` },
+              { label: "노쇼", value: `${trainerStats?.avgMonthlyNoShow ?? 0}회` },
+            ].map(s => (
+              <div key={s.label} className="p-2.5 rounded-lg bg-accent/20 border border-border flex justify-between items-center">
+                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p className="text-sm font-bold">{s.value}</p>
+              </div>
+            ))}
+          </div>
+          {/* 재등록률 */}
+          <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">재등록률</p>
+              <p className="text-xs text-muted-foreground mt-0.5">전체 회원 중 재등록 비율</p>
+            </div>
+            <p className="text-2xl font-bold text-primary">{trainerStats?.reregRate ?? 0}%</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 월별 정산 카드 */}
       <Card className="bg-card border-border">

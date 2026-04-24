@@ -1125,10 +1125,14 @@ const trainersRouter = t.router({
       return { success: true };
     }),
 
-  // 트레이너 내 통계
-  getMyStats: protectedProcedure.query(async ({ ctx }) => {
-    const trainerId = ctx.user.trainerId;
+  // 트레이너 통계 (본인 또는 관리자가 특정 트레이너 조회)
+  getMyStats: protectedProcedure
+    .input(z.object({ trainerId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+    const trainerId = input?.trainerId ?? ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    if (input?.trainerId && ctx.user.role !== "admin" && ctx.user.trainerId !== input.trainerId)
+      throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
