@@ -85,6 +85,14 @@ export default function AttendanceCheck({ memberId }: Props) {
     setNotes(existing.notes ?? "");
   }, [existing]);
 
+  const deleteMutation = trpc.attendanceChecks.delete.useMutation({
+    onSuccess: () => {
+      toast.success("출석이 취소되었습니다.");
+      setLocation(`/attendance?date=${dateParam}`);
+    },
+    onError: (err) => toast.error(err.message || "취소 실패"),
+  });
+
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onError: (err) => toast.error(err.message || "세션 차감 실패"),
   });
@@ -147,8 +155,8 @@ export default function AttendanceCheck({ memberId }: Props) {
         <h1 className="text-base font-bold flex-1">
           {member?.name ?? "..."} - 수업 전 컨디션 체크
         </h1>
-        {/* 노쇼 / 캔슬 토글 */}
-        <div className="flex items-center gap-2">
+        {/* 노쇼 / 캔슬 / 출석취소 토글 */}
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setStatus((s) => s === "noshow" ? "attended" : "noshow")}
             className={`text-xs px-2 py-1 rounded border transition-colors ${
@@ -169,6 +177,19 @@ export default function AttendanceCheck({ memberId }: Props) {
           >
             캔슬
           </button>
+          {existing && (
+            <button
+              onClick={() => {
+                if (confirm("출석 기록을 완전히 삭제하시겠습니까?")) {
+                  deleteMutation.mutate({ memberId, date: dateParam });
+                }
+              }}
+              disabled={deleteMutation.isPending}
+              className="text-xs px-2 py-1 rounded border border-gray-500/40 text-gray-400 hover:bg-gray-500/20 transition-colors"
+            >
+              출석취소
+            </button>
+          )}
         </div>
       </div>
 

@@ -1888,6 +1888,22 @@ const attendanceChecksRouter = t.router({
 
       return { success: true };
     }),
+
+  delete: protectedProcedure
+    .input(z.object({ memberId: z.number(), date: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await db.delete(attendanceChecks).where(
+        and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.date))
+      );
+      await db.delete(attendances).where(
+        and(eq(attendances.memberId, input.memberId), eq(attendances.attendDate, input.date))
+      );
+      return { success: true };
+    }),
 });
 
 // ─── PAR-Q ────────────────────────────────────────────────────────────────────
