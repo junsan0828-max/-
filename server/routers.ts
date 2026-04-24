@@ -1512,16 +1512,25 @@ const adminRouter = t.router({
     // 트레이너별 상세 통계
     const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
     const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
-      const [memberCnt, settings, monthPt] = await Promise.all([
+      const [memberCnt, settings, monthLogs] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
         db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainer.id)).limit(1),
-        db.select({ total: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession},0)),0)` })
-          .from(attendances)
-          .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
-          .where(and(eq(attendances.trainerId, trainer.id), eq(attendances.status, "attended"), sql`${attendances.attendDate} >= ${monthStart}`, sql`${attendances.attendDate} < ${monthEnd}`)),
+        db.select({
+          pricePerSession: ptPackages.pricePerSession,
+          paymentAmount: ptPackages.paymentAmount,
+          totalSessions: ptPackages.totalSessions,
+        })
+          .from(ptSessionLogs)
+          .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+          .where(and(eq(ptSessionLogs.trainerId, trainer.id), sql`${ptSessionLogs.sessionDate} >= ${monthStart}`, sql`${ptSessionLogs.sessionDate} < ${monthEnd}`)),
       ]);
       const rate = settings[0]?.settlementRate ?? 50;
-      const revenue = Number(monthPt[0]?.total ?? 0);
+      const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+        if (l.pricePerSession) return l.pricePerSession;
+        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+        return 0;
+      };
+      const revenue = monthLogs.reduce((s, l) => s + calcPrice(l), 0);
       return {
         id: trainer.id,
         trainerName: trainer.trainerName,

@@ -32,6 +32,8 @@ function AdminDashboard() {
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
   const [assignDialogId, setAssignDialogId] = useState<number | null>(null);
   const [assignTrainerId, setAssignTrainerId] = useState<string>("");
+  const [revenueModalOpen, setRevenueModalOpen] = useState(false);
+  const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   const utils = trpc.useUtils();
 
   const assignMutation = trpc.admin.assignPending.useMutation({
@@ -69,10 +71,10 @@ function AdminDashboard() {
         {[
           { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400", path: "/trainers" },
           { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400", path: "/trainers" },
-          { label: "이번달 매출", value: `${(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원`, icon: TrendingUp, color: "text-yellow-400", path: "/admin" },
-          { label: "이번달 정산", value: `${(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원`, icon: Activity, color: "text-purple-400", path: "/admin" },
+          { label: "이번달 매출", value: `${(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원`, icon: TrendingUp, color: "text-yellow-400", onClick: () => setRevenueModalOpen(true) },
+          { label: "이번달 정산", value: `${(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원`, icon: Activity, color: "text-purple-400", onClick: () => setSettlementModalOpen(true) },
         ].map((card) => (
-          <button key={card.label} onClick={() => setLocation(card.path)} className="text-left">
+          <button key={card.label} onClick={card.onClick ?? (() => setLocation((card as any).path))} className="text-left">
             <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -207,6 +209,76 @@ function AdminDashboard() {
             >
               배정 완료
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 이번달 매출 모달 */}
+      <Dialog open={revenueModalOpen} onOpenChange={setRevenueModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-yellow-400" />이번달 매출 현황
+            </DialogTitle>
+            <DialogDescription className="text-xs">트레이너별 이번달 PT 세션 매출</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {(stats?.trainerStats ?? []).filter(t => t.monthlyRevenue > 0).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">이번달 매출이 없습니다.</p>
+            ) : (
+              (stats?.trainerStats ?? [])
+                .filter(t => t.monthlyRevenue > 0)
+                .sort((a, b) => b.monthlyRevenue - a.monthlyRevenue)
+                .map(t => (
+                  <button key={t.id} onClick={() => { setRevenueModalOpen(false); setLocation(`/trainers/${t.id}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors">
+                    <div>
+                      <p className="text-sm font-medium text-left">{t.trainerName}</p>
+                      <p className="text-xs text-muted-foreground">{t.memberCount}명 · 정산 {t.settlementRate}%</p>
+                    </div>
+                    <span className="text-sm font-bold text-yellow-400">{t.monthlyRevenue.toLocaleString()}원</span>
+                  </button>
+                ))
+            )}
+            <div className="border-t border-border/50 pt-2 px-3 flex justify-between">
+              <span className="text-sm text-muted-foreground">합계</span>
+              <span className="text-sm font-bold">{(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 이번달 정산 모달 */}
+      <Dialog open={settlementModalOpen} onOpenChange={setSettlementModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-purple-400" />이번달 정산 현황
+            </DialogTitle>
+            <DialogDescription className="text-xs">트레이너별 정산 금액 (매출 × 정산비율)</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {(stats?.trainerStats ?? []).filter(t => t.monthlySettlement > 0).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">이번달 정산 내역이 없습니다.</p>
+            ) : (
+              (stats?.trainerStats ?? [])
+                .filter(t => t.monthlySettlement > 0)
+                .sort((a, b) => b.monthlySettlement - a.monthlySettlement)
+                .map(t => (
+                  <button key={t.id} onClick={() => { setSettlementModalOpen(false); setLocation(`/trainers/${t.id}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors">
+                    <div>
+                      <p className="text-sm font-medium text-left">{t.trainerName}</p>
+                      <p className="text-xs text-muted-foreground">매출 {t.monthlyRevenue.toLocaleString()}원 × {t.settlementRate}%</p>
+                    </div>
+                    <span className="text-sm font-bold text-purple-400">{t.monthlySettlement.toLocaleString()}원</span>
+                  </button>
+                ))
+            )}
+            <div className="border-t border-border/50 pt-2 px-3 flex justify-between">
+              <span className="text-sm text-muted-foreground">합계</span>
+              <span className="text-sm font-bold">{(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원</span>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
