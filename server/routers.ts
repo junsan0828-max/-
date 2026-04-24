@@ -730,6 +730,42 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
+  // PT 패키지 전체 정보 수정
+  updatePackage: protectedProcedure
+    .input(z.object({
+      packageId: z.number(),
+      packageName: z.string().optional(),
+      totalSessions: z.number().min(1).optional(),
+      usedSessions: z.number().min(0).optional(),
+      startDate: z.string().optional(),
+      expiryDate: z.string().optional(),
+      paymentAmount: z.number().min(0).optional(),
+      unpaidAmount: z.number().min(0).optional(),
+      paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
+      paymentDate: z.string().optional(),
+      paymentMemo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { packageId, ...fields } = input;
+
+      // usedSessions 변경 시 status 자동 조정
+      const pkg = fields.totalSessions !== undefined || fields.usedSessions !== undefined
+        ? (await db.select().from(ptPackages).where(eq(ptPackages.id, packageId)).limit(1))[0]
+        : null;
+
+      const total = fields.totalSessions ?? pkg?.totalSessions ?? 1;
+      const used = fields.usedSessions ?? pkg?.usedSessions ?? 0;
+      const autoStatus = used >= total ? "completed" : "active";
+
+      await db.update(ptPackages).set({
+        ...fields,
+        ...(pkg ? { status: autoStatus } : {}),
+      }).where(eq(ptPackages.id, packageId));
+      return { success: true };
+    }),
+
   // 패키지 상태 변경 (진행/정지/완료/만료/환불)
   updateStatus: protectedProcedure
     .input(z.object({ packageId: z.number(), status: z.enum(["active", "paused", "completed", "expired", "refunded"]) }))

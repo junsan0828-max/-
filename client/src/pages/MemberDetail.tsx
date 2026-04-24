@@ -114,6 +114,22 @@ export default function MemberDetail({ memberId }: Props) {
     paymentMemo: "",
   });
 
+  // 패키지 수정 다이얼로그 상태
+  const [editPkgOpen, setEditPkgOpen] = useState(false);
+  const [editPkgForm, setEditPkgForm] = useState({
+    packageId: 0,
+    packageName: "",
+    totalSessions: "",
+    usedSessions: "",
+    startDate: "",
+    expiryDate: "",
+    paymentAmount: "",
+    unpaidAmount: "",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentDate: "",
+    paymentMemo: "",
+  });
+
   const [calendarDate, setCalendarDate] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -353,6 +369,15 @@ export default function MemberDetail({ memberId }: Props) {
       refetchPt();
     },
     onError: (err) => toast.error(err.message || "패키지 추가 실패"),
+  });
+
+  const updatePackageMutation = trpc.pt.updatePackage.useMutation({
+    onSuccess: () => {
+      toast.success("패키지 정보가 수정되었습니다.");
+      setEditPkgOpen(false);
+      refetchPt();
+    },
+    onError: (err) => toast.error(err.message || "수정 실패"),
   });
 
   // 달력 계산 (hooks는 조건부 return 이전에 호출해야 함)
@@ -738,9 +763,32 @@ export default function MemberDetail({ memberId }: Props) {
                               {fmtDate(pkg.expiryDate, "yyyy.MM.dd")}
                             </p>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-lg font-bold text-primary">{remaining}회</p>
-                            <p className="text-xs text-muted-foreground">잔여 / {pkg.totalSessions}회</p>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-primary">{remaining}회</p>
+                              <p className="text-xs text-muted-foreground">잔여 / {pkg.totalSessions}회</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEditPkgForm({
+                                  packageId: pkg.id,
+                                  packageName: pkg.packageName ?? "",
+                                  totalSessions: String(pkg.totalSessions),
+                                  usedSessions: String(pkg.usedSessions),
+                                  startDate: pkg.startDate ?? "",
+                                  expiryDate: pkg.expiryDate ?? "",
+                                  paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
+                                  unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
+                                  paymentMethod: (pkg.paymentMethod ?? "") as any,
+                                  paymentDate: (pkg as any).paymentDate ?? "",
+                                  paymentMemo: pkg.paymentMemo ?? "",
+                                });
+                                setEditPkgOpen(true);
+                              }}
+                              className="text-xs text-primary underline hover:text-primary/70 transition-colors"
+                            >
+                              수정
+                            </button>
                           </div>
                         </div>
 
@@ -1256,6 +1304,104 @@ export default function MemberDetail({ memberId }: Props) {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* PT 패키지 수정 다이얼로그 */}
+      <Dialog open={editPkgOpen} onOpenChange={setEditPkgOpen}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>PT 패키지 수정</DialogTitle>
+            <DialogDescription>패키지 정보를 수정합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">패키지명</Label>
+              <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="케어피티" className="h-9 text-sm" />
+              <div className="flex gap-1.5 flex-wrap">
+                {["케어피티", "웨이트피티", "필라테스"].map(preset => (
+                  <button key={preset} type="button"
+                    onClick={() => setEditPkgForm(p => ({ ...p, packageName: p.packageName === preset ? "" : preset }))}
+                    className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${editPkgForm.packageName === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">총 횟수</Label>
+                <Input type="number" min="1" value={editPkgForm.totalSessions} onChange={e => setEditPkgForm(p => ({ ...p, totalSessions: e.target.value }))} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">사용 횟수</Label>
+                <Input type="number" min="0" value={editPkgForm.usedSessions} onChange={e => setEditPkgForm(p => ({ ...p, usedSessions: e.target.value }))} className="h-9 text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">시작일</Label>
+                <Input type="date" value={editPkgForm.startDate} onChange={e => setEditPkgForm(p => ({ ...p, startDate: e.target.value }))} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">만료일</Label>
+                <Input type="date" value={editPkgForm.expiryDate} onChange={e => setEditPkgForm(p => ({ ...p, expiryDate: e.target.value }))} className="h-9 text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">결제 금액</Label>
+                <Input type="number" min="0" placeholder="0" value={editPkgForm.paymentAmount} onChange={e => setEditPkgForm(p => ({ ...p, paymentAmount: e.target.value }))} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">미수금</Label>
+                <Input type="number" min="0" placeholder="0" value={editPkgForm.unpaidAmount} onChange={e => setEditPkgForm(p => ({ ...p, unpaidAmount: e.target.value }))} className="h-9 text-sm" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">결제방법</Label>
+              <Select value={editPkgForm.paymentMethod || "__none"} onValueChange={v => setEditPkgForm(p => ({ ...p, paymentMethod: v === "__none" ? "" : v as any }))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">선택 안함</SelectItem>
+                  <SelectItem value="현금영수증">현금영수증</SelectItem>
+                  <SelectItem value="이체">이체</SelectItem>
+                  <SelectItem value="지역화폐">지역화폐</SelectItem>
+                  <SelectItem value="카드">카드</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">결제일자</Label>
+              <Input type="date" value={editPkgForm.paymentDate} onChange={e => setEditPkgForm(p => ({ ...p, paymentDate: e.target.value }))} className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">결제 메모</Label>
+              <Input placeholder="분납 등 메모" value={editPkgForm.paymentMemo} onChange={e => setEditPkgForm(p => ({ ...p, paymentMemo: e.target.value }))} className="h-9 text-sm" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setEditPkgOpen(false)}>취소</Button>
+              <Button
+                className="flex-1"
+                disabled={!editPkgForm.totalSessions || updatePackageMutation.isPending}
+                onClick={() => updatePackageMutation.mutate({
+                  packageId: editPkgForm.packageId,
+                  packageName: editPkgForm.packageName || undefined,
+                  totalSessions: editPkgForm.totalSessions ? parseInt(editPkgForm.totalSessions) : undefined,
+                  usedSessions: editPkgForm.usedSessions !== "" ? parseInt(editPkgForm.usedSessions) : undefined,
+                  startDate: editPkgForm.startDate || undefined,
+                  expiryDate: editPkgForm.expiryDate || undefined,
+                  paymentAmount: editPkgForm.paymentAmount ? parseInt(editPkgForm.paymentAmount) : undefined,
+                  unpaidAmount: editPkgForm.unpaidAmount !== "" ? parseInt(editPkgForm.unpaidAmount) : undefined,
+                  paymentMethod: editPkgForm.paymentMethod || undefined,
+                  paymentDate: editPkgForm.paymentDate || undefined,
+                  paymentMemo: editPkgForm.paymentMemo || undefined,
+                })}
+              >
+                {updatePackageMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 미수금 수정 다이얼로그 */}
       <Dialog open={unpaidOpen} onOpenChange={setUnpaidOpen}>
