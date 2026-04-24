@@ -848,7 +848,7 @@ function TrainerDashboard() {
               <label className="text-xs font-medium text-muted-foreground">프로그램명</label>
               <Input className="h-9 text-sm" placeholder="프로그램명 직접 입력" value={reregForm.ptProgram} onChange={e => setReregForm(p => ({ ...p, ptProgram: e.target.value }))} />
               <div className="flex gap-1.5 flex-wrap">
-                {["케어피티", "웨이트피티", "필라테스"].map(preset => (
+                {["케어피티", "웨이트피티", "이벤트피티"].map(preset => (
                   <button key={preset} type="button"
                     onClick={() => setReregForm(p => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
                     className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.ptProgram === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}

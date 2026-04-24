@@ -341,7 +341,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     className="bg-input border-border"
                   />
                   <div className="flex gap-1.5 flex-wrap">
-                    {["케어피티", "웨이트피티", "필라테스"].map((preset) => (
+                    {["케어피티", "웨이트피티", "이벤트피티"].map((preset) => (
                       <button
                         key={preset}
                         type="button"
