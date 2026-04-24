@@ -809,11 +809,9 @@ export default function MemberDetail({ memberId }: Props) {
                             <Button
                               size="sm"
                               className="w-full gap-2 bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30"
-                              disabled={useSessionMutation.isPending}
                               onClick={() => {
-                                setSessionDialogPkgId(pkg.id);
-                                setSessionForm({ sessionDate: new Date().toISOString().split("T")[0], notes: "", exerciseType: "", bodyPart: "", exercises: [], goal: "", feedback: "" });
-                                setSessionDialogOpen(true);
+                                const today = new Date().toISOString().split("T")[0];
+                                setLocation(`/attendance/${memberId}?date=${today}`);
                               }}
                             >
                               <Dumbbell className="h-3.5 w-3.5" />
@@ -822,26 +820,6 @@ export default function MemberDetail({ memberId }: Props) {
                           </div>
                         )}
 
-                        {/* 세션 사용 기록 */}
-                        {(() => {
-                          const logs = sessionLogs?.filter(l => l.packageId === pkg.id) ?? [];
-                          if (!logs.length) return null;
-                          return (
-                            <div className="mt-3 pt-3 border-t border-border/50">
-                              <p className="text-xs text-muted-foreground mb-1.5">최근 세션 기록</p>
-                              <div className="space-y-1">
-                                {logs.slice(0, 5).map(log => (
-                                  <div key={log.id} className="text-xs py-1 border-b border-border/30 last:border-0">
-                                    <span className="text-foreground/70">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
-                                  </div>
-                                ))}
-                                {logs.length > 5 && (
-                                  <p className="text-xs text-muted-foreground">외 {logs.length - 5}회 더</p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()}
 
                         {/* 상태 변경 버튼 */}
                         <div className="mt-3 flex gap-1.5 flex-wrap">
