@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ArrowLeft, Plus, X, Dumbbell } from "lucide-react";
 
 interface Props {
@@ -55,6 +56,7 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [notes, setNotes] = useState("");
   const [deductSession, setDeductSession] = useState(false);
   const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: member } = trpc.members.getById.useQuery({ id: memberId });
   const { data: existing } = trpc.attendanceChecks.getByMemberDate.useQuery({ memberId, date: dateParam });
@@ -179,11 +181,7 @@ export default function AttendanceCheck({ memberId }: Props) {
           </button>
           {existing && (
             <button
-              onClick={() => {
-                if (confirm("출석 기록을 완전히 삭제하시겠습니까?")) {
-                  deleteMutation.mutate({ memberId, date: dateParam });
-                }
-              }}
+              onClick={() => setDeleteConfirmOpen(true)}
               disabled={deleteMutation.isPending}
               className="text-xs px-2 py-1 rounded border border-gray-500/40 text-gray-400 hover:bg-gray-500/20 transition-colors"
             >
@@ -370,6 +368,34 @@ export default function AttendanceCheck({ memberId }: Props) {
           </Button>
         </div>
       </div>
+
+      {/* 출석 취소 확인 다이얼로그 */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>출석 취소</DialogTitle>
+            <DialogDescription>
+              {member?.name}님의 출석 기록을 삭제하고 미출석 상태로 되돌립니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirmOpen(false)}>
+              닫기
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                deleteMutation.mutate({ memberId, date: dateParam });
+              }}
+            >
+              {deleteMutation.isPending ? "취소 중..." : "출석 취소"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
