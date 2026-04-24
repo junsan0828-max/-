@@ -21,7 +21,6 @@ export default function Profile() {
   const { data: profile, refetch } = trpc.trainers.getMyProfile.useQuery();
   const { data: stats } = trpc.trainers.getMyStats.useQuery();
 
-  const [statsTab, setStatsTab] = useState<"cumulative" | "monthly">("cumulative");
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const d = new Date();
     d.setDate(1);
@@ -32,7 +31,7 @@ export default function Profile() {
   const trainerId = profile?.id;
   const { data: monthlyStats } = trpc.trainers.getMonthlyStats.useQuery(
     { trainerId: trainerId ?? 0, yearMonth: statsMonth },
-    { enabled: statsTab === "monthly" && !!trainerId }
+    { enabled: !!trainerId }
   );
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
@@ -89,47 +88,50 @@ export default function Profile() {
       {/* 통계 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart2 className="h-4 w-4 text-primary" />내 활동 통계
-            </CardTitle>
-            <div className="flex gap-1 p-0.5 rounded-lg bg-accent/30 border border-border">
-              <button onClick={() => setStatsTab("cumulative")} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${statsTab === "cumulative" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>누적/월평균</button>
-              <button onClick={() => setStatsTab("monthly")} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${statsTab === "monthly" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>월별</button>
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart2 className="h-4 w-4 text-primary" />내 활동 통계
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 누적 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">누적</p>
+            <div className="grid grid-cols-2 gap-2">
+              <StatItem label="회원 수" value={`${stats?.totalMembers ?? 0}명`} color="text-blue-400" />
+              <StatItem label="수업 수" value={`${stats?.totalSessions ?? 0}회`} color="text-green-400" />
+              <StatItem label="재등록 수" value={`${stats?.totalRereg ?? 0}회`} color="text-primary" />
+              <StatItem label="노쇼 수" value={`${stats?.totalNoShow ?? 0}회`} color="text-orange-400" />
+              <StatItem label="이탈 수" value={`${stats?.totalChurned ?? 0}명`} color="text-red-400" />
+              <StatItem label="잔여 PT" value={`${stats?.remainingPt ?? 0}회`} color="text-purple-400" />
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {statsTab === "cumulative" ? (
-            <>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">누적</p>
-              <div className="grid grid-cols-2 gap-2">
-                <StatItem label="회원 수" value={`${stats?.totalMembers ?? 0}명`} color="text-blue-400" />
-                <StatItem label="수업 수" value={`${stats?.totalSessions ?? 0}회`} color="text-green-400" />
-                <StatItem label="재등록 수" value={`${stats?.totalRereg ?? 0}회`} color="text-primary" />
-                <StatItem label="노쇼 수" value={`${stats?.totalNoShow ?? 0}회`} color="text-orange-400" />
-                <StatItem label="이탈 수" value={`${stats?.totalChurned ?? 0}명`} color="text-red-400" />
-                <StatItem label="잔여 PT" value={`${stats?.remainingPt ?? 0}회`} color="text-purple-400" />
-              </div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-1">월평균</p>
-              <div className="grid grid-cols-2 gap-2">
-                <StatItem label="신규배정" value={`${stats?.avgMonthlyNewMembers ?? 0}명`} />
-                <StatItem label="재등록" value={`${stats?.avgMonthlyRereg ?? 0}회`} />
-                <StatItem label="PT 수" value={`${stats?.avgMonthlyPt ?? 0}회`} />
-                <StatItem label="노쇼" value={`${stats?.avgMonthlyNoShow ?? 0}회`} />
-              </div>
-              <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">재등록률</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">전체 회원 중 재등록 비율</p>
-                </div>
-                <p className="text-2xl font-bold text-primary">{stats?.reregRate ?? 0}%</p>
-              </div>
-            </>
-          ) : (
-            <>
+
+          {/* 월평균 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">월평균</p>
+            <div className="grid grid-cols-2 gap-2">
+              <StatItem label="신규배정" value={`${stats?.avgMonthlyNewMembers ?? 0}명`} />
+              <StatItem label="재등록" value={`${stats?.avgMonthlyRereg ?? 0}회`} />
+              <StatItem label="PT 수" value={`${stats?.avgMonthlyPt ?? 0}회`} />
+              <StatItem label="노쇼" value={`${stats?.avgMonthlyNoShow ?? 0}회`} />
+            </div>
+          </div>
+
+          {/* 재등록률 */}
+          <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">재등록률</p>
+              <p className="text-xs text-muted-foreground mt-0.5">전체 회원 중 재등록 비율</p>
+            </div>
+            <p className="text-2xl font-bold text-primary">{stats?.reregRate ?? 0}%</p>
+          </div>
+
+          {/* 월별 조회 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">월별 조회</p>
               <Select value={statsMonth} onValueChange={setStatsMonth}>
-                <SelectTrigger className="h-9 text-sm">
+                <SelectTrigger className="h-7 text-xs w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -139,21 +141,21 @@ export default function Profile() {
                   })}
                 </SelectContent>
               </Select>
-              <div className="grid grid-cols-2 gap-2">
-                <StatItem label="수업 수" value={`${monthlyStats?.sessions ?? 0}회`} color="text-green-400" />
-                <StatItem label="노쇼" value={`${monthlyStats?.noShow ?? 0}회`} color="text-orange-400" />
-                <StatItem label="신규 배정" value={`${monthlyStats?.newMembers ?? 0}명`} color="text-blue-400" />
-                <StatItem label="재등록" value={`${monthlyStats?.rereg ?? 0}회`} color="text-primary" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <StatItem label="수업 수" value={`${monthlyStats?.sessions ?? 0}회`} color="text-green-400" />
+              <StatItem label="노쇼" value={`${monthlyStats?.noShow ?? 0}회`} color="text-orange-400" />
+              <StatItem label="신규 배정" value={`${monthlyStats?.newMembers ?? 0}명`} color="text-blue-400" />
+              <StatItem label="재등록" value={`${monthlyStats?.rereg ?? 0}회`} color="text-primary" />
+            </div>
+            <div className="mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">이달 매출</p>
+                <p className="text-xs text-muted-foreground mt-0.5">등록 패키지 결제금액 합산</p>
               </div>
-              <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">이달 매출</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">등록 패키지 결제금액 합산</p>
-                </div>
-                <p className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</p>
-              </div>
-            </>
-          )}
+              <p className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
