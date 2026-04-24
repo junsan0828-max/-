@@ -814,6 +814,25 @@ const ptRouter = t.router({
       await db.update(ptPackages).set({ paymentDate: input.paymentDate }).where(eq(ptPackages.id, input.packageId));
       return { success: true };
     }),
+
+  // 회원별 총 PT 세션 횟수
+  memberSessionStats: protectedProcedure.query(async ({ ctx }) => {
+    const db = getDb();
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const rows = await db
+      .select({
+        memberId: members.id,
+        memberName: members.name,
+        totalSessions: sql<number>`COUNT(${ptSessionLogs.id})`,
+      })
+      .from(members)
+      .leftJoin(ptSessionLogs, eq(ptSessionLogs.memberId, members.id))
+      .where(eq(members.trainerId, trainerId))
+      .groupBy(members.id, members.name)
+      .orderBy(desc(sql<number>`COUNT(${ptSessionLogs.id})`));
+    return rows;
+  }),
 });
 
 // ─── Schedules ────────────────────────────────────────────────────────────────

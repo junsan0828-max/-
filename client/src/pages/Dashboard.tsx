@@ -249,6 +249,18 @@ function TrainerDashboard() {
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
   const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
 
+  const [todayModalOpen, setTodayModalOpen] = useState(false);
+  const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
+    { date: todayStr },
+    { enabled: todayModalOpen }
+  );
+  const { data: memberSessionStats } = trpc.pt.memberSessionStats.useQuery(
+    undefined,
+    { enabled: ptStatsModalOpen }
+  );
+
   if (isLoading) return <LoadingSkeleton />;
 
   const today = new Date();
@@ -284,12 +296,12 @@ function TrainerDashboard() {
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", path: "/members" },
-          { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", path: "/members" },
-          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", path: "/attendance" },
-          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", path: "/members" },
+          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", onClick: () => setLocation("/members") },
+          { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", onClick: () => setLocation("/members") },
+          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", onClick: () => setTodayModalOpen(true) },
+          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
         ].map((card) => (
-          <button key={card.label} onClick={() => setLocation(card.path)} className="text-left">
+          <button key={card.label} onClick={card.onClick} className="text-left">
             <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -597,6 +609,92 @@ function TrainerDashboard() {
                 {useSessionMutation.isPending ? "기록 중..." : "기록 완료"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 오늘 출석 모달 */}
+      <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-yellow-400" />
+              오늘 출석 현황
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {todayStr.replace(/-/g, ".")} · 출석 {todayAttendanceList?.filter(m => m.check?.status === "attended").length ?? 0}명
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!todayAttendanceList ? (
+              <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>
+            ) : todayAttendanceList.filter(m => m.check).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">오늘 출석 기록이 없습니다.</p>
+            ) : (
+              todayAttendanceList
+                .filter(m => m.check)
+                .map(m => {
+                  const statusColor =
+                    m.check?.status === "attended" ? "text-green-400" :
+                    m.check?.status === "noshow" ? "text-red-400" : "text-yellow-400";
+                  const statusLabel =
+                    m.check?.status === "attended" ? "출석" :
+                    m.check?.status === "noshow" ? "노쇼" : "캔슬";
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => { setTodayModalOpen(false); setLocation(`/members/${m.id}`); }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors"
+                    >
+                      <span className="text-sm font-medium">{m.name}</span>
+                      <div className="flex items-center gap-2">
+                        {m.check?.checkTime && (
+                          <span className="text-xs text-muted-foreground">{m.check.checkTime}</span>
+                        )}
+                        <span className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
+                      </div>
+                    </button>
+                  );
+                })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 총 PT 세션 모달 */}
+      <Dialog open={ptStatsModalOpen} onOpenChange={setPtStatsModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Dumbbell className="h-4 w-4 text-purple-400" />
+              회원별 PT 세션 현황
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              누적 세션 횟수 기준 정렬
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!memberSessionStats ? (
+              <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>
+            ) : memberSessionStats.filter(m => Number(m.totalSessions) > 0).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">세션 기록이 없습니다.</p>
+            ) : (
+              memberSessionStats
+                .filter(m => Number(m.totalSessions) > 0)
+                .map((m, idx) => (
+                  <button
+                    key={m.memberId}
+                    onClick={() => { setPtStatsModalOpen(false); setLocation(`/members/${m.memberId}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-5 text-right">{idx + 1}</span>
+                      <span className="text-sm font-medium">{m.memberName}</span>
+                    </div>
+                    <span className="text-sm font-bold text-purple-400">{Number(m.totalSessions)}회</span>
+                  </button>
+                ))
+            )}
           </div>
         </DialogContent>
       </Dialog>
