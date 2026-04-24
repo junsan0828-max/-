@@ -1535,27 +1535,22 @@ const adminRouter = t.router({
     ]);
 
     // 트레이너별 상세 통계
+    const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
     const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
     const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
-      const [memberCnt, settings, monthLogs] = await Promise.all([
+      const [memberCnt, settings, monthPackages] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
         db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainer.id)).limit(1),
-        db.select({
-          pricePerSession: ptPackages.pricePerSession,
-          paymentAmount: ptPackages.paymentAmount,
-          totalSessions: ptPackages.totalSessions,
-        })
-          .from(ptSessionLogs)
-          .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
-          .where(and(eq(ptSessionLogs.trainerId, trainer.id), sql`${ptSessionLogs.sessionDate} >= ${monthStart}`, sql`${ptSessionLogs.sessionDate} < ${monthEnd}`)),
+        db.select({ paymentAmount: ptPackages.paymentAmount })
+          .from(ptPackages)
+          .where(and(
+            eq(ptPackages.trainerId, trainer.id),
+            sql`${ptPackages.createdAt} >= ${monthStart}`,
+            sql`${ptPackages.createdAt} < ${monthEnd}`,
+          )),
       ]);
       const rate = settings[0]?.settlementRate ?? 50;
-      const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
-        if (l.pricePerSession) return l.pricePerSession;
-        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
-        return 0;
-      };
-      const revenue = monthLogs.reduce((s, l) => s + calcPrice(l), 0);
+      const revenue = monthPackages.reduce((s, p) => s + (p.paymentAmount ?? 0), 0);
       return {
         id: trainer.id,
         trainerName: trainer.trainerName,
@@ -1600,21 +1595,19 @@ const adminRouter = t.router({
       months.push({ label, start, end });
     }
 
-    // 월별 데이터 조합
+    // 월별 데이터 조합 (ptPackages.paymentAmount 기준)
     const rows = await Promise.all(
       months.map(async (m) => {
         const entry: Record<string, string | number> = { month: m.label };
         await Promise.all(
           trainerList.map(async (trainer) => {
             const res = await db
-              .select({ total: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession},0)),0)` })
-              .from(attendances)
-              .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
+              .select({ total: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.paymentAmount},0)),0)` })
+              .from(ptPackages)
               .where(and(
-                eq(attendances.trainerId, trainer.id),
-                eq(attendances.status, "attended"),
-                sql`${attendances.attendDate} >= ${m.start}`,
-                sql`${attendances.attendDate} < ${m.end}`
+                eq(ptPackages.trainerId, trainer.id),
+                sql`${ptPackages.createdAt} >= ${m.start}`,
+                sql`${ptPackages.createdAt} < ${m.end}`
               ));
             entry[trainer.trainerName] = Number(res[0]?.total ?? 0);
           })
