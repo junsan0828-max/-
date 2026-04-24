@@ -851,6 +851,25 @@ export default function MemberDetail({ memberId }: Props) {
                           </button>
                         </div>
 
+                        {/* 프로그램 완료 → 보고서 버튼 */}
+                        {(pkg.status === "completed" || pkg.usedSessions >= pkg.totalSessions) && (
+                          <div className="mt-3 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
+                            <p className="text-xs text-green-400 font-medium mb-2">🎉 프로그램 완료! 회원 보고서를 생성하세요.</p>
+                            <Button
+                              size="sm"
+                              className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white"
+                              disabled={generateReportMutation.isPending}
+                              onClick={() => {
+                                if (shareToken) { setShareOpen(true); }
+                                else { generateReportMutation.mutate({ memberId }); }
+                              }}
+                            >
+                              <Share2 className="h-3.5 w-3.5" />
+                              보고서 생성 및 공유
+                            </Button>
+                          </div>
+                        )}
+
                         {/* 정지 내역 */}
                         {pauses?.filter(p => p.packageId === pkg.id).map(pause => (
                           <div key={pause.id} className="mt-2 flex items-center justify-between text-xs bg-yellow-500/10 border border-yellow-500/20 rounded px-2 py-1">

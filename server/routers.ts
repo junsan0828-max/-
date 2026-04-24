@@ -2288,12 +2288,13 @@ const reportsRouter = t.router({
 
       const memberId = tokenRows[0].memberId;
 
-      const [memberRows, checks, memos, packages, attendanceList] = await Promise.all([
+      const [memberRows, checks, memos, packages, attendanceList, sessionLogs] = await Promise.all([
         db.select().from(members).where(eq(members.id, memberId)).limit(1),
         db.select().from(attendanceChecks).where(eq(attendanceChecks.memberId, memberId)).orderBy(desc(attendanceChecks.checkDate)),
         db.select().from(workoutMemos).where(eq(workoutMemos.memberId, memberId)).orderBy(desc(workoutMemos.memoDate)),
         db.select().from(ptPackages).where(eq(ptPackages.memberId, memberId)).orderBy(desc(ptPackages.createdAt)),
         db.select().from(attendances).where(eq(attendances.memberId, memberId)).orderBy(desc(attendances.attendDate)),
+        db.select().from(ptSessionLogs).where(eq(ptSessionLogs.memberId, memberId)).orderBy(desc(ptSessionLogs.sessionDate)),
       ]);
 
       if (!memberRows[0]) throw new TRPCError({ code: "NOT_FOUND" });
@@ -2304,6 +2305,7 @@ const reportsRouter = t.router({
         workoutMemos: memos,
         ptPackages: packages,
         attendances: attendanceList,
+        sessionLogs,
         generatedAt: new Date().toISOString(),
       };
     }),
