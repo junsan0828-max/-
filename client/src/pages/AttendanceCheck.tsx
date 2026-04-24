@@ -61,16 +61,33 @@ export default function AttendanceCheck({ memberId }: Props) {
   const { data: member } = trpc.members.getById.useQuery({ id: memberId });
   const { data: existing } = trpc.attendanceChecks.getByMemberDate.useQuery({ memberId, date: dateParam });
   const { data: ptPackageList } = trpc.pt.listByMember.useQuery({ memberId });
+  const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
 
   const activePkgs = ptPackageList?.filter(
     (p) => p.status === "active" && p.totalSessions > p.usedSessions
   ) ?? [];
+
+  // 이 날짜에 이미 세션 차감 기록이 있는지 확인
+  const alreadyDeducted = sessionLogs?.some((l) => l.sessionDate === dateParam) ?? false;
 
   useEffect(() => {
     if (activePkgs.length > 0 && selectedPkgId === null) {
       setSelectedPkgId(activePkgs[0].id);
     }
   }, [activePkgs.length]);
+
+  // 활성 패키지 있고 기존 기록 없을 때 → 세션 차감 기본 ON
+  // 이미 차감된 날이면 → OFF (중복 방지)
+  useEffect(() => {
+    if (ptPackageList === undefined) return;
+    if (alreadyDeducted) {
+      setDeductSession(false);
+      return;
+    }
+    if (activePkgs.length > 0 && !existing) {
+      setDeductSession(true);
+    }
+  }, [ptPackageList, existing, alreadyDeducted]);
 
   useEffect(() => {
     if (!existing) return;
@@ -318,6 +335,13 @@ export default function AttendanceCheck({ memberId }: Props) {
         {activePkgs.length > 0 && status === "attended" && (
           <Section title="PT 세션 차감">
             <div className="space-y-3">
+              {alreadyDeducted ? (
+                <div className="flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border border-green-500/30 bg-green-500/10 text-sm text-green-400">
+                  <Dumbbell className="h-4 w-4 shrink-0" />
+                  오늘 세션 차감 완료
+                  <span className="ml-auto text-xs opacity-70">완료</span>
+                </div>
+              ) : (
               <button
                 onClick={() => setDeductSession((d) => !d)}
                 className={`flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border text-sm transition-colors ${
@@ -332,6 +356,7 @@ export default function AttendanceCheck({ memberId }: Props) {
                   {deductSession ? "ON" : "OFF"}
                 </span>
               </button>
+              )}
               {deductSession && activePkgs.length > 1 && (
                 <div className="flex gap-2 flex-wrap">
                   {activePkgs.map((pkg) => (
