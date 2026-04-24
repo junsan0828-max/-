@@ -1612,6 +1612,78 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
+  // 정산 리포트 (관리자)
+  getSettlementReport: protectedProcedure
+    .input(z.object({ yearMonth: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      const monthStart = `${input.yearMonth}-01`;
+      const monthEnd = new Date(
+        parseInt(input.yearMonth.split("-")[0]),
+        parseInt(input.yearMonth.split("-")[1]),
+        1
+      ).toISOString().split("T")[0];
+
+      const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
+
+      const trainerRows = await Promise.all(trainerList.map(async (trainer) => {
+        const [settings, logs] = await Promise.all([
+          db.select({ settlementRate: trainerSettings.settlementRate })
+            .from(trainerSettings)
+            .where(eq(trainerSettings.trainerId, trainer.id))
+            .limit(1),
+          db.select({
+            pricePerSession: ptPackages.pricePerSession,
+            paymentAmount: ptPackages.paymentAmount,
+            totalSessions: ptPackages.totalSessions,
+          })
+            .from(ptSessionLogs)
+            .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+            .where(and(
+              eq(ptSessionLogs.trainerId, trainer.id),
+              sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
+              sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
+            )),
+        ]);
+
+        const rate = settings[0]?.settlementRate ?? 50;
+        const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+          if (l.pricePerSession) return l.pricePerSession;
+          if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+          return 0;
+        };
+        const sessionCount = logs.length;
+        const revenue = logs.reduce((s, l) => s + calcPrice(l), 0);
+        const avgPrice = sessionCount > 0 ? Math.round(revenue / sessionCount) : 0;
+        const settlement = Math.round(revenue * rate / 100);
+        const afterTax = Math.round(settlement * (1 - 0.033));
+
+        return {
+          trainerId: trainer.id,
+          trainerName: trainer.trainerName,
+          sessionCount,
+          revenue,
+          avgPrice,
+          settlementRate: rate,
+          settlement,
+          afterTax,
+        };
+      }));
+
+      const totalSessions = trainerRows.reduce((s, t) => s + t.sessionCount, 0);
+      const totalRevenue = trainerRows.reduce((s, t) => s + t.revenue, 0);
+      const totalAvgPrice = totalSessions > 0 ? Math.round(totalRevenue / totalSessions) : 0;
+      const totalSettlement = trainerRows.reduce((s, t) => s + t.settlement, 0);
+      const totalAfterTax = trainerRows.reduce((s, t) => s + t.afterTax, 0);
+
+      return {
+        yearMonth: input.yearMonth,
+        trainers: trainerRows,
+        total: { sessionCount: totalSessions, revenue: totalRevenue, avgPrice: totalAvgPrice, settlement: totalSettlement, afterTax: totalAfterTax },
+      };
+    }),
+
   // 관리자: 특정 트레이너의 회원 목록 + PT 잔여 횟수
   getMembersByTrainer: protectedProcedure
     .input(z.object({ trainerId: z.number() }))
