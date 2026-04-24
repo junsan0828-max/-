@@ -50,15 +50,23 @@ export async function getDashboardStats(trainerId: number) {
     const todayAttendances = Number(todayAttendancesResult[0]?.count ?? 0);
     const settlementRate = Number(trainerSettingsResult[0]?.settlementRate ?? 50);
 
+    const effectivePrice = sql<number>`COALESCE(
+      ${ptPackages.pricePerSession},
+      CASE WHEN COALESCE(${ptPackages.totalSessions}, 0) > 0
+        THEN ROUND(COALESCE(${ptPackages.paymentAmount}, 0)::numeric / ${ptPackages.totalSessions})
+        ELSE 0 END,
+      0
+    )`;
+
     const [monthSettlementResult, todaySettlementResult] = await Promise.all([
-      db.select({ totalSettlement: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession}, 0)), 0)` })
-        .from(attendances)
-        .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
-        .where(and(eq(attendances.trainerId, trainerId), eq(attendances.status, "attended"), sql`${attendances.attendDate} >= ${monthStart}`, sql`${attendances.attendDate} < ${monthEnd}`)),
-      db.select({ totalSettlement: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession}, 0)), 0)` })
-        .from(attendances)
-        .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
-        .where(and(eq(attendances.trainerId, trainerId), eq(attendances.status, "attended"), eq(attendances.attendDate, today))),
+      db.select({ totalSettlement: sql<number>`COALESCE(SUM(${effectivePrice}), 0)` })
+        .from(ptSessionLogs)
+        .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+        .where(and(eq(ptSessionLogs.trainerId, trainerId), sql`${ptSessionLogs.sessionDate} >= ${monthStart}`, sql`${ptSessionLogs.sessionDate} < ${monthEnd}`)),
+      db.select({ totalSettlement: sql<number>`COALESCE(SUM(${effectivePrice}), 0)` })
+        .from(ptSessionLogs)
+        .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+        .where(and(eq(ptSessionLogs.trainerId, trainerId), eq(ptSessionLogs.sessionDate, today))),
     ]);
 
     const monthlySettlement = Math.round((Number(monthSettlementResult[0]?.totalSettlement ?? 0) * settlementRate) / 100);
