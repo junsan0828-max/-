@@ -1535,12 +1535,12 @@ const adminRouter = t.router({
     ]);
 
     // 트레이너별 상세 통계
-    const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
     const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
     const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
-      const [memberCnt, settings, monthPackages] = await Promise.all([
+      const [memberCnt, settings, monthPackages, monthLogs] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
         db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainer.id)).limit(1),
+        // 매출: 이번달 등록된 패키지 결제금액 합산
         db.select({ paymentAmount: ptPackages.paymentAmount })
           .from(ptPackages)
           .where(and(
@@ -1548,9 +1548,28 @@ const adminRouter = t.router({
             sql`${ptPackages.createdAt} >= ${monthStart}`,
             sql`${ptPackages.createdAt} < ${monthEnd}`,
           )),
+        // 정산: 이번달 진행된 세션 × 회당단가
+        db.select({
+          pricePerSession: ptPackages.pricePerSession,
+          paymentAmount: ptPackages.paymentAmount,
+          totalSessions: ptPackages.totalSessions,
+        })
+          .from(ptSessionLogs)
+          .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+          .where(and(
+            eq(ptSessionLogs.trainerId, trainer.id),
+            sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
+            sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
+          )),
       ]);
       const rate = settings[0]?.settlementRate ?? 50;
       const revenue = monthPackages.reduce((s, p) => s + (p.paymentAmount ?? 0), 0);
+      const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+        if (l.pricePerSession) return l.pricePerSession;
+        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+        return 0;
+      };
+      const sessionRevenue = monthLogs.reduce((s, l) => s + calcPrice(l), 0);
       return {
         id: trainer.id,
         trainerName: trainer.trainerName,
@@ -1558,7 +1577,7 @@ const adminRouter = t.router({
         memberCount: Number(memberCnt[0]?.count ?? 0),
         settlementRate: rate,
         monthlyRevenue: revenue,
-        monthlySettlement: Math.round(revenue * rate / 100),
+        monthlySettlement: Math.round(sessionRevenue * rate / 100),
       };
     }));
 
