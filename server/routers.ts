@@ -1866,7 +1866,7 @@ const attendanceChecksRouter = t.router({
 
       if (existing[0]) {
         await db.update(attendanceChecks)
-          .set({ ...fields, updatedAt: sql`(datetime('now'))` })
+          .set({ ...fields, updatedAt: sql`now()::text` })
           .where(eq(attendanceChecks.id, existing[0].id));
       } else {
         await db.insert(attendanceChecks).values({ memberId, trainerId, checkDate, ...fields });
@@ -1924,7 +1924,7 @@ const parQRouter = t.router({
       const { memberId, ...fields } = input;
       const existing = await db.select({ id: parQ.id }).from(parQ).where(eq(parQ.memberId, memberId)).limit(1);
       if (existing[0]) {
-        await db.update(parQ).set({ ...fields, updatedAt: sql`(datetime('now'))` }).where(eq(parQ.memberId, memberId));
+        await db.update(parQ).set({ ...fields, updatedAt: sql`now()::text` }).where(eq(parQ.memberId, memberId));
       } else {
         await db.insert(parQ).values({ memberId, ...fields });
       }
