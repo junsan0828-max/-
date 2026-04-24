@@ -68,6 +68,8 @@ import {
   Clock,
   RefreshCw,
   MapPin,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface Props {
@@ -190,6 +192,15 @@ export default function MemberDetail({ memberId }: Props) {
 
   // 메모 검색
   const [memoSearch, setMemoSearch] = useState("");
+
+  // 트레이닝 일지 펼치기
+  const [expandedLogIds, setExpandedLogIds] = useState<Set<number>>(new Set());
+  const toggleLog = (id: number) =>
+    setExpandedLogIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
@@ -972,12 +983,17 @@ export default function MemberDetail({ memberId }: Props) {
               {!sessionLogs?.length ? (
                 <p className="text-muted-foreground text-sm text-center py-8">트레이닝 기록이 없습니다.</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {sessionLogs.map((log) => {
                     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
+                    const isExpanded = expandedLogIds.has(log.id);
                     return (
-                      <div key={log.id} className="p-3 rounded-lg bg-accent/20 border border-border space-y-2">
-                        <div className="flex items-center justify-between">
+                      <div key={log.id} className="rounded-lg bg-accent/20 border border-border overflow-hidden">
+                        {/* 접힌 헤더 - 항상 표시 */}
+                        <button
+                          className="w-full flex items-center justify-between px-3 py-2.5 text-left"
+                          onClick={() => toggleLog(log.id)}
+                        >
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
                             {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
@@ -987,58 +1003,68 @@ export default function MemberDetail({ memberId }: Props) {
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setEditJournalForm({
-                                  id: log.id,
-                                  sessionDate: log.sessionDate,
-                                  goal: (log as any).goal ?? "",
-                                  bodyPart: (log as any).bodyPart ?? "",
-                                  exercises: exs,
-                                  feedback: (log as any).feedback ?? "",
-                                  notes: log.notes ?? "",
-                                });
-                                setEditJournalOpen(true);
-                              }}
-                              className="text-muted-foreground hover:text-primary transition-colors"
-                            >
-                              <Edit className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => deleteLogMutation.mutate({ id: log.id })}
-                              className="text-muted-foreground hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                        {(log as any).goal && (
-                          <div>
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">목표</span>
-                            <p className="text-xs text-foreground mt-0.5">{(log as any).goal}</p>
-                          </div>
-                        )}
-                        {exs.length > 0 && (
-                          <div className="space-y-1">
-                            {exs.map((ex, i) => (
-                              <div key={i} className="text-xs">
-                                <span className="font-medium text-foreground/80">{ex.name}</span>
-                                <span className="text-muted-foreground ml-2">
-                                  {ex.sets.map((s, j) => `${j + 1}세트 ${s.reps ? s.reps + "회" : ""}${s.weight ? " " + s.weight + "kg" : ""}`).join(" · ")}
-                                </span>
+                          {isExpanded
+                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          }
+                        </button>
+
+                        {/* 펼쳐진 상세 내용 */}
+                        {isExpanded && (
+                          <div className="px-3 pb-3 space-y-2 border-t border-border/40">
+                            {(log as any).goal && (
+                              <div className="pt-2">
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">목표</span>
+                                <p className="text-xs text-foreground mt-0.5">{(log as any).goal}</p>
                               </div>
-                            ))}
+                            )}
+                            {exs.length > 0 && (
+                              <div className="space-y-1 pt-1">
+                                {exs.map((ex, i) => (
+                                  <div key={i} className="text-xs">
+                                    <span className="font-medium text-foreground/80">{ex.name}</span>
+                                    <span className="text-muted-foreground ml-2">
+                                      {ex.sets.map((s, j) => `${j + 1}세트${s.reps ? " " + s.reps + "회" : ""}${s.weight ? " " + s.weight + "kg" : ""}`).join(" · ")}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {(log as any).feedback && (
+                              <div>
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">피드백</span>
+                                <p className="text-xs text-foreground mt-0.5 whitespace-pre-wrap">{(log as any).feedback}</p>
+                              </div>
+                            )}
+                            {log.notes && (
+                              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
+                            )}
+                            <div className="flex justify-end gap-3 pt-1">
+                              <button
+                                onClick={() => {
+                                  setEditJournalForm({
+                                    id: log.id,
+                                    sessionDate: log.sessionDate,
+                                    goal: (log as any).goal ?? "",
+                                    bodyPart: (log as any).bodyPart ?? "",
+                                    exercises: exs,
+                                    feedback: (log as any).feedback ?? "",
+                                    notes: log.notes ?? "",
+                                  });
+                                  setEditJournalOpen(true);
+                                }}
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => deleteLogMutation.mutate({ id: log.id })}
+                                className="text-muted-foreground hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
-                        )}
-                        {(log as any).feedback && (
-                          <div>
-                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">피드백</span>
-                            <p className="text-xs text-foreground mt-0.5 whitespace-pre-wrap">{(log as any).feedback}</p>
-                          </div>
-                        )}
-                        {log.notes && (
-                          <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
                         )}
                       </div>
                     );
