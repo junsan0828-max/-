@@ -830,36 +830,11 @@ export default function MemberDetail({ memberId }: Props) {
                             <div className="mt-3 pt-3 border-t border-border/50">
                               <p className="text-xs text-muted-foreground mb-1.5">최근 세션 기록</p>
                               <div className="space-y-1">
-                                {logs.slice(0, 5).map(log => {
-                                  const exs = parseExercisesJson(log.exercisesJson as string | null);
-                                  return (
-                                    <div key={log.id} className="text-xs py-1.5 border-b border-border/30 last:border-0">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-foreground/70">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
-                                        <div className="flex items-center gap-1.5">
-                                          {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
-                                            <span key={bp} className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">{bp}</span>
-                                          ))}
-                                          {log.notes && <span className="text-muted-foreground truncate max-w-[100px]">{log.notes}</span>}
-                                        </div>
-                                      </div>
-                                      {exs.length > 0 && (
-                                        <div className="mt-1 space-y-0.5 pl-1">
-                                          {exs.map((ex, i) => (
-                                            <div key={i} className="text-muted-foreground">
-                                              <span className="font-medium text-foreground/60">{ex.name}</span>
-                                              {ex.sets.map((s, j) => (
-                                                <span key={j} className="ml-2">
-                                                  {j + 1}세트 {s.reps && `${s.reps}회`}{s.weight && ` ${s.weight}kg`}
-                                                </span>
-                                              ))}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                {logs.slice(0, 5).map(log => (
+                                  <div key={log.id} className="text-xs py-1 border-b border-border/30 last:border-0">
+                                    <span className="text-foreground/70">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
+                                  </div>
+                                ))}
                                 {logs.length > 5 && (
                                   <p className="text-xs text-muted-foreground">외 {logs.length - 5}회 더</p>
                                 )}
