@@ -286,8 +286,8 @@ function TrainerDashboard() {
         {[
           { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", path: "/members" },
           { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", path: "/members" },
-          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", path: "/members" },
-          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", path: "/pt" },
+          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", path: "/attendance" },
+          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", path: "/members" },
         ].map((card) => (
           <button key={card.label} onClick={() => setLocation(card.path)} className="text-left">
             <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
