@@ -1189,6 +1189,80 @@ const trainersRouter = t.router({
     };
   }),
 
+  // 월별 상세 통계 (관리자 또는 본인)
+  getMonthlyStats: protectedProcedure
+    .input(z.object({ trainerId: z.number(), yearMonth: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin" && ctx.user.trainerId !== input.trainerId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const monthStart = `${input.yearMonth}-01`;
+      const [y, m] = input.yearMonth.split("-").map(Number);
+      const monthEnd = new Date(y, m, 1).toISOString().split("T")[0];
+
+      const [sessionsResult, noShowResult, monthPackages] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(ptSessionLogs)
+          .where(and(
+            eq(ptSessionLogs.trainerId, input.trainerId),
+            sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
+            sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
+          )),
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(attendanceChecks)
+          .where(and(
+            eq(attendanceChecks.trainerId, input.trainerId),
+            eq(attendanceChecks.status, "noshow"),
+            sql`${attendanceChecks.checkDate} >= ${monthStart}`,
+            sql`${attendanceChecks.checkDate} < ${monthEnd}`,
+          )),
+        db.select({ id: ptPackages.id, memberId: ptPackages.memberId, paymentAmount: ptPackages.paymentAmount, createdAt: ptPackages.createdAt })
+          .from(ptPackages)
+          .where(and(
+            eq(ptPackages.trainerId, input.trainerId),
+            sql`${ptPackages.createdAt} >= ${monthStart}`,
+            sql`${ptPackages.createdAt} < ${monthEnd}`,
+          )),
+      ]);
+
+      // 신규 vs 재등록 구분: 이번달 이전에 패키지가 있으면 재등록
+      const memberIds = [...new Set(monthPackages.map(p => p.memberId))];
+      let reregCount = 0;
+      let newCount = 0;
+      if (memberIds.length > 0) {
+        await Promise.all(memberIds.map(async (memberId) => {
+          const pkgsThisMonth = monthPackages.filter(p => p.memberId === memberId);
+          const earliest = pkgsThisMonth.reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+          const prior = await db.select({ id: ptPackages.id })
+            .from(ptPackages)
+            .where(and(
+              eq(ptPackages.trainerId, input.trainerId),
+              eq(ptPackages.memberId, memberId),
+              sql`${ptPackages.createdAt} < ${earliest.createdAt}`,
+            ))
+            .limit(1);
+          if (prior.length > 0) {
+            reregCount += pkgsThisMonth.length;
+          } else {
+            newCount += 1;
+            reregCount += pkgsThisMonth.length - 1;
+          }
+        }));
+      }
+
+      const revenue = monthPackages.reduce((s, p) => s + (p.paymentAmount ?? 0), 0);
+
+      return {
+        sessions: Number(sessionsResult[0]?.count ?? 0),
+        noShow: Number(noShowResult[0]?.count ?? 0),
+        newMembers: newCount,
+        rereg: reregCount,
+        revenue,
+      };
+    }),
+
   // 월별 정산 조회
   getMonthlySettlement: protectedProcedure
     .input(z.object({ trainerId: z.number(), yearMonth: z.string(), dateFilter: z.string().optional() }))
