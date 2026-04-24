@@ -266,6 +266,7 @@ async function initDatabase() {
   const alterStatements = [
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS goal TEXT`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TEXT`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

@@ -584,6 +584,11 @@ export default function Admin() {
                     <p className="text-xs text-muted-foreground">
                       회원 {trainer.memberCount}명 · 정산 {trainer.settlementRate}%
                     </p>
+                    <p className="text-xs text-muted-foreground/70">
+                      {trainer.lastLoginAt
+                        ? `최근 로그인: ${new Date(trainer.lastLoginAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+                        : "로그인 기록 없음"}
+                    </p>
                   </div>
                 </button>
                 <div className="flex items-center gap-2">

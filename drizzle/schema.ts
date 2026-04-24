@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   role: text("role").default("trainer").notNull(),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+  lastLoginAt: text("lastLoginAt"),
 });
 
 // 트레이너 프로필

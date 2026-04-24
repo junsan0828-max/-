@@ -80,6 +80,8 @@ const authRouter = t.router({
         trainerId = trainerResult[0]?.id;
       }
 
+      await db.update(users).set({ lastLoginAt: new Date().toISOString() }).where(eq(users.id, user.id));
+
       const authUser: AuthUser = {
         id: user.id,
         username: user.username,
@@ -1192,8 +1194,17 @@ const adminRouter = t.router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
     const trainerList = await db
-      .select()
+      .select({
+        id: trainers.id,
+        userId: trainers.userId,
+        trainerName: trainers.trainerName,
+        phone: trainers.phone,
+        email: trainers.email,
+        createdAt: trainers.createdAt,
+        lastLoginAt: users.lastLoginAt,
+      })
       .from(trainers)
+      .leftJoin(users, eq(trainers.userId, users.id))
       .orderBy(trainers.trainerName);
 
     const result = await Promise.all(
