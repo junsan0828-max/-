@@ -1125,7 +1125,7 @@ const trainersRouter = t.router({
 
   // 월별 정산 조회
   getMonthlySettlement: protectedProcedure
-    .input(z.object({ trainerId: z.number(), yearMonth: z.string() }))
+    .input(z.object({ trainerId: z.number(), yearMonth: z.string(), dateFilter: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.trainerId !== input.trainerId) {
         throw new TRPCError({ code: "FORBIDDEN" });
@@ -1145,6 +1145,8 @@ const trainersRouter = t.router({
           id: ptSessionLogs.id,
           sessionDate: ptSessionLogs.sessionDate,
           pricePerSession: ptPackages.pricePerSession,
+          paymentAmount: ptPackages.paymentAmount,
+          totalSessions: ptPackages.totalSessions,
           packageName: ptPackages.packageName,
           memberName: members.name,
         })
@@ -1154,17 +1156,29 @@ const trainersRouter = t.router({
         .where(
           and(
             eq(ptSessionLogs.trainerId, input.trainerId),
-            gte(ptSessionLogs.sessionDate, `${input.yearMonth}-01`),
-            lte(ptSessionLogs.sessionDate, `${input.yearMonth}-31`),
+            input.dateFilter
+              ? eq(ptSessionLogs.sessionDate, input.dateFilter)
+              : and(
+                  gte(ptSessionLogs.sessionDate, `${input.yearMonth}-01`),
+                  lte(ptSessionLogs.sessionDate, `${input.yearMonth}-31`),
+                ),
           )
         )
         .orderBy(desc(ptSessionLogs.sessionDate));
 
-      const sessionCount = logs.length;
-      const revenue = logs.reduce((sum, l) => sum + (l.pricePerSession ?? 0), 0);
-      const settlementAmount = Math.round(revenue * settlementRate / 100);
+      const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+        if (l.pricePerSession) return l.pricePerSession;
+        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+        return 0;
+      };
 
-      return { sessionCount, revenue, settlementAmount, settlementRate, logs };
+      const logsWithPrice = logs.map(l => ({ ...l, effectivePrice: calcPrice(l) }));
+      const sessionCount = logsWithPrice.length;
+      const revenue = logsWithPrice.reduce((s, l) => s + l.effectivePrice, 0);
+      const settlementAmount = Math.round(revenue * settlementRate / 100);
+      const afterTax = Math.round(settlementAmount * (1 - 0.033));
+
+      return { sessionCount, revenue, settlementAmount, afterTax, settlementRate, logs: logsWithPrice };
     }),
 });
 

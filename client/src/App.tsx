@@ -39,6 +39,7 @@ import Admin from "./pages/Admin";
 import PT from "./pages/PT";
 import Profile from "./pages/Profile";
 import SettlementReport from "./pages/SettlementReport";
+import TrainerSettlement from "./pages/TrainerSettlement";
 import Layout from "./components/Layout";
 
 function App() {
@@ -93,6 +94,7 @@ function App() {
         </Route>
         <Route path="/admin">{() => <Admin />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
+        <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
         <Route path="/profile">{() => <Profile />}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
       </Switch>

@@ -394,11 +394,11 @@ function TrainerDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
-          <button onClick={() => setLocation("/pt")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
+          <button onClick={() => setLocation("/trainer-settlement?view=daily")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
             <p className="text-xs text-muted-foreground mb-1">일일 정산</p>
             <p className="text-xl font-bold text-primary">{(stats?.dailySettlement ?? 0).toLocaleString()}원</p>
           </button>
-          <button onClick={() => setLocation("/pt")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
+          <button onClick={() => setLocation("/trainer-settlement?view=monthly")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
             <p className="text-xs text-muted-foreground mb-1">월 정산</p>
             <p className="text-xl font-bold text-primary">{(stats?.monthlySettlement ?? 0).toLocaleString()}원</p>
           </button>
