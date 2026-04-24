@@ -1,5 +1,6 @@
 import express from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
@@ -15,11 +16,18 @@ import { syncSheetNow } from "./sheetSync";
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
 
+const PgSession = connectPgSimple(session);
+
 app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(
   session({
+    store: new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || "trainer-app-secret",
     resave: false,
     saveUninitialized: false,
