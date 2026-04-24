@@ -1125,6 +1125,66 @@ const trainersRouter = t.router({
       return { success: true };
     }),
 
+  // 트레이너 내 통계
+  getMyStats: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const [
+      totalMembersResult,
+      totalSessionsResult,
+      noShowResult,
+      churnedResult,
+      remainingPtResult,
+      trainerResult,
+    ] = await Promise.all([
+      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId)),
+      db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, trainerId)),
+      db.select({ count: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, trainerId), eq(attendanceChecks.status, "noshow"))),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, trainerId), eq(members.status, "inactive"))),
+      db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
+        .from(ptPackages)
+        .where(and(eq(ptPackages.trainerId, trainerId), eq(ptPackages.status, "active"))),
+      db.select({ createdAt: trainers.createdAt }).from(trainers).where(eq(trainers.id, trainerId)).limit(1),
+    ]);
+
+    const pkgCountByMember = await db
+      .select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)` })
+      .from(ptPackages)
+      .where(eq(ptPackages.trainerId, trainerId))
+      .groupBy(ptPackages.memberId);
+
+    const totalRereg = pkgCountByMember.reduce((s, r) => s + Math.max(0, Number(r.count) - 1), 0);
+    const reregMemberCount = pkgCountByMember.filter(r => Number(r.count) > 1).length;
+
+    const trainerCreatedAt = trainerResult[0]?.createdAt;
+    const monthsActive = trainerCreatedAt
+      ? Math.max(1, Math.round((Date.now() - new Date(trainerCreatedAt).getTime()) / (1000 * 60 * 60 * 24 * 30.5)))
+      : 1;
+
+    const totalMembers = Number(totalMembersResult[0]?.count ?? 0);
+    const totalSessions = Number(totalSessionsResult[0]?.count ?? 0);
+    const totalNoShow = Number(noShowResult[0]?.count ?? 0);
+    const totalChurned = Number(churnedResult[0]?.count ?? 0);
+    const remainingPt = Number(remainingPtResult[0]?.total ?? 0);
+
+    return {
+      totalMembers,
+      totalSessions,
+      totalRereg,
+      totalNoShow,
+      totalChurned,
+      remainingPt,
+      avgMonthlyRereg: Math.round((totalRereg / monthsActive) * 10) / 10,
+      avgMonthlyNewMembers: Math.round((totalMembers / monthsActive) * 10) / 10,
+      avgMonthlyPt: Math.round((totalSessions / monthsActive) * 10) / 10,
+      avgMonthlyNoShow: Math.round((totalNoShow / monthsActive) * 10) / 10,
+      reregRate: totalMembers > 0 ? Math.round((reregMemberCount / totalMembers) * 1000) / 10 : 0,
+    };
+  }),
+
   // 월별 정산 조회
   getMonthlySettlement: protectedProcedure
     .input(z.object({ trainerId: z.number(), yearMonth: z.string(), dateFilter: z.string().optional() }))
