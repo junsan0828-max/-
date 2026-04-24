@@ -266,6 +266,8 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: (data) => {
       toast.success(`세션 사용 완료! 잔여 ${data.remaining}회`);
       refetchPt();
+      utils.members.getStats.invalidate({ memberId });
+      utils.pt.sessionLogs.invalidate({ memberId });
       setSessionMemoContent("");
       setSessionMemoOpen(true);
     },
