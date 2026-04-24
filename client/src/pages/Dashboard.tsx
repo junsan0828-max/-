@@ -337,6 +337,8 @@ function TrainerDashboard() {
       setReregMemberId("");
       setReregForm({ ptProgram: "", totalSessions: "", startDate: "", expiryDate: "", paymentAmount: "", unpaidAmount: "", paymentMethod: "", paymentMemo: "" });
       utils.dashboard.getStats.invalidate();
+      utils.pt.list.invalidate();
+      utils.pt.listByMember.invalidate();
     },
     onError: (e: { message: string }) => toast.error(e.message),
   });
@@ -844,11 +846,27 @@ function TrainerDashboard() {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">프로그램명</label>
-              <Input className="h-9 text-sm" placeholder="예) PT 30회" value={reregForm.ptProgram} onChange={e => setReregForm(p => ({ ...p, ptProgram: e.target.value }))} />
+              <Input className="h-9 text-sm" placeholder="프로그램명 직접 입력" value={reregForm.ptProgram} onChange={e => setReregForm(p => ({ ...p, ptProgram: e.target.value }))} />
+              <div className="flex gap-1.5 flex-wrap">
+                {["케어피티", "웨이트피티", "필라테스"].map(preset => (
+                  <button key={preset} type="button"
+                    onClick={() => setReregForm(p => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.ptProgram === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                  >{preset}</button>
+                ))}
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">총 세션 수 *</label>
-              <Input className="h-9 text-sm" type="number" min={1} placeholder="예) 30" value={reregForm.totalSessions} onChange={e => setReregForm(p => ({ ...p, totalSessions: e.target.value }))} />
+              <Input className="h-9 text-sm" type="number" min={1} placeholder="횟수 직접 입력" value={reregForm.totalSessions} onChange={e => setReregForm(p => ({ ...p, totalSessions: e.target.value }))} />
+              <div className="flex gap-1.5 flex-wrap">
+                {["10", "20", "30", "40", "50"].map(preset => (
+                  <button key={preset} type="button"
+                    onClick={() => setReregForm(p => ({ ...p, totalSessions: p.totalSessions === preset ? "" : preset }))}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.totalSessions === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                  >{preset}회</button>
+                ))}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">

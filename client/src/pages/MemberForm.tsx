@@ -333,11 +333,11 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             {!isEdit && (
               <>
                 <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">PT 패키지명</Label>
+                  <Label className="text-sm text-muted-foreground">프로그램명</Label>
                   <Input
                     value={form.ptProgram}
                     onChange={(e) => setForm((p) => ({ ...p, ptProgram: e.target.value }))}
-                    placeholder="패키지명 직접 입력"
+                    placeholder="프로그램명 직접 입력"
                     className="bg-input border-border"
                   />
                   <div className="flex gap-1.5 flex-wrap">
