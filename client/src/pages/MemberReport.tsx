@@ -335,7 +335,6 @@ export default function MemberReport({ token }: Props) {
               {sessionLogs.slice(0, 15).map((log) => {
                 let exercises: { name: string; sets?: number; reps?: number; weight?: number }[] = [];
                 try { if (log.exercisesJson) exercises = JSON.parse(log.exercisesJson); } catch {}
-                if (!log.goal && !log.bodyPart && exercises.length === 0) return null;
                 return (
                   <div key={log.id} className="p-4 rounded-xl bg-card border border-border space-y-2">
                     <div className="flex items-center justify-between">
