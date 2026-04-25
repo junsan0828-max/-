@@ -53,9 +53,13 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
-        <img src="/logo.png" alt="ZiantGym" className="w-48 h-auto" />
-        <p className="text-gray-400 text-sm">로딩 중...</p>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-6">
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-3xl font-bold tracking-widest text-foreground" style={{ fontFamily: "Georgia, 'Times New Roman', serif", letterSpacing: "0.25em" }}>
+            ZIANTGYM
+          </span>
+        </div>
+        <p className="text-muted-foreground text-sm">로딩 중...</p>
       </div>
     );
   }
