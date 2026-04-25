@@ -92,13 +92,13 @@ function AdminDashboard() {
       {/* 전체 통계 */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400", path: "/trainers" },
-          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400", path: "/trainers" },
+          { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400" },
+          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400" },
           { label: "이번달 매출", value: `${(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원`, icon: TrendingUp, color: "text-yellow-400", onClick: () => setRevenueModalOpen(true) },
           { label: "이번달 정산", value: `${(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원`, icon: Activity, color: "text-purple-400", onClick: () => setSettlementModalOpen(true) },
         ].map((card) => (
-          <button key={card.label} onClick={card.onClick ?? (() => setLocation((card as any).path))} className="text-left">
-            <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
+          <button key={card.label} onClick={(card as any).onClick ?? undefined} className={`text-left ${!(card as any).onClick ? "cursor-default" : ""}`}>
+            <Card className={`bg-card border-border transition-colors ${(card as any).onClick ? "hover:border-primary/40 cursor-pointer" : ""}`}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs text-muted-foreground">{card.label}</p>

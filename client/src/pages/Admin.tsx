@@ -73,6 +73,7 @@ export default function Admin() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [dbRestoring, setDbRestoring] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const [trainerBranchFilter, setTrainerBranchFilter] = useState<number | undefined>(undefined);
   const [form, setForm] = useState({
     username: "",
     password: "",
@@ -627,11 +628,38 @@ export default function Admin() {
             트레이너 목록
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {!trainers?.length ? (
-            <p className="text-sm text-muted-foreground text-center py-6">등록된 트레이너가 없습니다.</p>
-          ) : (
-            trainers.map((trainer) => (
+        <CardContent className="space-y-3">
+          {/* 지점 필터 탭 */}
+          {branchList && branchList.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setTrainerBranchFilter(undefined)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${trainerBranchFilter === undefined ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:bg-accent/50"}`}
+              >
+                전체
+              </button>
+              {branchList.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => setTrainerBranchFilter(b.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${trainerBranchFilter === b.id ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:bg-accent/50"}`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="space-y-2">
+          {(() => {
+            const filtered = trainerBranchFilter
+              ? (trainers ?? []).filter((t) => t.assignedBranches.some((b) => b.branchId === trainerBranchFilter))
+              : (trainers ?? []);
+            if (!filtered.length) return (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                {trainerBranchFilter ? "해당 지점에 배정된 트레이너가 없습니다." : "등록된 트레이너가 없습니다."}
+              </p>
+            );
+            return filtered.map((trainer) => (
               <div
                 key={trainer.id}
                 className="flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border"
@@ -724,8 +752,9 @@ export default function Admin() {
                   </Dialog>
                 </div>
               </div>
-            ))
-          )}
+            ));
+          })()}
+          </div>
         </CardContent>
       </Card>
     </div>
