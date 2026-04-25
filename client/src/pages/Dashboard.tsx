@@ -31,6 +31,10 @@ function AdminDashboard() {
   const { data: branchList } = trpc.admin.listBranches.useQuery();
   const { data: stats, isLoading } = trpc.admin.getStats.useQuery(selectedBranchId ? { branchId: selectedBranchId } : undefined);
   const { data: chart } = trpc.admin.getMonthlyChart.useQuery(selectedBranchId ? { branchId: selectedBranchId } : undefined);
+  const { data: branchMembers } = trpc.admin.listMembersByBranch.useQuery(
+    { branchId: selectedBranchId! },
+    { enabled: !!selectedBranchId }
+  );
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
   const [assignDialogId, setAssignDialogId] = useState<number | null>(null);
   const [assignTrainerId, setAssignTrainerId] = useState<string>("");
@@ -168,6 +172,38 @@ function AdminDashboard() {
           ))}
         </CardContent>
       </Card>
+
+      {/* 지점별 회원 목록 (지점 필터 선택 시) */}
+      {selectedBranchId && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-green-400" />
+              {branchList?.find((b) => b.id === selectedBranchId)?.name} 회원 목록
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{branchMembers?.length ?? 0}명</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {!branchMembers?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-6">회원이 없습니다.</p>
+            ) : (
+              <div className="divide-y divide-border">
+                {branchMembers.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">{m.trainerName} · {m.phone ?? "연락처 없음"}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${m.status === "active" ? "bg-green-500/10 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                      {m.status === "active" ? "활성" : "비활성"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 미배정 회원 명단 */}
       <Card className="bg-card border-border">

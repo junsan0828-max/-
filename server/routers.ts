@@ -1458,6 +1458,39 @@ const adminRouter = t.router({
     return db.select().from(branches).orderBy(branches.name);
   }),
 
+  // 지점별 회원 목록
+  listMembersByBranch: protectedProcedure
+    .input(z.object({ branchId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const branchTrainers = await db
+        .select({ trainerId: trainerBranches.trainerId })
+        .from(trainerBranches)
+        .where(eq(trainerBranches.branchId, input.branchId));
+
+      if (branchTrainers.length === 0) return [];
+
+      const ids = branchTrainers.map((t) => t.trainerId);
+      const memberList = await db
+        .select({
+          id: members.id,
+          name: members.name,
+          phone: members.phone,
+          status: members.status,
+          trainerId: members.trainerId,
+          trainerName: trainers.trainerName,
+        })
+        .from(members)
+        .leftJoin(trainers, eq(members.trainerId, trainers.id))
+        .where(sql`${members.trainerId} = ANY(ARRAY[${sql.join(ids.map((id) => sql`${id}`), sql`, `)}]::int[])`)
+        .orderBy(trainers.trainerName, members.name);
+
+      return memberList;
+    }),
+
   // 지점 생성
   createBranch: protectedProcedure
     .input(z.object({ name: z.string().min(1) }))
