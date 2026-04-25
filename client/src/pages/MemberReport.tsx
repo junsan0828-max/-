@@ -288,11 +288,6 @@ export default function MemberReport({ token }: Props) {
                         {check.painArea ? ` (${check.painArea}${check.painSide ? " · " + check.painSide : ""})` : ""}
                       </span>
                     )}
-                    {check.notes && (
-                      <span className="w-full text-foreground/70 mt-0.5 italic">
-                        {check.notes}
-                      </span>
-                    )}
                   </div>
                 </div>
               ))}
@@ -340,6 +335,7 @@ export default function MemberReport({ token }: Props) {
               {sessionLogs.slice(0, 15).map((log) => {
                 let exercises: { name: string; sets?: number; reps?: number; weight?: number }[] = [];
                 try { if (log.exercisesJson) exercises = JSON.parse(log.exercisesJson); } catch {}
+                if (!log.goal && !log.bodyPart && exercises.length === 0) return null;
                 return (
                   <div key={log.id} className="p-4 rounded-xl bg-card border border-border space-y-2">
                     <div className="flex items-center justify-between">
@@ -358,8 +354,6 @@ export default function MemberReport({ token }: Props) {
                         ))}
                       </div>
                     )}
-                    {log.feedback && <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">피드백:</span> {log.feedback}</p>}
-                    {log.notes && <p className="text-xs text-foreground/70 italic">{log.notes}</p>}
                   </div>
                 );
               })}
