@@ -27,8 +27,10 @@ const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#0
 // ─── 관리자 대시보드 ──────────────────────────────────────────────────────────
 function AdminDashboard() {
   const [, setLocation] = useLocation();
-  const { data: stats, isLoading } = trpc.admin.getStats.useQuery();
-  const { data: chart } = trpc.admin.getMonthlyChart.useQuery();
+  const [selectedBranchId, setSelectedBranchId] = useState<number | undefined>(undefined);
+  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: stats, isLoading } = trpc.admin.getStats.useQuery(selectedBranchId ? { branchId: selectedBranchId } : undefined);
+  const { data: chart } = trpc.admin.getMonthlyChart.useQuery(selectedBranchId ? { branchId: selectedBranchId } : undefined);
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
   const [assignDialogId, setAssignDialogId] = useState<number | null>(null);
   const [assignTrainerId, setAssignTrainerId] = useState<string>("");
@@ -65,6 +67,27 @@ function AdminDashboard() {
         <h1 className="text-xl font-bold">관리자 대시보드</h1>
         <p className="text-sm text-muted-foreground mt-0.5">전체 현황</p>
       </div>
+
+      {/* 지점 필터 탭 */}
+      {branchList && branchList.length > 0 && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSelectedBranchId(undefined)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedBranchId === undefined ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:bg-accent/50"}`}
+          >
+            전체
+          </button>
+          {branchList.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => setSelectedBranchId(b.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedBranchId === b.id ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:bg-accent/50"}`}
+            >
+              {b.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 전체 통계 */}
       <div className="grid grid-cols-2 gap-3">

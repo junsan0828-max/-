@@ -659,16 +659,17 @@ export default function Admin() {
                         : "로그인 기록 없음"}
                     </p>
                     {branchList && branchList.length > 0 && (
-                      <div className="flex items-center gap-3 mt-1.5">
+                      <div className="flex items-center gap-3 mt-1.5" onClick={(e) => e.stopPropagation()}>
                         {branchList.map((b) => {
                           const checked = trainer.assignedBranches.some((ab) => ab.branchId === b.id);
                           return (
-                            <label key={b.id} className="flex items-center gap-1 cursor-pointer select-none">
+                            <label key={b.id} className="flex items-center gap-1 cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={checked}
                                 className="h-3.5 w-3.5 accent-primary"
-                                onChange={() => {
+                                onChange={(e) => {
+                                  e.stopPropagation();
                                   const current = trainer.assignedBranches.map((ab) => ab.branchId);
                                   const next = checked ? current.filter((id) => id !== b.id) : [...current, b.id];
                                   updateTrainerBranchesMutation.mutate({ trainerId: trainer.id, branchIds: next });
