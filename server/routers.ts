@@ -1,3 +1,4 @@
+import { gymRouter } from "./gymRouters";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, sql, lte, gte, gt } from "drizzle-orm";
@@ -2417,6 +2418,7 @@ export const appRouter = t.router({
   attendanceChecks: attendanceChecksRouter,
   reports: reportsRouter,
   schedules: schedulesRouter,
+  gym: gymRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -9,7 +9,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings, sheetSyncConfig } from "../drizzle/schema";
+import { users, trainers, trainerSettings, sheetSyncConfig, channels } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
 
@@ -256,6 +256,73 @@ async function initDatabase() {
       status TEXT NOT NULL DEFAULT 'pending',
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    // ─── 통합 운영 시스템 테이블 ──────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS channels (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'online',
+      description TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS leads (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      gender TEXT,
+      "ageGroup" TEXT,
+      "channelId" INTEGER,
+      "branchId" INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "assignedTrainerId" INTEGER,
+      "consultationDate" TEXT,
+      "consultationNote" TEXT,
+      "registeredMemberId" INTEGER,
+      "interestType" TEXT,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS revenue_entries (
+      id SERIAL PRIMARY KEY,
+      "memberId" INTEGER,
+      "leadId" INTEGER,
+      "trainerId" INTEGER,
+      "branchId" INTEGER,
+      "channelId" INTEGER,
+      type TEXT NOT NULL,
+      "subType" TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      "discountAmount" INTEGER NOT NULL DEFAULT 0,
+      "paidAmount" INTEGER NOT NULL,
+      "unpaidAmount" INTEGER NOT NULL DEFAULT 0,
+      "refundAmount" INTEGER NOT NULL DEFAULT 0,
+      "paymentMethod" TEXT,
+      "paymentDate" TEXT NOT NULL,
+      installments INTEGER NOT NULL DEFAULT 1,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS expense_entries (
+      id SERIAL PRIMARY KEY,
+      "branchId" INTEGER,
+      category TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      vendor TEXT,
+      "expenseDate" TEXT NOT NULL,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS revenue_targets (
+      id SERIAL PRIMARY KEY,
+      "branchId" INTEGER,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      "targetAmount" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {
@@ -320,6 +387,22 @@ async function initDatabase() {
       await db.insert(trainerSettings).values({ trainerId: tr.id, settlementRate: t.settlementRate });
       console.log(`✅ 트레이너 복구: ${t.trainerName} (${t.username} / 123123)`);
     }
+  }
+
+  // 기본 채널 시드 (없으면 생성)
+  const existingChannels = await db.select({ id: channels.id }).from(channels).limit(1);
+  if (!existingChannels[0]) {
+    await db.insert(channels).values([
+      { name: "인스타그램", type: "sns", description: "인스타그램 광고/게시물" },
+      { name: "네이버 블로그", type: "online", description: "네이버 블로그 검색" },
+      { name: "네이버 지도", type: "online", description: "네이버 지도/플레이스" },
+      { name: "카카오 광고", type: "online", description: "카카오 채널/광고" },
+      { name: "지인 소개", type: "referral", description: "기존 회원 소개" },
+      { name: "현수막/전단", type: "offline", description: "오프라인 홍보물" },
+      { name: "유튜브", type: "sns", description: "유튜브 채널" },
+      { name: "기타", type: "offline", description: "기타 채널" },
+    ]);
+    console.log("✅ 기본 채널 데이터 생성 완료");
   }
 
   // 구글시트 URL 고정 설정 (없으면 자동 생성, 있으면 URL만 갱신)

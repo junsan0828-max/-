@@ -26,6 +26,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import GymDashboard from "./pages/GymDashboard";
 import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
@@ -40,6 +41,11 @@ import PT from "./pages/PT";
 import Profile from "./pages/Profile";
 import SettlementReport from "./pages/SettlementReport";
 import TrainerSettlement from "./pages/TrainerSettlement";
+import LeadsPage from "./pages/Leads";
+import RevenuePage from "./pages/Revenue";
+import ExpensesPage from "./pages/Expenses";
+import MarketingPage from "./pages/Marketing";
+import AiAnalysisPage from "./pages/AiAnalysis";
 import Layout from "./components/Layout";
 
 function App() {
@@ -69,7 +75,13 @@ function App() {
     <Layout>
       <ErrorBoundary>
       <Switch>
-        <Route path="/">{() => <Dashboard />}</Route>
+        <Route path="/">{() => user?.role === "admin" ? <GymDashboard /> : <Dashboard />}</Route>
+        <Route path="/gym-dashboard">{() => <GymDashboard />}</Route>
+        <Route path="/leads">{() => <LeadsPage />}</Route>
+        <Route path="/revenue">{() => <RevenuePage />}</Route>
+        <Route path="/expenses">{() => <ExpensesPage />}</Route>
+        <Route path="/marketing">{() => <MarketingPage />}</Route>
+        <Route path="/ai-analysis">{() => <AiAnalysisPage />}</Route>
         <Route path="/members">{() => <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
         <Route path="/trainers/:id/members/new">

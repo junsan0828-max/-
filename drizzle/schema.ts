@@ -211,6 +211,86 @@ export const payments = pgTable("payments", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+// ─── 통합 운영 시스템 ─────────────────────────────────────────────────────────
+
+// 유입 채널 (마케팅 채널)
+export const channels = pgTable("channels", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").default("online").notNull(), // online / offline / referral / sns
+  description: text("description"),
+  isActive: integer("isActive").default(1).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 리드 (상담 문의)
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  gender: text("gender"),
+  ageGroup: text("ageGroup"),
+  channelId: integer("channelId"),
+  branchId: integer("branchId"),
+  status: text("status").default("pending").notNull(), // pending / consulted / registered / dropped
+  assignedTrainerId: integer("assignedTrainerId"),
+  consultationDate: text("consultationDate"),
+  consultationNote: text("consultationNote"),
+  registeredMemberId: integer("registeredMemberId"),
+  interestType: text("interestType"), // PT / 헬스 / 기타
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 매출 장부
+export const revenueEntries = pgTable("revenue_entries", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId"),
+  leadId: integer("leadId"),
+  trainerId: integer("trainerId"),
+  branchId: integer("branchId"),
+  channelId: integer("channelId"),
+  type: text("type").notNull(), // PT / 헬스 / 기타
+  subType: text("subType").notNull(), // 신규 / 재등록
+  amount: integer("amount").notNull(),
+  discountAmount: integer("discountAmount").default(0).notNull(),
+  paidAmount: integer("paidAmount").notNull(),
+  unpaidAmount: integer("unpaidAmount").default(0).notNull(),
+  refundAmount: integer("refundAmount").default(0).notNull(),
+  paymentMethod: text("paymentMethod"), // 카드 / 현금 / 계좌이체
+  paymentDate: text("paymentDate").notNull(),
+  installments: integer("installments").default(1).notNull(),
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 지출 장부
+export const expenseEntries = pgTable("expense_entries", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  category: text("category").notNull(), // 임대료 / 급여 / 기기 / 마케팅 / 운영 / 기타
+  amount: integer("amount").notNull(),
+  vendor: text("vendor"),
+  expenseDate: text("expenseDate").notNull(),
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 매출 목표
+export const revenueTargets = pgTable("revenue_targets", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  targetAmount: integer("targetAmount").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // 구글시트 자동 동기화 설정
 export const sheetSyncConfig = pgTable("sheet_sync_config", {
   id: serial("id").primaryKey(),
