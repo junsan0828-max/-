@@ -165,8 +165,8 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "지점 생성 실패"),
   });
 
-  const updateTrainerBranchMutation = trpc.admin.updateTrainerBranch.useMutation({
-    onSuccess: () => { toast.success("지점이 변경되었습니다."); refetch(); },
+  const updateTrainerBranchesMutation = trpc.admin.updateTrainerBranches.useMutation({
+    onSuccess: () => { refetch(); },
     onError: (err) => toast.error(err.message || "지점 변경 실패"),
   });
 
@@ -644,11 +644,11 @@ export default function Admin() {
                     {trainer.trainerName.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-sm">{trainer.trainerName}</p>
-                      {trainer.branchName && (
-                        <span className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded-full">{trainer.branchName}</span>
-                      )}
+                      {trainer.assignedBranches.map((b) => (
+                        <span key={b.branchId} className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded-full">{b.branchName}</span>
+                      ))}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       회원 {trainer.memberCount}명 · 정산 {trainer.settlementRate}%
@@ -659,20 +659,26 @@ export default function Admin() {
                         : "로그인 기록 없음"}
                     </p>
                     {branchList && branchList.length > 0 && (
-                      <Select
-                        value={trainer.branchId ? String(trainer.branchId) : "none"}
-                        onValueChange={(v) => updateTrainerBranchMutation.mutate({ trainerId: trainer.id, branchId: v === "none" ? null : parseInt(v) })}
-                      >
-                        <SelectTrigger className="h-6 text-xs mt-1 w-28 border-border/50">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none" className="text-xs">미배정</SelectItem>
-                          {branchList.map((b) => (
-                            <SelectItem key={b.id} value={String(b.id)} className="text-xs">{b.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        {branchList.map((b) => {
+                          const checked = trainer.assignedBranches.some((ab) => ab.branchId === b.id);
+                          return (
+                            <label key={b.id} className="flex items-center gap-1 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                className="h-3.5 w-3.5 accent-primary"
+                                onChange={() => {
+                                  const current = trainer.assignedBranches.map((ab) => ab.branchId);
+                                  const next = checked ? current.filter((id) => id !== b.id) : [...current, b.id];
+                                  updateTrainerBranchesMutation.mutate({ trainerId: trainer.id, branchIds: next });
+                                }}
+                              />
+                              <span className="text-xs text-muted-foreground">{b.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </button>

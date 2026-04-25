@@ -19,6 +19,7 @@ import {
   ptPauses,
   schedules,
   branches,
+  trainerBranches,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
@@ -1351,21 +1352,19 @@ const adminRouter = t.router({
 
     const result = await Promise.all(
       trainerList.map(async (trainer) => {
-        const [memberCount, settings] = await Promise.all([
-          db
-            .select({ count: sql`COUNT(*)` })
-            .from(members)
-            .where(eq(members.trainerId, trainer.id)),
-          db
-            .select({ settlementRate: trainerSettings.settlementRate })
-            .from(trainerSettings)
-            .where(eq(trainerSettings.trainerId, trainer.id))
-            .limit(1),
+        const [memberCount, settings, trainerBranchList] = await Promise.all([
+          db.select({ count: sql`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
+          db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainer.id)).limit(1),
+          db.select({ branchId: trainerBranches.branchId, branchName: branches.name })
+            .from(trainerBranches)
+            .leftJoin(branches, eq(trainerBranches.branchId, branches.id))
+            .where(eq(trainerBranches.trainerId, trainer.id)),
         ]);
         return {
           ...trainer,
           memberCount: Number((memberCount[0] as any)?.count ?? 0),
           settlementRate: settings[0]?.settlementRate ?? 50,
+          assignedBranches: trainerBranchList.map((b) => ({ branchId: b.branchId, branchName: b.branchName ?? "" })),
         };
       })
     );
@@ -1470,14 +1469,17 @@ const adminRouter = t.router({
       return branch;
     }),
 
-  // 트레이너 지점 할당
-  updateTrainerBranch: protectedProcedure
-    .input(z.object({ trainerId: z.number(), branchId: z.number().nullable() }))
+  // 트레이너 지점 할당 (다중 지점 지원)
+  updateTrainerBranches: protectedProcedure
+    .input(z.object({ trainerId: z.number(), branchIds: z.array(z.number()) }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      await db.update(trainers).set({ branchId: input.branchId }).where(eq(trainers.id, input.trainerId));
+      await db.delete(trainerBranches).where(eq(trainerBranches.trainerId, input.trainerId));
+      if (input.branchIds.length > 0) {
+        await db.insert(trainerBranches).values(input.branchIds.map((branchId) => ({ trainerId: input.trainerId, branchId })));
+      }
       return { success: true };
     }),
 
@@ -1704,20 +1706,23 @@ const adminRouter = t.router({
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString().split("T")[0];
 
-    const branchFilter = input?.branchId ? eq(trainers.branchId, input.branchId) : undefined;
+    // branchId 필터: junction 테이블로 해당 지점 소속 trainerIds 조회
+    let filteredTrainerIds: number[] | null = null;
+    if (input?.branchId) {
+      const rows = await db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId));
+      filteredTrainerIds = rows.map((r) => r.trainerId);
+    }
+    const trainerIdFilter = filteredTrainerIds ? sql`${trainers.id} = ANY(ARRAY[${sql.join(filteredTrainerIds.map((id) => sql`${id}`), sql`, `)}]::int[])` : undefined;
 
     const [totalTrainersResult, totalMembersResult, activeMembersResult] = await Promise.all([
-      db.select({ count: sql<number>`COUNT(*)` }).from(trainers).where(branchFilter),
-      db.select({ count: sql<number>`COUNT(*)` }).from(members)
-        .leftJoin(trainers, eq(members.trainerId, trainers.id))
-        .where(branchFilter),
-      db.select({ count: sql<number>`COUNT(*)` }).from(members)
-        .leftJoin(trainers, eq(members.trainerId, trainers.id))
-        .where(branchFilter ? and(eq(members.status, "active"), branchFilter) : eq(members.status, "active")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(trainers).where(trainerIdFilter),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members).leftJoin(trainers, eq(members.trainerId, trainers.id)).where(trainerIdFilter),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members).leftJoin(trainers, eq(members.trainerId, trainers.id))
+        .where(trainerIdFilter ? and(eq(members.status, "active"), trainerIdFilter) : eq(members.status, "active")),
     ]);
 
     // 트레이너별 상세 통계
-    const trainerList = await db.select().from(trainers).where(branchFilter).orderBy(trainers.trainerName);
+    const trainerList = await db.select().from(trainers).where(trainerIdFilter).orderBy(trainers.trainerName);
     const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
       const [memberCnt, settings, monthPackages, monthLogs] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
@@ -1784,8 +1789,15 @@ const adminRouter = t.router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    const branchFilter = input?.branchId ? eq(trainers.branchId, input.branchId) : undefined;
-    const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName }).from(trainers).where(branchFilter).orderBy(trainers.trainerName);
+    let filteredTrainerIdsForChart: number[] | null = null;
+    if (input?.branchId) {
+      const rows = await db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId));
+      filteredTrainerIdsForChart = rows.map((r) => r.trainerId);
+    }
+    const chartTrainerFilter = filteredTrainerIdsForChart
+      ? sql`${trainers.id} = ANY(ARRAY[${sql.join(filteredTrainerIdsForChart.map((id) => sql`${id}`), sql`, `)}]::int[])`
+      : undefined;
+    const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName }).from(trainers).where(chartTrainerFilter).orderBy(trainers.trainerName);
 
     // 최근 6개월 범위 생성
     const months: { label: string; start: string; end: string }[] = [];

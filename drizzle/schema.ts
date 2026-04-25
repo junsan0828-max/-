@@ -33,6 +33,13 @@ export const trainers = pgTable("trainers", {
   updatedAt: text("updatedAt").default(now).notNull(),
 });
 
+// 트레이너-지점 다대다
+export const trainerBranches = pgTable("trainer_branches", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  branchId: integer("branchId").notNull(),
+});
+
 // 트레이너 설정
 export const trainerSettings = pgTable("trainer_settings", {
   id: serial("id").primaryKey(),

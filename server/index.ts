@@ -273,6 +273,12 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `CREATE TABLE IF NOT EXISTS trainer_branches (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      "branchId" INTEGER NOT NULL,
+      UNIQUE("trainerId", "branchId")
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
