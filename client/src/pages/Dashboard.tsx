@@ -40,6 +40,8 @@ function AdminDashboard() {
   const [assignTrainerId, setAssignTrainerId] = useState<string>("");
   const [revenueModalOpen, setRevenueModalOpen] = useState(false);
   const [settlementModalOpen, setSettlementModalOpen] = useState(false);
+  const [branchTrainerModalOpen, setBranchTrainerModalOpen] = useState(false);
+  const [branchMemberModalOpen, setBranchMemberModalOpen] = useState(false);
   const utils = trpc.useUtils();
 
   const assignMutation = trpc.admin.assignPending.useMutation({
@@ -96,8 +98,8 @@ function AdminDashboard() {
       {/* 전체 통계 */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400" },
-          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400" },
+          { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400", onClick: selectedBranchId ? () => setBranchTrainerModalOpen(true) : undefined },
+          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400", onClick: selectedBranchId ? () => setBranchMemberModalOpen(true) : undefined },
           { label: "이번달 매출", value: `${(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원`, icon: TrendingUp, color: "text-yellow-400", onClick: () => setRevenueModalOpen(true) },
           { label: "이번달 정산", value: `${(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원`, icon: Activity, color: "text-purple-400", onClick: () => setSettlementModalOpen(true) },
         ].map((card) => (
@@ -172,38 +174,6 @@ function AdminDashboard() {
           ))}
         </CardContent>
       </Card>
-
-      {/* 지점별 회원 목록 (지점 필터 선택 시) */}
-      {selectedBranchId && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4 text-green-400" />
-              {branchList?.find((b) => b.id === selectedBranchId)?.name} 회원 목록
-              <span className="ml-auto text-xs font-normal text-muted-foreground">{branchMembers?.length ?? 0}명</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {!branchMembers?.length ? (
-              <p className="text-sm text-muted-foreground text-center py-6">회원이 없습니다.</p>
-            ) : (
-              <div className="divide-y divide-border">
-                {branchMembers.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">{m.trainerName} · {m.phone ?? "연락처 없음"}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${m.status === "active" ? "bg-green-500/10 text-green-400" : "bg-muted text-muted-foreground"}`}>
-                      {m.status === "active" ? "활성" : "비활성"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* 미배정 회원 명단 */}
       <Card className="bg-card border-border">
@@ -341,6 +311,67 @@ function AdminDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 지점 트레이너 모달 */}
+      <Dialog open={branchTrainerModalOpen} onOpenChange={setBranchTrainerModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCog className="h-4 w-4 text-blue-400" />
+              {branchList?.find((b) => b.id === selectedBranchId)?.name} 트레이너
+            </DialogTitle>
+            <DialogDescription className="text-xs">해당 지점 소속 트레이너 목록</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!stats?.trainerStats?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-4">트레이너가 없습니다.</p>
+            ) : (
+              stats.trainerStats.map((t) => (
+                <button key={t.id} onClick={() => { setBranchTrainerModalOpen(false); setLocation(`/trainers/${t.id}`); }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-accent/40 transition-colors">
+                  <div className="text-left">
+                    <p className="text-sm font-medium">{t.trainerName}</p>
+                    <p className="text-xs text-muted-foreground">회원 {t.memberCount}명 · 정산 {t.settlementRate}%</p>
+                  </div>
+                  <span className="text-xs text-blue-400">{t.monthlyRevenue > 0 ? `${t.monthlyRevenue.toLocaleString()}원` : "-"}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 지점 회원 모달 */}
+      <Dialog open={branchMemberModalOpen} onOpenChange={setBranchMemberModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-green-400" />
+              {branchList?.find((b) => b.id === selectedBranchId)?.name} 회원
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{branchMembers?.length ?? 0}명</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">해당 지점 소속 전체 회원</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-96 overflow-y-auto divide-y divide-border">
+            {!branchMembers?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-4">회원이 없습니다.</p>
+            ) : (
+              branchMembers.map((m) => (
+                <div key={m.id} className="flex items-center justify-between px-1 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.trainerName} · {m.phone ?? "연락처 없음"}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${m.status === "active" ? "bg-green-500/10 text-green-400" : "bg-muted/50 text-muted-foreground"}`}>
+                    {m.status === "active" ? "활성" : "비활성"}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
