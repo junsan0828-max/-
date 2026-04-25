@@ -38,7 +38,14 @@ export default function Trainers() {
                     {trainer.trainerName.charAt(0)}
                   </div>
                   <div>
-                    <p className="font-medium text-foreground">{trainer.trainerName}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground">{trainer.trainerName}</p>
+                      {trainer.assignedBranches?.map((b) => (
+                        <span key={b.branchId} className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                          {b.branchName}
+                        </span>
+                      ))}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Users className="h-3 w-3" />
