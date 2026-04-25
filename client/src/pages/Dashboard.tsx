@@ -19,17 +19,29 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
   AreaChart, Area, LineChart, Line,
 } from "recharts";
+import ExerciseEditor, { type Exercise } from "@/components/ExerciseEditor";
+import BodyPartPicker from "@/components/BodyPartPicker";
 
 const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
 
 // ─── 관리자 대시보드 ──────────────────────────────────────────────────────────
 function AdminDashboard() {
   const [, setLocation] = useLocation();
-  const { data: stats, isLoading } = trpc.admin.getStats.useQuery();
-  const { data: chart } = trpc.admin.getMonthlyChart.useQuery();
+  const [selectedBranchId, setSelectedBranchId] = useState<number | undefined>(undefined);
+  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: stats, isLoading } = trpc.admin.getStats.useQuery(selectedBranchId ? { branchId: selectedBranchId } : undefined);
+  const { data: chart } = trpc.admin.getMonthlyChart.useQuery(selectedBranchId ? { branchId: selectedBranchId } : undefined);
+  const { data: branchMembers } = trpc.admin.listMembersByBranch.useQuery(
+    { branchId: selectedBranchId! },
+    { enabled: !!selectedBranchId }
+  );
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
   const [assignDialogId, setAssignDialogId] = useState<number | null>(null);
   const [assignTrainerId, setAssignTrainerId] = useState<string>("");
+  const [revenueModalOpen, setRevenueModalOpen] = useState(false);
+  const [settlementModalOpen, setSettlementModalOpen] = useState(false);
+  const [branchTrainerModalOpen, setBranchTrainerModalOpen] = useState(false);
+  const [branchMemberModalOpen, setBranchMemberModalOpen] = useState(false);
   const utils = trpc.useUtils();
 
   const assignMutation = trpc.admin.assignPending.useMutation({
@@ -62,16 +74,37 @@ function AdminDashboard() {
         <p className="text-sm text-muted-foreground mt-0.5">전체 현황</p>
       </div>
 
+      {/* 지점 필터 탭 */}
+      {branchList && branchList.length > 0 && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSelectedBranchId(undefined)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedBranchId === undefined ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:bg-accent/50"}`}
+          >
+            전체
+          </button>
+          {branchList.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => setSelectedBranchId(b.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedBranchId === b.id ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:bg-accent/50"}`}
+            >
+              {b.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 전체 통계 */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400", path: "/trainers" },
-          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400", path: "/trainers" },
-          { label: "이번달 매출", value: `${(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원`, icon: TrendingUp, color: "text-yellow-400", path: "/admin" },
-          { label: "이번달 정산", value: `${(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원`, icon: Activity, color: "text-purple-400", path: "/admin" },
+          { label: "전체 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: UserCog, color: "text-blue-400", onClick: selectedBranchId ? () => setBranchTrainerModalOpen(true) : undefined },
+          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400", onClick: selectedBranchId ? () => setBranchMemberModalOpen(true) : undefined },
+          { label: "이번달 매출", value: `${(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원`, icon: TrendingUp, color: "text-yellow-400", onClick: () => setRevenueModalOpen(true) },
+          { label: "이번달 정산", value: `${(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원`, icon: Activity, color: "text-purple-400", onClick: () => setSettlementModalOpen(true) },
         ].map((card) => (
-          <button key={card.label} onClick={() => setLocation(card.path)} className="text-left">
-            <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
+          <button key={card.label} onClick={(card as any).onClick ?? undefined} className={`text-left ${!(card as any).onClick ? "cursor-default" : ""}`}>
+            <Card className={`bg-card border-border transition-colors ${(card as any).onClick ? "hover:border-primary/40 cursor-pointer" : ""}`}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs text-muted-foreground">{card.label}</p>
@@ -208,6 +241,137 @@ function AdminDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 이번달 매출 모달 */}
+      <Dialog open={revenueModalOpen} onOpenChange={setRevenueModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-yellow-400" />이번달 매출 현황
+            </DialogTitle>
+            <DialogDescription className="text-xs">트레이너별 이번달 PT 세션 매출</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {(stats?.trainerStats ?? []).filter(t => t.monthlyRevenue > 0).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">이번달 매출이 없습니다.</p>
+            ) : (
+              (stats?.trainerStats ?? [])
+                .filter(t => t.monthlyRevenue > 0)
+                .sort((a, b) => b.monthlyRevenue - a.monthlyRevenue)
+                .map(t => (
+                  <button key={t.id} onClick={() => { setRevenueModalOpen(false); setLocation(`/trainers/${t.id}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors">
+                    <div>
+                      <p className="text-sm font-medium text-left">{t.trainerName}</p>
+                      <p className="text-xs text-muted-foreground">{t.memberCount}명 · 정산 {t.settlementRate}%</p>
+                    </div>
+                    <span className="text-sm font-bold text-yellow-400">{t.monthlyRevenue.toLocaleString()}원</span>
+                  </button>
+                ))
+            )}
+            <div className="border-t border-border/50 pt-2 px-3 flex justify-between">
+              <span className="text-sm text-muted-foreground">합계</span>
+              <span className="text-sm font-bold">{(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}원</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 이번달 정산 모달 */}
+      <Dialog open={settlementModalOpen} onOpenChange={setSettlementModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-purple-400" />이번달 정산 현황
+            </DialogTitle>
+            <DialogDescription className="text-xs">트레이너별 정산 금액 (매출 × 정산비율)</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {(stats?.trainerStats ?? []).filter(t => t.monthlySettlement > 0).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">이번달 정산 내역이 없습니다.</p>
+            ) : (
+              (stats?.trainerStats ?? [])
+                .filter(t => t.monthlySettlement > 0)
+                .sort((a, b) => b.monthlySettlement - a.monthlySettlement)
+                .map(t => (
+                  <button key={t.id} onClick={() => { setSettlementModalOpen(false); setLocation(`/trainers/${t.id}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors">
+                    <div>
+                      <p className="text-sm font-medium text-left">{t.trainerName}</p>
+                      <p className="text-xs text-muted-foreground">매출 {t.monthlyRevenue.toLocaleString()}원 × {t.settlementRate}%</p>
+                    </div>
+                    <span className="text-sm font-bold text-purple-400">{t.monthlySettlement.toLocaleString()}원</span>
+                  </button>
+                ))
+            )}
+            <div className="border-t border-border/50 pt-2 px-3 flex justify-between">
+              <span className="text-sm text-muted-foreground">합계</span>
+              <span className="text-sm font-bold">{(stats?.totalMonthlySettlement ?? 0).toLocaleString()}원</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 지점 트레이너 모달 */}
+      <Dialog open={branchTrainerModalOpen} onOpenChange={setBranchTrainerModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCog className="h-4 w-4 text-blue-400" />
+              {branchList?.find((b) => b.id === selectedBranchId)?.name} 트레이너
+            </DialogTitle>
+            <DialogDescription className="text-xs">해당 지점 소속 트레이너 목록</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!stats?.trainerStats?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-4">트레이너가 없습니다.</p>
+            ) : (
+              stats.trainerStats.map((t) => (
+                <button key={t.id} onClick={() => { setBranchTrainerModalOpen(false); setLocation(`/trainers/${t.id}`); }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-accent/40 transition-colors">
+                  <div className="text-left">
+                    <p className="text-sm font-medium">{t.trainerName}</p>
+                    <p className="text-xs text-muted-foreground">회원 {t.memberCount}명 · 정산 {t.settlementRate}%</p>
+                  </div>
+                  <span className="text-xs text-blue-400">{t.monthlyRevenue > 0 ? `${t.monthlyRevenue.toLocaleString()}원` : "-"}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 지점 회원 모달 */}
+      <Dialog open={branchMemberModalOpen} onOpenChange={setBranchMemberModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-green-400" />
+              {branchList?.find((b) => b.id === selectedBranchId)?.name} 회원
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{branchMembers?.length ?? 0}명</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">해당 지점 소속 전체 회원</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-96 overflow-y-auto divide-y divide-border">
+            {!branchMembers?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-4">회원이 없습니다.</p>
+            ) : (
+              branchMembers.map((m) => (
+                <div key={m.id} className="flex items-center justify-between px-1 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.trainerName} · {m.phone ?? "연락처 없음"}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${m.status === "active" ? "bg-green-500/10 text-green-400" : "bg-muted/50 text-muted-foreground"}`}>
+                    {m.status === "active" ? "활성" : "비활성"}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
@@ -223,12 +387,15 @@ function TrainerDashboard() {
 
   const [journalOpen, setJournalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
-  const [journalForm, setJournalForm] = useState({
+  const [journalForm, setJournalForm] = useState<{
+    sessionDate: string; exerciseType: string; bodyPart: string;
+    notes: string; exercises: Exercise[];
+  }>({
     sessionDate: new Date().toISOString().split("T")[0],
     exerciseType: "",
     bodyPart: "",
     notes: "",
-    exercises: [] as { name: string; sets: string; reps: string; weight: string }[],
+    exercises: [] as Exercise[],
   });
 
   const useSessionMutation = trpc.pt.useSession.useMutation({
@@ -243,6 +410,40 @@ function TrainerDashboard() {
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
   const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
+
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [reregisterOpen, setReregisterOpen] = useState(false);
+  const [reregMemberId, setReregMemberId] = useState<string>("");
+  const [reregForm, setReregForm] = useState({
+    ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
+    paymentAmount: "", unpaidAmount: "", paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMemo: "",
+  });
+
+  const addPackageMutation = trpc.pt.addPackage.useMutation({
+    onSuccess: () => {
+      toast.success("재등록 완료");
+      setReregisterOpen(false);
+      setReregMemberId("");
+      setReregForm({ ptProgram: "", totalSessions: "", startDate: "", expiryDate: "", paymentAmount: "", unpaidAmount: "", paymentMethod: "", paymentMemo: "" });
+      utils.dashboard.getStats.invalidate();
+      utils.pt.list.invalidate();
+      utils.pt.listByMember.invalidate();
+    },
+    onError: (e: { message: string }) => toast.error(e.message),
+  });
+
+  const [todayModalOpen, setTodayModalOpen] = useState(false);
+  const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
+    { date: todayStr },
+    { enabled: todayModalOpen }
+  );
+  const { data: memberSessionStats } = trpc.pt.memberSessionStats.useQuery(
+    undefined,
+    { enabled: ptStatsModalOpen }
+  );
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -261,8 +462,8 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
-        <Button size="sm" onClick={() => setLocation("/members/new")} className="gap-1.5">
-          <UserPlus className="h-4 w-4" />신규 등록
+        <Button size="sm" onClick={() => setRegisterModalOpen(true)} className="gap-1.5">
+          <UserPlus className="h-4 w-4" />회원 등록
         </Button>
       </div>
 
@@ -279,12 +480,12 @@ function TrainerDashboard() {
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", path: "/members" },
-          { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", path: "/members" },
-          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", path: "/members" },
-          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", path: "/pt" },
+          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", onClick: () => setLocation("/members") },
+          { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", onClick: () => setLocation("/members") },
+          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", onClick: () => setTodayModalOpen(true) },
+          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
         ].map((card) => (
-          <button key={card.label} onClick={() => setLocation(card.path)} className="text-left">
+          <button key={card.label} onClick={card.onClick} className="text-left">
             <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -305,11 +506,11 @@ function TrainerDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
-          <button onClick={() => setLocation("/pt")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
+          <button onClick={() => setLocation("/trainer-settlement?view=daily")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
             <p className="text-xs text-muted-foreground mb-1">일일 정산</p>
             <p className="text-xl font-bold text-primary">{(stats?.dailySettlement ?? 0).toLocaleString()}원</p>
           </button>
-          <button onClick={() => setLocation("/pt")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
+          <button onClick={() => setLocation("/trainer-settlement?view=monthly")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
             <p className="text-xs text-muted-foreground mb-1">월 정산</p>
             <p className="text-xl font-bold text-primary">{(stats?.monthlySettlement ?? 0).toLocaleString()}원</p>
           </button>
@@ -562,34 +763,15 @@ function TrainerDashboard() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 부위</label>
-              <Select value={journalForm.bodyPart} onValueChange={v => setJournalForm(p => ({ ...p, bodyPart: v === "__none" ? "" : v }))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 부위를 선택하세요" /></SelectTrigger>
-                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                  {["전신","상체","하체","등","어깨","가슴","복부","허리","코어","고관절","대퇴 후면","대퇴 전면","하퇴","발목·발","이두","삼두","유산소","기타"].map(bp => (
-                    <SelectItem key={bp} value={bp}>{bp}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-xs font-medium text-muted-foreground">운동 부위 (최대 3개)</label>
+              <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
-                <button onClick={() => setJournalForm(p => ({ ...p, exercises: [...p.exercises, { name: "", sets: "", reps: "", weight: "" }] }))}
-                  className="text-xs text-primary hover:underline">+ 추가</button>
-              </div>
-              {journalForm.exercises.length === 0 && <p className="text-xs text-muted-foreground">종목을 추가하세요 (선택)</p>}
-              <div className="space-y-2">
-                {journalForm.exercises.map((ex, i) => (
-                  <div key={i} className="flex gap-1 items-center">
-                    <Input placeholder="종목명" value={ex.name} onChange={e => setJournalForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], name: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs flex-1" />
-                    <Input placeholder="세트" value={ex.sets} onChange={e => setJournalForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], sets: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
-                    <Input placeholder="횟수" value={ex.reps} onChange={e => setJournalForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], reps: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
-                    <Input placeholder="kg" value={ex.weight} onChange={e => setJournalForm(p => { const arr = [...p.exercises]; arr[i] = { ...arr[i], weight: e.target.value }; return { ...p, exercises: arr }; })} className="h-8 text-xs w-12" />
-                    <button onClick={() => setJournalForm(p => ({ ...p, exercises: p.exercises.filter((_, j) => j !== i) }))} className="text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5"/></button>
-                  </div>
-                ))}
-              </div>
+              <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
+              <ExerciseEditor
+                exercises={journalForm.exercises}
+                onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))}
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">메모</label>
@@ -609,6 +791,229 @@ function TrainerDashboard() {
                   });
                 }}>
                 {useSessionMutation.isPending ? "기록 중..." : "기록 완료"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 오늘 출석 모달 */}
+      <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-yellow-400" />
+              오늘 출석 현황
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {todayStr.replace(/-/g, ".")} · 출석 {todayAttendanceList?.filter(m => m.check?.status === "attended").length ?? 0}명
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!todayAttendanceList ? (
+              <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>
+            ) : todayAttendanceList.filter(m => m.check).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">오늘 출석 기록이 없습니다.</p>
+            ) : (
+              todayAttendanceList
+                .filter(m => m.check)
+                .map(m => {
+                  const statusColor =
+                    m.check?.status === "attended" ? "text-green-400" :
+                    m.check?.status === "noshow" ? "text-red-400" : "text-yellow-400";
+                  const statusLabel =
+                    m.check?.status === "attended" ? "출석" :
+                    m.check?.status === "noshow" ? "노쇼" : "캔슬";
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => { setTodayModalOpen(false); setLocation(`/members/${m.id}`); }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors"
+                    >
+                      <span className="text-sm font-medium">{m.name}</span>
+                      <div className="flex items-center gap-2">
+                        {m.check?.checkTime && (
+                          <span className="text-xs text-muted-foreground">{m.check.checkTime}</span>
+                        )}
+                        <span className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
+                      </div>
+                    </button>
+                  );
+                })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 총 PT 세션 모달 */}
+      <Dialog open={ptStatsModalOpen} onOpenChange={setPtStatsModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Dumbbell className="h-4 w-4 text-purple-400" />
+              회원별 PT 세션 현황
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              누적 세션 횟수 기준 정렬
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!memberSessionStats ? (
+              <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>
+            ) : memberSessionStats.filter(m => Number(m.totalSessions) > 0).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">세션 기록이 없습니다.</p>
+            ) : (
+              memberSessionStats
+                .filter(m => Number(m.totalSessions) > 0)
+                .map((m, idx) => (
+                  <button
+                    key={m.memberId}
+                    onClick={() => { setPtStatsModalOpen(false); setLocation(`/members/${m.memberId}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-5 text-right">{idx + 1}</span>
+                      <span className="text-sm font-medium">{m.memberName}</span>
+                    </div>
+                    <span className="text-sm font-bold text-purple-400">{Number(m.totalSessions)}회</span>
+                  </button>
+                ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 회원 등록 선택 모달 */}
+      <Dialog open={registerModalOpen} onOpenChange={setRegisterModalOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-primary" />회원 등록
+            </DialogTitle>
+            <DialogDescription className="text-xs">등록 유형을 선택하세요.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <button
+              onClick={() => { setRegisterModalOpen(false); setLocation("/members/new"); }}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-accent/20 hover:border-primary/50 hover:bg-primary/10 transition-colors"
+            >
+              <UserPlus className="h-7 w-7 text-primary" />
+              <span className="text-sm font-semibold">신규</span>
+              <span className="text-xs text-muted-foreground text-center">새 회원 등록</span>
+            </button>
+            <button
+              onClick={() => { setRegisterModalOpen(false); setReregisterOpen(true); }}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-accent/20 hover:border-green-500/50 hover:bg-green-500/10 transition-colors"
+            >
+              <RefreshCw className="h-7 w-7 text-green-400" />
+              <span className="text-sm font-semibold">재등록</span>
+              <span className="text-xs text-muted-foreground text-center">기존 회원 재등록</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 재등록 모달 */}
+      <Dialog open={reregisterOpen} onOpenChange={setReregisterOpen}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-green-400" />재등록
+            </DialogTitle>
+            <DialogDescription className="text-xs">기존 회원에게 새 PT 패키지를 등록합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">회원 선택 *</label>
+              <Select value={reregMemberId} onValueChange={setReregMemberId}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="회원을 선택하세요" /></SelectTrigger>
+                <SelectContent>
+                  {allMembers?.map(m => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">프로그램명</label>
+              <Input className="h-9 text-sm" placeholder="프로그램명 직접 입력" value={reregForm.ptProgram} onChange={e => setReregForm(p => ({ ...p, ptProgram: e.target.value }))} />
+              <div className="flex gap-1.5 flex-wrap">
+                {["케어피티", "웨이트피티", "이벤트피티"].map(preset => (
+                  <button key={preset} type="button"
+                    onClick={() => setReregForm(p => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.ptProgram === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                  >{preset}</button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">총 세션 수 *</label>
+              <Input className="h-9 text-sm" type="number" min={1} placeholder="횟수 직접 입력" value={reregForm.totalSessions} onChange={e => setReregForm(p => ({ ...p, totalSessions: e.target.value }))} />
+              <div className="flex gap-1.5 flex-wrap">
+                {["10", "20", "30", "40", "50"].map(preset => (
+                  <button key={preset} type="button"
+                    onClick={() => setReregForm(p => ({ ...p, totalSessions: p.totalSessions === preset ? "" : preset }))}
+                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.totalSessions === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                  >{preset}회</button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">시작일</label>
+                <Input className="h-9 text-sm" type="date" value={reregForm.startDate} onChange={e => setReregForm(p => ({ ...p, startDate: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">만료일</label>
+                <Input className="h-9 text-sm" type="date" value={reregForm.expiryDate} onChange={e => setReregForm(p => ({ ...p, expiryDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">결제금액 (원)</label>
+                <Input className="h-9 text-sm" type="number" placeholder="예) 1060000" value={reregForm.paymentAmount} onChange={e => setReregForm(p => ({ ...p, paymentAmount: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">미수금 (원)</label>
+                <Input className="h-9 text-sm" type="number" placeholder="0" value={reregForm.unpaidAmount} onChange={e => setReregForm(p => ({ ...p, unpaidAmount: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">결제 방법</label>
+              <Select value={reregForm.paymentMethod} onValueChange={(v) => setReregForm(p => ({ ...p, paymentMethod: v as any }))}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                <SelectContent>
+                  {["현금영수증", "이체", "지역화폐", "카드"].map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">메모</label>
+              <Textarea className="text-sm resize-none" rows={2} placeholder="결제 관련 메모..." value={reregForm.paymentMemo} onChange={e => setReregForm(p => ({ ...p, paymentMemo: e.target.value }))} />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setReregisterOpen(false)}>취소</Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700"
+                disabled={!reregMemberId || !reregForm.totalSessions || addPackageMutation.isPending}
+                onClick={() => {
+                  if (!reregMemberId || !reregForm.totalSessions) return;
+                  addPackageMutation.mutate({
+                    memberId: Number(reregMemberId),
+                    ptProgram: reregForm.ptProgram || undefined,
+                    totalSessions: Number(reregForm.totalSessions),
+                    startDate: reregForm.startDate || undefined,
+                    expiryDate: reregForm.expiryDate || undefined,
+                    paymentAmount: reregForm.paymentAmount ? Number(reregForm.paymentAmount) : undefined,
+                    unpaidAmount: reregForm.unpaidAmount ? Number(reregForm.unpaidAmount) : undefined,
+                    paymentMethod: reregForm.paymentMethod || undefined,
+                    paymentMemo: reregForm.paymentMemo || undefined,
+                  });
+                }}
+              >
+                {addPackageMutation.isPending ? "등록 중..." : "재등록 완료"}
               </Button>
             </div>
           </div>

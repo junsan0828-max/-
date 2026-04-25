@@ -133,16 +133,29 @@ export default function MemberReport({ token }: Props) {
       수면: c.sleepHours ? parseFloat(c.sleepHours) : undefined,
     }));
 
+  const { sessionLogs } = data;
+
+  // 운동 빈도 (월별 세션 수)
+  const sessionsByMonth: Record<string, number> = {};
+  sessionLogs.forEach(l => {
+    const ym = l.sessionDate.slice(0, 7);
+    sessionsByMonth[ym] = (sessionsByMonth[ym] ?? 0) + 1;
+  });
+  const freqData = Object.entries(sessionsByMonth)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([ym, count]) => ({ month: `${parseInt(ym.split("-")[1])}월`, count }));
+
+  // 식단 기록 (diet 값이 있는 체크)
+  const dietChecks = conditionChecks.filter(c => c.diet && c.diet.trim());
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
 
         {/* 헤더 */}
         <div className="border-b border-border pb-6">
-          <p
-            className="text-xs text-muted-foreground font-bold tracking-widest mb-3"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-          >
+          <p className="text-xs text-muted-foreground font-bold tracking-widest mb-3" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
             ZIANTGYM
           </p>
           <div className="flex items-start gap-4">
@@ -154,8 +167,7 @@ export default function MemberReport({ token }: Props) {
               <p className="text-sm text-muted-foreground mt-0.5">
                 {["basic", "premium", "vip"].includes(member.grade ?? "")
                   ? { basic: "기본", premium: "프리미엄", vip: "VIP" }[member.grade as string]
-                  : member.grade}{" "}
-                회원
+                  : member.grade}{" "}회원
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 생성일: {format(new Date(generatedAt), "yyyy년 MM월 dd일 HH:mm", { locale: ko })}
@@ -167,26 +179,10 @@ export default function MemberReport({ token }: Props) {
         {/* 요약 통계 */}
         <Section title="요약">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard
-              label="총 출석"
-              value={`${totalAttended}회`}
-              icon={<CheckCircle className="h-3.5 w-3.5 text-green-400" />}
-            />
-            <StatCard
-              label="잔여 PT"
-              value={`${remainingPt}회`}
-              icon={<Dumbbell className="h-3.5 w-3.5 text-primary" />}
-            />
-            <StatCard
-              label="평균 컨디션"
-              value={avgCondition ? `${avgCondition}/5` : "-"}
-              icon={<Activity className="h-3.5 w-3.5 text-blue-400" />}
-            />
-            <StatCard
-              label="트레이닝 일지"
-              value={`${workoutMemos.length}건`}
-              icon={<BookOpen className="h-3.5 w-3.5 text-orange-400" />}
-            />
+            <StatCard label="총 출석" value={`${totalAttended}회`} icon={<CheckCircle className="h-3.5 w-3.5 text-green-400" />} />
+            <StatCard label="총 수업" value={`${sessionLogs.length}회`} icon={<Dumbbell className="h-3.5 w-3.5 text-primary" />} />
+            <StatCard label="평균 컨디션" value={avgCondition ? `${avgCondition}/5` : "-"} icon={<Activity className="h-3.5 w-3.5 text-blue-400" />} />
+            <StatCard label="트레이닝 일지" value={`${sessionLogs.length}건`} icon={<BookOpen className="h-3.5 w-3.5 text-orange-400" />} />
           </div>
           {(totalNoshow > 0 || totalCancelled > 0) && (
             <div className="flex gap-4 text-xs text-muted-foreground">
@@ -195,6 +191,25 @@ export default function MemberReport({ token }: Props) {
             </div>
           )}
         </Section>
+
+        {/* 운동 빈도 차트 */}
+        {freqData.length > 0 && (
+          <Section title="월별 운동 빈도">
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={freqData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                    <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }} />
+                    <Line type="monotone" dataKey="count" name="수업 횟수" stroke="#22c55e" strokeWidth={2} dot={{ r: 3, fill: "#22c55e" }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </Section>
+        )}
 
         {/* 컨디션 추이 차트 */}
         {chartData.length > 1 && (
@@ -273,11 +288,6 @@ export default function MemberReport({ token }: Props) {
                         {check.painArea ? ` (${check.painArea}${check.painSide ? " · " + check.painSide : ""})` : ""}
                       </span>
                     )}
-                    {check.notes && (
-                      <span className="w-full text-foreground/70 mt-0.5 italic">
-                        {check.notes}
-                      </span>
-                    )}
                   </div>
                 </div>
               ))}
@@ -319,26 +329,54 @@ export default function MemberReport({ token }: Props) {
         )}
 
         {/* 트레이닝 일지 */}
-        {workoutMemos.length > 0 && (
+        {sessionLogs.length > 0 && (
           <Section title="트레이닝 일지">
             <div className="space-y-3">
-              {workoutMemos.slice(0, 10).map((memo) => (
-                <div
-                  key={memo.id}
-                  className="p-4 rounded-xl bg-card border border-border"
-                >
-                  <p className="text-xs font-medium text-primary mb-2">
-                    {format(new Date(memo.memoDate + "T00:00:00"), "yyyy.MM.dd (EEE)", { locale: ko })}
+              {sessionLogs.slice(0, 15).map((log) => {
+                let exercises: { name: string; sets?: number; reps?: number; weight?: number }[] = [];
+                try { if (log.exercisesJson) exercises = JSON.parse(log.exercisesJson); } catch {}
+                return (
+                  <div key={log.id} className="p-4 rounded-xl bg-card border border-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-primary">
+                        {format(new Date(log.sessionDate + "T00:00:00"), "yyyy.MM.dd (EEE)", { locale: ko })}
+                      </p>
+                      {log.bodyPart && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{log.bodyPart}</span>}
+                    </div>
+                    {log.goal && <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">목표:</span> {log.goal}</p>}
+                    {exercises.length > 0 && (
+                      <div className="space-y-1">
+                        {exercises.map((ex, i) => (
+                          <p key={i} className="text-xs text-muted-foreground">
+                            · {ex.name}{ex.sets ? ` ${ex.sets}세트` : ""}{ex.reps ? ` × ${ex.reps}회` : ""}{ex.weight ? ` (${ex.weight}kg)` : ""}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {sessionLogs.length > 15 && (
+                <p className="text-xs text-muted-foreground text-center">외 {sessionLogs.length - 15}건 더 있음</p>
+              )}
+            </div>
+          </Section>
+        )}
+
+        {/* 식단 기록 */}
+        {dietChecks.length > 0 && (
+          <Section title="식단 기록">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              {dietChecks.slice(0, 10).map((c, idx) => (
+                <div key={c.id} className={`px-4 py-3 ${idx < Math.min(dietChecks.length, 10) - 1 ? "border-b border-border" : ""}`}>
+                  <p className="text-xs font-medium text-primary mb-0.5">
+                    {format(new Date(c.checkDate + "T00:00:00"), "MM.dd (EEE)", { locale: ko })}
                   </p>
-                  <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                    {memo.content}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{c.diet}</p>
                 </div>
               ))}
-              {workoutMemos.length > 10 && (
-                <p className="text-xs text-muted-foreground text-center">
-                  외 {workoutMemos.length - 10}건 더 있음
-                </p>
+              {dietChecks.length > 10 && (
+                <div className="px-4 py-2 text-xs text-muted-foreground text-center border-t border-border">외 {dietChecks.length - 10}건</div>
               )}
             </div>
           </Section>

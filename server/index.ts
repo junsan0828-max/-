@@ -1,5 +1,6 @@
 import express from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
@@ -15,11 +16,18 @@ import { syncSheetNow } from "./sheetSync";
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
 
+const PgSession = connectPgSimple(session);
+
 app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(
   session({
+    store: new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || "trainer-app-secret",
     resave: false,
     saveUninitialized: false,
@@ -253,6 +261,29 @@ async function initDatabase() {
   for (const sql of tables) {
     await pool.query(sql);
   }
+
+  // 신규 컬럼 마이그레이션 (IF NOT EXISTS)
+  const alterStatements = [
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS goal TEXT`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TEXT`,
+    `CREATE TABLE IF NOT EXISTS branches (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `CREATE TABLE IF NOT EXISTS trainer_branches (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      "branchId" INTEGER NOT NULL,
+      UNIQUE("trainerId", "branchId")
+    )`,
+  ];
+  for (const stmt of alterStatements) {
+    await pool.query(stmt);
+  }
+
   console.log("✅ 테이블 준비 완료");
 
   // 관리자 계정 생성 (없으면 초기 씨드)

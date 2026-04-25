@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database } from "lucide-react";
+import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2 } from "lucide-react";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -64,6 +64,7 @@ export default function Admin() {
   const [, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
   const { data: trainers, refetch } = trpc.admin.listTrainers.useQuery();
+  const { data: branchList, refetch: refetchBranches } = trpc.admin.listBranches.useQuery();
   const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery();
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
   const utils = trpc.useUtils();
@@ -71,6 +72,8 @@ export default function Admin() {
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [dbRestoring, setDbRestoring] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [trainerBranchFilter, setTrainerBranchFilter] = useState<number | undefined>(undefined);
   const [form, setForm] = useState({
     username: "",
     password: "",
@@ -78,6 +81,7 @@ export default function Admin() {
     phone: "",
     email: "",
     settlementRate: "50",
+    branchId: "",
   });
 
   // 시트 자동 동기화 설정
@@ -157,11 +161,21 @@ export default function Admin() {
     );
   }
 
+  const createBranchMutation = trpc.admin.createBranch.useMutation({
+    onSuccess: () => { toast.success("지점이 생성되었습니다."); setNewBranchName(""); refetchBranches(); },
+    onError: (err) => toast.error(err.message || "지점 생성 실패"),
+  });
+
+  const updateTrainerBranchesMutation = trpc.admin.updateTrainerBranches.useMutation({
+    onSuccess: () => { refetch(); },
+    onError: (err) => toast.error(err.message || "지점 변경 실패"),
+  });
+
   const createMutation = trpc.admin.createTrainer.useMutation({
     onSuccess: () => {
       toast.success("트레이너 계정이 생성되었습니다.");
       setCreateOpen(false);
-      setForm({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50" });
+      setForm({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "" });
       refetch();
     },
     onError: (err) => toast.error(err.message || "생성 실패"),
@@ -188,6 +202,7 @@ export default function Admin() {
       phone: form.phone || undefined,
       email: form.email || undefined,
       settlementRate: parseInt(form.settlementRate) || 50,
+      branchId: form.branchId ? parseInt(form.branchId) : undefined,
     });
   };
 
@@ -261,6 +276,20 @@ export default function Admin() {
                   onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
                   className="h-9"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">지점</Label>
+                <Select value={form.branchId} onValueChange={(v) => setForm((p) => ({ ...p, branchId: v }))}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="지점 선택 (선택)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">미배정</SelectItem>
+                    {branchList?.map((b) => (
+                      <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">정산 비율 (%)</Label>
@@ -555,6 +584,42 @@ export default function Admin() {
         </CardContent>
       </Card>
 
+      {/* 지점 관리 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-primary" />
+            지점 관리
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              placeholder="지점명 (예: 1호점)"
+              value={newBranchName}
+              onChange={(e) => setNewBranchName(e.target.value)}
+              className="h-9 flex-1"
+            />
+            <Button
+              size="sm"
+              disabled={!newBranchName.trim() || createBranchMutation.isPending}
+              onClick={() => createBranchMutation.mutate({ name: newBranchName.trim() })}
+            >
+              추가
+            </Button>
+          </div>
+          {branchList && branchList.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {branchList.map((b) => (
+                <span key={b.id} className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full">
+                  {b.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* 트레이너 목록 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
@@ -563,11 +628,38 @@ export default function Admin() {
             트레이너 목록
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {!trainers?.length ? (
-            <p className="text-sm text-muted-foreground text-center py-6">등록된 트레이너가 없습니다.</p>
-          ) : (
-            trainers.map((trainer) => (
+        <CardContent className="space-y-3">
+          {/* 지점 필터 탭 */}
+          {branchList && branchList.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setTrainerBranchFilter(undefined)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${trainerBranchFilter === undefined ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:bg-accent/50"}`}
+              >
+                전체
+              </button>
+              {branchList.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => setTrainerBranchFilter(b.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${trainerBranchFilter === b.id ? "bg-primary text-primary-foreground" : "bg-accent/30 text-muted-foreground hover:bg-accent/50"}`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="space-y-2">
+          {(() => {
+            const filtered = trainerBranchFilter
+              ? (trainers ?? []).filter((t) => t.assignedBranches.some((b) => b.branchId === trainerBranchFilter))
+              : (trainers ?? []);
+            if (!filtered.length) return (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                {trainerBranchFilter ? "해당 지점에 배정된 트레이너가 없습니다." : "등록된 트레이너가 없습니다."}
+              </p>
+            );
+            return filtered.map((trainer) => (
               <div
                 key={trainer.id}
                 className="flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border"
@@ -579,11 +671,44 @@ export default function Admin() {
                   <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
                     {trainer.trainerName.charAt(0)}
                   </div>
-                  <div>
-                    <p className="font-medium text-sm">{trainer.trainerName}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-sm">{trainer.trainerName}</p>
+                      {trainer.assignedBranches.map((b) => (
+                        <span key={b.branchId} className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded-full">{b.branchName}</span>
+                      ))}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       회원 {trainer.memberCount}명 · 정산 {trainer.settlementRate}%
                     </p>
+                    <p className="text-xs text-muted-foreground/70">
+                      {trainer.lastLoginAt
+                        ? `최근 로그인: ${new Date(trainer.lastLoginAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+                        : "로그인 기록 없음"}
+                    </p>
+                    {branchList && branchList.length > 0 && (
+                      <div className="flex items-center gap-3 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                        {branchList.map((b) => {
+                          const checked = trainer.assignedBranches.some((ab) => ab.branchId === b.id);
+                          return (
+                            <label key={b.id} className="flex items-center gap-1 cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                className="h-3.5 w-3.5 accent-primary"
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  const current = trainer.assignedBranches.map((ab) => ab.branchId);
+                                  const next = checked ? current.filter((id) => id !== b.id) : [...current, b.id];
+                                  updateTrainerBranchesMutation.mutate({ trainerId: trainer.id, branchIds: next });
+                                }}
+                              />
+                              <span className="text-xs text-muted-foreground">{b.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </button>
                 <div className="flex items-center gap-2">
@@ -627,8 +752,9 @@ export default function Admin() {
                   </Dialog>
                 </div>
               </div>
-            ))
-          )}
+            ));
+          })()}
+          </div>
         </CardContent>
       </Card>
     </div>

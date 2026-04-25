@@ -3,6 +3,13 @@ import { sql } from "drizzle-orm";
 
 const now = sql`now()::text`;
 
+// 지점
+export const branches = pgTable("branches", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 // 사용자 (관리자 / 트레이너)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -11,6 +18,7 @@ export const users = pgTable("users", {
   role: text("role").default("trainer").notNull(),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+  lastLoginAt: text("lastLoginAt"),
 });
 
 // 트레이너 프로필
@@ -20,8 +28,16 @@ export const trainers = pgTable("trainers", {
   trainerName: text("trainerName").notNull(),
   phone: text("phone"),
   email: text("email"),
+  branchId: integer("branchId"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 트레이너-지점 다대다
+export const trainerBranches = pgTable("trainer_branches", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  branchId: integer("branchId").notNull(),
 });
 
 // 트레이너 설정
@@ -117,6 +133,8 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   notes: text("notes"),
   bodyPart: text("bodyPart"),
   exercisesJson: text("exercisesJson"),
+  goal: text("goal"),
+  feedback: text("feedback"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 

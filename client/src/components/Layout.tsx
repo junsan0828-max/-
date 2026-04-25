@@ -4,7 +4,7 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
-  UserCog, Settings, User, ClipboardCheck, Download, X,
+  UserCog, Settings, User, ClipboardCheck, Download, X, Receipt,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -47,6 +47,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const adminNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
     { path: "/trainers", label: "트레이너", icon: UserCog },
+    { path: "/settlement", label: "정산", icon: Receipt },
     { path: "/admin", label: "관리", icon: Settings },
   ];
 

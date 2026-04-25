@@ -38,6 +38,8 @@ import Trainers from "./pages/Trainers";
 import Admin from "./pages/Admin";
 import PT from "./pages/PT";
 import Profile from "./pages/Profile";
+import SettlementReport from "./pages/SettlementReport";
+import TrainerSettlement from "./pages/TrainerSettlement";
 import Layout from "./components/Layout";
 
 function App() {
@@ -51,8 +53,9 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground text-sm">로딩 중...</div>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <img src="/logo.png" alt="ZiantGym" className="w-48 h-auto" />
+        <p className="text-muted-foreground text-sm">로딩 중...</p>
       </div>
     );
   }
@@ -91,6 +94,8 @@ function App() {
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
         <Route path="/admin">{() => <Admin />}</Route>
+        <Route path="/settlement">{() => <SettlementReport />}</Route>
+        <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
         <Route path="/profile">{() => <Profile />}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
       </Switch>
