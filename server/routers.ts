@@ -18,6 +18,7 @@ import {
   reportTokens,
   ptPauses,
   schedules,
+  branches,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
@@ -1338,11 +1339,14 @@ const adminRouter = t.router({
         trainerName: trainers.trainerName,
         phone: trainers.phone,
         email: trainers.email,
+        branchId: trainers.branchId,
+        branchName: branches.name,
         createdAt: trainers.createdAt,
         lastLoginAt: users.lastLoginAt,
       })
       .from(trainers)
       .leftJoin(users, eq(trainers.userId, users.id))
+      .leftJoin(branches, eq(trainers.branchId, branches.id))
       .orderBy(trainers.trainerName);
 
     const result = await Promise.all(
@@ -1379,6 +1383,7 @@ const adminRouter = t.router({
         phone: z.string().optional(),
         email: z.string().email().optional(),
         settlementRate: z.number().min(0).max(100).default(50),
+        branchId: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1414,6 +1419,7 @@ const adminRouter = t.router({
         trainerName: input.trainerName,
         phone: input.phone,
         email: input.email,
+        branchId: input.branchId ?? null,
       }).returning({ id: trainers.id });
       const trainerId = trainerInsert.id;
 
@@ -1442,6 +1448,36 @@ const adminRouter = t.router({
       await db.delete(trainers).where(eq(trainers.id, input.trainerId));
       await db.delete(users).where(eq(users.id, trainerResult[0].userId));
 
+      return { success: true };
+    }),
+
+  // 지점 목록
+  listBranches: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(branches).orderBy(branches.name);
+  }),
+
+  // 지점 생성
+  createBranch: protectedProcedure
+    .input(z.object({ name: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [branch] = await db.insert(branches).values({ name: input.name }).returning();
+      return branch;
+    }),
+
+  // 트레이너 지점 할당
+  updateTrainerBranch: protectedProcedure
+    .input(z.object({ trainerId: z.number(), branchId: z.number().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(trainers).set({ branchId: input.branchId }).where(eq(trainers.id, input.trainerId));
       return { success: true };
     }),
 
@@ -1657,7 +1693,9 @@ const adminRouter = t.router({
     }),
 
   // 관리자 전체 통계
-  getStats: protectedProcedure.query(async ({ ctx }) => {
+  getStats: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -1666,14 +1704,20 @@ const adminRouter = t.router({
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString().split("T")[0];
 
+    const branchFilter = input?.branchId ? eq(trainers.branchId, input.branchId) : undefined;
+
     const [totalTrainersResult, totalMembersResult, activeMembersResult] = await Promise.all([
-      db.select({ count: sql<number>`COUNT(*)` }).from(trainers),
-      db.select({ count: sql<number>`COUNT(*)` }).from(members),
-      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.status, "active")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(trainers).where(branchFilter),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members)
+        .leftJoin(trainers, eq(members.trainerId, trainers.id))
+        .where(branchFilter),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members)
+        .leftJoin(trainers, eq(members.trainerId, trainers.id))
+        .where(branchFilter ? and(eq(members.status, "active"), branchFilter) : eq(members.status, "active")),
     ]);
 
     // 트레이너별 상세 통계
-    const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
+    const trainerList = await db.select().from(trainers).where(branchFilter).orderBy(trainers.trainerName);
     const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
       const [memberCnt, settings, monthPackages, monthLogs] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainer.id)),
@@ -1733,12 +1777,15 @@ const adminRouter = t.router({
   }),
 
   // 최근 6개월 트레이너별 월간 매출 차트 데이터
-  getMonthlyChart: protectedProcedure.query(async ({ ctx }) => {
+  getMonthlyChart: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName }).from(trainers).orderBy(trainers.trainerName);
+    const branchFilter = input?.branchId ? eq(trainers.branchId, input.branchId) : undefined;
+    const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName }).from(trainers).where(branchFilter).orderBy(trainers.trainerName);
 
     // 최근 6개월 범위 생성
     const months: { label: string; start: string; end: string }[] = [];

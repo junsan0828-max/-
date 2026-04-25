@@ -3,6 +3,13 @@ import { sql } from "drizzle-orm";
 
 const now = sql`now()::text`;
 
+// 지점
+export const branches = pgTable("branches", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 // 사용자 (관리자 / 트레이너)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -21,6 +28,7 @@ export const trainers = pgTable("trainers", {
   trainerName: text("trainerName").notNull(),
   phone: text("phone"),
   email: text("email"),
+  branchId: integer("branchId"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

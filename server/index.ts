@@ -267,6 +267,12 @@ async function initDatabase() {
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS goal TEXT`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TEXT`,
+    `CREATE TABLE IF NOT EXISTS branches (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
