@@ -54,7 +54,7 @@ function App() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
-        <img src="/icon-192.svg" alt="ZiantGym" className="w-28 h-28 rounded-3xl shadow-lg" />
+        <img src="/logo.png" alt="ZiantGym" className="w-48 h-auto" />
         <p className="text-muted-foreground text-sm">로딩 중...</p>
       </div>
     );
