@@ -218,12 +218,13 @@ export default function LeadsPage() {
       {/* 리드 폼 모달 */}
       {showForm && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }}>
+            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
               <h2 className="font-semibold text-foreground">{editId ? "리드 수정" : "리드 추가"}</h2>
               <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
-            <form onSubmit={handleSubmit} className="p-4 space-y-3">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-y-auto flex-1 p-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">이름 *</label>
@@ -311,7 +312,8 @@ export default function LeadsPage() {
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
 
-              <div className="flex gap-2 pt-2">
+              </div>
+              <div className="flex gap-2 p-4 border-t border-border shrink-0">
                 {editId && (
                   <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
                     className="flex-1 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-medium hover:bg-red-500/10">
