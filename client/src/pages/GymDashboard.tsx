@@ -227,7 +227,7 @@ export default function GymDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#9ca3af" }} />
               <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={v => `${Math.round(v / 10000)}만`} />
-              <Tooltip formatter={(v: number) => [`${v.toLocaleString()}원`, ""]} contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
+              <Tooltip formatter={(v) => [`${Number(v).toLocaleString()}원`, ""]} contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
               <Area type="monotone" dataKey="매출" stroke="#6366f1" fill="url(#salesGrad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
@@ -243,7 +243,7 @@ export default function GymDashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#9ca3af" }} />
               <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={v => `${Math.round(v / 10000)}만`} />
-              <Tooltip formatter={(v: number) => [`${v.toLocaleString()}원`, ""]} contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
+              <Tooltip formatter={(v) => [`${Number(v).toLocaleString()}원`, ""]} contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
               <Bar dataKey="신규" fill="#6366f1" radius={[2, 2, 0, 0]} />
               <Bar dataKey="재등록" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
