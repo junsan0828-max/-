@@ -9,15 +9,19 @@ import {
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "분할결제"];
 const CATEGORIES = ["PT", "헬스", "기타"] as const;
 const SUB_TYPES = ["신규", "재등록"] as const;
+const DURATIONS = [1, 3, 6, 12];
+const OTHER_ITEMS = ["락커", "운동복"];
 
 type RevForm = {
-  memberId?: number; leadId?: number; trainerId?: number; branchId?: number; channelId?: number;
+  customerName: string; phone: string; programDetail: string; duration: string;
+  leadId?: number; trainerId?: number; branchId?: number; channelId?: number;
   type: "PT" | "헬스" | "기타"; subType: "신규" | "재등록";
   amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string; refundAmount: string;
   paymentMethod: string; paymentDate: string; installments: string; memo: string;
 };
 
 const defaultForm: RevForm = {
+  customerName: "", phone: "", programDetail: "", duration: "",
   type: "PT", subType: "신규",
   amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0", refundAmount: "0",
   paymentMethod: "카드", paymentDate: new Date().toISOString().substring(0, 10),
@@ -46,7 +50,6 @@ export default function RevenuePage() {
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month }, { enabled: !isConsultant });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
-  const { data: members } = trpc.members.list.useQuery();
   const { data: kpi } = trpc.gym.kpi.overview.useQuery({ year, month }, { enabled: !isConsultant });
 
   const createMutation = trpc.gym.revenue.create.useMutation({
@@ -69,7 +72,10 @@ export default function RevenuePage() {
   function openEdit(row: any) {
     setEditId(row.entry.id);
     setForm({
-      memberId: row.entry.memberId ?? undefined,
+      customerName: row.entry.customerName ?? "",
+      phone: row.entry.phone ?? "",
+      programDetail: row.entry.programDetail ?? "",
+      duration: row.entry.duration ? String(row.entry.duration) : "",
       leadId: row.entry.leadId ?? undefined,
       trainerId: row.entry.trainerId ?? undefined,
       branchId: row.entry.branchId ?? undefined,
@@ -101,7 +107,10 @@ export default function RevenuePage() {
     if (!form.amount) return toast.error("금액을 입력해주세요");
     if (!form.paymentDate) return toast.error("결제일을 입력해주세요");
     const payload = {
-      memberId: form.memberId ? Number(form.memberId) : undefined,
+      customerName: form.customerName || undefined,
+      phone: form.phone || undefined,
+      programDetail: form.programDetail || undefined,
+      duration: form.duration ? parseInt(form.duration) : undefined,
       leadId: form.leadId ? Number(form.leadId) : undefined,
       trainerId: form.trainerId ? Number(form.trainerId) : undefined,
       branchId: form.branchId ? Number(form.branchId) : undefined,
@@ -247,7 +256,9 @@ export default function RevenuePage() {
                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${row.entry.subType === "신규" ? "bg-blue-400/10 text-blue-400" : "bg-violet-400/10 text-violet-400"}`}>
                       {row.entry.subType}
                     </span>
-                    {row.memberName && <span className="text-sm font-medium text-foreground">{row.memberName}</span>}
+                    <span className="text-sm font-medium text-foreground">{row.entry.customerName || row.memberName || "—"}</span>
+                    {row.entry.programDetail && <span className="text-xs text-muted-foreground">{row.entry.programDetail}</span>}
+                    {row.entry.duration && <span className="text-xs text-muted-foreground">{row.entry.duration}개월</span>}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     {row.trainerName && <span>{row.trainerName}</span>}
@@ -289,18 +300,85 @@ export default function RevenuePage() {
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
               <div className="overflow-y-auto flex-1 p-4 space-y-3">
-              {/* 유형 */}
+
+              {/* 회원 이름 / 연락처 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">회원 이름 *</label>
+                  <input value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} placeholder="홍길동"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">연락처</label>
+                  <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </div>
+
+              {/* 프로그램 유형 */}
               <div>
                 <label className="text-xs text-muted-foreground">프로그램 유형 *</label>
                 <div className="flex gap-2 mt-1">
                   {CATEGORIES.map(c => (
-                    <button key={c} type="button" onClick={() => setForm(f => ({ ...f, type: c }))}
+                    <button key={c} type="button" onClick={() => setForm(f => ({ ...f, type: c, programDetail: "", duration: "" }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.type === c ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                       {c}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* PT: 프로그램명 */}
+              {form.type === "PT" && (
+                <div>
+                  <label className="text-xs text-muted-foreground">프로그램명</label>
+                  <input value={form.programDetail} onChange={e => setForm(f => ({ ...f, programDetail: e.target.value }))} placeholder="예) 30회, 스포츠PT"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              )}
+
+              {/* 헬스: 이용 기간 */}
+              {form.type === "헬스" && (
+                <div>
+                  <label className="text-xs text-muted-foreground">이용 기간 *</label>
+                  <div className="flex gap-2 mt-1">
+                    {DURATIONS.map(d => (
+                      <button key={d} type="button" onClick={() => setForm(f => ({ ...f, duration: String(d) }))}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.duration === String(d) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {d}개월
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 기타: 항목 + 기간 */}
+              {form.type === "기타" && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">항목</label>
+                    <div className="flex gap-2 mt-1">
+                      {OTHER_ITEMS.map(item => (
+                        <button key={item} type="button" onClick={() => setForm(f => ({ ...f, programDetail: item }))}
+                          className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.programDetail === item ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          {item}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">이용 기간</label>
+                    <div className="flex gap-2 mt-1">
+                      {DURATIONS.map(d => (
+                        <button key={d} type="button" onClick={() => setForm(f => ({ ...f, duration: String(d) }))}
+                          className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.duration === String(d) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          {d}개월
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 신규/재등록 */}
               <div>
@@ -362,7 +440,7 @@ export default function RevenuePage() {
                 </div>
               </div>
 
-              {/* 연결 정보 */}
+              {/* 트레이너 / 채널 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">트레이너</label>
@@ -380,15 +458,6 @@ export default function RevenuePage() {
                     {(channels ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">회원 연결</label>
-                <select value={form.memberId ?? ""} onChange={e => setForm(f => ({ ...f, memberId: e.target.value ? Number(e.target.value) : undefined }))}
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
-                  <option value="">선택 안함</option>
-                  {(members ?? []).slice(0, 100).map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </select>
               </div>
 
               <div>

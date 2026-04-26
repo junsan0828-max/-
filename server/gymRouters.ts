@@ -220,6 +220,10 @@ const revenueRouter = t.router({
 
   create: protectedProcedure
     .input(z.object({
+      customerName: z.string().optional(),
+      phone: z.string().optional(),
+      programDetail: z.string().optional(),
+      duration: z.number().optional(),
       memberId: z.number().optional(),
       leadId: z.number().optional(),
       trainerId: z.number().optional(),
@@ -257,6 +261,10 @@ const revenueRouter = t.router({
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
+      customerName: z.string().optional(),
+      phone: z.string().optional(),
+      programDetail: z.string().optional(),
+      duration: z.number().optional(),
       memberId: z.number().optional(),
       trainerId: z.number().optional(),
       branchId: z.number().optional(),

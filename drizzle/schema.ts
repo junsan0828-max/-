@@ -253,6 +253,10 @@ export const revenueEntries = pgTable("revenue_entries", {
   branchId: integer("branchId"),
   channelId: integer("channelId"),
   createdBy: integer("createdBy"),
+  customerName: text("customerName"), // 회원 이름
+  phone: text("phone"),               // 연락처
+  programDetail: text("programDetail"), // PT 프로그램명 / 기타 항목(락커·운동복)
+  duration: integer("duration"),      // 이용 기간(개월) - 헬스/기타
   type: text("type").notNull(), // PT / 헬스 / 기타
   subType: text("subType").notNull(), // 신규 / 재등록
   amount: integer("amount").notNull(),

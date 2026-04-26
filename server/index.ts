@@ -335,6 +335,10 @@ async function initDatabase() {
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TEXT`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "createdBy" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "customerName" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "programDetail" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "duration" INTEGER`,
     `CREATE TABLE IF NOT EXISTS branches (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
