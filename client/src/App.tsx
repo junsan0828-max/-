@@ -60,7 +60,6 @@ function App() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
-        <img src="/logo.png" alt="ZiantGym" className="w-48 h-auto" />
         <p className="text-gray-400 text-sm">로딩 중...</p>
       </div>
     );
