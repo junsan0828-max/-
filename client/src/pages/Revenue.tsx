@@ -39,12 +39,15 @@ export default function RevenuePage() {
   const [form, setForm] = useState<RevForm>(defaultForm);
   const [filterType, setFilterType] = useState("");
 
+  const { data: me } = trpc.auth.me.useQuery();
+  const isConsultant = me?.role === "consultant";
+
   const { data: entries, isLoading } = trpc.gym.revenue.list.useQuery({ year, month });
-  const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month });
+  const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month }, { enabled: !isConsultant });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: members } = trpc.members.list.useQuery();
-  const { data: kpi } = trpc.gym.kpi.overview.useQuery({ year, month });
+  const { data: kpi } = trpc.gym.kpi.overview.useQuery({ year, month }, { enabled: !isConsultant });
 
   const createMutation = trpc.gym.revenue.create.useMutation({
     onSuccess: () => { toast.success("매출이 등록되었습니다"); utils.gym.revenue.invalidate(); utils.gym.kpi.invalidate(); resetForm(); },
@@ -143,8 +146,8 @@ export default function RevenuePage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">매출 장부</h1>
-          <p className="text-xs text-muted-foreground">매출 입력 및 분석</p>
+          <h1 className="text-xl font-bold text-foreground">매출 {isConsultant ? "입력" : "장부"}</h1>
+          <p className="text-xs text-muted-foreground">{isConsultant ? "오늘 입력한 매출 내역" : "매출 입력 및 분석"}</p>
         </div>
         <button
           onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, paymentDate: new Date().toISOString().substring(0, 10) }); }}
@@ -155,36 +158,40 @@ export default function RevenuePage() {
         </button>
       </div>
 
-      {/* 월 선택 */}
-      <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
-        <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <span className="text-base font-semibold text-foreground min-w-[100px] text-center">{year}년 {month}월</span>
-        <button onClick={nextMonth} className="text-muted-foreground hover:text-foreground">
-          <ChevronRight className="h-5 w-5" />
-        </button>
-      </div>
-
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-card border border-border rounded-xl p-3">
-          <div className="text-xs text-muted-foreground mb-1">이번달 매출</div>
-          <div className="text-lg font-bold text-emerald-400">{fmt(kpi?.monthTotal ?? 0)}원</div>
-          <div className="text-xs text-muted-foreground mt-0.5">신규 {fmt(kpi?.monthNewSales ?? 0)} / 재등록 {fmt(kpi?.monthRenewal ?? 0)}</div>
+      {/* 월 선택 - 컨설턴트는 숨김 */}
+      {!isConsultant && (
+        <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
+          <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <span className="text-base font-semibold text-foreground min-w-[100px] text-center">{year}년 {month}월</span>
+          <button onClick={nextMonth} className="text-muted-foreground hover:text-foreground">
+            <ChevronRight className="h-5 w-5" />
+          </button>
         </div>
-        <div className={`bg-card border rounded-xl p-3 ${monthUnpaid > 0 ? "border-red-500/30" : "border-border"}`}>
-          <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-            {monthUnpaid > 0 && <AlertCircle className="h-3 w-3 text-red-400" />}
-            전체 미수금
+      )}
+
+      {/* 요약 카드 - 컨설턴트는 숨김 */}
+      {!isConsultant && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-card border border-border rounded-xl p-3">
+            <div className="text-xs text-muted-foreground mb-1">이번달 매출</div>
+            <div className="text-lg font-bold text-emerald-400">{fmt(kpi?.monthTotal ?? 0)}원</div>
+            <div className="text-xs text-muted-foreground mt-0.5">신규 {fmt(kpi?.monthNewSales ?? 0)} / 재등록 {fmt(kpi?.monthRenewal ?? 0)}</div>
           </div>
-          <div className={`text-lg font-bold ${monthUnpaid > 0 ? "text-red-400" : "text-muted-foreground"}`}>{fmt(kpi?.totalUnpaid ?? 0)}원</div>
-          <div className="text-xs text-muted-foreground mt-0.5">PT {fmt(kpi?.monthPT ?? 0)} / 헬스 {fmt(kpi?.monthHealth ?? 0)}</div>
+          <div className={`bg-card border rounded-xl p-3 ${monthUnpaid > 0 ? "border-red-500/30" : "border-border"}`}>
+            <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+              {monthUnpaid > 0 && <AlertCircle className="h-3 w-3 text-red-400" />}
+              전체 미수금
+            </div>
+            <div className={`text-lg font-bold ${monthUnpaid > 0 ? "text-red-400" : "text-muted-foreground"}`}>{fmt(kpi?.totalUnpaid ?? 0)}원</div>
+            <div className="text-xs text-muted-foreground mt-0.5">PT {fmt(kpi?.monthPT ?? 0)} / 헬스 {fmt(kpi?.monthHealth ?? 0)}</div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 트레이너별 매출 */}
-      {(trainerSummary ?? []).length > 0 && (
+      {/* 트레이너별 매출 - 컨설턴트는 숨김 */}
+      {!isConsultant && (trainerSummary ?? []).length > 0 && (
         <div className="bg-card border border-border rounded-xl p-4">
           <h3 className="text-sm font-semibold text-foreground mb-3">트레이너별 매출</h3>
           <div className="space-y-2">
@@ -392,7 +399,7 @@ export default function RevenuePage() {
 
               </div>
               <div className="flex gap-2 p-4 border-t border-border shrink-0">
-                {editId && (
+                {editId && !isConsultant && (
                   <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
                     className="flex-1 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-medium hover:bg-red-500/10">
                     삭제

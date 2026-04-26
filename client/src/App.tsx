@@ -75,7 +75,7 @@ function App() {
     <Layout>
       <ErrorBoundary>
       <Switch>
-        <Route path="/">{() => user?.role === "admin" ? <GymDashboard /> : <Dashboard />}</Route>
+        <Route path="/">{() => user?.role === "admin" ? <GymDashboard /> : user?.role === "consultant" ? <LeadsPage /> : <Dashboard />}</Route>
         <Route path="/gym-dashboard">{() => <GymDashboard />}</Route>
         <Route path="/leads">{() => <LeadsPage />}</Route>
         <Route path="/revenue">{() => <RevenuePage />}</Route>

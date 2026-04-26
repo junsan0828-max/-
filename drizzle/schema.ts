@@ -252,6 +252,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   trainerId: integer("trainerId"),
   branchId: integer("branchId"),
   channelId: integer("channelId"),
+  createdBy: integer("createdBy"),
   type: text("type").notNull(), // PT / 헬스 / 기타
   subType: text("subType").notNull(), // 신규 / 재등록
   amount: integer("amount").notNull(),

@@ -57,6 +57,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/admin", label: "관리", icon: Settings },
   ];
 
+  const consultantNavItems = [
+    { path: "/leads", label: "상담관리", icon: UserPlus },
+    { path: "/revenue", label: "매출입력", icon: TrendingUp },
+  ];
+
   const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
     { path: "/members", label: "회원", icon: Users },
@@ -66,7 +71,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/profile", label: "프로필", icon: User },
   ];
 
-  const navItems = user?.role === "admin" ? adminNavItems : trainerNavItems;
+  const navItems = user?.role === "admin" ? adminNavItems
+    : user?.role === "consultant" ? consultantNavItems
+    : trainerNavItems;
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";

@@ -177,7 +177,7 @@ const revenueRouter = t.router({
       type: z.string().optional(),
       subType: z.string().optional(),
     }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -196,6 +196,14 @@ const revenueRouter = t.router({
         .orderBy(desc(revenueEntries.paymentDate));
 
       let result = rows;
+
+      // 컨설턴트: 자신이 입력한 오늘 항목만 조회
+      if (ctx.user?.role === "consultant") {
+        const today = new Date().toISOString().substring(0, 10);
+        result = result.filter(r => r.entry.createdBy === ctx.user!.id && r.entry.paymentDate === today);
+        return result;
+      }
+
       if (input?.year && input?.month) {
         const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
         result = result.filter(r => r.entry.paymentDate.startsWith(prefix));
@@ -229,11 +237,12 @@ const revenueRouter = t.router({
       installments: z.number().min(1).default(1),
       memo: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [row] = await db.insert(revenueEntries).values({
         ...input,
+        createdBy: ctx.user!.id,
         updatedAt: new Date().toISOString(),
       }).returning();
 
@@ -264,19 +273,34 @@ const revenueRouter = t.router({
       installments: z.number().optional(),
       memo: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, ...data } = input;
+
+      // 컨설턴트: 자신이 입력한 항목만 수정 가능
+      if (ctx.user?.role === "consultant") {
+        const existing = await db.select().from(revenueEntries).where(eq(revenueEntries.id, id)).limit(1);
+        if (!existing[0] || existing[0].createdBy !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "본인이 입력한 매출만 수정할 수 있습니다." });
+        }
+      }
+
       const [row] = await db.update(revenueEntries).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, id)).returning();
       return row;
     }),
 
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 컨설턴트는 삭제 불가
+      if (ctx.user?.role === "consultant") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "삭제 권한이 없습니다." });
+      }
+
       await db.delete(revenueEntries).where(eq(revenueEntries.id, input.id));
       return { success: true };
     }),
@@ -486,7 +510,8 @@ const expenseRouter = t.router({
 const kpiRouter = t.router({
   overview: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 

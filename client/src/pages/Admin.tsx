@@ -757,6 +757,85 @@ export default function Admin() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 컨설턴트 계정 관리 */}
+      <ConsultantSection />
     </div>
+  );
+}
+
+function ConsultantSection() {
+  const utils = trpc.useUtils();
+  const { data: consultants, refetch } = trpc.admin.listConsultants.useQuery();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ username: "", password: "", displayName: "" });
+
+  const createMutation = trpc.admin.createConsultant.useMutation({
+    onSuccess: () => { toast.success("컨설턴트 계정이 생성되었습니다."); setShowForm(false); setForm({ username: "", password: "", displayName: "" }); refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.username || !form.password || !form.displayName) return toast.error("모든 항목을 입력해주세요");
+    createMutation.mutate(form);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">프론트 컨설턴트 계정</CardTitle>
+          <button onClick={() => setShowForm(v => !v)} className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90">
+            <UserPlus className="h-3.5 w-3.5" />
+            계정 추가
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">상담관리 + 오늘 매출 입력/수정만 가능한 직원 계정</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">이름 *</label>
+                <input value={form.displayName} onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))} placeholder="홍길동"
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">아이디 *</label>
+                <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="staff1"
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">비밀번호 *</label>
+              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="6자 이상"
+                className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent">취소</button>
+              <button type="submit" className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90">생성</button>
+            </div>
+          </form>
+        )}
+
+        {(consultants ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">등록된 컨설턴트가 없습니다</p>
+        ) : (
+          <div className="space-y-2">
+            {(consultants ?? []).map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
+                <div>
+                  <span className="text-sm font-medium text-foreground">{c.username}</span>
+                  <span className="text-xs text-muted-foreground ml-2">프론트 컨설턴트</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{c.createdAt?.substring(0, 10)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
