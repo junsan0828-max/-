@@ -64,11 +64,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
-    { path: "/members", label: "회원", icon: Users },
-    { path: "/attendance", label: "출석", icon: ClipboardCheck },
-    { path: "/pt", label: "PT", icon: Dumbbell },
-    { path: "/revenue", label: "매출", icon: TrendingUp },
-    { path: "/profile", label: "프로필", icon: User },
+    { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
+    { path: "/pt", label: "PT 관리", icon: Dumbbell },
+    { path: "/profile", label: "내 프로필", icon: User },
   ];
 
   const navItems = user?.role === "admin" ? adminNavItems
