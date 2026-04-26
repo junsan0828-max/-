@@ -217,7 +217,7 @@ export default function LeadsPage() {
 
       {/* 리드 폼 모달 */}
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4">
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center p-4 pb-4">
           <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }}>
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
               <h2 className="font-semibold text-foreground">{editId ? "리드 수정" : "리드 추가"}</h2>
