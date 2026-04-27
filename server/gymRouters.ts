@@ -462,7 +462,9 @@ const expenseRouter = t.router({
     .input(z.object({
       branchId: z.number().optional(),
       category: z.string(),
+      subCategory: z.string().optional(),
       amount: z.number().min(0),
+      paymentMethod: z.string().optional(),
       vendor: z.string().optional(),
       expenseDate: z.string(),
       memo: z.string().optional(),
@@ -478,7 +480,9 @@ const expenseRouter = t.router({
     .input(z.object({
       id: z.number(),
       category: z.string().optional(),
+      subCategory: z.string().optional(),
       amount: z.number().optional(),
+      paymentMethod: z.string().optional(),
       vendor: z.string().optional(),
       expenseDate: z.string().optional(),
       memo: z.string().optional(),

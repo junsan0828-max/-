@@ -278,8 +278,10 @@ export const revenueEntries = pgTable("revenue_entries", {
 export const expenseEntries = pgTable("expense_entries", {
   id: serial("id").primaryKey(),
   branchId: integer("branchId"),
-  category: text("category").notNull(), // 임대료 / 급여 / 기기 / 마케팅 / 운영 / 기타
+  category: text("category").notNull(),    // 대분류: 고정관리비/유동관리비/인건비/운영비
+  subCategory: text("subCategory"),        // 소분류
   amount: integer("amount").notNull(),
+  paymentMethod: text("paymentMethod"),    // 카드/현금/계좌이체
   vendor: text("vendor"),
   expenseDate: text("expenseDate").notNull(),
   memo: text("memo"),

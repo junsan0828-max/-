@@ -2,17 +2,34 @@ import { useState } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import { Plus, ChevronLeft, ChevronRight, PieChart as PieIcon } from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
-const CATEGORIES = ["임대료", "급여", "기기/시설", "마케팅", "운영비", "기타"];
-const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#6b7280"];
+const PAYMENT_METHODS = ["카드", "현금", "계좌이체"];
+
+const CATEGORY_MAP: Record<string, string[]> = {
+  "고정관리비": ["임대료", "전기세", "가스비", "공동관리비", "인터넷비", "정수기비", "TV비", "CRM비"],
+  "유동관리비": ["A/S 비용", "예상 외 지출"],
+  "인건비":     ["트레이너 급여", "컨설턴트 급여"],
+  "운영비":     ["물품구매비", "소모품비", "사무용품비", "청소용품비", "마케팅비"],
+};
+const MAIN_CATEGORIES = Object.keys(CATEGORY_MAP);
+const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b"];
 
 type ExpForm = {
-  branchId?: number; category: string; amount: string; vendor: string; expenseDate: string; memo: string;
+  branchId?: number;
+  category: string;
+  subCategory: string;
+  amount: string;
+  paymentMethod: string;
+  vendor: string;
+  expenseDate: string;
+  memo: string;
 };
 
 const defaultForm: ExpForm = {
-  category: "운영비", amount: "", vendor: "", expenseDate: new Date().toISOString().substring(0, 10), memo: "",
+  category: "", subCategory: "",
+  amount: "", paymentMethod: "카드", vendor: "",
+  expenseDate: new Date().toISOString().substring(0, 10), memo: "",
 };
 
 export default function ExpensesPage() {
@@ -47,7 +64,9 @@ export default function ExpensesPage() {
     setForm({
       branchId: row.entry.branchId ?? undefined,
       category: row.entry.category,
+      subCategory: row.entry.subCategory ?? "",
       amount: String(row.entry.amount),
+      paymentMethod: row.entry.paymentMethod ?? "카드",
       vendor: row.entry.vendor ?? "",
       expenseDate: row.entry.expenseDate,
       memo: row.entry.memo ?? "",
@@ -57,12 +76,15 @@ export default function ExpensesPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.category) return toast.error("대분류 카테고리를 선택해주세요");
+    if (!form.subCategory) return toast.error("소분류 카테고리를 선택해주세요");
     if (!form.amount) return toast.error("금액을 입력해주세요");
-    if (!form.category) return toast.error("카테고리를 선택해주세요");
     const payload = {
       branchId: form.branchId,
       category: form.category,
+      subCategory: form.subCategory,
       amount: parseInt(form.amount) || 0,
+      paymentMethod: form.paymentMethod || undefined,
       vendor: form.vendor || undefined,
       expenseDate: form.expenseDate,
       memo: form.memo || undefined,
@@ -82,7 +104,6 @@ export default function ExpensesPage() {
 
   const filtered = (entries ?? []).filter(r => !filterCat || r.entry.category === filterCat);
   const totalExpense = filtered.reduce((s, r) => s + r.entry.amount, 0);
-
   const pieData = (categorySummary ?? []).map(c => ({ name: c.category, value: c.total }));
 
   return (
@@ -122,11 +143,11 @@ export default function ExpensesPage() {
       {/* 카테고리 파이차트 */}
       {pieData.length > 0 && (
         <div className="bg-card border border-border rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-foreground mb-3">카테고리별 지출</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-3">대분류별 지출</h2>
           <div className="flex items-center gap-4">
-            <ResponsiveContainer width={120} height={120}>
+            <ResponsiveContainer width={110} height={110}>
               <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={50} dataKey="value">
+                <Pie data={pieData} cx="50%" cy="50%" innerRadius={28} outerRadius={48} dataKey="value">
                   {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Pie>
               </PieChart>
@@ -146,13 +167,13 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* 카테고리 필터 */}
+      {/* 대분류 필터 */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setFilterCat("")}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${!filterCat ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}>
           전체
         </button>
-        {CATEGORIES.map(cat => (
+        {MAIN_CATEGORIES.map(cat => (
           <button key={cat} onClick={() => setFilterCat(filterCat === cat ? "" : cat)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterCat === cat ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}>
             {cat}
@@ -171,19 +192,23 @@ export default function ExpensesPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map(row => {
-            const catIdx = CATEGORIES.indexOf(row.entry.category);
+            const catIdx = MAIN_CATEGORIES.indexOf(row.entry.category);
             return (
               <div key={row.entry.id} onClick={() => openEdit(row)}
                 className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-primary/30 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[catIdx >= 0 ? catIdx : 5] }} />
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[catIdx >= 0 ? catIdx : 0] }} />
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">{row.entry.category}</span>
+                        <span className="text-xs text-muted-foreground">{row.entry.category}</span>
+                        <span className="text-sm font-medium text-foreground">{row.entry.subCategory ?? ""}</span>
                         {row.entry.vendor && <span className="text-xs text-muted-foreground">{row.entry.vendor}</span>}
                       </div>
-                      <div className="text-xs text-muted-foreground">{row.entry.expenseDate}</div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{row.entry.expenseDate}</span>
+                        {row.entry.paymentMethod && <span>· {row.entry.paymentMethod}</span>}
+                      </div>
                     </div>
                   </div>
                   <div className="text-base font-bold text-red-400">{row.entry.amount.toLocaleString()}원</div>
@@ -208,44 +233,78 @@ export default function ExpensesPage() {
               <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-              <div className="overflow-y-auto flex-1 p-4 space-y-3">
-              <div>
-                <label className="text-xs text-muted-foreground">카테고리 *</label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {CATEGORIES.map((cat, i) => (
-                    <button key={cat} type="button" onClick={() => setForm(f => ({ ...f, category: cat }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.category === cat ? "text-white border-transparent" : "bg-background border-border text-muted-foreground"}`}
-                      style={form.category === cat ? { backgroundColor: COLORS[i] } : {}}>
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <div className="overflow-y-auto flex-1 p-4 space-y-4">
 
-              <div className="grid grid-cols-2 gap-3">
+                {/* 대분류 */}
                 <div>
-                  <label className="text-xs text-muted-foreground">금액 *</label>
-                  <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0"
+                  <label className="text-xs text-muted-foreground">대분류 *</label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {MAIN_CATEGORIES.map((cat, i) => (
+                      <button key={cat} type="button"
+                        onClick={() => setForm(f => ({ ...f, category: cat, subCategory: "" }))}
+                        className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.category === cat ? "text-white border-transparent" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}
+                        style={form.category === cat ? { backgroundColor: COLORS[i] } : {}}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 소분류 */}
+                {form.category && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">소분류 *</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {CATEGORY_MAP[form.category].map(sub => (
+                        <button key={sub} type="button"
+                          onClick={() => setForm(f => ({ ...f, subCategory: sub }))}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.subCategory === sub ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          {sub}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 금액 */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">금액 *</label>
+                    <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0"
+                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">지출일 *</label>
+                    <input type="date" value={form.expenseDate} onChange={e => setForm(f => ({ ...f, expenseDate: e.target.value }))}
+                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                </div>
+
+                {/* 결제 방식 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">결제 방식</label>
+                  <div className="flex gap-2 mt-1">
+                    {PAYMENT_METHODS.map(m => (
+                      <button key={m} type="button" onClick={() => setForm(f => ({ ...f, paymentMethod: m }))}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 거래처 / 메모 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">거래처/공급업체</label>
+                  <input value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} placeholder="거래처명"
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
+
                 <div>
-                  <label className="text-xs text-muted-foreground">지출일 *</label>
-                  <input type="date" value={form.expenseDate} onChange={e => setForm(f => ({ ...f, expenseDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  <label className="text-xs text-muted-foreground">메모</label>
+                  <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">거래처/공급업체</label>
-                <input value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} placeholder="거래처명"
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">메모</label>
-                <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
-              </div>
 
               </div>
               <div className="flex gap-2 p-4 border-t border-border shrink-0">

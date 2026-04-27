@@ -341,6 +341,8 @@ async function initDatabase() {
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "sessions" INTEGER`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "duration" INTEGER`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "startDate" TEXT`,
+    `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "subCategory" TEXT`,
+    `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`,
     `CREATE TABLE IF NOT EXISTS branches (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
