@@ -238,6 +238,7 @@ const revenueRouter = t.router({
       refundAmount: z.number().min(0).default(0),
       paymentMethod: z.string().optional(),
       paymentDate: z.string(),
+      startDate: z.string().optional(),
       installments: z.number().min(1).default(1),
       memo: z.string().optional(),
     }))
@@ -278,6 +279,7 @@ const revenueRouter = t.router({
       refundAmount: z.number().optional(),
       paymentMethod: z.string().optional(),
       paymentDate: z.string().optional(),
+      startDate: z.string().optional(),
       installments: z.number().optional(),
       memo: z.string().optional(),
     }))

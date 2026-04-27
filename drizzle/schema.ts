@@ -266,6 +266,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   refundAmount: integer("refundAmount").default(0).notNull(),
   paymentMethod: text("paymentMethod"), // 카드 / 현금 / 계좌이체
   paymentDate: text("paymentDate").notNull(),
+  startDate: text("startDate"),
   installments: integer("installments").default(1).notNull(),
   memo: text("memo"),
   createdAt: text("createdAt").default(now).notNull(),

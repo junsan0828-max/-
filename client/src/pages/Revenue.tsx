@@ -11,20 +11,23 @@ const CATEGORIES = ["PT", "헬스", "기타"] as const;
 const SUB_TYPES = ["신규", "재등록"] as const;
 const DURATIONS = [1, 3, 6, 12];
 const OTHER_ITEMS = ["락커", "운동복"];
+const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 
 type RevForm = {
   customerName: string; phone: string; programDetail: string; duration: string;
   leadId?: number; trainerId?: number; branchId?: number; channelId?: number;
   type: "PT" | "헬스" | "기타"; subType: "신규" | "재등록";
   amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string; refundAmount: string;
-  paymentMethod: string; paymentDate: string; installments: string; memo: string;
+  paymentMethod: string; paymentDate: string; startDate: string; installments: string; memo: string;
+  ptProgramKey: string; ptProgramCustom: string;
 };
 
 const defaultForm: RevForm = {
   customerName: "", phone: "", programDetail: "", duration: "",
+  ptProgramKey: "", ptProgramCustom: "",
   type: "PT", subType: "신규",
   amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0", refundAmount: "0",
-  paymentMethod: "카드", paymentDate: new Date().toISOString().substring(0, 10),
+  paymentMethod: "카드", paymentDate: new Date().toISOString().substring(0, 10), startDate: "",
   installments: "1", memo: "",
 };
 
@@ -76,6 +79,8 @@ export default function RevenuePage() {
       phone: row.entry.phone ?? "",
       programDetail: row.entry.programDetail ?? "",
       duration: row.entry.duration ? String(row.entry.duration) : "",
+      ptProgramKey: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? (row.entry.programDetail ?? "") : (row.entry.programDetail ? "기타" : ""),
+      ptProgramCustom: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? "" : (row.entry.programDetail ?? ""),
       leadId: row.entry.leadId ?? undefined,
       trainerId: row.entry.trainerId ?? undefined,
       branchId: row.entry.branchId ?? undefined,
@@ -89,6 +94,7 @@ export default function RevenuePage() {
       refundAmount: String(row.entry.refundAmount),
       paymentMethod: row.entry.paymentMethod ?? "카드",
       paymentDate: row.entry.paymentDate,
+      startDate: row.entry.startDate ?? "",
       installments: String(row.entry.installments),
       memo: row.entry.memo ?? "",
     });
@@ -106,10 +112,13 @@ export default function RevenuePage() {
     e.preventDefault();
     if (!form.amount) return toast.error("금액을 입력해주세요");
     if (!form.paymentDate) return toast.error("결제일을 입력해주세요");
+    const resolvedProgram = form.type === "PT"
+      ? (form.ptProgramKey === "기타" ? form.ptProgramCustom : form.ptProgramKey) || undefined
+      : form.programDetail || undefined;
     const payload = {
       customerName: form.customerName || undefined,
       phone: form.phone || undefined,
-      programDetail: form.programDetail || undefined,
+      programDetail: resolvedProgram,
       duration: form.duration ? parseInt(form.duration) : undefined,
       leadId: form.leadId ? Number(form.leadId) : undefined,
       trainerId: form.trainerId ? Number(form.trainerId) : undefined,
@@ -124,6 +133,7 @@ export default function RevenuePage() {
       refundAmount: parseInt(form.refundAmount) || 0,
       paymentMethod: form.paymentMethod,
       paymentDate: form.paymentDate,
+      startDate: form.startDate || undefined,
       installments: parseInt(form.installments) || 1,
       memo: form.memo,
     };
@@ -330,10 +340,22 @@ export default function RevenuePage() {
 
               {/* PT: 프로그램명 */}
               {form.type === "PT" && (
-                <div>
-                  <label className="text-xs text-muted-foreground">프로그램명</label>
-                  <input value={form.programDetail} onChange={e => setForm(f => ({ ...f, programDetail: e.target.value }))} placeholder="예) 30회, 스포츠PT"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">프로그램명</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      {PT_PROGRAMS.map(p => (
+                        <button key={p} type="button" onClick={() => setForm(f => ({ ...f, ptProgramKey: p, ptProgramCustom: "" }))}
+                          className={`py-2 rounded-lg text-sm font-medium border transition-colors ${form.ptProgramKey === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {form.ptProgramKey === "기타" && (
+                    <input value={form.ptProgramCustom} onChange={e => setForm(f => ({ ...f, ptProgramCustom: e.target.value }))} placeholder="프로그램명 직접 입력"
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  )}
                 </div>
               )}
 
@@ -438,6 +460,15 @@ export default function RevenuePage() {
                   <input type="date" value={form.paymentDate} onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">시작일</label>
+                  <input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div />
               </div>
 
               {/* 트레이너 / 채널 */}
