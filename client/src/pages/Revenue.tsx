@@ -12,9 +12,10 @@ const SUB_TYPES = ["신규", "재등록"] as const;
 const DURATIONS = [1, 3, 6, 12];
 const OTHER_ITEMS = ["락커", "운동복"];
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
+const PT_SESSIONS = [10, 20, 30, 40, 50];
 
 type RevForm = {
-  customerName: string; phone: string; programDetail: string; duration: string;
+  customerName: string; phone: string; programDetail: string; duration: string; sessions: string;
   leadId?: number; trainerId?: number; branchId?: number; channelId?: number;
   type: "PT" | "헬스" | "기타"; subType: "신규" | "재등록";
   amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string; refundAmount: string;
@@ -23,7 +24,7 @@ type RevForm = {
 };
 
 const defaultForm: RevForm = {
-  customerName: "", phone: "", programDetail: "", duration: "",
+  customerName: "", phone: "", programDetail: "", duration: "", sessions: "",
   ptProgramKey: "", ptProgramCustom: "",
   type: "PT", subType: "신규",
   amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0", refundAmount: "0",
@@ -79,6 +80,7 @@ export default function RevenuePage() {
       phone: row.entry.phone ?? "",
       programDetail: row.entry.programDetail ?? "",
       duration: row.entry.duration ? String(row.entry.duration) : "",
+      sessions: row.entry.sessions ? String(row.entry.sessions) : "",
       ptProgramKey: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? (row.entry.programDetail ?? "") : (row.entry.programDetail ? "기타" : ""),
       ptProgramCustom: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? "" : (row.entry.programDetail ?? ""),
       leadId: row.entry.leadId ?? undefined,
@@ -119,6 +121,7 @@ export default function RevenuePage() {
       customerName: form.customerName || undefined,
       phone: form.phone || undefined,
       programDetail: resolvedProgram,
+      sessions: form.sessions ? parseInt(form.sessions) : undefined,
       duration: form.duration ? parseInt(form.duration) : undefined,
       leadId: form.leadId ? Number(form.leadId) : undefined,
       trainerId: form.trainerId ? Number(form.trainerId) : undefined,
@@ -356,6 +359,17 @@ export default function RevenuePage() {
                     <input value={form.ptProgramCustom} onChange={e => setForm(f => ({ ...f, ptProgramCustom: e.target.value }))} placeholder="프로그램명 직접 입력"
                       className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                   )}
+                  <div>
+                    <label className="text-xs text-muted-foreground">횟수</label>
+                    <div className="flex gap-2 mt-1">
+                      {PT_SESSIONS.map(s => (
+                        <button key={s} type="button" onClick={() => setForm(f => ({ ...f, sessions: form.sessions === String(s) ? "" : String(s) }))}
+                          className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.sessions === String(s) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          {s}회
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 

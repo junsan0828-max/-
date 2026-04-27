@@ -256,6 +256,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   customerName: text("customerName"), // 회원 이름
   phone: text("phone"),               // 연락처
   programDetail: text("programDetail"), // PT 프로그램명 / 기타 항목(락커·운동복)
+  sessions: integer("sessions"),      // PT 횟수 (10/20/30/40/50회)
   duration: integer("duration"),      // 이용 기간(개월) - 헬스/기타
   type: text("type").notNull(), // PT / 헬스 / 기타
   subType: text("subType").notNull(), // 신규 / 재등록
