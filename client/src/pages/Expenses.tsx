@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Plus, ChevronLeft, ChevronRight, PieChart as PieIcon } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
-const PAYMENT_METHODS = ["카드", "현금", "계좌이체"];
+const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "지역화폐"];
 
 const CATEGORY_MAP: Record<string, string[]> = {
   "고정관리비": ["임대료", "전기세", "가스비", "공동관리비", "인터넷비", "정수기비", "TV비", "CRM비"],
