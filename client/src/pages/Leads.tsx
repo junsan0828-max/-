@@ -39,12 +39,17 @@ const DURATIONS = [1, 3, 6, 12];
 const PAYMENT_METHODS_REG = ["카드", "현금", "계좌이체", "지역화폐"];
 
 type RegForm = {
-  itemType: "PT" | "헬스" | "기타" | "";
+  itemTypes: string[];     // 복수 선택: PT / 헬스 / 기타
   subType: "신규" | "재등록";
+  // PT
   programKey: string;
   programCustom: string;
   sessions?: number;
+  // 헬스
   duration?: number;
+  // 기타
+  otherItem: string;
+  // 결제
   amount: string;
   discountAmount: string;
   paidAmount: string;
@@ -56,12 +61,13 @@ type RegForm = {
 };
 
 const defaultRegForm: RegForm = {
-  itemType: "",
+  itemTypes: [],
   subType: "신규",
   programKey: "",
   programCustom: "",
   sessions: undefined,
   duration: undefined,
+  otherItem: "",
   amount: "",
   discountAmount: "0",
   paidAmount: "",
@@ -246,11 +252,11 @@ export default function LeadsPage() {
     if (!agreedTerms) return toast.error("이용약관에 동의해주세요");
     if (!agreedPrivacy) return toast.error("개인정보 수집·이용에 동의해주세요");
     setShowContract(false);
-    const preType = (form.interestType === "PT" || form.interestType === "헬스" || form.interestType === "기타")
-      ? form.interestType : "";
+    const preTypes = (form.interestType === "PT" || form.interestType === "헬스" || form.interestType === "기타")
+      ? [form.interestType] : [];
     setRegForm({
       ...defaultRegForm,
-      itemType: preType,
+      itemTypes: preTypes,
       paymentDate: new Date().toISOString().substring(0, 10),
       startDate: new Date().toISOString().substring(0, 10),
     });
@@ -258,19 +264,31 @@ export default function LeadsPage() {
   }
 
   function fireRevenueSave(reg: RegForm, leadId: number) {
-    const type = (reg.itemType === "PT" || reg.itemType === "헬스" || reg.itemType === "기타") ? reg.itemType : "기타";
-    const programDetail = type === "PT"
-      ? (reg.programKey === "기타" ? reg.programCustom : reg.programKey)
-      : undefined;
+    // 대표 type: PT 있으면 PT, 없으면 헬스, 없으면 기타
+    const primary = reg.itemTypes.includes("PT") ? "PT"
+      : reg.itemTypes.includes("헬스") ? "헬스" : "기타";
+
+    // programDetail: 선택된 항목들 조합
+    const parts: string[] = [];
+    if (reg.itemTypes.includes("PT") && reg.programKey) {
+      parts.push(reg.programKey === "기타" ? (reg.programCustom || "기타PT") : reg.programKey);
+    }
+    if (reg.itemTypes.includes("헬스") && reg.duration) {
+      parts.push(`헬스 ${reg.duration}개월`);
+    }
+    if (reg.itemTypes.includes("기타") && reg.otherItem) {
+      parts.push(reg.otherItem);
+    }
+
     createRevenueMutation.mutate({
       leadId,
       customerName: form.name,
       phone: form.phone || undefined,
-      type,
+      type: primary as "PT" | "헬스" | "기타",
       subType: reg.subType,
-      programDetail: programDetail || undefined,
-      sessions: type === "PT" ? reg.sessions : undefined,
-      duration: type === "헬스" ? reg.duration : undefined,
+      programDetail: parts.length > 0 ? parts.join(" + ") : undefined,
+      sessions: reg.itemTypes.includes("PT") ? reg.sessions : undefined,
+      duration: reg.itemTypes.includes("헬스") ? reg.duration : undefined,
       amount: Number(reg.amount) || 0,
       discountAmount: Number(reg.discountAmount) || 0,
       paidAmount: Number(reg.paidAmount) || 0,
@@ -617,14 +635,17 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 항목 유형 선택 */}
+              {/* 항목 유형 — 복수 선택 */}
               <div>
-                <label className="text-xs text-muted-foreground">항목 유형</label>
+                <label className="text-xs text-muted-foreground">항목 유형 (복수 선택 가능)</label>
                 <div className="flex gap-2 mt-1">
-                  {(["PT", "헬스", "기타"] as const).map(t => (
+                  {["PT", "헬스", "기타"].map(t => (
                     <button key={t} type="button"
-                      onClick={() => setRegForm(f => ({ ...f, itemType: t, programKey: "", programCustom: "", sessions: undefined, duration: undefined }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.itemType === t ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      onClick={() => setRegForm(f => {
+                        const has = f.itemTypes.includes(t);
+                        return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== t) : [...f.itemTypes, t] };
+                      })}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.itemTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
                       {t}
                     </button>
                   ))}
@@ -632,8 +653,8 @@ export default function LeadsPage() {
               </div>
 
               {/* PT 프로그램 + 횟수 */}
-              {regForm.itemType === "PT" && (
-                <>
+              {regForm.itemTypes.includes("PT") && (
+                <div className="space-y-3 pl-3 border-l-2 border-primary/40">
                   <div>
                     <label className="text-xs text-muted-foreground">PT 프로그램</label>
                     <div className="grid grid-cols-2 gap-2 mt-1">
@@ -664,13 +685,13 @@ export default function LeadsPage() {
                       ))}
                     </div>
                   </div>
-                </>
+                </div>
               )}
 
               {/* 헬스 기간 */}
-              {regForm.itemType === "헬스" && (
-                <div>
-                  <label className="text-xs text-muted-foreground">이용 기간</label>
+              {regForm.itemTypes.includes("헬스") && (
+                <div className="pl-3 border-l-2 border-primary/40">
+                  <label className="text-xs text-muted-foreground">헬스 이용 기간</label>
                   <div className="flex gap-2 mt-1">
                     {DURATIONS.map(d => (
                       <button key={d} type="button"
@@ -684,11 +705,11 @@ export default function LeadsPage() {
               )}
 
               {/* 기타 항목명 */}
-              {regForm.itemType === "기타" && (
-                <div>
-                  <label className="text-xs text-muted-foreground">항목명</label>
-                  <input value={regForm.programKey}
-                    onChange={e => setRegForm(f => ({ ...f, programKey: e.target.value }))}
+              {regForm.itemTypes.includes("기타") && (
+                <div className="pl-3 border-l-2 border-primary/40">
+                  <label className="text-xs text-muted-foreground">기타 항목명</label>
+                  <input value={regForm.otherItem}
+                    onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))}
                     placeholder="예: 락커, 운동복 등"
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
