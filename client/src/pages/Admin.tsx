@@ -81,7 +81,7 @@ export default function Admin() {
     phone: "",
     email: "",
     settlementRate: "50",
-    branchId: "",
+    branchId: "none",
   });
 
   // 시트 자동 동기화 설정
@@ -175,7 +175,7 @@ export default function Admin() {
     onSuccess: () => {
       toast.success("트레이너 계정이 생성되었습니다.");
       setCreateOpen(false);
-      setForm({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "" });
+      setForm({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none" });
       refetch();
     },
     onError: (err) => toast.error(err.message || "생성 실패"),
@@ -191,18 +191,20 @@ export default function Admin() {
   });
 
   const handleCreate = () => {
-    if (!form.username || !form.password || !form.trainerName) {
-      toast.error("아이디, 비밀번호, 이름은 필수입니다.");
-      return;
-    }
+    if (!form.trainerName.trim()) return toast.error("이름을 입력해주세요.");
+    if (!form.username.trim()) return toast.error("아이디를 입력해주세요.");
+    if (form.username.trim().length < 3) return toast.error("아이디는 3자 이상이어야 합니다.");
+    if (!form.password) return toast.error("비밀번호를 입력해주세요.");
+    if (form.password.length < 6) return toast.error("비밀번호는 6자 이상이어야 합니다.");
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return toast.error("올바른 이메일 형식이 아닙니다.");
     createMutation.mutate({
-      username: form.username,
+      username: form.username.trim(),
       password: form.password,
-      trainerName: form.trainerName,
+      trainerName: form.trainerName.trim(),
       phone: form.phone || undefined,
       email: form.email || undefined,
       settlementRate: parseInt(form.settlementRate) || 50,
-      branchId: form.branchId ? parseInt(form.branchId) : undefined,
+      branchId: form.branchId !== "none" ? parseInt(form.branchId) : undefined,
     });
   };
 
@@ -284,7 +286,7 @@ export default function Admin() {
                     <SelectValue placeholder="지점 선택 (선택)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">미배정</SelectItem>
+                    <SelectItem value="none">미배정</SelectItem>
                     {branchList?.map((b) => (
                       <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
                     ))}
