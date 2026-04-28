@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, gte, lt } from "drizzle-orm";
 import {
   members,
   trainers,
@@ -50,19 +50,44 @@ export async function getDashboardStats(trainerId: number) {
     const todayAttendances = Number(todayAttendancesResult[0]?.count ?? 0);
     const settlementRate = Number(trainerSettingsResult[0]?.settlementRate ?? 50);
 
-    const [monthSettlementResult, todaySettlementResult] = await Promise.all([
-      db.select({ totalSettlement: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession}, 0)), 0)` })
-        .from(attendances)
-        .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
-        .where(and(eq(attendances.trainerId, trainerId), eq(attendances.status, "attended"), sql`${attendances.attendDate} >= ${monthStart}`, sql`${attendances.attendDate} < ${monthEnd}`)),
-      db.select({ totalSettlement: sql<number>`COALESCE(SUM(COALESCE(${ptPackages.pricePerSession}, 0)), 0)` })
-        .from(attendances)
-        .leftJoin(ptPackages, eq(attendances.memberId, ptPackages.memberId))
-        .where(and(eq(attendances.trainerId, trainerId), eq(attendances.status, "attended"), eq(attendances.attendDate, today))),
+    // 세션 로그 + 패키지 join으로 pricePerSession 가져와 JS에서 계산
+    const [monthLogs, todayLogs] = await Promise.all([
+      db.select({
+        pricePerSession: ptPackages.pricePerSession,
+        paymentAmount: ptPackages.paymentAmount,
+        totalSessions: ptPackages.totalSessions,
+      })
+        .from(ptSessionLogs)
+        .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+        .where(and(
+          eq(ptSessionLogs.trainerId, trainerId),
+          sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
+          sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
+        )),
+      db.select({
+        pricePerSession: ptPackages.pricePerSession,
+        paymentAmount: ptPackages.paymentAmount,
+        totalSessions: ptPackages.totalSessions,
+      })
+        .from(ptSessionLogs)
+        .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+        .where(and(
+          eq(ptSessionLogs.trainerId, trainerId),
+          eq(ptSessionLogs.sessionDate, today),
+        )),
     ]);
 
-    const monthlySettlement = Math.round((Number(monthSettlementResult[0]?.totalSettlement ?? 0) * settlementRate) / 100);
-    const dailySettlement = Math.round((Number(todaySettlementResult[0]?.totalSettlement ?? 0) * settlementRate) / 100);
+    const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+      if (l.pricePerSession) return l.pricePerSession;
+      if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+      return 0;
+    };
+
+    const monthRevenue = monthLogs.reduce((s, l) => s + calcPrice(l), 0);
+    const todayRevenue = todayLogs.reduce((s, l) => s + calcPrice(l), 0);
+
+    const monthlySettlement = Math.round(monthRevenue * settlementRate / 100);
+    const dailySettlement = Math.round(todayRevenue * settlementRate / 100);
 
     return { totalMembers, activeMembers, todayAttendances, totalPtSessions, settlementAmount: monthlySettlement, noShowCount: 0, dailySettlement, monthlySettlement };
   } catch (error) {

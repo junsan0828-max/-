@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from "express";
 export interface AuthUser {
   id: number;
   username: string;
-  role: "admin" | "trainer";
+  role: "admin" | "trainer" | "consultant";
   trainerId?: number;
 }
 

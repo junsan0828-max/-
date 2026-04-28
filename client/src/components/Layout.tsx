@@ -4,7 +4,8 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
-  UserCog, Settings, User, ClipboardCheck, Download, X,
+  UserCog, Settings, User, ClipboardCheck, Download, X, Receipt,
+  TrendingUp, Wallet, Megaphone, BrainCircuit, UserPlus, ListChecks,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -45,9 +46,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   const adminNavItems = [
-    { path: "/", label: "대시보드", icon: LayoutDashboard },
+    { path: "/", label: "KPI", icon: LayoutDashboard },
+    { path: "/revenue", label: "매출", icon: TrendingUp },
+    { path: "/expenses", label: "지출", icon: Wallet },
+    { path: "/leads", label: "리드", icon: UserPlus },
+    { path: "/marketing", label: "마케팅", icon: Megaphone },
+    { path: "/ai-analysis", label: "AI분석", icon: BrainCircuit },
     { path: "/trainers", label: "트레이너", icon: UserCog },
+    { path: "/settlement", label: "정산", icon: Receipt },
     { path: "/admin", label: "관리", icon: Settings },
+  ];
+
+  const consultantNavItems = [
+    { path: "/my-work", label: "나의 업무", icon: ListChecks },
+    { path: "/leads", label: "상담관리", icon: UserPlus },
+    { path: "/revenue", label: "매출입력", icon: TrendingUp },
   ];
 
   const trainerNavItems = [
@@ -55,10 +68,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/members", label: "회원 관리", icon: Users },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
+    { path: "/my-work", label: "나의 업무", icon: ListChecks },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
-  const navItems = user?.role === "admin" ? adminNavItems : trainerNavItems;
+  const navItems = user?.role === "admin" ? adminNavItems
+    : user?.role === "consultant" ? consultantNavItems
+    : trainerNavItems;
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";

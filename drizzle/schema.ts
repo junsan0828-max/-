@@ -3,6 +3,13 @@ import { sql } from "drizzle-orm";
 
 const now = sql`now()::text`;
 
+// 지점
+export const branches = pgTable("branches", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 // 사용자 (관리자 / 트레이너)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -11,6 +18,7 @@ export const users = pgTable("users", {
   role: text("role").default("trainer").notNull(),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+  lastLoginAt: text("lastLoginAt"),
 });
 
 // 트레이너 프로필
@@ -20,8 +28,16 @@ export const trainers = pgTable("trainers", {
   trainerName: text("trainerName").notNull(),
   phone: text("phone"),
   email: text("email"),
+  branchId: integer("branchId"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 트레이너-지점 다대다
+export const trainerBranches = pgTable("trainer_branches", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  branchId: integer("branchId").notNull(),
 });
 
 // 트레이너 설정
@@ -117,6 +133,8 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   notes: text("notes"),
   bodyPart: text("bodyPart"),
   exercisesJson: text("exercisesJson"),
+  goal: text("goal"),
+  feedback: text("feedback"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 
@@ -193,6 +211,99 @@ export const payments = pgTable("payments", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+// ─── 통합 운영 시스템 ─────────────────────────────────────────────────────────
+
+// 유입 채널 (마케팅 채널)
+export const channels = pgTable("channels", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").default("online").notNull(), // online / offline / referral / sns
+  description: text("description"),
+  isActive: integer("isActive").default(1).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 리드 (상담 문의)
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  gender: text("gender"),
+  ageGroup: text("ageGroup"),
+  channelId: integer("channelId"),
+  branchId: integer("branchId"),
+  status: text("status").default("pending").notNull(), // pending / consulted / registered / dropped
+  assignedTrainerId: integer("assignedTrainerId"),
+  assignedConsultantId: integer("assignedConsultantId"), // users 테이블 consultant
+  consultationDate: text("consultationDate"),
+  consultationType: text("consultationType"),    // 방문상담/예약상담/소개상담
+  consultationSubTypes: text("consultationSubTypes"), // 복수선택, comma-separated
+  consultationNote: text("consultationNote"),
+  registeredMemberId: integer("registeredMemberId"),
+  interestType: text("interestType"), // PT / 헬스 / 기타
+  exercisePurpose: text("exercisePurpose"), // 운동 목적 (comma-separated)
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 매출 장부
+export const revenueEntries = pgTable("revenue_entries", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId"),
+  leadId: integer("leadId"),
+  trainerId: integer("trainerId"),
+  branchId: integer("branchId"),
+  channelId: integer("channelId"),
+  createdBy: integer("createdBy"),
+  customerName: text("customerName"), // 회원 이름
+  phone: text("phone"),               // 연락처
+  programDetail: text("programDetail"), // PT 프로그램명 / 기타 항목(락커·운동복)
+  sessions: integer("sessions"),      // PT 횟수 (10/20/30/40/50회)
+  duration: integer("duration"),      // 이용 기간(개월) - 헬스/기타
+  type: text("type").notNull(), // PT / 헬스 / 기타
+  subType: text("subType").notNull(), // 신규 / 재등록
+  amount: integer("amount").notNull(),
+  discountAmount: integer("discountAmount").default(0).notNull(),
+  paidAmount: integer("paidAmount").notNull(),
+  unpaidAmount: integer("unpaidAmount").default(0).notNull(),
+  refundAmount: integer("refundAmount").default(0).notNull(),
+  paymentMethod: text("paymentMethod"), // 카드 / 현금 / 계좌이체
+  paymentDate: text("paymentDate").notNull(),
+  startDate: text("startDate"),
+  installments: integer("installments").default(1).notNull(),
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 지출 장부
+export const expenseEntries = pgTable("expense_entries", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  category: text("category").notNull(),    // 대분류: 고정관리비/유동관리비/인건비/운영비
+  subCategory: text("subCategory"),        // 소분류
+  amount: integer("amount").notNull(),
+  paymentMethod: text("paymentMethod"),    // 카드/현금/계좌이체
+  vendor: text("vendor"),
+  expenseDate: text("expenseDate").notNull(),
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 매출 목표
+export const revenueTargets = pgTable("revenue_targets", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  targetAmount: integer("targetAmount").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // 구글시트 자동 동기화 설정
 export const sheetSyncConfig = pgTable("sheet_sync_config", {
   id: serial("id").primaryKey(),
@@ -224,4 +335,44 @@ export const sheetPendingMembers = pgTable("sheet_pending_members", {
   paymentMethod: text("paymentMethod"),
   sheetRowIndex: integer("sheetRowIndex"),
   importedAt: text("importedAt").default(now).notNull(),
+});
+
+// ─── 나의 업무 ────────────────────────────────────────────────────────────────
+
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").default("기타").notNull(),
+  priority: text("priority").default("normal").notNull(),
+  status: text("status").default("pending").notNull(),
+  assigneeId: integer("assigneeId").notNull(),
+  assignedById: integer("assignedById"),
+  taskType: text("taskType").default("daily").notNull(),
+  taskDate: text("taskDate"),
+  dayOfWeek: integer("dayOfWeek"),
+  dayOfMonth: integer("dayOfMonth"),
+  dueTime: text("dueTime"),
+  isRecurring: integer("isRecurring").default(0).notNull(),
+  completedAt: text("completedAt"),
+  completedMemo: text("completedMemo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const notices = pgTable("notices", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  authorId: integer("authorId").notNull(),
+  targetRole: text("targetRole").default("all").notNull(),
+  priority: text("priority").default("normal").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const noticeReads = pgTable("notice_reads", {
+  id: serial("id").primaryKey(),
+  noticeId: integer("noticeId").notNull(),
+  userId: integer("userId").notNull(),
+  readAt: text("readAt").default(now).notNull(),
 });

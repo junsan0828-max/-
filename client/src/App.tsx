@@ -26,6 +26,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import GymDashboard from "./pages/GymDashboard";
 import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
@@ -38,21 +39,33 @@ import Trainers from "./pages/Trainers";
 import Admin from "./pages/Admin";
 import PT from "./pages/PT";
 import Profile from "./pages/Profile";
+import SettlementReport from "./pages/SettlementReport";
+import TrainerSettlement from "./pages/TrainerSettlement";
+import LeadsPage from "./pages/Leads";
+import ContractPrint from "./pages/ContractPrint";
+import MyWorkPage from "./pages/MyWork";
+import RevenuePage from "./pages/Revenue";
+import ExpensesPage from "./pages/Expenses";
+import MarketingPage from "./pages/Marketing";
+import AiAnalysisPage from "./pages/AiAnalysis";
 import Layout from "./components/Layout";
 
 function App() {
   const [reportMatch, reportParams] = useRoute("/report/:token");
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
-  // 공개 보고서 페이지 - 인증 불필요
+  // 공개 보고서 / 계약서 페이지 - 인증 불필요
   if (reportMatch && reportParams) {
     return <MemberReport token={reportParams.token} />;
+  }
+  if (window.location.pathname === "/contract-print") {
+    return <ContractPrint />;
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground text-sm">로딩 중...</div>
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
+        <p className="text-gray-400 text-sm">로딩 중...</p>
       </div>
     );
   }
@@ -66,7 +79,14 @@ function App() {
     <Layout>
       <ErrorBoundary>
       <Switch>
-        <Route path="/">{() => <Dashboard />}</Route>
+        <Route path="/">{() => user?.role === "admin" ? <GymDashboard /> : user?.role === "consultant" ? <LeadsPage /> : <Dashboard />}</Route>
+        <Route path="/gym-dashboard">{() => <GymDashboard />}</Route>
+        <Route path="/my-work">{() => <MyWorkPage />}</Route>
+        <Route path="/leads">{() => <LeadsPage />}</Route>
+        <Route path="/revenue">{() => <RevenuePage />}</Route>
+        <Route path="/expenses">{() => <ExpensesPage />}</Route>
+        <Route path="/marketing">{() => <MarketingPage />}</Route>
+        <Route path="/ai-analysis">{() => <AiAnalysisPage />}</Route>
         <Route path="/members">{() => <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
         <Route path="/trainers/:id/members/new">
@@ -91,6 +111,8 @@ function App() {
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
         <Route path="/admin">{() => <Admin />}</Route>
+        <Route path="/settlement">{() => <SettlementReport />}</Route>
+        <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
         <Route path="/profile">{() => <Profile />}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
       </Switch>
