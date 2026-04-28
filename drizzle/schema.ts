@@ -235,6 +235,7 @@ export const leads = pgTable("leads", {
   branchId: integer("branchId"),
   status: text("status").default("pending").notNull(), // pending / consulted / registered / dropped
   assignedTrainerId: integer("assignedTrainerId"),
+  assignedConsultantId: integer("assignedConsultantId"), // users 테이블 consultant
   consultationDate: text("consultationDate"),
   consultationType: text("consultationType"),    // 방문상담/예약상담/소개상담
   consultationSubTypes: text("consultationSubTypes"), // 복수선택, comma-separated

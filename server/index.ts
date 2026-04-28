@@ -345,6 +345,7 @@ async function initDatabase() {
     `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationType" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationSubTypes" TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "assignedConsultantId" INTEGER`,
     `CREATE TABLE IF NOT EXISTS branches (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,

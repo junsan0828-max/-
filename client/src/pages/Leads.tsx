@@ -24,7 +24,7 @@ const AGE_OPTIONS = ["10대", "20대", "30대", "40대", "50대이상"];
 
 type LeadForm = {
   name: string; phone: string; gender: string; ageGroup: string;
-  channelId?: number; assignedTrainerId?: number;
+  channelId?: number; assignedTrainerId?: number; assignedConsultantId?: number;
   consultationDate: string;
   consultationTypes: string[];    // 대분류 복수 선택
   consultationSubTypes: string[]; // 소분류 복수 선택
@@ -37,6 +37,7 @@ const defaultForm: LeadForm = {
   consultationDate: new Date().toISOString().substring(0, 10),
   consultationTypes: [], consultationSubTypes: [],
   consultationNote: "", interestType: "", memo: "",
+  assignedTrainerId: undefined, assignedConsultantId: undefined,
 };
 
 export default function LeadsPage() {
@@ -53,6 +54,7 @@ export default function LeadsPage() {
   const { data: leadsData, isLoading } = trpc.gym.leads.list.useQuery({ year, month });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
+  const { data: consultants } = trpc.admin.listConsultants.useQuery();
 
   const createMutation = trpc.gym.leads.create.useMutation({
     onSuccess: () => { toast.success("상담이 등록되었습니다"); utils.gym.leads.invalidate(); resetForm(); },
@@ -77,6 +79,7 @@ export default function LeadsPage() {
       ageGroup: row.lead.ageGroup ?? "",
       channelId: row.lead.channelId ?? undefined,
       assignedTrainerId: row.lead.assignedTrainerId ?? undefined,
+      assignedConsultantId: row.lead.assignedConsultantId ?? undefined,
       consultationDate: row.lead.consultationDate ?? new Date().toISOString().substring(0, 10),
       consultationTypes: row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [],
       consultationSubTypes: row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [],
@@ -113,6 +116,7 @@ export default function LeadsPage() {
       ageGroup: form.ageGroup || undefined,
       channelId: form.channelId,
       assignedTrainerId: form.assignedTrainerId,
+      assignedConsultantId: form.assignedConsultantId,
       consultationDate: form.consultationDate || undefined,
       consultationType: form.consultationTypes.length > 0 ? form.consultationTypes.join(",") : undefined,
       consultationSubTypes: form.consultationSubTypes.length > 0 ? form.consultationSubTypes.join(",") : undefined,
@@ -258,8 +262,10 @@ export default function LeadsPage() {
                   {row.channelName && (
                     <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{row.channelName}</span>
                   )}
-                  {row.trainerName && (
-                    <span className="bg-violet-500/10 text-violet-400 px-2 py-0.5 rounded-full">{row.trainerName}</span>
+                  {(row.trainerName || (row as any).consultantName) && (
+                    <span className="bg-violet-500/10 text-violet-400 px-2 py-0.5 rounded-full">
+                      {row.trainerName || (row as any).consultantName}
+                    </span>
                   )}
                 </div>
                 {row.lead.consultationNote && (
@@ -377,13 +383,29 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 담당 트레이너 */}
+              {/* 상담 담당자 */}
               <div>
-                <label className="text-xs text-muted-foreground">담당 트레이너</label>
-                <select value={form.assignedTrainerId ?? ""} onChange={e => setForm(f => ({ ...f, assignedTrainerId: e.target.value ? Number(e.target.value) : undefined }))}
+                <label className="text-xs text-muted-foreground">상담 담당자</label>
+                <select
+                  value={form.assignedConsultantId ? `c:${form.assignedConsultantId}` : form.assignedTrainerId ? `t:${form.assignedTrainerId}` : ""}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (!v) setForm(f => ({ ...f, assignedTrainerId: undefined, assignedConsultantId: undefined }));
+                    else if (v.startsWith("t:")) setForm(f => ({ ...f, assignedTrainerId: Number(v.slice(2)), assignedConsultantId: undefined }));
+                    else setForm(f => ({ ...f, assignedConsultantId: Number(v.slice(2)), assignedTrainerId: undefined }));
+                  }}
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                   <option value="">선택</option>
-                  {(trainers ?? []).map((t: any) => <option key={t.id} value={t.id}>{t.trainerName}</option>)}
+                  {(consultants ?? []).length > 0 && (
+                    <optgroup label="프론트 컨설턴트">
+                      {(consultants ?? []).map((c: any) => <option key={c.id} value={`c:${c.id}`}>{c.username}</option>)}
+                    </optgroup>
+                  )}
+                  {(trainers ?? []).length > 0 && (
+                    <optgroup label="트레이너">
+                      {(trainers ?? []).map((t: any) => <option key={t.id} value={`t:${t.id}`}>{t.trainerName}</option>)}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 

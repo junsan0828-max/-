@@ -12,6 +12,7 @@ import {
   trainers,
   members,
   branches,
+  users,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -69,14 +70,17 @@ const leadsRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      const consultantAlias = db.select({ id: users.id, username: users.username }).from(users).as("consultant");
       const rows = await db.select({
         lead: leads,
         channelName: channels.name,
         trainerName: trainers.trainerName,
+        consultantName: consultantAlias.username,
       })
         .from(leads)
         .leftJoin(channels, eq(leads.channelId, channels.id))
         .leftJoin(trainers, eq(leads.assignedTrainerId, trainers.id))
+        .leftJoin(consultantAlias, eq(leads.assignedConsultantId, consultantAlias.id))
         .orderBy(desc(leads.createdAt));
 
       let result = rows;
@@ -103,6 +107,7 @@ const leadsRouter = t.router({
       branchId: z.number().optional(),
       status: z.string().default("pending"),
       assignedTrainerId: z.number().optional(),
+      assignedConsultantId: z.number().optional(),
       consultationDate: z.string().optional(),
       consultationType: z.string().optional(),
       consultationSubTypes: z.string().optional(),
@@ -132,6 +137,7 @@ const leadsRouter = t.router({
       branchId: z.number().optional(),
       status: z.string().optional(),
       assignedTrainerId: z.number().optional(),
+      assignedConsultantId: z.number().optional(),
       consultationDate: z.string().optional(),
       consultationType: z.string().optional(),
       consultationSubTypes: z.string().optional(),
