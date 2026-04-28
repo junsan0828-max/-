@@ -113,6 +113,7 @@ const leadsRouter = t.router({
       consultationSubTypes: z.string().optional(),
       consultationNote: z.string().optional(),
       interestType: z.string().optional(),
+      exercisePurpose: z.string().optional(),
       memo: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -144,6 +145,7 @@ const leadsRouter = t.router({
       consultationNote: z.string().optional(),
       registeredMemberId: z.number().optional(),
       interestType: z.string().optional(),
+      exercisePurpose: z.string().optional(),
       memo: z.string().optional(),
     }))
     .mutation(async ({ input }) => {

@@ -242,6 +242,7 @@ export const leads = pgTable("leads", {
   consultationNote: text("consultationNote"),
   registeredMemberId: integer("registeredMemberId"),
   interestType: text("interestType"), // PT / 헬스 / 기타
+  exercisePurpose: text("exercisePurpose"), // 운동 목적 (comma-separated)
   memo: text("memo"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),

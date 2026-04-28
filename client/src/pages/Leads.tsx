@@ -21,6 +21,17 @@ const CONSULT_TYPES: Record<string, string[]> = {
 const MAIN_TYPES = Object.keys(CONSULT_TYPES);
 const INTEREST_OPTIONS = ["PT", "헬스", "기타"];
 const AGE_OPTIONS = ["10대", "20대", "30대", "40대", "50대이상"];
+const EXERCISE_PURPOSES = [
+  "다이어트 (체중 감량)",
+  "체형교정 (자세 개선)",
+  "통증 개선 (목/허리/무릎 등)",
+  "재활 운동 (병원 진단 후 운동)",
+  "근력/체력 향상",
+  "바디라인 개선 (근육, 몸매)",
+  "건강 관리 (예방 목적)",
+  "운동 습관 만들기",
+  "기타",
+];
 
 type LeadForm = {
   name: string; phone: string; gender: string; ageGroup: string;
@@ -29,14 +40,16 @@ type LeadForm = {
   consultationTypes: string[];    // 대분류 복수 선택
   consultationSubTypes: string[]; // 소분류 복수 선택
   consultationNote: string;
-  interestType: string; memo: string;
+  interestType: string;
+  exercisePurposes: string[];
+  memo: string;
 };
 
 const defaultForm: LeadForm = {
   name: "", phone: "", gender: "", ageGroup: "",
   consultationDate: new Date().toISOString().substring(0, 10),
   consultationTypes: [], consultationSubTypes: [],
-  consultationNote: "", interestType: "", memo: "",
+  consultationNote: "", interestType: "", exercisePurposes: [], memo: "",
   assignedTrainerId: undefined, assignedConsultantId: undefined,
 };
 
@@ -85,6 +98,7 @@ export default function LeadsPage() {
       consultationSubTypes: row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [],
       consultationNote: row.lead.consultationNote ?? "",
       interestType: row.lead.interestType ?? "",
+      exercisePurposes: row.lead.exercisePurpose ? row.lead.exercisePurpose.split(",").filter(Boolean) : [],
       memo: row.lead.memo ?? "",
     });
     setShowForm(true);
@@ -122,6 +136,7 @@ export default function LeadsPage() {
       consultationSubTypes: form.consultationSubTypes.length > 0 ? form.consultationSubTypes.join(",") : undefined,
       consultationNote: form.consultationNote || undefined,
       interestType: form.interestType || undefined,
+      exercisePurpose: form.exercisePurposes.length > 0 ? form.exercisePurposes.join(",") : undefined,
       memo: form.memo || undefined,
       status,
     };
@@ -354,16 +369,38 @@ export default function LeadsPage() {
               )}
 
               {/* 관심 프로그램 */}
-              <div>
-                <label className="text-xs text-muted-foreground">관심 프로그램</label>
-                <div className="flex gap-2 mt-1">
-                  {INTEREST_OPTIONS.map(o => (
-                    <button key={o} type="button" onClick={() => setForm(f => ({ ...f, interestType: f.interestType === o ? "" : o }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.interestType === o ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                      {o}
-                    </button>
-                  ))}
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-muted-foreground">관심 프로그램</label>
+                  <div className="flex gap-2 mt-1">
+                    {INTEREST_OPTIONS.map(o => (
+                      <button key={o} type="button"
+                        onClick={() => setForm(f => ({ ...f, interestType: f.interestType === o ? "" : o, exercisePurposes: o !== "PT" ? [] : f.exercisePurposes }))}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.interestType === o ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {o}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                {/* PT 선택 시 운동 목적 */}
+                {form.interestType === "PT" && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">운동 목적 (복수 선택 가능)</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {EXERCISE_PURPOSES.map(p => (
+                        <button key={p} type="button"
+                          onClick={() => setForm(f => {
+                            const exists = f.exercisePurposes.includes(p);
+                            return { ...f, exercisePurposes: exists ? f.exercisePurposes.filter(x => x !== p) : [...f.exercisePurposes, p] };
+                          })}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.exercisePurposes.includes(p) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 상담일 / 유입 채널 */}
