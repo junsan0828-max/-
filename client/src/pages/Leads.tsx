@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
@@ -32,6 +32,43 @@ const EXERCISE_PURPOSES = [
   "운동 습관 만들기",
   "기타",
 ];
+
+const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
+const PT_SESSIONS = [10, 20, 30, 40, 50];
+const DURATIONS = [1, 3, 6, 12];
+const PAYMENT_METHODS_REG = ["카드", "현금", "계좌이체", "지역화폐"];
+
+type RegForm = {
+  subType: "신규" | "재등록";
+  programKey: string;
+  programCustom: string;
+  sessions?: number;
+  duration?: number;
+  amount: string;
+  discountAmount: string;
+  paidAmount: string;
+  unpaidAmount: string;
+  paymentMethod: string;
+  paymentDate: string;
+  startDate: string;
+  memo: string;
+};
+
+const defaultRegForm: RegForm = {
+  subType: "신규",
+  programKey: "",
+  programCustom: "",
+  sessions: undefined,
+  duration: undefined,
+  amount: "",
+  discountAmount: "0",
+  paidAmount: "",
+  unpaidAmount: "0",
+  paymentMethod: "",
+  paymentDate: new Date().toISOString().substring(0, 10),
+  startDate: new Date().toISOString().substring(0, 10),
+  memo: "",
+};
 
 type LeadForm = {
   name: string; phone: string; gender: string; ageGroup: string;
@@ -147,19 +184,44 @@ export default function LeadsPage() {
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [agreedMarketing, setAgreedMarketing] = useState(false);
+  const [showRegistration, setShowRegistration] = useState(false);
+  const [regForm, setRegForm] = useState<RegForm>(defaultRegForm);
+  const regPendingRef = useRef<RegForm | null>(null);
+  const pendingEditIdRef = useRef<number | null>(null);
 
   const { data: leadsData, isLoading } = trpc.gym.leads.list.useQuery({ year, month });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
 
+  const createRevenueMutation = trpc.gym.revenue.create.useMutation({
+    onSuccess: () => { toast.success("등록 완료 및 매출 저장"); utils.gym.leads.invalidate(); utils.gym.revenue.invalidate(); resetForm(); },
+    onError: (e) => { toast.error("매출 저장 실패: " + e.message); resetForm(); },
+  });
+
   const createMutation = trpc.gym.leads.create.useMutation({
-    onSuccess: () => { toast.success("상담이 등록되었습니다"); utils.gym.leads.invalidate(); resetForm(); },
-    onError: (e) => toast.error(e.message),
+    onSuccess: (data) => {
+      if (regPendingRef.current) {
+        const reg = regPendingRef.current;
+        regPendingRef.current = null;
+        fireRevenueSave(reg, data.id);
+      } else {
+        toast.success("상담이 등록되었습니다"); utils.gym.leads.invalidate(); resetForm();
+      }
+    },
+    onError: (e) => { regPendingRef.current = null; toast.error(e.message); },
   });
   const updateMutation = trpc.gym.leads.update.useMutation({
-    onSuccess: () => { toast.success("수정되었습니다"); utils.gym.leads.invalidate(); resetForm(); },
-    onError: (e) => toast.error(e.message),
+    onSuccess: (data) => {
+      if (regPendingRef.current) {
+        const reg = regPendingRef.current;
+        regPendingRef.current = null;
+        fireRevenueSave(reg, data.id);
+      } else {
+        toast.success("수정되었습니다"); utils.gym.leads.invalidate(); resetForm();
+      }
+    },
+    onError: (e) => { regPendingRef.current = null; toast.error(e.message); },
   });
   const deleteMutation = trpc.gym.leads.delete.useMutation({
     onSuccess: () => { toast.success("삭제되었습니다"); utils.gym.leads.invalidate(); },
@@ -168,6 +230,8 @@ export default function LeadsPage() {
   function resetForm() {
     setShowForm(false); setEditId(null); setForm(defaultForm);
     setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
+    setShowRegistration(false); setRegForm(defaultRegForm);
+    regPendingRef.current = null; pendingEditIdRef.current = null;
   }
 
   function openContract() {
@@ -180,6 +244,47 @@ export default function LeadsPage() {
     if (!agreedTerms) return toast.error("이용약관에 동의해주세요");
     if (!agreedPrivacy) return toast.error("개인정보 수집·이용에 동의해주세요");
     setShowContract(false);
+    // Pre-fill reg form with interest type from lead
+    setRegForm({
+      ...defaultRegForm,
+      paymentDate: new Date().toISOString().substring(0, 10),
+      startDate: new Date().toISOString().substring(0, 10),
+    });
+    setShowRegistration(true);
+  }
+
+  function fireRevenueSave(reg: RegForm, leadId: number) {
+    const interestType = form.interestType as "PT" | "헬스" | "기타";
+    const type = (interestType === "PT" || interestType === "헬스" || interestType === "기타") ? interestType : "기타";
+    const programDetail = type === "PT"
+      ? (reg.programKey === "기타" ? reg.programCustom : reg.programKey)
+      : undefined;
+    createRevenueMutation.mutate({
+      leadId,
+      customerName: form.name,
+      phone: form.phone || undefined,
+      type,
+      subType: reg.subType,
+      programDetail: programDetail || undefined,
+      sessions: type === "PT" ? reg.sessions : undefined,
+      duration: type === "헬스" ? reg.duration : undefined,
+      amount: Number(reg.amount) || 0,
+      discountAmount: Number(reg.discountAmount) || 0,
+      paidAmount: Number(reg.paidAmount) || 0,
+      unpaidAmount: Number(reg.unpaidAmount) || 0,
+      paymentMethod: reg.paymentMethod || undefined,
+      paymentDate: reg.paymentDate,
+      startDate: reg.startDate || undefined,
+      memo: reg.memo || undefined,
+    });
+  }
+
+  function saveRegistration() {
+    const reg = regForm;
+    if (!reg.paymentDate) return toast.error("결제일을 입력해주세요");
+    const amount = Number(reg.amount);
+    if (!amount) return toast.error("금액을 입력해주세요");
+    regPendingRef.current = reg;
     handleSave("registered");
   }
 
@@ -464,6 +569,197 @@ export default function LeadsPage() {
                 동의 후 등록 완료
               </button>
               <button type="button" onClick={() => setShowContract(false)}
+                className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 등록 상세 모달 */}
+      {showRegistration && (
+        <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
+            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
+              <div>
+                <h2 className="font-bold text-foreground">등록 상세 정보</h2>
+                <p className="text-xs text-muted-foreground">{form.name} · {form.interestType || "기타"}</p>
+              </div>
+              <button onClick={() => setShowRegistration(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-4 space-y-4">
+
+              {/* 신규/재등록 */}
+              <div>
+                <label className="text-xs text-muted-foreground">구분</label>
+                <div className="flex gap-2 mt-1">
+                  {(["신규", "재등록"] as const).map(s => (
+                    <button key={s} type="button"
+                      onClick={() => setRegForm(f => ({ ...f, subType: s }))}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.subType === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* PT 프로그램 선택 */}
+              {form.interestType === "PT" && (
+                <>
+                  <div>
+                    <label className="text-xs text-muted-foreground">PT 프로그램</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      {PT_PROGRAMS.map(p => (
+                        <button key={p} type="button"
+                          onClick={() => setRegForm(f => ({ ...f, programKey: p, programCustom: "" }))}
+                          className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programKey === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                    {regForm.programKey === "기타" && (
+                      <input value={regForm.programCustom}
+                        onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))}
+                        placeholder="프로그램명 입력"
+                        className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">PT 횟수</label>
+                    <div className="flex gap-2 mt-1">
+                      {PT_SESSIONS.map(n => (
+                        <button key={n} type="button"
+                          onClick={() => setRegForm(f => ({ ...f, sessions: f.sessions === n ? undefined : n }))}
+                          className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.sessions === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                          {n}회
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* 헬스 기간 */}
+              {form.interestType === "헬스" && (
+                <div>
+                  <label className="text-xs text-muted-foreground">이용 기간</label>
+                  <div className="flex gap-2 mt-1">
+                    {DURATIONS.map(d => (
+                      <button key={d} type="button"
+                        onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                        {d}개월
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 기타 항목명 */}
+              {(form.interestType === "기타" || !form.interestType) && (
+                <div>
+                  <label className="text-xs text-muted-foreground">항목명</label>
+                  <input value={regForm.programKey}
+                    onChange={e => setRegForm(f => ({ ...f, programKey: e.target.value }))}
+                    placeholder="예: 락커, 운동복 등"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              )}
+
+              {/* 금액 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">정가 (원)</label>
+                  <input type="number" value={regForm.amount}
+                    onChange={e => {
+                      const amt = e.target.value;
+                      const disc = Number(regForm.discountAmount) || 0;
+                      const paid = Math.max(0, Number(amt) - disc);
+                      setRegForm(f => ({ ...f, amount: amt, paidAmount: String(paid), unpaidAmount: "0" }));
+                    }}
+                    placeholder="0"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">할인 (원)</label>
+                  <input type="number" value={regForm.discountAmount}
+                    onChange={e => {
+                      const disc = e.target.value;
+                      const paid = Math.max(0, Number(regForm.amount) - Number(disc));
+                      setRegForm(f => ({ ...f, discountAmount: disc, paidAmount: String(paid) }));
+                    }}
+                    placeholder="0"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">실결제 (원)</label>
+                  <input type="number" value={regForm.paidAmount}
+                    onChange={e => {
+                      const paid = e.target.value;
+                      const unpaid = Math.max(0, Number(regForm.amount) - Number(regForm.discountAmount) - Number(paid));
+                      setRegForm(f => ({ ...f, paidAmount: paid, unpaidAmount: String(unpaid) }));
+                    }}
+                    placeholder="0"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">미수금 (원)</label>
+                  <input type="number" value={regForm.unpaidAmount}
+                    onChange={e => setRegForm(f => ({ ...f, unpaidAmount: e.target.value }))}
+                    placeholder="0"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </div>
+
+              {/* 결제 방법 */}
+              <div>
+                <label className="text-xs text-muted-foreground">결제 방법</label>
+                <div className="grid grid-cols-4 gap-2 mt-1">
+                  {PAYMENT_METHODS_REG.map(m => (
+                    <button key={m} type="button"
+                      onClick={() => setRegForm(f => ({ ...f, paymentMethod: f.paymentMethod === m ? "" : m }))}
+                      className={`py-2 rounded-lg text-xs font-medium border transition-colors ${regForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 날짜 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">결제일 *</label>
+                  <input type="date" value={regForm.paymentDate}
+                    onChange={e => setRegForm(f => ({ ...f, paymentDate: e.target.value }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">시작일</label>
+                  <input type="date" value={regForm.startDate}
+                    onChange={e => setRegForm(f => ({ ...f, startDate: e.target.value }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </div>
+
+              {/* 메모 */}
+              <div>
+                <label className="text-xs text-muted-foreground">메모</label>
+                <textarea value={regForm.memo} onChange={e => setRegForm(f => ({ ...f, memo: e.target.value }))} rows={2}
+                  placeholder="추가 메모..."
+                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-border shrink-0 space-y-2">
+              <button type="button" onClick={saveRegistration}
+                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors">
+                등록 완료 및 매출 저장
+              </button>
+              <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
               </button>
