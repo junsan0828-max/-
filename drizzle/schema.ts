@@ -336,3 +336,43 @@ export const sheetPendingMembers = pgTable("sheet_pending_members", {
   sheetRowIndex: integer("sheetRowIndex"),
   importedAt: text("importedAt").default(now).notNull(),
 });
+
+// ─── 나의 업무 ────────────────────────────────────────────────────────────────
+
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").default("기타").notNull(),
+  priority: text("priority").default("normal").notNull(),
+  status: text("status").default("pending").notNull(),
+  assigneeId: integer("assigneeId").notNull(),
+  assignedById: integer("assignedById"),
+  taskType: text("taskType").default("daily").notNull(),
+  taskDate: text("taskDate"),
+  dayOfWeek: integer("dayOfWeek"),
+  dayOfMonth: integer("dayOfMonth"),
+  dueTime: text("dueTime"),
+  isRecurring: integer("isRecurring").default(0).notNull(),
+  completedAt: text("completedAt"),
+  completedMemo: text("completedMemo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const notices = pgTable("notices", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  authorId: integer("authorId").notNull(),
+  targetRole: text("targetRole").default("all").notNull(),
+  priority: text("priority").default("normal").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const noticeReads = pgTable("notice_reads", {
+  id: serial("id").primaryKey(),
+  noticeId: integer("noticeId").notNull(),
+  userId: integer("userId").notNull(),
+  readAt: text("readAt").default(now).notNull(),
+});

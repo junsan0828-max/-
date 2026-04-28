@@ -13,6 +13,9 @@ import {
   members,
   branches,
   users,
+  tasks,
+  notices,
+  noticeReads,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -821,6 +824,211 @@ ${topTrainer ? `${topTrainer.trainer} 트레이너가 ${topTrainer.total.toLocal
 3. ${data.conversionRate < 40 ? "상담 전환율 개선: 무료 체험 세션 도입 또는 상담 후 24시간 이내 팔로우업 연락" : "전환율이 좋은 채널에 마케팅 예산 집중 투자"}`;
 }
 
+// ─── Work (나의 업무) ──────────────────────────────────────────────────────────
+
+function getWeekStart(today: string) {
+  const d = new Date(today);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d.toISOString().substring(0, 10);
+}
+
+const tasksWorkRouter = t.router({
+  list: protectedProcedure
+    .input(z.object({ assigneeId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const isAdmin = ctx.user!.role === "admin";
+      const userId = ctx.user!.id;
+      const today = new Date().toISOString().substring(0, 10);
+      const weekStart = getWeekStart(today);
+      const thisMonth = today.substring(0, 7);
+
+      const rows = await db.select({ task: tasks, assigneeName: users.username })
+        .from(tasks)
+        .leftJoin(users, eq(tasks.assigneeId, users.id))
+        .orderBy(tasks.priority, tasks.createdAt);
+
+      let filtered = rows;
+      if (!isAdmin) {
+        filtered = filtered.filter(r => r.task.assigneeId === userId);
+      } else if (input?.assigneeId) {
+        filtered = filtered.filter(r => r.task.assigneeId === input.assigneeId);
+      }
+
+      return filtered.map(row => {
+        const tk = row.task;
+        let effectiveStatus = tk.status;
+        if (tk.isRecurring === 1 && tk.completedAt) {
+          let stillDone = false;
+          if (tk.taskType === "daily") stillDone = tk.completedAt.startsWith(today);
+          else if (tk.taskType === "weekly") stillDone = tk.completedAt >= weekStart;
+          else if (tk.taskType === "monthly") stillDone = tk.completedAt.startsWith(thisMonth);
+          effectiveStatus = stillDone ? "done" : "pending";
+        }
+        return { ...row, effectiveStatus };
+      });
+    }),
+
+  listStaff: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select({ id: users.id, username: users.username, role: users.role })
+      .from(users)
+      .orderBy(users.role, users.username);
+  }),
+
+  create: protectedProcedure
+    .input(z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      category: z.string().default("기타"),
+      priority: z.string().default("normal"),
+      taskType: z.string().default("daily"),
+      assigneeId: z.number(),
+      taskDate: z.string().optional(),
+      dayOfWeek: z.number().optional(),
+      dayOfMonth: z.number().optional(),
+      dueTime: z.string().optional(),
+      isRecurring: z.number().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.insert(tasks).values({ ...input, assignedById: ctx.user!.id, updatedAt: new Date().toISOString() }).returning();
+      return row;
+    }),
+
+  complete: protectedProcedure
+    .input(z.object({ id: z.number(), memo: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.update(tasks).set({
+        status: "done", completedAt: new Date().toISOString(), completedMemo: input.memo ?? null, updatedAt: new Date().toISOString(),
+      }).where(eq(tasks.id, input.id)).returning();
+      return row;
+    }),
+
+  uncomplete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.update(tasks).set({
+        status: "pending", completedAt: null, completedMemo: null, updatedAt: new Date().toISOString(),
+      }).where(eq(tasks.id, input.id)).returning();
+      return row;
+    }),
+
+  updateStatus: protectedProcedure
+    .input(z.object({ id: z.number(), status: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.update(tasks).set({ status: input.status, updatedAt: new Date().toISOString() }).where(eq(tasks.id, input.id)).returning();
+      return row;
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(tasks).where(eq(tasks.id, input.id));
+      return { success: true };
+    }),
+
+  staffOverview: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const today = new Date().toISOString().substring(0, 10);
+    const weekStart = getWeekStart(today);
+    const allRows = await db.select({ task: tasks, assigneeName: users.username })
+      .from(tasks).leftJoin(users, eq(tasks.assigneeId, users.id));
+    const byStaff: Record<number, { name: string; todayTotal: number; todayDone: number; delayed: number }> = {};
+    for (const row of allRows) {
+      const tk = row.task;
+      const isToday = tk.taskType === "daily" && (tk.isRecurring === 1 || tk.taskDate === today);
+      if (!isToday) continue;
+      if (!byStaff[tk.assigneeId]) byStaff[tk.assigneeId] = { name: row.assigneeName ?? "Unknown", todayTotal: 0, todayDone: 0, delayed: 0 };
+      byStaff[tk.assigneeId].todayTotal++;
+      const done = tk.isRecurring === 1 ? (tk.completedAt?.startsWith(today) ?? false) : tk.status === "done";
+      if (done) byStaff[tk.assigneeId].todayDone++;
+      if (tk.status === "delayed") byStaff[tk.assigneeId].delayed++;
+    }
+    return Object.entries(byStaff).map(([id, s]) => ({
+      assigneeId: Number(id), ...s,
+      rate: s.todayTotal > 0 ? Math.round((s.todayDone / s.todayTotal) * 100) : 0,
+    }));
+  }),
+});
+
+const noticesWorkRouter = t.router({
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const role = ctx.user!.role;
+    const userId = ctx.user!.id;
+    const allNotices = await db.select({ notice: notices, authorName: users.username })
+      .from(notices).leftJoin(users, eq(notices.authorId, users.id)).orderBy(desc(notices.createdAt));
+    const reads = await db.select().from(noticeReads).where(eq(noticeReads.userId, userId));
+    const readIds = new Set(reads.map(r => r.noticeId));
+    return allNotices
+      .filter(row => row.notice.targetRole === "all" || row.notice.targetRole === role)
+      .map(row => ({ ...row, isRead: readIds.has(row.notice.id) }));
+  }),
+
+  create: protectedProcedure
+    .input(z.object({ title: z.string().min(1), content: z.string().min(1), targetRole: z.string().default("all"), priority: z.string().default("normal") }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.insert(notices).values({ ...input, authorId: ctx.user!.id }).returning();
+      return row;
+    }),
+
+  markRead: protectedProcedure
+    .input(z.object({ noticeId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const existing = await db.select().from(noticeReads)
+        .where(and(eq(noticeReads.noticeId, input.noticeId), eq(noticeReads.userId, ctx.user!.id))).limit(1);
+      if (existing.length === 0) {
+        await db.insert(noticeReads).values({ noticeId: input.noticeId, userId: ctx.user!.id, readAt: new Date().toISOString() });
+      }
+      return { success: true };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(notices).where(eq(notices.id, input.id));
+      return { success: true };
+    }),
+
+  readStatus: protectedProcedure
+    .input(z.object({ noticeId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      return db.select({ read: noticeReads, username: users.username })
+        .from(noticeReads).leftJoin(users, eq(noticeReads.userId, users.id))
+        .where(eq(noticeReads.noticeId, input.noticeId));
+    }),
+});
+
+const workRouter = t.router({ tasks: tasksWorkRouter, notices: noticesWorkRouter });
+
 // ─── Gym Router ───────────────────────────────────────────────────────────────
 export const gymRouter = t.router({
   channels: channelsRouter,
@@ -829,6 +1037,7 @@ export const gymRouter = t.router({
   expenses: expenseRouter,
   kpi: kpiRouter,
   ai: aiRouter,
+  work: workRouter,
 });
 
 export type GymRouter = typeof gymRouter;

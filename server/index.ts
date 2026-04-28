@@ -359,6 +359,42 @@ async function initDatabase() {
       "branchId" INTEGER NOT NULL,
       UNIQUE("trainerId", "branchId")
     )`,
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT '기타',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      status TEXT NOT NULL DEFAULT 'pending',
+      "assigneeId" INTEGER NOT NULL,
+      "assignedById" INTEGER,
+      "taskType" TEXT NOT NULL DEFAULT 'daily',
+      "taskDate" TEXT,
+      "dayOfWeek" INTEGER,
+      "dayOfMonth" INTEGER,
+      "dueTime" TEXT,
+      "isRecurring" INTEGER NOT NULL DEFAULT 0,
+      "completedAt" TEXT,
+      "completedMemo" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS notices (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      "authorId" INTEGER NOT NULL,
+      "targetRole" TEXT NOT NULL DEFAULT 'all',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS notice_reads (
+      id SERIAL PRIMARY KEY,
+      "noticeId" INTEGER NOT NULL,
+      "userId" INTEGER NOT NULL,
+      "readAt" TEXT NOT NULL DEFAULT now()::text,
+      UNIQUE("noticeId", "userId")
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
