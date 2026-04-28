@@ -39,6 +39,7 @@ const DURATIONS = [1, 3, 6, 12];
 const PAYMENT_METHODS_REG = ["카드", "현금", "계좌이체", "지역화폐"];
 
 type RegForm = {
+  itemType: "PT" | "헬스" | "기타" | "";
   subType: "신규" | "재등록";
   programKey: string;
   programCustom: string;
@@ -55,6 +56,7 @@ type RegForm = {
 };
 
 const defaultRegForm: RegForm = {
+  itemType: "",
   subType: "신규",
   programKey: "",
   programCustom: "",
@@ -244,9 +246,11 @@ export default function LeadsPage() {
     if (!agreedTerms) return toast.error("이용약관에 동의해주세요");
     if (!agreedPrivacy) return toast.error("개인정보 수집·이용에 동의해주세요");
     setShowContract(false);
-    // Pre-fill reg form with interest type from lead
+    const preType = (form.interestType === "PT" || form.interestType === "헬스" || form.interestType === "기타")
+      ? form.interestType : "";
     setRegForm({
       ...defaultRegForm,
+      itemType: preType,
       paymentDate: new Date().toISOString().substring(0, 10),
       startDate: new Date().toISOString().substring(0, 10),
     });
@@ -254,8 +258,7 @@ export default function LeadsPage() {
   }
 
   function fireRevenueSave(reg: RegForm, leadId: number) {
-    const interestType = form.interestType as "PT" | "헬스" | "기타";
-    const type = (interestType === "PT" || interestType === "헬스" || interestType === "기타") ? interestType : "기타";
+    const type = (reg.itemType === "PT" || reg.itemType === "헬스" || reg.itemType === "기타") ? reg.itemType : "기타";
     const programDetail = type === "PT"
       ? (reg.programKey === "기타" ? reg.programCustom : reg.programKey)
       : undefined;
@@ -568,6 +571,15 @@ export default function LeadsPage() {
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 완료
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const p = new URLSearchParams({ name: form.name, phone: form.phone || "", date: new Date().toLocaleDateString("ko-KR"), marketing: agreedMarketing ? "1" : "0" });
+                  window.open(`/contract-print?${p.toString()}`, "_blank");
+                }}
+                className="w-full border border-emerald-500/40 text-emerald-400 rounded-xl py-2.5 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
+                계약서 PDF 출력
+              </button>
               <button type="button" onClick={() => setShowContract(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
@@ -605,8 +617,22 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* PT 프로그램 선택 */}
-              {form.interestType === "PT" && (
+              {/* 항목 유형 선택 */}
+              <div>
+                <label className="text-xs text-muted-foreground">항목 유형</label>
+                <div className="flex gap-2 mt-1">
+                  {(["PT", "헬스", "기타"] as const).map(t => (
+                    <button key={t} type="button"
+                      onClick={() => setRegForm(f => ({ ...f, itemType: t, programKey: "", programCustom: "", sessions: undefined, duration: undefined }))}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.itemType === t ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* PT 프로그램 + 횟수 */}
+              {regForm.itemType === "PT" && (
                 <>
                   <div>
                     <label className="text-xs text-muted-foreground">PT 프로그램</label>
@@ -642,7 +668,7 @@ export default function LeadsPage() {
               )}
 
               {/* 헬스 기간 */}
-              {form.interestType === "헬스" && (
+              {regForm.itemType === "헬스" && (
                 <div>
                   <label className="text-xs text-muted-foreground">이용 기간</label>
                   <div className="flex gap-2 mt-1">
@@ -658,7 +684,7 @@ export default function LeadsPage() {
               )}
 
               {/* 기타 항목명 */}
-              {(form.interestType === "기타" || !form.interestType) && (
+              {regForm.itemType === "기타" && (
                 <div>
                   <label className="text-xs text-muted-foreground">항목명</label>
                   <input value={regForm.programKey}

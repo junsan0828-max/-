@@ -42,6 +42,7 @@ import Profile from "./pages/Profile";
 import SettlementReport from "./pages/SettlementReport";
 import TrainerSettlement from "./pages/TrainerSettlement";
 import LeadsPage from "./pages/Leads";
+import ContractPrint from "./pages/ContractPrint";
 import RevenuePage from "./pages/Revenue";
 import ExpensesPage from "./pages/Expenses";
 import MarketingPage from "./pages/Marketing";
@@ -52,9 +53,12 @@ function App() {
   const [reportMatch, reportParams] = useRoute("/report/:token");
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
-  // 공개 보고서 페이지 - 인증 불필요
+  // 공개 보고서 / 계약서 페이지 - 인증 불필요
   if (reportMatch && reportParams) {
     return <MemberReport token={reportParams.token} />;
+  }
+  if (window.location.pathname === "/contract-print") {
+    return <ContractPrint />;
   }
 
   if (isLoading) {
