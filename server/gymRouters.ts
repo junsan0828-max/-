@@ -55,6 +55,15 @@ const channelsRouter = t.router({
       const [row] = await db.update(channels).set(data).where(eq(channels.id, id)).returning();
       return row;
     }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(channels).where(eq(channels.id, input.id));
+      return { success: true };
+    }),
 });
 
 // ─── Leads (CRM) ─────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
-import { Plus, TrendingUp, Users, DollarSign, Percent, Megaphone } from "lucide-react";
+import { Plus, Users, DollarSign, Percent, Megaphone, Pencil } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 const CHANNEL_TYPES = [
@@ -20,6 +20,7 @@ export default function MarketingPage() {
   const [month] = useState(now.getMonth() + 1);
   const [showChannelForm, setShowChannelForm] = useState(false);
   const [channelForm, setChannelForm] = useState({ name: "", type: "online", description: "" });
+  const [editChannel, setEditChannel] = useState<{ id: number; name: string; type: string; description: string } | null>(null);
 
   const { data: channels, isLoading } = trpc.gym.channels.list.useQuery();
   const { data: leadStats } = trpc.gym.leads.stats.useQuery();
@@ -27,6 +28,14 @@ export default function MarketingPage() {
 
   const createChannelMutation = trpc.gym.channels.create.useMutation({
     onSuccess: () => { toast.success("채널이 추가되었습니다"); utils.gym.channels.invalidate(); setShowChannelForm(false); setChannelForm({ name: "", type: "online", description: "" }); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateChannelMutation = trpc.gym.channels.update.useMutation({
+    onSuccess: () => { toast.success("수정되었습니다"); utils.gym.channels.invalidate(); setEditChannel(null); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteChannelMutation = trpc.gym.channels.delete.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다"); utils.gym.channels.invalidate(); setEditChannel(null); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -158,6 +167,11 @@ export default function MarketingPage() {
                     <span className="font-medium text-foreground">{ch.name}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full ${typeInfo?.color}`}>{typeInfo?.label}</span>
                   </div>
+                  <button
+                    onClick={() => setEditChannel({ id: ch.id, name: ch.name, type: ch.type, description: "" })}
+                    className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-muted/40 transition-colors">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div className="text-center">
@@ -180,6 +194,50 @@ export default function MarketingPage() {
           })
         )}
       </div>
+
+      {/* 채널 수정 모달 */}
+      {editChannel && (
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md">
+            <div className="border-b border-border px-4 py-3 flex items-center justify-between">
+              <h2 className="font-semibold text-foreground">채널 수정</h2>
+              <button onClick={() => setEditChannel(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground">채널명 *</label>
+                <input value={editChannel.name} onChange={e => setEditChannel(f => f && ({ ...f, name: e.target.value }))}
+                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">채널 유형</label>
+                <div className="flex gap-2 mt-1">
+                  {CHANNEL_TYPES.map(t => (
+                    <button key={t.value} type="button" onClick={() => setEditChannel(f => f && ({ ...f, type: t.value }))}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editChannel.type === t.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { if (!editChannel.name.trim()) return toast.error("채널명을 입력해주세요"); updateChannelMutation.mutate({ id: editChannel.id, name: editChannel.name, type: editChannel.type }); }}
+                  className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90">
+                  저장
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (confirm(`"${editChannel.name}" 채널을 삭제하시겠습니까?\n연결된 리드 데이터는 유지됩니다.`)) deleteChannelMutation.mutate({ id: editChannel.id }); }}
+                  className="px-4 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-medium hover:bg-red-500/10">
+                  삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 채널 추가 폼 */}
       {showChannelForm && (
