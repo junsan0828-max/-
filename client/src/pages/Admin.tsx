@@ -762,6 +762,9 @@ export default function Admin() {
 
       {/* 컨설턴트 계정 관리 */}
       <ConsultantSection />
+
+      {/* 부관리자 계정 관리 */}
+      <SubAdminSection />
     </div>
   );
 }
@@ -833,6 +836,88 @@ function ConsultantSection() {
                   <span className="text-xs text-muted-foreground ml-2">프론트 컨설턴트</span>
                 </div>
                 <span className="text-xs text-muted-foreground">{c.createdAt?.substring(0, 10)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SubAdminSection() {
+  const { data: subAdmins, refetch } = trpc.admin.listSubAdmins.useQuery();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ username: "", password: "" });
+
+  const createMutation = trpc.admin.createSubAdmin.useMutation({
+    onSuccess: () => { toast.success("부관리자 계정이 생성되었습니다."); setShowForm(false); setForm({ username: "", password: "" }); refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteMutation = trpc.admin.deleteSubAdmin.useMutation({
+    onSuccess: () => { toast.success("부관리자 계정이 삭제되었습니다."); refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.username.trim() || form.username.trim().length < 3) return toast.error("아이디는 3자 이상이어야 합니다.");
+    if (!form.password || form.password.length < 6) return toast.error("비밀번호는 6자 이상이어야 합니다.");
+    createMutation.mutate({ username: form.username.trim(), password: form.password });
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">부관리자 계정</CardTitle>
+          <button onClick={() => setShowForm(v => !v)} className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90">
+            <UserPlus className="h-3.5 w-3.5" />
+            계정 추가
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">모든 기능 이용 가능 · 삭제 및 매출 수정/삭제 불가</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">아이디 *</label>
+                <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="subadmin1"
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">비밀번호 *</label>
+                <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="6자 이상"
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent">취소</button>
+              <button type="submit" className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90">생성</button>
+            </div>
+          </form>
+        )}
+
+        {(subAdmins ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">등록된 부관리자가 없습니다</p>
+        ) : (
+          <div className="space-y-2">
+            {(subAdmins ?? []).map((s: any) => (
+              <div key={s.id} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
+                <div>
+                  <span className="text-sm font-medium text-foreground">{s.username}</span>
+                  <span className="text-xs text-muted-foreground ml-2">부관리자</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{s.createdAt?.substring(0, 10)}</span>
+                  <button onClick={() => { if (confirm(`${s.username} 계정을 삭제하시겠습니까?`)) deleteMutation.mutate({ userId: s.id }); }}
+                    className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

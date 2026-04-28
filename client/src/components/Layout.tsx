@@ -72,7 +72,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
-  const navItems = user?.role === "admin" ? adminNavItems
+  const navItems = (user?.role === "admin" || user?.role === "sub_admin") ? adminNavItems
     : user?.role === "consultant" ? consultantNavItems
     : trainerNavItems;
 
@@ -115,7 +115,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="px-3 py-2">
             <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
             <p className="text-xs text-muted-foreground">
-              {user?.role === "admin" ? "관리자" : "트레이너"}
+              {user?.role === "admin" ? "관리자" : user?.role === "sub_admin" ? "부관리자" : "트레이너"}
             </p>
           </div>
           <button

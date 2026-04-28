@@ -1448,6 +1448,42 @@ const adminRouter = t.router({
       return { success: true, userId: userInsert.id };
     }),
 
+  // 부관리자 계정 생성
+  createSubAdmin: protectedProcedure
+    .input(z.object({ username: z.string().min(3), password: z.string().min(6) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1);
+      if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
+
+      const hashed = await bcrypt.hash(input.password, 10);
+      const [row] = await db.insert(users).values({ username: input.username, password: hashed, role: "sub_admin" }).returning({ id: users.id });
+      return { success: true, userId: row.id };
+    }),
+
+  // 부관리자 목록
+  listSubAdmins: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select({ id: users.id, username: users.username, createdAt: users.createdAt })
+      .from(users).where(eq(users.role, "sub_admin")).orderBy(users.username);
+  }),
+
+  // 부관리자 삭제
+  deleteSubAdmin: protectedProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(users).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
+
   // 컨설턴트 목록
   listConsultants: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });

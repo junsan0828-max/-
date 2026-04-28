@@ -15,6 +15,8 @@ const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4"
 
 export default function MarketingPage() {
   const utils = trpc.useUtils();
+  const { data: me } = trpc.auth.me.useQuery();
+  const isSubAdmin = me?.role === "sub_admin";
   const now = new Date();
   const [year] = useState(now.getFullYear());
   const [month] = useState(now.getMonth() + 1);
@@ -227,12 +229,14 @@ export default function MarketingPage() {
                   className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90">
                   저장
                 </button>
+                {!isSubAdmin && (
                 <button
                   type="button"
                   onClick={() => { if (confirm(`"${editChannel.name}" 채널을 삭제하시겠습니까?\n연결된 리드 데이터는 유지됩니다.`)) deleteChannelMutation.mutate({ id: editChannel.id }); }}
                   className="px-4 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-medium hover:bg-red-500/10">
                   삭제
                 </button>
+                )}
               </div>
             </div>
           </div>

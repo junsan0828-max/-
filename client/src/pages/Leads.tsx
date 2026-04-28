@@ -180,6 +180,8 @@ const MARKETING_TERMS = `광고성 정보 수신 및 활용 동의 (선택)
 
 export default function LeadsPage() {
   const utils = trpc.useUtils();
+  const { data: me } = trpc.auth.me.useQuery();
+  const isSubAdmin = me?.role === "sub_admin";
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -1003,7 +1005,7 @@ export default function LeadsPage() {
                   등록보류
                 </button>
               </div>
-              {editId && (
+              {editId && !isSubAdmin && (
                 <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
                   className="w-full border border-red-500/30 text-red-400 rounded-lg py-2 text-sm font-medium hover:bg-red-500/10">
                   삭제

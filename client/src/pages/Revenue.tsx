@@ -49,6 +49,7 @@ export default function RevenuePage() {
 
   const { data: me } = trpc.auth.me.useQuery();
   const isConsultant = me?.role === "consultant";
+  const isSubAdmin = me?.role === "sub_admin";
 
   const { data: entries, isLoading } = trpc.gym.revenue.list.useQuery({ year, month });
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month }, { enabled: !isConsultant });
@@ -171,6 +172,7 @@ export default function RevenuePage() {
           <h1 className="text-xl font-bold text-foreground">매출 {isConsultant ? "입력" : "장부"}</h1>
           <p className="text-xs text-muted-foreground">{isConsultant ? "오늘 입력한 매출 내역" : "매출 입력 및 분석"}</p>
         </div>
+        {!isSubAdmin && (
         <button
           onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, paymentDate: new Date().toISOString().substring(0, 10) }); }}
           className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
@@ -178,6 +180,7 @@ export default function RevenuePage() {
           <Plus className="h-4 w-4" />
           매출 입력
         </button>
+        )}
       </div>
 
       {/* 월 선택 - 컨설턴트는 숨김 */}
@@ -258,8 +261,8 @@ export default function RevenuePage() {
       ) : (
         <div className="space-y-2">
           {filtered.map(row => (
-            <div key={row.entry.id} onClick={() => openEdit(row)}
-              className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-primary/30 transition-colors">
+            <div key={row.entry.id} onClick={() => !isSubAdmin && openEdit(row)}
+              className={`bg-card border border-border rounded-xl p-4 transition-colors ${!isSubAdmin ? "cursor-pointer hover:border-primary/30" : ""}`}>
               <div className="flex items-start justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
@@ -513,15 +516,17 @@ export default function RevenuePage() {
 
               </div>
               <div className="flex gap-2 p-4 border-t border-border shrink-0">
-                {editId && !isConsultant && (
+                {editId && !isConsultant && !isSubAdmin && (
                   <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
                     className="flex-1 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-medium hover:bg-red-500/10">
                     삭제
                   </button>
                 )}
+                {!isSubAdmin && (
                 <button type="submit" className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90">
                   {editId ? "수정" : "등록"}
                 </button>
+                )}
               </div>
             </form>
           </div>

@@ -34,6 +34,8 @@ const defaultForm: ExpForm = {
 
 export default function ExpensesPage() {
   const utils = trpc.useUtils();
+  const { data: me } = trpc.auth.me.useQuery();
+  const isSubAdmin = me?.role === "sub_admin";
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -308,7 +310,7 @@ export default function ExpensesPage() {
 
               </div>
               <div className="flex gap-2 p-4 border-t border-border shrink-0">
-                {editId && (
+                {editId && !isSubAdmin && (
                   <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
                     className="flex-1 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-medium hover:bg-red-500/10">
                     삭제
