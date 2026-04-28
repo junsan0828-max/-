@@ -53,6 +53,86 @@ const defaultForm: LeadForm = {
   assignedTrainerId: undefined, assignedConsultantId: undefined,
 };
 
+const CONTRACT_TERMS = `제1조 (목적)
+본 약관은 자이언트짐(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.
+
+제2조 (회원의 의무)
+① 회원은 센터의 시설 및 기구를 타인에게 피해가 가지 않도록 올바르게 사용하여야 합니다.
+② 회원은 센터 내에서 타인을 방해하거나 불쾌감을 주는 행위를 하여서는 안 됩니다.
+③ 운동 후 사용한 기구는 반드시 제자리에 정리하여야 합니다.
+④ 센터 내 음식물 반입은 허용되지 않으며, 음료는 개인 물병만 허용합니다.
+
+제3조 (이용 시간 및 시설)
+① 센터의 운영 시간은 별도 공지에 따릅니다.
+② 회원은 운영 시간 내에만 센터를 이용할 수 있습니다.
+③ 공휴일 및 센터 사정에 따라 운영 시간이 변경될 수 있으며, 이 경우 사전에 공지합니다.
+
+제4조 (이용권 및 환불)
+① PT 이용권은 계약 시작일로부터 효력이 발생합니다.
+② 이용권의 환불은 관련 법령 및 센터 환불 규정에 따릅니다.
+③ 회원 개인 사정으로 인한 중도 해지 시 잔여 횟수에 따라 환불이 이루어집니다.
+④ 부상·질병 등 불가피한 사유가 있을 경우 이용 정지 신청이 가능합니다.
+
+제5조 (면책 조항)
+① 센터는 회원이 센터 내에서 발생한 사고에 대해 센터의 과실이 없는 경우 책임을 지지 않습니다.
+② 개인 소지품 분실에 대해 센터는 책임을 지지 않습니다.
+③ 회원은 자신의 건강 상태를 정확히 고지하여야 하며, 허위 고지로 인한 문제는 회원 본인이 책임집니다.
+
+제6조 (회원 자격 박탈)
+다음 각 호에 해당하는 경우 센터는 회원 자격을 박탈할 수 있습니다.
+① 타인에게 폭언·폭행 등 위해를 가한 경우
+② 센터 시설물을 고의로 파손한 경우
+③ 본 약관을 위반한 경우`;
+
+const PRIVACY_TERMS = `수집하는 개인정보 항목
+- 필수항목: 성명, 연락처, 성별, 생년월일
+- 선택항목: 이메일 주소, 건강 정보(운동 목적, 부상 이력 등)
+
+개인정보의 수집 및 이용 목적
+① 피트니스 서비스 제공 및 회원 관리
+② PT 프로그램 안내 및 일정 관리
+③ 결제 및 환불 처리
+④ 고객 상담 및 민원 처리
+⑤ 서비스 개선을 위한 통계 분석
+
+개인정보의 보유 및 이용 기간
+- 회원 탈퇴 시 또는 이용 목적 달성 후 즉시 파기
+- 단, 관련 법령에 따라 보존 의무가 있는 경우 해당 기간 보관
+
+개인정보의 제3자 제공
+- 원칙적으로 외부에 제공하지 않으며, 다음의 경우에 한해 제공합니다.
+  · 법령의 규정에 의한 경우
+  · 이용자가 사전에 동의한 경우
+
+개인정보의 파기
+- 개인정보 보유 기간의 경과 또는 목적 달성 후 지체없이 파기
+- 전자적 파일: 복구 불가능한 방법으로 영구 삭제
+- 종이 문서: 분쇄 또는 소각
+
+귀하는 개인정보 제공에 동의하지 않을 권리가 있습니다.
+단, 동의 거부 시 정상적인 서비스 이용이 제한될 수 있습니다.`;
+
+const MARKETING_TERMS = `광고성 정보 수신 및 활용 동의 (선택)
+
+수집 항목: 성명, 연락처, 이메일
+
+이용 목적
+① 신규 프로그램 및 이벤트 안내
+② 할인 혜택 및 프로모션 정보 제공
+③ 센터 소식 및 뉴스레터 발송
+
+광고성 정보 발송 채널
+- 문자메시지(SMS/MMS), 카카오 알림톡, 이메일
+
+보유 및 이용 기간
+- 동의일로부터 회원 탈퇴 또는 수신 거부 시까지
+
+수신 거부 안내
+- 언제든지 센터에 수신 거부 의사를 표시하거나 발송된 문자/이메일 하단의 수신 거부 링크를 통해 거부할 수 있습니다.
+- 수신 거부 후에도 서비스 이용에는 제한이 없습니다.
+
+귀하는 광고성 정보 수신에 동의하지 않아도 센터 이용에 아무런 불이익이 없습니다.`;
+
 export default function LeadsPage() {
   const utils = trpc.useUtils();
   const now = new Date();
@@ -63,6 +143,10 @@ export default function LeadsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<LeadForm>(defaultForm);
+  const [showContract, setShowContract] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
+  const [agreedPrivacy, setAgreedPrivacy] = useState(false);
+  const [agreedMarketing, setAgreedMarketing] = useState(false);
 
   const { data: leadsData, isLoading } = trpc.gym.leads.list.useQuery({ year, month });
   const { data: channels } = trpc.gym.channels.list.useQuery();
@@ -81,7 +165,23 @@ export default function LeadsPage() {
     onSuccess: () => { toast.success("삭제되었습니다"); utils.gym.leads.invalidate(); },
   });
 
-  function resetForm() { setShowForm(false); setEditId(null); setForm(defaultForm); }
+  function resetForm() {
+    setShowForm(false); setEditId(null); setForm(defaultForm);
+    setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
+  }
+
+  function openContract() {
+    if (!form.name.trim()) return toast.error("이름을 입력해주세요");
+    setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
+    setShowContract(true);
+  }
+
+  function confirmRegistration() {
+    if (!agreedTerms) return toast.error("이용약관에 동의해주세요");
+    if (!agreedPrivacy) return toast.error("개인정보 수집·이용에 동의해주세요");
+    setShowContract(false);
+    handleSave("registered");
+  }
 
   function openEdit(row: any) {
     setEditId(row.lead.id);
@@ -292,6 +392,86 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* 계약서 모달 */}
+      {showContract && (
+        <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
+            {/* 헤더 */}
+            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
+              <h2 className="font-bold text-foreground">회원 계약서</h2>
+              <button onClick={() => setShowContract(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-4 space-y-5">
+
+              {/* 섹션 1: 이용약관 */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-sm text-foreground">센터 이용 약관</h3>
+                <div className="bg-background border border-border rounded-lg p-3 h-36 overflow-y-auto">
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{CONTRACT_TERMS}</pre>
+                </div>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked={agreedTerms} onChange={e => setAgreedTerms(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-500 shrink-0" />
+                  <span className="text-sm text-foreground">
+                    <span className="text-emerald-500 font-semibold">(필수)</span> 이용약관에 동의합니다
+                  </span>
+                </label>
+              </div>
+
+              {/* 섹션 2: 개인정보 동의 */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-sm text-foreground">개인정보 수집·이용 동의서</h3>
+                <div className="bg-background border border-border rounded-lg p-3 h-36 overflow-y-auto">
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{PRIVACY_TERMS}</pre>
+                </div>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked={agreedPrivacy} onChange={e => setAgreedPrivacy(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-500 shrink-0" />
+                  <span className="text-sm text-foreground">
+                    <span className="text-emerald-500 font-semibold">(필수)</span> 개인정보 수집·이용에 동의합니다
+                  </span>
+                </label>
+              </div>
+
+              {/* 섹션 3: 광고성 동의 */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-sm text-foreground">광고성 정보 수신 동의서</h3>
+                <div className="bg-background border border-border rounded-lg p-3 h-28 overflow-y-auto">
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{MARKETING_TERMS}</pre>
+                </div>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked={agreedMarketing} onChange={e => setAgreedMarketing(e.target.checked)}
+                    className="w-4 h-4 accent-blue-500 shrink-0" />
+                  <span className="text-sm text-foreground">
+                    <span className="text-blue-400 font-semibold">(선택)</span> 광고성 정보 수신에 동의합니다
+                  </span>
+                </label>
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center pb-1">
+                필수 항목에 동의하셔야 등록이 완료됩니다
+              </p>
+            </div>
+
+            {/* 하단 확인 버튼 */}
+            <div className="p-4 border-t border-border shrink-0 space-y-2">
+              <button
+                type="button"
+                onClick={confirmRegistration}
+                disabled={!agreedTerms || !agreedPrivacy}
+                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                동의 후 등록 완료
+              </button>
+              <button type="button" onClick={() => setShowContract(false)}
+                className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 상담 폼 모달 */}
       {showForm && (
         <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center p-4 pb-4">
@@ -471,7 +651,7 @@ export default function LeadsPage() {
                   className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
                   상담완료
                 </button>
-                <button type="button" onClick={() => handleSave("registered")}
+                <button type="button" onClick={openContract}
                   className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
                   등록완료
                 </button>
