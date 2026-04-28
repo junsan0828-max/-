@@ -26,8 +26,8 @@ type LeadForm = {
   name: string; phone: string; gender: string; ageGroup: string;
   channelId?: number; assignedTrainerId?: number;
   consultationDate: string;
-  consultationType: string;
-  consultationSubTypes: string[]; // 복수 선택
+  consultationTypes: string[];    // 대분류 복수 선택
+  consultationSubTypes: string[]; // 소분류 복수 선택
   consultationNote: string;
   interestType: string; memo: string;
 };
@@ -35,7 +35,7 @@ type LeadForm = {
 const defaultForm: LeadForm = {
   name: "", phone: "", gender: "", ageGroup: "",
   consultationDate: new Date().toISOString().substring(0, 10),
-  consultationType: "", consultationSubTypes: [],
+  consultationTypes: [], consultationSubTypes: [],
   consultationNote: "", interestType: "", memo: "",
 };
 
@@ -78,13 +78,23 @@ export default function LeadsPage() {
       channelId: row.lead.channelId ?? undefined,
       assignedTrainerId: row.lead.assignedTrainerId ?? undefined,
       consultationDate: row.lead.consultationDate ?? new Date().toISOString().substring(0, 10),
-      consultationType: row.lead.consultationType ?? "",
+      consultationTypes: row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [],
       consultationSubTypes: row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [],
       consultationNote: row.lead.consultationNote ?? "",
       interestType: row.lead.interestType ?? "",
       memo: row.lead.memo ?? "",
     });
     setShowForm(true);
+  }
+
+  function toggleMainType(type: string) {
+    setForm(f => {
+      const exists = f.consultationTypes.includes(type);
+      const newTypes = exists ? f.consultationTypes.filter(t => t !== type) : [...f.consultationTypes, type];
+      // 선택 해제된 대분류의 소분류는 제거
+      const validSubs = newTypes.flatMap(t => CONSULT_TYPES[t] ?? []);
+      return { ...f, consultationTypes: newTypes, consultationSubTypes: f.consultationSubTypes.filter(s => validSubs.includes(s)) };
+    });
   }
 
   function toggleSubType(sub: string) {
@@ -104,7 +114,7 @@ export default function LeadsPage() {
       channelId: form.channelId,
       assignedTrainerId: form.assignedTrainerId,
       consultationDate: form.consultationDate || undefined,
-      consultationType: form.consultationType || undefined,
+      consultationType: form.consultationTypes.length > 0 ? form.consultationTypes.join(",") : undefined,
       consultationSubTypes: form.consultationSubTypes.length > 0 ? form.consultationSubTypes.join(",") : undefined,
       consultationNote: form.consultationNote || undefined,
       interestType: form.interestType || undefined,
@@ -211,6 +221,7 @@ export default function LeadsPage() {
         <div className="space-y-2">
           {filtered.map(row => {
             const s = STATUS_OPTIONS.find(s => s.value === row.lead.status);
+            const mainTypes = row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [];
             const subTypes = row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [];
             return (
               <div key={row.lead.id} onClick={() => openEdit(row)}
@@ -235,9 +246,9 @@ export default function LeadsPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5 text-xs">
-                  {row.lead.consultationType && (
-                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full">{row.lead.consultationType}</span>
-                  )}
+                  {mainTypes.map(mt => (
+                    <span key={mt} className="bg-primary/10 text-primary px-2 py-0.5 rounded-full">{mt}</span>
+                  ))}
                   {subTypes.map(st => (
                     <span key={st} className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{st}</span>
                   ))}
@@ -308,28 +319,27 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 상담 유형 대분류 */}
+              {/* 상담 유형 대분류 — 복수 선택 */}
               <div>
-                <label className="text-xs text-muted-foreground">상담 유형</label>
+                <label className="text-xs text-muted-foreground">상담 유형 (복수 선택 가능)</label>
                 <div className="flex gap-2 mt-1">
                   {MAIN_TYPES.map(t => (
-                    <button key={t} type="button"
-                      onClick={() => setForm(f => ({ ...f, consultationType: f.consultationType === t ? "" : t, consultationSubTypes: [] }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.consultationType === t ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                    <button key={t} type="button" onClick={() => toggleMainType(t)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.consultationTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                       {t}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 소분류 (해당 시) */}
-              {form.consultationType && CONSULT_TYPES[form.consultationType].length > 0 && (
+              {/* 소분류 — 선택된 대분류의 소분류 전부 표시 */}
+              {form.consultationTypes.some(t => CONSULT_TYPES[t]?.length > 0) && (
                 <div>
                   <label className="text-xs text-muted-foreground">소분류 (복수 선택 가능)</label>
-                  <div className="flex gap-2 mt-1">
-                    {CONSULT_TYPES[form.consultationType].map(sub => (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {form.consultationTypes.flatMap(t => CONSULT_TYPES[t] ?? []).map(sub => (
                       <button key={sub} type="button" onClick={() => toggleSubType(sub)}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.consultationSubTypes.includes(sub) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${form.consultationSubTypes.includes(sub) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                         {sub}
                       </button>
                     ))}
