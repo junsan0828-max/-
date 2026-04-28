@@ -236,6 +236,8 @@ export const leads = pgTable("leads", {
   status: text("status").default("pending").notNull(), // pending / consulted / registered / dropped
   assignedTrainerId: integer("assignedTrainerId"),
   consultationDate: text("consultationDate"),
+  consultationType: text("consultationType"),    // 방문상담/예약상담/소개상담
+  consultationSubTypes: text("consultationSubTypes"), // 복수선택, comma-separated
   consultationNote: text("consultationNote"),
   registeredMemberId: integer("registeredMemberId"),
   interestType: text("interestType"), // PT / 헬스 / 기타

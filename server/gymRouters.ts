@@ -59,7 +59,12 @@ const channelsRouter = t.router({
 // ─── Leads (CRM) ─────────────────────────────────────────────────────────────
 const leadsRouter = t.router({
   list: protectedProcedure
-    .input(z.object({ status: z.string().optional(), channelId: z.number().optional(), branchId: z.number().optional() }).optional())
+    .input(z.object({
+      year: z.number().optional(),
+      month: z.number().optional(),
+      status: z.string().optional(),
+      channelId: z.number().optional(),
+    }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -75,6 +80,12 @@ const leadsRouter = t.router({
         .orderBy(desc(leads.createdAt));
 
       let result = rows;
+      if (input?.year && input?.month) {
+        const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+        result = result.filter(r => r.lead.createdAt.startsWith(prefix));
+      } else if (input?.year) {
+        result = result.filter(r => r.lead.createdAt.startsWith(String(input.year)));
+      }
       if (input?.status) result = result.filter(r => r.lead.status === input.status);
       if (input?.channelId) result = result.filter(r => r.lead.channelId === input.channelId);
 
@@ -93,6 +104,8 @@ const leadsRouter = t.router({
       status: z.string().default("pending"),
       assignedTrainerId: z.number().optional(),
       consultationDate: z.string().optional(),
+      consultationType: z.string().optional(),
+      consultationSubTypes: z.string().optional(),
       consultationNote: z.string().optional(),
       interestType: z.string().optional(),
       memo: z.string().optional(),
@@ -120,6 +133,8 @@ const leadsRouter = t.router({
       status: z.string().optional(),
       assignedTrainerId: z.number().optional(),
       consultationDate: z.string().optional(),
+      consultationType: z.string().optional(),
+      consultationSubTypes: z.string().optional(),
       consultationNote: z.string().optional(),
       registeredMemberId: z.number().optional(),
       interestType: z.string().optional(),
