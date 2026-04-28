@@ -43,6 +43,7 @@ import SettlementReport from "./pages/SettlementReport";
 import TrainerSettlement from "./pages/TrainerSettlement";
 import LeadsPage from "./pages/Leads";
 import ContractPrint from "./pages/ContractPrint";
+import MyWorkPage from "./pages/MyWork";
 import RevenuePage from "./pages/Revenue";
 import ExpensesPage from "./pages/Expenses";
 import MarketingPage from "./pages/Marketing";
@@ -80,6 +81,7 @@ function App() {
       <Switch>
         <Route path="/">{() => user?.role === "admin" ? <GymDashboard /> : user?.role === "consultant" ? <LeadsPage /> : <Dashboard />}</Route>
         <Route path="/gym-dashboard">{() => <GymDashboard />}</Route>
+        <Route path="/my-work">{() => <MyWorkPage />}</Route>
         <Route path="/leads">{() => <LeadsPage />}</Route>
         <Route path="/revenue">{() => <RevenuePage />}</Route>
         <Route path="/expenses">{() => <ExpensesPage />}</Route>

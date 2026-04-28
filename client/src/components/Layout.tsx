@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   UserCog, Settings, User, ClipboardCheck, Download, X, Receipt,
-  TrendingUp, Wallet, Megaphone, BrainCircuit, UserPlus,
+  TrendingUp, Wallet, Megaphone, BrainCircuit, UserPlus, ListChecks,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -58,6 +58,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   const consultantNavItems = [
+    { path: "/my-work", label: "나의 업무", icon: ListChecks },
     { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/revenue", label: "매출입력", icon: TrendingUp },
   ];
@@ -67,6 +68,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/members", label: "회원 관리", icon: Users },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
+    { path: "/my-work", label: "나의 업무", icon: ListChecks },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
