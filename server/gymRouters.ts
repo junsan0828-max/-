@@ -323,7 +323,6 @@ const revenueRouter = t.router({
       memo: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user?.role === "sub_admin") throw new TRPCError({ code: "FORBIDDEN", message: "부관리자는 매출 수정 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, ...data } = input;
@@ -343,7 +342,6 @@ const revenueRouter = t.router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user?.role === "sub_admin") throw new TRPCError({ code: "FORBIDDEN", message: "부관리자는 삭제 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -536,8 +534,7 @@ const expenseRouter = t.router({
 
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ ctx, input }) => {
-      if (ctx.user?.role === "sub_admin") throw new TRPCError({ code: "FORBIDDEN", message: "부관리자는 삭제 권한이 없습니다." });
+    .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(expenseEntries).where(eq(expenseEntries.id, input.id));

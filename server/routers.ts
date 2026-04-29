@@ -88,7 +88,8 @@ const authRouter = t.router({
       const authUser: AuthUser = {
         id: user.id,
         username: user.username,
-        role: user.role as "admin" | "trainer" | "consultant",
+        role: user.role as AuthUser["role"],
+        position: user.position,
         trainerId,
       };
       ctx.req.session.user = authUser;
@@ -1345,6 +1346,7 @@ const adminRouter = t.router({
         branchName: branches.name,
         createdAt: trainers.createdAt,
         lastLoginAt: users.lastLoginAt,
+        position: users.position,
       })
       .from(trainers)
       .leftJoin(users, eq(trainers.userId, users.id))
@@ -1469,7 +1471,7 @@ const adminRouter = t.router({
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select({ id: users.id, username: users.username, createdAt: users.createdAt })
+    return db.select({ id: users.id, username: users.username, position: users.position, createdAt: users.createdAt })
       .from(users).where(eq(users.role, "sub_admin")).orderBy(users.username);
   }),
 
@@ -1484,12 +1486,23 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
+  // 직책 설정 (관리자 전용)
+  updatePosition: protectedProcedure
+    .input(z.object({ userId: z.number(), position: z.string().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(users).set({ position: input.position, updatedAt: new Date().toISOString() }).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
+
   // 컨설턴트 목록
   listConsultants: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select({ id: users.id, username: users.username, createdAt: users.createdAt })
+    return db.select({ id: users.id, username: users.username, position: users.position, createdAt: users.createdAt })
       .from(users).where(eq(users.role, "consultant")).orderBy(users.username);
   }),
 

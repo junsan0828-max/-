@@ -34,8 +34,6 @@ const defaultForm: ExpForm = {
 
 export default function ExpensesPage() {
   const utils = trpc.useUtils();
-  const { data: me } = trpc.auth.me.useQuery();
-  const isSubAdmin = me?.role === "sub_admin";
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);

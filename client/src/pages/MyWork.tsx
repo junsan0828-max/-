@@ -29,13 +29,62 @@ const NOTICE_PRIORITY: Record<string, { label: string; style: string }> = {
 };
 
 const TAB_LABELS = [
-  { key: "daily",   label: "오늘" },
-  { key: "weekly",  label: "주간" },
-  { key: "monthly", label: "월간" },
-  { key: "notices", label: "공지" },
+  { key: "daily",    label: "오늘" },
+  { key: "weekly",   label: "주간" },
+  { key: "monthly",  label: "월간" },
+  { key: "position", label: "직책" },
+  { key: "notices",  label: "공지" },
 ] as const;
 
 type Tab = typeof TAB_LABELS[number]["key"];
+
+const POSITION_BADGE: Record<string, string> = {
+  "매니저":    "bg-purple-500/15 text-purple-400 border border-purple-500/30",
+  "팀장":      "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+  "시니어":    "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30",
+  "팀원":      "bg-green-500/15 text-green-400 border border-green-500/30",
+  "견습":      "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30",
+  "프리랜서":  "bg-orange-500/15 text-orange-400 border border-orange-500/30",
+  "컨설턴트":  "bg-pink-500/15 text-pink-400 border border-pink-500/30",
+};
+
+const POSITION_TASKS: Record<string, { daily: string[]; weekly: string[]; monthly: string[] }> = {
+  "매니저": {
+    daily:   ["팀 일일 업무 점검", "스케줄 확인 및 조율", "매출 현황 파악"],
+    weekly:  ["주간 팀 미팅 진행", "팀원 업무 피드백", "마케팅 성과 검토"],
+    monthly: ["월간 KPI 분석 및 보고", "팀원 1:1 면담", "다음 달 목표 설정"],
+  },
+  "팀장": {
+    daily:   ["팀원 출근 확인", "당일 수업 스케줄 점검", "회원 민원 처리"],
+    weekly:  ["주간 업무 보고 작성", "팀 회의 참석", "회원 만족도 점검"],
+    monthly: ["월간 실적 보고", "팀 목표 점검", "개선사항 제안"],
+  },
+  "시니어": {
+    daily:   ["담당 회원 PT 수업", "회원 운동 기록 작성", "신입 트레이너 지도"],
+    weekly:  ["주간 수업 계획 수립", "회원 목표 점검", "프로그램 업데이트"],
+    monthly: ["회원 체성분 측정 및 분석", "월간 수업 계획서 작성", "전문성 향상 교육"],
+  },
+  "팀원": {
+    daily:   ["담당 회원 PT 수업", "회원 출석 확인", "운동일지 작성"],
+    weekly:  ["주간 수업 계획 작성", "회원 피드백 정리", "시설 점검"],
+    monthly: ["월간 회원 관리 보고", "회원 체성분 측정", "자기개발 학습"],
+  },
+  "견습": {
+    daily:   ["선임 트레이너 수업 보조", "시설 청결 점검", "회원 안내 및 응대"],
+    weekly:  ["교육 내용 복습 및 정리", "실습 일지 작성", "미팅 참석"],
+    monthly: ["역량 평가 준비", "자격증 학습", "월간 실습 보고서 작성"],
+  },
+  "프리랜서": {
+    daily:   ["담당 수업 진행", "수업 기록 작성", "고객 소통"],
+    weekly:  ["주간 수업 일정 조율", "수업료 정산 확인", "고객 피드백 반영"],
+    monthly: ["월간 수업 실적 확인", "계약 사항 검토", "새 고객 유치 활동"],
+  },
+  "컨설턴트": {
+    daily:   ["신규 상담 진행", "리드 현황 업데이트", "등록 고객 사후 관리"],
+    weekly:  ["주간 상담 실적 정리", "마케팅 채널 성과 분석", "팀 공유 미팅"],
+    monthly: ["월간 전환율 분석", "마케팅 전략 검토", "고객 만족도 조사"],
+  },
+};
 
 const defaultTaskForm = {
   title: "", description: "", category: "기타",
@@ -105,7 +154,14 @@ export default function MyWorkPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">나의 업무</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-foreground">나의 업무</h1>
+            {user?.position && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${POSITION_BADGE[user.position] ?? "bg-gray-500/15 text-gray-400 border border-gray-500/30"}`}>
+                {user.position}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">{today.replace(/-/g, ".")} 기준</p>
         </div>
         <button onClick={() => setShowAdd(true)}
@@ -156,8 +212,11 @@ export default function MyWorkPage() {
         ))}
       </div>
 
+      {/* 직책 탭 */}
+      {tab === "position" && <PositionTab position={user?.position ?? null} />}
+
       {/* 업무 탭 콘텐츠 */}
-      {tab !== "notices" && (
+      {tab !== "notices" && tab !== "position" && (
         <div className="space-y-2">
           {isLoading ? (
             <div className="text-center text-muted-foreground py-10 text-sm">로딩 중...</div>
@@ -359,6 +418,45 @@ function TaskCard({ row, done, onComplete, onUncomplete, onDelete }: {
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+    </div>
+  );
+}
+
+function PositionTab({ position }: { position: string | null }) {
+  if (!position || !POSITION_TASKS[position]) {
+    return (
+      <div className="text-center text-muted-foreground py-12">
+        <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
+        <p className="text-sm">직책이 설정되지 않았습니다</p>
+        <p className="text-xs mt-1 opacity-60">관리자에게 직책 설정을 요청하세요</p>
+      </div>
+    );
+  }
+
+  const tasks = POSITION_TASKS[position];
+  const badge = POSITION_BADGE[position] ?? "bg-gray-500/15 text-gray-400 border border-gray-500/30";
+  const sections = [
+    { label: "일일 업무", items: tasks.daily,   accent: "border-blue-500/30 bg-blue-500/5" },
+    { label: "주간 업무", items: tasks.weekly,  accent: "border-violet-500/30 bg-violet-500/5" },
+    { label: "월간 업무", items: tasks.monthly, accent: "border-amber-500/30 bg-amber-500/5" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${badge}`}>
+        {position} 직책 업무
+      </div>
+      {sections.map(sec => (
+        <div key={sec.label} className={`border rounded-xl p-4 space-y-2 ${sec.accent}`}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{sec.label}</p>
+          {sec.items.map((item, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
+              <p className="text-sm text-foreground">{item}</p>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

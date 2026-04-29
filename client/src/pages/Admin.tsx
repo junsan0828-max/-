@@ -688,6 +688,9 @@ export default function Admin() {
                         ? `최근 로그인: ${new Date(trainer.lastLoginAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`
                         : "로그인 기록 없음"}
                     </p>
+                    <div className="mt-1.5" onClick={(e) => e.stopPropagation()}>
+                      <PositionSelect userId={trainer.userId} currentPosition={trainer.position ?? null} />
+                    </div>
                     {branchList && branchList.length > 0 && (
                       <div className="flex items-center gap-3 mt-1.5" onClick={(e) => e.stopPropagation()}>
                         {branchList.map((b) => {
@@ -830,18 +833,47 @@ function ConsultantSection() {
         ) : (
           <div className="space-y-2">
             {(consultants ?? []).map((c: any) => (
-              <div key={c.id} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
-                <div>
-                  <span className="text-sm font-medium text-foreground">{c.username}</span>
-                  <span className="text-xs text-muted-foreground ml-2">프론트 컨설턴트</span>
+              <div key={c.id} className="bg-background border border-border rounded-lg px-3 py-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{c.username}</span>
+                    <span className="text-xs text-muted-foreground ml-2">프론트 컨설턴트</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{c.createdAt?.substring(0, 10)}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{c.createdAt?.substring(0, 10)}</span>
+                <PositionSelect userId={c.id} currentPosition={c.position ?? null} />
               </div>
             ))}
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+const POSITIONS = ["매니저", "팀장", "시니어", "팀원", "견습", "프리랜서", "컨설턴트"];
+
+function PositionSelect({ userId, currentPosition }: { userId: number; currentPosition: string | null }) {
+  const utils = trpc.useUtils();
+  const mutation = trpc.admin.updatePosition.useMutation({
+    onSuccess: () => {
+      utils.admin.listTrainers.invalidate();
+      utils.admin.listConsultants.invalidate();
+      utils.admin.listSubAdmins.invalidate();
+      toast.success("직책이 저장되었습니다");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <select
+      value={currentPosition ?? ""}
+      onChange={(e) => mutation.mutate({ userId, position: e.target.value || null })}
+      className="text-xs bg-accent/30 border border-border rounded-md px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+    >
+      <option value="">직책 없음</option>
+      {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+    </select>
   );
 }
 
@@ -906,18 +938,21 @@ function SubAdminSection() {
         ) : (
           <div className="space-y-2">
             {(subAdmins ?? []).map((s: any) => (
-              <div key={s.id} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
-                <div>
-                  <span className="text-sm font-medium text-foreground">{s.username}</span>
-                  <span className="text-xs text-muted-foreground ml-2">부관리자</span>
+              <div key={s.id} className="bg-background border border-border rounded-lg px-3 py-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{s.username}</span>
+                    <span className="text-xs text-muted-foreground ml-2">부관리자</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{s.createdAt?.substring(0, 10)}</span>
+                    <button onClick={() => { if (confirm(`${s.username} 계정을 삭제하시겠습니까?`)) deleteMutation.mutate({ userId: s.id }); }}
+                      className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{s.createdAt?.substring(0, 10)}</span>
-                  <button onClick={() => { if (confirm(`${s.username} 계정을 삭제하시겠습니까?`)) deleteMutation.mutate({ userId: s.id }); }}
-                    className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <PositionSelect userId={s.id} currentPosition={s.position ?? null} />
               </div>
             ))}
           </div>

@@ -4,6 +4,7 @@ export interface AuthUser {
   id: number;
   username: string;
   role: "admin" | "sub_admin" | "trainer" | "consultant";
+  position?: string | null;
   trainerId?: number;
 }
 
