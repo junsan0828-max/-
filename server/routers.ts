@@ -46,6 +46,13 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 });
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
+
+// 카드/현금영수증/지역화폐는 부가세 10% 제외, 이체는 그대로
+function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string): number | undefined {
+  if (!paymentAmount || !sessions || sessions <= 0) return undefined;
+  const base = paymentMethod === "이체" ? paymentAmount : Math.round(paymentAmount / 1.1);
+  return Math.round(base / sessions);
+}
 const authRouter = t.router({
   login: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
@@ -274,10 +281,7 @@ const membersRouter = t.router({
       if (ptSessions) {
         const sessionCount = parseInt(ptSessions);
         const packageName = ptProgram || undefined;
-        const pricePerSession =
-          paymentAmount && sessionCount
-            ? Math.round(paymentAmount / sessionCount)
-            : undefined;
+        const pricePerSession = calcPricePerSession(paymentAmount, sessionCount, paymentMethod);
 
         await db.insert(ptPackages).values({
           memberId,
@@ -548,10 +552,7 @@ const ptRouter = t.router({
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
       const packageName = input.ptProgram || undefined;
-      const pricePerSession =
-        input.paymentAmount && input.totalSessions
-          ? Math.round(input.paymentAmount / input.totalSessions)
-          : undefined;
+      const pricePerSession = calcPricePerSession(input.paymentAmount, input.totalSessions, input.paymentMethod);
 
       await db.insert(ptPackages).values({
         memberId: input.memberId,
