@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2 } from "lucide-react";
+import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList } from "lucide-react";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -69,20 +69,10 @@ export default function Admin() {
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
   const utils = trpc.useUtils();
 
-  const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [dbRestoring, setDbRestoring] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [trainerBranchFilter, setTrainerBranchFilter] = useState<number | undefined>(undefined);
-  const [form, setForm] = useState({
-    username: "",
-    password: "",
-    trainerName: "",
-    phone: "",
-    email: "",
-    settlementRate: "50",
-    branchId: "none",
-  });
 
   // 시트 자동 동기화 설정
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -171,16 +161,6 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "지점 변경 실패"),
   });
 
-  const createMutation = trpc.admin.createTrainer.useMutation({
-    onSuccess: () => {
-      toast.success("트레이너 계정이 생성되었습니다.");
-      setCreateOpen(false);
-      setForm({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none" });
-      refetch();
-    },
-    onError: (err) => toast.error(err.message || "생성 실패"),
-  });
-
   const deleteMutation = trpc.admin.deleteTrainer.useMutation({
     onSuccess: () => {
       toast.success("트레이너가 삭제되었습니다.");
@@ -190,134 +170,13 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
-  const handleCreate = () => {
-    if (!form.trainerName.trim()) return toast.error("이름을 입력해주세요.");
-    if (!form.username.trim()) return toast.error("아이디를 입력해주세요.");
-    if (form.username.trim().length < 3) return toast.error("아이디는 3자 이상이어야 합니다.");
-    if (!form.password) return toast.error("비밀번호를 입력해주세요.");
-    if (form.password.length < 6) return toast.error("비밀번호는 6자 이상이어야 합니다.");
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return toast.error("올바른 이메일 형식이 아닙니다.");
-    createMutation.mutate({
-      username: form.username.trim(),
-      password: form.password,
-      trainerName: form.trainerName.trim(),
-      phone: form.phone || undefined,
-      email: form.email || undefined,
-      settlementRate: parseInt(form.settlementRate) || 50,
-      branchId: form.branchId !== "none" ? parseInt(form.branchId) : undefined,
-    });
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">관리자 설정</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">트레이너 계정 관리</p>
+          <p className="text-sm text-muted-foreground mt-0.5">계정 및 시스템 관리</p>
         </div>
-
-        {/* 트레이너 생성 다이얼로그 */}
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gap-1.5">
-              <UserPlus className="h-4 w-4" />
-              트레이너 추가
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>트레이너 계정 생성</DialogTitle>
-              <DialogDescription>새 트레이너 계정 정보를 입력하세요.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">이름 <span className="text-primary">*</span></Label>
-                <Input
-                  placeholder="김트레이너"
-                  value={form.trainerName}
-                  onChange={(e) => setForm((p) => ({ ...p, trainerName: e.target.value }))}
-                  className="h-9"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">아이디 <span className="text-primary">*</span></Label>
-                  <Input
-                    placeholder="trainer2"
-                    value={form.username}
-                    onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
-                    className="h-9"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">비밀번호 <span className="text-primary">*</span></Label>
-                  <Input
-                    type="password"
-                    placeholder="6자 이상"
-                    value={form.password}
-                    onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                    className="h-9"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">연락처</Label>
-                <Input
-                  placeholder="010-0000-0000"
-                  value={form.phone}
-                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">이메일</Label>
-                <Input
-                  type="email"
-                  placeholder="trainer@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">지점</Label>
-                <Select value={form.branchId} onValueChange={(v) => setForm((p) => ({ ...p, branchId: v }))}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="지점 선택 (선택)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">미배정</SelectItem>
-                    {branchList?.map((b) => (
-                      <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">정산 비율 (%)</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={form.settlementRate}
-                    onChange={(e) => setForm((p) => ({ ...p, settlementRate: e.target.value }))}
-                    className="h-9"
-                  />
-                  <span className="text-sm text-muted-foreground">%</span>
-                </div>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>
-                  취소
-                </Button>
-                <Button className="flex-1" onClick={handleCreate} disabled={createMutation.isPending}>
-                  {createMutation.isPending ? "생성 중..." : "생성"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* ── 구글시트 자동 동기화 설정 ── */}
@@ -768,6 +627,12 @@ export default function Admin() {
 
       {/* 부관리자 계정 관리 */}
       <SubAdminSection />
+
+      {/* 업무 관리 */}
+      <WorkManagementSection />
+
+      {/* 공지사항 관리 */}
+      <NoticeManagementSection />
     </div>
   );
 }
@@ -953,6 +818,253 @@ function SubAdminSection() {
                   </div>
                 </div>
                 <PositionSelect userId={s.id} currentPosition={s.position ?? null} />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── 업무 관리 ──────────────────────────────────────────────────────────────────
+const WORK_CATEGORIES = ["상담", "수업", "회원관리", "청소/정리", "마케팅", "매출/등록", "교육", "기타"];
+
+function WorkManagementSection() {
+  const utils = trpc.useUtils();
+  const { data: staffList } = trpc.gym.work.tasks.listStaff.useQuery();
+  const { data: overview } = trpc.gym.work.tasks.staffOverview.useQuery();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    title: "", category: "기타", priority: "normal",
+    taskType: "daily", isRecurring: 0, assigneeId: "",
+    taskDate: new Date().toISOString().substring(0, 10), dueTime: "",
+  });
+
+  const createMutation = trpc.gym.work.tasks.create.useMutation({
+    onSuccess: () => {
+      toast.success("업무가 추가되었습니다");
+      utils.gym.work.tasks.invalidate();
+      setShowAdd(false);
+      setForm({ title: "", category: "기타", priority: "normal", taskType: "daily", isRecurring: 0, assigneeId: "", taskDate: new Date().toISOString().substring(0, 10), dueTime: "" });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function handleAdd() {
+    if (!form.title.trim()) return toast.error("업무 제목을 입력해주세요");
+    if (!form.assigneeId) return toast.error("담당자를 선택해주세요");
+    createMutation.mutate({
+      title: form.title.trim(), category: form.category, priority: form.priority,
+      taskType: form.taskType, isRecurring: form.isRecurring,
+      assigneeId: parseInt(form.assigneeId),
+      taskDate: form.isRecurring ? undefined : form.taskDate,
+      dueTime: form.dueTime || undefined,
+    });
+  }
+
+  const staff = (staffList ?? []).filter((s: any) => s.role !== "admin");
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-primary" />업무 관리
+          </CardTitle>
+          <button onClick={() => setShowAdd(v => !v)}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90">
+            <Plus className="h-3.5 w-3.5" />업무 추가
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">직원 업무 할당 및 오늘 완료 현황</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showAdd && (
+          <div className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">업무 제목 *</label>
+              <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="업무 내용을 입력하세요"
+                className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">담당자 *</label>
+                <select value={form.assigneeId} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">선택</option>
+                  {staff.map((s: any) => <option key={s.id} value={s.id}>{s.username} ({s.role === "trainer" ? "트레이너" : "컨설턴트"})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">카테고리</label>
+                <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  {WORK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(["daily", "weekly", "monthly"] as const).map(t => (
+                <button key={t} type="button" onClick={() => setForm(f => ({ ...f, taskType: t }))}
+                  className={`py-1.5 rounded-lg text-xs font-medium transition-colors ${form.taskType === t ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground"}`}>
+                  {t === "daily" ? "일일" : t === "weekly" ? "주간" : "월간"}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.isRecurring === 1} onChange={e => setForm(f => ({ ...f, isRecurring: e.target.checked ? 1 : 0 }))} />
+                <span className="text-xs text-muted-foreground">반복 업무</span>
+              </label>
+              {!form.isRecurring && (
+                <input type="date" value={form.taskDate} onChange={e => setForm(f => ({ ...f, taskDate: e.target.value }))}
+                  className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent">취소</button>
+              <button type="button" onClick={handleAdd} className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90">추가</button>
+            </div>
+          </div>
+        )}
+
+        {(overview ?? []).length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">오늘 완료 현황</p>
+            {(overview ?? []).map((s: any) => (
+              <div key={s.assigneeId} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
+                <span className="text-sm text-foreground">{s.name}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-20 h-1.5 bg-border rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${s.rate}%` }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground">{s.todayDone}/{s.todayTotal}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(overview ?? []).length === 0 && !showAdd && (
+          <p className="text-xs text-muted-foreground text-center py-4">오늘 할당된 업무가 없습니다</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── 공지사항 관리 ──────────────────────────────────────────────────────────────
+function NoticeManagementSection() {
+  const utils = trpc.useUtils();
+  const { data: noticeList } = trpc.gym.work.notices.list.useQuery();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ title: "", content: "", targetRole: "all", priority: "normal" });
+
+  const createMutation = trpc.gym.work.notices.create.useMutation({
+    onSuccess: () => {
+      toast.success("공지사항이 등록되었습니다");
+      utils.gym.work.notices.invalidate();
+      setShowAdd(false);
+      setForm({ title: "", content: "", targetRole: "all", priority: "normal" });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteMutation = trpc.gym.work.notices.delete.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다"); utils.gym.work.notices.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const PRIORITY_STYLE: Record<string, string> = {
+    urgent: "bg-red-500/20 text-red-400 border border-red-500/30",
+    important: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
+    normal: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
+  };
+  const PRIORITY_LABEL: Record<string, string> = { urgent: "긴급", important: "중요", normal: "일반" };
+  const ROLE_LABEL: Record<string, string> = { all: "전체", trainer: "트레이너", consultant: "컨설턴트" };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Bell className="h-4 w-4 text-primary" />공지사항 관리
+          </CardTitle>
+          <button onClick={() => setShowAdd(v => !v)}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90">
+            <Plus className="h-3.5 w-3.5" />공지 작성
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">트레이너·컨설턴트 공지사항 등록 및 관리</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showAdd && (
+          <div className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">제목 *</label>
+              <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="공지 제목"
+                className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">내용 *</label>
+              <textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} placeholder="공지 내용을 입력하세요" rows={3}
+                className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">대상</label>
+                <select value={form.targetRole} onChange={e => setForm(f => ({ ...f, targetRole: e.target.value }))}
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="all">전체</option>
+                  <option value="trainer">트레이너만</option>
+                  <option value="consultant">컨설턴트만</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">중요도</label>
+                <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="normal">일반</option>
+                  <option value="important">중요</option>
+                  <option value="urgent">긴급</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent">취소</button>
+              <button type="button"
+                onClick={() => { if (!form.title.trim() || !form.content.trim()) return toast.error("제목과 내용을 입력해주세요"); createMutation.mutate(form); }}
+                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90">등록</button>
+            </div>
+          </div>
+        )}
+
+        {(noticeList ?? []).length === 0 && !showAdd ? (
+          <p className="text-xs text-muted-foreground text-center py-4">등록된 공지사항이 없습니다</p>
+        ) : (
+          <div className="space-y-2">
+            {(noticeList ?? []).map((n: any) => (
+              <div key={n.notice.id} className="bg-background border border-border rounded-lg px-3 py-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_STYLE[n.notice.priority]}`}>
+                        {PRIORITY_LABEL[n.notice.priority]}
+                      </span>
+                      <span className="text-xs text-muted-foreground border border-border px-1.5 py-0.5 rounded-full">
+                        {ROLE_LABEL[n.notice.targetRole] ?? n.notice.targetRole}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-foreground mt-1 truncate">{n.notice.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.notice.content}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{n.notice.createdAt?.substring(0, 10)}</p>
+                  </div>
+                  <button onClick={() => { if (confirm("공지를 삭제하시겠습니까?")) deleteMutation.mutate({ id: n.notice.id }); }}
+                    className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors shrink-0">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
