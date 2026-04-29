@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
+import ExpensesPage from "./Expenses";
 import {
   Plus, ChevronLeft, ChevronRight, Search, AlertCircle,
   TrendingUp, RefreshCw, Dumbbell, Heart, MoreHorizontal,
@@ -37,6 +38,26 @@ function fmt(n: number) {
 }
 
 export default function RevenuePage() {
+  const [financeTab, setFinanceTab] = useState<"revenue" | "expenses">("revenue");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex bg-card border border-border rounded-xl p-1 gap-1">
+        <button onClick={() => setFinanceTab("revenue")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${financeTab === "revenue" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          매출
+        </button>
+        <button onClick={() => setFinanceTab("expenses")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${financeTab === "expenses" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          지출
+        </button>
+      </div>
+      {financeTab === "revenue" ? <RevenueContent /> : <ExpensesPage />}
+    </div>
+  );
+}
+
+function RevenueContent() {
   const utils = trpc.useUtils();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
