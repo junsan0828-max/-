@@ -570,6 +570,17 @@ const ptRouter = t.router({
         paymentMemo: input.paymentMemo,
       });
 
+      // 회원권 만료일이 비어있으면 세션 수 기준으로 자동 계산 (10회=1개월)
+      const memberInfo = await db.select({ membershipEnd: members.membershipEnd, membershipStart: members.membershipStart }).from(members).where(eq(members.id, input.memberId)).limit(1);
+      if (memberInfo[0] && !memberInfo[0].membershipEnd) {
+        const months = Math.ceil(input.totalSessions / 10);
+        const base = input.startDate || memberInfo[0].membershipStart || new Date().toISOString().substring(0, 10);
+        const d = new Date(base);
+        d.setMonth(d.getMonth() + months);
+        const newEnd = d.toISOString().substring(0, 10);
+        await db.update(members).set({ membershipEnd: newEnd }).where(eq(members.id, input.memberId));
+      }
+
       return { success: true };
     }),
 
@@ -697,6 +708,12 @@ const ptRouter = t.router({
         goal: input.goal,
         feedback: input.feedback,
       });
+
+      // 회원권 시작일이 비어있으면 첫 수업일로 자동 설정
+      const memberRow = await db.select({ membershipStart: members.membershipStart }).from(members).where(eq(members.id, input.memberId)).limit(1);
+      if (memberRow[0] && !memberRow[0].membershipStart) {
+        await db.update(members).set({ membershipStart: input.sessionDate ?? today }).where(eq(members.id, input.memberId));
+      }
 
       return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
     }),

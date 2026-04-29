@@ -615,7 +615,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"
-                  value={payments ? `${payments.reduce((sum, p) => sum + p.amount, 0).toLocaleString()}원` : "-"}
+                  value={ptPackages ? `${ptPackages.reduce((sum, p) => sum + (p.paymentAmount ?? 0), 0).toLocaleString()}원` : "-"}
                 />
               </div>
               {member.profileNote && (
