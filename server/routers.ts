@@ -536,7 +536,15 @@ const ptRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const trainerId = ctx.user.trainerId;
+      let trainerId = ctx.user.trainerId;
+
+      // admin/sub_admin: 회원의 담당 트레이너 ID 사용
+      if (!trainerId && (ctx.user.role === "admin" || ctx.user.role === "sub_admin")) {
+        const memberRow = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, input.memberId)).limit(1);
+        trainerId = memberRow[0]?.trainerId ?? undefined;
+        if (!trainerId) throw new TRPCError({ code: "BAD_REQUEST", message: "회원에게 배정된 트레이너가 없습니다." });
+      }
+
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
       const packageName = input.ptProgram || undefined;
