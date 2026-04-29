@@ -9,8 +9,8 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings, sheetSyncConfig, channels } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs } from "../drizzle/schema";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
 
 const app = express();
@@ -402,6 +402,56 @@ async function initDatabase() {
   }
 
   console.log("✅ 테이블 준비 완료");
+
+  // ── 기존 회원 회원권 시작일/만료일 자동 보정 ──────────────────────────────
+  try {
+    // 1) membershipStart가 NULL인 회원: 첫 수업일로 설정
+    const noStartMembers = await db
+      .select({ id: members.id })
+      .from(members)
+      .where(isNull(members.membershipStart));
+
+    for (const m of noStartMembers) {
+      const firstSession = await db
+        .select({ sessionDate: ptSessionLogs.sessionDate })
+        .from(ptSessionLogs)
+        .where(eq(ptSessionLogs.memberId, m.id))
+        .orderBy(ptSessionLogs.sessionDate)
+        .limit(1);
+      if (firstSession[0]?.sessionDate) {
+        await db.update(members).set({ membershipStart: firstSession[0].sessionDate }).where(eq(members.id, m.id));
+      }
+    }
+
+    // 2) membershipEnd가 NULL인 회원: 패키지 총 세션 합산 → 10회=1개월
+    const noEndMembers = await db
+      .select({ id: members.id, membershipStart: members.membershipStart })
+      .from(members)
+      .where(isNull(members.membershipEnd));
+
+    for (const m of noEndMembers) {
+      const pkgRows = await db
+        .select({ totalSessions: ptPackages.totalSessions, startDate: ptPackages.startDate })
+        .from(ptPackages)
+        .where(eq(ptPackages.memberId, m.id))
+        .orderBy(ptPackages.createdAt);
+
+      if (!pkgRows.length) continue;
+
+      const totalSessions = pkgRows.reduce((s, p) => s + (p.totalSessions ?? 0), 0);
+      if (!totalSessions) continue;
+
+      const months = Math.ceil(totalSessions / 10);
+      const baseDate = pkgRows[0].startDate || m.membershipStart || new Date().toISOString().substring(0, 10);
+      const d = new Date(baseDate);
+      d.setMonth(d.getMonth() + months);
+      await db.update(members).set({ membershipEnd: d.toISOString().substring(0, 10) }).where(eq(members.id, m.id));
+    }
+
+    console.log("✅ 회원권 날짜 보정 완료");
+  } catch (e) {
+    console.warn("⚠️ 회원권 날짜 보정 실패:", e);
+  }
 
   // 관리자 계정 생성 (없으면 초기 씨드)
   const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")).limit(1);
