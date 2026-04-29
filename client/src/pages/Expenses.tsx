@@ -308,7 +308,7 @@ export default function ExpensesPage() {
 
               </div>
               <div className="flex gap-2 p-4 border-t border-border shrink-0">
-                {editId && !isSubAdmin && (
+                {editId && (
                   <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
                     className="flex-1 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-medium hover:bg-red-500/10">
                     삭제
