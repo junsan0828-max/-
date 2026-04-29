@@ -48,10 +48,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const adminNavItems = [
     { path: "/", label: "KPI", icon: LayoutDashboard },
     { path: "/revenue", label: "매출/지출", icon: TrendingUp },
-    { path: "/leads", label: "리드", icon: UserPlus },
+    { path: "/trainers", label: "트레이너", icon: UserCog },
+    { path: "/members", label: "회원관리", icon: Users },
+    { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/marketing", label: "마케팅", icon: Megaphone },
     { path: "/ai-analysis", label: "AI분석", icon: BrainCircuit },
-    { path: "/trainers", label: "트레이너", icon: UserCog },
     { path: "/admin", label: "관리", icon: Settings },
   ];
 

@@ -154,6 +154,38 @@ const membersRouter = t.router({
       .orderBy(desc(members.createdAt));
   }),
 
+  listAll: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
+      throw new TRPCError({ code: "FORBIDDEN" });
+
+    const [rows, pkgs] = await Promise.all([
+      db.select({
+        id: members.id,
+        name: members.name,
+        phone: members.phone,
+        status: members.status,
+        grade: members.grade,
+        membershipStart: members.membershipStart,
+        membershipEnd: members.membershipEnd,
+        profileNote: members.profileNote,
+        trainerId: members.trainerId,
+        trainerName: trainers.trainerName,
+        createdAt: members.createdAt,
+      }).from(members).leftJoin(trainers, eq(members.trainerId, trainers.id)).orderBy(desc(members.createdAt)),
+      db.select({ memberId: ptPackages.memberId, packageName: ptPackages.packageName }).from(ptPackages),
+    ]);
+
+    const pkgMap = new Map<number, string[]>();
+    for (const p of pkgs) {
+      if (!pkgMap.has(p.memberId)) pkgMap.set(p.memberId, []);
+      pkgMap.get(p.memberId)!.push(p.packageName ?? "");
+    }
+
+    return rows.map((r) => ({ ...r, packages: pkgMap.get(r.id) ?? [] }));
+  }),
+
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {

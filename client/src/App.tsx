@@ -48,6 +48,7 @@ import RevenuePage from "./pages/Revenue";
 import ExpensesPage from "./pages/Expenses";
 import MarketingPage from "./pages/Marketing";
 import AiAnalysisPage from "./pages/AiAnalysis";
+import AdminMembers from "./pages/AdminMembers";
 import Layout from "./components/Layout";
 
 function App() {
@@ -87,7 +88,7 @@ function App() {
         <Route path="/expenses">{() => <ExpensesPage />}</Route>
         <Route path="/marketing">{() => <MarketingPage />}</Route>
         <Route path="/ai-analysis">{() => <AiAnalysisPage />}</Route>
-        <Route path="/members">{() => <Members />}</Route>
+        <Route path="/members">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <AdminMembers /> : <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
         <Route path="/trainers/:id/members/new">
           {(params) => <MemberForm defaultTrainerId={parseInt(params.id!)} />}
