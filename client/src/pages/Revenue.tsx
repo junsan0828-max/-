@@ -382,14 +382,29 @@ function RevenueContent() {
                   )}
                   <div>
                     <label className="text-xs text-muted-foreground">횟수</label>
-                    <div className="flex gap-2 mt-1">
+                    <div className="flex gap-2 mt-1 flex-wrap">
                       {PT_SESSIONS.map(s => (
                         <button key={s} type="button" onClick={() => setForm(f => ({ ...f, sessions: form.sessions === String(s) ? "" : String(s) }))}
                           className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.sessions === String(s) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                           {s}회
                         </button>
                       ))}
+                      <button type="button"
+                        onClick={() => setForm(f => ({ ...f, sessions: PT_SESSIONS.map(String).includes(f.sessions) || f.sessions === "" ? "기타" : f.sessions }))}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${!PT_SESSIONS.map(String).includes(form.sessions) && form.sessions !== "" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        기타
+                      </button>
                     </div>
+                    {!PT_SESSIONS.map(String).includes(form.sessions) && form.sessions !== "" && (
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="직접 입력 (회)"
+                        value={form.sessions === "기타" ? "" : form.sessions}
+                        onChange={(e) => setForm(f => ({ ...f, sessions: e.target.value }))}
+                        className="mt-2 w-full px-3 py-2 bg-input border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    )}
                   </div>
                 </div>
               )}
