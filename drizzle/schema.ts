@@ -54,6 +54,7 @@ export const trainerSettings = pgTable("trainer_settings", {
 export const members = pgTable("members", {
   id: serial("id").primaryKey(),
   trainerId: integer("trainerId").notNull(),
+  branchId: integer("branchId"),
   name: text("name").notNull(),
   phone: text("phone"),
   email: text("email"),

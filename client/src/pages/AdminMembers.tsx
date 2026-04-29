@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, MapPin } from "lucide-react";
 
 type TypeFilter = "all" | "PT" | "헬스" | "기타";
 
@@ -50,8 +50,12 @@ export default function AdminMembers() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [branchFilter, setBranchFilter] = useState<number | null>(null);
 
-  const { data: allMembers, isLoading } = trpc.members.listAll.useQuery();
+  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: allMembers, isLoading } = trpc.members.listAll.useQuery(
+    branchFilter ? { branchId: branchFilter } : undefined
+  );
 
   const ptMembers = allMembers?.filter((m) => memberType(m.packages, m.status) === "PT") ?? [];
   const healthMembers = allMembers?.filter((m) => memberType(m.packages, m.status) === "헬스") ?? [];
@@ -111,6 +115,31 @@ export default function AdminMembers() {
   return (
     <div className="space-y-4 pb-20">
       <h1 className="text-xl font-bold">회원 관리</h1>
+
+      {/* 지점 필터 */}
+      {branchList && branchList.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setBranchFilter(null)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <MapPin className="h-3 w-3" /> 전체
+          </button>
+          {branchList.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => setBranchFilter(b.id)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <MapPin className="h-3 w-3" /> {b.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 타입 필터 탭 */}
       <div className="flex gap-1 bg-card border border-border rounded-xl p-1">

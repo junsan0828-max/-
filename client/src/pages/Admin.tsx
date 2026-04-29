@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList } from "lucide-react";
+import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList, MapPin } from "lucide-react";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -67,6 +67,7 @@ export default function Admin() {
   const { data: branchList, refetch: refetchBranches } = trpc.admin.listBranches.useQuery();
   const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery();
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
+  const { data: unclassifiedMembers, refetch: refetchUnclassified } = trpc.members.listUnclassified.useQuery();
   const utils = trpc.useUtils();
 
   const [adminTab, setAdminTab] = useState<"account" | "work">("account");
@@ -166,6 +167,11 @@ export default function Admin() {
   const deletePendingMutation = trpc.admin.deletePending.useMutation({
     onSuccess: () => { toast.success("삭제되었습니다."); refetchPending(); },
     onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
+  const assignBranchMutation = trpc.members.assignBranch.useMutation({
+    onSuccess: () => { toast.success("지점이 배정되었습니다."); refetchUnclassified(); },
+    onError: (err) => toast.error(err.message || "배정 실패"),
   });
 
   // 관리자 권한 확인
@@ -423,6 +429,43 @@ export default function Admin() {
                     트레이너 배정
                   </Button>
                 )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 지점 미분류 회원 (다중지점 트레이너 소속) ── */}
+      {unclassifiedMembers && unclassifiedMembers.length > 0 && (
+        <Card className="bg-card border-blue-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-blue-400" />
+              <span className="text-blue-400">지점 미분류 회원</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{unclassifiedMembers.length}명</span>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">담당 트레이너가 여러 지점에 속해 있어 수동으로 지점을 선택해주세요.</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unclassifiedMembers.map((m) => (
+              <div key={m.id} className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div>
+                    <p className="font-medium text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.trainerName} · {m.phone ?? "연락처 없음"}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {m.availableBranches.map((b) => (
+                    <button
+                      key={b.id}
+                      onClick={() => assignBranchMutation.mutate({ memberId: m.id, branchId: b.id })}
+                      className="flex-1 py-1.5 text-xs font-medium rounded-lg border border-blue-500/40 text-blue-400 hover:bg-blue-500/20 transition-colors"
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </CardContent>

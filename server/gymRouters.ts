@@ -584,7 +584,7 @@ const expenseRouter = t.router({
 // ─── KPI Dashboard ───────────────────────────────────────────────────────────
 const kpiRouter = t.router({
   overview: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
@@ -593,9 +593,12 @@ const kpiRouter = t.router({
       const today = new Date().toISOString().substring(0, 10);
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
 
+      const revenueWhere = input.branchId ? eq(revenueEntries.branchId, input.branchId) : undefined;
+      const expenseWhere = input.branchId ? eq(expenseEntries.branchId, input.branchId) : undefined;
+
       const [allRevenue, allExpenses, allLeads, allTargets] = await Promise.all([
-        db.select().from(revenueEntries),
-        db.select().from(expenseEntries),
+        revenueWhere ? db.select().from(revenueEntries).where(revenueWhere) : db.select().from(revenueEntries),
+        expenseWhere ? db.select().from(expenseEntries).where(expenseWhere) : db.select().from(expenseEntries),
         db.select().from(leads),
         db.select().from(revenueTargets),
       ]);

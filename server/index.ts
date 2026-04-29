@@ -9,7 +9,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs } from "../drizzle/schema";
+import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches } from "../drizzle/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
 
@@ -337,6 +337,7 @@ async function initDatabase() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS "position" TEXT`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "createdBy" INTEGER`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "consultantId" INTEGER`,
+    `ALTER TABLE members ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "customerName" TEXT`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "phone" TEXT`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "programDetail" TEXT`,
@@ -403,6 +404,28 @@ async function initDatabase() {
   }
 
   console.log("✅ 테이블 준비 완료");
+
+  // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────
+  try {
+    // trainerBranches에서 트레이너별 지점 수 집계
+    const allTB = await db.select().from(trainerBranches);
+    const tbMap = new Map<number, number[]>(); // trainerId → branchIds
+    for (const row of allTB) {
+      if (!tbMap.has(row.trainerId)) tbMap.set(row.trainerId, []);
+      tbMap.get(row.trainerId)!.push(row.branchId);
+    }
+    // 단일 지점만 속한 트레이너의 회원 중 branchId가 NULL인 경우만 업데이트
+    for (const [trainerId, branchIds] of tbMap.entries()) {
+      if (branchIds.length === 1) {
+        await db.update(members)
+          .set({ branchId: branchIds[0] })
+          .where(and(eq(members.trainerId, trainerId), isNull(members.branchId)));
+      }
+    }
+    console.log("✅ 단일 지점 트레이너 회원 branchId 자동 배정 완료");
+  } catch (e) {
+    console.error("branchId 자동 배정 오류:", e);
+  }
 
   // ── 기존 회원 회원권 시작일/만료일 자동 보정 ──────────────────────────────
   try {

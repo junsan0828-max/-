@@ -68,6 +68,7 @@ function RevenueContent() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<RevForm>(defaultForm);
   const [filterType, setFilterType] = useState("");
+  const [branchFilter, setBranchFilter] = useState<number | null>(null);
 
   const { data: me } = trpc.auth.me.useQuery();
   const isConsultant = me?.role === "consultant";
@@ -77,7 +78,11 @@ function RevenueContent() {
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.gym.staff.listConsultants.useQuery();
-  const { data: kpi } = trpc.gym.kpi.overview.useQuery({ year, month }, { enabled: !isConsultant });
+  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: kpi } = trpc.gym.kpi.overview.useQuery(
+    { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) },
+    { enabled: !isConsultant }
+  );
 
   const createMutation = trpc.gym.revenue.create.useMutation({
     onSuccess: () => { toast.success("매출이 등록되었습니다"); utils.gym.revenue.invalidate(); utils.gym.kpi.invalidate(); resetForm(); },
@@ -180,9 +185,10 @@ function RevenueContent() {
 
   const filtered = (entries ?? []).filter(row => {
     const q = search.toLowerCase();
-    const matchSearch = !q || (row.memberName ?? "").toLowerCase().includes(q) || (row.trainerName ?? "").toLowerCase().includes(q) || (row.entry.memo ?? "").toLowerCase().includes(q);
+    const matchSearch = !q || (row.memberName ?? "").toLowerCase().includes(q) || (row.trainerName ?? "").toLowerCase().includes(q) || (row.entry.customerName ?? "").toLowerCase().includes(q) || (row.entry.memo ?? "").toLowerCase().includes(q);
     const matchType = !filterType || row.entry.type === filterType;
-    return matchSearch && matchType;
+    const matchBranch = !branchFilter || row.entry.branchId === branchFilter;
+    return matchSearch && matchType && matchBranch;
   });
 
   const monthTotal = filtered.reduce((s, r) => s + r.entry.paidAmount, 0);
@@ -204,6 +210,22 @@ function RevenueContent() {
           매출 입력
         </button>
       </div>
+
+      {/* 지점 필터 */}
+      {!isConsultant && branchList && branchList.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setBranchFilter(null)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+            전체
+          </button>
+          {branchList.map((b) => (
+            <button key={b.id} onClick={() => setBranchFilter(b.id)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+              {b.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 월 선택 - 컨설턴트는 숨김 */}
       {!isConsultant && (

@@ -1,7 +1,7 @@
 import { gymRouter } from "./gymRouters";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, sql, lte, gte, gt } from "drizzle-orm";
+import { eq, and, desc, sql, lte, gte, gt, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb, getDashboardStats } from "./db";
 import {
@@ -154,11 +154,15 @@ const membersRouter = t.router({
       .orderBy(desc(members.createdAt));
   }),
 
-  listAll: protectedProcedure.query(async ({ ctx }) => {
+  listAll: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
       throw new TRPCError({ code: "FORBIDDEN" });
+
+    const whereClause = input?.branchId ? eq(members.branchId, input.branchId) : undefined;
 
     const [rows, pkgs] = await Promise.all([
       db.select({
@@ -171,9 +175,12 @@ const membersRouter = t.router({
         membershipEnd: members.membershipEnd,
         profileNote: members.profileNote,
         trainerId: members.trainerId,
+        branchId: members.branchId,
         trainerName: trainers.trainerName,
         createdAt: members.createdAt,
-      }).from(members).leftJoin(trainers, eq(members.trainerId, trainers.id)).orderBy(desc(members.createdAt)),
+      }).from(members).leftJoin(trainers, eq(members.trainerId, trainers.id))
+        .where(whereClause)
+        .orderBy(desc(members.createdAt)),
       db.select({
         memberId: ptPackages.memberId,
         packageName: ptPackages.packageName,
@@ -502,6 +509,65 @@ const membersRouter = t.router({
       }
 
       return { updated };
+    }),
+
+  // 미분류 회원 목록 (branchId=NULL이고 트레이너가 다중지점인 경우)
+  listUnclassified: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
+      throw new TRPCError({ code: "FORBIDDEN" });
+
+    const allTB = await db.select().from(trainerBranches);
+    const tbMap = new Map<number, number[]>();
+    for (const row of allTB) {
+      if (!tbMap.has(row.trainerId)) tbMap.set(row.trainerId, []);
+      tbMap.get(row.trainerId)!.push(row.branchId);
+    }
+    // 다중 지점 트레이너 ID 목록
+    const multiTrainerIds = Array.from(tbMap.entries())
+      .filter(([, bids]) => bids.length > 1)
+      .map(([tid]) => tid);
+
+    if (multiTrainerIds.length === 0) return [];
+
+    const rows = await db.select({
+      id: members.id,
+      name: members.name,
+      phone: members.phone,
+      status: members.status,
+      branchId: members.branchId,
+      trainerId: members.trainerId,
+      trainerName: trainers.trainerName,
+    })
+      .from(members)
+      .leftJoin(trainers, eq(members.trainerId, trainers.id))
+      .where(and(
+        sql`${members.trainerId} = ANY(ARRAY[${sql.join(multiTrainerIds.map(id => sql`${id}`), sql`, `)}]::int[])`,
+        isNull(members.branchId)
+      ))
+      .orderBy(trainers.trainerName, members.name);
+
+    const branchList = await db.select().from(branches);
+
+    return rows.map(r => ({
+      ...r,
+      availableBranches: (tbMap.get(r.trainerId) ?? []).map(bid => ({
+        id: bid,
+        name: branchList.find(b => b.id === bid)?.name ?? String(bid),
+      })),
+    }));
+  }),
+
+  assignBranch: protectedProcedure
+    .input(z.object({ memberId: z.number(), branchId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      await db.update(members).set({ branchId: input.branchId }).where(eq(members.id, input.memberId));
+      return { ok: true };
     }),
 });
 

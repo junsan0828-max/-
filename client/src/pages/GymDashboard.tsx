@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   TrendingUp, TrendingDown, DollarSign, Users, Target,
   AlertCircle, RefreshCw, ArrowUpRight, ArrowDownRight,
-  BarChart2, Percent, CreditCard, ChevronLeft, ChevronRight,
+  BarChart2, Percent, CreditCard, ChevronLeft, ChevronRight, MapPin,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -53,8 +53,12 @@ export default function GymDashboard() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [branchFilter, setBranchFilter] = useState<number | null>(null);
 
-  const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery({ year, month });
+  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery(
+    { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }
+  );
   const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year });
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month });
   const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
@@ -104,6 +108,20 @@ export default function GymDashboard() {
           </button>
         </div>
       </div>
+      {branchList && branchList.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setBranchFilter(null)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+            <MapPin className="h-3 w-3" /> 전체
+          </button>
+          {branchList.map((b) => (
+            <button key={b.id} onClick={() => setBranchFilter(b.id)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+              <MapPin className="h-3 w-3" /> {b.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 목표 달성률 배너 */}
       {(kpi?.targetAmount ?? 0) > 0 && (
