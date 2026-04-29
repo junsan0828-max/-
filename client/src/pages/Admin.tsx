@@ -73,6 +73,31 @@ export default function Admin() {
   const [dbRestoring, setDbRestoring] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [trainerBranchFilter, setTrainerBranchFilter] = useState<number | undefined>(undefined);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none" });
+
+  const createMutation = trpc.admin.createTrainer.useMutation({
+    onSuccess: () => {
+      toast.success("트레이너 계정이 생성되었습니다.");
+      setCreateOpen(false);
+      setForm({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none" });
+      refetch();
+    },
+    onError: (err) => toast.error(err.message || "생성 실패"),
+  });
+
+  const handleCreate = () => {
+    if (!form.trainerName.trim()) return toast.error("이름을 입력해주세요.");
+    if (!form.username.trim() || form.username.trim().length < 3) return toast.error("아이디는 3자 이상이어야 합니다.");
+    if (!form.password || form.password.length < 6) return toast.error("비밀번호는 6자 이상이어야 합니다.");
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return toast.error("올바른 이메일 형식이 아닙니다.");
+    createMutation.mutate({
+      username: form.username.trim(), password: form.password, trainerName: form.trainerName.trim(),
+      phone: form.phone || undefined, email: form.email || undefined,
+      settlementRate: parseInt(form.settlementRate) || 50,
+      branchId: form.branchId !== "none" ? parseInt(form.branchId) : undefined,
+    });
+  };
 
   // 시트 자동 동기화 설정
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -484,10 +509,79 @@ export default function Admin() {
       {/* 트레이너 목록 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            트레이너 목록
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              트레이너 목록
+            </CardTitle>
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-1.5">
+                  <UserPlus className="h-4 w-4" />
+                  트레이너 추가
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>트레이너 계정 생성</DialogTitle>
+                  <DialogDescription>새 트레이너 계정 정보를 입력하세요.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">이름 <span className="text-primary">*</span></Label>
+                    <Input placeholder="김트레이너" value={form.trainerName}
+                      onChange={(e) => setForm(p => ({ ...p, trainerName: e.target.value }))} className="h-9" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">아이디 <span className="text-primary">*</span></Label>
+                      <Input placeholder="trainer2" value={form.username}
+                        onChange={(e) => setForm(p => ({ ...p, username: e.target.value }))} className="h-9" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">비밀번호 <span className="text-primary">*</span></Label>
+                      <Input type="password" placeholder="6자 이상" value={form.password}
+                        onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))} className="h-9" />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">연락처</Label>
+                    <Input placeholder="010-0000-0000" value={form.phone}
+                      onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">이메일</Label>
+                    <Input type="email" placeholder="trainer@example.com" value={form.email}
+                      onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">지점</Label>
+                    <Select value={form.branchId} onValueChange={(v) => setForm(p => ({ ...p, branchId: v }))}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="지점 선택 (선택)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">미배정</SelectItem>
+                        {branchList?.map(b => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">정산 비율 (%)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input type="number" min="0" max="100" value={form.settlementRate}
+                        onChange={(e) => setForm(p => ({ ...p, settlementRate: e.target.value }))} className="h-9" />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>취소</Button>
+                    <Button className="flex-1" onClick={handleCreate} disabled={createMutation.isPending}>
+                      {createMutation.isPending ? "생성 중..." : "생성"}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {/* 지점 필터 탭 */}
