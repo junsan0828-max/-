@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   UserCog, Settings, User, ClipboardCheck, Download, X,
-  TrendingUp, Wallet, Megaphone, BrainCircuit, UserPlus, ListChecks,
+  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -47,8 +47,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const adminNavItems = [
     { path: "/", label: "KPI", icon: LayoutDashboard },
-    { path: "/revenue", label: "매출", icon: TrendingUp },
-    { path: "/expenses", label: "지출", icon: Wallet },
+    { path: "/revenue", label: "매출/지출", icon: TrendingUp },
     { path: "/leads", label: "리드", icon: UserPlus },
     { path: "/marketing", label: "마케팅", icon: Megaphone },
     { path: "/ai-analysis", label: "AI분석", icon: BrainCircuit },
