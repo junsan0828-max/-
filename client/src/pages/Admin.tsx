@@ -69,6 +69,7 @@ export default function Admin() {
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
   const utils = trpc.useUtils();
 
+  const [adminTab, setAdminTab] = useState<"account" | "work">("account");
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [dbRestoring, setDbRestoring] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
@@ -197,12 +198,30 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">관리자 설정</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">계정 및 시스템 관리</p>
-        </div>
+      <div>
+        <h1 className="text-xl font-bold">관리자 설정</h1>
       </div>
+
+      {/* 탭 */}
+      <div className="flex bg-card border border-border rounded-xl p-1 gap-1">
+        <button onClick={() => setAdminTab("account")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "account" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          계정 설정
+        </button>
+        <button onClick={() => setAdminTab("work")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "work" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          업무 관리
+        </button>
+      </div>
+
+      {adminTab === "work" && (
+        <>
+          <WorkManagementSection />
+          <NoticeManagementSection />
+        </>
+      )}
+
+      {adminTab === "account" && (<>
 
       {/* ── 구글시트 자동 동기화 설정 ── */}
       <Card className="bg-card border-border">
@@ -721,12 +740,7 @@ export default function Admin() {
 
       {/* 부관리자 계정 관리 */}
       <SubAdminSection />
-
-      {/* 업무 관리 */}
-      <WorkManagementSection />
-
-      {/* 공지사항 관리 */}
-      <NoticeManagementSection />
+      </>)}
     </div>
   );
 }
