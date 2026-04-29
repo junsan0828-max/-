@@ -268,7 +268,7 @@ const revenueRouter = t.router({
       branchId: z.number().optional(),
       channelId: z.number().optional(),
       type: z.enum(["PT", "헬스", "기타"]),
-      subType: z.enum(["신규", "재등록"]),
+      subType: z.enum(["신규", "재등록", "이전"]),
       amount: z.number().min(0),
       discountAmount: z.number().min(0).default(0),
       paidAmount: z.number().min(0),
@@ -370,6 +370,7 @@ const revenueRouter = t.router({
       for (const entry of allEntries) {
         const month = parseInt(entry.paymentDate.substring(5, 7));
         if (!monthly[month]) continue;
+        if (entry.subType === "이전") continue;
         monthly[month].total += entry.amount;
         monthly[month].paid += entry.paidAmount;
         monthly[month].unpaid += entry.unpaidAmount;
@@ -404,6 +405,7 @@ const revenueRouter = t.router({
         if (!byTrainer[tid]) {
           byTrainer[tid] = { trainerId: tid, trainerName: row.trainerName ?? "미배정", total: 0, pt: 0, health: 0, newSales: 0, renewal: 0, count: 0 };
         }
+        if (row.entry.subType === "이전") continue;
         byTrainer[tid].total += row.entry.paidAmount;
         byTrainer[tid].count += 1;
         if (row.entry.type === "PT") byTrainer[tid].pt += row.entry.paidAmount;
@@ -578,11 +580,11 @@ const kpiRouter = t.router({
         db.select().from(revenueTargets),
       ]);
 
-      // 오늘 매출
-      const todayRevenue = allRevenue.filter(r => r.paymentDate === today).reduce((s, r) => s + r.paidAmount, 0);
+      // 오늘 매출 (이전 제외)
+      const todayRevenue = allRevenue.filter(r => r.paymentDate === today && r.subType !== "이전").reduce((s, r) => s + r.paidAmount, 0);
 
-      // 이번달 매출
-      const monthRevenue = allRevenue.filter(r => r.paymentDate.startsWith(prefix));
+      // 이번달 매출 (이전 제외)
+      const monthRevenue = allRevenue.filter(r => r.paymentDate.startsWith(prefix) && r.subType !== "이전");
       const monthTotal = monthRevenue.reduce((s, r) => s + r.paidAmount, 0);
       const monthNewSales = monthRevenue.filter(r => r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
       const monthRenewal = monthRevenue.filter(r => r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
@@ -618,7 +620,7 @@ const kpiRouter = t.router({
       const prevMonth = input.month === 1 ? 12 : input.month - 1;
       const prevYear = input.month === 1 ? input.year - 1 : input.year;
       const prevPrefix = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
-      const prevMonthTotal = allRevenue.filter(r => r.paymentDate.startsWith(prevPrefix)).reduce((s, r) => s + r.paidAmount, 0);
+      const prevMonthTotal = allRevenue.filter(r => r.paymentDate.startsWith(prevPrefix) && r.subType !== "이전").reduce((s, r) => s + r.paidAmount, 0);
       const momGrowth = prevMonthTotal > 0 ? Math.round(((monthTotal - prevMonthTotal) / prevMonthTotal) * 100) : 0;
 
       return {

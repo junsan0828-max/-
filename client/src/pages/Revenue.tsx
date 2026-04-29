@@ -9,7 +9,7 @@ import {
 
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "분할결제"];
 const CATEGORIES = ["PT", "헬스", "기타"] as const;
-const SUB_TYPES = ["신규", "재등록"] as const;
+const SUB_TYPES = ["신규", "재등록", "이전"] as const;
 const DURATIONS = [1, 3, 6, 12];
 const OTHER_ITEMS = ["락커", "운동복"];
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
@@ -18,7 +18,7 @@ const PT_SESSIONS = [10, 20, 30, 40, 50];
 type RevForm = {
   customerName: string; phone: string; programDetail: string; duration: string; sessions: string;
   leadId?: number; trainerId?: number; branchId?: number; channelId?: number;
-  type: "PT" | "헬스" | "기타"; subType: "신규" | "재등록";
+  type: "PT" | "헬스" | "기타"; subType: "신규" | "재등록" | "이전";
   amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string; refundAmount: string;
   paymentMethod: string; paymentDate: string; startDate: string; installments: string; memo: string;
   ptProgramKey: string; ptProgramCustom: string;
@@ -287,7 +287,7 @@ function RevenueContent() {
                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${row.entry.type === "PT" ? "bg-amber-400/10 text-amber-400" : row.entry.type === "헬스" ? "bg-teal-400/10 text-teal-400" : "bg-muted text-muted-foreground"}`}>
                       {row.entry.type}
                     </span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${row.entry.subType === "신규" ? "bg-blue-400/10 text-blue-400" : "bg-violet-400/10 text-violet-400"}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${row.entry.subType === "신규" ? "bg-blue-400/10 text-blue-400" : row.entry.subType === "이전" ? "bg-gray-400/10 text-gray-400" : "bg-violet-400/10 text-violet-400"}`}>
                       {row.entry.subType}
                     </span>
                     <span className="text-sm font-medium text-foreground">{row.entry.customerName || row.memberName || "—"}</span>
@@ -457,7 +457,11 @@ function RevenueContent() {
                 <label className="text-xs text-muted-foreground">등록 유형 *</label>
                 <div className="flex gap-2 mt-1">
                   {SUB_TYPES.map(s => (
-                    <button key={s} type="button" onClick={() => setForm(f => ({ ...f, subType: s }))}
+                    <button key={s} type="button" onClick={() => setForm(f => ({
+                      ...f,
+                      subType: s,
+                      ...(s === "이전" ? { amount: "0", paidAmount: "0", unpaidAmount: "0", discountAmount: "0", refundAmount: "0" } : {}),
+                    }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.subType === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                       {s}
                     </button>
