@@ -266,20 +266,19 @@ export default function MyWorkPage() {
               .map(n => {
                 const pm = NOTICE_PRIORITY[n.notice.priority] ?? NOTICE_PRIORITY.normal;
                 return (
-                  <div key={n.notice.id} className={`bg-card border rounded-xl p-4 space-y-2 ${n.isRead ? "border-border opacity-60" : "border-border"}`}>
+                  <div
+                    key={n.notice.id}
+                    onClick={() => { if (!n.isRead) markReadMutation.mutate({ noticeId: n.notice.id }); }}
+                    className={`bg-card border rounded-xl p-4 space-y-2 ${n.isRead ? "border-border opacity-60" : "border-border active:bg-accent cursor-pointer hover:bg-accent/50 transition-colors"}`}
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${pm.style}`}>{pm.label}</span>
                         <span className="font-medium text-sm text-foreground">{n.notice.title}</span>
                       </div>
-                      {n.isRead ? (
-                        <span className="text-xs text-muted-foreground shrink-0">확인 완료</span>
-                      ) : (
-                        <button onClick={() => markReadMutation.mutate({ noticeId: n.notice.id })}
-                          className="text-xs bg-primary text-primary-foreground px-2.5 py-1 rounded-lg shrink-0 hover:bg-primary/90">
-                          확인
-                        </button>
-                      )}
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {n.isRead ? "확인 완료" : "탭하여 확인"}
+                      </span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{n.notice.content}</p>
                     <p className="text-xs text-muted-foreground">
