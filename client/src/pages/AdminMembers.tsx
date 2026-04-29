@@ -5,10 +5,45 @@ import { Search, ChevronRight } from "lucide-react";
 
 type TypeFilter = "all" | "PT" | "헬스" | "기타";
 
-function memberType(packages: string[], status: string): "PT" | "헬스" | "기타" {
+function memberType(packages: { packageName: string; totalSessions: number }[], status: string): "PT" | "헬스" | "기타" {
   if (packages.length > 0) return "PT";
   if (status === "active") return "헬스";
   return "기타";
+}
+
+function calcMonths(start: string | null, end: string | null): number | null {
+  if (!start || !end) return null;
+  const s = new Date(start);
+  const e = new Date(end);
+  const diff = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+  return diff > 0 ? diff : 1;
+}
+
+function bucketMonths(months: number): string {
+  if (months <= 1) return "1개월";
+  if (months <= 2) return "2개월";
+  if (months <= 3) return "3개월";
+  if (months <= 6) return "6개월";
+  if (months <= 12) return "12개월";
+  return "12개월+";
+}
+
+const MONTH_ORDER = ["1개월", "2개월", "3개월", "6개월", "12개월", "12개월+"];
+const SESSION_ORDER = [10, 20, 30, 40, 50];
+
+function StatsBar({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium">{count}명 <span className="text-muted-foreground">({pct}%)</span></span>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
 }
 
 export default function AdminMembers() {
@@ -17,6 +52,43 @@ export default function AdminMembers() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   const { data: allMembers, isLoading } = trpc.members.listAll.useQuery();
+
+  const ptMembers = allMembers?.filter((m) => memberType(m.packages, m.status) === "PT") ?? [];
+  const healthMembers = allMembers?.filter((m) => memberType(m.packages, m.status) === "헬스") ?? [];
+
+  // PT 횟수별 통계
+  const sessionStats = (() => {
+    const map = new Map<number, number>();
+    for (const m of ptMembers) {
+      for (const p of m.packages) {
+        const bucket = SESSION_ORDER.find((s) => s === p.totalSessions) ?? p.totalSessions;
+        map.set(bucket, (map.get(bucket) ?? 0) + 1);
+      }
+    }
+    const total = Array.from(map.values()).reduce((a, b) => a + b, 0);
+    const entries = SESSION_ORDER
+      .filter((s) => map.has(s))
+      .map((s) => ({ label: `${s}회`, count: map.get(s)!, total }));
+    const others = Array.from(map.entries())
+      .filter(([k]) => !SESSION_ORDER.includes(k))
+      .reduce((a, [, v]) => a + v, 0);
+    if (others > 0) entries.push({ label: "기타", count: others, total });
+    return entries;
+  })();
+
+  // 헬스 개월별 통계
+  const monthStats = (() => {
+    const map = new Map<string, number>();
+    for (const m of healthMembers) {
+      const months = calcMonths(m.membershipStart, m.membershipEnd);
+      if (months !== null) {
+        const b = bucketMonths(months);
+        map.set(b, (map.get(b) ?? 0) + 1);
+      }
+    }
+    const total = Array.from(map.values()).reduce((a, b) => a + b, 0);
+    return MONTH_ORDER.filter((k) => map.has(k)).map((k) => ({ label: k, count: map.get(k)!, total }));
+  })();
 
   const filtered = allMembers?.filter((m) => {
     const q = search.trim().toLowerCase();
@@ -32,12 +104,9 @@ export default function AdminMembers() {
     return matchSearch && matchType;
   });
 
-  const counts = {
-    all: allMembers?.length ?? 0,
-    PT: allMembers?.filter((m) => memberType(m.packages, m.status) === "PT").length ?? 0,
-    헬스: allMembers?.filter((m) => memberType(m.packages, m.status) === "헬스").length ?? 0,
-    기타: allMembers?.filter((m) => memberType(m.packages, m.status) === "기타").length ?? 0,
-  };
+  const BAR_COLORS = [
+    "bg-blue-500", "bg-indigo-500", "bg-violet-500", "bg-purple-500", "bg-fuchsia-500", "bg-pink-500",
+  ];
 
   return (
     <div className="space-y-4 pb-20">
@@ -59,6 +128,30 @@ export default function AdminMembers() {
           </button>
         ))}
       </div>
+
+      {/* PT 횟수별 통계 */}
+      {typeFilter === "PT" && sessionStats.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">횟수별 비율</p>
+          {sessionStats.map((s, i) => (
+            <StatsBar key={s.label} label={s.label} count={s.count} total={s.total} color={BAR_COLORS[i % BAR_COLORS.length]} />
+          ))}
+        </div>
+      )}
+
+      {/* 헬스 개월별 통계 */}
+      {typeFilter === "헬스" && (
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">개월별 비율</p>
+          {monthStats.length > 0 ? (
+            monthStats.map((s, i) => (
+              <StatsBar key={s.label} label={s.label} count={s.count} total={s.total} color={BAR_COLORS[i % BAR_COLORS.length]} />
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground">회원권 기간 데이터가 없습니다</p>
+          )}
+        </div>
+      )}
 
       {/* 검색 */}
       <div className="relative">
@@ -82,7 +175,7 @@ export default function AdminMembers() {
         )}
         {filtered?.map((m) => {
           const mType = memberType(m.packages, m.status);
-          const pkgLabel = m.packages.filter(Boolean).join(", ");
+          const pkgLabel = m.packages.map((p) => p.packageName).filter(Boolean).join(", ");
           return (
             <button
               key={m.id}
@@ -125,7 +218,6 @@ export default function AdminMembers() {
         })}
       </div>
 
-      {/* 합계 */}
       {filtered && filtered.length > 0 && (
         <p className="text-sm text-muted-foreground text-center py-2">
           합계 ({filtered.length}건)

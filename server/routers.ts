@@ -174,13 +174,17 @@ const membersRouter = t.router({
         trainerName: trainers.trainerName,
         createdAt: members.createdAt,
       }).from(members).leftJoin(trainers, eq(members.trainerId, trainers.id)).orderBy(desc(members.createdAt)),
-      db.select({ memberId: ptPackages.memberId, packageName: ptPackages.packageName }).from(ptPackages),
+      db.select({
+        memberId: ptPackages.memberId,
+        packageName: ptPackages.packageName,
+        totalSessions: ptPackages.totalSessions,
+      }).from(ptPackages),
     ]);
 
-    const pkgMap = new Map<number, string[]>();
+    const pkgMap = new Map<number, { packageName: string; totalSessions: number }[]>();
     for (const p of pkgs) {
       if (!pkgMap.has(p.memberId)) pkgMap.set(p.memberId, []);
-      pkgMap.get(p.memberId)!.push(p.packageName ?? "");
+      pkgMap.get(p.memberId)!.push({ packageName: p.packageName ?? "", totalSessions: p.totalSessions });
     }
 
     return rows.map((r) => ({ ...r, packages: pkgMap.get(r.id) ?? [] }));
