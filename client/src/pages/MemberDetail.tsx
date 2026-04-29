@@ -638,25 +638,25 @@ export default function MemberDetail({ memberId }: Props) {
                 <DialogTrigger asChild>
                   <Button size="sm" className="gap-1.5 text-xs">
                     <Plus className="h-3.5 w-3.5" />
-                    패키지 추가
+                    프로그램 추가
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
-                    <DialogTitle>PT 패키지 추가</DialogTitle>
-                    <DialogDescription>{member.name}님에게 새 PT 패키지를 추가합니다.</DialogDescription>
+                    <DialogTitle>PT 프로그램 추가</DialogTitle>
+                    <DialogDescription>{member.name}님에게 새 PT 프로그램을 추가합니다.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">PT 패키지명</Label>
+                      <Label className="text-xs">PT 프로그램</Label>
                       <Input
                         value={pkgForm.ptProgram}
                         onChange={(e) => setPkgForm((p) => ({ ...p, ptProgram: e.target.value }))}
-                        placeholder="패키지명 직접 입력"
+                        placeholder="프로그램명 직접 입력"
                         className="h-9 text-sm"
                       />
                       <div className="flex gap-1.5 flex-wrap">
-                        {["케어피티", "웨이트피티", "필라테스"].map((preset) => (
+                        {["케어피티", "웨이트피티", "이벤트피티", "필라테스"].map((preset) => (
                           <button
                             key={preset}
                             type="button"
@@ -1312,10 +1312,10 @@ export default function MemberDetail({ memberId }: Props) {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">패키지명</Label>
+              <Label className="text-xs">PT 프로그램</Label>
               <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="케어피티" className="h-9 text-sm" />
               <div className="flex gap-1.5 flex-wrap">
-                {["케어피티", "웨이트피티", "필라테스"].map(preset => (
+                {["케어피티", "웨이트피티", "이벤트피티", "필라테스"].map(preset => (
                   <button key={preset} type="button"
                     onClick={() => setEditPkgForm(p => ({ ...p, packageName: p.packageName === preset ? "" : preset }))}
                     className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${editPkgForm.packageName === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
