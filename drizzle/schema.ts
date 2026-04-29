@@ -255,6 +255,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   memberId: integer("memberId"),
   leadId: integer("leadId"),
   trainerId: integer("trainerId"),
+  consultantId: integer("consultantId"),
   branchId: integer("branchId"),
   channelId: integer("channelId"),
   createdBy: integer("createdBy"),

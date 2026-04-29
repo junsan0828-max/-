@@ -224,12 +224,14 @@ const revenueRouter = t.router({
         memberName: members.name,
         channelName: channels.name,
         branchName: branches.name,
+        consultantName: users.username,
       })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
         .leftJoin(branches, eq(revenueEntries.branchId, branches.id))
+        .leftJoin(users, eq(revenueEntries.consultantId, users.id))
         .orderBy(desc(revenueEntries.paymentDate));
 
       let result = rows;
@@ -265,6 +267,7 @@ const revenueRouter = t.router({
       memberId: z.number().optional(),
       leadId: z.number().optional(),
       trainerId: z.number().optional(),
+      consultantId: z.number().optional(),
       branchId: z.number().optional(),
       channelId: z.number().optional(),
       type: z.enum(["PT", "헬스", "기타"]),
@@ -307,6 +310,7 @@ const revenueRouter = t.router({
       duration: z.number().optional(),
       memberId: z.number().optional(),
       trainerId: z.number().optional(),
+      consultantId: z.number().optional(),
       branchId: z.number().optional(),
       channelId: z.number().optional(),
       type: z.string().optional(),
@@ -327,12 +331,28 @@ const revenueRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, ...data } = input;
 
+      const existing = await db.select().from(revenueEntries).where(eq(revenueEntries.id, id)).limit(1);
+
       // 컨설턴트: 자신이 입력한 항목만 수정 가능
       if (ctx.user?.role === "consultant") {
-        const existing = await db.select().from(revenueEntries).where(eq(revenueEntries.id, id)).limit(1);
         if (!existing[0] || existing[0].createdBy !== ctx.user.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "본인이 입력한 매출만 수정할 수 있습니다." });
         }
+      }
+
+      // 트레이너가 새로 배정될 때 회원 자동 생성
+      if (data.trainerId && !existing[0]?.trainerId && !existing[0]?.memberId && existing[0]?.customerName) {
+        const now = new Date().toISOString();
+        const [newMember] = await db.insert(members).values({
+          trainerId: data.trainerId,
+          name: existing[0].customerName,
+          phone: existing[0].phone ?? undefined,
+          status: "active",
+          grade: "basic",
+          createdAt: now,
+          updatedAt: now,
+        }).returning({ id: members.id });
+        if (newMember) (data as any).memberId = newMember.id;
       }
 
       const [row] = await db.update(revenueEntries).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, id)).returning();
@@ -1034,6 +1054,17 @@ const noticesWorkRouter = t.router({
 const workRouter = t.router({ tasks: tasksWorkRouter, notices: noticesWorkRouter });
 
 // ─── Gym Router ───────────────────────────────────────────────────────────────
+const staffRouter = t.router({
+  listConsultants: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select({ id: users.id, username: users.username })
+      .from(users)
+      .where(eq(users.role, "consultant"))
+      .orderBy(users.username);
+  }),
+});
+
 export const gymRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
@@ -1042,6 +1073,7 @@ export const gymRouter = t.router({
   kpi: kpiRouter,
   ai: aiRouter,
   work: workRouter,
+  staff: staffRouter,
 });
 
 export type GymRouter = typeof gymRouter;

@@ -17,7 +17,7 @@ const PT_SESSIONS = [10, 20, 30, 40, 50];
 
 type RevForm = {
   customerName: string; phone: string; programDetail: string; duration: string; sessions: string;
-  leadId?: number; trainerId?: number; branchId?: number; channelId?: number;
+  leadId?: number; trainerId?: number; consultantId?: number; branchId?: number; channelId?: number;
   type: "PT" | "헬스" | "기타"; subType: "신규" | "재등록" | "이전";
   amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string; refundAmount: string;
   paymentMethod: string; paymentDate: string; startDate: string; installments: string; memo: string;
@@ -31,6 +31,7 @@ const defaultForm: RevForm = {
   amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0", refundAmount: "0",
   paymentMethod: "카드", paymentDate: new Date().toISOString().substring(0, 10), startDate: "",
   installments: "1", memo: "",
+  trainerId: undefined, consultantId: undefined,
 };
 
 function fmt(n: number) {
@@ -75,6 +76,7 @@ function RevenueContent() {
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month }, { enabled: !isConsultant });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
+  const { data: consultants } = trpc.gym.staff.listConsultants.useQuery();
   const { data: kpi } = trpc.gym.kpi.overview.useQuery({ year, month }, { enabled: !isConsultant });
 
   const createMutation = trpc.gym.revenue.create.useMutation({
@@ -106,6 +108,7 @@ function RevenueContent() {
       ptProgramCustom: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? "" : (row.entry.programDetail ?? ""),
       leadId: row.entry.leadId ?? undefined,
       trainerId: row.entry.trainerId ?? undefined,
+      consultantId: (row.entry as any).consultantId ?? undefined,
       branchId: row.entry.branchId ?? undefined,
       channelId: row.entry.channelId ?? undefined,
       type: row.entry.type,
@@ -146,6 +149,7 @@ function RevenueContent() {
       duration: form.duration ? parseInt(form.duration) : undefined,
       leadId: form.leadId ? Number(form.leadId) : undefined,
       trainerId: form.trainerId ? Number(form.trainerId) : undefined,
+      consultantId: form.consultantId ? Number(form.consultantId) : undefined,
       branchId: form.branchId ? Number(form.branchId) : undefined,
       channelId: form.channelId ? Number(form.channelId) : undefined,
       type: form.type,
@@ -294,8 +298,13 @@ function RevenueContent() {
                     {row.entry.programDetail && <span className="text-xs text-muted-foreground">{row.entry.programDetail}</span>}
                     {row.entry.duration && <span className="text-xs text-muted-foreground">{row.entry.duration}개월</span>}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {row.trainerName && <span>{row.trainerName}</span>}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                    {row.entry.trainerId ? (
+                      <span>{row.trainerName}</span>
+                    ) : (
+                      <span className="text-orange-400 font-medium">미배정</span>
+                    )}
+                    {(row as any).consultantName && <span>· 상담: {(row as any).consultantName}</span>}
                     {row.channelName && <span>· {row.channelName}</span>}
                     <span>· {row.entry.paymentDate}</span>
                     {row.entry.paymentMethod && <span>· {row.entry.paymentMethod}</span>}
@@ -525,7 +534,7 @@ function RevenueContent() {
                 <div />
               </div>
 
-              {/* 트레이너 / 채널 */}
+              {/* 트레이너 / 상담담당자 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">트레이너</label>
@@ -536,13 +545,22 @@ function RevenueContent() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">유입 채널</label>
-                  <select value={form.channelId ?? ""} onChange={e => setForm(f => ({ ...f, channelId: e.target.value ? Number(e.target.value) : undefined }))}
+                  <label className="text-xs text-muted-foreground">상담담당자</label>
+                  <select value={form.consultantId ?? ""} onChange={e => setForm(f => ({ ...f, consultantId: e.target.value ? Number(e.target.value) : undefined }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
-                    {(channels ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {(consultants ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.username}</option>)}
                   </select>
                 </div>
+              </div>
+              {/* 유입 채널 */}
+              <div>
+                <label className="text-xs text-muted-foreground">유입 채널</label>
+                <select value={form.channelId ?? ""} onChange={e => setForm(f => ({ ...f, channelId: e.target.value ? Number(e.target.value) : undefined }))}
+                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                  <option value="">선택</option>
+                  {(channels ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
 
               <div>
