@@ -321,11 +321,10 @@ function RevenueContent() {
                     {row.entry.duration && <span className="text-xs text-muted-foreground">{row.entry.duration}개월</span>}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                    {row.entry.trainerId ? (
-                      <span>{row.trainerName}</span>
-                    ) : (
+                    {row.entry.type === "PT" && !row.entry.trainerId && (
                       <span className="text-orange-400 font-medium">미배정</span>
                     )}
+                    {row.entry.trainerId && <span>{row.trainerName}</span>}
                     {(row as any).consultantName && <span>· 상담: {(row as any).consultantName}</span>}
                     {row.channelName && <span>· {row.channelName}</span>}
                     <span>· {row.entry.paymentDate}</span>
@@ -556,8 +555,8 @@ function RevenueContent() {
                 <div />
               </div>
 
-              {/* 트레이너 / 상담담당자 */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* PT 전용: 트레이너 */}
+              {form.type === "PT" && (
                 <div>
                   <label className="text-xs text-muted-foreground">트레이너</label>
                   <select value={form.trainerId ?? ""} onChange={e => setForm(f => ({ ...f, trainerId: e.target.value ? Number(e.target.value) : undefined }))}
@@ -566,23 +565,31 @@ function RevenueContent() {
                     {(trainers ?? []).map((t: any) => <option key={t.id} value={t.id}>{t.trainerName}</option>)}
                   </select>
                 </div>
+              )}
+
+              {/* 상담담당자 (트레이너 + 컨설턴트 통합) */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">상담담당자</label>
                   <select value={form.consultantId ?? ""} onChange={e => setForm(f => ({ ...f, consultantId: e.target.value ? Number(e.target.value) : undefined }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
-                    {(consultants ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.username}</option>)}
+                    {(trainers ?? []).length > 0 && <optgroup label="트레이너">
+                      {(trainers ?? []).map((t: any) => <option key={`tr-${t.userId}`} value={t.userId}>{t.trainerName}</option>)}
+                    </optgroup>}
+                    {(consultants ?? []).length > 0 && <optgroup label="상담직원">
+                      {(consultants ?? []).map((c: any) => <option key={`fc-${c.id}`} value={c.id}>{c.username}</option>)}
+                    </optgroup>}
                   </select>
                 </div>
-              </div>
-              {/* 유입 채널 */}
-              <div>
-                <label className="text-xs text-muted-foreground">유입 채널</label>
-                <select value={form.channelId ?? ""} onChange={e => setForm(f => ({ ...f, channelId: e.target.value ? Number(e.target.value) : undefined }))}
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
-                  <option value="">선택</option>
-                  {(channels ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div>
+                  <label className="text-xs text-muted-foreground">유입 채널</label>
+                  <select value={form.channelId ?? ""} onChange={e => setForm(f => ({ ...f, channelId: e.target.value ? Number(e.target.value) : undefined }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    <option value="">선택</option>
+                    {(channels ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div>
