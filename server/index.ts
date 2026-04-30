@@ -1,5 +1,6 @@
 import express from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
@@ -15,11 +16,18 @@ import { syncSheetNow } from "./sheetSync";
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
 
+const PgSession = connectPgSimple(session);
+
 app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(
   session({
+    store: new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || "trainer-app-secret",
     resave: false,
     saveUninitialized: false,
@@ -248,11 +256,96 @@ async function initDatabase() {
       status TEXT NOT NULL DEFAULT 'pending',
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_members (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      "membershipType" TEXT NOT NULL DEFAULT 'general',
+      "membershipStart" TEXT,
+      "membershipEnd" TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_video_categories (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_videos (
+      id SERIAL PRIMARY KEY,
+      "categoryId" INTEGER,
+      title TEXT NOT NULL,
+      description TEXT,
+      "videoUrl" TEXT NOT NULL,
+      "thumbnailUrl" TEXT,
+      duration TEXT,
+      level TEXT NOT NULL DEFAULT 'beginner',
+      "bodyPart" TEXT,
+      "isPublished" INTEGER NOT NULL DEFAULT 1,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_events (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      "imageUrl" TEXT,
+      "eventType" TEXT NOT NULL DEFAULT 'notice',
+      "startDate" TEXT,
+      "endDate" TEXT,
+      "isPublished" INTEGER NOT NULL DEFAULT 1,
+      "isPinned" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_workout_logs (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "logDate" TEXT NOT NULL,
+      title TEXT,
+      "exercisesJson" TEXT,
+      "durationMinutes" INTEGER,
+      "caloriesBurned" INTEGER,
+      "bodyWeight" TEXT,
+      notes TEXT,
+      mood TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {
     await pool.query(sql);
   }
+
+  // 신규 컬럼 마이그레이션 (IF NOT EXISTS)
+  const alterStatements = [
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS goal TEXT`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TEXT`,
+    `CREATE TABLE IF NOT EXISTS branches (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `CREATE TABLE IF NOT EXISTS trainer_branches (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      "branchId" INTEGER NOT NULL,
+      UNIQUE("trainerId", "branchId")
+    )`,
+  ];
+  for (const stmt of alterStatements) {
+    await pool.query(stmt);
+  }
+
   console.log("✅ 테이블 준비 완료");
 
   // 관리자 계정 생성 (없으면 초기 씨드)

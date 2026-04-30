@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useRoute } from "wouter";
+import { Switch, Route, Redirect, useRoute, useLocation } from "wouter";
 import { Component, type ReactNode } from "react";
 import { trpc } from "./lib/trpc";
 
@@ -38,11 +38,70 @@ import Trainers from "./pages/Trainers";
 import Admin from "./pages/Admin";
 import PT from "./pages/PT";
 import Profile from "./pages/Profile";
+import SettlementReport from "./pages/SettlementReport";
+import TrainerSettlement from "./pages/TrainerSettlement";
 import Layout from "./components/Layout";
+import GymPlusLogin from "./pages/gym-plus/GymPlusLogin";
+import GymPlusLayout from "./pages/gym-plus/GymPlusLayout";
+import GymPlusDashboard from "./pages/gym-plus/GymPlusDashboard";
+import GymPlusVideos from "./pages/gym-plus/GymPlusVideos";
+import GymPlusVideoPlayer from "./pages/gym-plus/GymPlusVideoPlayer";
+import GymPlusEvents from "./pages/gym-plus/GymPlusEvents";
+import GymPlusEventDetail from "./pages/gym-plus/GymPlusEventDetail";
+import GymPlusWorkout from "./pages/gym-plus/GymPlusWorkout";
+import GymPlusMembership from "./pages/gym-plus/GymPlusMembership";
+
+// 자이언트짐+ 회원앱 라우팅 (기존 시스템과 완전 분리)
+function GymPlusApp() {
+  const [location] = useLocation();
+  const { data: gymMember, isLoading } = trpc.gymPlus.memberMe.useQuery();
+
+  const [videoMatch, videoParams] = useRoute("/gym-plus/videos/:id");
+  const [eventMatch, eventParams] = useRoute("/gym-plus/events/:id");
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground text-sm">로딩 중...</p>
+      </div>
+    );
+  }
+
+  if (location === "/gym-plus/login" || !gymMember) {
+    return <GymPlusLogin />;
+  }
+
+  return (
+    <GymPlusLayout>
+      <ErrorBoundary>
+        <Switch>
+          <Route path="/gym-plus">{() => <GymPlusDashboard />}</Route>
+          <Route path="/gym-plus/videos">{() => <GymPlusVideos />}</Route>
+          <Route path="/gym-plus/videos/:id">
+            {(params) => <GymPlusVideoPlayer videoId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/gym-plus/events">{() => <GymPlusEvents />}</Route>
+          <Route path="/gym-plus/events/:id">
+            {(params) => <GymPlusEventDetail eventId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/gym-plus/workout">{() => <GymPlusWorkout />}</Route>
+          <Route path="/gym-plus/membership">{() => <GymPlusMembership />}</Route>
+          <Route>{() => <Redirect to="/gym-plus" />}</Route>
+        </Switch>
+      </ErrorBoundary>
+    </GymPlusLayout>
+  );
+}
 
 function App() {
   const [reportMatch, reportParams] = useRoute("/report/:token");
+  const [location] = useLocation();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
+
+  // 자이언트짐+ 회원 앱 (기존 시스템과 완전 분리)
+  if (location.startsWith("/gym-plus")) {
+    return <GymPlusApp />;
+  }
 
   // 공개 보고서 페이지 - 인증 불필요
   if (reportMatch && reportParams) {
@@ -51,8 +110,9 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground text-sm">로딩 중...</div>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <img src="/logo.png" alt="ZiantGym" className="w-48 h-auto" />
+        <p className="text-muted-foreground text-sm">로딩 중...</p>
       </div>
     );
   }
@@ -91,6 +151,8 @@ function App() {
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
         <Route path="/admin">{() => <Admin />}</Route>
+        <Route path="/settlement">{() => <SettlementReport />}</Route>
+        <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
         <Route path="/profile">{() => <Profile />}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
       </Switch>

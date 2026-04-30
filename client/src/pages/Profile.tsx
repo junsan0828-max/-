@@ -4,11 +4,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, CheckCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { User, Lock, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
+
+function StatItem({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="p-3 rounded-lg bg-accent/20 border border-border flex flex-col gap-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`text-lg font-bold ${color ?? ""}`}>{value}</p>
+    </div>
+  );
+}
 
 export default function Profile() {
   const { data: profile, refetch } = trpc.trainers.getMyProfile.useQuery();
+  const { data: stats } = trpc.trainers.getMyStats.useQuery();
+
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [statsMonth, setStatsMonth] = useState(monthOptions[0]);
+  const trainerId = profile?.id;
+  const { data: monthlyStats } = trpc.trainers.getMonthlyStats.useQuery(
+    { trainerId: trainerId ?? 0, yearMonth: statsMonth },
+    { enabled: !!trainerId }
+  );
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -58,6 +82,80 @@ export default function Profile() {
             <p className="text-2xl font-bold text-primary mt-1">{profile?.settlementRate ?? 50}%</p>
           </div>
           <p className="text-xs text-muted-foreground">관리자가 설정합니다</p>
+        </CardContent>
+      </Card>
+
+      {/* 통계 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart2 className="h-4 w-4 text-primary" />내 활동 통계
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 누적 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">누적</p>
+            <div className="grid grid-cols-2 gap-2">
+              <StatItem label="회원 수" value={`${stats?.totalMembers ?? 0}명`} color="text-blue-400" />
+              <StatItem label="수업 수" value={`${stats?.totalSessions ?? 0}회`} color="text-green-400" />
+              <StatItem label="재등록 수" value={`${stats?.totalRereg ?? 0}회`} color="text-primary" />
+              <StatItem label="노쇼 수" value={`${stats?.totalNoShow ?? 0}회`} color="text-orange-400" />
+              <StatItem label="이탈 수" value={`${stats?.totalChurned ?? 0}명`} color="text-red-400" />
+              <StatItem label="잔여 PT" value={`${stats?.remainingPt ?? 0}회`} color="text-purple-400" />
+            </div>
+          </div>
+
+          {/* 월평균 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">월평균</p>
+            <div className="grid grid-cols-2 gap-2">
+              <StatItem label="신규배정" value={`${stats?.avgMonthlyNewMembers ?? 0}명`} />
+              <StatItem label="재등록" value={`${stats?.avgMonthlyRereg ?? 0}회`} />
+              <StatItem label="PT 수" value={`${stats?.avgMonthlyPt ?? 0}회`} />
+              <StatItem label="노쇼" value={`${stats?.avgMonthlyNoShow ?? 0}회`} />
+            </div>
+          </div>
+
+          {/* 재등록률 */}
+          <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">재등록률</p>
+              <p className="text-xs text-muted-foreground mt-0.5">전체 회원 중 재등록 비율</p>
+            </div>
+            <p className="text-2xl font-bold text-primary">{stats?.reregRate ?? 0}%</p>
+          </div>
+
+          {/* 월별 조회 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">월별 조회</p>
+              <Select value={statsMonth} onValueChange={setStatsMonth}>
+                <SelectTrigger className="h-7 text-xs w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(ym => {
+                    const [y, mo] = ym.split("-");
+                    return <SelectItem key={ym} value={ym}>{y}년 {parseInt(mo)}월</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <StatItem label="수업 수" value={`${monthlyStats?.sessions ?? 0}회`} color="text-green-400" />
+              <StatItem label="노쇼" value={`${monthlyStats?.noShow ?? 0}회`} color="text-orange-400" />
+              <StatItem label="신규 배정" value={`${monthlyStats?.newMembers ?? 0}명`} color="text-blue-400" />
+              <StatItem label="재등록" value={`${monthlyStats?.rereg ?? 0}회`} color="text-primary" />
+            </div>
+            <div className="mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">이달 매출</p>
+                <p className="text-xs text-muted-foreground mt-0.5">등록 패키지 결제금액 합산</p>
+              </div>
+              <p className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

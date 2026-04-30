@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ArrowLeft, Plus, X, Dumbbell } from "lucide-react";
 
 interface Props {
@@ -55,20 +56,38 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [notes, setNotes] = useState("");
   const [deductSession, setDeductSession] = useState(false);
   const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: member } = trpc.members.getById.useQuery({ id: memberId });
   const { data: existing } = trpc.attendanceChecks.getByMemberDate.useQuery({ memberId, date: dateParam });
   const { data: ptPackageList } = trpc.pt.listByMember.useQuery({ memberId });
+  const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
 
   const activePkgs = ptPackageList?.filter(
     (p) => p.status === "active" && p.totalSessions > p.usedSessions
   ) ?? [];
+
+  // 이 날짜에 이미 세션 차감 기록이 있는지 확인
+  const alreadyDeducted = sessionLogs?.some((l) => l.sessionDate === dateParam) ?? false;
 
   useEffect(() => {
     if (activePkgs.length > 0 && selectedPkgId === null) {
       setSelectedPkgId(activePkgs[0].id);
     }
   }, [activePkgs.length]);
+
+  // 활성 패키지 있고 기존 기록 없을 때 → 세션 차감 기본 ON
+  // 이미 차감된 날이면 → OFF (중복 방지)
+  useEffect(() => {
+    if (ptPackageList === undefined) return;
+    if (alreadyDeducted) {
+      setDeductSession(false);
+      return;
+    }
+    if (activePkgs.length > 0 && !existing) {
+      setDeductSession(true);
+    }
+  }, [ptPackageList, existing, alreadyDeducted]);
 
   useEffect(() => {
     if (!existing) return;
@@ -84,6 +103,14 @@ export default function AttendanceCheck({ memberId }: Props) {
     setPainSide(existing.painSide ?? "");
     setNotes(existing.notes ?? "");
   }, [existing]);
+
+  const deleteMutation = trpc.attendanceChecks.delete.useMutation({
+    onSuccess: () => {
+      toast.success("출석이 취소되었습니다.");
+      setLocation(`/attendance?date=${dateParam}`);
+    },
+    onError: (err) => toast.error(err.message || "취소 실패"),
+  });
 
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onError: (err) => toast.error(err.message || "세션 차감 실패"),
@@ -147,8 +174,8 @@ export default function AttendanceCheck({ memberId }: Props) {
         <h1 className="text-base font-bold flex-1">
           {member?.name ?? "..."} - 수업 전 컨디션 체크
         </h1>
-        {/* 노쇼 / 캔슬 토글 */}
-        <div className="flex items-center gap-2">
+        {/* 노쇼 / 캔슬 / 출석취소 토글 */}
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setStatus((s) => s === "noshow" ? "attended" : "noshow")}
             className={`text-xs px-2 py-1 rounded border transition-colors ${
@@ -169,6 +196,15 @@ export default function AttendanceCheck({ memberId }: Props) {
           >
             캔슬
           </button>
+          {existing && (
+            <button
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={deleteMutation.isPending}
+              className="text-xs px-2 py-1 rounded border border-gray-500/40 text-gray-400 hover:bg-gray-500/20 transition-colors"
+            >
+              출석취소
+            </button>
+          )}
         </div>
       </div>
 
@@ -299,6 +335,13 @@ export default function AttendanceCheck({ memberId }: Props) {
         {activePkgs.length > 0 && status === "attended" && (
           <Section title="PT 세션 차감">
             <div className="space-y-3">
+              {alreadyDeducted ? (
+                <div className="flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border border-green-500/30 bg-green-500/10 text-sm text-green-400">
+                  <Dumbbell className="h-4 w-4 shrink-0" />
+                  오늘 세션 차감 완료
+                  <span className="ml-auto text-xs opacity-70">완료</span>
+                </div>
+              ) : (
               <button
                 onClick={() => setDeductSession((d) => !d)}
                 className={`flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border text-sm transition-colors ${
@@ -313,6 +356,7 @@ export default function AttendanceCheck({ memberId }: Props) {
                   {deductSession ? "ON" : "OFF"}
                 </span>
               </button>
+              )}
               {deductSession && activePkgs.length > 1 && (
                 <div className="flex gap-2 flex-wrap">
                   {activePkgs.map((pkg) => (
@@ -349,6 +393,34 @@ export default function AttendanceCheck({ memberId }: Props) {
           </Button>
         </div>
       </div>
+
+      {/* 출석 취소 확인 다이얼로그 */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>출석 취소</DialogTitle>
+            <DialogDescription>
+              {member?.name}님의 출석 기록을 삭제하고 미출석 상태로 되돌립니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirmOpen(false)}>
+              닫기
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                deleteMutation.mutate({ memberId, date: dateParam });
+              }}
+            >
+              {deleteMutation.isPending ? "취소 중..." : "출석 취소"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
