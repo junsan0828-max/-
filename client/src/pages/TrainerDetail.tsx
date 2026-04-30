@@ -8,6 +8,7 @@ import { differenceInDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,19 @@ export default function TrainerDetail({ trainerId }: Props) {
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
   const { data: settlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
+  const { data: trainerStats } = trpc.trainers.getMyStats.useQuery({ trainerId });
+
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [statsMonth, setStatsMonth] = useState(monthOptions[0]);
+  const { data: monthlyStats } = trpc.trainers.getMonthlyStats.useQuery(
+    { trainerId, yearMonth: statsMonth }
+  );
+
   const trainer = trainerQuery.data;
 
   const updateSettlementRateMutation = trpc.trainers.updateSettlementRate.useMutation({
@@ -398,6 +412,101 @@ export default function TrainerDetail({ trainerId }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 트레이너 통계 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" />활동 통계
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 누적 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">누적</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "회원 수", value: `${trainerStats?.totalMembers ?? 0}명`, color: "text-blue-400" },
+                { label: "수업 수", value: `${trainerStats?.totalSessions ?? 0}회`, color: "text-green-400" },
+                { label: "재등록", value: `${trainerStats?.totalRereg ?? 0}회`, color: "text-primary" },
+                { label: "노쇼", value: `${trainerStats?.totalNoShow ?? 0}회`, color: "text-orange-400" },
+                { label: "이탈", value: `${trainerStats?.totalChurned ?? 0}명`, color: "text-red-400" },
+                { label: "잔여 PT", value: `${trainerStats?.remainingPt ?? 0}회`, color: "text-purple-400" },
+              ].map(s => (
+                <div key={s.label} className="p-2.5 rounded-lg bg-accent/20 border border-border text-center">
+                  <p className="text-xs text-muted-foreground mb-1">{s.label}</p>
+                  <p className={`text-base font-bold ${s.color}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 월평균 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">월평균</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "신규배정", value: `${trainerStats?.avgMonthlyNewMembers ?? 0}명` },
+                { label: "재등록", value: `${trainerStats?.avgMonthlyRereg ?? 0}회` },
+                { label: "PT 수", value: `${trainerStats?.avgMonthlyPt ?? 0}회` },
+                { label: "노쇼", value: `${trainerStats?.avgMonthlyNoShow ?? 0}회` },
+              ].map(s => (
+                <div key={s.label} className="p-2.5 rounded-lg bg-accent/20 border border-border flex justify-between items-center">
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                  <p className="text-sm font-bold">{s.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 재등록률 */}
+          <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">재등록률</p>
+              <p className="text-xs text-muted-foreground mt-0.5">전체 회원 중 재등록 비율</p>
+            </div>
+            <p className="text-2xl font-bold text-primary">{trainerStats?.reregRate ?? 0}%</p>
+          </div>
+
+          {/* 월별 조회 */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">월별 조회</p>
+              <Select value={statsMonth} onValueChange={setStatsMonth}>
+                <SelectTrigger className="h-7 text-xs w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(ym => {
+                    const [y, mo] = ym.split("-");
+                    return <SelectItem key={ym} value={ym}>{y}년 {parseInt(mo)}월</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "수업 수", value: `${monthlyStats?.sessions ?? 0}회`, color: "text-green-400" },
+                { label: "노쇼", value: `${monthlyStats?.noShow ?? 0}회`, color: "text-orange-400" },
+                { label: "신규 배정", value: `${monthlyStats?.newMembers ?? 0}명`, color: "text-blue-400" },
+                { label: "재등록", value: `${monthlyStats?.rereg ?? 0}회`, color: "text-primary" },
+              ].map(s => (
+                <div key={s.label} className="p-2.5 rounded-lg bg-accent/20 border border-border text-center">
+                  <p className="text-xs text-muted-foreground mb-1">{s.label}</p>
+                  <p className={`text-base font-bold ${s.color}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">이달 매출</p>
+                <p className="text-xs text-muted-foreground mt-0.5">등록 패키지 결제금액 합산</p>
+              </div>
+              <p className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 월별 정산 카드 */}
       <Card className="bg-card border-border">

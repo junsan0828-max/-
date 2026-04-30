@@ -1,5 +1,6 @@
 import express from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
@@ -8,18 +9,25 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings, sheetSyncConfig } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches } from "../drizzle/schema";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
+
+const PgSession = connectPgSimple(session);
 
 app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(
   session({
+    store: new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || "trainer-app-secret",
     resave: false,
     saveUninitialized: false,
@@ -248,12 +256,226 @@ async function initDatabase() {
       status TEXT NOT NULL DEFAULT 'pending',
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    // ─── 통합 운영 시스템 테이블 ──────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS channels (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'online',
+      description TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS leads (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      gender TEXT,
+      "ageGroup" TEXT,
+      "channelId" INTEGER,
+      "branchId" INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "assignedTrainerId" INTEGER,
+      "consultationDate" TEXT,
+      "consultationNote" TEXT,
+      "registeredMemberId" INTEGER,
+      "interestType" TEXT,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS revenue_entries (
+      id SERIAL PRIMARY KEY,
+      "memberId" INTEGER,
+      "leadId" INTEGER,
+      "trainerId" INTEGER,
+      "branchId" INTEGER,
+      "channelId" INTEGER,
+      type TEXT NOT NULL,
+      "subType" TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      "discountAmount" INTEGER NOT NULL DEFAULT 0,
+      "paidAmount" INTEGER NOT NULL,
+      "unpaidAmount" INTEGER NOT NULL DEFAULT 0,
+      "refundAmount" INTEGER NOT NULL DEFAULT 0,
+      "paymentMethod" TEXT,
+      "paymentDate" TEXT NOT NULL,
+      installments INTEGER NOT NULL DEFAULT 1,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS expense_entries (
+      id SERIAL PRIMARY KEY,
+      "branchId" INTEGER,
+      category TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      vendor TEXT,
+      "expenseDate" TEXT NOT NULL,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS revenue_targets (
+      id SERIAL PRIMARY KEY,
+      "branchId" INTEGER,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      "targetAmount" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {
     await pool.query(sql);
   }
+
+  // 신규 컬럼 마이그레이션 (IF NOT EXISTS)
+  const alterStatements = [
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS goal TEXT`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS "position" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "createdBy" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "consultantId" INTEGER`,
+    `ALTER TABLE members ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "customerName" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "programDetail" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "sessions" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "duration" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "startDate" TEXT`,
+    `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "subCategory" TEXT`,
+    `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationType" TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationSubTypes" TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "assignedConsultantId" INTEGER`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "exercisePurpose" TEXT`,
+    `CREATE TABLE IF NOT EXISTS branches (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `CREATE TABLE IF NOT EXISTS trainer_branches (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      "branchId" INTEGER NOT NULL,
+      UNIQUE("trainerId", "branchId")
+    )`,
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT '기타',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      status TEXT NOT NULL DEFAULT 'pending',
+      "assigneeId" INTEGER NOT NULL,
+      "assignedById" INTEGER,
+      "taskType" TEXT NOT NULL DEFAULT 'daily',
+      "taskDate" TEXT,
+      "dayOfWeek" INTEGER,
+      "dayOfMonth" INTEGER,
+      "dueTime" TEXT,
+      "isRecurring" INTEGER NOT NULL DEFAULT 0,
+      "completedAt" TEXT,
+      "completedMemo" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS notices (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      "authorId" INTEGER NOT NULL,
+      "targetRole" TEXT NOT NULL DEFAULT 'all',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS notice_reads (
+      id SERIAL PRIMARY KEY,
+      "noticeId" INTEGER NOT NULL,
+      "userId" INTEGER NOT NULL,
+      "readAt" TEXT NOT NULL DEFAULT now()::text,
+      UNIQUE("noticeId", "userId")
+    )`,
+  ];
+  for (const stmt of alterStatements) {
+    await pool.query(stmt);
+  }
+
   console.log("✅ 테이블 준비 완료");
+
+  // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────
+  try {
+    // trainerBranches에서 트레이너별 지점 수 집계
+    const allTB = await db.select().from(trainerBranches);
+    const tbMap = new Map<number, number[]>(); // trainerId → branchIds
+    for (const row of allTB) {
+      if (!tbMap.has(row.trainerId)) tbMap.set(row.trainerId, []);
+      tbMap.get(row.trainerId)!.push(row.branchId);
+    }
+    // 단일 지점만 속한 트레이너의 회원 중 branchId가 NULL인 경우만 업데이트
+    for (const [trainerId, branchIds] of tbMap.entries()) {
+      if (branchIds.length === 1) {
+        await db.update(members)
+          .set({ branchId: branchIds[0] })
+          .where(and(eq(members.trainerId, trainerId), isNull(members.branchId)));
+      }
+    }
+    console.log("✅ 단일 지점 트레이너 회원 branchId 자동 배정 완료");
+  } catch (e) {
+    console.error("branchId 자동 배정 오류:", e);
+  }
+
+  // ── 기존 회원 회원권 시작일/만료일 자동 보정 ──────────────────────────────
+  try {
+    // 1) membershipStart가 NULL인 회원: 첫 수업일로 설정
+    const noStartMembers = await db
+      .select({ id: members.id })
+      .from(members)
+      .where(isNull(members.membershipStart));
+
+    for (const m of noStartMembers) {
+      const firstSession = await db
+        .select({ sessionDate: ptSessionLogs.sessionDate })
+        .from(ptSessionLogs)
+        .where(eq(ptSessionLogs.memberId, m.id))
+        .orderBy(ptSessionLogs.sessionDate)
+        .limit(1);
+      if (firstSession[0]?.sessionDate) {
+        await db.update(members).set({ membershipStart: firstSession[0].sessionDate }).where(eq(members.id, m.id));
+      }
+    }
+
+    // 2) membershipEnd가 NULL인 회원: 패키지 총 세션 합산 → 10회=1개월
+    const noEndMembers = await db
+      .select({ id: members.id, membershipStart: members.membershipStart })
+      .from(members)
+      .where(isNull(members.membershipEnd));
+
+    for (const m of noEndMembers) {
+      const pkgRows = await db
+        .select({ totalSessions: ptPackages.totalSessions, startDate: ptPackages.startDate })
+        .from(ptPackages)
+        .where(eq(ptPackages.memberId, m.id))
+        .orderBy(ptPackages.createdAt);
+
+      if (!pkgRows.length) continue;
+
+      const totalSessions = pkgRows.reduce((s, p) => s + (p.totalSessions ?? 0), 0);
+      if (!totalSessions) continue;
+
+      const months = Math.ceil(totalSessions / 10);
+      const baseDate = pkgRows[0].startDate || m.membershipStart || new Date().toISOString().substring(0, 10);
+      const d = new Date(baseDate);
+      d.setMonth(d.getMonth() + months);
+      await db.update(members).set({ membershipEnd: d.toISOString().substring(0, 10) }).where(eq(members.id, m.id));
+    }
+
+    console.log("✅ 회원권 날짜 보정 완료");
+  } catch (e) {
+    console.warn("⚠️ 회원권 날짜 보정 실패:", e);
+  }
 
   // 관리자 계정 생성 (없으면 초기 씨드)
   const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")).limit(1);
@@ -289,6 +511,22 @@ async function initDatabase() {
       await db.insert(trainerSettings).values({ trainerId: tr.id, settlementRate: t.settlementRate });
       console.log(`✅ 트레이너 복구: ${t.trainerName} (${t.username} / 123123)`);
     }
+  }
+
+  // 기본 채널 시드 (없으면 생성)
+  const existingChannels = await db.select({ id: channels.id }).from(channels).limit(1);
+  if (!existingChannels[0]) {
+    await db.insert(channels).values([
+      { name: "인스타그램", type: "sns", description: "인스타그램 광고/게시물" },
+      { name: "네이버 블로그", type: "online", description: "네이버 블로그 검색" },
+      { name: "네이버 지도", type: "online", description: "네이버 지도/플레이스" },
+      { name: "카카오 광고", type: "online", description: "카카오 채널/광고" },
+      { name: "지인 소개", type: "referral", description: "기존 회원 소개" },
+      { name: "현수막/전단", type: "offline", description: "오프라인 홍보물" },
+      { name: "유튜브", type: "sns", description: "유튜브 채널" },
+      { name: "기타", type: "offline", description: "기타 채널" },
+    ]);
+    console.log("✅ 기본 채널 데이터 생성 완료");
   }
 
   // 구글시트 URL 고정 설정 (없으면 자동 생성, 있으면 URL만 갱신)
