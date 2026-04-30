@@ -2596,6 +2596,39 @@ const gymPlusRouter = t.router({
       return { success: true };
     }),
 
+  updateProfile: gymPlusProtected
+    .input(z.object({
+      name: z.string().min(1).optional(),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(gymPlusMembers).set({ ...input, updatedAt: new Date().toISOString() })
+        .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
+      return { success: true };
+    }),
+
+  changePassword: gymPlusProtected
+    .input(z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(6),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db.select({ password: gymPlusMembers.password })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
+      const ok = await bcrypt.compare(input.currentPassword, member.password);
+      if (!ok) throw new TRPCError({ code: "BAD_REQUEST", message: "현재 비밀번호가 틀렸습니다." });
+      const hashed = await bcrypt.hash(input.newPassword, 10);
+      await db.update(gymPlusMembers).set({ password: hashed, updatedAt: new Date().toISOString() })
+        .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
+      return { success: true };
+    }),
+
   // ── 어드민: 짐+ 회원 관리 ──────────────────────────────────────────────────
   admin_listMembers: adminOnly.query(async () => {
     const db = await getDb();
@@ -2798,6 +2831,39 @@ const gymPlusRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(gymPlusEvents).where(eq(gymPlusEvents.id, input.id));
+      return { success: true };
+    }),
+
+  admin_listWorkoutLogs: adminOnly
+    .input(z.object({ gymPlusMemberId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const conditions = input?.gymPlusMemberId ? [eq(gymPlusWorkoutLogs.gymPlusMemberId, input.gymPlusMemberId)] : [];
+      const logs = await db.select({
+        id: gymPlusWorkoutLogs.id,
+        gymPlusMemberId: gymPlusWorkoutLogs.gymPlusMemberId,
+        logDate: gymPlusWorkoutLogs.logDate,
+        title: gymPlusWorkoutLogs.title,
+        durationMinutes: gymPlusWorkoutLogs.durationMinutes,
+        caloriesBurned: gymPlusWorkoutLogs.caloriesBurned,
+        bodyWeight: gymPlusWorkoutLogs.bodyWeight,
+        mood: gymPlusWorkoutLogs.mood,
+        createdAt: gymPlusWorkoutLogs.createdAt,
+        memberName: gymPlusMembers.name,
+      }).from(gymPlusWorkoutLogs)
+        .leftJoin(gymPlusMembers, eq(gymPlusWorkoutLogs.gymPlusMemberId, gymPlusMembers.id))
+        .where(conditions.length ? conditions[0] : undefined!)
+        .orderBy(desc(gymPlusWorkoutLogs.createdAt));
+      return logs;
+    }),
+
+  admin_deleteWorkoutLog: adminOnly
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(gymPlusWorkoutLogs).where(eq(gymPlusWorkoutLogs.id, input.id));
       return { success: true };
     }),
 });

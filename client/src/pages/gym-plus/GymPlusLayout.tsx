@@ -8,7 +8,7 @@ const navItems = [
   { path: "/gym-plus/videos", label: "운동영상", icon: "▶" },
   { path: "/gym-plus/events", label: "이벤트", icon: "★" },
   { path: "/gym-plus/workout", label: "운동기록", icon: "◎" },
-  { path: "/gym-plus/membership", label: "회원권", icon: "◈" },
+  { path: "/gym-plus/profile", label: "내정보", icon: "◈" },
 ];
 
 export default function GymPlusLayout({ children }: { children: ReactNode }) {

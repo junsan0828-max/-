@@ -762,13 +762,18 @@ export default function Admin() {
       {/* 자이언트짐+ 관리 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-black text-xs">G</span>
-            </div>
-            자이언트짐+ 관리
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">회원 계정, 운동 영상, 이벤트/공지를 관리합니다</p>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <div className="w-6 h-6 bg-primary rounded-lg flex items-center justify-center">
+                <span className="text-primary-foreground font-black text-xs">G</span>
+              </div>
+              자이언트짐+ 관리
+            </CardTitle>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => window.location.href = "/admin/gymplus"}>
+              전체화면으로 열기 →
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">회원 계정, 운동 영상, 이벤트/공지, 운동기록을 관리합니다</p>
         </CardHeader>
         <CardContent>
           <GymPlusAdminSection />
