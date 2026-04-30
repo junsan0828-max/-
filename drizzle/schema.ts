@@ -243,3 +243,78 @@ export const sheetPendingMembers = pgTable("sheet_pending_members", {
   sheetRowIndex: integer("sheetRowIndex"),
   importedAt: text("importedAt").default(now).notNull(),
 });
+
+// ─── 자이언트짐+ ─────────────────────────────────────────────────────────────
+
+// 짐+ 회원 계정 (기존 members 테이블과 별개의 로그인 계정)
+export const gymPlusMembers = pgTable("gym_plus_members", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  memberId: integer("memberId"), // 기존 members 테이블과 연결 (선택)
+  membershipType: text("membershipType").default("general").notNull(), // general, premium, vip
+  membershipStart: text("membershipStart"),
+  membershipEnd: text("membershipEnd"),
+  isActive: integer("isActive").default(1).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 운동 영상 카테고리
+export const gymPlusVideoCategories = pgTable("gym_plus_video_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 운동 영상
+export const gymPlusVideos = pgTable("gym_plus_videos", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("categoryId"),
+  title: text("title").notNull(),
+  description: text("description"),
+  videoUrl: text("videoUrl").notNull(), // YouTube URL or direct video URL
+  thumbnailUrl: text("thumbnailUrl"),
+  duration: text("duration"), // "10:30"
+  level: text("level").default("beginner").notNull(), // beginner, intermediate, advanced
+  bodyPart: text("bodyPart"), // 운동 부위
+  isPublished: integer("isPublished").default(1).notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 이벤트/공지
+export const gymPlusEvents = pgTable("gym_plus_events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  imageUrl: text("imageUrl"),
+  eventType: text("eventType").default("notice").notNull(), // notice, event, promotion
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  isPublished: integer("isPublished").default(1).notNull(),
+  isPinned: integer("isPinned").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 회원 운동 기록
+export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  logDate: text("logDate").notNull(),
+  title: text("title"),
+  exercisesJson: text("exercisesJson"), // [{name, sets, reps, weight}]
+  durationMinutes: integer("durationMinutes"),
+  caloriesBurned: integer("caloriesBurned"),
+  bodyWeight: text("bodyWeight"),
+  notes: text("notes"),
+  mood: text("mood"), // great, good, normal, tired
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});

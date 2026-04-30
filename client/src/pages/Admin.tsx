@@ -22,6 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2 } from "lucide-react";
+import GymPlusAdminSection from "./gym-plus/GymPlusAdmin";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -755,6 +756,22 @@ export default function Admin() {
             ));
           })()}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 자이언트짐+ 관리 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <div className="w-6 h-6 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-black text-xs">G</span>
+            </div>
+            자이언트짐+ 관리
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">회원 계정, 운동 영상, 이벤트/공지를 관리합니다</p>
+        </CardHeader>
+        <CardContent>
+          <GymPlusAdminSection />
         </CardContent>
       </Card>
     </div>
