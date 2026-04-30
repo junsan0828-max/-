@@ -2833,6 +2833,39 @@ const gymPlusRouter = t.router({
       await db.delete(gymPlusEvents).where(eq(gymPlusEvents.id, input.id));
       return { success: true };
     }),
+
+  admin_listWorkoutLogs: adminOnly
+    .input(z.object({ gymPlusMemberId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const conditions = input?.gymPlusMemberId ? [eq(gymPlusWorkoutLogs.gymPlusMemberId, input.gymPlusMemberId)] : [];
+      const logs = await db.select({
+        id: gymPlusWorkoutLogs.id,
+        gymPlusMemberId: gymPlusWorkoutLogs.gymPlusMemberId,
+        logDate: gymPlusWorkoutLogs.logDate,
+        title: gymPlusWorkoutLogs.title,
+        durationMinutes: gymPlusWorkoutLogs.durationMinutes,
+        caloriesBurned: gymPlusWorkoutLogs.caloriesBurned,
+        bodyWeight: gymPlusWorkoutLogs.bodyWeight,
+        mood: gymPlusWorkoutLogs.mood,
+        createdAt: gymPlusWorkoutLogs.createdAt,
+        memberName: gymPlusMembers.name,
+      }).from(gymPlusWorkoutLogs)
+        .leftJoin(gymPlusMembers, eq(gymPlusWorkoutLogs.gymPlusMemberId, gymPlusMembers.id))
+        .where(conditions.length ? conditions[0] : undefined!)
+        .orderBy(desc(gymPlusWorkoutLogs.createdAt));
+      return logs;
+    }),
+
+  admin_deleteWorkoutLog: adminOnly
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(gymPlusWorkoutLogs).where(eq(gymPlusWorkoutLogs.id, input.id));
+      return { success: true };
+    }),
 });
 
 export const appRouter = t.router({

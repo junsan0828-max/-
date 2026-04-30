@@ -484,8 +484,56 @@ function GymPlusEventsAdmin() {
   );
 }
 
+// ─── 운동기록 관리 ────────────────────────────────────────────────────────────
+function GymPlusWorkoutLogsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: logs, isLoading } = trpc.gymPlus.admin_listWorkoutLogs.useQuery({});
+
+  const deleteMutation = trpc.gymPlus.admin_deleteWorkoutLog.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listWorkoutLogs.invalidate(); toast.success("삭제되었습니다."); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const moodLabel: Record<string, string> = { great: "😄 최상", good: "🙂 좋음", okay: "😐 보통", tired: "😫 피곤", bad: "😞 나쁨" };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground">전체 운동기록 ({logs?.length ?? 0}건)</p>
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground text-center py-4">불러오는 중...</p>
+      ) : !logs?.length ? (
+        <p className="text-sm text-muted-foreground text-center py-4">운동기록이 없습니다</p>
+      ) : (
+        <div className="space-y-2">
+          {logs.map((log) => (
+            <div key={log.id} className="flex items-center gap-3 bg-background/50 rounded-xl p-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-xs font-semibold text-primary">{log.memberName ?? "알 수 없음"}</p>
+                  <p className="text-[10px] text-muted-foreground">{log.logDate}</p>
+                </div>
+                <p className="text-xs font-medium line-clamp-1">{log.title || "운동 기록"}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {log.durationMinutes ? `${log.durationMinutes}분` : ""}
+                  {log.durationMinutes && log.caloriesBurned ? " · " : ""}
+                  {log.caloriesBurned ? `${log.caloriesBurned}kcal` : ""}
+                  {log.mood ? ` · ${moodLabel[log.mood] ?? log.mood}` : ""}
+                </p>
+              </div>
+              <Button
+                variant="destructive" size="sm" className="h-6 text-[10px] px-2 flex-shrink-0"
+                onClick={() => { if (confirm("삭제?")) deleteMutation.mutate({ id: log.id }); }}
+              >삭제</Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── 메인 어드민 짐+ 섹션 ─────────────────────────────────────────────────────
-type GymPlusTab = "members" | "videos" | "events";
+type GymPlusTab = "members" | "videos" | "events" | "logs";
 
 export default function GymPlusAdminSection() {
   const [activeTab, setActiveTab] = useState<GymPlusTab>("members");
@@ -494,11 +542,11 @@ export default function GymPlusAdminSection() {
     { key: "members", label: "회원" },
     { key: "videos", label: "운동영상" },
     { key: "events", label: "이벤트/공지" },
+    { key: "logs", label: "운동기록" },
   ];
 
   return (
     <div className="space-y-4">
-      {/* 탭 */}
       <div className="flex gap-1 bg-muted p-1 rounded-xl">
         {tabs.map((tab) => (
           <button
@@ -516,6 +564,7 @@ export default function GymPlusAdminSection() {
       {activeTab === "members" && <GymPlusMembersAdmin />}
       {activeTab === "videos" && <GymPlusVideosAdmin />}
       {activeTab === "events" && <GymPlusEventsAdmin />}
+      {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
     </div>
   );
 }
