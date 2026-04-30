@@ -55,7 +55,7 @@ export default function GymDashboard() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
 
-  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery(
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }
   );

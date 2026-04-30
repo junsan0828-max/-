@@ -52,7 +52,7 @@ export default function AdminMembers() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
 
-  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: allMembers, isLoading } = trpc.members.listAll.useQuery(
     branchFilter ? { branchId: branchFilter } : undefined
   );

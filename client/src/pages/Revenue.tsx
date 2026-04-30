@@ -78,7 +78,7 @@ function RevenueContent() {
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.gym.staff.listConsultants.useQuery();
-  const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: kpi } = trpc.gym.kpi.overview.useQuery(
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) },
     { enabled: !isConsultant }

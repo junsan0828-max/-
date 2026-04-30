@@ -1066,6 +1066,11 @@ const staffRouter = t.router({
       .where(eq(users.role, "consultant"))
       .orderBy(users.username);
   }),
+  listBranches: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(branches).orderBy(branches.name);
+  }),
 });
 
 export const gymRouter = t.router({
