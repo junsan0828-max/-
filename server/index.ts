@@ -341,6 +341,7 @@ async function initDatabase() {
       "branchId" INTEGER NOT NULL,
       UNIQUE("trainerId", "branchId")
     )`,
+    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "memberId" INTEGER`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
