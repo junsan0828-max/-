@@ -23,111 +23,104 @@ import { Tabs } from "@/components/ui/tabs";
 // ─── 회원 관리 ────────────────────────────────────────────────────────────────
 export function GymPlusMembersAdmin() {
   const utils = trpc.useUtils();
-  const { data: members, isLoading } = trpc.gymPlus.admin_listMembers.useQuery();
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({
-    username: "", password: "", name: "", phone: "", email: "",
-    membershipType: "general" as "general" | "premium" | "vip",
-    membershipStart: "", membershipEnd: "",
-  });
+  const { data: mainMembers, isLoading } = trpc.gymPlus.admin_listMainMembers.useQuery();
+  const [linkTarget, setLinkTarget] = useState<{ id: number; name: string; membershipStart?: string | null; membershipEnd?: string | null } | null>(null);
+  const [editTarget, setEditTarget] = useState<{ gymPlusId: number; name: string } | null>(null);
+  const [linkForm, setLinkForm] = useState({ username: "", password: "", membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "" });
+  const [editForm, setEditForm] = useState({ password: "", membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "", isActive: 1 });
 
-  const createMutation = trpc.gymPlus.admin_createMember.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listMembers.invalidate(); setShowForm(false); resetForm(); toast.success("회원이 생성되었습니다."); },
+  const createLinkedMutation = trpc.gymPlus.admin_createLinkedMember.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listMainMembers.invalidate(); setLinkTarget(null); toast.success("짐플러스 계정이 생성되었습니다."); },
     onError: (err) => toast.error(err.message),
   });
 
   const updateMutation = trpc.gymPlus.admin_updateMember.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listMembers.invalidate(); setShowForm(false); setEditingId(null); resetForm(); toast.success("회원 정보가 수정되었습니다."); },
+    onSuccess: () => { utils.gymPlus.admin_listMainMembers.invalidate(); setEditTarget(null); toast.success("수정되었습니다."); },
     onError: (err) => toast.error(err.message),
   });
 
   const deleteMutation = trpc.gymPlus.admin_deleteMember.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listMembers.invalidate(); toast.success("회원이 삭제되었습니다."); },
+    onSuccess: () => { utils.gymPlus.admin_listMainMembers.invalidate(); toast.success("계정이 삭제되었습니다."); },
     onError: (err) => toast.error(err.message),
   });
 
-  function resetForm() {
-    setForm({ username: "", password: "", name: "", phone: "", email: "", membershipType: "general", membershipStart: "", membershipEnd: "" });
-  }
-
-  function openEdit(m: any) {
-    setForm({ username: m.username, password: "", name: m.name, phone: m.phone ?? "", email: m.email ?? "", membershipType: m.membershipType ?? "general", membershipStart: m.membershipStart ?? "", membershipEnd: m.membershipEnd ?? "" });
-    setEditingId(m.id);
-    setShowForm(true);
-  }
-
-  function handleSubmit() {
-    if (editingId) {
-      updateMutation.mutate({ id: editingId, name: form.name, phone: form.phone || undefined, email: form.email || undefined, membershipType: form.membershipType, membershipStart: form.membershipStart || undefined, membershipEnd: form.membershipEnd || undefined, password: form.password || undefined, isActive: 1 });
-    } else {
-      if (!form.username || !form.password || !form.name) { toast.error("아이디, 비밀번호, 이름은 필수입니다."); return; }
-      createMutation.mutate({ ...form, phone: form.phone || undefined, email: form.email || undefined, membershipStart: form.membershipStart || undefined, membershipEnd: form.membershipEnd || undefined });
-    }
-  }
-
-  const membershipTypeLabel: Record<string, string> = { general: "일반", premium: "프리미엄", vip: "VIP" };
+  const connectedCount = mainMembers?.filter(m => m.gymPlus).length ?? 0;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-muted-foreground">짐+ 회원 ({members?.length ?? 0}명)</p>
-        <Button size="sm" className="h-7 text-xs" onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }}>+ 회원 추가</Button>
+        <p className="text-sm font-semibold text-muted-foreground">
+          전체 회원 ({mainMembers?.length ?? 0}명) · 짐+ 연동 {connectedCount}명
+        </p>
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground text-center py-4">불러오는 중...</p>
-      ) : members?.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">등록된 회원이 없습니다</p>
+        <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+      ) : mainMembers?.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-6">등록된 회원이 없습니다</p>
       ) : (
         <div className="space-y-2">
-          {members?.map((m) => (
-            <div key={m.id} className="flex items-center justify-between bg-background/50 rounded-xl px-3 py-2.5">
-              <div>
-                <p className="text-sm font-medium">{m.name}</p>
-                <p className="text-xs text-muted-foreground">{m.username} · {membershipTypeLabel[m.membershipType] ?? m.membershipType}</p>
-                {m.membershipEnd && <p className="text-xs text-muted-foreground">만료: {m.membershipEnd.slice(0, 10)}</p>}
-              </div>
-              <div className="flex gap-1.5">
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openEdit(m)}>수정</Button>
-                <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => { if (confirm(`${m.name} 회원을 삭제하시겠습니까?`)) deleteMutation.mutate({ id: m.id }); }}>삭제</Button>
+          {mainMembers?.map((m) => (
+            <div key={m.id} className="bg-card border border-border rounded-xl px-3 py-2.5">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">{m.name}</p>
+                    {m.gymPlus ? (
+                      <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-medium">짐+ 연동</span>
+                    ) : (
+                      <span className="text-[9px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">미연동</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {m.phone ?? "연락처 없음"}
+                    {m.gymPlus && <span className="ml-2 text-primary/70">@{m.gymPlus.username}</span>}
+                  </p>
+                  {m.membershipEnd && (
+                    <p className="text-xs text-muted-foreground">회원권 만료: {m.membershipEnd.slice(0, 10)}</p>
+                  )}
+                </div>
+                <div className="flex gap-1.5 flex-shrink-0 ml-2">
+                  {m.gymPlus ? (
+                    <>
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] px-2"
+                        onClick={() => {
+                          setEditTarget({ gymPlusId: m.gymPlus!.id, name: m.name });
+                          setEditForm({ password: "", membershipType: (m.gymPlus!.membershipType ?? "general") as any, membershipStart: m.membershipStart ?? "", membershipEnd: m.membershipEnd ?? "", isActive: m.gymPlus!.isActive });
+                        }}>수정</Button>
+                      <Button variant="destructive" size="sm" className="h-7 text-[10px] px-2"
+                        onClick={() => { if (confirm(`${m.name}의 짐플러스 계정을 삭제하시겠습니까?`)) deleteMutation.mutate({ id: m.gymPlus!.id }); }}>삭제</Button>
+                    </>
+                  ) : (
+                    <Button size="sm" className="h-7 text-[10px] px-2"
+                      onClick={() => {
+                        setLinkTarget({ id: m.id, name: m.name, membershipStart: m.membershipStart, membershipEnd: m.membershipEnd });
+                        setLinkForm({ username: "", password: "", membershipType: "general", membershipStart: m.membershipStart ?? "", membershipEnd: m.membershipEnd ?? "" });
+                      }}>계정 생성</Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
+      {/* 짐플러스 계정 생성 다이얼로그 */}
+      <Dialog open={!!linkTarget} onOpenChange={(o) => { if (!o) setLinkTarget(null); }}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingId ? "회원 수정" : "짐+ 회원 추가"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{linkTarget?.name} — 짐플러스 계정 생성</DialogTitle></DialogHeader>
           <div className="space-y-3 pb-2">
-            {!editingId && (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">아이디 *</Label>
-                <Input value={form.username} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} className="h-8 text-sm" />
-              </div>
-            )}
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">{editingId ? "새 비밀번호 (변경 시에만)" : "비밀번호 *"}</Label>
-              <Input type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="h-8 text-sm" />
+              <Label className="text-xs text-muted-foreground">아이디 *</Label>
+              <Input value={linkForm.username} onChange={(e) => setLinkForm(p => ({ ...p, username: e.target.value }))} className="h-8 text-sm" placeholder="로그인 아이디" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">이름 *</Label>
-              <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="h-8 text-sm" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">연락처</Label>
-                <Input value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className="h-8 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">이메일</Label>
-                <Input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} className="h-8 text-sm" />
-              </div>
+              <Label className="text-xs text-muted-foreground">비밀번호 *</Label>
+              <Input type="password" value={linkForm.password} onChange={(e) => setLinkForm(p => ({ ...p, password: e.target.value }))} className="h-8 text-sm" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">회원권 유형</Label>
-              <Select value={form.membershipType} onValueChange={(v) => setForm((p) => ({ ...p, membershipType: v as any }))}>
+              <Select value={linkForm.membershipType} onValueChange={(v) => setLinkForm(p => ({ ...p, membershipType: v as any }))}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="general">일반</SelectItem>
@@ -138,18 +131,75 @@ export function GymPlusMembersAdmin() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">회원권 시작</Label>
-                <Input type="date" value={form.membershipStart} onChange={(e) => setForm((p) => ({ ...p, membershipStart: e.target.value }))} className="h-8 text-sm" />
+                <Label className="text-xs text-muted-foreground">시작일</Label>
+                <Input type="date" value={linkForm.membershipStart} onChange={(e) => setLinkForm(p => ({ ...p, membershipStart: e.target.value }))} className="h-8 text-sm" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">회원권 만료</Label>
-                <Input type="date" value={form.membershipEnd} onChange={(e) => setForm((p) => ({ ...p, membershipEnd: e.target.value }))} className="h-8 text-sm" />
+                <Label className="text-xs text-muted-foreground">만료일</Label>
+                <Input type="date" value={linkForm.membershipEnd} onChange={(e) => setLinkForm(p => ({ ...p, membershipEnd: e.target.value }))} className="h-8 text-sm" />
               </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setShowForm(false)}>취소</Button>
-              <Button className="flex-1 h-8 text-sm" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
-                {createMutation.isPending || updateMutation.isPending ? "저장 중..." : "저장"}
+              <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setLinkTarget(null)}>취소</Button>
+              <Button className="flex-1 h-8 text-sm" disabled={createLinkedMutation.isPending}
+                onClick={() => {
+                  if (!linkForm.username || !linkForm.password) { toast.error("아이디와 비밀번호를 입력하세요."); return; }
+                  createLinkedMutation.mutate({ memberId: linkTarget!.id, ...linkForm, membershipStart: linkForm.membershipStart || undefined, membershipEnd: linkForm.membershipEnd || undefined });
+                }}>
+                {createLinkedMutation.isPending ? "생성 중..." : "생성"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 짐플러스 계정 수정 다이얼로그 */}
+      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) setEditTarget(null); }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editTarget?.name} — 짐플러스 계정 수정</DialogTitle></DialogHeader>
+          <div className="space-y-3 pb-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">새 비밀번호 (변경 시에만)</Label>
+              <Input type="password" value={editForm.password} onChange={(e) => setEditForm(p => ({ ...p, password: e.target.value }))} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">회원권 유형</Label>
+              <Select value={editForm.membershipType} onValueChange={(v) => setEditForm(p => ({ ...p, membershipType: v as any }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">일반</SelectItem>
+                  <SelectItem value="premium">프리미엄</SelectItem>
+                  <SelectItem value="vip">VIP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">시작일</Label>
+                <Input type="date" value={editForm.membershipStart} onChange={(e) => setEditForm(p => ({ ...p, membershipStart: e.target.value }))} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">만료일</Label>
+                <Input type="date" value={editForm.membershipEnd} onChange={(e) => setEditForm(p => ({ ...p, membershipEnd: e.target.value }))} className="h-8 text-sm" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">계정 상태</Label>
+              <Select value={String(editForm.isActive)} onValueChange={(v) => setEditForm(p => ({ ...p, isActive: parseInt(v) }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">활성</SelectItem>
+                  <SelectItem value="0">비활성</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setEditTarget(null)}>취소</Button>
+              <Button className="flex-1 h-8 text-sm" disabled={updateMutation.isPending}
+                onClick={() => {
+                  updateMutation.mutate({ id: editTarget!.gymPlusId, membershipType: editForm.membershipType, membershipStart: editForm.membershipStart || undefined, membershipEnd: editForm.membershipEnd || undefined, isActive: editForm.isActive, password: editForm.password || undefined });
+                }}>
+                {updateMutation.isPending ? "저장 중..." : "저장"}
               </Button>
             </div>
           </div>

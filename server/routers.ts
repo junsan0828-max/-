@@ -2831,6 +2831,72 @@ const gymPlusRouter = t.router({
       return { success: true };
     }),
 
+  // 통합관리 시스템 회원 목록 + 짐플러스 계정 연결 여부
+  admin_listMainMembers: adminOnlyGymPlus.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const mainMembers = await db.select({
+      id: members.id,
+      name: members.name,
+      phone: members.phone,
+      email: members.email,
+      membershipStart: members.membershipStart,
+      membershipEnd: members.membershipEnd,
+      status: members.status,
+    }).from(members).orderBy(members.name);
+
+    const gymPlusList = await db.select({
+      id: gymPlusMembers.id,
+      memberId: gymPlusMembers.memberId,
+      username: gymPlusMembers.username,
+      membershipType: gymPlusMembers.membershipType,
+      isActive: gymPlusMembers.isActive,
+    }).from(gymPlusMembers);
+
+    const gymPlusByMemberId = new Map(gymPlusList.filter(g => g.memberId).map(g => [g.memberId!, g]));
+
+    return mainMembers.map(m => ({
+      ...m,
+      gymPlus: gymPlusByMemberId.get(m.id) ?? null,
+    }));
+  }),
+
+  // 통합 회원에게 짐플러스 계정 생성 (memberId로 연결)
+  admin_createLinkedMember: adminOnlyGymPlus
+    .input(z.object({
+      memberId: z.number(),
+      username: z.string().min(3),
+      password: z.string().min(6),
+      membershipType: z.enum(["general", "premium", "vip"]).default("general"),
+      membershipStart: z.string().optional(),
+      membershipEnd: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const existing = await db.select({ id: gymPlusMembers.id })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.username, input.username)).limit(1);
+      if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
+
+      const mainMember = await db.select().from(members).where(eq(members.id, input.memberId)).limit(1);
+      if (!mainMember[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const hashed = await bcrypt.hash(input.password, 10);
+      const [row] = await db.insert(gymPlusMembers).values({
+        username: input.username,
+        password: hashed,
+        name: mainMember[0].name,
+        phone: mainMember[0].phone ?? undefined,
+        email: mainMember[0].email ?? undefined,
+        memberId: input.memberId,
+        membershipType: input.membershipType,
+        membershipStart: input.membershipStart ?? mainMember[0].membershipStart ?? undefined,
+        membershipEnd: input.membershipEnd ?? mainMember[0].membershipEnd ?? undefined,
+      }).returning();
+      const { password: _, ...safe } = row;
+      return safe;
+    }),
+
   admin_listMembers: adminOnlyGymPlus.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
