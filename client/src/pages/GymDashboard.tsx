@@ -90,7 +90,7 @@ export default function GymDashboard() {
     { name: "기타", value: Math.max(0, (kpi?.monthTotal ?? 0) - (kpi?.monthPT ?? 0) - (kpi?.monthHealth ?? 0)) },
   ].filter(d => d.value > 0);
 
-  const gymPlusUrl = import.meta.env.VITE_GYMPLUS_URL as string | undefined;
+  const gymPlusUrl = (import.meta.env.VITE_GYMPLUS_URL as string | undefined) || "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
 
   return (
     <div className="space-y-5">
@@ -101,17 +101,15 @@ export default function GymDashboard() {
           <p className="text-xs text-muted-foreground mt-0.5">자이언트짐 통합 운영 현황</p>
         </div>
         <div className="flex items-center gap-2">
-          {gymPlusUrl && (
-            <a
-              href={gymPlusUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold transition-colors"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              ZIANTGYM+
-            </a>
-          )}
+          <a
+            href={gymPlusUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            ZIANTGYM+
+          </a>
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
             <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
               <ChevronLeft className="h-4 w-4" />
