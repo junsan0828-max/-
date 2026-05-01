@@ -23,12 +23,7 @@ export default function GymPlusAdminPage() {
         >
           ZIANTGYM<span className="text-primary">+</span>
         </span>
-        <button
-          onClick={() => { window.location.href = "/"; }}
-          className="text-xs text-muted-foreground border border-border rounded px-2 py-1 hover:text-foreground transition-colors"
-        >
-          통합관리 →
-        </button>
+        <div />
       </header>
 
       {/* 콘텐츠 */}
