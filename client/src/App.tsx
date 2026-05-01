@@ -106,6 +106,11 @@ function App() {
     return <GymPlusApp />;
   }
 
+  // 자이언트짐+ 관리 페이지 (Layout 밖에서 독립 렌더)
+  if (location === "/admin/gymplus") {
+    return <GymPlusAdminPage />;
+  }
+
   // 공개 보고서 페이지 - 인증 불필요
   if (reportMatch && reportParams) {
     return <MemberReport token={reportParams.token} />;
@@ -154,7 +159,6 @@ function App() {
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
         <Route path="/admin">{() => <Admin />}</Route>
-        <Route path="/admin/gymplus">{() => <GymPlusAdminPage />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
         <Route path="/profile">{() => <Profile />}</Route>
