@@ -175,7 +175,7 @@ export default function Admin() {
   });
 
   // 관리자 권한 확인
-  if (user?.role !== "admin") {
+  if (user?.role !== "admin" && user?.role !== "sub_admin") {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <p>관리자만 접근할 수 있습니다.</p>
