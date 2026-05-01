@@ -297,6 +297,24 @@ const revenueRouter = t.router({
         await db.update(leads).set({ status: "registered", updatedAt: new Date().toISOString() }).where(eq(leads.id, input.leadId));
       }
 
+      // PT 등록 시 트레이너 배정되어 있으면 회원 자동 생성
+      if (input.type === "PT" && input.trainerId && input.customerName && !input.memberId && input.subType !== "이전") {
+        const now = new Date().toISOString();
+        const [newMember] = await db.insert(members).values({
+          trainerId: input.trainerId,
+          name: input.customerName,
+          phone: input.phone ?? undefined,
+          status: "active",
+          grade: "basic",
+          createdAt: now,
+          updatedAt: now,
+        }).returning({ id: members.id });
+        if (newMember) {
+          await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, row.id));
+          row.memberId = newMember.id;
+        }
+      }
+
       return row;
     }),
 

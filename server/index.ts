@@ -9,7 +9,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches } from "../drizzle/schema";
+import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, revenueEntries } from "../drizzle/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
 
@@ -425,6 +425,43 @@ async function initDatabase() {
     console.log("✅ 단일 지점 트레이너 회원 branchId 자동 배정 완료");
   } catch (e) {
     console.error("branchId 자동 배정 오류:", e);
+  }
+
+  // ── PT 매출 등록 시 누락된 회원 자동 생성 (backfill) ──────────────────────
+  try {
+    const missingMemberEntries = await db
+      .select()
+      .from(revenueEntries)
+      .where(and(
+        eq(revenueEntries.type, "PT"),
+        isNull(revenueEntries.memberId),
+      ));
+
+    const toFix = missingMemberEntries.filter(
+      e => e.trainerId !== null && e.customerName && e.subType !== "이전"
+    );
+
+    for (const entry of toFix) {
+      const now = new Date().toISOString();
+      const [newMember] = await db.insert(members).values({
+        trainerId: entry.trainerId!,
+        name: entry.customerName!,
+        phone: entry.phone ?? undefined,
+        status: "active",
+        grade: "basic",
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: members.id });
+      if (newMember) {
+        await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, entry.id));
+      }
+    }
+
+    if (toFix.length > 0) {
+      console.log(`✅ PT 매출 누락 회원 ${toFix.length}건 자동 생성 완료`);
+    }
+  } catch (e) {
+    console.error("PT 매출 누락 회원 생성 오류:", e);
   }
 
   // ── 기존 회원 회원권 시작일/만료일 자동 보정 ──────────────────────────────
