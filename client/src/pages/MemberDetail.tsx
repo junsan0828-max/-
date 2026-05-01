@@ -362,6 +362,20 @@ export default function MemberDetail({ memberId }: Props) {
     onError: () => toast.error("삭제 실패"),
   });
 
+  // PT 패키지 병합
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeSourceId, setMergeSourceId] = useState(0);
+  const [mergeTargetId, setMergeTargetId] = useState("");
+  const mergePackageMutation = trpc.pt.mergePackages.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.mergedSessions}회 세션이 병합되었습니다.`);
+      setMergeOpen(false);
+      setMergeTargetId("");
+      refetchPt();
+    },
+    onError: (err) => toast.error(err.message || "병합 실패"),
+  });
+
   // PT 패키지 추가
   const addPackageMutation = trpc.pt.addPackage.useMutation({
     onSuccess: () => {
