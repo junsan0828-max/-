@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   UserCog, Settings, User, ClipboardCheck, Download, X,
-  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks,
+  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, ExternalLink,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -134,7 +134,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <button onClick={() => setLocation("/")} className="text-primary">
             <Logo className="h-7" textSize="text-sm" />
           </button>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
+            {(user?.role === "admin" || user?.role === "sub_admin") && (
+              <a
+                href={(import.meta.env.VITE_GYMPLUS_URL as string | undefined) || "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2 py-1 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-xs font-semibold transition-colors"
+              >
+                <ExternalLink className="h-3 w-3" />
+                GYM+
+              </a>
+            )}
             <span className="text-xs text-muted-foreground mr-1">{user?.username}</span>
             <button
               onClick={() => logoutMutation.mutate()}
