@@ -207,7 +207,7 @@ export default function Admin() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">관리자 설정</h1>
         <a
-          href="https://abundant-recreation-production-a6a1.up.railway.app"
+          href="https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-semibold transition-colors"
