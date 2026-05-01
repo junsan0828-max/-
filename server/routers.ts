@@ -814,50 +814,6 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
-  // PT 패키지 병합 (잔여 세션을 대상 패키지로 합산)
-  mergePackages: protectedProcedure
-    .input(z.object({
-      sourcePackageId: z.number(),
-      targetPackageId: z.number(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-
-      if (input.sourcePackageId === input.targetPackageId)
-        throw new TRPCError({ code: "BAD_REQUEST", message: "같은 패키지로 병합할 수 없습니다." });
-
-      const [src, tgt] = await Promise.all([
-        db.select().from(ptPackages).where(eq(ptPackages.id, input.sourcePackageId)).limit(1),
-        db.select().from(ptPackages).where(eq(ptPackages.id, input.targetPackageId)).limit(1),
-      ]);
-
-      if (!src[0]) throw new TRPCError({ code: "NOT_FOUND", message: "원본 패키지를 찾을 수 없습니다." });
-      if (!tgt[0]) throw new TRPCError({ code: "NOT_FOUND", message: "대상 패키지를 찾을 수 없습니다." });
-      if (src[0].memberId !== tgt[0].memberId)
-        throw new TRPCError({ code: "BAD_REQUEST", message: "같은 회원의 패키지만 병합할 수 있습니다." });
-
-      const sourceRemaining = src[0].totalSessions - src[0].usedSessions;
-      if (sourceRemaining <= 0)
-        throw new TRPCError({ code: "BAD_REQUEST", message: "원본 패키지에 잔여 세션이 없습니다." });
-
-      const newTotal = tgt[0].totalSessions + sourceRemaining;
-      const newStatus = tgt[0].usedSessions >= newTotal ? "completed" : "active";
-
-      await db.update(ptPackages)
-        .set({ totalSessions: newTotal, status: newStatus as any })
-        .where(eq(ptPackages.id, input.targetPackageId));
-
-      await db.update(ptPackages)
-        .set({ status: "completed" as any })
-        .where(eq(ptPackages.id, input.sourcePackageId));
-
-      return { success: true, mergedSessions: sourceRemaining };
-    }),
-
   // 결제일 업데이트
   updatePaymentDate: protectedProcedure
     .input(z.object({ packageId: z.number(), paymentDate: z.string() }))
