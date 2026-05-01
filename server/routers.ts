@@ -2441,6 +2441,9 @@ const gymPlusRouter = t.router({
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
 
       (ctx.req.session as any).gymPlusMemberId = member.id;
+      await new Promise<void>((resolve, reject) =>
+        ctx.req.session.save((err) => (err ? reject(err) : resolve()))
+      );
       return {
         id: member.id, username: member.username, name: member.name,
         membershipType: member.membershipType, membershipStart: member.membershipStart,
@@ -2449,7 +2452,10 @@ const gymPlusRouter = t.router({
     }),
 
   memberLogout: publicProcedure.mutation(async ({ ctx }) => {
-    (ctx.req.session as any).gymPlusMemberId = undefined;
+    delete (ctx.req.session as any).gymPlusMemberId;
+    await new Promise<void>((resolve, reject) =>
+      ctx.req.session.save((err) => (err ? reject(err) : resolve()))
+    );
     return { success: true };
   }),
 
