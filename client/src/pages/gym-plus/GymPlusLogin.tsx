@@ -35,16 +35,9 @@ export default function GymPlusLogin() {
       <div className="w-full max-w-sm">
         {/* 로고 영역 */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <span className="text-primary-foreground font-black text-lg">G</span>
-            </div>
-            <div>
-              <p className="font-black text-xl text-foreground leading-none">ZIANT GYM</p>
-              <p className="text-primary font-bold text-sm leading-none tracking-widest">+ PLUS</p>
-            </div>
-          </div>
-          <p className="text-muted-foreground text-sm mt-2">회원 전용 서비스</p>
+          <p style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.15em" }} className="text-3xl font-semibold text-foreground leading-none">ZIANTGYM</p>
+          <p className="text-primary font-bold text-xs tracking-widest mt-1">+ PLUS</p>
+          <p className="text-muted-foreground text-sm mt-3">회원 전용 서비스</p>
         </div>
 
         <Card className="bg-card border-border">
