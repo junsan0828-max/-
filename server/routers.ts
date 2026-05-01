@@ -2435,6 +2435,21 @@ const gymPlusRouter = t.router({
         .where(eq(gymPlusMembers.username, input.username)).limit(1);
       let member = result[0];
 
+      // gym_plus_members에 있어도 users에서 admin이면 관리자로 처리
+      if (member) {
+        const adminCheck = await db.select({ role: users.role }).from(users)
+          .where(and(eq(users.username, input.username), eq(users.role, "admin"))).limit(1);
+        if (adminCheck[0]) {
+          const valid = await bcrypt.compare(input.password, member.password);
+          if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+          (ctx.req.session as any).user = { id: member.id, username: member.username, role: "admin" };
+          await new Promise<void>((resolve, reject) =>
+            ctx.req.session.save((err) => (err ? reject(err) : resolve()))
+          );
+          return { id: member.id, username: member.username, name: "관리자", membershipType: "vip", isAdmin: true };
+        }
+      }
+
       // gym_plus_members에 없으면 users(관리자/트레이너) 계정으로 시도
       let isAdminLogin = false;
       if (!member) {
