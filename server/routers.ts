@@ -2431,9 +2431,35 @@ const gymPlusRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const result = await db.select().from(gymPlusMembers)
+      let result = await db.select().from(gymPlusMembers)
         .where(eq(gymPlusMembers.username, input.username)).limit(1);
-      const member = result[0];
+      let member = result[0];
+
+      // gym_plus_members에 없으면 users(관리자/트레이너) 계정으로 시도
+      if (!member) {
+        const userResult = await db.select().from(users)
+          .where(eq(users.username, input.username)).limit(1);
+        const sysUser = userResult[0];
+        if (!sysUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+        const validSys = await bcrypt.compare(input.password, sysUser.password);
+        if (!validSys) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+        // gym_plus_members에 자동 등록
+        try {
+          const [created] = await db.insert(gymPlusMembers).values({
+            username: sysUser.username,
+            password: sysUser.password,
+            name: sysUser.role === "admin" ? "관리자" : sysUser.username,
+            membershipType: "vip",
+            isActive: 1,
+          }).returning();
+          member = created;
+        } catch {
+          const existing = await db.select().from(gymPlusMembers)
+            .where(eq(gymPlusMembers.username, input.username)).limit(1);
+          member = existing[0];
+        }
+      }
+
       if (!member) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
       if (!member.isActive) throw new TRPCError({ code: "FORBIDDEN", message: "비활성화된 계정입니다." });
 
