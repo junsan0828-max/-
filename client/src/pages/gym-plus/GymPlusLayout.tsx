@@ -31,7 +31,7 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
             <span className="text-primary-foreground font-black text-sm">G</span>
           </div>
           <div>
-            <span className="font-black text-sm text-foreground">GIANT GYM</span>
+            <span className="font-black text-sm text-foreground">ZIANT GYM</span>
             <span className="text-primary font-bold text-xs ml-1">+</span>
           </div>
         </div>

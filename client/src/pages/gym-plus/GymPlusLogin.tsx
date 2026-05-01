@@ -40,7 +40,7 @@ export default function GymPlusLogin() {
               <span className="text-primary-foreground font-black text-lg">G</span>
             </div>
             <div>
-              <p className="font-black text-xl text-foreground leading-none">GIANT GYM</p>
+              <p className="font-black text-xl text-foreground leading-none">ZIANT GYM</p>
               <p className="text-primary font-bold text-sm leading-none tracking-widest">+ PLUS</p>
             </div>
           </div>
