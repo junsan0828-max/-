@@ -11,9 +11,13 @@ export default function GymPlusLogin() {
   const utils = trpc.useUtils();
 
   const loginMutation = trpc.gymPlus.memberLogin.useMutation({
-    onSuccess: () => {
-      utils.gymPlus.memberMe.invalidate();
-      window.location.href = "/gym-plus";
+    onSuccess: (data) => {
+      if ((data as any).isAdmin) {
+        window.location.href = "/admin/gymplus";
+      } else {
+        utils.gymPlus.memberMe.invalidate();
+        window.location.href = "/gym-plus";
+      }
     },
     onError: (err) => {
       setErrorMsg(err.message || "로그인 실패. 아이디/비밀번호를 확인하세요.");

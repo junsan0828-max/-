@@ -2436,6 +2436,7 @@ const gymPlusRouter = t.router({
       let member = result[0];
 
       // gym_plus_members에 없으면 users(관리자/트레이너) 계정으로 시도
+      let isAdminLogin = false;
       if (!member) {
         const userResult = await db.select().from(users)
           .where(eq(users.username, input.username)).limit(1);
@@ -2443,12 +2444,20 @@ const gymPlusRouter = t.router({
         if (!sysUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
         const validSys = await bcrypt.compare(input.password, sysUser.password);
         if (!validSys) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
-        // gym_plus_members에 자동 등록
+        // 관리자/트레이너 계정이면 메인 세션도 설정 후 관리 페이지로
+        if (sysUser.role === "admin") {
+          (ctx.req.session as any).user = { id: sysUser.id, username: sysUser.username, role: sysUser.role };
+          await new Promise<void>((resolve, reject) =>
+            ctx.req.session.save((err) => (err ? reject(err) : resolve()))
+          );
+          return { id: sysUser.id, username: sysUser.username, name: "관리자", membershipType: "vip", isAdmin: true };
+        }
+        // gym_plus_members에 자동 등록 (트레이너 등)
         try {
           const [created] = await db.insert(gymPlusMembers).values({
             username: sysUser.username,
             password: sysUser.password,
-            name: sysUser.role === "admin" ? "관리자" : sysUser.username,
+            name: sysUser.username,
             membershipType: "vip",
             isActive: 1,
           }).returning();
