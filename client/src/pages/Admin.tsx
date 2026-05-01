@@ -22,7 +22,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2 } from "lucide-react";
-import GymPlusAdminSection from "./gym-plus/GymPlusAdmin";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -759,24 +758,18 @@ export default function Admin() {
         </CardContent>
       </Card>
 
-      {/* 자이언트짐+ 관리 */}
+      {/* 자이언트짐+ 관리 바로가기 */}
       <Card className="bg-card border-border">
-        <CardHeader className="pb-3">
+        <CardContent className="pt-4 pb-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <div className="w-6 h-6 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-primary-foreground font-black text-xs">G</span>
-              </div>
-              자이언트짐+ 관리
-            </CardTitle>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => window.location.href = "/admin/gymplus"}>
-              전체화면으로 열기 →
+            <div>
+              <p className="font-semibold text-sm">ZIANTGYM+ 관리</p>
+              <p className="text-xs text-muted-foreground mt-0.5">회원, 운동영상, 공지, 기록 관리</p>
+            </div>
+            <Button size="sm" onClick={() => window.location.href = "/admin/gymplus"}>
+              관리 페이지 열기 →
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">회원 계정, 운동 영상, 이벤트/공지, 운동기록을 관리합니다</p>
-        </CardHeader>
-        <CardContent>
-          <GymPlusAdminSection />
         </CardContent>
       </Card>
     </div>
