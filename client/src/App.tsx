@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useRoute } from "wouter";
+import { Switch, Route, Redirect, useRoute, useLocation } from "wouter";
 import { Component, type ReactNode } from "react";
 import { trpc } from "./lib/trpc";
 
@@ -50,10 +50,72 @@ import MarketingPage from "./pages/Marketing";
 import AiAnalysisPage from "./pages/AiAnalysis";
 import AdminMembers from "./pages/AdminMembers";
 import Layout from "./components/Layout";
+import GymPlusLogin from "./pages/gym-plus/GymPlusLogin";
+import GymPlusLayout from "./pages/gym-plus/GymPlusLayout";
+import GymPlusDashboard from "./pages/gym-plus/GymPlusDashboard";
+import GymPlusVideos from "./pages/gym-plus/GymPlusVideos";
+import GymPlusVideoPlayer from "./pages/gym-plus/GymPlusVideoPlayer";
+import GymPlusEvents from "./pages/gym-plus/GymPlusEvents";
+import GymPlusEventDetail from "./pages/gym-plus/GymPlusEventDetail";
+import GymPlusWorkout from "./pages/gym-plus/GymPlusWorkout";
+import GymPlusMembership from "./pages/gym-plus/GymPlusMembership";
+import GymPlusProfile from "./pages/gym-plus/GymPlusProfile";
+import GymPlusAdminPage from "./pages/GymPlusAdminPage";
+
+// ZIANTGYM+ 회원앱 (통합관리 시스템과 완전 분리)
+function GymPlusApp() {
+  const [location] = useLocation();
+  const { data: gymMember, isLoading } = trpc.gymPlus.memberMe.useQuery();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground text-sm">로딩 중...</p>
+      </div>
+    );
+  }
+
+  if (location === "/gym-plus/login" || !gymMember) {
+    return <GymPlusLogin />;
+  }
+
+  return (
+    <GymPlusLayout>
+      <ErrorBoundary>
+        <Switch>
+          <Route path="/gym-plus">{() => <GymPlusDashboard />}</Route>
+          <Route path="/gym-plus/videos">{() => <GymPlusVideos />}</Route>
+          <Route path="/gym-plus/videos/:id">
+            {(params) => <GymPlusVideoPlayer videoId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/gym-plus/events">{() => <GymPlusEvents />}</Route>
+          <Route path="/gym-plus/events/:id">
+            {(params) => <GymPlusEventDetail eventId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/gym-plus/workout">{() => <GymPlusWorkout />}</Route>
+          <Route path="/gym-plus/membership">{() => <GymPlusMembership />}</Route>
+          <Route path="/gym-plus/profile">{() => <GymPlusProfile />}</Route>
+          <Route>{() => <Redirect to="/gym-plus" />}</Route>
+        </Switch>
+      </ErrorBoundary>
+    </GymPlusLayout>
+  );
+}
 
 function App() {
   const [reportMatch, reportParams] = useRoute("/report/:token");
+  const [location] = useLocation();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
+
+  // ZIANTGYM+ 회원앱 (Layout 밖에서 독립 렌더)
+  if (location.startsWith("/gym-plus")) {
+    return <GymPlusApp />;
+  }
+
+  // ZIANTGYM+ 어드민 (Layout 밖에서 독립 렌더)
+  if (location === "/admin/gymplus") {
+    return <GymPlusAdminPage />;
+  }
 
   // 공개 보고서 / 계약서 페이지 - 인증 불필요
   if (reportMatch && reportParams) {

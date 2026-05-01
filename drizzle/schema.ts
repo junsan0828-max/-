@@ -379,3 +379,70 @@ export const noticeReads = pgTable("notice_reads", {
   userId: integer("userId").notNull(),
   readAt: text("readAt").default(now).notNull(),
 });
+
+// ─── ZIANTGYM+ 회원앱 ─────────────────────────────────────────────────────────
+
+export const gymPlusMembers = pgTable("gym_plus_members", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  memberId: integer("memberId"), // 기존 members 테이블 연결 (선택)
+  membershipType: text("membershipType").default("general").notNull(),
+  membershipStart: text("membershipStart"),
+  membershipEnd: text("membershipEnd"),
+  isActive: integer("isActive").default(1).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const gymPlusVideoCategories = pgTable("gym_plus_video_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusVideos = pgTable("gym_plus_videos", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("categoryId"),
+  title: text("title").notNull(),
+  description: text("description"),
+  videoUrl: text("videoUrl").notNull(),
+  thumbnailUrl: text("thumbnailUrl"),
+  duration: integer("duration"),
+  level: text("level").default("beginner"),
+  bodyPart: text("bodyPart"),
+  isPublished: integer("isPublished").default(1).notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusEvents = pgTable("gym_plus_events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  imageUrl: text("imageUrl"),
+  eventType: text("eventType").default("notice"),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  isPublished: integer("isPublished").default(1).notNull(),
+  isPinned: integer("isPinned").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  logDate: text("logDate").notNull(),
+  title: text("title").notNull(),
+  exercisesJson: text("exercisesJson"),
+  durationMinutes: integer("durationMinutes"),
+  caloriesBurned: integer("caloriesBurned"),
+  bodyWeight: text("bodyWeight"),
+  notes: text("notes"),
+  mood: text("mood"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
