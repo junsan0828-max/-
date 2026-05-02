@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
-import { Plus, CheckCircle2, Circle, Bell, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Plus, CheckCircle2, Circle, Bell, ChevronDown, ChevronUp, Trash2, X } from "lucide-react";
 
 const CATEGORIES = ["상담", "수업", "회원관리", "청소/정리", "마케팅", "매출/등록", "교육", "기타"];
 
@@ -100,6 +100,8 @@ export default function MyWorkPage() {
   const [showDone, setShowDone] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [taskForm, setTaskForm] = useState(defaultTaskForm);
+  const [selectedNotice, setSelectedNotice] = useState<any>(null);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
 
   const { data: allTasks, isLoading } = trpc.gym.work.tasks.list.useQuery();
   const { data: noticeList } = trpc.gym.work.notices.list.useQuery();
@@ -228,7 +230,7 @@ export default function MyWorkPage() {
             </div>
           ) : (
             <>
-              {pendingTasks.map(row => <TaskCard key={row.task.id} row={row} onComplete={() => completeMutation.mutate({ id: row.task.id })} onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }} />)}
+              {pendingTasks.map(row => <TaskCard key={row.task.id} row={row} onComplete={() => completeMutation.mutate({ id: row.task.id })} onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }} onOpen={() => setSelectedTask(row)} />)}
 
               {doneTasks.length > 0 && (
                 <div>
@@ -240,7 +242,8 @@ export default function MyWorkPage() {
                   {showDone && doneTasks.map(row => (
                     <TaskCard key={row.task.id} row={row} done
                       onUncomplete={() => uncompleteMutation.mutate({ id: row.task.id })}
-                      onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }} />
+                      onDelete={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: row.task.id }); }}
+                      onOpen={() => setSelectedTask(row)} />
                   ))}
                 </div>
               )}
@@ -268,8 +271,11 @@ export default function MyWorkPage() {
                 return (
                   <div
                     key={n.notice.id}
-                    onClick={() => { if (!n.isRead) markReadMutation.mutate({ noticeId: n.notice.id }); }}
-                    className={`bg-card border rounded-xl p-4 space-y-2 ${n.isRead ? "border-border opacity-60" : "border-border active:bg-accent cursor-pointer hover:bg-accent/50 transition-colors"}`}
+                    onClick={() => {
+                      setSelectedNotice(n);
+                      if (!n.isRead) markReadMutation.mutate({ noticeId: n.notice.id });
+                    }}
+                    className={`bg-card border rounded-xl p-4 space-y-2 cursor-pointer hover:bg-accent/50 active:bg-accent transition-colors ${n.isRead ? "border-border opacity-70" : "border-border"}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -280,7 +286,7 @@ export default function MyWorkPage() {
                         {n.isRead ? "확인 완료" : "탭하여 확인"}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{n.notice.content}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{n.notice.content}</p>
                     <p className="text-xs text-muted-foreground">
                       {n.authorName} · {n.notice.createdAt.substring(0, 10)}
                     </p>
@@ -288,6 +294,89 @@ export default function MyWorkPage() {
                 );
               })
           )}
+        </div>
+      )}
+
+      {/* 공지 상세 모달 */}
+      {selectedNotice && (
+        <div className="fixed inset-0 z-[300] bg-black/60 flex items-end justify-center" onClick={() => setSelectedNotice(null)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-border shrink-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${(NOTICE_PRIORITY[selectedNotice.notice.priority] ?? NOTICE_PRIORITY.normal).style}`}>
+                  {(NOTICE_PRIORITY[selectedNotice.notice.priority] ?? NOTICE_PRIORITY.normal).label}
+                </span>
+                <h3 className="font-semibold text-foreground leading-snug">{selectedNotice.notice.title}</h3>
+              </div>
+              <button onClick={() => setSelectedNotice(null)} className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+              <p className="text-xs text-muted-foreground">{selectedNotice.authorName} · {selectedNotice.notice.createdAt.substring(0, 10)}</p>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{selectedNotice.notice.content}</p>
+            </div>
+            <div className="p-4 border-t border-border shrink-0">
+              <button onClick={() => setSelectedNotice(null)}
+                className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-bold hover:bg-primary/90">
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 업무 상세 모달 */}
+      {selectedTask && (
+        <div className="fixed inset-0 z-[300] bg-black/60 flex items-end justify-center" onClick={() => setSelectedTask(null)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-border shrink-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CAT_COLOR[selectedTask.task.category] ?? CAT_COLOR["기타"]}`}>
+                  {selectedTask.task.category}
+                </span>
+                <span className={`inline-block w-2 h-2 rounded-full ${(PRIORITY_META[selectedTask.task.priority] ?? PRIORITY_META.normal).dot}`} />
+                <span className="text-xs text-muted-foreground">{(PRIORITY_META[selectedTask.task.priority] ?? PRIORITY_META.normal).label}</span>
+                {selectedTask.task.isRecurring === 1 && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">반복</span>}
+              </div>
+              <button onClick={() => setSelectedTask(null)} className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+              <p className={`text-base font-semibold text-foreground ${selectedTask.effectiveStatus === "done" ? "line-through text-muted-foreground" : ""}`}>
+                {selectedTask.task.title}
+              </p>
+              {selectedTask.task.dueTime && (
+                <p className="text-xs text-muted-foreground">⏰ 마감 시간: {selectedTask.task.dueTime}</p>
+              )}
+              {selectedTask.task.taskDate && selectedTask.task.isRecurring !== 1 && (
+                <p className="text-xs text-muted-foreground">📅 날짜: {selectedTask.task.taskDate}</p>
+              )}
+              {selectedTask.task.description && (
+                <div className="bg-background rounded-xl p-4">
+                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{selectedTask.task.description}</p>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-border shrink-0 flex gap-2">
+              {selectedTask.effectiveStatus !== "done" ? (
+                <button onClick={() => { completeMutation.mutate({ id: selectedTask.task.id }); setSelectedTask(null); }}
+                  className="flex-1 bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-400">
+                  완료 처리
+                </button>
+              ) : (
+                <button onClick={() => { uncompleteMutation.mutate({ id: selectedTask.task.id }); setSelectedTask(null); }}
+                  className="flex-1 bg-background border border-border text-foreground rounded-xl py-3 text-sm font-bold hover:bg-accent">
+                  완료 취소
+                </button>
+              )}
+              <button onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: selectedTask.task.id }); setSelectedTask(null); } }}
+                className="px-5 py-3 rounded-xl border border-red-500/30 text-red-400 text-sm font-medium hover:bg-red-500/10">
+                삭제
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -385,18 +474,19 @@ export default function MyWorkPage() {
   );
 }
 
-function TaskCard({ row, done, onComplete, onUncomplete, onDelete }: {
+function TaskCard({ row, done, onComplete, onUncomplete, onDelete, onOpen }: {
   row: any; done?: boolean;
-  onComplete?: () => void; onUncomplete?: () => void; onDelete?: () => void;
+  onComplete?: () => void; onUncomplete?: () => void; onDelete?: () => void; onOpen?: () => void;
 }) {
   const tk = row.task;
   const pm = PRIORITY_META[tk.priority] ?? PRIORITY_META.normal;
   const catColor = CAT_COLOR[tk.category] ?? CAT_COLOR["기타"];
 
   return (
-    <div className={`bg-card border rounded-xl p-4 transition-opacity ${done ? "opacity-50" : "border-border"}`}>
+    <div className={`bg-card border rounded-xl p-4 transition-opacity cursor-pointer hover:bg-accent/30 active:bg-accent/50 ${done ? "opacity-50" : "border-border"}`}
+      onClick={onOpen}>
       <div className="flex items-start gap-3">
-        <button onClick={done ? onUncomplete : onComplete}
+        <button onClick={e => { e.stopPropagation(); (done ? onUncomplete : onComplete)?.(); }}
           className="mt-0.5 shrink-0 hover:scale-110 transition-transform">
           {done
             ? <CheckCircle2 className="h-6 w-6 text-emerald-400" />
@@ -413,7 +503,7 @@ function TaskCard({ row, done, onComplete, onUncomplete, onDelete }: {
           {tk.dueTime && <p className="text-xs text-muted-foreground mt-0.5">⏰ {tk.dueTime}</p>}
           {tk.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{tk.description}</p>}
         </div>
-        <button onClick={onDelete} className="text-muted-foreground hover:text-red-400 p-1 shrink-0">
+        <button onClick={e => { e.stopPropagation(); onDelete?.(); }} className="text-muted-foreground hover:text-red-400 p-1 shrink-0">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
