@@ -59,6 +59,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const consultantNavItems = [
     { path: "/my-work", label: "나의 업무", icon: ListChecks },
     { path: "/leads", label: "상담관리", icon: UserPlus },
+    { path: "/members", label: "회원관리", icon: Users },
     { path: "/revenue", label: "매출입력", icon: TrendingUp },
   ];
 
