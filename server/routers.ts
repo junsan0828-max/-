@@ -144,14 +144,15 @@ const membersRouter = t.router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const { role, trainerId } = ctx.user;
 
-    return db
-      .select()
-      .from(members)
-      .where(eq(members.trainerId, trainerId))
-      .orderBy(desc(members.createdAt));
+    if (role === "trainer") {
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      return db.select().from(members).where(eq(members.trainerId, trainerId)).orderBy(desc(members.createdAt));
+    }
+
+    // admin, sub_admin, consultant: 전체 회원 반환
+    return db.select().from(members).orderBy(desc(members.createdAt));
   }),
 
   listAll: protectedProcedure
