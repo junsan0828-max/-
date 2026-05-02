@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList, MapPin, ExternalLink } from "lucide-react";
+import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList, MapPin, ExternalLink, Lock } from "lucide-react";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -178,8 +178,26 @@ export default function Admin() {
   // 관리자 권한 확인
   if (user?.role !== "admin" && user?.role !== "sub_admin") {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <p>관리자만 접근할 수 있습니다.</p>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">관리자 설정</h1>
+          <a
+            href="https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-semibold transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+            ZIANTGYM+
+          </a>
+        </div>
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+            <Lock className="h-6 w-6 text-red-400" />
+          </div>
+          <p className="font-semibold text-foreground">접근 권한이 없습니다</p>
+          <p className="text-sm text-muted-foreground">관리자 설정은 관리자만 접근할 수 있습니다.</p>
+        </div>
       </div>
     );
   }

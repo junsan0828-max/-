@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import ExpensesPage from "./Expenses";
 import {
   Plus, ChevronLeft, ChevronRight, Search, AlertCircle,
-  TrendingUp, RefreshCw, Dumbbell, Heart, MoreHorizontal,
+  TrendingUp, RefreshCw, Dumbbell, Heart, MoreHorizontal, Lock,
 } from "lucide-react";
 
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "분할결제"];
@@ -79,10 +79,11 @@ function RevenueContent() {
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.gym.staff.listConsultants.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
-  const { data: kpi } = trpc.gym.kpi.overview.useQuery(
+  const { data: kpi, error: kpiError } = trpc.gym.kpi.overview.useQuery(
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) },
     { enabled: !isConsultant }
   );
+  const kpiForbidden = (kpiError as any)?.data?.code === "FORBIDDEN";
 
   const createMutation = trpc.gym.revenue.create.useMutation({
     onSuccess: () => { toast.success("매출이 등록되었습니다"); utils.gym.revenue.invalidate(); utils.gym.kpi.invalidate(); resetForm(); },
@@ -241,7 +242,13 @@ function RevenueContent() {
       )}
 
       {/* 요약 카드 - 컨설턴트는 숨김 */}
-      {!isConsultant && (
+      {!isConsultant && kpiForbidden && (
+        <div className="flex items-center gap-3 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3">
+          <Lock className="h-4 w-4 text-red-400 shrink-0" />
+          <p className="text-sm text-red-400 font-medium">접근 권한이 없습니다</p>
+        </div>
+      )}
+      {!isConsultant && !kpiForbidden && (
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-card border border-border rounded-xl p-3">
             <div className="text-xs text-muted-foreground mb-1">이번달 매출</div>

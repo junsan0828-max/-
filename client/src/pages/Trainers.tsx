@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { Lock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,8 +242,25 @@ const TABS = [
 ] as const;
 type Tab = typeof TABS[number]["key"];
 
+function ForbiddenPage({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+      <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+        <Lock className="h-6 w-6 text-red-400" />
+      </div>
+      <p className="font-semibold text-foreground">접근 권한이 없습니다</p>
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
 export default function Trainers() {
+  const { data: user } = trpc.auth.me.useQuery();
   const [tab, setTab] = useState<Tab>("trainers");
+
+  if (user && user.role !== "admin" && user.role !== "sub_admin") {
+    return <ForbiddenPage message="트레이너 관리는 관리자만 접근할 수 있습니다." />;
+  }
 
   return (
     <div className="space-y-4">
