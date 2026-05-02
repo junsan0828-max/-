@@ -63,10 +63,11 @@ const AUTO_GUESS: Record<string, string> = {
 export default function Admin() {
   const [, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
-  const { data: trainers, refetch } = trpc.admin.listTrainers.useQuery();
-  const { data: branchList, refetch: refetchBranches } = trpc.admin.listBranches.useQuery();
-  const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery();
-  const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
+  const isAdmin = user?.role === "admin";
+  const { data: trainers, refetch } = trpc.admin.listTrainers.useQuery(undefined, { enabled: isAdmin });
+  const { data: branchList, refetch: refetchBranches } = trpc.admin.listBranches.useQuery(undefined, { enabled: isAdmin });
+  const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery(undefined, { enabled: isAdmin });
+  const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery(undefined, { enabled: isAdmin });
   const { data: unclassifiedMembers, refetch: refetchUnclassified } = trpc.members.listUnclassified.useQuery();
   const utils = trpc.useUtils();
 
@@ -788,10 +789,10 @@ export default function Admin() {
       </Card>
 
       {/* 컨설턴트 계정 관리 */}
-      <ConsultantSection />
+      {isAdmin && <ConsultantSection />}
 
       {/* 부관리자 계정 관리 */}
-      <SubAdminSection />
+      {isAdmin && <SubAdminSection />}
       </>)}
     </div>
   );
