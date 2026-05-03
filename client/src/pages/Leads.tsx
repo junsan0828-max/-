@@ -962,7 +962,7 @@ export default function LeadsPage() {
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground">운동 종료일 <span className="text-primary text-xs">(자동계산)</span></label>
+                  <label className="text-xs text-muted-foreground">운동 만료일 <span className="text-primary text-xs">(자동계산)</span></label>
                   <input type="date" value={directForm.membershipEnd} readOnly
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground opacity-60 cursor-not-allowed" />
                 </div>

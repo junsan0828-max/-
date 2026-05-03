@@ -249,7 +249,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   <SelectContent>
                     <SelectItem value="male">남성</SelectItem>
                     <SelectItem value="female">여성</SelectItem>
-                    <SelectItem value="other">기타</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -339,7 +338,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">
-                  운동 종료일 <span className="text-primary text-xs">(자동계산)</span>
+                  운동 만료일 <span className="text-primary text-xs">(자동계산)</span>
                 </Label>
                 <Input
                   id="membershipEnd"
