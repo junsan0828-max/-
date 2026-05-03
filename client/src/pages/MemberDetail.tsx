@@ -48,6 +48,9 @@ import {
   ArrowLeft,
   Crown,
   Activity,
+  FileHeart,
+  Sparkles,
+  Loader2,
   Calendar,
   User,
   Phone,
@@ -188,6 +191,13 @@ export default function MemberDetail({ memberId }: Props) {
     exercises: [] as Exercise[],
     feedback: "",
     notes: "",
+  });
+
+  // 건강보고서
+  const [healthReport, setHealthReport] = useState<{ report: string; isAI: boolean; stats: any } | null>(null);
+  const healthReportMutation = trpc.gym.ai.generateMemberReport.useMutation({
+    onSuccess: (data) => setHealthReport(data),
+    onError: (err: any) => toast.error(err.message || "보고서 생성 실패"),
   });
 
   // 메모 검색
@@ -506,7 +516,7 @@ export default function MemberDetail({ memberId }: Props) {
               if (shareToken) { setShareOpen(true); }
               else { generateReportMutation.mutate({ memberId }); }
             }}
-            disabled={generateReportMutation.isPending}
+            disabled={healthReportMutation.isPending}
             className="gap-1.5"
           >
             <Share2 className="h-3.5 w-3.5" />
@@ -887,7 +897,7 @@ export default function MemberDetail({ memberId }: Props) {
                             <Button
                               size="sm"
                               className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white"
-                              disabled={generateReportMutation.isPending}
+                              disabled={healthReportMutation.isPending}
                               onClick={() => {
                                 if (shareToken) { setShareOpen(true); }
                                 else { generateReportMutation.mutate({ memberId }); }
@@ -990,6 +1000,81 @@ export default function MemberDetail({ memberId }: Props) {
                   <span className={`font-medium ${stats?.reregistered ? "text-primary" : "text-muted-foreground"}`}>{stats?.reregistered ? `재등록 ${stats.reregistrationCount}회` : "첫 등록"}</span>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* 건강 보고서 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 pb-2 pt-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FileHeart className="h-4 w-4 text-primary" />건강 보고서
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 text-xs"
+                  disabled={healthReportMutation.isPending}
+                  onClick={() => healthReportMutation.mutate({ memberId })}
+                >
+                  {healthReportMutation.isPending
+                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />생성 중...</>
+                    : <><Sparkles className="h-3.5 w-3.5 text-primary" />AI 보고서 생성</>}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {!healthReport && !healthReportMutation.isPending && (
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  AI 보고서 생성 버튼을 눌러 건강·트레이닝 분석 보고서를 만들어보세요.
+                </p>
+              )}
+              {healthReportMutation.isPending && (
+                <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />AI가 보고서를 작성하고 있습니다...
+                </div>
+              )}
+              {healthReport && !healthReportMutation.isPending && (
+                <div className="space-y-4">
+                  {/* 트레이닝 통계 요약 */}
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    {[
+                      { label: "총 수업", value: `${healthReport.stats.totalSessions}회` },
+                      { label: "컨디션 평균", value: healthReport.stats.avgCondition != null ? `${healthReport.stats.avgCondition}/10` : "-" },
+                      { label: "통증 평균", value: healthReport.stats.avgPain != null ? `${healthReport.stats.avgPain}/10` : "-" },
+                    ].map(item => (
+                      <div key={item.label} className="p-2 rounded-lg bg-accent/20 border border-border text-center">
+                        <p className="text-muted-foreground mb-0.5">{item.label}</p>
+                        <p className="font-bold text-sm">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {healthReport.stats.topBodyParts.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">주요 운동 부위</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {healthReport.stats.topBodyParts.map((p: string) => (
+                          <span key={p} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{p}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* AI 리포트 텍스트 */}
+                  <div className="space-y-3 pt-2 border-t border-border/50">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-semibold text-primary">{healthReport.isAI ? "AI 분석 결과" : "자동 생성 보고서"}</span>
+                    </div>
+                    <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                      {healthReport.report.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
+                        part.startsWith("**") && part.endsWith("**")
+                          ? <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>
+                          : <span key={i}>{part}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
