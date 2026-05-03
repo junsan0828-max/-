@@ -464,54 +464,45 @@ async function initDatabase() {
     console.error("PT 매출 누락 회원 생성 오류:", e);
   }
 
-  // ── 기존 회원 회원권 시작일/만료일 자동 보정 ──────────────────────────────
+  // ── 전체 회원 운동시작일/운동만료일 자동 보정 (전체 적용) ─────────────────
   try {
-    // 1) membershipStart가 NULL인 회원: 첫 수업일로 설정
-    const noStartMembers = await db
-      .select({ id: members.id })
-      .from(members)
-      .where(isNull(members.membershipStart));
+    const allMembers = await db
+      .select({ id: members.id, membershipStart: members.membershipStart })
+      .from(members);
 
-    for (const m of noStartMembers) {
+    for (const m of allMembers) {
+      // 1) 운동시작일: 첫 PT 세션 날짜로 설정 (없으면 유지)
       const firstSession = await db
         .select({ sessionDate: ptSessionLogs.sessionDate })
         .from(ptSessionLogs)
         .where(eq(ptSessionLogs.memberId, m.id))
         .orderBy(ptSessionLogs.sessionDate)
         .limit(1);
-      if (firstSession[0]?.sessionDate) {
+
+      const startDate = firstSession[0]?.sessionDate ?? m.membershipStart;
+      if (firstSession[0]?.sessionDate && firstSession[0].sessionDate !== m.membershipStart) {
         await db.update(members).set({ membershipStart: firstSession[0].sessionDate }).where(eq(members.id, m.id));
       }
-    }
 
-    // 2) membershipEnd가 NULL인 회원: 패키지 총 세션 합산 → 10회=1개월
-    const noEndMembers = await db
-      .select({ id: members.id, membershipStart: members.membershipStart })
-      .from(members)
-      .where(isNull(members.membershipEnd));
-
-    for (const m of noEndMembers) {
+      // 2) 운동만료일: 운동시작일 + (totalSessions ÷ 2)주 (10회=5주, 20회=10주...)
+      if (!startDate) continue;
       const pkgRows = await db
-        .select({ totalSessions: ptPackages.totalSessions, startDate: ptPackages.startDate })
+        .select({ totalSessions: ptPackages.totalSessions })
         .from(ptPackages)
-        .where(eq(ptPackages.memberId, m.id))
-        .orderBy(ptPackages.createdAt);
-
-      if (!pkgRows.length) continue;
+        .where(eq(ptPackages.memberId, m.id));
 
       const totalSessions = pkgRows.reduce((s, p) => s + (p.totalSessions ?? 0), 0);
       if (!totalSessions) continue;
 
-      const months = Math.ceil(totalSessions / 10);
-      const baseDate = pkgRows[0].startDate || m.membershipStart || new Date().toISOString().substring(0, 10);
-      const d = new Date(baseDate);
-      d.setMonth(d.getMonth() + months);
+      const weeks = Math.round(totalSessions / 2);
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + weeks * 7);
       await db.update(members).set({ membershipEnd: d.toISOString().substring(0, 10) }).where(eq(members.id, m.id));
     }
 
-    console.log("✅ 회원권 날짜 보정 완료");
+    console.log("✅ 전체 회원 운동시작일/만료일 보정 완료");
   } catch (e) {
-    console.warn("⚠️ 회원권 날짜 보정 실패:", e);
+    console.warn("⚠️ 운동날짜 보정 실패:", e);
   }
 
   // 관리자 계정 생성 (없으면 초기 씨드)
