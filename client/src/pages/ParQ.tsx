@@ -87,6 +87,9 @@ const BODY_PARTS_NO_HEAD = [
 
 const BODY_PARTS_WITH_HEAD = ["머리", ...BODY_PARTS_NO_HEAD];
 
+const FRONT_PARTS = ["목", "어깨", "가슴", "팔/팔꿈치", "복부", "골반", "고관절", "대퇴", "무릎위", "무릎", "무릎아래", "정강이", "발목", "발"];
+const BACK_PARTS = ["목", "상부등", "등", "팔/팔꿈치", "허리", "엉치", "엉덩이", "장경인대", "햄스트링", "오금", "무릎아래", "종아리", "발목", "발"];
+
 // ─── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -141,6 +144,50 @@ function CheckboxGroup({ title, items, value, onChange }: {
             </label>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function RtLtGrid({ title, parts, rtValue, ltValue, onRtChange, onLtChange }: {
+  title: string; parts: string[];
+  rtValue: string; ltValue: string;
+  onRtChange: (v: string) => void; onLtChange: (v: string) => void;
+}) {
+  const rtSel = rtValue ? rtValue.split(",").filter(Boolean) : [];
+  const ltSel = ltValue ? ltValue.split(",").filter(Boolean) : [];
+  const toggleRt = (p: string) => {
+    const n = rtSel.includes(p) ? rtSel.filter(x => x !== p) : [...rtSel, p];
+    onRtChange(n.join(","));
+  };
+  const toggleLt = (p: string) => {
+    const n = ltSel.includes(p) ? ltSel.filter(x => x !== p) : [...ltSel, p];
+    onLtChange(n.join(","));
+  };
+  const Cb = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => (
+    <button type="button" onClick={onToggle}
+      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${on ? "bg-primary border-primary" : "border-border hover:border-primary/50"}`}>
+      {on && <svg className="w-3 h-3 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
+        <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
+      </svg>}
+    </button>
+  );
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="grid grid-cols-3 bg-muted/30 border-b border-border">
+          <div className="px-3 py-2" />
+          <div className="py-2 text-xs font-semibold text-muted-foreground text-center">RT</div>
+          <div className="py-2 text-xs font-semibold text-muted-foreground text-center">LT</div>
+        </div>
+        {parts.map((part, i) => (
+          <div key={part} className={`grid grid-cols-3 items-center ${i < parts.length - 1 ? "border-b border-border/40" : ""} ${i % 2 === 1 ? "bg-muted/10" : ""}`}>
+            <div className="px-3 py-2.5 text-sm text-foreground">{part}</div>
+            <div className="flex justify-center py-2.5"><Cb on={rtSel.includes(part)} onToggle={() => toggleRt(part)} /></div>
+            <div className="flex justify-center py-2.5"><Cb on={ltSel.includes(part)} onToggle={() => toggleLt(part)} /></div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -431,13 +478,42 @@ export default function ParQ({ memberId }: Props) {
           </Section>
         </div>
 
-        {/* ⑦ 체형 문제 (추가 이미지 확인 후 업데이트 예정) */}
-        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+        {/* ⑦ 체형 문제 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-5">
           <Section title="체형 문제">
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">전면 / 후면 체형 문제</label>
-              <Input value={form.posturalIssues} onChange={e => set("posturalIssues")(e.target.value)}
-                placeholder="예: 거북목, 라운드숄더, 골반 틀어짐 등" className="text-sm" />
+            <RtLtGrid
+              title="전면 체형 문제 확인"
+              parts={FRONT_PARTS}
+              rtValue={form.posturalIssues.split("|")[0] ?? ""}
+              ltValue={form.posturalIssues.split("|")[1] ?? ""}
+              onRtChange={v => {
+                const p = form.posturalIssues.split("|");
+                p[0] = v; p[1] = p[1] ?? ""; p[2] = p[2] ?? ""; p[3] = p[3] ?? "";
+                set("posturalIssues")(p.join("|"));
+              }}
+              onLtChange={v => {
+                const p = form.posturalIssues.split("|");
+                p[0] = p[0] ?? ""; p[1] = v; p[2] = p[2] ?? ""; p[3] = p[3] ?? "";
+                set("posturalIssues")(p.join("|"));
+              }}
+            />
+            <div className="border-t border-border/50 pt-4">
+              <RtLtGrid
+                title="후면 체형 문제 확인"
+                parts={BACK_PARTS}
+                rtValue={form.posturalIssues.split("|")[2] ?? ""}
+                ltValue={form.posturalIssues.split("|")[3] ?? ""}
+                onRtChange={v => {
+                  const p = form.posturalIssues.split("|");
+                  p[0] = p[0] ?? ""; p[1] = p[1] ?? ""; p[2] = v; p[3] = p[3] ?? "";
+                  set("posturalIssues")(p.join("|"));
+                }}
+                onLtChange={v => {
+                  const p = form.posturalIssues.split("|");
+                  p[0] = p[0] ?? ""; p[1] = p[1] ?? ""; p[2] = p[2] ?? ""; p[3] = v;
+                  set("posturalIssues")(p.join("|"));
+                }}
+              />
             </div>
           </Section>
         </div>
