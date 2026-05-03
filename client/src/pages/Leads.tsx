@@ -3,7 +3,7 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   Plus, Search, Phone, MessageSquare, CheckCircle2,
-  Clock, XCircle, UserCheck, ChevronLeft, ChevronRight,
+  Clock, XCircle, UserCheck, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -199,10 +199,24 @@ export default function LeadsPage() {
   const regPendingRef = useRef<RegForm | null>(null);
   const pendingEditIdRef = useRef<number | null>(null);
 
+  // 바로등록 모달
+  const [showDirectReg, setShowDirectReg] = useState(false);
+  const defaultDirectForm = { name: "", phone: "", birthDate: "", gender: "" as "" | "male" | "female" | "other", grade: "basic" as "basic" | "vip", status: "active" as "active" | "paused", visitRoute: "", profileNote: "", trainerId: "" };
+  const [directForm, setDirectForm] = useState(defaultDirectForm);
+
   const { data: leadsData, isLoading } = trpc.gym.leads.list.useQuery({ year, month });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
+
+  const directRegMutation = trpc.members.create.useMutation({
+    onSuccess: (data) => {
+      toast.success("회원이 등록되었습니다.");
+      setShowDirectReg(false);
+      setDirectForm(defaultDirectForm);
+    },
+    onError: (e) => toast.error(e.message || "등록 실패"),
+  });
 
   const createRevenueMutation = trpc.gym.revenue.create.useMutation({
     onSuccess: () => { toast.success("등록 완료 및 매출 저장"); utils.gym.leads.invalidate(); utils.gym.revenue.invalidate(); resetForm(); },
@@ -405,13 +419,22 @@ export default function LeadsPage() {
           <h1 className="text-xl font-bold text-foreground">상담 CRM</h1>
           <p className="text-xs text-muted-foreground">월별 상담 및 전환 관리</p>
         </div>
-        <button
-          onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, consultationDate: new Date().toISOString().substring(0, 10) }); }}
-          className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          상담 추가
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowDirectReg(true); setDirectForm(defaultDirectForm); }}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium"
+          >
+            <UserCheck className="h-4 w-4" />
+            바로등록
+          </button>
+          <button
+            onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, consultationDate: new Date().toISOString().substring(0, 10) }); }}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            상담 추가
+          </button>
+        </div>
       </div>
 
       {/* 월 선택 */}
@@ -811,6 +834,107 @@ export default function LeadsPage() {
               <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 바로등록 모달 */}
+      {showDirectReg && (
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" onClick={() => setShowDirectReg(false)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
+              <h2 className="font-semibold text-foreground">회원 바로등록</h2>
+              <button onClick={() => setShowDirectReg(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+              {/* 이름 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">이름 <span className="text-primary">*</span></label>
+                <input value={directForm.name} onChange={e => setDirectForm(f => ({ ...f, name: e.target.value }))} placeholder="홍길동"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 연락처 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">연락처</label>
+                <input value={directForm.phone} onChange={e => setDirectForm(f => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 생년월일 + 만나이 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">생년월일</label>
+                <input type="date" value={directForm.birthDate} onChange={e => setDirectForm(f => ({ ...f, birthDate: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                {directForm.birthDate && (() => {
+                  const b = new Date(directForm.birthDate), t = new Date();
+                  let age = t.getFullYear() - b.getFullYear();
+                  const mo = t.getMonth() - b.getMonth();
+                  if (mo < 0 || (mo === 0 && t.getDate() < b.getDate())) age--;
+                  return <p className="text-xs text-primary">만 {age}세</p>;
+                })()}
+              </div>
+              {/* 성별 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">성별</label>
+                <div className="flex gap-2">
+                  {[["male","남성"],["female","여성"],["other","기타"]].map(([v,l]) => (
+                    <button key={v} type="button" onClick={() => setDirectForm(f => ({ ...f, gender: f.gender === v ? "" : v as any }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${directForm.gender === v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>{l}</button>
+                  ))}
+                </div>
+              </div>
+              {/* 등급 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">등급</label>
+                <div className="flex gap-2">
+                  {[["basic","기본"],["vip","VIP"]].map(([v,l]) => (
+                    <button key={v} type="button" onClick={() => setDirectForm(f => ({ ...f, grade: v as any }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${directForm.grade === v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>{l}</button>
+                  ))}
+                </div>
+              </div>
+              {/* 담당 트레이너 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">담당 트레이너 <span className="text-primary">*</span></label>
+                <select value={directForm.trainerId} onChange={e => setDirectForm(f => ({ ...f, trainerId: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">트레이너 선택</option>
+                  {(trainers ?? []).map(t => <option key={t.id} value={t.id}>{t.trainerName}</option>)}
+                </select>
+              </div>
+              {/* 유입경로 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">유입경로</label>
+                <input value={directForm.visitRoute} onChange={e => setDirectForm(f => ({ ...f, visitRoute: e.target.value }))} placeholder="지인 소개, SNS, 검색 등"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 특이사항 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">특이사항</label>
+                <textarea value={directForm.profileNote} onChange={e => setDirectForm(f => ({ ...f, profileNote: e.target.value }))} rows={2} placeholder="특이사항 입력"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+              </div>
+            </div>
+            <div className="p-4 border-t border-border shrink-0">
+              <button type="button" disabled={directRegMutation.isPending}
+                onClick={() => {
+                  if (!directForm.name.trim()) return toast.error("이름을 입력해주세요.");
+                  if (!directForm.trainerId) return toast.error("담당 트레이너를 선택해주세요.");
+                  directRegMutation.mutate({
+                    name: directForm.name.trim(),
+                    phone: directForm.phone || undefined,
+                    birthDate: directForm.birthDate || undefined,
+                    gender: directForm.gender || undefined,
+                    grade: directForm.grade,
+                    status: directForm.status,
+                    visitRoute: directForm.visitRoute || undefined,
+                    profileNote: directForm.profileNote || undefined,
+                    adminTrainerId: parseInt(directForm.trainerId),
+                  });
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
+                {directRegMutation.isPending ? "등록 중..." : "회원 등록"}
               </button>
             </div>
           </div>

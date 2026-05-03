@@ -299,8 +299,9 @@ const membersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 관리자는 adminTrainerId 필수, 트레이너는 본인 ID 사용
-      const trainerId = ctx.user.role === "admin"
+      // admin/sub_admin/consultant: adminTrainerId 필수, trainer: 본인 ID 사용
+      const isStaff = ctx.user.role === "admin" || ctx.user.role === "sub_admin" || ctx.user.role === "consultant";
+      const trainerId = isStaff
         ? input.adminTrainerId ?? (() => { throw new TRPCError({ code: "BAD_REQUEST", message: "담당 트레이너를 선택해주세요." }); })()
         : ctx.user.trainerId ?? (() => { throw new TRPCError({ code: "FORBIDDEN" }); })();
 
