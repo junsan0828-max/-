@@ -218,6 +218,14 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   onChange={(e) => setForm((p) => ({ ...p, birthDate: e.target.value }))}
                   className="bg-input border-border"
                 />
+                {form.birthDate && (() => {
+                  const birth = new Date(form.birthDate);
+                  const today = new Date();
+                  let age = today.getFullYear() - birth.getFullYear();
+                  const mo = today.getMonth() - birth.getMonth();
+                  if (mo < 0 || (mo === 0 && today.getDate() < birth.getDate())) age--;
+                  return <p className="text-xs text-primary mt-1">만 {age}세</p>;
+                })()}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">성별</Label>
@@ -249,7 +257,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="basic">기본</SelectItem>
-                    <SelectItem value="premium">프리미엄</SelectItem>
                     <SelectItem value="vip">VIP</SelectItem>
                   </SelectContent>
                 </Select>
@@ -269,20 +276,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm text-muted-foreground">
-                이메일
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                placeholder="example@email.com"
-                className="bg-input border-border"
-              />
             </div>
 
             <div className="space-y-1.5">

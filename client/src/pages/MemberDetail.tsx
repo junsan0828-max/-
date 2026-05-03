@@ -643,6 +643,9 @@ export default function MemberDetail({ memberId }: Props) {
                   label="총 결제 금액"
                   value={ptPackages ? `${ptPackages.reduce((sum, p) => sum + (p.paymentAmount ?? 0), 0).toLocaleString()}원` : "-"}
                 />
+                {(member as any).visitRoute && (
+                  <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={(member as any).visitRoute} />
+                )}
               </div>
               {member.profileNote && (
                 <div className="mt-4 p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
