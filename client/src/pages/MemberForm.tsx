@@ -336,7 +336,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   }}
                   className="bg-input border-border"
                 />
-                <p className="text-xs text-muted-foreground">미입력 시 첫 출석 체크일 자동 적용</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">
