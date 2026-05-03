@@ -201,7 +201,15 @@ export default function LeadsPage() {
 
   // 바로등록 모달
   const [showDirectReg, setShowDirectReg] = useState(false);
-  const defaultDirectForm = { name: "", phone: "", birthDate: "", gender: "" as "" | "male" | "female" | "other", grade: "basic" as "basic" | "vip", status: "active" as "active" | "paused", visitRoute: "", profileNote: "", trainerId: "" };
+  const defaultDirectForm = {
+    name: "", phone: "", birthDate: "", gender: "" as "" | "male" | "female" | "other",
+    grade: "basic" as "basic" | "vip", status: "active" as "active" | "paused",
+    visitRoute: "", profileNote: "", trainerId: "",
+    membershipStart: "", membershipEnd: "",
+    ptProgram: "", ptSessions: "", paymentAmount: "", unpaidAmount: "",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentDate: "", paymentMemo: "",
+  };
   const [directForm, setDirectForm] = useState(defaultDirectForm);
 
   const { data: leadsData, isLoading } = trpc.gym.leads.list.useQuery({ year, month });
@@ -915,6 +923,86 @@ export default function LeadsPage() {
                 <textarea value={directForm.profileNote} onChange={e => setDirectForm(f => ({ ...f, profileNote: e.target.value }))} rows={2} placeholder="특이사항 입력"
                   className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
+
+              {/* 구분선 */}
+              <div className="border-t border-border pt-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">운동 기간</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">운동 시작일</label>
+                  <input type="date" value={directForm.membershipStart} onChange={e => setDirectForm(f => ({ ...f, membershipStart: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">운동 종료일</label>
+                  <input type="date" value={directForm.membershipEnd} onChange={e => setDirectForm(f => ({ ...f, membershipEnd: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </div>
+
+              {/* 구분선 */}
+              <div className="border-t border-border pt-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">프로그램 / 결제</p>
+              </div>
+              {/* 프로그램명 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">프로그램명</label>
+                <input value={directForm.ptProgram} onChange={e => setDirectForm(f => ({ ...f, ptProgram: e.target.value }))} placeholder="프로그램명 직접 입력"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                <div className="flex gap-1.5 flex-wrap">
+                  {["케어피티", "웨이트피티", "이벤트피티"].map(p => (
+                    <button key={p} type="button" onClick={() => setDirectForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p }))}
+                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>{p}</button>
+                  ))}
+                </div>
+              </div>
+              {/* PT 횟수 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">PT 횟수</label>
+                <input value={directForm.ptSessions} onChange={e => setDirectForm(f => ({ ...f, ptSessions: e.target.value }))} placeholder="횟수 직접 입력" type="number" min="1"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                <div className="flex gap-1.5 flex-wrap">
+                  {[10, 20, 30, 40, 50].map(n => (
+                    <button key={n} type="button" onClick={() => setDirectForm(f => ({ ...f, ptSessions: f.ptSessions === String(n) ? "" : String(n) }))}
+                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.ptSessions === String(n) ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>{n}회</button>
+                  ))}
+                </div>
+              </div>
+              {/* 결제 금액 / 미수금 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">결제 금액</label>
+                  <input type="number" min="0" value={directForm.paymentAmount} onChange={e => setDirectForm(f => ({ ...f, paymentAmount: e.target.value }))} placeholder="0"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">미수금 금액</label>
+                  <input type="number" min="0" value={directForm.unpaidAmount} onChange={e => setDirectForm(f => ({ ...f, unpaidAmount: e.target.value }))} placeholder="0"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </div>
+              {/* 결제방법 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">결제방법</label>
+                <select value={directForm.paymentMethod} onChange={e => setDirectForm(f => ({ ...f, paymentMethod: e.target.value as any }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">결제방법 선택</option>
+                  {["현금영수증", "이체", "지역화폐", "카드"].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              {/* 결제일자 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">결제일자</label>
+                <input type="date" value={directForm.paymentDate} onChange={e => setDirectForm(f => ({ ...f, paymentDate: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 결제 메모 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">결제 메모</label>
+                <input value={directForm.paymentMemo} onChange={e => setDirectForm(f => ({ ...f, paymentMemo: e.target.value }))} placeholder="분납 등 메모"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
             </div>
             <div className="p-4 border-t border-border shrink-0">
               <button type="button" disabled={directRegMutation.isPending}
@@ -930,6 +1018,15 @@ export default function LeadsPage() {
                     status: directForm.status,
                     visitRoute: directForm.visitRoute || undefined,
                     profileNote: directForm.profileNote || undefined,
+                    membershipStart: directForm.membershipStart || undefined,
+                    membershipEnd: directForm.membershipEnd || undefined,
+                    ptProgram: directForm.ptProgram || undefined,
+                    ptSessions: directForm.ptSessions || undefined,
+                    paymentAmount: directForm.paymentAmount ? parseInt(directForm.paymentAmount) : undefined,
+                    unpaidAmount: directForm.unpaidAmount ? parseInt(directForm.unpaidAmount) : undefined,
+                    paymentMethod: directForm.paymentMethod || undefined,
+                    paymentDate: directForm.paymentDate || undefined,
+                    paymentMemo: directForm.paymentMemo || undefined,
                     adminTrainerId: parseInt(directForm.trainerId),
                   });
                 }}
