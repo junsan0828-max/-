@@ -20,6 +20,15 @@ interface Props {
   defaultTrainerId?: number;
 }
 
+function calcEndDate(start: string, sessions: string): string {
+  if (!start || !sessions) return "";
+  const n = parseInt(sessions);
+  if (!n) return "";
+  const d = new Date(start);
+  d.setDate(d.getDate() + Math.round(n / 2) * 7);
+  return d.toISOString().substring(0, 10);
+}
+
 export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!memberId;
@@ -319,20 +328,25 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   id="membershipStart"
                   type="date"
                   value={form.membershipStart}
-                  onChange={(e) => setForm((p) => ({ ...p, membershipStart: e.target.value }))}
+                  onChange={(e) => {
+                    const start = e.target.value;
+                    const end = calcEndDate(start, form.ptSessions);
+                    setForm((p) => ({ ...p, membershipStart: start, membershipEnd: end }));
+                  }}
                   className="bg-input border-border"
                 />
+                <p className="text-xs text-muted-foreground">미입력 시 첫 출석 체크일 자동 적용</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">
-                  운동 종료일
+                  운동 종료일 <span className="text-primary text-xs">(자동계산)</span>
                 </Label>
                 <Input
                   id="membershipEnd"
                   type="date"
                   value={form.membershipEnd}
-                  onChange={(e) => setForm((p) => ({ ...p, membershipEnd: e.target.value }))}
-                  className="bg-input border-border"
+                  readOnly
+                  className="bg-input border-border opacity-60 cursor-not-allowed"
                 />
               </div>
             </div>
@@ -371,7 +385,10 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     type="number"
                     min="1"
                     value={form.ptSessions}
-                    onChange={(e) => setForm((p) => ({ ...p, ptSessions: e.target.value }))}
+                    onChange={(e) => {
+                      const s = e.target.value;
+                      setForm((p) => ({ ...p, ptSessions: s, membershipEnd: calcEndDate(p.membershipStart, s) }));
+                    }}
                     placeholder="횟수 직접 입력"
                     className="bg-input border-border"
                   />
@@ -380,7 +397,10 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                       <button
                         key={preset}
                         type="button"
-                        onClick={() => setForm((p) => ({ ...p, ptSessions: p.ptSessions === preset ? "" : preset }))}
+                        onClick={() => setForm((p) => {
+                          const next = p.ptSessions === preset ? "" : preset;
+                          return { ...p, ptSessions: next, membershipEnd: calcEndDate(p.membershipStart, next) };
+                        })}
                         className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
                           form.ptSessions === preset
                             ? "bg-primary text-primary-foreground border-primary"

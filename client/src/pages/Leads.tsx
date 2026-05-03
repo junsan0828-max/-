@@ -98,6 +98,15 @@ const defaultForm: LeadForm = {
   assignedTrainerId: undefined, assignedConsultantId: undefined,
 };
 
+function calcEndDate(start: string, sessions: string): string {
+  if (!start || !sessions) return "";
+  const n = parseInt(sessions);
+  if (!n) return "";
+  const d = new Date(start);
+  d.setDate(d.getDate() + Math.round(n / 2) * 7);
+  return d.toISOString().substring(0, 10);
+}
+
 const CONTRACT_TERMS = `제1조 (목적)
 본 약관은 자이언트짐(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.
 
@@ -944,13 +953,19 @@ export default function LeadsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground">운동 시작일</label>
-                  <input type="date" value={directForm.membershipStart} onChange={e => setDirectForm(f => ({ ...f, membershipStart: e.target.value }))}
+                  <input type="date" value={directForm.membershipStart}
+                    onChange={e => {
+                      const start = e.target.value;
+                      const end = calcEndDate(start, directForm.ptSessions);
+                      setDirectForm(f => ({ ...f, membershipStart: start, membershipEnd: end }));
+                    }}
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  <p className="text-xs text-muted-foreground">미입력 시 첫 출석 체크일 자동 적용</p>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground">운동 종료일</label>
-                  <input type="date" value={directForm.membershipEnd} onChange={e => setDirectForm(f => ({ ...f, membershipEnd: e.target.value }))}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  <label className="text-xs text-muted-foreground">운동 종료일 <span className="text-primary text-xs">(자동계산)</span></label>
+                  <input type="date" value={directForm.membershipEnd} readOnly
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground opacity-60 cursor-not-allowed" />
                 </div>
               </div>
 
@@ -973,11 +988,20 @@ export default function LeadsPage() {
               {/* PT 횟수 */}
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">PT 횟수</label>
-                <input value={directForm.ptSessions} onChange={e => setDirectForm(f => ({ ...f, ptSessions: e.target.value }))} placeholder="횟수 직접 입력" type="number" min="1"
+                <input value={directForm.ptSessions}
+                  onChange={e => {
+                    const s = e.target.value;
+                    setDirectForm(f => ({ ...f, ptSessions: s, membershipEnd: calcEndDate(f.membershipStart, s) }));
+                  }}
+                  placeholder="횟수 직접 입력" type="number" min="1"
                   className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 <div className="flex gap-1.5 flex-wrap">
                   {[10, 20, 30, 40, 50].map(n => (
-                    <button key={n} type="button" onClick={() => setDirectForm(f => ({ ...f, ptSessions: f.ptSessions === String(n) ? "" : String(n) }))}
+                    <button key={n} type="button"
+                      onClick={() => setDirectForm(f => {
+                        const next = f.ptSessions === String(n) ? "" : String(n);
+                        return { ...f, ptSessions: next, membershipEnd: calcEndDate(f.membershipStart, next) };
+                      })}
                       className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.ptSessions === String(n) ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>{n}회</button>
                   ))}
                 </div>
