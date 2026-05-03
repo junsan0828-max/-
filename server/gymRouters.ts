@@ -99,9 +99,9 @@ const leadsRouter = t.router({
       let result = rows;
       if (input?.year && input?.month) {
         const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-        result = result.filter(r => r.lead.createdAt.startsWith(prefix));
+        result = result.filter(r => (r.lead.consultationDate ?? r.lead.createdAt).startsWith(prefix));
       } else if (input?.year) {
-        result = result.filter(r => r.lead.createdAt.startsWith(String(input.year)));
+        result = result.filter(r => (r.lead.consultationDate ?? r.lead.createdAt).startsWith(String(input.year)));
       }
       if (input?.status) result = result.filter(r => r.lead.status === input.status);
       if (input?.channelId) result = result.filter(r => r.lead.channelId === input.channelId);
