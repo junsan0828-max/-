@@ -338,6 +338,7 @@ async function initDatabase() {
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "createdBy" INTEGER`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "consultantId" INTEGER`,
     `ALTER TABLE members ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `ALTER TABLE members ALTER COLUMN "trainerId" DROP NOT NULL`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "customerName" TEXT`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "phone" TEXT`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "programDetail" TEXT`,

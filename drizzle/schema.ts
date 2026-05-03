@@ -53,7 +53,7 @@ export const trainerSettings = pgTable("trainer_settings", {
 // 회원
 export const members = pgTable("members", {
   id: serial("id").primaryKey(),
-  trainerId: integer("trainerId").notNull(),
+  trainerId: integer("trainerId"),
   branchId: integer("branchId"),
   name: text("name").notNull(),
   phone: text("phone"),

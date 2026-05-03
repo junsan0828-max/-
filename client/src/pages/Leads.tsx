@@ -886,7 +886,7 @@ export default function LeadsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">성별</label>
                 <div className="flex gap-2">
-                  {[["male","남성"],["female","여성"],["other","기타"]].map(([v,l]) => (
+                  {[["male","남성"],["female","여성"]].map(([v,l]) => (
                     <button key={v} type="button" onClick={() => setDirectForm(f => ({ ...f, gender: f.gender === v ? "" : v as any }))}
                       className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${directForm.gender === v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>{l}</button>
                   ))}
@@ -904,18 +904,31 @@ export default function LeadsPage() {
               </div>
               {/* 담당 트레이너 */}
               <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">담당 트레이너 <span className="text-primary">*</span></label>
+                <label className="text-xs text-muted-foreground">담당 트레이너</label>
                 <select value={directForm.trainerId} onChange={e => setDirectForm(f => ({ ...f, trainerId: e.target.value }))}
                   className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="">트레이너 선택</option>
+                  <option value="">미배정</option>
                   {(trainers ?? []).map(t => <option key={t.id} value={t.id}>{t.trainerName}</option>)}
                 </select>
               </div>
               {/* 유입경로 */}
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">유입경로</label>
-                <input value={directForm.visitRoute} onChange={e => setDirectForm(f => ({ ...f, visitRoute: e.target.value }))} placeholder="지인 소개, SNS, 검색 등"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                <select value={directForm.visitRoute} onChange={e => setDirectForm(f => ({ ...f, visitRoute: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">선택 안함</option>
+                  <option value="지인 소개">지인 소개</option>
+                  <option value="가족 소개">가족 소개</option>
+                  <option value="네이버 검색">네이버 검색</option>
+                  <option value="네이버플레이스">네이버플레이스</option>
+                  <option value="카카오맵">카카오맵</option>
+                  <option value="인스타그램">인스타그램</option>
+                  <option value="유튜브">유튜브</option>
+                  <option value="블로그">블로그</option>
+                  <option value="현수막/전단지">현수막/전단지</option>
+                  <option value="재등록">재등록</option>
+                  <option value="기타">기타</option>
+                </select>
               </div>
               {/* 특이사항 */}
               <div className="space-y-1.5">
@@ -1008,7 +1021,6 @@ export default function LeadsPage() {
               <button type="button" disabled={directRegMutation.isPending}
                 onClick={() => {
                   if (!directForm.name.trim()) return toast.error("이름을 입력해주세요.");
-                  if (!directForm.trainerId) return toast.error("담당 트레이너를 선택해주세요.");
                   directRegMutation.mutate({
                     name: directForm.name.trim(),
                     phone: directForm.phone || undefined,
@@ -1027,7 +1039,7 @@ export default function LeadsPage() {
                     paymentMethod: directForm.paymentMethod || undefined,
                     paymentDate: directForm.paymentDate || undefined,
                     paymentMemo: directForm.paymentMemo || undefined,
-                    adminTrainerId: parseInt(directForm.trainerId),
+                    adminTrainerId: directForm.trainerId ? parseInt(directForm.trainerId) : undefined,
                   });
                 }}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">

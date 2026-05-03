@@ -299,10 +299,10 @@ const membersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // admin/sub_admin/consultant: adminTrainerId 필수, trainer: 본인 ID 사용
+      // admin/sub_admin/consultant: adminTrainerId 선택(미배정 허용), trainer: 본인 ID 사용
       const isStaff = ctx.user.role === "admin" || ctx.user.role === "sub_admin" || ctx.user.role === "consultant";
       const trainerId = isStaff
-        ? input.adminTrainerId ?? (() => { throw new TRPCError({ code: "BAD_REQUEST", message: "담당 트레이너를 선택해주세요." }); })()
+        ? (input.adminTrainerId ?? null)
         : ctx.user.trainerId ?? (() => { throw new TRPCError({ code: "FORBIDDEN" }); })();
 
       const {
@@ -319,7 +319,7 @@ const membersRouter = t.router({
 
       const [insertResult] = await db.insert(members).values({
         ...memberData,
-        trainerId,
+        ...(trainerId != null ? { trainerId } : {}),
       }).returning({ id: members.id });
       const memberId = insertResult.id;
 
@@ -554,7 +554,7 @@ const membersRouter = t.router({
 
     return rows.map(r => ({
       ...r,
-      availableBranches: (tbMap.get(r.trainerId) ?? []).map(bid => ({
+      availableBranches: (r.trainerId != null ? tbMap.get(r.trainerId) ?? [] : []).map(bid => ({
         id: bid,
         name: branchList.find(b => b.id === bid)?.name ?? String(bid),
       })),

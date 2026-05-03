@@ -280,7 +280,21 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
             <div className="space-y-1.5">
               <Label htmlFor="visitRoute" className="text-sm text-muted-foreground">유입경로</Label>
-              <Input id="visitRoute" value={form.visitRoute} onChange={(e) => setForm((p) => ({ ...p, visitRoute: e.target.value }))} placeholder="지인 소개, SNS, 검색 등" className="bg-input border-border"/>
+              <select id="visitRoute" value={form.visitRoute} onChange={(e) => setForm((p) => ({ ...p, visitRoute: e.target.value }))}
+                className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="">선택 안함</option>
+                <option value="지인 소개">지인 소개</option>
+                <option value="가족 소개">가족 소개</option>
+                <option value="네이버 검색">네이버 검색</option>
+                <option value="네이버플레이스">네이버플레이스</option>
+                <option value="카카오맵">카카오맵</option>
+                <option value="인스타그램">인스타그램</option>
+                <option value="유튜브">유튜브</option>
+                <option value="블로그">블로그</option>
+                <option value="현수막/전단지">현수막/전단지</option>
+                <option value="재등록">재등록</option>
+                <option value="기타">기타</option>
+              </select>
             </div>
 
             <div className="space-y-1.5">
