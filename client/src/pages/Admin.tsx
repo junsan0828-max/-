@@ -32,8 +32,8 @@ const FIELD_OPTIONS = [
   { value: "gender", label: "성별 (male/female)" },
   { value: "grade", label: "등급 (basic/premium/vip)" },
   { value: "status", label: "상태 (active/paused)" },
-  { value: "membershipStart", label: "회원권 시작일" },
-  { value: "membershipEnd", label: "회원권 만료일" },
+  { value: "membershipStart", label: "운동 시작일" },
+  { value: "membershipEnd", label: "운동 종료일" },
   { value: "profileNote", label: "특이사항" },
   { value: "ptProgram", label: "PT 패키지명" },
   { value: "ptSessions", label: "PT 횟수" },
@@ -50,8 +50,8 @@ const AUTO_GUESS: Record<string, string> = {
   성별: "gender", gender: "gender",
   등급: "grade", grade: "grade",
   상태: "status", status: "status",
-  시작일: "membershipStart", 등록일: "membershipStart", 가입일: "membershipStart",
-  만료일: "membershipEnd", 종료일: "membershipEnd",
+  시작일: "membershipStart", 등록일: "membershipStart", 가입일: "membershipStart", 운동시작일: "membershipStart",
+  만료일: "membershipEnd", 종료일: "membershipEnd", 운동종료일: "membershipEnd",
   특이사항: "profileNote", 메모: "profileNote", 비고: "profileNote",
   패키지: "ptProgram", PT프로그램: "ptProgram", 프로그램: "ptProgram", "PT 프로그램": "ptProgram",
   횟수: "ptSessions", PT횟수: "ptSessions", "PT 횟수": "ptSessions", 세션: "ptSessions",
@@ -412,7 +412,7 @@ export default function Admin() {
                     <p className="font-medium text-sm">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {p.phone ?? "연락처 없음"}
-                      {p.membershipEnd && ` · 만료 ${p.membershipEnd}`}
+                      {p.membershipEnd && ` · 종료 ${p.membershipEnd}`}
                       {p.ptSessions && ` · PT ${p.ptSessions}회`}
                     </p>
                   </div>

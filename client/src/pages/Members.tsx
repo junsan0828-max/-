@@ -378,7 +378,7 @@ export default function Members() {
                         )}
                         {isExpired && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-                            만료
+                            종료
                           </span>
                         )}
                         {hasUnpaid && (

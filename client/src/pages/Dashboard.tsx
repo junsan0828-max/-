@@ -728,7 +728,7 @@ function TrainerDashboard() {
                 <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">{m.name.charAt(0)}</div>
                 <div>
                   <p className="text-sm font-medium">{m.name}</p>
-                  {m.membershipEnd && <p className="text-xs text-muted-foreground">{m.membershipEnd} 만료</p>}
+                  {m.membershipEnd && <p className="text-xs text-muted-foreground">{m.membershipEnd} 종료</p>}
                 </div>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-primary border border-primary/30 rounded-full px-2.5 py-1 bg-primary/10">

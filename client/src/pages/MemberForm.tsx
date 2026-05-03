@@ -297,16 +297,16 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           </CardContent>
         </Card>
 
-        {/* 회원권 정보 */}
+        {/* 운동 기간 정보 */}
         <Card className="bg-card border-border">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">회원권 정보</CardTitle>
+            <CardTitle className="text-base font-semibold">운동 기간</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="membershipStart" className="text-sm text-muted-foreground">
-                  시작일
+                  운동 시작일
                 </Label>
                 <Input
                   id="membershipStart"
@@ -318,7 +318,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">
-                  만료일
+                  운동 종료일
                 </Label>
                 <Input
                   id="membershipEnd"

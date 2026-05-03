@@ -617,8 +617,8 @@ export default function TrainerDetail({ trainerId }: Props) {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {m.membershipEnd
-                          ? `만료 ${format(new Date(m.membershipEnd), "yyyy.MM.dd", { locale: ko })}`
-                          : "만료일 없음"}
+                          ? `종료 ${format(new Date(m.membershipEnd), "yyyy.MM.dd", { locale: ko })}`
+                          : "종료일 없음"}
                         {m.remainingPt > 0 && ` · PT ${m.remainingPt}회`}
                       </p>
                     </div>
