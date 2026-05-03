@@ -960,7 +960,6 @@ export default function LeadsPage() {
                       setDirectForm(f => ({ ...f, membershipStart: start, membershipEnd: end }));
                     }}
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                  <p className="text-xs text-muted-foreground">미입력 시 첫 출석 체크일 자동 적용</p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground">운동 종료일 <span className="text-primary text-xs">(자동계산)</span></label>
