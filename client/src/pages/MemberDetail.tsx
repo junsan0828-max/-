@@ -418,6 +418,36 @@ export default function MemberDetail({ memberId }: Props) {
     });
   };
 
+  // 만나이 계산
+  const koreanAge = useMemo(() => {
+    if (!member?.birthDate) return "";
+    const birth = new Date(member.birthDate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return `만 ${age}세`;
+  }, [member?.birthDate]);
+
+  // 최초 등록일: createdAt → 없으면 가장 이른 PT 패키지 startDate
+  const firstRegistrationDate = useMemo(() => {
+    if (member?.createdAt) return fmtDate(member.createdAt, "yyyy.MM.dd");
+    const dates = (ptPackages ?? []).map(p => p.startDate).filter(Boolean).sort() as string[];
+    return dates[0] ? fmtDate(dates[0], "yyyy.MM.dd") : "-";
+  }, [member?.createdAt, ptPackages]);
+
+  // 운동 만료일: 운동시작일 + (totalSessions / 2)주
+  const exerciseEndDate = useMemo(() => {
+    const startStr = member?.membershipStart;
+    if (!startStr) return "-";
+    const totalSessions = (ptPackages ?? []).reduce((sum, p) => sum + (p.totalSessions ?? 0), 0);
+    if (!totalSessions) return "-";
+    const weeks = Math.round(totalSessions / 2);
+    const d = new Date(startStr);
+    d.setDate(d.getDate() + weeks * 7);
+    return fmtDate(d.toISOString(), "yyyy.MM.dd");
+  }, [member?.membershipStart, ptPackages]);
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -563,38 +593,34 @@ export default function MemberDetail({ memberId }: Props) {
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <InfoRow icon={<Crown className="h-4 w-4" />} label="등급" value={membershipLabels[member.grade] ?? "-"} />
                 <InfoRow icon={<Activity className="h-4 w-4" />} label="상태" value={statusLabels[member.status] ?? "-"} />
+                <InfoRow icon={<Crown className="h-4 w-4" />} label="등급" value={membershipLabels[member.grade] ?? "-"} />
+                <InfoRow icon={<Phone className="h-4 w-4" />} label="연락처" value={member.phone ?? "-"} />
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
                   label="생년월일"
-                  value={fmtDate(member.birthDate, "yyyy년 MM월 dd일")}
+                  value={member.birthDate ? `${fmtDate(member.birthDate, "yyyy.MM.dd")}${koreanAge ? ` (${koreanAge})` : ""}` : "-"}
                 />
                 <InfoRow
                   icon={<User className="h-4 w-4" />}
                   label="성별"
                   value={member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "-"}
                 />
-                <InfoRow icon={<Phone className="h-4 w-4" />} label="연락처" value={member.phone ?? "-"} />
-                <InfoRow icon={<Mail className="h-4 w-4" />} label="이메일" value={member.email ?? "-"} />
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
-                  label="회원권 시작"
+                  label="최초 등록일"
+                  value={firstRegistrationDate}
+                />
+                <InfoRow
+                  icon={<Calendar className="h-4 w-4" />}
+                  label="운동 시작일"
                   value={fmtDate(member.membershipStart, "yyyy.MM.dd")}
                 />
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
-                  label="회원권 만료"
-                  value={fmtDate(member.membershipEnd, "yyyy.MM.dd")}
+                  label="운동 만료일"
+                  value={exerciseEndDate}
                 />
-                <InfoRow
-                  icon={<Calendar className="h-4 w-4" />}
-                  label="최초 등록일"
-                  value={fmtDate(member.createdAt, "yyyy.MM.dd")}
-                />
-                {member.visitRoute && (
-                  <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
-                )}
                 <div className="flex items-start gap-3">
                   <div className="text-muted-foreground mt-0.5"><User className="h-4 w-4" /></div>
                   <div className="flex-1">
