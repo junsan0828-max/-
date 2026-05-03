@@ -1,7 +1,7 @@
 import { gymRouter } from "./gymRouters";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, sql, lte, gte, gt, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb, getDashboardStats } from "./db";
 import {
@@ -1446,6 +1446,7 @@ const trainersRouter = t.router({
       const logs = await db
         .select({
           id: ptSessionLogs.id,
+          memberId: ptSessionLogs.memberId,
           sessionDate: ptSessionLogs.sessionDate,
           pricePerSession: ptPackages.pricePerSession,
           paymentAmount: ptPackages.paymentAmount,
@@ -1469,9 +1470,29 @@ const trainersRouter = t.router({
         )
         .orderBy(desc(ptSessionLogs.sessionDate));
 
-      const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+      // packageId 없는 세션(일지 전용)은 회원 패키지로 단가 폴백
+      const noPackageMemberIds = [...new Set(
+        logs.filter(l => !l.pricePerSession && !l.paymentAmount).map(l => l.memberId)
+      )];
+      const memberPkgMap: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }> = {};
+      if (noPackageMemberIds.length > 0) {
+        const fallbackPkgs = await db.select({
+          memberId: ptPackages.memberId,
+          pricePerSession: ptPackages.pricePerSession,
+          paymentAmount: ptPackages.paymentAmount,
+          totalSessions: ptPackages.totalSessions,
+        }).from(ptPackages).where(inArray(ptPackages.memberId, noPackageMemberIds)).orderBy(desc(ptPackages.createdAt));
+        for (const p of fallbackPkgs) {
+          if (!memberPkgMap[p.memberId]) memberPkgMap[p.memberId] = p;
+        }
+      }
+
+      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
         if (l.pricePerSession) return l.pricePerSession;
         if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+        const fb = memberPkgMap[l.memberId];
+        if (fb?.pricePerSession) return fb.pricePerSession;
+        if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0) return Math.round(fb.paymentAmount / fb.totalSessions);
         return 0;
       };
 
@@ -2004,6 +2025,7 @@ const adminRouter = t.router({
           )),
         // 정산: 이번달 진행된 세션 × 회당단가
         db.select({
+          memberId: ptSessionLogs.memberId,
           pricePerSession: ptPackages.pricePerSession,
           paymentAmount: ptPackages.paymentAmount,
           totalSessions: ptPackages.totalSessions,
@@ -2018,9 +2040,30 @@ const adminRouter = t.router({
       ]);
       const rate = settings[0]?.settlementRate ?? 50;
       const revenue = monthPackages.reduce((s, p) => s + (p.paymentAmount ?? 0), 0);
-      const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+
+      // packageId 없는 세션은 회원 패키지로 단가 폴백
+      const noPackageMemberIds2 = [...new Set(
+        monthLogs.filter(l => !l.pricePerSession && !l.paymentAmount).map(l => l.memberId)
+      )];
+      const memberPkgMap2: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }> = {};
+      if (noPackageMemberIds2.length > 0) {
+        const fallbackPkgs = await db.select({
+          memberId: ptPackages.memberId,
+          pricePerSession: ptPackages.pricePerSession,
+          paymentAmount: ptPackages.paymentAmount,
+          totalSessions: ptPackages.totalSessions,
+        }).from(ptPackages).where(inArray(ptPackages.memberId, noPackageMemberIds2)).orderBy(desc(ptPackages.createdAt));
+        for (const p of fallbackPkgs) {
+          if (!memberPkgMap2[p.memberId]) memberPkgMap2[p.memberId] = p;
+        }
+      }
+
+      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
         if (l.pricePerSession) return l.pricePerSession;
         if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+        const fb = memberPkgMap2[l.memberId];
+        if (fb?.pricePerSession) return fb.pricePerSession;
+        if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0) return Math.round(fb.paymentAmount / fb.totalSessions);
         return 0;
       };
       const sessionRevenue = monthLogs.reduce((s, l) => s + calcPrice(l), 0);
@@ -2135,6 +2178,7 @@ const adminRouter = t.router({
             .where(eq(trainerSettings.trainerId, trainer.id))
             .limit(1),
           db.select({
+            memberId: ptSessionLogs.memberId,
             pricePerSession: ptPackages.pricePerSession,
             paymentAmount: ptPackages.paymentAmount,
             totalSessions: ptPackages.totalSessions,
@@ -2148,10 +2192,30 @@ const adminRouter = t.router({
             )),
         ]);
 
+        // packageId 없는 세션은 회원 패키지로 단가 폴백
+        const noPackageMemberIds = [...new Set(
+          logs.filter(l => !l.pricePerSession && !l.paymentAmount).map(l => l.memberId)
+        )];
+        const memberPkgMap: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }> = {};
+        if (noPackageMemberIds.length > 0) {
+          const fallbackPkgs = await db.select({
+            memberId: ptPackages.memberId,
+            pricePerSession: ptPackages.pricePerSession,
+            paymentAmount: ptPackages.paymentAmount,
+            totalSessions: ptPackages.totalSessions,
+          }).from(ptPackages).where(inArray(ptPackages.memberId, noPackageMemberIds)).orderBy(desc(ptPackages.createdAt));
+          for (const p of fallbackPkgs) {
+            if (!memberPkgMap[p.memberId]) memberPkgMap[p.memberId] = p;
+          }
+        }
+
         const rate = settings[0]?.settlementRate ?? 50;
-        const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
           if (l.pricePerSession) return l.pricePerSession;
           if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+          const fb = memberPkgMap[l.memberId];
+          if (fb?.pricePerSession) return fb.pricePerSession;
+          if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0) return Math.round(fb.paymentAmount / fb.totalSessions);
           return 0;
         };
         const sessionCount = logs.length;
