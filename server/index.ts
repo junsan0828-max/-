@@ -9,9 +9,10 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, revenueEntries } from "../drizzle/schema";
+import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, revenueEntries, healthReports } from "../drizzle/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
+import { generateHealthReportHTML } from "./healthReportHTML";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -51,6 +52,23 @@ app.use(
     }),
   })
 );
+
+// 건강보고서 공개 페이지 (토큰 기반, 인증 불필요)
+app.get("/api/health-report/:token", async (req, res) => {
+  try {
+    const dbConn = await import("./db").then(m => m.db);
+    if (!dbConn) return res.status(503).send("서버 준비 중");
+    const [report] = await dbConn.select().from(healthReports).where(eq(healthReports.token, req.params.token));
+    if (!report) return res.status(404).send("<h1>보고서를 찾을 수 없습니다</h1>");
+    const data = JSON.parse(report.reportData);
+    const html = generateHealthReportHTML(data, report.aiText);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("오류가 발생했습니다");
+  }
+});
 
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
@@ -398,6 +416,16 @@ async function initDatabase() {
       "userId" INTEGER NOT NULL,
       "readAt" TEXT NOT NULL DEFAULT now()::text,
       UNIQUE("noticeId", "userId")
+    )`,
+    `CREATE TABLE IF NOT EXISTS health_reports (
+      id SERIAL PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      "memberId" INTEGER NOT NULL,
+      "generatedBy" INTEGER NOT NULL,
+      "reportData" TEXT NOT NULL,
+      "aiText" TEXT NOT NULL,
+      "isAI" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
   ];
   for (const stmt of alterStatements) {

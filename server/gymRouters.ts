@@ -19,7 +19,9 @@ import {
   parQ,
   ptSessionLogs,
   attendanceChecks,
+  healthReports,
 } from "../drizzle/schema";
+import type { ReportData } from "./healthReportHTML";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -840,7 +842,7 @@ ${dataContext}
 
   generateMemberReport: protectedProcedure
     .input(z.object({ memberId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -848,129 +850,213 @@ ${dataContext}
       if (!member) throw new TRPCError({ code: "NOT_FOUND" });
 
       const [health] = await db.select().from(parQ).where(eq(parQ.memberId, input.memberId));
-
       const logs = await db.select().from(ptSessionLogs)
         .where(eq(ptSessionLogs.memberId, input.memberId))
-        .orderBy(desc(ptSessionLogs.sessionDate))
-        .limit(60);
-
+        .orderBy(desc(ptSessionLogs.sessionDate)).limit(60);
       const checks = await db.select().from(attendanceChecks)
         .where(eq(attendanceChecks.memberId, input.memberId))
-        .orderBy(desc(attendanceChecks.checkDate))
-        .limit(60);
+        .orderBy(desc(attendanceChecks.checkDate)).limit(60);
 
-      // 신체 부위별 빈도
+      // ── 트레이닝 통계
       const bodyPartCounts: Record<string, number> = {};
       const goalSet: string[] = [];
       const recentFeedback: string[] = [];
       for (const log of logs) {
-        if (log.bodyPart) {
-          log.bodyPart.split(",").map(p => p.trim()).filter(Boolean).forEach(p => {
-            bodyPartCounts[p] = (bodyPartCounts[p] || 0) + 1;
-          });
-        }
+        if (log.bodyPart) log.bodyPart.split(",").map(p => p.trim()).filter(Boolean).forEach(p => { bodyPartCounts[p] = (bodyPartCounts[p] || 0) + 1; });
         if (log.goal && !goalSet.includes(log.goal)) goalSet.push(log.goal);
         if (log.feedback && recentFeedback.length < 3) recentFeedback.push(log.feedback);
       }
-      const topBodyParts = Object.entries(bodyPartCounts)
-        .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([p, c]) => `${p}(${c}회)`);
-
+      const topBodyParts = Object.entries(bodyPartCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([p, c]) => `${p}(${c}회)`);
       const condScores = checks.filter(c => c.conditionScore != null).map(c => c.conditionScore!);
-      const avgCondition = condScores.length > 0
-        ? Math.round(condScores.reduce((a, b) => a + b, 0) / condScores.length * 10) / 10 : null;
-
+      const avgCondition = condScores.length > 0 ? Math.round(condScores.reduce((a, b) => a + b, 0) / condScores.length * 10) / 10 : null;
       const painLevels = checks.filter(c => c.painLevel != null).map(c => c.painLevel!);
-      const avgPain = painLevels.length > 0
-        ? Math.round(painLevels.reduce((a, b) => a + b, 0) / painLevels.length * 10) / 10 : null;
+      const avgPain = painLevels.length > 0 ? Math.round(painLevels.reduce((a, b) => a + b, 0) / painLevels.length * 10) / 10 : null;
 
-      const parseChk = (v: string | null | undefined) => v ? v.split(",").filter(Boolean) : [];
+      // ── 생활습관 위험도 계산 (A/B/C/D 문자 저장)
+      const DIET_TEXT = [
+        "하루 식사 시간이 일정하지 않거나 끼니를 자주 거른다",
+        "하루 단백질 섭취량이 부족하거나 식단 구성이 한쪽으로 치우친다",
+        "스트레스나 감정 변화로 인해 폭식 또는 과식을 경험한다",
+        "저녁 9시 이후 야식 또는 고칼로리 간식을 자주 섭취한다",
+      ];
+      const ALCOHOL_TEXT = [
+        "주 3회 이상 음주하거나 1회 음주량이 평균 3잔 이상이다",
+        "한 번 술을 마시면 마무리가 잘 안 되어 과음하는 경우가 있다",
+        "스트레스 해소를 술에 의존하는 편이다",
+        "회식·약속 등으로 인해 운동 다음 날 컨디션이 떨어지는 경우가 잦다",
+      ];
+      const SLEEP_TEXT = [
+        "밤에 자주 깨거나(2회 이상) 수면 중단이 반복된다",
+        "아침에 일어나도 개운하지 않고 지속적으로 피곤하다",
+        "잠드는 데 30분 이상 걸리거나 누워도 쉽게 잠들지 못한다",
+        "수면 시간이 일정하지 않거나 6시간 미만으로 자는 날이 많다",
+      ];
+      const ACTIVITY_TEXT = [
+        "하루 활동량(걸음 수)이 5,000보 미만인 날이 많다",
+        "하루 중 앉아 있는 시간이 6시간 이상으로 길다",
+        "주 2회 이상 규칙적인 운동을 하지 않는다",
+        "계단 오르기 등 기본 활동에서도 숨이 차거나 피로를 느낀다",
+      ];
+      const mapLetters = (raw: string | null | undefined, texts: string[]) => {
+        const letters = (raw ?? "").split(",").filter(Boolean);
+        return letters.map(l => texts[["A","B","C","D"].indexOf(l)]).filter(Boolean);
+      };
+      const riskLevel = (count: number): "normal"|"caution"|"warning"|"critical" =>
+        count === 0 ? "normal" : count === 1 ? "caution" : count === 2 ? "warning" : "critical";
+      const riskKo = (level: string) => ({ normal:"양호", caution:"건강관리 필요", warning:"빠른 건강관리 필요", critical:"건강 필수 심각 수준" }[level] ?? level);
 
-      const dataContext = `
-회원명: ${member.name}
-등록일: ${member.createdAt?.slice(0, 10) ?? "-"}
+      const dietItems = mapLetters(health?.dietIssues, DIET_TEXT);
+      const alcoholItems = mapLetters(health?.alcoholIssues, ALCOHOL_TEXT);
+      const sleepItems = mapLetters(health?.sleepIssues, SLEEP_TEXT);
+      const activityItems = mapLetters(health?.activityIssues, ACTIVITY_TEXT);
 
-## 기본 건강 정보 (PAR-Q)
-${health ? `키: ${health.height || "-"}cm / 체중: ${health.weight || "-"}kg
+      // ── BMI 계산
+      let bmi: string | undefined;
+      if (health?.height && health?.weight) {
+        const h = parseFloat(health.height) / 100;
+        const w = parseFloat(health.weight);
+        if (h > 0 && w > 0) bmi = (w / (h * h)).toFixed(1);
+      }
+
+      // ── 나이 계산
+      let age: number | undefined;
+      if (member.birthDate) {
+        const bd = new Date(member.birthDate);
+        const today = new Date();
+        age = today.getFullYear() - bd.getFullYear() - (today < new Date(today.getFullYear(), bd.getMonth(), bd.getDate()) ? 1 : 0);
+      }
+
+      const goals = [health?.goal1, health?.goal2, health?.goal3].filter(Boolean) as string[];
+
+      // ── ReportData 구조 생성
+      const reportData: ReportData = {
+        generatedAt: new Date().toLocaleDateString("ko-KR"),
+        isAI: false,
+        member: { name: member.name, age, gender: member.gender ?? undefined },
+        health: {
+          height: health?.height ?? undefined,
+          weight: health?.weight ?? undefined,
+          bmi,
+          occupation: health?.occupation ?? undefined,
+          workEnvironment: health?.workEnvironment ?? undefined,
+          exerciseExperience: health?.exerciseExperience ?? undefined,
+          goals,
+          systolicBp: health?.systolicBp ?? undefined,
+          diastolicBp: health?.diastolicBp ?? undefined,
+          waistCircumference: health?.waistCircumference ?? undefined,
+          totalCholesterol: health?.totalCholesterol ?? undefined,
+          hdlCholesterol: health?.hdlCholesterol ?? undefined,
+          ldlCholesterol: health?.ldlCholesterol ?? undefined,
+          triglycerides: health?.triglycerides ?? undefined,
+          fastingBloodSugar: health?.fastingBloodSugar ?? undefined,
+          postMealBloodSugar: health?.postMealBloodSugar ?? undefined,
+          hba1c: health?.hba1c ?? undefined,
+          boneDensity: health?.boneDensity ?? undefined,
+          chronicDiseases: health?.chronicDiseases ?? undefined,
+          musculoskeletalIssues: health?.musculoskeletalIssues ?? undefined,
+          posturalIssues: health?.posturalIssues ?? undefined,
+        },
+        lifestyle: {
+          diet: { items: dietItems, count: dietItems.length, riskLevel: riskLevel(dietItems.length), riskKo: riskKo(riskLevel(dietItems.length)) },
+          alcohol: { items: alcoholItems, count: alcoholItems.length, riskLevel: riskLevel(alcoholItems.length), riskKo: riskKo(riskLevel(alcoholItems.length)) },
+          sleep: { items: sleepItems, count: sleepItems.length, riskLevel: riskLevel(sleepItems.length), riskKo: riskKo(riskLevel(sleepItems.length)) },
+          activity: { items: activityItems, count: activityItems.length, riskLevel: riskLevel(activityItems.length), riskKo: riskKo(riskLevel(activityItems.length)) },
+        },
+        training: { totalSessions: logs.length, topBodyParts, goals: goalSet.slice(0, 3), avgCondition, avgPain, checksCount: checks.length },
+      };
+
+      // ── AI 프롬프트 (위험도 포함)
+      const lifestyleContext = `
+생활습관 위험도 분석:
+- 식단 (${dietItems.length}/4): ${riskKo(riskLevel(dietItems.length))}${dietItems.length > 0 ? "\n  해당 항목: " + dietItems.join(" / ") : ""}
+- 음주 (${alcoholItems.length}/4): ${riskKo(riskLevel(alcoholItems.length))}${alcoholItems.length > 0 ? "\n  해당 항목: " + alcoholItems.join(" / ") : ""}
+- 수면 (${sleepItems.length}/4): ${riskKo(riskLevel(sleepItems.length))}${sleepItems.length > 0 ? "\n  해당 항목: " + sleepItems.join(" / ") : ""}
+- 활동 (${activityItems.length}/4): ${riskKo(riskLevel(activityItems.length))}${activityItems.length > 0 ? "\n  해당 항목: " + activityItems.join(" / ") : ""}`;
+
+      const dataCtx = `회원명: ${member.name}${age ? ` (${age}세)` : ""}
+${health ? `신체: 키 ${health.height || "-"}cm / 체중 ${health.weight || "-"}kg${bmi ? ` / BMI ${bmi}` : ""}
 직업: ${health.occupation || "-"} / 근무환경: ${health.workEnvironment || "-"}
 운동경험: ${health.exerciseExperience || "-"}
-운동 목적: ${[health.goal1, health.goal2, health.goal3].filter(Boolean).join(", ") || "미기재"}
-
-## 건강 수치
-혈압: ${health.systolicBp && health.systolicBp !== "이상없음" ? `${health.systolicBp}/${health.diastolicBp}mmHg` : "이상없음"}
-허리둘레: ${health.waistCircumference && health.waistCircumference !== "이상없음" ? `${health.waistCircumference}cm` : "이상없음"}
-공복혈당: ${health.fastingBloodSugar && health.fastingBloodSugar !== "이상없음" ? `${health.fastingBloodSugar}mg/dL` : "이상없음"}
-HbA1c: ${health.hba1c && health.hba1c !== "이상없음" ? `${health.hba1c}%` : "이상없음"}
-총콜레스테롤: ${health.totalCholesterol && health.totalCholesterol !== "이상없음" ? `${health.totalCholesterol}mg/dL` : "이상없음"}
-골밀도: ${health.boneDensity && health.boneDensity !== "이상없음" ? `T-score ${health.boneDensity}` : "이상없음"}
-
-## 생활습관 체크
-식단 문제: ${parseChk(health.dietIssues).map(x => x.replace(/^[A-D]\.\s*/, "")).join(" / ") || "없음"}
-음주 문제: ${parseChk(health.alcoholIssues).map(x => x.replace(/^[A-D]\.\s*/, "")).join(" / ") || "없음"}
-수면 문제: ${parseChk(health.sleepIssues).map(x => x.replace(/^[A-D]\.\s*/, "")).join(" / ") || "없음"}
-활동 문제: ${parseChk(health.activityIssues).map(x => x.replace(/^[A-D]\.\s*/, "")).join(" / ") || "없음"}
-
-## 건강 이력
+운동 목적: ${goals.join(", ") || "미기재"}
 병원 진단: ${health.chronicDiseases || "없음"}
-근골격계 이슈: ${health.musculoskeletalIssues || "없음"}
-체형 문제: ${health.posturalIssues || "없음"}` : "PAR-Q 미작성 (건강검사 데이터 없음)"}
+근골격계: ${health.musculoskeletalIssues || "없음"}
 
-## 트레이닝 기록
-총 수업 횟수: ${logs.length}회
-주요 운동 부위: ${topBodyParts.join(", ") || "기록 없음"}
-최근 훈련 목표: ${goalSet.slice(0, 3).join(", ") || "기록 없음"}
-최근 트레이너 피드백: ${recentFeedback.slice(0, 2).join(" | ") || "없음"}
+건강 수치:
+혈압: ${health.systolicBp || "미입력"} / 공복혈당: ${health.fastingBloodSugar || "미입력"} / HbA1c: ${health.hba1c || "미입력"}` : "PAR-Q 미입력"}
 
-## 컨디션 체크 (${checks.length}회 기록)
-${avgCondition != null ? `평균 컨디션: ${avgCondition}/10점` : "컨디션 기록 없음"}
-${avgPain != null ? `평균 통증 수준: ${avgPain}/10점` : "통증 기록 없음"}
-`;
+${lifestyleContext}
 
-      const reportStats = { totalSessions: logs.length, topBodyParts, goals: goalSet.slice(0, 3), avgCondition, avgPain, checksCount: checks.length, hasParQ: !!health };
+트레이닝: 총 ${logs.length}회 수업 / 주요 부위: ${topBodyParts.join(", ") || "없음"}
+컨디션 평균: ${avgCondition != null ? `${avgCondition}/10` : "없음"} / 통증 평균: ${avgPain != null ? `${avgPain}/10` : "없음"}`;
 
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        return { report: buildFallbackMemberReport(member.name, reportStats), isAI: false, stats: reportStats };
-      }
+      const prompt = `당신은 개인 트레이닝 전문 건강 상담사입니다. 회원 건강 보고서를 한국어로 작성해주세요.
 
-      try {
-        const client = new Anthropic({ apiKey });
-        const message = await client.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1500,
-          messages: [{
-            role: "user",
-            content: `당신은 개인 트레이닝 전문 건강 상담사입니다. 회원의 건강검사 및 트레이닝 데이터를 바탕으로 맞춤형 건강 보고서를 한국어로 작성해주세요.
+${dataCtx}
 
-${dataContext}
+[위험도 기준: 0항목=양호, 1항목=건강관리 필요, 2항목=빠른 건강관리 필요, 3-4항목=건강 필수 심각 수준]
 
-다음 4개 섹션으로 보고서를 작성해주세요 (각 섹션 2-3문장, 간결하고 실용적으로):
+각 섹션을 2-4문장으로 작성하되, 위험도 수준을 명시하고 해당 항목이 운동과 건강에 미치는 영향을 구체적으로 설명하세요:
 
 **1. 건강 상태 요약**
-현재 건강 수치와 기저질환, 근골격계 상태 평가
+현재 건강 수치와 기저질환 상태. 특이 수치가 있으면 그 의미를 설명하고, 없으면 양호하다고 언급.
 
 **2. 생활습관 평가**
-식단·음주·수면·활동량 문제점과 운동 효과에 미치는 영향
+각 카테고리(식단/음주/수면/활동)별 위험도와 구체적 개선 필요 내용. 각 위험도가 운동 효과에 미치는 영향 포함.
 
 **3. 트레이닝 패턴 분석**
-운동 패턴의 강점과 보완이 필요한 부분
+수업 횟수, 주요 운동 부위 분포의 강점과 보완점. 컨디션/통증 데이터 해석 포함.
 
 **4. 맞춤 권장사항**
-이 회원에게 가장 중요한 개선 사항 3가지 (구체적으로)
+이 회원의 위험도와 목표에 맞는 구체적 개선 사항 3가지. 실행 가능한 액션으로 작성.`;
 
-데이터가 부족한 항목은 해당 내용을 입력하면 더 정확한 분석이 가능하다고 안내해주세요.`,
-          }],
-        });
-        const report = message.content[0].type === "text" ? message.content[0].text : "";
-        return { report, isAI: true, stats: reportStats };
-      } catch {
-        return { report: buildFallbackMemberReport(member.name, reportStats), isAI: false, stats: reportStats };
+      // ── DB 저장 및 토큰 생성
+      const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      let aiText = buildFallbackMemberReport(member.name, reportData.lifestyle, reportData.training);
+      let isAI = false;
+
+      if (apiKey) {
+        try {
+          const client = new Anthropic({ apiKey });
+          const message = await client.messages.create({
+            model: "claude-sonnet-4-6",
+            max_tokens: 2000,
+            messages: [{ role: "user", content: prompt }],
+          });
+          aiText = message.content[0].type === "text" ? message.content[0].text : aiText;
+          isAI = true;
+        } catch { /* fallback */ }
       }
+
+      reportData.isAI = isAI;
+
+      // 기존 보고서 삭제 후 새로 저장
+      await db.delete(healthReports).where(eq(healthReports.memberId, input.memberId));
+      await db.insert(healthReports).values({
+        token,
+        memberId: input.memberId,
+        generatedBy: ctx.user!.id,
+        reportData: JSON.stringify(reportData),
+        aiText,
+        isAI: isAI ? 1 : 0,
+      });
+
+      const reportUrl = `/api/health-report/${token}`;
+      const stats = { totalSessions: logs.length, topBodyParts, goals: goalSet.slice(0, 3), avgCondition, avgPain, checksCount: checks.length };
+      return { report: aiText, isAI, stats, token, reportUrl };
     }),
 });
 
-function buildFallbackMemberReport(name: string, stats: { totalSessions: number; topBodyParts: string[]; goals: string[]; avgCondition: number | null; avgPain: number | null; checksCount: number; hasParQ: boolean }) {
-  const parQNote = stats.hasParQ ? "" : " (PAR-Q 데이터 미입력 — 건강검사 후 더 정확한 분석 가능)";
-  return `**1. 건강 상태 요약**\n${name} 회원의 건강 상태 분석입니다.${parQNote} 추가 건강 데이터 입력 시 더 정밀한 평가가 가능합니다.\n\n**2. 생활습관 평가**\n현재 생활습관 데이터를 바탕으로 운동 효과를 높이기 위해 규칙적인 수면 및 식단 관리가 권장됩니다.\n\n**3. 트레이닝 패턴 분석**\n총 ${stats.totalSessions}회 수업을 진행했습니다. ${stats.topBodyParts.length > 0 ? `주요 운동 부위: ${stats.topBodyParts.join(", ")}` : "운동 부위 기록을 꾸준히 작성해 주세요."}\n\n**4. 맞춤 권장사항**\n1) 규칙적인 수업 참석 유지 2) 매 수업 전 컨디션 체크 기록 습관화 3) PAR-Q 건강검사 데이터 입력으로 맞춤 프로그램 설계`;
+function buildFallbackMemberReport(
+  name: string,
+  lifestyle: ReportData["lifestyle"],
+  training: ReportData["training"],
+) {
+  const ls = lifestyle;
+  const criticals = [ls.diet, ls.alcohol, ls.sleep, ls.activity].filter(c => c.riskLevel === "critical").length;
+  const warnings = [ls.diet, ls.alcohol, ls.sleep, ls.activity].filter(c => c.riskLevel !== "normal").length;
+  return `**1. 건강 상태 요약**\n${name} 회원의 건강 데이터 기반 보고서입니다. PAR-Q 건강검사 수치 데이터를 입력하시면 더 정밀한 평가가 가능합니다.\n\n**2. 생활습관 평가**\n식단 ${ls.diet.riskKo} · 음주 ${ls.alcohol.riskKo} · 수면 ${ls.sleep.riskKo} · 활동 ${ls.activity.riskKo}. ${criticals > 0 ? `${criticals}개 영역이 심각 수준으로 즉각적인 관리가 필요합니다.` : warnings > 0 ? `${warnings}개 영역에서 개선이 필요합니다.` : "전반적으로 양호합니다."}\n\n**3. 트레이닝 패턴 분석**\n총 ${training.totalSessions}회 수업을 진행했습니다. ${training.topBodyParts.length > 0 ? `주요 운동 부위: ${training.topBodyParts.join(", ")}` : "운동 부위 기록을 꾸준히 작성해 주세요."}\n\n**4. 맞춤 권장사항**\n1) 생활습관 위험 항목 개선 우선 실천 2) 규칙적인 수업 참석 및 컨디션 체크 기록 3) PAR-Q 건강검사 수치 업데이트로 맞춤 프로그램 설계`;
 }
 
 function generateFallbackAnalysis(data: {

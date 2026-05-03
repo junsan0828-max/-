@@ -194,7 +194,7 @@ export default function MemberDetail({ memberId }: Props) {
   });
 
   // 건강보고서
-  const [healthReport, setHealthReport] = useState<{ report: string; isAI: boolean; stats: any } | null>(null);
+  const [healthReport, setHealthReport] = useState<{ report: string; isAI: boolean; stats: any; reportUrl?: string } | null>(null);
   const healthReportMutation = trpc.gym.ai.generateMemberReport.useMutation({
     onSuccess: (data) => setHealthReport(data),
     onError: (err: any) => toast.error(err.message || "보고서 생성 실패"),
@@ -1036,6 +1036,22 @@ export default function MemberDetail({ memberId }: Props) {
               )}
               {healthReport && !healthReportMutation.isPending && (
                 <div className="space-y-4">
+                  {/* 공유 버튼 */}
+                  {healthReport.reportUrl && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs"
+                        onClick={() => {
+                          const url = `${window.location.origin}${healthReport.reportUrl}`;
+                          navigator.clipboard.writeText(url).then(() => toast.success("링크가 복사되었습니다")).catch(() => toast.error("복사 실패"));
+                        }}>
+                        <Copy className="h-3.5 w-3.5" />링크 복사
+                      </Button>
+                      <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs"
+                        onClick={() => window.open(healthReport.reportUrl!, "_blank")}>
+                        <FileHeart className="h-3.5 w-3.5" />보고서 보기
+                      </Button>
+                    </div>
+                  )}
                   {/* 트레이닝 통계 요약 */}
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     {[
@@ -1059,19 +1075,22 @@ export default function MemberDetail({ memberId }: Props) {
                       </div>
                     </div>
                   )}
-                  {/* AI 리포트 텍스트 */}
+                  {/* AI 리포트 텍스트 미리보기 */}
                   <div className="space-y-3 pt-2 border-t border-border/50">
                     <div className="flex items-center gap-1.5">
                       <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      <span className="text-xs font-semibold text-primary">{healthReport.isAI ? "AI 분석 결과" : "자동 생성 보고서"}</span>
+                      <span className="text-xs font-semibold text-primary">{healthReport.isAI ? "AI 분석 결과 (미리보기)" : "자동 생성 보고서 (미리보기)"}</span>
                     </div>
-                    <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                    <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap line-clamp-6">
                       {healthReport.report.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
                         part.startsWith("**") && part.endsWith("**")
                           ? <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>
                           : <span key={i}>{part}</span>
                       )}
                     </div>
+                    {healthReport.reportUrl && (
+                      <p className="text-xs text-muted-foreground text-center">전체 보고서는 링크에서 확인하세요</p>
+                    )}
                   </div>
                 </div>
               )}

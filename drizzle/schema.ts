@@ -202,6 +202,17 @@ export const reportTokens = pgTable("report_tokens", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+export const healthReports = pgTable("health_reports", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  memberId: integer("memberId").notNull(),
+  generatedBy: integer("generatedBy").notNull(),
+  reportData: text("reportData").notNull(),
+  aiText: text("aiText").notNull(),
+  isAI: integer("isAI").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
   memberId: integer("memberId").notNull(),
