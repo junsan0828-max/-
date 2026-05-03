@@ -73,18 +73,19 @@ const ACTIVITY_ITEMS = [
   "D. 계단 오르기 / 짧은 거리 이동 등 기본 활동에서도 숨이 차거나 피로를 느낀다.",
 ];
 
-const BODY_PARTS = [
-  "목/경추", "어깨(우)", "어깨(좌)", "팔꿈치(우)", "팔꿈치(좌)",
-  "손목/손(우)", "손목/손(좌)", "등/흉추", "허리/요추",
-  "고관절(우)", "고관절(좌)", "무릎(우)", "무릎(좌)",
-  "발목/발(우)", "발목/발(좌)", "기타",
+const HOSPITAL_DIAGNOSES = [
+  "해당 사항 없음",
+  "대사증후군", "고혈압", "당뇨", "고지혈증(이상지질)",
+  "당뇨병(2형)", "비만", "골다공증", "근감소증",
 ];
 
-const MUSK_DIAGNOSIS = [
-  "추간판 탈출증(디스크)", "척추관 협착증", "회전근개 파열/손상",
-  "반월판 손상", "인대 파열/손상", "골절(현재 또는 과거)",
-  "골관절염", "류마티스 관절염", "기타",
+const BODY_PARTS_NO_HEAD = [
+  "목관절", "어깨관절", "팔꿈치관절", "손목관절",
+  "척추", "등(근육)", "허리(근육)", "골반/엉치",
+  "고관절", "무릎관절", "발목관절", "하퇴(근육)", "발",
 ];
+
+const BODY_PARTS_WITH_HEAD = ["머리", ...BODY_PARTS_NO_HEAD];
 
 // ─── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -137,6 +138,42 @@ function CheckboxGroup({ title, items, value, onChange }: {
                 </svg>}
               </div>
               <span className="text-sm text-foreground leading-snug">{item}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MultiCheckbox({ title, items, value, onChange, noneItem }: {
+  title?: string; items: string[]; value: string;
+  onChange: (v: string) => void; noneItem?: string;
+}) {
+  const selected = value ? value.split(",").filter(Boolean) : [];
+  const toggle = (item: string) => {
+    if (noneItem && item === noneItem) {
+      onChange(selected.includes(noneItem) ? "" : noneItem);
+      return;
+    }
+    const without = selected.filter(x => x !== (noneItem ?? "__none__"));
+    const next = without.includes(item) ? without.filter(x => x !== item) : [...without, item];
+    onChange(next.join(","));
+  };
+  return (
+    <div className="space-y-2">
+      {title && <p className="text-sm font-medium text-foreground">{title}</p>}
+      <div className="space-y-2.5">
+        {items.map(item => {
+          const on = selected.includes(item);
+          return (
+            <label key={item} onClick={() => toggle(item)} className="flex items-center gap-3 cursor-pointer group">
+              <div className={`w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${on ? "bg-primary border-primary" : "border-border group-hover:border-primary/50"}`}>
+                {on && <svg className="w-2.5 h-2.5 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
+                  <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
+                </svg>}
+              </div>
+              <span className="text-sm text-foreground">{item}</span>
             </label>
           );
         })}
@@ -253,8 +290,6 @@ export default function ParQ({ memberId }: Props) {
 
   const set = (key: keyof FormState) => (v: string) => setForm(p => ({ ...p, [key]: v }));
 
-  const hospitalNone = form.chronicDiseases === "이상없음";
-
   return (
     <div className="space-y-4 pb-8">
       {/* 헤더 */}
@@ -320,22 +355,13 @@ export default function ParQ({ memberId }: Props) {
         {/* ④ 병원 진단 */}
         <div className="bg-card border border-border rounded-xl p-4 space-y-4">
           <Section title="병원 진단">
-            <p className="text-sm text-foreground">병원에서 진단 받으신 내용 있으신가요?</p>
-            <label onClick={() => set("chronicDiseases")(hospitalNone ? "" : "이상없음")}
-              className="flex items-center gap-3 cursor-pointer">
-              <div className={`w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${hospitalNone ? "bg-primary border-primary" : "border-border"}`}>
-                {hospitalNone && <svg className="w-2.5 h-2.5 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
-                  <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
-                </svg>}
-              </div>
-              <span className="text-sm text-foreground">해당 사항 없음</span>
-            </label>
-            {!hospitalNone && (
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">진단 내용 직접 입력</label>
-                <Input value={form.chronicDiseases} onChange={e => set("chronicDiseases")(e.target.value)} placeholder="예: 고혈압, 당뇨 등" className="text-sm" />
-              </div>
-            )}
+            <MultiCheckbox
+              title="병원에서 진단 받으신 내용 있으신가요?"
+              items={HOSPITAL_DIAGNOSES}
+              value={form.chronicDiseases}
+              onChange={set("chronicDiseases")}
+              noneItem="해당 사항 없음"
+            />
           </Section>
         </div>
 
@@ -366,40 +392,42 @@ export default function ParQ({ memberId }: Props) {
         </div>
 
         {/* ⑥ 근골격계 */}
-        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+        <div className="bg-card border border-border rounded-xl p-4 space-y-5">
           <Section title="근골격계">
-            <Dropdown label="근골격계에 대한 진단 받으신 내용"
+            <MultiCheckbox
+              title="'불균형'이라고 느끼는 부위를 선택해주세요."
+              items={BODY_PARTS_NO_HEAD}
               value={form.musculoskeletalIssues.split("|")[0] ?? ""}
-              options={MUSK_DIAGNOSIS}
-              onChange={v => set("musculoskeletalIssues")(v)}
-              placeholder="해당 없음" />
-            <Dropdown label="'만성 통증' 부위"
-              value={form.musculoskeletalIssues.split("|")[1] ?? ""}
-              options={BODY_PARTS}
               onChange={v => {
-                const parts = form.musculoskeletalIssues.split("|");
-                parts[1] = v;
-                set("musculoskeletalIssues")(parts.join("|"));
+                const p = form.musculoskeletalIssues.split("|");
+                p[0] = v; p[1] = p[1] ?? ""; p[2] = p[2] ?? "";
+                set("musculoskeletalIssues")(p.join("|"));
               }}
-              placeholder="해당 없음" />
-            <Dropdown label="'급성 통증' 및 '외상(부상)' 부위"
-              value={form.musculoskeletalIssues.split("|")[2] ?? ""}
-              options={BODY_PARTS}
-              onChange={v => {
-                const parts = form.musculoskeletalIssues.split("|");
-                parts[2] = v;
-                set("musculoskeletalIssues")(parts.join("|"));
-              }}
-              placeholder="해당 없음" />
-            <Dropdown label="'불균형'이라고 느끼는 부위"
-              value={form.musculoskeletalIssues.split("|")[3] ?? ""}
-              options={BODY_PARTS}
-              onChange={v => {
-                const parts = form.musculoskeletalIssues.split("|");
-                parts[3] = v;
-                set("musculoskeletalIssues")(parts.join("|"));
-              }}
-              placeholder="해당 없음" />
+            />
+            <div className="border-t border-border/50 pt-4">
+              <MultiCheckbox
+                title="'급성 통증' 및 '외상(부상)' 부위를 선택해주세요."
+                items={BODY_PARTS_WITH_HEAD}
+                value={form.musculoskeletalIssues.split("|")[1] ?? ""}
+                onChange={v => {
+                  const p = form.musculoskeletalIssues.split("|");
+                  p[0] = p[0] ?? ""; p[1] = v; p[2] = p[2] ?? "";
+                  set("musculoskeletalIssues")(p.join("|"));
+                }}
+              />
+            </div>
+            <div className="border-t border-border/50 pt-4">
+              <MultiCheckbox
+                title="'만성 통증' 부위를 선택해주세요."
+                items={BODY_PARTS_WITH_HEAD}
+                value={form.musculoskeletalIssues.split("|")[2] ?? ""}
+                onChange={v => {
+                  const p = form.musculoskeletalIssues.split("|");
+                  p[0] = p[0] ?? ""; p[1] = p[1] ?? ""; p[2] = v;
+                  set("musculoskeletalIssues")(p.join("|"));
+                }}
+              />
+            </div>
           </Section>
         </div>
 
