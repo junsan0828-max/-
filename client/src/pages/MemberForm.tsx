@@ -134,6 +134,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       paymentDate: form.paymentDate || undefined,
       paymentMemo: form.paymentMemo || undefined,
       adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
+      subType: "재등록" as const,
     };
 
     if (isEdit) {

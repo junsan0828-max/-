@@ -1063,6 +1063,7 @@ export default function LeadsPage() {
                     paymentDate: directForm.paymentDate || undefined,
                     paymentMemo: directForm.paymentMemo || undefined,
                     adminTrainerId: directForm.trainerId ? parseInt(directForm.trainerId) : undefined,
+                    subType: "신규" as const,
                   });
                 }}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">

@@ -21,6 +21,7 @@ import {
   schedules,
   branches,
   trainerBranches,
+  revenueEntries,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
@@ -293,6 +294,7 @@ const membersRouter = t.router({
         paymentDate: z.string().optional(),
         paymentMemo: z.string().optional(),
         adminTrainerId: z.number().optional(), // 관리자가 직접 담당 트레이너 지정
+        subType: z.enum(["신규", "재등록"]).default("재등록"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -314,6 +316,7 @@ const membersRouter = t.router({
         paymentDate,
         paymentMemo,
         adminTrainerId: _,
+        subType,
         ...memberData
       } = input;
 
@@ -342,6 +345,32 @@ const membersRouter = t.router({
           paymentMethod,
           paymentDate,
           paymentMemo,
+        });
+      }
+
+      // 매출 자동 연동 (결제 금액 또는 PT 횟수가 있을 때)
+      if (paymentAmount || ptSessions) {
+        const sessionCount = ptSessions ? parseInt(ptSessions) : undefined;
+        const paid = Math.max(0, (paymentAmount ?? 0) - (unpaidAmount ?? 0));
+        const today = new Date().toISOString().substring(0, 10);
+        await db.insert(revenueEntries).values({
+          memberId,
+          trainerId,
+          createdBy: ctx.user.id,
+          customerName: memberData.name,
+          phone: memberData.phone,
+          programDetail: ptProgram || (sessionCount ? `PT ${sessionCount}회` : undefined),
+          sessions: sessionCount,
+          type: sessionCount ? "PT" : "기타",
+          subType,
+          amount: paymentAmount ?? 0,
+          discountAmount: 0,
+          paidAmount: paid,
+          unpaidAmount: unpaidAmount ?? 0,
+          paymentMethod,
+          paymentDate: paymentDate ?? today,
+          startDate: memberData.membershipStart,
+          memo: paymentMemo,
         });
       }
 

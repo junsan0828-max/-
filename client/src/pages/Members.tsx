@@ -171,7 +171,7 @@ export default function Members() {
               </Button>
               <Button size="sm" onClick={() => setLocation("/members/new")} className="gap-1.5">
                 <UserPlus className="h-4 w-4" />
-                신규 등록
+                재등록
               </Button>
             </>
           )}
