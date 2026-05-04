@@ -1626,9 +1626,37 @@ const noticesWorkRouter = t.router({
       if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      return db.select({ read: noticeReads, username: users.username })
+
+      // 이 공지의 대상(targetRole) 확인
+      const [notice] = await db.select().from(notices).where(eq(notices.id, input.noticeId));
+      if (!notice) return { readers: [], nonReaders: [] };
+
+      // 대상 role에 해당하는 모든 유저 (admin 제외)
+      const allUsers = await db.select({ id: users.id, username: users.username, role: users.role })
+        .from(users)
+        .where(notice.targetRole === "all"
+          ? sql`role IN ('trainer','consultant')`
+          : eq(users.role, notice.targetRole)
+        );
+
+      // 읽은 유저
+      const reads = await db.select({ read: noticeReads, username: users.username })
         .from(noticeReads).leftJoin(users, eq(noticeReads.userId, users.id))
         .where(eq(noticeReads.noticeId, input.noticeId));
+
+      const readUserIds = new Set(reads.map(r => r.read.userId));
+
+      const readers = reads.map(r => ({
+        userId: r.read.userId,
+        username: r.username ?? "알 수 없음",
+        readAt: r.read.readAt,
+      }));
+
+      const nonReaders = allUsers
+        .filter(u => !readUserIds.has(u.id))
+        .map(u => ({ userId: u.id, username: u.username, role: u.role }));
+
+      return { readers, nonReaders };
     }),
 });
 

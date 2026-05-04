@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList, MapPin, ExternalLink, Lock } from "lucide-react";
+import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList, MapPin, ExternalLink, Lock, CheckCircle2, Clock } from "lucide-react";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -1133,12 +1133,68 @@ function WorkManagementSection() {
   );
 }
 
+// ── 공지 확인자 패널 ────────────────────────────────────────────────────────────
+function NoticeReadPanel({ noticeId }: { noticeId: number }) {
+  const { data, isLoading } = trpc.gym.work.notices.readStatus.useQuery({ noticeId });
+
+  if (isLoading) return <div className="text-xs text-muted-foreground py-2 text-center">로딩 중...</div>;
+
+  const { readers = [], nonReaders = [] } = data ?? {};
+  const total = readers.length + nonReaders.length;
+
+  return (
+    <div className="mt-2 border-t border-border/50 pt-2 space-y-2">
+      <div className="flex items-center gap-3 text-xs">
+        <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+          <CheckCircle2 className="h-3.5 w-3.5" />확인 {readers.length}명
+        </span>
+        {nonReaders.length > 0 && (
+          <span className="flex items-center gap-1 text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" />미확인 {nonReaders.length}명
+          </span>
+        )}
+        {total > 0 && (
+          <span className="ml-auto text-muted-foreground">전체 {total}명</span>
+        )}
+      </div>
+
+      {readers.length > 0 && (
+        <div className="space-y-1">
+          {readers.map(r => (
+            <div key={r.userId} className="flex items-center justify-between text-xs bg-emerald-500/5 border border-emerald-500/20 rounded px-2 py-1">
+              <span className="text-emerald-400 font-medium">{r.username}</span>
+              <span className="text-muted-foreground">{r.readAt?.substring(0, 16).replace("T", " ")}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {nonReaders.length > 0 && (
+        <div className="space-y-1">
+          {nonReaders.map(r => (
+            <div key={r.userId} className="flex items-center text-xs bg-muted/30 rounded px-2 py-1">
+              <Clock className="h-3 w-3 text-muted-foreground mr-1.5" />
+              <span className="text-muted-foreground">{r.username}</span>
+              <span className="ml-auto text-xs text-muted-foreground/60">미확인</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {total === 0 && (
+        <p className="text-xs text-muted-foreground text-center py-1">확인한 직원이 없습니다</p>
+      )}
+    </div>
+  );
+}
+
 // ── 공지사항 관리 ──────────────────────────────────────────────────────────────
 function NoticeManagementSection() {
   const utils = trpc.useUtils();
   const { data: noticeList } = trpc.gym.work.notices.list.useQuery();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", targetRole: "all", priority: "normal" });
+  const [expandedReaders, setExpandedReaders] = useState<Set<number>>(new Set());
 
   const createMutation = trpc.gym.work.notices.create.useMutation({
     onSuccess: () => {
@@ -1244,6 +1300,20 @@ function NoticeManagementSection() {
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
+                {/* 확인자 토글 버튼 */}
+                <button
+                  onClick={() => setExpandedReaders(prev => {
+                    const next = new Set(prev);
+                    next.has(n.notice.id) ? next.delete(n.notice.id) : next.add(n.notice.id);
+                    return next;
+                  })}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-1.5 transition-colors"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  확인자 보기
+                  {expandedReaders.has(n.notice.id) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+                {expandedReaders.has(n.notice.id) && <NoticeReadPanel noticeId={n.notice.id} />}
               </div>
             ))}
           </div>
