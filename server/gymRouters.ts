@@ -1583,7 +1583,7 @@ const noticesWorkRouter = t.router({
     const reads = await db.select().from(noticeReads).where(eq(noticeReads.userId, userId));
     const readIds = new Set(reads.map(r => r.noticeId));
     return allNotices
-      .filter(row => row.notice.targetRole === "all" || row.notice.targetRole === role)
+      .filter(row => role === "admin" || row.notice.targetRole === "all" || row.notice.targetRole === role)
       .map(row => ({ ...row, isRead: readIds.has(row.notice.id) }));
   }),
 
