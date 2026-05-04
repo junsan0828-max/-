@@ -897,7 +897,7 @@ export default function LeadsPage() {
             <div className="p-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={saveRegistration}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors">
-                등록 완료 및 매출 저장
+                등록 완료
               </button>
               <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
