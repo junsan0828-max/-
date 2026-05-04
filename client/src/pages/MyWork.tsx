@@ -123,9 +123,10 @@ export default function MyWorkPage() {
     return d.toISOString().substring(0, 10);
   })();
 
-  const dailyTasks   = (allTasks ?? []).filter(r => r.task.taskType === "daily"   && (r.task.isRecurring === 1 || r.task.taskDate === today));
-  const weeklyTasks  = (allTasks ?? []).filter(r => r.task.taskType === "weekly"  && (r.task.isRecurring === 1 || (r.task.taskDate && r.task.taskDate >= weekStart)));
-  const monthlyTasks = (allTasks ?? []).filter(r => r.task.taskType === "monthly" && (r.task.isRecurring === 1 || (r.task.taskDate && r.task.taskDate.startsWith(thisMonth))));
+  // 비반복 업무: taskDate >= today면 표시 (미리 보임), 날짜 지나면 사라짐
+  const dailyTasks   = (allTasks ?? []).filter(r => r.task.taskType === "daily"   && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today)));
+  const weeklyTasks  = (allTasks ?? []).filter(r => r.task.taskType === "weekly"  && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today)));
+  const monthlyTasks = (allTasks ?? []).filter(r => r.task.taskType === "monthly" && (r.task.isRecurring === 1 || (r.task.taskDate != null && r.task.taskDate >= today)));
 
   const currentTasks = tab === "daily" ? dailyTasks : tab === "weekly" ? weeklyTasks : monthlyTasks;
   const pendingTasks = currentTasks.filter(r => r.effectiveStatus !== "done").sort((a, b) => {
@@ -482,8 +483,14 @@ function TaskCard({ row, done, onComplete, onUncomplete, onDelete, onOpen }: {
   const pm = PRIORITY_META[tk.priority] ?? PRIORITY_META.normal;
   const catColor = CAT_COLOR[tk.category] ?? CAT_COLOR["기타"];
 
+  const today = new Date().toISOString().substring(0, 10);
+  const dDays = tk.taskDate && tk.isRecurring !== 1
+    ? Math.round((new Date(tk.taskDate).getTime() - new Date(today).getTime()) / 86400000)
+    : null;
+  const isFuture = dDays !== null && dDays > 0;
+
   return (
-    <div className={`bg-card border rounded-xl p-4 transition-opacity cursor-pointer hover:bg-accent/30 active:bg-accent/50 ${done ? "opacity-50" : "border-border"}`}
+    <div className={`bg-card border rounded-xl p-4 transition-opacity cursor-pointer hover:bg-accent/30 active:bg-accent/50 ${done ? "opacity-50" : isFuture ? "border-amber-500/30" : "border-border"}`}
       onClick={onOpen}>
       <div className="flex items-start gap-3">
         <button onClick={e => { e.stopPropagation(); (done ? onUncomplete : onComplete)?.(); }}
@@ -498,6 +505,8 @@ function TaskCard({ row, done, onComplete, onUncomplete, onDelete, onOpen }: {
             <span className={`inline-block w-2 h-2 rounded-full ${pm.dot}`} />
             <span className="text-xs text-muted-foreground">{pm.label}</span>
             {tk.isRecurring === 1 && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">반복</span>}
+            {isFuture && <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full">D-{dDays} ({tk.taskDate})</span>}
+            {dDays === 0 && <span className="text-xs bg-primary/15 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full">오늘</span>}
           </div>
           <p className={`text-sm font-medium text-foreground ${done ? "line-through" : ""}`}>{tk.title}</p>
           {tk.dueTime && <p className="text-xs text-muted-foreground mt-0.5">⏰ {tk.dueTime}</p>}

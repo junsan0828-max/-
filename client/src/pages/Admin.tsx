@@ -1112,21 +1112,14 @@ function WorkManagementSection() {
                 </button>
               ))}
             </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.isRecurring === 1} onChange={e => setForm(f => ({ ...f, isRecurring: e.target.checked ? 1 : 0 }))} />
-                  <span className="text-xs text-muted-foreground">반복 업무</span>
-                </label>
-                {!form.isRecurring && (
-                  <input type="date" value={form.taskDate} onChange={e => setForm(f => ({ ...f, taskDate: e.target.value }))}
-                    className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                )}
-              </div>
-              {!form.isRecurring && form.taskDate > new Date().toISOString().substring(0, 10) && (
-                <p className="text-xs text-amber-400">
-                  📅 {form.taskDate} 당일에만 직원 화면에 표시됩니다
-                </p>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.isRecurring === 1} onChange={e => setForm(f => ({ ...f, isRecurring: e.target.checked ? 1 : 0 }))} />
+                <span className="text-xs text-muted-foreground">반복 업무</span>
+              </label>
+              {!form.isRecurring && (
+                <input type="date" value={form.taskDate} onChange={e => setForm(f => ({ ...f, taskDate: e.target.value }))}
+                  className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               )}
             </div>
             <div className="flex gap-2">
