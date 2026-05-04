@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   Plus, Search, Phone, MessageSquare, CheckCircle2,
   Clock, XCircle, UserCheck, ChevronLeft, ChevronRight, X,
+  PenLine, RotateCcw, Printer, Check,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -203,6 +204,9 @@ export default function LeadsPage() {
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [agreedMarketing, setAgreedMarketing] = useState(false);
+  const [showSignature, setShowSignature] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [showSignedContract, setShowSignedContract] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
   const [regForm, setRegForm] = useState<RegForm>(defaultRegForm);
   const regPendingRef = useRef<RegForm | null>(null);
@@ -271,6 +275,7 @@ export default function LeadsPage() {
   function resetForm() {
     setShowForm(false); setEditId(null); setForm(defaultForm);
     setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
+    setShowSignature(false); setSignatureDataUrl(null); setShowSignedContract(false);
     setShowRegistration(false); setRegForm(defaultRegForm);
     regPendingRef.current = null; pendingEditIdRef.current = null;
   }
@@ -285,6 +290,17 @@ export default function LeadsPage() {
     if (!agreedTerms) return toast.error("이용약관에 동의해주세요");
     if (!agreedPrivacy) return toast.error("개인정보 수집·이용에 동의해주세요");
     setShowContract(false);
+    setShowSignature(true);
+  }
+
+  function proceedAfterSignature(sigDataUrl: string) {
+    setSignatureDataUrl(sigDataUrl);
+    setShowSignature(false);
+    setShowSignedContract(true);
+  }
+
+  function proceedToRegistration() {
+    setShowSignedContract(false);
     const preTypes = (form.interestType === "PT" || form.interestType === "헬스" || form.interestType === "기타")
       ? [form.interestType] : [];
     setRegForm({
@@ -647,6 +663,36 @@ export default function LeadsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 전자서명 모달 */}
+      {showSignature && (
+        <SignatureModal
+          memberName={form.name}
+          onConfirm={proceedAfterSignature}
+          onBack={() => { setShowSignature(false); setShowContract(true); }}
+        />
+      )}
+
+      {/* 서명된 계약서 확인 모달 */}
+      {showSignedContract && signatureDataUrl && (
+        <SignedContractModal
+          memberName={form.name}
+          memberPhone={form.phone || ""}
+          marketing={agreedMarketing}
+          signatureDataUrl={signatureDataUrl}
+          onPrint={() => {
+            const p = new URLSearchParams({
+              name: form.name,
+              phone: form.phone || "",
+              date: new Date().toLocaleDateString("ko-KR"),
+              marketing: agreedMarketing ? "1" : "0",
+              sig: signatureDataUrl,
+            });
+            window.open(`/contract-print?${p.toString()}`, "_blank");
+          }}
+          onConfirm={proceedToRegistration}
+        />
       )}
 
       {/* 등록 상세 모달 */}
@@ -1272,6 +1318,258 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── 전자서명 모달 ───────────────────────────────────────────────────────────
+function SignatureModal({
+  memberName,
+  onConfirm,
+  onBack,
+}: {
+  memberName: string;
+  onConfirm: (dataUrl: string) => void;
+  onBack: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawing = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  const getPos = (e: React.TouchEvent | React.MouseEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      const touch = e.touches[0];
+      return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+    }
+    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY };
+  };
+
+  const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    isDrawing.current = true;
+    lastPos.current = getPos(e, canvas);
+  };
+
+  const draw = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    if (!isDrawing.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(e, canvas);
+    if (lastPos.current) {
+      ctx.beginPath();
+      ctx.moveTo(lastPos.current.x, lastPos.current.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.strokeStyle = "#1a1a2e";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke();
+      setHasDrawn(true);
+    }
+    lastPos.current = pos;
+  };
+
+  const endDraw = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    isDrawing.current = false;
+    lastPos.current = null;
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasDrawn(false);
+  };
+
+  const confirmSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    onConfirm(canvas.toDataURL("image/png"));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col gap-4 p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PenLine className="w-5 h-5 text-emerald-400" />
+            <h2 className="font-bold text-foreground">전자 서명</h2>
+          </div>
+          <button onClick={onBack} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <p className="text-sm text-muted-foreground text-center">
+          <span className="text-foreground font-semibold">{memberName}</span> 고객님,<br />
+          아래 서명란에 직접 서명해 주세요.
+        </p>
+
+        {/* 서명 캔버스 */}
+        <div className="border-2 border-dashed border-emerald-500/50 rounded-xl bg-white relative overflow-hidden"
+          style={{ touchAction: "none" }}>
+          <canvas
+            ref={canvasRef}
+            width={640}
+            height={240}
+            className="w-full"
+            style={{ display: "block", cursor: "crosshair" }}
+            onMouseDown={startDraw}
+            onMouseMove={draw}
+            onMouseUp={endDraw}
+            onMouseLeave={endDraw}
+            onTouchStart={startDraw}
+            onTouchMove={draw}
+            onTouchEnd={endDraw}
+          />
+          {!hasDrawn && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <p className="text-gray-400 text-sm select-none">여기에 서명하세요</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={clearCanvas}
+            className="flex items-center gap-1.5 px-4 py-2.5 border border-border rounded-xl text-sm text-muted-foreground hover:bg-muted/30 transition-colors">
+            <RotateCcw className="w-4 h-4" />
+            다시 쓰기
+          </button>
+          <button
+            type="button"
+            onClick={confirmSignature}
+            disabled={!hasDrawn}
+            className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            <Check className="w-4 h-4" />
+            서명 완료
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 서명된 계약서 확인 모달 ─────────────────────────────────────────────────
+function SignedContractModal({
+  memberName,
+  memberPhone,
+  marketing,
+  signatureDataUrl,
+  onPrint,
+  onConfirm,
+}: {
+  memberName: string;
+  memberPhone: string;
+  marketing: boolean;
+  signatureDataUrl: string;
+  onPrint: () => void;
+  onConfirm: () => void;
+}) {
+  const today = new Date().toLocaleDateString("ko-KR");
+
+  return (
+    <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
+        {/* 헤더 */}
+        <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center gap-2 shrink-0 rounded-t-2xl">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          <h2 className="font-bold text-foreground flex-1">서명 완료</h2>
+          <span className="text-xs text-muted-foreground">계약서를 확인하세요</span>
+        </div>
+
+        {/* 계약서 미리보기 */}
+        <div className="overflow-y-auto flex-1 p-4">
+          <div className="bg-white text-gray-800 rounded-xl p-5 text-xs leading-relaxed shadow-sm"
+            style={{ fontFamily: "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif" }}>
+
+            {/* 계약서 헤더 */}
+            <div className="text-center border-b border-gray-300 pb-4 mb-4">
+              <p className="text-base font-bold tracking-widest">자이언트짐</p>
+              <p className="text-xs text-gray-500">GIANT GYM</p>
+              <p className="text-sm font-bold mt-2 tracking-wider">회 원 계 약 서</p>
+            </div>
+
+            {/* 회원 정보 */}
+            <div className="border border-gray-200 rounded p-3 mb-4 grid grid-cols-2 gap-y-2">
+              <div><span className="text-gray-500">성명</span> <span className="font-semibold ml-2">{memberName}</span></div>
+              <div><span className="text-gray-500">연락처</span> <span className="font-semibold ml-2">{memberPhone || "—"}</span></div>
+              <div className="col-span-2"><span className="text-gray-500">계약일</span> <span className="font-semibold ml-2">{today}</span></div>
+            </div>
+
+            {/* 동의 항목 요약 */}
+            <div className="space-y-1.5 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-600 font-bold">✓</span>
+                <span className="font-medium">(필수) 센터 이용 약관 동의</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-600 font-bold">✓</span>
+                <span className="font-medium">(필수) 개인정보 수집·이용 동의</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={marketing ? "text-blue-600 font-bold" : "text-gray-300 font-bold"}>
+                  {marketing ? "✓" : "✗"}
+                </span>
+                <span className={marketing ? "font-medium" : "text-gray-400"}>
+                  (선택) 광고성 정보 수신 동의 {marketing ? "— 동의" : "— 미동의"}
+                </span>
+              </div>
+            </div>
+
+            {/* 서명 */}
+            <div className="border-t border-gray-300 pt-3">
+              <p className="text-gray-600 mb-2 text-center text-xs">
+                본인은 위 약관의 내용을 충분히 읽고 이해하였으며, 이에 동의하여 서명합니다.
+              </p>
+              <div className="flex justify-between items-end gap-4">
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">계약일</p>
+                  <p className="text-xs font-medium border-b border-gray-300 pb-1">{today}</p>
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-500 text-xs mb-1">회원 서명</p>
+                  <div className="border border-gray-200 rounded bg-gray-50 flex items-center justify-center"
+                    style={{ height: "64px" }}>
+                    <img src={signatureDataUrl} alt="서명" className="max-h-full max-w-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 하단 버튼 */}
+        <div className="p-4 border-t border-border shrink-0 space-y-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="w-full flex items-center justify-center gap-2 bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors">
+            <Check className="w-4 h-4" />
+            확인 후 등록 진행
+          </button>
+          <button
+            type="button"
+            onClick={onPrint}
+            className="w-full flex items-center justify-center gap-2 border border-emerald-500/40 text-emerald-400 rounded-xl py-2.5 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
+            <Printer className="w-4 h-4" />
+            계약서 인쇄 / PDF 저장
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

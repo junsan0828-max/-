@@ -84,6 +84,7 @@ export default function ContractPrint() {
   const phone = params.get("phone") || "";
   const date = params.get("date") || new Date().toLocaleDateString("ko-KR");
   const marketing = params.get("marketing") === "1";
+  const signatureDataUrl = params.get("sig") || null;
 
   useEffect(() => {
     document.title = `${name} 회원 계약서 - 자이언트짐`;
@@ -209,10 +210,16 @@ export default function ContractPrint() {
             </div>
             <div className="flex-1">
               <p className="text-xs text-gray-500 mb-1">회원 성명 (서명)</p>
-              <div className="border-b border-gray-400 pb-8 flex items-end justify-between">
-                <span className="text-sm font-semibold">{name}</span>
-                <span className="text-xs text-gray-400">(서명)</span>
-              </div>
+              {signatureDataUrl ? (
+                <div className="border border-gray-300 rounded bg-gray-50 p-2 flex items-center justify-center" style={{ height: "80px" }}>
+                  <img src={signatureDataUrl} alt="서명" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
+                </div>
+              ) : (
+                <div className="border-b border-gray-400 pb-8 flex items-end justify-between">
+                  <span className="text-sm font-semibold">{name}</span>
+                  <span className="text-xs text-gray-400">(서명)</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="mt-8 text-center">
