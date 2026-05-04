@@ -290,17 +290,6 @@ export default function LeadsPage() {
     if (!agreedTerms) return toast.error("이용약관에 동의해주세요");
     if (!agreedPrivacy) return toast.error("개인정보 수집·이용에 동의해주세요");
     setShowContract(false);
-    setShowSignature(true);
-  }
-
-  function proceedAfterSignature(sigDataUrl: string) {
-    setSignatureDataUrl(sigDataUrl);
-    setShowSignature(false);
-    setShowSignedContract(true);
-  }
-
-  function proceedToRegistration() {
-    setShowSignedContract(false);
     const preTypes = (form.interestType === "PT" || form.interestType === "헬스" || form.interestType === "기타")
       ? [form.interestType] : [];
     setRegForm({
@@ -310,6 +299,27 @@ export default function LeadsPage() {
       startDate: new Date().toISOString().substring(0, 10),
     });
     setShowRegistration(true);
+  }
+
+  function requestSignature() {
+    const reg = regForm;
+    if (!reg.paymentDate) return toast.error("결제일을 입력해주세요");
+    const amount = Number(reg.amount);
+    if (!amount) return toast.error("금액을 입력해주세요");
+    setShowRegistration(false);
+    setShowSignature(true);
+  }
+
+  function proceedAfterSignature(sigDataUrl: string) {
+    setSignatureDataUrl(sigDataUrl);
+    setShowSignature(false);
+    setShowSignedContract(true);
+  }
+
+  function proceedToSave() {
+    setShowSignedContract(false);
+    regPendingRef.current = regForm;
+    handleSave("registered");
   }
 
   function fireRevenueSave(reg: RegForm, leadId: number) {
@@ -350,12 +360,7 @@ export default function LeadsPage() {
   }
 
   function saveRegistration() {
-    const reg = regForm;
-    if (!reg.paymentDate) return toast.error("결제일을 입력해주세요");
-    const amount = Number(reg.amount);
-    if (!amount) return toast.error("금액을 입력해주세요");
-    regPendingRef.current = reg;
-    handleSave("registered");
+    requestSignature();
   }
 
   function openEdit(row: any) {
@@ -670,7 +675,7 @@ export default function LeadsPage() {
         <SignatureModal
           memberName={form.name}
           onConfirm={proceedAfterSignature}
-          onBack={() => { setShowSignature(false); setShowContract(true); }}
+          onBack={() => { setShowSignature(false); setShowRegistration(true); }}
         />
       )}
 
@@ -691,7 +696,7 @@ export default function LeadsPage() {
             });
             window.open(`/contract-print?${p.toString()}`, "_blank");
           }}
-          onConfirm={proceedToRegistration}
+          onConfirm={proceedToSave}
         />
       )}
 
