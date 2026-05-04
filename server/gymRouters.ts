@@ -1446,7 +1446,7 @@ const tasksWorkRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const isAdmin = ctx.user!.role === "admin";
+      const isAdmin = ctx.user!.role === "admin" || ctx.user!.role === "sub_admin";
       const userId = ctx.user!.id;
       const today = new Date().toISOString().substring(0, 10);
       const weekStart = getWeekStart(today);
@@ -1617,14 +1617,14 @@ const noticesWorkRouter = t.router({
     const reads = await db.select().from(noticeReads).where(eq(noticeReads.userId, userId));
     const readIds = new Set(reads.map(r => r.noticeId));
     return allNotices
-      .filter(row => role === "admin" || row.notice.targetRole === "all" || row.notice.targetRole === role)
+      .filter(row => role === "admin" || role === "sub_admin" || row.notice.targetRole === "all" || row.notice.targetRole === role)
       .map(row => ({ ...row, isRead: readIds.has(row.notice.id) }));
   }),
 
   create: protectedProcedure
     .input(z.object({ title: z.string().min(1), content: z.string().min(1), targetRole: z.string().default("all"), priority: z.string().default("normal") }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user!.role !== "admin" && ctx.user!.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [row] = await db.insert(notices).values({ ...input, authorId: ctx.user!.id }).returning();
@@ -1647,7 +1647,7 @@ const noticesWorkRouter = t.router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user!.role !== "admin" && ctx.user!.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(notices).where(eq(notices.id, input.id));
@@ -1657,7 +1657,7 @@ const noticesWorkRouter = t.router({
   readStatus: protectedProcedure
     .input(z.object({ noticeId: z.number() }))
     .query(async ({ ctx, input }) => {
-      if (ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (ctx.user!.role !== "admin" && ctx.user!.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
