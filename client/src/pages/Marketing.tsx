@@ -245,37 +245,41 @@ export default function MarketingPage() {
 
       {/* 채널 추가 폼 */}
       {showChannelForm && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md">
-            <div className="border-b border-border px-4 py-3 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }}>
+            <div className="border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
               <h2 className="font-semibold text-foreground">채널 추가</h2>
               <button onClick={() => setShowChannelForm(false)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); if (!channelForm.name.trim()) return toast.error("채널명을 입력해주세요"); createChannelMutation.mutate(channelForm); }} className="p-4 space-y-3">
-              <div>
-                <label className="text-xs text-muted-foreground">채널명 *</label>
-                <input value={channelForm.name} onChange={e => setChannelForm(f => ({ ...f, name: e.target.value }))} placeholder="예: 인스타그램"
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">채널 유형</label>
-                <div className="flex gap-2 mt-1">
-                  {CHANNEL_TYPES.map(t => (
-                    <button key={t.value} type="button" onClick={() => setChannelForm(f => ({ ...f, type: t.value }))}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${channelForm.type === t.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {t.label}
-                    </button>
-                  ))}
+            <form onSubmit={(e) => { e.preventDefault(); if (!channelForm.name.trim()) return toast.error("채널명을 입력해주세요"); createChannelMutation.mutate(channelForm); }} className="flex flex-col flex-1 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-4 space-y-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">채널명 *</label>
+                  <input value={channelForm.name} onChange={e => setChannelForm(f => ({ ...f, name: e.target.value }))} placeholder="예: 인스타그램"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">채널 유형</label>
+                  <div className="flex gap-2 mt-1">
+                    {CHANNEL_TYPES.map(t => (
+                      <button key={t.value} type="button" onClick={() => setChannelForm(f => ({ ...f, type: t.value }))}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${channelForm.type === t.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">설명</label>
+                  <input value={channelForm.description} onChange={e => setChannelForm(f => ({ ...f, description: e.target.value }))} placeholder="채널 설명"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground">설명</label>
-                <input value={channelForm.description} onChange={e => setChannelForm(f => ({ ...f, description: e.target.value }))} placeholder="채널 설명"
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              <div className="p-4 border-t border-border shrink-0">
+                <button type="submit" className="w-full bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90">
+                  추가
+                </button>
               </div>
-              <button type="submit" className="w-full bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90 mt-2">
-                추가
-              </button>
             </form>
           </div>
         </div>
