@@ -652,15 +652,6 @@ export default function LeadsPage() {
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 완료
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const p = new URLSearchParams({ name: form.name, phone: form.phone || "", date: new Date().toLocaleDateString("ko-KR"), marketing: agreedMarketing ? "1" : "0" });
-                  window.open(`/contract-print?${p.toString()}`, "_blank");
-                }}
-                className="w-full border border-emerald-500/40 text-emerald-400 rounded-xl py-2.5 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
-                계약서 PDF 출력
-              </button>
               <button type="button" onClick={() => setShowContract(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
