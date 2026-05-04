@@ -213,6 +213,21 @@ export const healthReports = pgTable("health_reports", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+export const ptReports = pgTable("pt_reports", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  packageId: integer("packageId").notNull(),
+  memberId: integer("memberId").notNull(),
+  generatedBy: integer("generatedBy").notNull(),
+  reportIndex: integer("reportIndex").notNull(),
+  milestoneSession: integer("milestoneSession").notNull(),
+  fromSession: integer("fromSession").notNull(),
+  reportData: text("reportData").notNull(),
+  aiText: text("aiText").notNull(),
+  isAI: integer("isAI").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
   memberId: integer("memberId").notNull(),

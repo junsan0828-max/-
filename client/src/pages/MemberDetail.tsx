@@ -102,6 +102,85 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   );
 }
 
+function getMilestones(total: number): number[] {
+  if (total <= 10) return [7];
+  const ms: number[] = [];
+  for (let m = 15; m < total; m += 10) ms.push(m);
+  return ms;
+}
+
+function PTReportButtons({ packageId, memberId, totalSessions, usedSessions }: {
+  packageId: number;
+  memberId: number;
+  totalSessions: number;
+  usedSessions: number;
+}) {
+  const { data: existingReports = [], refetch } = trpc.gym.ai.getPTReports.useQuery({ packageId });
+  const genMutation = trpc.gym.ai.generatePTProgressReport.useMutation({
+    onSuccess: (data) => {
+      refetch();
+      toast.success("PT 변화 리포트가 생성되었습니다!");
+      window.open(data.reportUrl, "_blank");
+    },
+    onError: (err: any) => toast.error(err.message || "리포트 생성 실패"),
+  });
+
+  const milestones = getMilestones(totalSessions);
+  if (milestones.length === 0) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/50">
+      <p className="text-xs text-muted-foreground font-semibold mb-2">📊 PT 변화 리포트</p>
+      <div className="flex flex-wrap gap-1.5">
+        {milestones.map((milestoneSession, idx) => {
+          const reportIndex = idx + 1;
+          const fromSession = idx === 0 ? 1 : milestones[idx - 1] + 1;
+          const existing = existingReports.find((r: any) => r.reportIndex === reportIndex);
+          const reached = usedSessions >= milestoneSession;
+          const isPending = genMutation.isPending && (genMutation.variables as any)?.reportIndex === reportIndex;
+
+          if (existing) {
+            return (
+              <button
+                key={reportIndex}
+                onClick={() => window.open(`/api/pt-report/${existing.token}`, "_blank")}
+                className="px-3 py-1 text-xs rounded-full border border-green-500/40 text-green-400 bg-green-500/10 hover:bg-green-500/20 transition-colors flex items-center gap-1"
+              >
+                <Check className="h-3 w-3" />보고서 {reportIndex}
+              </button>
+            );
+          }
+
+          if (!reached) {
+            return (
+              <button
+                key={reportIndex}
+                disabled
+                className="px-3 py-1 text-xs rounded-full border border-border text-muted-foreground opacity-50 cursor-not-allowed"
+                title={`${milestoneSession}회 달성 후 생성 가능`}
+              >
+                보고서 {reportIndex} ({milestoneSession}회)
+              </button>
+            );
+          }
+
+          return (
+            <button
+              key={reportIndex}
+              disabled={isPending}
+              onClick={() => genMutation.mutate({ packageId, memberId, milestoneSession, fromSession, reportIndex })}
+              className="px-3 py-1 text-xs rounded-full border border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 transition-colors flex items-center gap-1"
+            >
+              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+              보고서 {reportIndex}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function MemberDetail({ memberId }: Props) {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
@@ -889,6 +968,14 @@ export default function MemberDetail({ memberId }: Props) {
                             <PauseCircle className="h-3 w-3" />정지 추가
                           </button>
                         </div>
+
+                        {/* PT 변화 리포트 마일스톤 버튼 */}
+                        <PTReportButtons
+                          packageId={pkg.id}
+                          memberId={memberId}
+                          totalSessions={pkg.totalSessions}
+                          usedSessions={pkg.usedSessions}
+                        />
 
                         {/* 프로그램 완료 → 보고서 버튼 */}
                         {(pkg.status === "completed" || pkg.usedSessions >= pkg.totalSessions) && (

@@ -20,8 +20,12 @@ import {
   ptSessionLogs,
   attendanceChecks,
   healthReports,
+  ptReports,
+  ptPackages,
 } from "../drizzle/schema";
 import type { ReportData } from "./healthReportHTML";
+import { generatePTReportHTML } from "./ptReportHTML";
+import type { PTReportData, ExerciseStat } from "./ptReportHTML";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -1046,6 +1050,252 @@ ${dataCtx}
       const stats = { totalSessions: logs.length, topBodyParts, goals: goalSet.slice(0, 3), avgCondition, avgPain, checksCount: checks.length };
       return { report: aiText, isAI, stats, token, reportUrl };
     }),
+
+  getPTReports: protectedProcedure
+    .input(z.object({ packageId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db.select().from(ptReports)
+        .where(eq(ptReports.packageId, input.packageId))
+        .orderBy(ptReports.reportIndex);
+    }),
+
+  generatePTProgressReport: protectedProcedure
+    .input(z.object({
+      packageId: z.number(),
+      memberId: z.number(),
+      milestoneSession: z.number(),
+      fromSession: z.number(),
+      reportIndex: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [pkg] = await db.select().from(ptPackages).where(eq(ptPackages.id, input.packageId));
+      if (!pkg) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [member] = await db.select().from(members).where(eq(members.id, input.memberId));
+      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // 담당 트레이너명
+      let trainerName: string | undefined;
+      if (pkg.trainerId) {
+        const [tr] = await db.select().from(trainers).where(eq(trainers.id, pkg.trainerId));
+        trainerName = tr?.trainerName ?? undefined;
+      }
+
+      // 이 패키지의 세션 로그 전체 (날짜순)
+      const allLogs = await db.select().from(ptSessionLogs)
+        .where(eq(ptSessionLogs.packageId, input.packageId))
+        .orderBy(ptSessionLogs.sessionDate);
+
+      // 이번 구간 로그 (fromSession~milestoneSession, 0-indexed slice)
+      const periodLogs = allLogs.slice(input.fromSession - 1, input.milestoneSession);
+      // 이전 구간 로그 (있을 경우)
+      const prevLogs = input.fromSession > 1 ? allLogs.slice(0, input.fromSession - 1) : [];
+
+      const fromDate = periodLogs[0]?.sessionDate;
+      const toDate = periodLogs[periodLogs.length - 1]?.sessionDate;
+
+      // 날짜 범위로 컨디션 체크 가져오기
+      const periodChecks = fromDate && toDate
+        ? await db.select().from(attendanceChecks)
+            .where(and(
+              eq(attendanceChecks.memberId, input.memberId),
+              gte(attendanceChecks.checkDate, fromDate),
+              lte(attendanceChecks.checkDate, toDate),
+            ))
+        : [];
+
+      const prevChecks = prevLogs.length > 0 && prevLogs[0].sessionDate && prevLogs[prevLogs.length - 1].sessionDate
+        ? await db.select().from(attendanceChecks)
+            .where(and(
+              eq(attendanceChecks.memberId, input.memberId),
+              gte(attendanceChecks.checkDate, prevLogs[0].sessionDate!),
+              lte(attendanceChecks.checkDate, prevLogs[prevLogs.length - 1].sessionDate!),
+            ))
+        : [];
+
+      // 통계 계산 helper
+      const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 10) / 10 : null;
+
+      const calcStats = (logs: typeof allLogs, checks: typeof periodChecks) => ({
+        sessionCount: logs.length,
+        avgCondition: avg(checks.filter(c => c.conditionScore != null).map(c => c.conditionScore!)),
+        avgSleep: avg(checks.filter(c => c.sleepHours != null).map(c => parseFloat(c.sleepHours ?? "0")).filter(n => n > 0)),
+        avgPain: avg(checks.filter(c => c.painLevel != null).map(c => c.painLevel!)),
+        attendanceRate: logs.length > 0 ? Math.round(logs.length / (input.milestoneSession - input.fromSession + 1) * 100) : 0,
+      });
+
+      const periodSt = calcStats(periodLogs, periodChecks);
+      const prevSt = prevLogs.length > 0 ? calcStats(prevLogs, prevChecks) : null;
+
+      // 운동 종목별 집계
+      const exerciseMap: Record<string, { entries: { weight: number; reps: number; sets: number; date: string }[] }> = {};
+      for (const log of periodLogs) {
+        if (!log.exercisesJson) continue;
+        try {
+          const exs: Array<{ name: string; sets: Array<{ weight: string; reps: string }> }> = JSON.parse(log.exercisesJson);
+          for (const ex of exs) {
+            if (!ex.name) continue;
+            const validSets = ex.sets.filter(s => s.weight && s.reps);
+            if (validSets.length === 0) continue;
+            const maxW = Math.max(...validSets.map(s => parseFloat(s.weight) || 0));
+            const avgReps = Math.round(validSets.map(s => parseInt(s.reps) || 0).reduce((a, b) => a + b, 0) / validSets.length);
+            if (!exerciseMap[ex.name]) exerciseMap[ex.name] = { entries: [] };
+            exerciseMap[ex.name].entries.push({ weight: maxW, reps: avgReps, sets: validSets.length, date: log.sessionDate });
+          }
+        } catch { /* skip */ }
+      }
+
+      const exercises: ExerciseStat[] = Object.entries(exerciseMap)
+        .map(([name, { entries }]) => {
+          const sorted = entries.sort((a, b) => a.date.localeCompare(b.date));
+          const first = sorted[0] ?? null;
+          const last = sorted[sorted.length - 1] ?? null;
+          let trend: ExerciseStat["trend"] = "insufficient";
+          let changePercent: number | undefined;
+          if (sorted.length >= 2 && first && last) {
+            const weightChange = last.weight - first.weight;
+            if (first.weight > 0) {
+              changePercent = Math.round(Math.abs(weightChange) / first.weight * 100);
+              trend = changePercent < 3 ? "stable" : weightChange > 0 ? "up" : "down";
+            } else {
+              trend = last.sets > first.sets || last.reps > first.reps ? "up" : "stable";
+            }
+          }
+          return { name, sessions: sorted.length, first: first ? { weight: first.weight, reps: first.reps, sets: first.sets } : null, last: last ? { weight: last.weight, reps: last.reps, sets: last.sets } : null, trend, changePercent };
+        })
+        .sort((a, b) => b.sessions - a.sessions)
+        .slice(0, 12);
+
+      // 부위, 피드백, 통증 부위
+      const bodyPartMap: Record<string, number> = {};
+      for (const log of periodLogs) {
+        if (log.bodyPart) log.bodyPart.split(",").map(p => p.trim()).filter(Boolean).forEach(p => { bodyPartMap[p] = (bodyPartMap[p] || 0) + 1; });
+      }
+      const bodyParts = Object.entries(bodyPartMap).sort((a, b) => b[1] - a[1]).map(([p, c]) => `${p}(${c}회)`).slice(0, 6);
+      const feedbacks = periodLogs.filter(l => l.feedback).map(l => l.feedback!).slice(0, 3);
+      const painAreas = [...new Set(periodChecks.filter(c => c.painArea).map(c => c.painArea!))].slice(0, 5);
+
+      // PAR-Q
+      const [health] = await db.select().from(parQ).where(eq(parQ.memberId, input.memberId));
+      const ptGoal = [health?.goal1, health?.goal2, health?.goal3].filter(Boolean).join(", ");
+
+      // ReportData 구조
+      const reportData: PTReportData = {
+        generatedAt: new Date().toLocaleDateString("ko-KR"),
+        isAI: false,
+        member: { name: member.name, trainerName },
+        program: {
+          packageName: pkg.packageName || "PT 프로그램",
+          totalSessions: pkg.totalSessions,
+          usedSessions: pkg.usedSessions,
+          startDate: pkg.startDate ?? undefined,
+          reportIndex: input.reportIndex,
+          milestoneSession: input.milestoneSession,
+          fromSession: input.fromSession,
+          goal: ptGoal || undefined,
+        },
+        periodStats: { ...periodSt, fromDate, toDate },
+        prevStats: prevSt,
+        exercises,
+        bodyParts,
+        feedbacks,
+        painAreas,
+      };
+
+      // AI 프롬프트
+      const exSummary = exercises.slice(0, 6).map(e =>
+        `- ${e.name}: 초기 ${e.first ? `${e.first.weight}kg×${e.first.reps}회×${e.first.sets}세트` : "기록없음"} → 현재 ${e.last ? `${e.last.weight}kg×${e.last.reps}회×${e.last.sets}세트` : "기록없음"} (${e.trend === "up" ? `↑ 향상 ${e.changePercent ?? ""}%` : e.trend === "down" ? "↓ 감소" : "→ 유지"})`
+      ).join("\n");
+
+      const prompt = `당신은 개인 트레이닝 전문 코치입니다. 회원에게 전달할 PT 변화 리포트를 한국어로 작성해주세요.
+
+[회원 정보]
+- 회원명: ${member.name}
+- 담당 트레이너: ${trainerName ?? "미확인"}
+- 계약 PT: ${pkg.totalSessions}회 / ${pkg.packageName || "PT"}
+- 현재 진행 회차: ${pkg.usedSessions}회차
+- 리포트 구간: ${input.fromSession}~${input.milestoneSession}회차 (보고서 ${input.reportIndex})
+- 운동 목적: ${ptGoal || "미기재"}
+
+[이번 구간 데이터]
+- 실제 수업: ${periodSt.sessionCount}회
+- 출석률: ${periodSt.attendanceRate}%
+- 컨디션 평균: ${periodSt.avgCondition != null ? `${periodSt.avgCondition}/10` : "기록부족"}${prevSt?.avgCondition != null ? ` (이전 ${prevSt.avgCondition}/10)` : ""}
+- 통증 평균: ${periodSt.avgPain != null ? `${periodSt.avgPain}/10` : "기록부족"}${prevSt?.avgPain != null ? ` (이전 ${prevSt.avgPain}/10)` : ""}
+- 수면 평균: ${periodSt.avgSleep != null ? `${periodSt.avgSleep}h` : "기록부족"}
+- 통증 부위: ${painAreas.join(", ") || "없음"}
+- 주요 운동 부위: ${bodyParts.join(", ") || "없음"}
+
+[운동 수행 변화]
+${exSummary || "운동 기록 부족"}
+
+[트레이너 피드백 (최근)]
+${feedbacks.join(" / ") || "없음"}
+
+[주의사항]
+1. 의학적 진단이나 치료 확정 표현은 사용하지 않는다
+2. "개선되는 경향", "관리 필요", "추가 확인 필요" 같은 안전한 표현 사용
+3. 데이터 부족 시 "기록 부족으로 정확한 판단은 제한적입니다"라고 표현
+4. 회원이 이해하기 쉬운 문장으로 작성
+5. 긍정적 변화 → 보완점 → 다음 계획 순서
+6. 전문적이지만 따뜻한 톤
+
+다음 순서로 보고서를 작성하세요:
+
+**1. 건강리포트 종합 요약**
+이번 구간의 변화를 5~7줄로 요약. 좋아진 점 3가지 / 관리 필요한 점 2~3가지 / 운동 지속이 필요한 이유를 데이터 기반으로.
+
+**2. 생활습관 변화 분석**
+수면 / 컨디션 / 통증 항목별로 현재 상태, 변화, 운동 결과에 미친 영향, 개선 방향. 데이터 없는 항목은 "기록 부족으로 정확한 판단은 제한적입니다".
+
+**3. 운동 수행 변화 분석**
+주요 종목별 수행 능력 변화. 출석률 평가. 회원이 성과를 느낄 수 있도록 쉽게 설명.
+
+**4. 트레이너 코멘트**
+잘한 점 / 보완이 필요한 점 / 생활습관에서 바꿔야 할 점.
+
+**5. 다음 운동 계획**
+핵심 목표 / 추천 운동 방향 / 운동 강도 / 생활습관 목표.
+
+**6. 회원 전달 메시지**
+회원에게 직접 전달하는 따뜻한 문장. 4~6줄. 꾸준함·변화·다음 목표 포함. 과장된 표현 금지.`;
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      let aiText = buildFallbackPTReport(member.name, reportData);
+      let isAI = false;
+
+      if (apiKey) {
+        try {
+          const client = new Anthropic({ apiKey });
+          const message = await client.messages.create({
+            model: "claude-sonnet-4-6",
+            max_tokens: 2500,
+            messages: [{ role: "user", content: prompt }],
+          });
+          aiText = message.content[0].type === "text" ? message.content[0].text : aiText;
+          isAI = true;
+        } catch { /* fallback */ }
+      }
+
+      reportData.isAI = isAI;
+      const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+      // 같은 packageId+reportIndex 기존 보고서 삭제 후 저장
+      await db.delete(ptReports).where(and(eq(ptReports.packageId, input.packageId), eq(ptReports.reportIndex, input.reportIndex)));
+      await db.insert(ptReports).values({
+        token, packageId: input.packageId, memberId: input.memberId,
+        generatedBy: ctx.user!.id, reportIndex: input.reportIndex,
+        milestoneSession: input.milestoneSession, fromSession: input.fromSession,
+        reportData: JSON.stringify(reportData), aiText, isAI: isAI ? 1 : 0,
+      });
+
+      return { token, reportUrl: `/api/pt-report/${token}`, isAI, reportIndex: input.reportIndex };
+    }),
 });
 
 function buildFallbackMemberReport(
@@ -1057,6 +1307,13 @@ function buildFallbackMemberReport(
   const criticals = [ls.diet, ls.alcohol, ls.sleep, ls.activity].filter(c => c.riskLevel === "critical").length;
   const warnings = [ls.diet, ls.alcohol, ls.sleep, ls.activity].filter(c => c.riskLevel !== "normal").length;
   return `**1. 건강 상태 요약**\n${name} 회원의 건강 데이터 기반 보고서입니다. PAR-Q 건강검사 수치 데이터를 입력하시면 더 정밀한 평가가 가능합니다.\n\n**2. 생활습관 평가**\n식단 ${ls.diet.riskKo} · 음주 ${ls.alcohol.riskKo} · 수면 ${ls.sleep.riskKo} · 활동 ${ls.activity.riskKo}. ${criticals > 0 ? `${criticals}개 영역이 심각 수준으로 즉각적인 관리가 필요합니다.` : warnings > 0 ? `${warnings}개 영역에서 개선이 필요합니다.` : "전반적으로 양호합니다."}\n\n**3. 트레이닝 패턴 분석**\n총 ${training.totalSessions}회 수업을 진행했습니다. ${training.topBodyParts.length > 0 ? `주요 운동 부위: ${training.topBodyParts.join(", ")}` : "운동 부위 기록을 꾸준히 작성해 주세요."}\n\n**4. 맞춤 권장사항**\n1) 생활습관 위험 항목 개선 우선 실천 2) 규칙적인 수업 참석 및 컨디션 체크 기록 3) PAR-Q 건강검사 수치 업데이트로 맞춤 프로그램 설계`;
+}
+
+function buildFallbackPTReport(name: string, data: PTReportData): string {
+  const ex = data.exercises.slice(0, 3).map(e =>
+    `${e.name}(${e.trend === "up" ? "향상" : e.trend === "down" ? "하락" : "유지"})`
+  ).join(", ");
+  return `**1. 이번 구간 종합 평가**\n${name} 회원의 ${data.program.reportIndex}차 PT 변화 리포트입니다. ${data.periodStats.sessionCount}회 수업에 참여했으며 출석률 ${data.periodStats.attendanceRate}%를 기록했습니다.\n\n**2. 운동 수행 변화 분석**\n주요 운동: ${ex || "기록 없음"}. 꾸준한 세션 참여로 기초 체력 향상에 집중했습니다.\n\n**3. 컨디션 및 생활습관 변화**\n${data.periodStats.avgCondition != null ? `평균 컨디션 ${data.periodStats.avgCondition}/10.` : "컨디션 기록을 꾸준히 작성해 주세요."} ${data.periodStats.avgSleep != null ? `평균 수면 ${data.periodStats.avgSleep}h.` : ""}\n\n**4. 잘한 점 / 보완이 필요한 점**\n꾸준한 출석과 성실한 운동 참여가 긍정적입니다. 식단 및 수면 관리를 함께 실천하면 더 빠른 변화를 기대할 수 있습니다.\n\n**5. 다음 운동 계획**\n현재 운동 강도와 패턴을 유지하면서 단계적으로 부하를 높여가는 방향으로 진행합니다.\n\n**6. 회원 전달 메시지**\n${name} 회원님, 꾸준하게 운동에 참여해 주셔서 감사합니다. 작은 변화들이 쌓여 큰 결과로 이어집니다. 앞으로도 함께 목표를 향해 나아가겠습니다.`;
 }
 
 function generateFallbackAnalysis(data: {
