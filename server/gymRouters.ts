@@ -612,6 +612,84 @@ const expenseRouter = t.router({
 
 // ─── KPI Dashboard ───────────────────────────────────────────────────────────
 const kpiRouter = t.router({
+  financialDetail: protectedProcedure
+    .input(z.object({ year: z.number(), branchId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const revenueWhere = input.branchId ? eq(revenueEntries.branchId, input.branchId) : undefined;
+      const expenseWhere = input.branchId ? eq(expenseEntries.branchId, input.branchId) : undefined;
+
+      const [allRevenue, allExpenses] = await Promise.all([
+        revenueWhere ? db.select().from(revenueEntries).where(revenueWhere) : db.select().from(revenueEntries),
+        expenseWhere ? db.select().from(expenseEntries).where(expenseWhere) : db.select().from(expenseEntries),
+      ]);
+
+      const computeMonth = (m: number) => {
+        const prefix = `${input.year}-${String(m).padStart(2, "0")}`;
+        const rev = allRevenue.filter(r => r.paymentDate.startsWith(prefix) && r.subType !== "이전");
+        const exp = allExpenses.filter(e => e.expenseDate.startsWith(prefix));
+
+        const ptNew      = rev.filter(r => r.type === "PT"    && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
+        const ptRenewal  = rev.filter(r => r.type === "PT"    && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
+        const hlNew      = rev.filter(r => r.type === "헬스"  && r.subType === "신규").reduce((s, r) => s + r.paidAmount, 0);
+        const hlRenewal  = rev.filter(r => r.type === "헬스"  && r.subType === "재등록").reduce((s, r) => s + r.paidAmount, 0);
+        const other      = rev.filter(r => r.type !== "PT"    && r.type !== "헬스").reduce((s, r) => s + r.paidAmount, 0);
+        const refund     = rev.reduce((s, r) => s + r.refundAmount, 0);
+
+        const gs  = rev.reduce((s, r) => s + r.paidAmount, 0);
+        const vat = Math.round(gs / 11); // 부가세 (GS에 포함된 10% VAT)
+        const ns  = gs - vat;
+
+        const fc  = exp.filter(e => e.category === "고정관리비").reduce((s, e) => s + e.amount, 0);
+        const vc  = exp.filter(e => e.category === "인건비" || e.category === "유동관리비").reduce((s, e) => s + e.amount, 0);
+        const cac = exp.filter(e => e.subCategory === "마케팅비").reduce((s, e) => s + e.amount, 0);
+        const totalExp = exp.reduce((s, e) => s + e.amount, 0);
+
+        const gp  = ns - vc;
+        const op  = gp - fc;
+        const np  = op - cac;
+
+        const ptCnt = rev.filter(r => r.type === "PT").length;
+        const hlCnt = rev.filter(r => r.type === "헬스").length;
+
+        const card     = rev.filter(r => r.paymentMethod === "카드").reduce((s, r) => s + r.paidAmount, 0);
+        const transfer = rev.filter(r => r.paymentMethod === "이체" || r.paymentMethod === "계좌이체").reduce((s, r) => s + r.paidAmount, 0);
+        const cash     = rev.filter(r => r.paymentMethod === "현금" || r.paymentMethod === "현금영수증").reduce((s, r) => s + r.paidAmount, 0);
+        const local    = rev.filter(r => r.paymentMethod === "지역화폐").reduce((s, r) => s + r.paidAmount, 0);
+
+        return {
+          month: m, gs, ns, vat, refund,
+          ptNew, ptRenewal, hlNew, hlRenewal, other,
+          gp, op, np, totalExp,
+          opm: ns > 0 ? Math.round((op / ns) * 1000) / 10 : 0,
+          npm: ns > 0 ? Math.round((np / ns) * 1000) / 10 : 0,
+          fc, vc, cac,
+          ptCnt, hlCnt, totalCnt: ptCnt + hlCnt,
+          ptUnit: ptCnt > 0 ? Math.round((ptNew + ptRenewal) / ptCnt) : 0,
+          hlUnit: hlCnt > 0 ? Math.round((hlNew + hlRenewal) / hlCnt) : 0,
+          card, transfer, cash, local,
+        };
+      };
+
+      const monthlyData = Array.from({ length: 12 }, (_, i) => computeMonth(i + 1));
+
+      // 연간 합계
+      const total = monthlyData.reduce((acc, m) => ({
+        gs: acc.gs + m.gs, ns: acc.ns + m.ns, vat: acc.vat + m.vat, refund: acc.refund + m.refund,
+        ptNew: acc.ptNew + m.ptNew, ptRenewal: acc.ptRenewal + m.ptRenewal,
+        hlNew: acc.hlNew + m.hlNew, hlRenewal: acc.hlRenewal + m.hlRenewal, other: acc.other + m.other,
+        gp: acc.gp + m.gp, op: acc.op + m.op, np: acc.np + m.np, totalExp: acc.totalExp + m.totalExp,
+        fc: acc.fc + m.fc, vc: acc.vc + m.vc, cac: acc.cac + m.cac,
+        ptCnt: acc.ptCnt + m.ptCnt, hlCnt: acc.hlCnt + m.hlCnt, totalCnt: acc.totalCnt + m.totalCnt,
+        card: acc.card + m.card, transfer: acc.transfer + m.transfer, cash: acc.cash + m.cash, local: acc.local + m.local,
+      }), { gs:0,ns:0,vat:0,refund:0,ptNew:0,ptRenewal:0,hlNew:0,hlRenewal:0,other:0,gp:0,op:0,np:0,totalExp:0,fc:0,vc:0,cac:0,ptCnt:0,hlCnt:0,totalCnt:0,card:0,transfer:0,cash:0,local:0 });
+
+      return { monthlyData, total, year: input.year };
+    }),
+
   overview: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
