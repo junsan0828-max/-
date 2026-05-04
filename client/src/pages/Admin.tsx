@@ -1216,6 +1216,11 @@ function NoticeManagementSection() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", targetRole: "all", priority: "normal" });
   const [expandedReaders, setExpandedReaders] = useState<Set<number>>(new Set());
+  const [expandedNotices, setExpandedNotices] = useState<Set<number>>(new Set());
+
+  function toggleNotice(id: number) {
+    setExpandedNotices(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
 
   const createMutation = trpc.gym.work.notices.create.useMutation({
     onSuccess: () => {
@@ -1300,10 +1305,12 @@ function NoticeManagementSection() {
           <p className="text-xs text-muted-foreground text-center py-4">등록된 공지사항이 없습니다</p>
         ) : (
           <div className="space-y-2">
-            {(noticeList ?? []).map((n: any) => (
+            {(noticeList ?? []).map((n: any) => {
+              const isOpen = expandedNotices.has(n.notice.id);
+              return (
               <div key={n.notice.id} className="bg-background border border-border rounded-lg px-3 py-2.5">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleNotice(n.notice.id)}>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_STYLE[n.notice.priority]}`}>
                         {PRIORITY_LABEL[n.notice.priority]}
@@ -1312,9 +1319,12 @@ function NoticeManagementSection() {
                         {ROLE_LABEL[n.notice.targetRole] ?? n.notice.targetRole}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-foreground mt-1 truncate">{n.notice.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.notice.content}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{n.notice.createdAt?.substring(0, 10)}</p>
+                    <p className={`text-sm font-medium text-foreground mt-1 ${isOpen ? "" : "truncate"}`}>{n.notice.title}</p>
+                    <p className={`text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap ${isOpen ? "" : "line-clamp-2"}`}>{n.notice.content}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-muted-foreground">{n.notice.createdAt?.substring(0, 10)}</span>
+                      <span className="text-xs text-primary">{isOpen ? "▲ 접기" : "▼ 더 보기"}</span>
+                    </div>
                   </div>
                   <button onClick={() => { if (confirm("공지를 삭제하시겠습니까?")) deleteMutation.mutate({ id: n.notice.id }); }}
                     className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors shrink-0">
@@ -1336,7 +1346,8 @@ function NoticeManagementSection() {
                 </button>
                 {expandedReaders.has(n.notice.id) && <NoticeReadPanel noticeId={n.notice.id} />}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>
