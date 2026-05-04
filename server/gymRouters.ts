@@ -521,7 +521,7 @@ const revenueRouter = t.router({
 // ─── Expense Entries (지출 장부) ──────────────────────────────────────────────
 const expenseRouter = t.router({
   list: protectedProcedure
-    .input(z.object({ year: z.number().optional(), month: z.number().optional(), category: z.string().optional() }).optional())
+    .input(z.object({ year: z.number().optional(), month: z.number().optional(), category: z.string().optional(), branchId: z.number().optional() }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -540,6 +540,7 @@ const expenseRouter = t.router({
         result = result.filter(r => r.entry.expenseDate.startsWith(prefix));
       }
       if (input?.category) result = result.filter(r => r.entry.category === input.category);
+      if (input?.branchId) result = result.filter(r => r.entry.branchId === input.branchId);
 
       return result;
     }),
@@ -591,13 +592,14 @@ const expenseRouter = t.router({
     }),
 
   categorySummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-      const rows = await db.select().from(expenseEntries).where(like(expenseEntries.expenseDate, `${prefix}%`));
+      let rows = await db.select().from(expenseEntries).where(like(expenseEntries.expenseDate, `${prefix}%`));
+      if (input.branchId) rows = rows.filter(r => r.branchId === input.branchId);
 
       const byCategory: Record<string, number> = {};
       for (const row of rows) {

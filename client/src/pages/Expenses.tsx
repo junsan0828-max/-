@@ -41,9 +41,11 @@ export default function ExpensesPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<ExpForm>(defaultForm);
   const [filterCat, setFilterCat] = useState("");
+  const [branchFilter, setBranchFilter] = useState<number | null>(null);
 
-  const { data: entries, isLoading } = trpc.gym.expenses.list.useQuery({ year, month });
-  const { data: categorySummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month });
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const { data: entries, isLoading } = trpc.gym.expenses.list.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: categorySummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
 
   const createMutation = trpc.gym.expenses.create.useMutation({
     onSuccess: () => { toast.success("지출이 등록되었습니다"); utils.gym.expenses.invalidate(); utils.gym.kpi.invalidate(); resetForm(); },
@@ -122,6 +124,22 @@ export default function ExpensesPage() {
           지출 입력
         </button>
       </div>
+
+      {/* 지점 필터 */}
+      {branchList && branchList.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setBranchFilter(null)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+            전체
+          </button>
+          {branchList.map((b) => (
+            <button key={b.id} onClick={() => setBranchFilter(b.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+              {b.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 월 선택 */}
       <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
@@ -204,6 +222,7 @@ export default function ExpensesPage() {
                         <span className="text-xs text-muted-foreground">{row.entry.category}</span>
                         <span className="text-sm font-medium text-foreground">{row.entry.subCategory ?? ""}</span>
                         {row.entry.vendor && <span className="text-xs text-muted-foreground">{row.entry.vendor}</span>}
+                        {row.branchName && <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">{row.branchName}</span>}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{row.entry.expenseDate}</span>
@@ -234,6 +253,25 @@ export default function ExpensesPage() {
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
               <div className="overflow-y-auto flex-1 p-4 space-y-4">
+
+                {/* 지점 선택 */}
+                {branchList && branchList.length > 0 && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">지점</label>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      <button type="button" onClick={() => setForm(f => ({ ...f, branchId: undefined }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!form.branchId ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        전체
+                      </button>
+                      {branchList.map(b => (
+                        <button key={b.id} type="button" onClick={() => setForm(f => ({ ...f, branchId: b.id }))}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          {b.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* 대분류 */}
                 <div>
