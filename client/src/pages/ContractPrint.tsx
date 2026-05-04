@@ -86,6 +86,36 @@ export default function ContractPrint() {
   const marketing = params.get("marketing") === "1";
   const signatureDataUrl = params.get("sig") || null;
 
+  // 등록 내역
+  const subType = params.get("subType") || "";
+  const itemTypes = (params.get("itemTypes") || "").split(",").filter(Boolean);
+  const programKey = params.get("programKey") || "";
+  const programCustom = params.get("programCustom") || "";
+  const sessions = params.get("sessions") || "";
+  const duration = params.get("duration") || "";
+  const otherItem = params.get("otherItem") || "";
+  const amount = params.get("amount") || "";
+  const discountAmount = params.get("discountAmount") || "0";
+  const paidAmount = params.get("paidAmount") || "";
+  const unpaidAmount = params.get("unpaidAmount") || "0";
+  const paymentMethod = params.get("paymentMethod") || "";
+  const paymentDate = params.get("paymentDate") || "";
+  const startDate = params.get("startDate") || "";
+
+  const programLabel = (() => {
+    const parts: string[] = [];
+    if (itemTypes.includes("PT")) {
+      const prog = programKey === "기타" ? (programCustom || "기타PT") : programKey;
+      parts.push(`PT${prog ? ` (${prog})` : ""}${sessions ? ` ${sessions}회` : ""}`);
+    }
+    if (itemTypes.includes("헬스")) parts.push(`헬스 ${duration ? duration + "개월" : ""}`);
+    if (itemTypes.includes("기타")) parts.push(otherItem || "기타");
+    return parts.join(" + ") || "";
+  })();
+
+  const fmt = (v: string) => v ? Number(v).toLocaleString() + "원" : "0원";
+  const hasRegInfo = itemTypes.length > 0 || amount;
+
   useEffect(() => {
     document.title = `${name} 회원 계약서 - 자이언트짐`;
   }, [name]);
@@ -129,7 +159,7 @@ export default function ContractPrint() {
         </div>
 
         {/* 회원 정보 */}
-        <div className="mb-8 border border-gray-300 rounded-lg p-4">
+        <div className="mb-6 border border-gray-300 rounded-lg p-4">
           <h3 className="text-sm font-bold text-gray-600 mb-3 uppercase tracking-wide">회원 정보</h3>
           <div className="grid grid-cols-2 gap-y-3 text-sm">
             <div>
@@ -146,6 +176,71 @@ export default function ContractPrint() {
             </div>
           </div>
         </div>
+
+        {/* 등록 내역 */}
+        {hasRegInfo && (
+          <div className="mb-6 border border-gray-300 rounded-lg p-4">
+            <h3 className="text-sm font-bold text-gray-600 mb-3 uppercase tracking-wide">등록 내역</h3>
+            <table className="w-full text-sm border-collapse">
+              <tbody>
+                {subType && (
+                  <tr className="border-b border-gray-100">
+                    <td className="text-gray-500 py-1.5 w-24">구분</td>
+                    <td className="font-semibold py-1.5">{subType}</td>
+                  </tr>
+                )}
+                {programLabel && (
+                  <tr className="border-b border-gray-100">
+                    <td className="text-gray-500 py-1.5">프로그램</td>
+                    <td className="font-semibold py-1.5">{programLabel}</td>
+                  </tr>
+                )}
+                {amount && (
+                  <tr className="border-b border-gray-100">
+                    <td className="text-gray-500 py-1.5">정가</td>
+                    <td className="py-1.5">{fmt(amount)}</td>
+                  </tr>
+                )}
+                {Number(discountAmount) > 0 && (
+                  <tr className="border-b border-gray-100">
+                    <td className="text-gray-500 py-1.5">할인</td>
+                    <td className="py-1.5 text-red-600">- {fmt(discountAmount)}</td>
+                  </tr>
+                )}
+                {paidAmount && (
+                  <tr className="border-b border-gray-100">
+                    <td className="text-gray-500 py-1.5 font-semibold">실결제</td>
+                    <td className="py-1.5 font-bold">{fmt(paidAmount)}</td>
+                  </tr>
+                )}
+                {Number(unpaidAmount) > 0 && (
+                  <tr className="border-b border-gray-100">
+                    <td className="text-gray-500 py-1.5">미수금</td>
+                    <td className="py-1.5 text-orange-600">{fmt(unpaidAmount)}</td>
+                  </tr>
+                )}
+                {paymentMethod && (
+                  <tr className="border-b border-gray-100">
+                    <td className="text-gray-500 py-1.5">결제방법</td>
+                    <td className="font-semibold py-1.5">{paymentMethod}</td>
+                  </tr>
+                )}
+                {paymentDate && (
+                  <tr className="border-b border-gray-100">
+                    <td className="text-gray-500 py-1.5">결제일</td>
+                    <td className="py-1.5">{paymentDate}</td>
+                  </tr>
+                )}
+                {startDate && (
+                  <tr>
+                    <td className="text-gray-500 py-1.5">시작일</td>
+                    <td className="py-1.5">{startDate}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* 섹션 1: 이용약관 */}
         <div className="mb-6">
@@ -223,7 +318,7 @@ export default function ContractPrint() {
             </div>
           </div>
           <div className="mt-8 text-center">
-            <p className="text-sm text-gray-600 font-semibold">자이언트짐 센터장</p>
+            <p className="text-sm text-gray-600 font-semibold">ZIANT GYM</p>
             <div className="mt-2 inline-block border-b border-gray-400 w-40 pb-8"></div>
             <span className="text-xs text-gray-400 ml-2">(서명/인)</span>
           </div>

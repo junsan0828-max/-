@@ -677,6 +677,7 @@ export default function LeadsPage() {
           memberPhone={form.phone || ""}
           marketing={agreedMarketing}
           signatureDataUrl={signatureDataUrl}
+          regForm={regForm}
           onPrint={() => {
             const p = new URLSearchParams({
               name: form.name,
@@ -684,6 +685,20 @@ export default function LeadsPage() {
               date: new Date().toLocaleDateString("ko-KR"),
               marketing: agreedMarketing ? "1" : "0",
               sig: signatureDataUrl,
+              subType: regForm.subType,
+              itemTypes: regForm.itemTypes.join(","),
+              programKey: regForm.programKey,
+              programCustom: regForm.programCustom,
+              sessions: regForm.sessions?.toString() ?? "",
+              duration: regForm.duration?.toString() ?? "",
+              otherItem: regForm.otherItem,
+              amount: regForm.amount,
+              discountAmount: regForm.discountAmount,
+              paidAmount: regForm.paidAmount,
+              unpaidAmount: regForm.unpaidAmount,
+              paymentMethod: regForm.paymentMethod,
+              paymentDate: regForm.paymentDate,
+              startDate: regForm.startDate,
             });
             window.open(`/contract-print?${p.toString()}`, "_blank");
           }}
@@ -1465,6 +1480,7 @@ function SignedContractModal({
   memberPhone,
   marketing,
   signatureDataUrl,
+  regForm,
   onPrint,
   onConfirm,
 }: {
@@ -1472,10 +1488,24 @@ function SignedContractModal({
   memberPhone: string;
   marketing: boolean;
   signatureDataUrl: string;
+  regForm: RegForm;
   onPrint: () => void;
   onConfirm: () => void;
 }) {
   const today = new Date().toLocaleDateString("ko-KR");
+
+  const programLabel = (() => {
+    const parts: string[] = [];
+    if (regForm.itemTypes.includes("PT")) {
+      const prog = regForm.programKey === "기타" ? (regForm.programCustom || "기타PT") : regForm.programKey;
+      parts.push(`PT${prog ? ` (${prog})` : ""}${regForm.sessions ? ` ${regForm.sessions}회` : ""}`);
+    }
+    if (regForm.itemTypes.includes("헬스")) parts.push(`헬스 ${regForm.duration ? regForm.duration + "개월" : ""}`);
+    if (regForm.itemTypes.includes("기타")) parts.push(regForm.otherItem || "기타");
+    return parts.join(" + ") || "—";
+  })();
+
+  const fmt = (v: string | number) => v ? Number(v).toLocaleString() + "원" : "0원";
 
   return (
     <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center p-4">
@@ -1504,6 +1534,57 @@ function SignedContractModal({
               <div><span className="text-gray-500">성명</span> <span className="font-semibold ml-2">{memberName}</span></div>
               <div><span className="text-gray-500">연락처</span> <span className="font-semibold ml-2">{memberPhone || "—"}</span></div>
               <div className="col-span-2"><span className="text-gray-500">계약일</span> <span className="font-semibold ml-2">{today}</span></div>
+            </div>
+
+            {/* 등록 내역 */}
+            <div className="border border-gray-200 rounded p-3 mb-4">
+              <p className="text-gray-500 font-semibold text-xs mb-2">등록 내역</p>
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">구분</span>
+                  <span className="font-semibold">{regForm.subType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">프로그램</span>
+                  <span className="font-semibold text-right max-w-[60%]">{programLabel}</span>
+                </div>
+                <div className="border-t border-gray-100 pt-1.5 mt-1.5 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">정가</span>
+                    <span>{fmt(regForm.amount)}</span>
+                  </div>
+                  {Number(regForm.discountAmount) > 0 && (
+                    <div className="flex justify-between text-red-500">
+                      <span>할인</span>
+                      <span>- {fmt(regForm.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-semibold border-t border-gray-100 pt-1">
+                    <span className="text-gray-700">실결제</span>
+                    <span className="text-gray-900">{fmt(regForm.paidAmount || regForm.amount)}</span>
+                  </div>
+                  {Number(regForm.unpaidAmount) > 0 && (
+                    <div className="flex justify-between text-orange-500">
+                      <span>미수금</span>
+                      <span>{fmt(regForm.unpaidAmount)}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-between pt-1">
+                  <span className="text-gray-500">결제방법</span>
+                  <span className="font-semibold">{regForm.paymentMethod || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">결제일</span>
+                  <span>{regForm.paymentDate}</span>
+                </div>
+                {regForm.startDate && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">시작일</span>
+                    <span>{regForm.startDate}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 동의 항목 요약 */}
@@ -1543,6 +1624,11 @@ function SignedContractModal({
                     <img src={signatureDataUrl} alt="서명" className="max-h-full max-w-full object-contain" />
                   </div>
                 </div>
+              </div>
+              <div className="mt-3 text-center">
+                <p className="text-xs font-semibold text-gray-700">ZIANT GYM</p>
+                <div className="mt-1 inline-block border-b border-gray-400 w-32 pb-5"></div>
+                <span className="text-xs text-gray-400 ml-1">(서명/인)</span>
               </div>
             </div>
           </div>
