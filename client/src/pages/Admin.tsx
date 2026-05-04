@@ -1030,16 +1030,30 @@ function WorkManagementSection() {
     onError: (e) => toast.error(e.message),
   });
 
+  const createForGroupMutation = trpc.gym.work.tasks.createForGroup.useMutation({
+    onSuccess: (data) => {
+      toast.success(`업무가 ${data.count}명에게 할당되었습니다`);
+      utils.gym.work.tasks.invalidate();
+      setShowAdd(false);
+      setForm({ title: "", category: "기타", priority: "normal", taskType: "daily", isRecurring: 0, assigneeId: "", taskDate: new Date().toISOString().substring(0, 10), dueTime: "" });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   function handleAdd() {
     if (!form.title.trim()) return toast.error("업무 제목을 입력해주세요");
     if (!form.assigneeId) return toast.error("담당자를 선택해주세요");
-    createMutation.mutate({
+    const base = {
       title: form.title.trim(), category: form.category, priority: form.priority,
       taskType: form.taskType, isRecurring: form.isRecurring,
-      assigneeId: parseInt(form.assigneeId),
       taskDate: form.isRecurring ? undefined : form.taskDate,
       dueTime: form.dueTime || undefined,
-    });
+    };
+    if (form.assigneeId === "all" || form.assigneeId === "trainer" || form.assigneeId === "consultant") {
+      createForGroupMutation.mutate({ ...base, assigneeGroup: form.assigneeId as "all" | "trainer" | "consultant" });
+    } else {
+      createMutation.mutate({ ...base, assigneeId: parseInt(form.assigneeId) });
+    }
   }
 
   const staff = (staffList ?? []).filter((s: any) => s.role !== "admin");
@@ -1072,7 +1086,14 @@ function WorkManagementSection() {
                 <select value={form.assigneeId} onChange={e => setForm(f => ({ ...f, assigneeId: e.target.value }))}
                   className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                   <option value="">선택</option>
-                  {staff.map((s: any) => <option key={s.id} value={s.id}>{s.username} ({s.role === "trainer" ? "트레이너" : "컨설턴트"})</option>)}
+                  <optgroup label="── 그룹 할당 ──">
+                    <option value="all">전체 직원</option>
+                    <option value="trainer">트레이너 전체</option>
+                    <option value="consultant">컨설턴트 전체</option>
+                  </optgroup>
+                  <optgroup label="── 개인 ──">
+                    {staff.map((s: any) => <option key={s.id} value={s.id}>{s.username} ({s.role === "trainer" ? "트레이너" : "컨설턴트"})</option>)}
+                  </optgroup>
                 </select>
               </div>
               <div>
@@ -1091,14 +1112,21 @@ function WorkManagementSection() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.isRecurring === 1} onChange={e => setForm(f => ({ ...f, isRecurring: e.target.checked ? 1 : 0 }))} />
-                <span className="text-xs text-muted-foreground">반복 업무</span>
-              </label>
-              {!form.isRecurring && (
-                <input type="date" value={form.taskDate} onChange={e => setForm(f => ({ ...f, taskDate: e.target.value }))}
-                  className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.isRecurring === 1} onChange={e => setForm(f => ({ ...f, isRecurring: e.target.checked ? 1 : 0 }))} />
+                  <span className="text-xs text-muted-foreground">반복 업무</span>
+                </label>
+                {!form.isRecurring && (
+                  <input type="date" value={form.taskDate} onChange={e => setForm(f => ({ ...f, taskDate: e.target.value }))}
+                    className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                )}
+              </div>
+              {!form.isRecurring && form.taskDate > new Date().toISOString().substring(0, 10) && (
+                <p className="text-xs text-amber-400">
+                  📅 {form.taskDate} 당일에만 직원 화면에 표시됩니다
+                </p>
               )}
             </div>
             <div className="flex gap-2">

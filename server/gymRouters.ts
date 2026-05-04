@@ -1507,6 +1507,40 @@ const tasksWorkRouter = t.router({
       return row;
     }),
 
+  createForGroup: protectedProcedure
+    .input(z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      category: z.string().default("기타"),
+      priority: z.string().default("normal"),
+      taskType: z.string().default("daily"),
+      assigneeGroup: z.enum(["all", "trainer", "consultant"]),
+      taskDate: z.string().optional(),
+      dueTime: z.string().optional(),
+      isRecurring: z.number().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 대상 그룹에 해당하는 유저(admin 제외) 조회
+      const targetUsers = await db.select({ id: users.id })
+        .from(users)
+        .where(input.assigneeGroup === "all"
+          ? sql`role IN ('trainer','consultant')`
+          : eq(users.role, input.assigneeGroup)
+        );
+
+      if (targetUsers.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "대상 직원이 없습니다" });
+
+      const { assigneeGroup, ...rest } = input;
+      const rows = await db.insert(tasks).values(
+        targetUsers.map(u => ({ ...rest, assigneeId: u.id, assignedById: ctx.user!.id, updatedAt: new Date().toISOString() }))
+      ).returning();
+
+      return { count: rows.length };
+    }),
+
   complete: protectedProcedure
     .input(z.object({ id: z.number(), memo: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
