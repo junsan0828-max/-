@@ -102,10 +102,10 @@ function App() {
         <Route path="/members/:id">
           {(params) => <MemberDetail memberId={parseInt(params.id!)} />}
         </Route>
-        <Route path="/attendance">{() => <AttendancePage />}</Route>
         <Route path="/attendance/:id">
           {(params) => <AttendanceCheck memberId={parseInt(params.id!)} />}
         </Route>
+        <Route path="/attendance">{() => <AttendancePage />}</Route>
         <Route path="/pt">{() => <PT />}</Route>
         <Route path="/trainers">{() => <Trainers />}</Route>
         <Route path="/trainers/:id">
