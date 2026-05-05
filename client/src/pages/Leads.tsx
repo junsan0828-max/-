@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   Plus, Search, Phone, MessageSquare, CheckCircle2,
   Clock, XCircle, UserCheck, ChevronLeft, ChevronRight, X,
-  PenLine, RotateCcw, Printer, Check,
+  PenLine, RotateCcw, Printer, Check, FileText,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -574,6 +574,9 @@ export default function LeadsPage() {
                 </div>
                 {row.lead.consultationNote && (
                   <p className="text-xs text-muted-foreground line-clamp-2">{row.lead.consultationNote}</p>
+                )}
+                {row.lead.status === "registered" && (
+                  <ContractPdfButton lead={row.lead} />
                 )}
               </div>
             );
@@ -1655,3 +1658,56 @@ function SignedContractModal({
     </div>
   );
 }
+
+// ─── 등록완료 카드 내 계약서 PDF 버튼 ────────────────────────────────────────
+function ContractPdfButton({ lead }: { lead: any }) {
+  const { data: entry, isLoading } = trpc.gym.revenue.byLead.useQuery({ leadId: lead.id });
+
+  function openPdf(e: React.MouseEvent) {
+    e.stopPropagation();
+    const date = lead.consultationDate
+      ? new Date(lead.consultationDate).toLocaleDateString("ko-KR")
+      : new Date().toLocaleDateString("ko-KR");
+
+    const p = new URLSearchParams({
+      name: lead.name ?? "",
+      phone: lead.phone ?? "",
+      date,
+      marketing: "0",
+    });
+
+    if (entry) {
+      const programParts: string[] = [];
+      if (entry.type === "PT") programParts.push(`PT${entry.programDetail ? ` (${entry.programDetail})` : ""}${entry.sessions ? ` ${entry.sessions}회` : ""}`);
+      else if (entry.type === "헬스") programParts.push(`헬스${entry.duration ? ` ${entry.duration}개월` : ""}`);
+      else if (entry.type === "기타" && entry.programDetail) programParts.push(entry.programDetail);
+
+      p.set("subType", entry.subType ?? "신규");
+      p.set("itemTypes", entry.type ?? "");
+      p.set("programKey", entry.programDetail ?? "");
+      p.set("sessions", entry.sessions?.toString() ?? "");
+      p.set("duration", entry.duration?.toString() ?? "");
+      p.set("amount", entry.amount?.toString() ?? "");
+      p.set("discountAmount", entry.discountAmount?.toString() ?? "0");
+      p.set("paidAmount", entry.paidAmount?.toString() ?? "");
+      p.set("unpaidAmount", entry.unpaidAmount?.toString() ?? "0");
+      p.set("paymentMethod", entry.paymentMethod ?? "");
+      p.set("paymentDate", entry.paymentDate ?? "");
+      p.set("startDate", entry.startDate ?? "");
+    }
+
+    window.open(`/contract-print?${p.toString()}`, "_blank");
+  }
+
+  return (
+    <button
+      onClick={openPdf}
+      disabled={isLoading}
+      className="mt-1 w-full flex items-center justify-center gap-1.5 border border-emerald-500/30 text-emerald-400 rounded-lg py-2 text-xs font-medium hover:bg-emerald-500/10 transition-colors disabled:opacity-40"
+    >
+      <FileText className="w-3.5 h-3.5" />
+      계약서 PDF 출력
+    </button>
+  );
+}
+

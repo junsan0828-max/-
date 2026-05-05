@@ -589,6 +589,19 @@ const revenueRouter = t.router({
       return { channels: channels_out, monthTotals };
     }),
 
+  byLead: protectedProcedure
+    .input(z.object({ leadId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({ entry: revenueEntries })
+        .from(revenueEntries)
+        .where(eq(revenueEntries.leadId, input.leadId))
+        .orderBy(desc(revenueEntries.paymentDate))
+        .limit(1);
+      return rows[0]?.entry ?? null;
+    }),
+
   targets: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
