@@ -1399,11 +1399,10 @@ export default function MemberDetail({ memberId }: Props) {
                 ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                 : ""
             }`}
-            disabled={checkedInToday || checkInMutation.isPending}
-            onClick={() => checkInMutation.mutate({ memberId })}
+            onClick={() => setLocation(`/attendance/${memberId}?date=${todayStr}`)}
           >
             <CheckCircle className="h-4 w-4" />
-            {checkedInToday ? "오늘 출석 완료 ✓" : checkInMutation.isPending ? "체크 중..." : "오늘 출석 체크"}
+            {checkedInToday ? "오늘 출석 완료 ✓" : "오늘 출석 체크"}
           </Button>
 
           {/* 달력 카드 */}
@@ -1436,9 +1435,10 @@ export default function MemberDetail({ memberId }: Props) {
                   const status = attendanceMap[dateStr];
                   const isToday = dateStr === todayStr;
                   return (
-                    <div
+                    <button
                       key={i}
-                      className={`aspect-square flex items-center justify-center rounded-full text-xs font-medium transition-colors ${
+                      onClick={() => setLocation(`/attendance/${memberId}?date=${dateStr}`)}
+                      className={`aspect-square flex items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 ${
                         status === "attended"
                           ? "bg-green-500 text-white"
                           : status === "noshow"
@@ -1451,7 +1451,7 @@ export default function MemberDetail({ memberId }: Props) {
                       }`}
                     >
                       {day}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
