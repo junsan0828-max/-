@@ -2483,7 +2483,7 @@ const attendanceChecksRouter = t.router({
     .query(async ({ ctx, input }) => {
       const db = getDb();
       const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!trainerId) return [];
 
       const memberList = await db
         .select({ id: members.id, name: members.name, status: members.status })
@@ -2504,7 +2504,7 @@ const attendanceChecksRouter = t.router({
   recentSummary: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    if (!trainerId) return [];
 
     const rows = await db
       .select({ checkDate: attendanceChecks.checkDate })
@@ -2561,7 +2561,13 @@ const attendanceChecksRouter = t.router({
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const trainerId = ctx.user.trainerId;
+      let trainerId = ctx.user.trainerId;
+
+      // admin/sub_admin: 회원의 담당 트레이너 ID 사용
+      if (!trainerId && (ctx.user.role === "admin" || ctx.user.role === "sub_admin")) {
+        const memberRow = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, input.memberId)).limit(1);
+        trainerId = memberRow[0]?.trainerId ?? undefined;
+      }
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
       const { memberId, checkDate, ...fields } = input;
@@ -2601,8 +2607,9 @@ const attendanceChecksRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const role = ctx.user.role;
+      if (!ctx.user.trainerId && role !== "admin" && role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
       await db.delete(attendanceChecks).where(
         and(eq(attendanceChecks.memberId, input.memberId), eq(attendanceChecks.checkDate, input.date))
       );
