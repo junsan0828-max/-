@@ -418,6 +418,7 @@ export default function LeadsPage() {
       interestType: form.interestType || undefined,
       exercisePurpose: form.exercisePurposes.length > 0 ? form.exercisePurposes.join(",") : undefined,
       memo: form.memo || undefined,
+      signatureDataUrl: signatureDataUrl || undefined,
       status,
     };
     if (editId) updateMutation.mutate({ id: editId, ...payload });
@@ -1694,6 +1695,10 @@ function ContractPdfButton({ lead }: { lead: any }) {
       p.set("paymentMethod", entry.paymentMethod ?? "");
       p.set("paymentDate", entry.paymentDate ?? "");
       p.set("startDate", entry.startDate ?? "");
+    }
+
+    if (lead.signatureDataUrl) {
+      p.set("sig", lead.signatureDataUrl);
     }
 
     window.open(`/contract-print?${p.toString()}`, "_blank");

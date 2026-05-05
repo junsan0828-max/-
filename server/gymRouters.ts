@@ -137,6 +137,7 @@ const leadsRouter = t.router({
       interestType: z.string().optional(),
       exercisePurpose: z.string().optional(),
       memo: z.string().optional(),
+      signatureDataUrl: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -169,6 +170,7 @@ const leadsRouter = t.router({
       interestType: z.string().optional(),
       exercisePurpose: z.string().optional(),
       memo: z.string().optional(),
+      signatureDataUrl: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
