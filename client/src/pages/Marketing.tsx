@@ -458,8 +458,8 @@ export default function MarketingPage() {
               <h2 className="font-semibold text-foreground">채널 추가</h2>
               <button onClick={() => setShowChannelForm(false)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); if (!channelForm.name.trim()) return toast.error("채널명을 입력해주세요"); createChannelMutation.mutate(channelForm); }} className="flex flex-col flex-1 overflow-hidden">
-              <div className="overflow-y-auto flex-1 p-4 space-y-3">
+            <form onSubmit={(e) => { e.preventDefault(); if (!channelForm.name.trim()) return toast.error("채널명을 입력해주세요"); createChannelMutation.mutate(channelForm); }} className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-y-auto flex-1 min-h-0 p-4 space-y-3">
                 <div>
                   <label className="text-xs text-muted-foreground">채널명 *</label>
                   <input value={channelForm.name} onChange={e => setChannelForm(f => ({ ...f, name: e.target.value }))} placeholder="예: 인스타그램"
