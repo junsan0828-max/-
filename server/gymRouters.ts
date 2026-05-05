@@ -210,6 +210,33 @@ const leadsRouter = t.router({
 
     return { total, pending, consulted, registered, dropped, conversionRate, byChannel };
   }),
+
+  statsByMonth: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const allLeads = await db.select().from(leads);
+      const monthLeads = allLeads.filter(l => (l.consultationDate ?? "").startsWith(prefix));
+
+      const total = monthLeads.length;
+      const consulted = monthLeads.filter(l => l.status === "consulted").length;
+      const registered = monthLeads.filter(l => l.status === "registered").length;
+      const dropped = monthLeads.filter(l => l.status === "dropped").length;
+      const conversionRate = total > 0 ? Math.round((registered / total) * 100) : 0;
+
+      const channelList = await db.select().from(channels);
+      const byChannel: Record<number, { name: string; count: number; registered: number }> = {};
+      for (const ch of channelList) {
+        const chLeads = monthLeads.filter(l => l.channelId === ch.id);
+        if (chLeads.length > 0)
+          byChannel[ch.id] = { name: ch.name, count: chLeads.length, registered: chLeads.filter(l => l.status === "registered").length };
+      }
+
+      return { total, consulted, registered, dropped, conversionRate, byChannel };
+    }),
 });
 
 // ─── Revenue Entries (매출 장부) ──────────────────────────────────────────────
@@ -490,6 +517,76 @@ const revenueRouter = t.router({
       }
 
       return Object.values(byChannel).sort((a, b) => b.total - a.total);
+    }),
+
+  channelAnnual: protectedProcedure
+    .input(z.object({ year: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const prefix = `${input.year}-`;
+      const rows = await db.select({ entry: revenueEntries, channelName: channels.name })
+        .from(revenueEntries)
+        .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
+        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+
+      const allLeads = await db.select().from(leads);
+      const channelList = await db.select().from(channels);
+
+      // 채널별 월별 매출/건수/리드
+      type MonthData = { revenue: number; count: number; leads: number; registered: number };
+      const result: Record<string, { name: string; months: Record<number, MonthData> }> = {};
+
+      for (const ch of channelList) {
+        result[ch.name] = { name: ch.name, months: {} };
+        for (let m = 1; m <= 12; m++) result[ch.name].months[m] = { revenue: 0, count: 0, leads: 0, registered: 0 };
+      }
+
+      for (const row of rows) {
+        const chName = row.channelName ?? "채널 미상";
+        const m = parseInt(row.entry.paymentDate?.substring(5, 7) ?? "0");
+        if (!m) continue;
+        if (!result[chName]) { result[chName] = { name: chName, months: {} }; for (let i = 1; i <= 12; i++) result[chName].months[i] = { revenue: 0, count: 0, leads: 0, registered: 0 }; }
+        result[chName].months[m].revenue += row.entry.paidAmount;
+        result[chName].months[m].count += 1;
+      }
+
+      // 리드 통계
+      for (const lead of allLeads) {
+        const d = lead.consultationDate ?? "";
+        if (!d.startsWith(prefix)) continue;
+        const m = parseInt(d.substring(5, 7));
+        const ch = channelList.find(c => c.id === lead.channelId);
+        const chName = ch?.name ?? "채널 미상";
+        if (!result[chName]) { result[chName] = { name: chName, months: {} }; for (let i = 1; i <= 12; i++) result[chName].months[i] = { revenue: 0, count: 0, leads: 0, registered: 0 }; }
+        result[chName].months[m].leads += 1;
+        if (lead.status === "registered") result[chName].months[m].registered += 1;
+      }
+
+      // 연간 합계
+      const channels_out = Object.values(result).filter(ch => {
+        return Object.values(ch.months).some(m => m.revenue > 0 || m.leads > 0);
+      }).map(ch => ({
+        name: ch.name,
+        months: ch.months,
+        totalRevenue: Object.values(ch.months).reduce((s, m) => s + m.revenue, 0),
+        totalLeads: Object.values(ch.months).reduce((s, m) => s + m.leads, 0),
+        totalRegistered: Object.values(ch.months).reduce((s, m) => s + m.registered, 0),
+      })).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+      // 월별 합계
+      const monthTotals: Record<number, { revenue: number; leads: number; registered: number }> = {};
+      for (let m = 1; m <= 12; m++) {
+        monthTotals[m] = { revenue: 0, leads: 0, registered: 0 };
+        for (const ch of channels_out) {
+          monthTotals[m].revenue += ch.months[m].revenue;
+          monthTotals[m].leads += ch.months[m].leads;
+          monthTotals[m].registered += ch.months[m].registered;
+        }
+      }
+
+      return { channels: channels_out, monthTotals };
     }),
 
   targets: protectedProcedure.query(async () => {
