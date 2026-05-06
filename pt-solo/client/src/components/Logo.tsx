@@ -5,12 +5,18 @@ interface Props {
 
 export default function Logo({ className = "h-8", textSize = "text-base" }: Props) {
   return (
-    <div className={`flex items-center ${className}`}>
+    <div className={`flex items-center gap-1.5 ${className}`}>
       <span
         className={`font-black tracking-widest uppercase ${textSize}`}
-        style={{ fontFamily: "'Arial Black', Arial, sans-serif", letterSpacing: "0.15em" }}
+        style={{ fontFamily: "'Arial Black', Arial, sans-serif", letterSpacing: "0.1em" }}
       >
-        FITNESSTEP
+        FIT
+      </span>
+      <span
+        className={`font-black tracking-widest uppercase ${textSize} text-primary`}
+        style={{ fontFamily: "'Arial Black', Arial, sans-serif", letterSpacing: "0.1em" }}
+      >
+        STEP
       </span>
     </div>
   );

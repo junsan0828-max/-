@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
-  AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock, BookOpen, Trash2, UserCheck,
+  AlertTriangle, UserPlus, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,74 @@ import BodyPartPicker from "@/components/BodyPartPicker";
 
 const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
 
-// ─── 관리자 대시보드 ──────────────────────────────────────────────────────────
+// ─── 운영자(Admin) SaaS 대시보드 ──────────────────────────────────────────────
+function AdminDashboard() {
+  const { data: stats } = trpc.admin.getSaasStats.useQuery();
+  const { data: trainerList } = trpc.admin.listTrainers.useQuery();
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold">FIT STEP 운영 현황</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">서비스 전체 통계</p>
+      </div>
+
+      {/* 핵심 지표 */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "가입 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: ShieldCheck, color: "text-blue-400" },
+          { label: "누적 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400" },
+          { label: "누적 PT 세션", value: `${stats?.totalSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400" },
+        ].map((card) => (
+          <Card key={card.label} className="bg-card border-border">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-muted-foreground">{card.label}</p>
+                <card.icon className={`h-4 w-4 ${card.color}`} />
+              </div>
+              <p className="text-xl font-bold">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* 트레이너 목록 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" />가입 트레이너
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {!trainerList || trainerList.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">가입된 트레이너가 없습니다.</p>
+          ) : (
+            trainerList.map((t) => (
+              <div key={t.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border">
+                <div>
+                  <p className="text-sm font-medium">{t.trainerName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    @{t.username} · 가입 {t.createdAt?.slice(0, 10) ?? "-"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-semibold text-blue-400">{t.memberCount}명</p>
+                  <p className="text-xs text-muted-foreground">{t.sessionCount}세션</p>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="p-4 rounded-xl bg-primary/10 border border-primary/30">
+        <p className="text-sm font-semibold text-primary mb-1">트레이너 가입 링크</p>
+        <p className="text-xs text-muted-foreground break-all">{window.location.origin}/register</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
 function TrainerDashboard() {
   const [, setLocation] = useLocation();
@@ -686,5 +753,7 @@ function LoadingSkeleton() {
 }
 
 export default function Dashboard() {
+  const { data: user } = trpc.auth.me.useQuery();
+  if (user?.role === "admin") return <AdminDashboard />;
   return <TrainerDashboard />;
 }

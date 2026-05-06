@@ -4,7 +4,7 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
-  User, ClipboardCheck, Download, X,
+  User, ClipboardCheck, Download, X, ShieldCheck,
 } from "lucide-react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -42,13 +42,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     sessionStorage.setItem("pwa-banner-dismissed", "1");
   };
 
-  const navItems = [
+  const isAdmin = user?.role === "admin";
+
+  const adminNavItems = [
+    { path: "/", label: "운영 현황", icon: LayoutDashboard },
+    { path: "/admin/trainers", label: "트레이너 관리", icon: ShieldCheck },
+  ];
+
+  const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
     { path: "/members", label: "회원 관리", icon: Users },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
+
+  const navItems = isAdmin ? adminNavItems : trainerNavItems;
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";
@@ -60,8 +69,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* 데스크탑 사이드바 */}
       <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
         <div className="px-5 py-4 border-b border-border">
-          <button onClick={() => setLocation("/")} className="text-primary font-bold text-lg">
-            PT Solo
+          <button onClick={() => setLocation("/")} className="flex items-center gap-1">
+            <span className="font-black text-lg tracking-widest" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
+            <span className="font-black text-lg tracking-widest text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
           </button>
         </div>
 
@@ -85,7 +95,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="px-3 py-4 border-t border-border space-y-1">
           <div className="px-3 py-2">
             <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
-            <p className="text-xs text-muted-foreground">트레이너</p>
+            <p className="text-xs text-muted-foreground">{isAdmin ? "운영자" : "트레이너"}</p>
           </div>
           <button
             onClick={() => logoutMutation.mutate()}
@@ -100,8 +110,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col flex-1 min-w-0">
         {/* 모바일 상단 바 */}
         <header className="md:hidden sticky top-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-          <button onClick={() => setLocation("/")} className="text-primary font-bold">
-            PT Solo
+          <button onClick={() => setLocation("/")} className="flex items-center gap-1">
+            <span className="font-black text-base tracking-widest" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
+            <span className="font-black text-base tracking-widest text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
           </button>
           <div className="flex items-center gap-1">
             <span className="text-xs text-muted-foreground mr-1">{user?.username}</span>
@@ -117,7 +128,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {showInstallBanner && (
           <div className="md:hidden bg-primary/10 border-b border-primary/20 px-4 py-2.5 flex items-center gap-3 shrink-0">
             <Download className="h-4 w-4 text-primary shrink-0" />
-            <p className="text-xs text-foreground flex-1">홈 화면에 PT Solo를 추가하세요</p>
+            <p className="text-xs text-foreground flex-1">홈 화면에 FIT STEP을 추가하세요</p>
             <button
               onClick={handleInstall}
               className="text-xs font-medium text-primary bg-primary/20 px-2.5 py-1 rounded-md shrink-0"

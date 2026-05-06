@@ -1258,6 +1258,59 @@ const reportsRouter = t.router({
     }),
 });
 
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+const adminProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.user || ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+const adminRouter = t.router({
+  getSaasStats: adminProcedure.query(async () => {
+    const db = getDb();
+    const [trainerCount, memberCount, sessionCount] = await Promise.all([
+      db.select({ count: sql<number>`COUNT(*)` }).from(trainers),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members),
+      db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs),
+    ]);
+    return {
+      totalTrainers: Number(trainerCount[0]?.count ?? 0),
+      totalMembers: Number(memberCount[0]?.count ?? 0),
+      totalSessions: Number(sessionCount[0]?.count ?? 0),
+    };
+  }),
+
+  listTrainers: adminProcedure.query(async () => {
+    const db = getDb();
+    const trainerList = await db
+      .select({
+        id: trainers.id,
+        trainerName: trainers.trainerName,
+        phone: trainers.phone,
+        email: trainers.email,
+        createdAt: trainers.createdAt,
+        username: users.username,
+        lastLoginAt: users.lastLoginAt,
+      })
+      .from(trainers)
+      .leftJoin(users, eq(trainers.userId, users.id))
+      .orderBy(desc(trainers.createdAt));
+
+    const withStats = await Promise.all(trainerList.map(async (t) => {
+      const [mc, sc] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, t.id)),
+        db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, t.id)),
+      ]);
+      return {
+        ...t,
+        memberCount: Number(mc[0]?.count ?? 0),
+        sessionCount: Number(sc[0]?.count ?? 0),
+      };
+    }));
+    return withStats;
+  }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 
 export const appRouter = t.router({
@@ -1272,6 +1325,7 @@ export const appRouter = t.router({
   attendanceChecks: attendanceChecksRouter,
   reports: reportsRouter,
   schedules: schedulesRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;

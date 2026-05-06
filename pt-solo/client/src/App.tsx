@@ -72,6 +72,7 @@ function App() {
 
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
+    if (window.location.pathname === "/login") return <Login />;
     return <Login />;
   }
 
