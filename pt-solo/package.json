@@ -1,0 +1,38 @@
+{
+  "name": "pt-solo",
+  "version": "1.0.0",
+  "description": "개인 트레이너 PT 회원 관리 프로그램",
+  "scripts": {
+    "dev": "tsx watch server/index.ts",
+    "dev:client": "cd client && npm run dev",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:client\"",
+    "build": "cd client && npm install && npm run build",
+    "start": "tsx server/index.ts",
+    "db:push": "drizzle-kit push",
+    "setup": "npm install && cd client && npm install"
+  },
+  "dependencies": {
+    "@trpc/server": "^11.0.0",
+    "@types/connect-pg-simple": "^7.0.3",
+    "@types/pg": "^8.20.0",
+    "bcryptjs": "^2.4.3",
+    "concurrently": "^8.2.2",
+    "connect-pg-simple": "^10.0.0",
+    "cors": "^2.8.5",
+    "drizzle-orm": "^0.30.10",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "pg": "^8.20.0",
+    "tsx": "^4.15.6",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/express-session": "^1.18.0",
+    "@types/node": "^20.14.2",
+    "drizzle-kit": "^0.21.4",
+    "typescript": "^5.4.5"
+  }
+}
