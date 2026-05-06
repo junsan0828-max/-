@@ -270,7 +270,18 @@ async function initDatabase() {
 
   const existingUsers = await db.select({ id: users.id }).from(users).limit(1);
   if (!existingUsers[0]) {
-    console.log("✨ 첫 실행입니다. 브라우저에서 /register 페이지를 방문하여 계정을 생성하세요.");
+    const hash = await (await import("bcryptjs")).default.hash("admin123", 10);
+    const [newUser] = await db.insert(users).values({
+      username: "admin",
+      password: hash,
+      role: "trainer",
+    }).returning({ id: users.id });
+    const [newTrainer] = await db.insert(trainers).values({
+      userId: newUser.id,
+      trainerName: "트레이너",
+    }).returning({ id: trainers.id });
+    await db.insert(trainerSettings).values({ trainerId: newTrainer.id });
+    console.log("✅ 기본 계정 생성: admin / admin123");
   }
 
   console.log("✨ DB 초기화 완료!");
