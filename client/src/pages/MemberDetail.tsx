@@ -1509,9 +1509,10 @@ export default function MemberDetail({ memberId }: Props) {
                           {check.sleepHours && <span>수면 {check.sleepHours}h</span>}
                           {check.painLevel != null && check.painLevel > 0 && (
                             <span className="text-orange-400">
-                              통증 {check.painLevel}/10{check.painArea ? ` (${check.painArea})` : ""}
+                              통증 {check.painLevel}/10{check.painArea ? ` (${check.painArea}${check.painSide ? ` · ${check.painSide}` : ""})` : ""}
                             </span>
                           )}
+                          {check.diet && (() => { try { const d = JSON.parse(check.diet); return d.length > 0 ? <span>식단: {d.join(" · ")}</span> : null; } catch { return null; } })()}
                         </div>
                       </div>
                     </div>
