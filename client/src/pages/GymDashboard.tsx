@@ -351,19 +351,9 @@ export default function GymDashboard() {
   return (
     <div className="space-y-5">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground">KPI 대시보드</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">자이언트짐 통합 운영 현황</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowFinancial(true)}
-            className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
-          >
-            <TableProperties className="h-3.5 w-3.5" />
-            재무 상세
-          </button>
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
             <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
               <ChevronLeft className="h-4 w-4" />
@@ -418,13 +408,22 @@ export default function GymDashboard() {
           icon={DollarSign}
           color="text-emerald-400"
         />
-        <KpiCard
-          label="이번달 누적"
-          value={`${fmt(kpi?.monthTotal ?? 0)}원`}
-          trend={kpi?.momGrowth}
-          icon={TrendingUp}
-          color="text-primary"
-        />
+        <div className="space-y-2">
+          <button
+            onClick={() => setShowFinancial(true)}
+            className="w-full flex items-center justify-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
+          >
+            <TableProperties className="h-3.5 w-3.5" />
+            재무 상세
+          </button>
+          <KpiCard
+            label="이번달 누적"
+            value={`${fmt(kpi?.monthTotal ?? 0)}원`}
+            trend={kpi?.momGrowth}
+            icon={TrendingUp}
+            color="text-primary"
+          />
+        </div>
         <KpiCard
           label="신규 매출"
           value={`${fmt(kpi?.monthNewSales ?? 0)}원`}
