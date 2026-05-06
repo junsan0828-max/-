@@ -268,11 +268,14 @@ async function initDatabase() {
     console.warn("⚠️ 회원권 날짜 보정 실패:", e);
   }
 
-  const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")).limit(1);
+  const existingAdmin = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.username, "admin")).limit(1);
   if (!existingAdmin[0]) {
     const hash = await (await import("bcryptjs")).default.hash("admin123", 10);
     await db.insert(users).values({ username: "admin", password: hash, role: "admin" });
     console.log("✅ 운영자 계정 생성: admin / admin123");
+  } else if (existingAdmin[0].role !== "admin") {
+    await db.update(users).set({ role: "admin" }).where(eq(users.username, "admin"));
+    console.log("✅ admin 계정 role → admin 으로 업데이트");
   }
 
   console.log("✨ DB 초기화 완료!");

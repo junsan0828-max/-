@@ -78,7 +78,7 @@ const authRouter = t.router({
       const authUser: AuthUser = {
         id: user.id,
         username: user.username,
-        role: "trainer",
+        role: (user.role as "trainer" | "admin") ?? "trainer",
         position: user.position,
         trainerId,
       };
