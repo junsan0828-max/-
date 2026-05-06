@@ -124,6 +124,22 @@ export default function ContractPrint() {
     window.print();
   }
 
+  function handleShare() {
+    const shareUrl = window.location.href;
+
+    if (navigator.share) {
+      navigator.share({
+        title: `${name} 회원 계약서 - 자이언트짐`,
+        text: `${name} 회원님의 계약서입니다.`,
+        url: shareUrl,
+      }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        alert("계약서 링크가 복사되었습니다.");
+      });
+    }
+  }
+
   return (
     <>
       {/* 인쇄 전용 스타일 */}
@@ -142,6 +158,10 @@ export default function ContractPrint() {
 
       {/* 인쇄 버튼 (화면에서만 보임) */}
       <div className="no-print fixed top-4 right-4 z-50 flex gap-2">
+        <button onClick={handleShare}
+          className="bg-yellow-400 text-yellow-900 px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-yellow-500 transition-colors">
+          💬 카카오 공유
+        </button>
         <button onClick={handlePrint}
           className="bg-emerald-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-emerald-700 transition-colors">
           🖨️ PDF 저장 / 인쇄
