@@ -142,7 +142,7 @@ export default function Profile() {
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <StatItem label="수업 수" value={`${monthlyStats?.sessions ?? 0}회`} color="text-green-400" />
+              <StatItem label="수업 수" value={`${monthlyStats?.sessionCount ?? 0}회`} color="text-green-400" />
               <StatItem label="노쇼" value={`${monthlyStats?.noShow ?? 0}회`} color="text-orange-400" />
               <StatItem label="신규 배정" value={`${monthlyStats?.newMembers ?? 0}명`} color="text-blue-400" />
               <StatItem label="재등록" value={`${monthlyStats?.rereg ?? 0}회`} color="text-primary" />

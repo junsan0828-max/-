@@ -909,7 +909,39 @@ const trainersRouter = t.router({
       const settlementAmount = Math.round(revenue * settlementRate / 100);
       const afterTax = Math.round(settlementAmount * (1 - 0.033));
 
-      return { sessionCount, revenue, settlementAmount, afterTax, settlementRate, logs: logsWithPrice };
+      const [noShowResult, newPkgsResult] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(attendanceChecks)
+          .where(and(
+            eq(attendanceChecks.trainerId, trainerId),
+            eq(attendanceChecks.status, "noshow"),
+            gte(attendanceChecks.checkDate, `${input.yearMonth}-01`),
+            lte(attendanceChecks.checkDate, `${input.yearMonth}-31`),
+          )),
+        db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)` })
+          .from(ptPackages)
+          .where(and(
+            eq(ptPackages.trainerId, trainerId),
+            gte(ptPackages.startDate, `${input.yearMonth}-01`),
+            lte(ptPackages.startDate, `${input.yearMonth}-31`),
+          ))
+          .groupBy(ptPackages.memberId),
+      ]);
+
+      const noShow = Number(noShowResult[0]?.count ?? 0);
+      const totalNewPkgs = newPkgsResult.length;
+      const newMemberIds = new Set(newPkgsResult.map(r => r.memberId));
+      const existingMemberPkgsBefore = await db.select({ memberId: ptPackages.memberId })
+        .from(ptPackages)
+        .where(and(
+          eq(ptPackages.trainerId, trainerId),
+          lte(ptPackages.startDate, `${input.yearMonth}-01`),
+        ));
+      const existingMemberIds = new Set(existingMemberPkgsBefore.map(r => r.memberId));
+      const newMembers = [...newMemberIds].filter(id => !existingMemberIds.has(id)).length;
+      const rereg = totalNewPkgs - newMembers;
+
+      return { sessionCount, revenue, settlementAmount, afterTax, settlementRate, logs: logsWithPrice, noShow, newMembers, rereg };
     }),
 });
 
