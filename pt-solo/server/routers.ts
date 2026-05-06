@@ -1291,24 +1291,95 @@ const adminRouter = t.router({
         createdAt: trainers.createdAt,
         username: users.username,
         lastLoginAt: users.lastLoginAt,
+        userId: trainers.userId,
       })
       .from(trainers)
       .leftJoin(users, eq(trainers.userId, users.id))
       .orderBy(desc(trainers.createdAt));
 
-    const withStats = await Promise.all(trainerList.map(async (t) => {
-      const [mc, sc] = await Promise.all([
-        db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, t.id)),
-        db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, t.id)),
+    const withStats = await Promise.all(trainerList.map(async (tr) => {
+      const [mc, sc, ac, settingsRow] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, tr.id)),
+        db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tr.id)),
+        db.select({ count: sql<number>`COUNT(*)` }).from(attendanceChecks).where(eq(attendanceChecks.trainerId, tr.id)),
+        db.select({ subscriptionStatus: trainerSettings.settlementRate, adminMemo: sql<string>`"adminMemo"`, subscriptionEndDate: sql<string>`"subscriptionEndDate"`, subStatus: sql<string>`"subscriptionStatus"` })
+          .from(trainerSettings).where(eq(trainerSettings.trainerId, tr.id)).limit(1),
       ]);
+      const lastSession = await db.select({ date: ptSessionLogs.sessionDate }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tr.id)).orderBy(desc(ptSessionLogs.sessionDate)).limit(1);
       return {
-        ...t,
+        ...tr,
         memberCount: Number(mc[0]?.count ?? 0),
         sessionCount: Number(sc[0]?.count ?? 0),
+        attendanceCount: Number(ac[0]?.count ?? 0),
+        lastActivityDate: lastSession[0]?.date ?? null,
+        subscriptionStatus: (settingsRow[0] as any)?.subStatus ?? "trial",
+        subscriptionEndDate: (settingsRow[0] as any)?.subscriptionEndDate ?? null,
+        adminMemo: (settingsRow[0] as any)?.adminMemo ?? null,
       };
     }));
     return withStats;
   }),
+
+  getTrainer: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const [tr] = await db
+        .select({ id: trainers.id, trainerName: trainers.trainerName, phone: trainers.phone, email: trainers.email, createdAt: trainers.createdAt, username: users.username, lastLoginAt: users.lastLoginAt, userId: trainers.userId })
+        .from(trainers).leftJoin(users, eq(trainers.userId, users.id)).where(eq(trainers.id, input.trainerId)).limit(1);
+      if (!tr) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const [mc, sc, ac, settingsRow] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, tr.id)),
+        db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tr.id)),
+        db.select({ count: sql<number>`COUNT(*)` }).from(attendanceChecks).where(eq(attendanceChecks.trainerId, tr.id)),
+        db.select({ subStatus: sql<string>`"subscriptionStatus"`, adminMemo: sql<string>`"adminMemo"`, subscriptionEndDate: sql<string>`"subscriptionEndDate"` })
+          .from(trainerSettings).where(eq(trainerSettings.trainerId, tr.id)).limit(1),
+      ]);
+      const lastSession = await db.select({ date: ptSessionLogs.sessionDate }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tr.id)).orderBy(desc(ptSessionLogs.sessionDate)).limit(1);
+
+      return {
+        ...tr,
+        memberCount: Number(mc[0]?.count ?? 0),
+        sessionCount: Number(sc[0]?.count ?? 0),
+        attendanceCount: Number(ac[0]?.count ?? 0),
+        lastActivityDate: lastSession[0]?.date ?? null,
+        subscriptionStatus: (settingsRow[0] as any)?.subStatus ?? "trial",
+        subscriptionEndDate: (settingsRow[0] as any)?.subscriptionEndDate ?? null,
+        adminMemo: (settingsRow[0] as any)?.adminMemo ?? null,
+      };
+    }),
+
+  updateTrainer: adminProcedure
+    .input(z.object({
+      trainerId: z.number(),
+      subscriptionStatus: z.enum(["trial", "active", "expired", "suspended"]).optional(),
+      subscriptionEndDate: z.string().optional().nullable(),
+      adminMemo: z.string().optional().nullable(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const { trainerId, ...fields } = input;
+      const setParts: Record<string, any> = {};
+      if (fields.subscriptionStatus !== undefined) setParts['"subscriptionStatus"'] = fields.subscriptionStatus;
+      if (fields.subscriptionEndDate !== undefined) setParts['"subscriptionEndDate"'] = fields.subscriptionEndDate;
+      if (fields.adminMemo !== undefined) setParts['"adminMemo"'] = fields.adminMemo;
+      if (Object.keys(setParts).length > 0) {
+        const cols = Object.keys(setParts).map((k, i) => `${k} = $${i + 2}`).join(", ");
+        const vals = Object.values(setParts);
+        const { pool } = await import("./db");
+        await (await pool).query(`UPDATE trainer_settings SET ${cols} WHERE "trainerId" = $1`, [trainerId, ...vals]);
+      }
+      return { success: true };
+    }),
+
+  toggleUserActive: adminProcedure
+    .input(z.object({ userId: z.number(), active: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.update(users).set({ position: input.active ? null : "suspended" }).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────

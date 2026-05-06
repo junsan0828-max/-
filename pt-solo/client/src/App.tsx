@@ -15,6 +15,8 @@ import PT from "./pages/PT";
 import Profile from "./pages/Profile";
 import TrainerSettlement from "./pages/TrainerSettlement";
 import ContractPrint from "./pages/ContractPrint";
+import AdminTrainers from "./pages/AdminTrainers";
+import AdminTrainerDetail from "./pages/AdminTrainerDetail";
 import Layout from "./components/Layout";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -99,6 +101,10 @@ function App() {
           <Route path="/pt">{() => <PT />}</Route>
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
+          <Route path="/admin/trainers/:id">
+            {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/admin/trainers">{() => <AdminTrainers />}</Route>
           <Route>{() => <Redirect to="/" />}</Route>
         </Switch>
       </ErrorBoundary>

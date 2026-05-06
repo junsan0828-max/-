@@ -258,6 +258,11 @@ async function initDatabase() {
 
   console.log("✅ 테이블 준비 완료");
 
+  // trainer_settings 컬럼 추가 (없으면)
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT NOT NULL DEFAULT 'trial'`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionEndDate" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "adminMemo" TEXT`);
+
   // 회원권 날짜 자동 보정
   try {
     const noStartMembers = await db.select({ id: members.id }).from(members).where(isNull(members.membershipStart));
