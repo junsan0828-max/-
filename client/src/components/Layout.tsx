@@ -65,11 +65,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
-    { path: "/members", label: "회원 관리", icon: Users },
-    { path: "/leads", label: "상담관리", icon: UserPlus },
+    { path: "/my-work", label: "나의 업무", icon: ListChecks },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
-    { path: "/my-work", label: "나의 업무", icon: ListChecks },
+    { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
