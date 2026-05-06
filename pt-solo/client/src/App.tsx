@@ -53,8 +53,19 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
-        <p className="text-gray-400 text-sm">로딩 중...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#1a00ff" }}>
+        <svg viewBox="0 0 440 180" className="w-72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          {/* 외곽 평행사변형 */}
+          <polygon points="36,8 428,8 404,172 12,172" stroke="white" strokeWidth="10" fill="none" />
+          {/* 내곽 평행사변형 */}
+          <polygon points="50,24 414,24 390,156 26,156" stroke="white" strokeWidth="5" fill="none" />
+          {/* F. */}
+          <text x="54" y="138" fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900" fontSize="110" fill="white" fontStyle="italic">F.</text>
+          {/* 삼각형 */}
+          <polygon points="200,32 280,148 120,148" fill="white" />
+          {/* E */}
+          <text x="292" y="138" fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900" fontSize="110" fill="white" fontStyle="italic">E</text>
+        </svg>
       </div>
     );
   }
