@@ -56,11 +56,20 @@ app.use(
   "/trpc",
   createExpressMiddleware({
     router: appRouter,
-    createContext: ({ req, res }) => ({
-      user: (req.session as any)?.user as AuthUser | undefined,
-      req,
-      res,
-    }),
+    createContext: async ({ req, res }) => {
+      const sessionUser = (req.session as any)?.user as AuthUser | undefined;
+      let user = sessionUser;
+      if (sessionUser) {
+        try {
+          const freshRow = await db.select({ role: users.role }).from(users).where(eq(users.id, sessionUser.id)).limit(1);
+          if (freshRow[0]) {
+            user = { ...sessionUser, role: freshRow[0].role as AuthUser["role"] };
+            (req.session as any).user = user;
+          }
+        } catch {}
+      }
+      return { user, req, res };
+    },
   })
 );
 
