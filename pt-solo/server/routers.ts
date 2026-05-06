@@ -1325,7 +1325,7 @@ const adminRouter = t.router({
     .query(async ({ input }) => {
       const db = getDb();
       const [tr] = await db
-        .select({ id: trainers.id, trainerName: trainers.trainerName, phone: trainers.phone, email: trainers.email, createdAt: trainers.createdAt, username: users.username, lastLoginAt: users.lastLoginAt, userId: trainers.userId })
+        .select({ id: trainers.id, trainerName: trainers.trainerName, phone: trainers.phone, email: trainers.email, createdAt: trainers.createdAt, username: users.username, lastLoginAt: users.lastLoginAt, userId: trainers.userId, position: users.position })
         .from(trainers).leftJoin(users, eq(trainers.userId, users.id)).where(eq(trainers.id, input.trainerId)).limit(1);
       if (!tr) throw new TRPCError({ code: "NOT_FOUND" });
 
