@@ -2317,6 +2317,87 @@ const adminRouter = t.router({
 
       return withPt;
     }),
+
+  // 관리자: 전체 트레이너 활동 통계 비교 (월별)
+  getTrainerActivityStats: protectedProcedure
+    .input(z.object({ yearMonth: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [y, m] = input.yearMonth.split("-").map(Number);
+      const monthStart = `${input.yearMonth}-01`;
+      const monthEnd = new Date(y, m, 1).toISOString().split("T")[0];
+      const today = new Date().toISOString().split("T")[0];
+
+      const trainerList = await db
+        .select({ id: trainers.id, trainerName: trainers.trainerName, createdAt: trainers.createdAt })
+        .from(trainers)
+        .orderBy(trainers.trainerName);
+
+      const stats = await Promise.all(trainerList.map(async (trainer) => {
+        const tid = trainer.id;
+
+        const [
+          totalMembersRes, totalSessionsRes, totalNoShowRes, totalChurnedRes, remainingPtRes,
+          monthSessionsRes, monthNoShowRes, todaySessionsRes,
+          pkgCountByMember,
+        ] = await Promise.all([
+          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, tid)),
+          db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tid)),
+          db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"))),
+          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), eq(members.status, "inactive"))),
+          db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
+            .from(ptPackages).where(and(eq(ptPackages.trainerId, tid), eq(ptPackages.status, "active"))),
+          db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(and(
+            eq(ptSessionLogs.trainerId, tid),
+            sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
+            sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
+          )),
+          db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(
+            eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"),
+            sql`${attendanceChecks.checkDate} >= ${monthStart}`,
+            sql`${attendanceChecks.checkDate} < ${monthEnd}`,
+          )),
+          db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(and(
+            eq(ptSessionLogs.trainerId, tid),
+            sql`${ptSessionLogs.sessionDate} = ${today}`,
+          )),
+          db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)` })
+            .from(ptPackages).where(eq(ptPackages.trainerId, tid)).groupBy(ptPackages.memberId),
+        ]);
+
+        const totalRereg = pkgCountByMember.reduce((s, r) => s + Math.max(0, Number(r.count) - 1), 0);
+        const reregMemberCount = pkgCountByMember.filter(r => Number(r.count) > 1).length;
+        const totalMembers = Number(totalMembersRes[0]?.c ?? 0);
+        const totalSessionsNum = Number(totalSessionsRes[0]?.c ?? 0);
+
+        const trainerCreatedAt = trainer.createdAt;
+        const monthsActive = trainerCreatedAt
+          ? Math.max(1, Math.round((Date.now() - new Date(trainerCreatedAt).getTime()) / (1000 * 60 * 60 * 24 * 30.5)))
+          : 1;
+
+        return {
+          trainerId: tid,
+          trainerName: trainer.trainerName,
+          totalMembers,
+          totalSessions: totalSessionsNum,
+          totalNoShow: Number(totalNoShowRes[0]?.c ?? 0),
+          totalChurned: Number(totalChurnedRes[0]?.c ?? 0),
+          remainingPt: Number(remainingPtRes[0]?.total ?? 0),
+          totalRereg,
+          reregRate: totalMembers > 0 ? Math.round((reregMemberCount / totalMembers) * 1000) / 10 : 0,
+          monthSessions: Number(monthSessionsRes[0]?.c ?? 0),
+          monthNoShow: Number(monthNoShowRes[0]?.c ?? 0),
+          todaySessions: Number(todaySessionsRes[0]?.c ?? 0),
+          avgMonthlyPt: Math.round((totalSessionsNum / monthsActive) * 10) / 10,
+        };
+      }));
+
+      return stats;
+    }),
 });
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────

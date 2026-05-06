@@ -13,7 +13,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { ChevronRight, Users, TrendingUp, UserPlus } from "lucide-react";
+import { ChevronRight, Users, TrendingUp, UserPlus, BarChart3, ChevronLeft } from "lucide-react";
 
 function fmt(n: number) { return n.toLocaleString(); }
 
@@ -236,8 +236,164 @@ function SettlementTab() {
   );
 }
 
+function ActivityStatsTab() {
+  const today = new Date();
+  const [yearMonth, setYearMonth] = useState(
+    `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
+  );
+  const [ym, setYm] = useState(yearMonth);
+  const { data, isLoading } = trpc.admin.getTrainerActivityStats.useQuery({ yearMonth: ym });
+
+  function prevMonth() {
+    const [y, m] = ym.split("-").map(Number);
+    const d = new Date(y, m - 2, 1);
+    setYm(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  function nextMonth() {
+    const [y, m] = ym.split("-").map(Number);
+    const d = new Date(y, m, 1);
+    setYm(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  const [y, mo] = ym.split("-").map(Number);
+
+  const th = "px-2 py-2 text-center text-[11px] font-semibold text-muted-foreground whitespace-nowrap bg-muted/40 border-b border-border";
+  const td = "px-2 py-2 text-center text-xs text-foreground whitespace-nowrap border-b border-border/40";
+  const tdNum = (v: number, color?: string) =>
+    `px-2 py-2 text-center text-xs font-medium ${color ?? "text-foreground"} whitespace-nowrap border-b border-border/40`;
+
+  return (
+    <div className="space-y-4">
+      {/* 월 선택 */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-foreground">트레이너 활동 비교</span>
+        <div className="flex items-center gap-1 bg-card border border-border rounded-lg px-2 py-1">
+          <button onClick={prevMonth} className="p-0.5 text-muted-foreground hover:text-foreground">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-xs font-medium min-w-[64px] text-center">{y}년 {mo}월</span>
+          <button onClick={nextMonth} className="p-0.5 text-muted-foreground hover:text-foreground">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">로딩 중...</div>
+      ) : !data?.length ? (
+        <div className="text-center py-12 text-sm text-muted-foreground">데이터 없음</div>
+      ) : (
+        <>
+          {/* 이번달 + 오늘 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{y}년 {mo}월 · 오늘</p>
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[480px]">
+                <thead>
+                  <tr>
+                    <th className={`${th} text-left pl-3`}>트레이너</th>
+                    <th className={th}>오늘 수업</th>
+                    <th className={th}>이번달 수업</th>
+                    <th className={th}>이번달 노쇼</th>
+                    <th className={th}>회원수</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...data].sort((a, b) => b.todaySessions - a.todaySessions).map((t) => (
+                    <tr key={t.trainerId} className="hover:bg-muted/10">
+                      <td className={`${td} text-left pl-3 font-medium`}>{t.trainerName}</td>
+                      <td className={tdNum(t.todaySessions, t.todaySessions > 0 ? "text-emerald-400" : "text-muted-foreground")}>
+                        {t.todaySessions}회
+                      </td>
+                      <td className={tdNum(t.monthSessions, "text-blue-400")}>{t.monthSessions}회</td>
+                      <td className={tdNum(t.monthNoShow, t.monthNoShow > 0 ? "text-orange-400" : "text-muted-foreground")}>
+                        {t.monthNoShow}회
+                      </td>
+                      <td className={tdNum(t.totalMembers)}>{t.totalMembers}명</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 누적 통계 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">누적 통계</p>
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[560px]">
+                <thead>
+                  <tr>
+                    <th className={`${th} text-left pl-3`}>트레이너</th>
+                    <th className={th}>누적 수업</th>
+                    <th className={th}>월평균 수업</th>
+                    <th className={th}>재등록</th>
+                    <th className={th}>재등록률</th>
+                    <th className={th}>이탈</th>
+                    <th className={th}>잔여 PT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...data].sort((a, b) => b.totalSessions - a.totalSessions).map((t) => (
+                    <tr key={t.trainerId} className="hover:bg-muted/10">
+                      <td className={`${td} text-left pl-3 font-medium`}>{t.trainerName}</td>
+                      <td className={tdNum(t.totalSessions, "text-green-400")}>{t.totalSessions}회</td>
+                      <td className={tdNum(t.avgMonthlyPt)}>{t.avgMonthlyPt}회</td>
+                      <td className={tdNum(t.totalRereg, "text-primary")}>{t.totalRereg}회</td>
+                      <td className={tdNum(t.reregRate, t.reregRate >= 50 ? "text-emerald-400" : t.reregRate >= 30 ? "text-yellow-400" : "text-red-400")}>
+                        {t.reregRate}%
+                      </td>
+                      <td className={tdNum(t.totalChurned, t.totalChurned > 0 ? "text-red-400" : "text-muted-foreground")}>
+                        {t.totalChurned}명
+                      </td>
+                      <td className={tdNum(t.remainingPt, "text-purple-400")}>{t.remainingPt}회</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 노쇼 비교 */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">노쇼 누적</p>
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[360px]">
+                <thead>
+                  <tr>
+                    <th className={`${th} text-left pl-3`}>트레이너</th>
+                    <th className={th}>누적 노쇼</th>
+                    <th className={th}>노쇼율</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...data].sort((a, b) => b.totalNoShow - a.totalNoShow).map((t) => {
+                    const rate = t.totalSessions > 0 ? Math.round((t.totalNoShow / (t.totalSessions + t.totalNoShow)) * 1000) / 10 : 0;
+                    return (
+                      <tr key={t.trainerId} className="hover:bg-muted/10">
+                        <td className={`${td} text-left pl-3 font-medium`}>{t.trainerName}</td>
+                        <td className={tdNum(t.totalNoShow, t.totalNoShow > 0 ? "text-orange-400" : "text-muted-foreground")}>
+                          {t.totalNoShow}회
+                        </td>
+                        <td className={tdNum(rate, rate > 10 ? "text-red-400" : rate > 5 ? "text-orange-400" : "text-muted-foreground")}>
+                          {rate}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground text-center pb-2">* 오늘 수업 = PT 세션 로그 기준</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { key: "trainers", label: "트레이너 관리" },
+  { key: "stats", label: "활동 통계" },
   { key: "settlement", label: "수업 정산" },
 ] as const;
 type Tab = typeof TABS[number]["key"];
@@ -267,7 +423,7 @@ export default function Trainers() {
       <div>
         <h1 className="text-xl font-bold">트레이너</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          {tab === "trainers" ? "트레이너 계정 및 회원 관리" : "트레이너별 PT 정산 현황"}
+          {tab === "trainers" ? "트레이너 계정 및 회원 관리" : tab === "stats" ? "트레이너별 활동 통계 비교" : "트레이너별 PT 정산 현황"}
         </p>
       </div>
 
@@ -282,7 +438,7 @@ export default function Trainers() {
         ))}
       </div>
 
-      {tab === "trainers" ? <TrainerList /> : <SettlementTab />}
+      {tab === "trainers" ? <TrainerList /> : tab === "stats" ? <ActivityStatsTab /> : <SettlementTab />}
     </div>
   );
 }
