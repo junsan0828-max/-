@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, sql, gt, gte, lte, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { getDb, getDashboardStats } from "./db";
+import { getDb, getDashboardStats, pool } from "./db";
 import {
   users,
   trainers,
@@ -1367,8 +1367,7 @@ const adminRouter = t.router({
       if (Object.keys(setParts).length > 0) {
         const cols = Object.keys(setParts).map((k, i) => `${k} = $${i + 2}`).join(", ");
         const vals = Object.values(setParts);
-        const { pool } = await import("./db");
-        await (await pool).query(`UPDATE trainer_settings SET ${cols} WHERE "trainerId" = $1`, [trainerId, ...vals]);
+        await pool.query(`UPDATE trainer_settings SET ${cols} WHERE "trainerId" = $1`, [trainerId, ...vals]);
       }
       return { success: true };
     }),

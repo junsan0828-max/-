@@ -171,8 +171,8 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           <Button
             variant="outline"
             className={`w-full ${isSuspended ? "border-green-500/50 text-green-400 hover:bg-green-500/10" : "border-red-500/50 text-red-400 hover:bg-red-500/10"}`}
-            onClick={() => toggleActiveMutation.mutate({ userId: t.userId!, active: isSuspended })}
-            disabled={toggleActiveMutation.isPending}
+            onClick={() => t.userId != null && toggleActiveMutation.mutate({ userId: t.userId, active: isSuspended })}
+            disabled={toggleActiveMutation.isPending || t.userId == null}
           >
             {isSuspended ? "계정 활성화" : "계정 비활성화"}
           </Button>
