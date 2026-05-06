@@ -192,6 +192,7 @@ export default function LeadsPage() {
   const utils = trpc.useUtils();
   const { data: me } = trpc.auth.me.useQuery();
   const isSubAdmin = me?.role === "sub_admin";
+  const isTrainer = me?.role === "trainer";
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -467,7 +468,15 @@ export default function LeadsPage() {
             바로등록
           </button>
           <button
-            onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, consultationDate: new Date().toISOString().substring(0, 10) }); }}
+            onClick={() => {
+              setShowForm(true); setEditId(null);
+              setForm({
+                ...defaultForm,
+                consultationDate: new Date().toISOString().substring(0, 10),
+                // 트레이너: 본인 자동 배정
+                assignedTrainerId: isTrainer ? me?.trainerId ?? undefined : undefined,
+              });
+            }}
             className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
@@ -1263,31 +1272,40 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 상담 담당자 */}
-              <div>
-                <label className="text-xs text-muted-foreground">상담 담당자</label>
-                <select
-                  value={form.assignedConsultantId ? `c:${form.assignedConsultantId}` : form.assignedTrainerId ? `t:${form.assignedTrainerId}` : ""}
-                  onChange={e => {
-                    const v = e.target.value;
-                    if (!v) setForm(f => ({ ...f, assignedTrainerId: undefined, assignedConsultantId: undefined }));
-                    else if (v.startsWith("t:")) setForm(f => ({ ...f, assignedTrainerId: Number(v.slice(2)), assignedConsultantId: undefined }));
-                    else setForm(f => ({ ...f, assignedConsultantId: Number(v.slice(2)), assignedTrainerId: undefined }));
-                  }}
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
-                  <option value="">선택</option>
-                  {(consultants ?? []).length > 0 && (
-                    <optgroup label="프론트 컨설턴트">
-                      {(consultants ?? []).map((c: any) => <option key={c.id} value={`c:${c.id}`}>{c.username}</option>)}
-                    </optgroup>
-                  )}
-                  {(trainers ?? []).length > 0 && (
-                    <optgroup label="트레이너">
-                      {(trainers ?? []).map((t: any) => <option key={t.id} value={`t:${t.id}`}>{t.trainerName}</option>)}
-                    </optgroup>
-                  )}
-                </select>
-              </div>
+              {/* 상담 담당자 - 트레이너 계정은 본인 고정 */}
+              {isTrainer ? (
+                <div>
+                  <label className="text-xs text-muted-foreground">상담 담당자</label>
+                  <div className="w-full mt-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-muted-foreground">
+                    {trainers?.find(t => t.id === me?.trainerId)?.trainerName ?? me?.username ?? "본인"} (본인)
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs text-muted-foreground">상담 담당자</label>
+                  <select
+                    value={form.assignedConsultantId ? `c:${form.assignedConsultantId}` : form.assignedTrainerId ? `t:${form.assignedTrainerId}` : ""}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (!v) setForm(f => ({ ...f, assignedTrainerId: undefined, assignedConsultantId: undefined }));
+                      else if (v.startsWith("t:")) setForm(f => ({ ...f, assignedTrainerId: Number(v.slice(2)), assignedConsultantId: undefined }));
+                      else setForm(f => ({ ...f, assignedConsultantId: Number(v.slice(2)), assignedTrainerId: undefined }));
+                    }}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    <option value="">선택</option>
+                    {(consultants ?? []).length > 0 && (
+                      <optgroup label="프론트 컨설턴트">
+                        {(consultants ?? []).map((c: any) => <option key={c.id} value={`c:${c.id}`}>{c.username}</option>)}
+                      </optgroup>
+                    )}
+                    {(trainers ?? []).length > 0 && (
+                      <optgroup label="트레이너">
+                        {(trainers ?? []).map((t: any) => <option key={t.id} value={`t:${t.id}`}>{t.trainerName}</option>)}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              )}
 
               {/* 상담 내용 */}
               <div>

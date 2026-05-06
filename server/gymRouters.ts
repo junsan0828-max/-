@@ -88,7 +88,7 @@ const leadsRouter = t.router({
       status: z.string().optional(),
       channelId: z.number().optional(),
     }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -106,6 +106,14 @@ const leadsRouter = t.router({
         .orderBy(desc(leads.createdAt));
 
       let result = rows;
+
+      // 트레이너: 본인이 담당하거나 상담담당인 리드만 조회
+      if (ctx.user?.role === "trainer") {
+        result = result.filter(r =>
+          r.lead.assignedTrainerId === ctx.user!.trainerId ||
+          r.lead.assignedConsultantId === ctx.user!.id
+        );
+      }
       if (input?.year && input?.month) {
         const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
         result = result.filter(r => (r.lead.consultationDate ?? r.lead.createdAt).startsWith(prefix));
@@ -139,11 +147,17 @@ const leadsRouter = t.router({
       memo: z.string().optional(),
       signatureDataUrl: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 트레이너: 본인을 상담담당으로 자동 설정
+      const autoFields = ctx.user?.role === "trainer" ? {
+        assignedConsultantId: input.assignedConsultantId ?? ctx.user.id,
+        assignedTrainerId: input.assignedTrainerId ?? ctx.user.trainerId ?? undefined,
+      } : {};
       const [row] = await db.insert(leads).values({
         ...input,
+        ...autoFields,
         updatedAt: new Date().toISOString(),
       }).returning();
       return row;
@@ -324,8 +338,14 @@ const revenueRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 트레이너: trainerId, consultantId 자동 설정
+      const trainerAutoFields = ctx.user?.role === "trainer" ? {
+        trainerId: input.trainerId ?? ctx.user.trainerId ?? undefined,
+        consultantId: input.consultantId ?? ctx.user.id,
+      } : {};
       const [row] = await db.insert(revenueEntries).values({
         ...input,
+        ...trainerAutoFields,
         createdBy: ctx.user!.id,
         updatedAt: new Date().toISOString(),
       }).returning();
