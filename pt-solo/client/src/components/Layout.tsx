@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
+  BookOpen, UserPlus,
 } from "lucide-react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -55,6 +56,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/members", label: "회원 관리", icon: Users },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
+    { path: "/training-log", label: "트레이닝", icon: BookOpen },
+    { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
@@ -149,12 +152,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </main>
 
         {/* 모바일 하단 내비게이션 */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex overflow-x-auto scrollbar-none">
           {navItems.map((item) => (
             <button
               key={item.path}
               onClick={() => setLocation(item.path)}
-              className={`flex flex-col items-center justify-center flex-1 py-2.5 gap-1 text-xs transition-colors ${
+              className={`flex flex-col items-center justify-center shrink-0 py-2.5 gap-1 text-xs transition-colors px-3 min-w-[60px] ${
                 isActive(item.path) ? "text-primary" : "text-muted-foreground"
               }`}
             >

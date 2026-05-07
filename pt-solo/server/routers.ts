@@ -19,6 +19,8 @@ import {
   attendanceChecks,
   reportTokens,
   schedules,
+  channels,
+  leads,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
@@ -1488,6 +1490,137 @@ const adminRouter = t.router({
     }),
 });
 
+// ─── Channels Router ──────────────────────────────────────────────────────────
+
+const channelsRouter = t.router({
+  list: protectedProcedure.query(async () => {
+    const db = getDb();
+    return db.select().from(channels).where(eq(channels.isActive, 1)).orderBy(channels.name);
+  }),
+  create: protectedProcedure
+    .input(z.object({ name: z.string(), type: z.string().optional(), description: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const [row] = await db.insert(channels).values({ name: input.name, type: input.type ?? "online", description: input.description }).returning();
+      return row;
+    }),
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.update(channels).set({ isActive: 0 }).where(eq(channels.id, input.id));
+    }),
+});
+
+// ─── Leads Router ─────────────────────────────────────────────────────────────
+
+const leadsRouter = t.router({
+  list: protectedProcedure
+    .input(z.object({ year: z.number().optional(), month: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      const rows = await db
+        .select({ lead: leads, channelName: channels.name })
+        .from(leads)
+        .leftJoin(channels, eq(leads.channelId, channels.id))
+        .where(eq(leads.trainerId, trainerId))
+        .orderBy(desc(leads.createdAt));
+      if (!input?.year || !input?.month) return rows;
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      return rows.filter(r => r.lead.createdAt.startsWith(prefix));
+    }),
+  create: protectedProcedure
+    .input(z.object({
+      name: z.string(),
+      phone: z.string().optional(),
+      gender: z.string().optional(),
+      ageGroup: z.string().optional(),
+      channelId: z.number().optional(),
+      status: z.string().optional(),
+      consultationDate: z.string().optional(),
+      consultationType: z.string().optional(),
+      consultationSubTypes: z.string().optional(),
+      consultationNote: z.string().optional(),
+      interestType: z.string().optional(),
+      exercisePurpose: z.string().optional(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      const [row] = await db.insert(leads).values({ ...input, trainerId, status: input.status ?? "pending" }).returning();
+      return row;
+    }),
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      gender: z.string().optional(),
+      ageGroup: z.string().optional(),
+      channelId: z.number().optional(),
+      status: z.string().optional(),
+      consultationDate: z.string().optional(),
+      consultationType: z.string().optional(),
+      consultationSubTypes: z.string().optional(),
+      consultationNote: z.string().optional(),
+      interestType: z.string().optional(),
+      exercisePurpose: z.string().optional(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      const { id, ...data } = input;
+      const [row] = await db.update(leads).set({ ...data, updatedAt: new Date().toISOString() }).where(and(eq(leads.id, id), eq(leads.trainerId, trainerId))).returning();
+      return row;
+    }),
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      await db.delete(leads).where(and(eq(leads.id, input.id), eq(leads.trainerId, trainerId)));
+    }),
+});
+
+// ─── Training Log Router ───────────────────────────────────────────────────────
+
+const trainingLogRouter = t.router({
+  listAll: protectedProcedure
+    .input(z.object({ memberId: z.number().optional(), month: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      const rows = await db
+        .select({
+          id: ptSessionLogs.id,
+          memberId: ptSessionLogs.memberId,
+          memberName: members.name,
+          sessionDate: ptSessionLogs.sessionDate,
+          notes: ptSessionLogs.notes,
+          bodyPart: ptSessionLogs.bodyPart,
+          exercisesJson: ptSessionLogs.exercisesJson,
+          goal: ptSessionLogs.goal,
+          feedback: ptSessionLogs.feedback,
+          createdAt: ptSessionLogs.createdAt,
+        })
+        .from(ptSessionLogs)
+        .leftJoin(members, eq(ptSessionLogs.memberId, members.id))
+        .where(eq(ptSessionLogs.trainerId, trainerId))
+        .orderBy(desc(ptSessionLogs.sessionDate));
+      if (input?.memberId) return rows.filter(r => r.memberId === input.memberId);
+      if (input?.month) return rows.filter(r => r.sessionDate.startsWith(input.month!));
+      return rows;
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 
 export const appRouter = t.router({
@@ -1505,6 +1638,9 @@ export const appRouter = t.router({
   admin: adminRouter,
   notices: noticesRouter,
   banner: bannerRouter,
+  channels: channelsRouter,
+  leads: leadsRouter,
+  trainingLog: trainingLogRouter,
 });
 
 export type AppRouter = typeof appRouter;

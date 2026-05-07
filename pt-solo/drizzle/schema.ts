@@ -197,3 +197,35 @@ export const payments = pgTable("payments", {
   memo: text("memo"),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+// 유입 채널
+export const channels = pgTable("channels", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").default("online").notNull(),
+  description: text("description"),
+  isActive: integer("isActive").default(1).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 상담 리드 (CRM)
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  gender: text("gender"),
+  ageGroup: text("ageGroup"),
+  channelId: integer("channelId"),
+  status: text("status").default("pending").notNull(),
+  consultationDate: text("consultationDate"),
+  consultationType: text("consultationType"),
+  consultationSubTypes: text("consultationSubTypes"),
+  consultationNote: text("consultationNote"),
+  interestType: text("interestType"),
+  exercisePurpose: text("exercisePurpose"),
+  memo: text("memo"),
+  registeredMemberId: integer("registeredMemberId"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});

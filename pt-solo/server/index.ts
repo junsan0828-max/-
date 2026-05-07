@@ -282,6 +282,34 @@ async function initDatabase() {
       "expiresAt" BIGINT NOT NULL,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS channels (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'online',
+      description TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS leads (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      gender TEXT,
+      "ageGroup" TEXT,
+      "channelId" INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "consultationDate" TEXT,
+      "consultationType" TEXT,
+      "consultationSubTypes" TEXT,
+      "consultationNote" TEXT,
+      "interestType" TEXT,
+      "exercisePurpose" TEXT,
+      memo TEXT,
+      "registeredMemberId" INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {
@@ -289,6 +317,15 @@ async function initDatabase() {
   }
 
   console.log("✅ 테이블 준비 완료");
+
+  // 기본 채널 시드
+  const existingChannels = await pool.query(`SELECT id FROM channels LIMIT 1`);
+  if (existingChannels.rows.length === 0) {
+    await pool.query(`INSERT INTO channels (name, type) VALUES
+      ('인스타그램', 'sns'), ('네이버 블로그', 'online'), ('카카오 플레이스', 'online'),
+      ('지인소개', 'referral'), ('현수막/전단지', 'offline'), ('직접방문', 'offline'), ('기타', 'other')`);
+    console.log("✅ 기본 채널 시드 완료");
+  }
 
   // trainer_settings 컬럼 추가 (없으면)
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT NOT NULL DEFAULT 'trial'`);

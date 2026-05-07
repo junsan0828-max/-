@@ -18,6 +18,8 @@ import ContractPrint from "./pages/ContractPrint";
 import AdminTrainers from "./pages/AdminTrainers";
 import AdminTrainerDetail from "./pages/AdminTrainerDetail";
 import AdminNotices from "./pages/AdminNotices";
+import TrainingLog from "./pages/TrainingLog";
+import Leads from "./pages/Leads";
 import Layout from "./components/Layout";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -100,6 +102,8 @@ function App() {
             {(params) => <AttendanceCheck memberId={parseInt(params.id!)} />}
           </Route>
           <Route path="/pt">{() => <PT />}</Route>
+          <Route path="/training-log">{() => <TrainingLog />}</Route>
+          <Route path="/leads">{() => <Leads />}</Route>
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
           <Route path="/admin/trainers/:id">
