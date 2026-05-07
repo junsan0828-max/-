@@ -73,6 +73,25 @@ app.use(
   })
 );
 
+app.get("/api/test-smtp", async (_req, res) => {
+  const { createTransporter } = await import("./email");
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const port = process.env.SMTP_PORT;
+  if (!host || !user || !pass) {
+    return res.json({ ok: false, reason: "env missing", host: !!host, user: !!user, pass: !!pass });
+  }
+  const transporter = createTransporter();
+  if (!transporter) return res.json({ ok: false, reason: "transporter null" });
+  try {
+    await transporter.verify();
+    res.json({ ok: true, host, user, port });
+  } catch (e: any) {
+    res.json({ ok: false, error: e?.message, host, user, port });
+  }
+});
+
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
