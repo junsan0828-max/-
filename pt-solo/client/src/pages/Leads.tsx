@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Plus, Search, Phone, MessageSquare, CheckCircle2, Clock, XCircle, UserCheck, ChevronLeft, ChevronRight } from "lucide-react";
@@ -147,6 +147,9 @@ export default function LeadsPage() {
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [agreedMarketing, setAgreedMarketing] = useState(false);
+  const [signatureData, setSignatureData] = useState<string>("");
+  const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
 
   const [showRegistration, setShowRegistration] = useState(false);
   const [regForm, setRegForm] = useState<RegForm>(defaultReg);
@@ -195,6 +198,7 @@ export default function LeadsPage() {
   function resetForm() {
     setShowForm(false); setEditId(null); setForm(defaultForm);
     setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
+    setSignatureData("");
     setShowRegistration(false); setRegForm(defaultReg);
     pendingLeadIdRef.current = null;
   }
@@ -251,12 +255,75 @@ export default function LeadsPage() {
   function openContract() {
     if (!form.name.trim()) return toast.error("이름을 입력해주세요");
     setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
+    setSignatureData("");
     setShowContract(true);
   }
+
+  function clearSignature() {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setSignatureData("");
+  }
+
+  function getPos(canvas: HTMLCanvasElement, e: MouseEvent | TouchEvent) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY,
+      };
+    }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  }
+
+  const handleSignatureStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    isDrawingRef.current = true;
+    const pos = getPos(canvas, e.nativeEvent as MouseEvent | TouchEvent);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  }, []);
+
+  const handleSignatureMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (!isDrawingRef.current) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(canvas, e.nativeEvent as MouseEvent | TouchEvent);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#1a1a2e";
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  }, []);
+
+  const handleSignatureEnd = useCallback(() => {
+    if (!isDrawingRef.current) return;
+    isDrawingRef.current = false;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    setSignatureData(canvas.toDataURL("image/png"));
+  }, []);
 
   function confirmRegistration() {
     if (!agreedTerms) return toast.error("이용약관에 동의해주세요");
     if (!agreedPrivacy) return toast.error("개인정보 수집·이용에 동의해주세요");
+    if (!signatureData) return toast.error("서명을 해주세요");
+    sessionStorage.setItem("contractSignature", signatureData);
     setShowContract(false);
     const preTypes = INTEREST_OPTIONS.includes(form.interestType) ? [form.interestType] : [];
     setRegForm({ ...defaultReg, itemTypes: preTypes, paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10) });
@@ -437,9 +504,35 @@ export default function LeadsPage() {
                   <span className="text-sm text-foreground"><span className="text-blue-400 font-semibold">(선택)</span> 광고성 정보 수신에 동의합니다</span>
                 </label>
               </div>
+              {/* 전자 서명 */}
+              <div className="space-y-2 pb-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm text-foreground">전자 서명 <span className="text-emerald-500">(필수)</span></h3>
+                  <button type="button" onClick={clearSignature} className="text-xs text-muted-foreground hover:text-foreground border border-border rounded px-2 py-0.5 transition-colors">지우기</button>
+                </div>
+                <p className="text-xs text-muted-foreground">아래 칸에 손가락 또는 마우스로 서명해 주세요</p>
+                <canvas
+                  ref={signatureCanvasRef}
+                  width={600}
+                  height={160}
+                  className="w-full rounded-lg border-2 border-dashed touch-none cursor-crosshair"
+                  style={{ borderColor: signatureData ? "#10b981" : "#6b7280", background: "#ffffff" }}
+                  onMouseDown={handleSignatureStart}
+                  onMouseMove={handleSignatureMove}
+                  onMouseUp={handleSignatureEnd}
+                  onMouseLeave={handleSignatureEnd}
+                  onTouchStart={handleSignatureStart}
+                  onTouchMove={handleSignatureMove}
+                  onTouchEnd={handleSignatureEnd}
+                />
+                {signatureData
+                  ? <p className="text-xs text-emerald-500 font-medium">✓ 서명 완료</p>
+                  : <p className="text-xs text-muted-foreground">서명 후 등록 진행이 가능합니다</p>
+                }
+              </div>
             </div>
             <div className="p-4 border-t border-border shrink-0 space-y-2">
-              <button type="button" onClick={confirmRegistration} disabled={!agreedTerms || !agreedPrivacy}
+              <button type="button" onClick={confirmRegistration} disabled={!agreedTerms || !agreedPrivacy || !signatureData}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 진행
               </button>
