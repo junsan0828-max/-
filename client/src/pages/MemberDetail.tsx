@@ -684,7 +684,19 @@ export default function MemberDetail({ memberId }: Props) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <InfoRow icon={<Activity className="h-4 w-4" />} label="상태" value={statusLabels[member.status] ?? "-"} />
                 <InfoRow icon={<Crown className="h-4 w-4" />} label="등급" value={membershipLabels[member.grade] ?? "-"} />
-                <InfoRow icon={<Phone className="h-4 w-4" />} label="연락처" value={member.phone ?? "-"} />
+                <div className="flex items-start gap-3">
+                  <div className="text-muted-foreground mt-0.5"><Phone className="h-4 w-4" /></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">연락처</p>
+                    {member.phone ? (
+                      <a href={`tel:${member.phone}`} className="text-sm font-medium text-primary underline underline-offset-2">
+                        {member.phone}
+                      </a>
+                    ) : (
+                      <p className="text-sm font-medium text-foreground">-</p>
+                    )}
+                  </div>
+                </div>
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
                   label="생년월일"
