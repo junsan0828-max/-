@@ -1,37 +1,18 @@
-import nodemailer from "nodemailer";
-
-export function createTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || "587");
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !user || !pass) {
-    console.warn("⚠️ SMTP 환경변수가 설정되지 않았습니다. 이메일 발송이 비활성화됩니다.");
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    requireTLS: port === 587,
-    auth: { user, pass },
-    tls: { rejectUnauthorized: false },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
-}
+import { Resend } from "resend";
 
 export async function sendVerificationEmail(to: string, code: string): Promise<boolean> {
-  const transporter = createTransporter();
-  if (!transporter) return false;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("⚠️ RESEND_API_KEY가 설정되지 않았습니다.");
+    return false;
+  }
 
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const resend = new Resend(apiKey);
+  const from = process.env.SMTP_FROM || "FIT STEP <onboarding@resend.dev>";
+
   try {
-    await transporter.sendMail({
-      from: `FIT STEP <${from}>`,
+    const { error } = await resend.emails.send({
+      from,
       to,
       subject: "[FIT STEP] 이메일 인증 코드",
       html: `
@@ -47,6 +28,10 @@ export async function sendVerificationEmail(to: string, code: string): Promise<b
         </div>
       `,
     });
+    if (error) {
+      console.error("이메일 발송 실패:", error.message);
+      return false;
+    }
     return true;
   } catch (e: any) {
     console.error("이메일 발송 실패:", e?.message || e);

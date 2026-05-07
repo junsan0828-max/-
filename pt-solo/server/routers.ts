@@ -104,9 +104,8 @@ const authRouter = t.router({
       await pool.query(`DELETE FROM verification_codes WHERE email = $1`, [""]);
       await pool.query(`INSERT INTO verification_codes (email, code, "expiresAt") VALUES ($1, $2, $3)`, ["", code, expiresAt]);
 
-      // SMTP 미설정 시 코드를 직접 반환 (개발/테스트 용)
-      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-      return { smtpConfigured, devCode: smtpConfigured ? undefined : code };
+      const emailConfigured = !!process.env.RESEND_API_KEY;
+      return { smtpConfigured: emailConfigured, devCode: emailConfigured ? undefined : code };
     }),
 
   sendEmailCode: publicProcedure
@@ -117,11 +116,11 @@ const authRouter = t.router({
       const expiresAt = Date.now() + 10 * 60 * 1000;
       await pool.query(`INSERT INTO verification_codes (email, code, "expiresAt") VALUES ($1, $2, $3)`, [input.email, code, expiresAt]);
 
-      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-      if (smtpConfigured) {
+      const emailConfigured = !!process.env.RESEND_API_KEY;
+      if (emailConfigured) {
         const sent = await sendVerificationEmail(input.email, code);
         if (sent) return { sent: true, devCode: null as string | null };
-        console.error("SMTP 발송 실패 - devCode로 폴백");
+        console.error("이메일 발송 실패 - devCode로 폴백");
       }
       return { sent: false, devCode: code as string | null };
     }),
