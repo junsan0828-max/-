@@ -3,6 +3,7 @@ import { z } from "zod";
 import { eq, and, desc, sql, gt, gte, lte, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb, getDashboardStats, pool } from "./db";
+import { sendVerificationEmail } from "./email";
 import {
   users,
   trainers,
@@ -95,13 +96,57 @@ const authRouter = t.router({
     return ctx.user ?? null;
   }),
 
+  sendVerificationCode: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async () => {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      await pool.query(`DELETE FROM verification_codes WHERE email = $1`, [""]);
+      await pool.query(`INSERT INTO verification_codes (email, code, "expiresAt") VALUES ($1, $2, $3)`, ["", code, expiresAt]);
+
+      // SMTP 미설정 시 코드를 직접 반환 (개발/테스트 용)
+      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+      return { smtpConfigured, devCode: smtpConfigured ? undefined : code };
+    }),
+
+  sendEmailCode: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`DELETE FROM verification_codes WHERE email = $1`, [input.email]);
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      await pool.query(`INSERT INTO verification_codes (email, code, "expiresAt") VALUES ($1, $2, $3)`, [input.email, code, expiresAt]);
+
+      const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+      if (smtpConfigured) {
+        const sent = await sendVerificationEmail(input.email, code);
+        if (!sent) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도하세요." });
+        return { sent: true };
+      }
+      return { sent: false, devCode: code };
+    }),
+
+  verifyEmailCode: publicProcedure
+    .input(z.object({ email: z.string().email(), code: z.string().length(6) }))
+    .mutation(async ({ input }) => {
+      const result = await pool.query<{ code: string; expiresAt: string }>(
+        `SELECT code, "expiresAt" FROM verification_codes WHERE email = $1 ORDER BY id DESC LIMIT 1`, [input.email]
+      );
+      const row = result.rows[0];
+      if (!row) throw new TRPCError({ code: "BAD_REQUEST", message: "인증 코드를 먼저 요청해주세요." });
+      if (Date.now() > Number(row.expiresAt)) throw new TRPCError({ code: "BAD_REQUEST", message: "인증 코드가 만료되었습니다. 다시 요청해주세요." });
+      if (row.code !== input.code) throw new TRPCError({ code: "BAD_REQUEST", message: "인증 코드가 올바르지 않습니다." });
+      await pool.query(`DELETE FROM verification_codes WHERE email = $1`, [input.email]);
+      return { verified: true };
+    }),
+
   register: publicProcedure
     .input(z.object({
       username: z.string().min(3).max(50),
       password: z.string().min(6),
       trainerName: z.string().min(1),
       phone: z.string().optional(),
-      email: z.string().email().optional().or(z.literal("")),
+      email: z.string().email(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
@@ -111,7 +156,7 @@ const authRouter = t.router({
 
       const hashed = await bcrypt.hash(input.password, 10);
       const [userRow] = await db.insert(users).values({ username: input.username, password: hashed, role: "trainer" }).returning({ id: users.id });
-      const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: input.trainerName, phone: input.phone, email: input.email || undefined }).returning({ id: trainers.id });
+      const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: input.trainerName, phone: input.phone, email: input.email }).returning({ id: trainers.id });
       await db.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
 
       const authUser: AuthUser = { id: userRow.id, username: input.username, role: "trainer", trainerId: trainerRow.id };

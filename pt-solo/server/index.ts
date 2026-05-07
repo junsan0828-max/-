@@ -269,6 +269,13 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS verification_codes (
+      id SERIAL PRIMARY KEY,
+      email TEXT NOT NULL,
+      code TEXT NOT NULL,
+      "expiresAt" BIGINT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {
