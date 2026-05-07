@@ -1367,6 +1367,60 @@ const bannerRouter = t.router({
     }),
 });
 
+const TAB_KEYS = ["all", "dashboard", "pt", "attendance", "leads", "profile"] as const;
+type TabKey = typeof TAB_KEYS[number];
+
+type TabBannerRow = { id: number; tabKey: string; text: string; subText: string | null; link: string | null; bgColor: string; isActive: number };
+
+const tabBannerRouter = t.router({
+  getByTab: publicProcedure
+    .input(z.object({ tabKey: z.string() }))
+    .query(async ({ input }) => {
+      // Try tab-specific banner first, then "all" fallback
+      const specific = await pool.query<TabBannerRow>(
+        `SELECT id, "tabKey", text, "subText", link, "bgColor", "isActive" FROM tab_banners WHERE "tabKey"=$1 AND "isActive"=1`,
+        [input.tabKey]
+      );
+      if (specific.rows[0]) return specific.rows[0];
+      const all = await pool.query<TabBannerRow>(
+        `SELECT id, "tabKey", text, "subText", link, "bgColor", "isActive" FROM tab_banners WHERE "tabKey"='all' AND "isActive"=1`
+      );
+      return all.rows[0] ?? null;
+    }),
+
+  listAll: protectedProcedure.query(async () => {
+    const result = await pool.query<TabBannerRow>(
+      `SELECT id, "tabKey", text, "subText", link, "bgColor", "isActive" FROM tab_banners ORDER BY id ASC`
+    );
+    return result.rows;
+  }),
+
+  upsert: protectedProcedure
+    .input(z.object({
+      tabKey: z.string(),
+      text: z.string(),
+      subText: z.string().optional(),
+      link: z.string().optional(),
+      bgColor: z.string().default("#6366f1"),
+      isActive: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const existing = await pool.query(`SELECT id FROM tab_banners WHERE "tabKey"=$1`, [input.tabKey]);
+      if (existing.rows[0]) {
+        await pool.query(
+          `UPDATE tab_banners SET text=$1, "subText"=$2, link=$3, "bgColor"=$4, "isActive"=$5, "updatedAt"=now()::text WHERE "tabKey"=$6`,
+          [input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, input.tabKey]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO tab_banners ("tabKey", text, "subText", link, "bgColor", "isActive") VALUES ($1,$2,$3,$4,$5,$6)`,
+          [input.tabKey, input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0]
+        );
+      }
+      return { success: true };
+    }),
+});
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 const adminProcedure = t.procedure.use(({ ctx, next }) => {
@@ -1686,6 +1740,7 @@ export const appRouter = t.router({
   admin: adminRouter,
   notices: noticesRouter,
   banner: bannerRouter,
+  tabBanner: tabBannerRouter,
   channels: channelsRouter,
   leads: leadsRouter,
   trainingLog: trainingLogRouter,

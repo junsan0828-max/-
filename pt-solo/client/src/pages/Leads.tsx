@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Plus, Search, Phone, MessageSquare, CheckCircle2, Clock, XCircle, UserCheck, ChevronLeft, ChevronRight } from "lucide-react";
+import TabBanner from "@/components/TabBanner";
 
 const STATUS_OPTIONS = [
   { value: "pending",    label: "상담대기", color: "text-amber-400",   bg: "bg-amber-400/10",   icon: Clock },
@@ -371,6 +372,7 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-4">
+      <TabBanner tabKey="leads" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">상담 관리</h1>

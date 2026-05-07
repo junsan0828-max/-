@@ -275,6 +275,16 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS tab_banners (
+      id SERIAL PRIMARY KEY,
+      "tabKey" TEXT NOT NULL UNIQUE,
+      text TEXT NOT NULL DEFAULT '',
+      "subText" TEXT,
+      link TEXT,
+      "bgColor" TEXT NOT NULL DEFAULT '#6366f1',
+      "isActive" INTEGER NOT NULL DEFAULT 0,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS verification_codes (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,

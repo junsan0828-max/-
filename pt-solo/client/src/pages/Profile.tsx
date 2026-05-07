@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { User, Lock, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
+import TabBanner from "@/components/TabBanner";
 
 function StatItem({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
@@ -69,6 +70,7 @@ export default function Profile() {
 
   return (
     <div className="space-y-6">
+      <TabBanner tabKey="profile" />
       <div>
         <h1 className="text-xl font-bold">내 프로필</h1>
         <p className="text-sm text-muted-foreground mt-0.5">정보 수정 및 비밀번호 변경</p>

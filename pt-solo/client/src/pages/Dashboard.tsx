@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import ExerciseEditor, { type Exercise } from "@/components/ExerciseEditor";
 import BodyPartPicker from "@/components/BodyPartPicker";
+import TabBanner from "@/components/TabBanner";
 
 const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
 
@@ -218,6 +219,7 @@ function TrainerDashboard() {
 
   return (
     <div className="space-y-6">
+      <TabBanner tabKey="dashboard" />
       <BannerAndNotices />
       <div className="flex items-center justify-between">
         <div>

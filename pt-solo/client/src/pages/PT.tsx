@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
+import TabBanner from "@/components/TabBanner";
 
 const gradeLabels: Record<string, string> = {
   basic: "기본",
@@ -488,6 +489,7 @@ export default function PT() {
 
   return (
     <div className="space-y-4">
+      <TabBanner tabKey="pt" />
       <div>
         <h1 className="text-xl font-bold">PT 관리</h1>
       </div>

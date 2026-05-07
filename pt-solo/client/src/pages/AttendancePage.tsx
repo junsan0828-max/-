@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Clock, XCircle } from "lucide-react";
+import TabBanner from "@/components/TabBanner";
 
 function todayStr() {
   return new Date().toISOString().split("T")[0];
@@ -36,6 +37,7 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-4">
+      <TabBanner tabKey="attendance" />
       <h1 className="text-lg font-bold">출석 체크</h1>
 
       {/* 날짜 선택 */}
