@@ -85,7 +85,7 @@ function App() {
       <ErrorBoundary>
         <Switch>
           <Route path="/">{() => <Dashboard />}</Route>
-          <Route path="/members">{() => <Members />}</Route>
+          <Route path="/members">{() => <Redirect to="/pt" />}</Route>
           <Route path="/members/new">{() => <MemberForm />}</Route>
           <Route path="/members/:id/edit">
             {(params) => <MemberForm memberId={parseInt(params.id!)} />}

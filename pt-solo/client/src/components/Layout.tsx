@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, Users, Dumbbell, LogOut,
+  LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
   UserPlus,
 } from "lucide-react";
@@ -53,9 +53,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
-    { path: "/members", label: "회원 관리", icon: Users },
-    { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
+    { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
