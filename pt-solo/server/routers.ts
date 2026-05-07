@@ -1587,6 +1587,54 @@ const leadsRouter = t.router({
       const db = getDb();
       await db.delete(leads).where(and(eq(leads.id, input.id), eq(leads.trainerId, trainerId)));
     }),
+  register: protectedProcedure
+    .input(z.object({
+      leadId: z.number(),
+      name: z.string(),
+      phone: z.string().optional(),
+      gender: z.string().optional(),
+      itemTypes: z.array(z.string()),
+      programKey: z.string().optional(),
+      programCustom: z.string().optional(),
+      sessions: z.number().optional(),
+      duration: z.number().optional(),
+      subType: z.string().optional(),
+      amount: z.number(),
+      discountAmount: z.number(),
+      paidAmount: z.number(),
+      unpaidAmount: z.number(),
+      paymentMethod: z.string().optional(),
+      paymentDate: z.string(),
+      startDate: z.string().optional(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const db = getDb();
+      const [member] = await db.insert(members).values({
+        trainerId, name: input.name, phone: input.phone, gender: input.gender,
+        status: "active", membershipStart: input.startDate,
+      }).returning();
+      if (input.sessions && input.itemTypes.includes("PT")) {
+        const programName = input.programKey === "기타" ? (input.programCustom || "기타PT") : (input.programKey || "PT");
+        await db.insert(ptPackages).values({
+          memberId: member.id, trainerId, totalSessions: input.sessions, usedSessions: 0,
+          packageName: programName, startDate: input.startDate, status: "active",
+          paymentAmount: input.paidAmount, unpaidAmount: input.unpaidAmount,
+          paymentMethod: input.paymentMethod, paymentDate: input.paymentDate, paymentMemo: input.memo,
+        });
+      }
+      if (input.paidAmount > 0) {
+        await db.insert(payments).values({
+          memberId: member.id, trainerId, amount: input.paidAmount,
+          paymentDate: input.paymentDate, paymentMethod: input.paymentMethod, memo: input.memo,
+        });
+      }
+      await db.update(leads).set({ status: "registered", registeredMemberId: member.id, updatedAt: new Date().toISOString() })
+        .where(and(eq(leads.id, input.leadId), eq(leads.trainerId, trainerId)));
+      return { memberId: member.id };
+    }),
 });
 
 // ─── Training Log Router ───────────────────────────────────────────────────────
