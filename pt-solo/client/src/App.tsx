@@ -17,6 +17,7 @@ import TrainerSettlement from "./pages/TrainerSettlement";
 import ContractPrint from "./pages/ContractPrint";
 import AdminTrainers from "./pages/AdminTrainers";
 import AdminTrainerDetail from "./pages/AdminTrainerDetail";
+import AdminNotices from "./pages/AdminNotices";
 import Layout from "./components/Layout";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -105,6 +106,7 @@ function App() {
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
           </Route>
           <Route path="/admin/trainers">{() => <AdminTrainers />}</Route>
+          <Route path="/admin/notices">{() => <AdminNotices />}</Route>
           <Route>{() => <Redirect to="/" />}</Route>
         </Switch>
       </ErrorBoundary>

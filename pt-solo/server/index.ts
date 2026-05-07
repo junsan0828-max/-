@@ -250,6 +250,25 @@ async function initDatabase() {
       memo TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS notices (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      "isPinned" BOOLEAN DEFAULT false,
+      "isActive" BOOLEAN DEFAULT true,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS banners (
+      id SERIAL PRIMARY KEY,
+      text TEXT NOT NULL,
+      "subText" TEXT,
+      link TEXT,
+      "bgColor" TEXT DEFAULT '#6366f1',
+      "isActive" BOOLEAN DEFAULT false,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {

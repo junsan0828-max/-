@@ -93,6 +93,51 @@ function AdminDashboard() {
 }
 
 // ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
+
+function BannerAndNotices() {
+  const { data: banner } = trpc.banner.get.useQuery();
+  const { data: notices } = trpc.notices.list.useQuery();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const hasContent = (banner?.isActive) || (notices && notices.length > 0);
+  if (!hasContent) return null;
+
+  return (
+    <div className="space-y-2">
+      {banner?.isActive && (
+        <a href={banner.link || undefined} target={banner.link ? "_blank" : undefined} rel="noreferrer"
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl ${banner.link ? "cursor-pointer" : "cursor-default"}`}
+          style={{ backgroundColor: banner.bgColor }}>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white leading-tight">{banner.text}</p>
+            {banner.subText && <p className="text-xs text-white/80 mt-0.5">{banner.subText}</p>}
+          </div>
+          {banner.link && <div className="text-white/80 text-xs shrink-0">→</div>}
+        </a>
+      )}
+      {notices && notices.length > 0 && (
+        <div className="space-y-1.5">
+          {notices.slice(0, 3).map(n => (
+            <div key={n.id} className="rounded-lg border border-border bg-accent/10 overflow-hidden">
+              <button className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
+                onClick={() => setExpandedId(expandedId === n.id ? null : n.id)}>
+                {n.isPinned && <span className="text-primary text-xs font-bold shrink-0">[필독]</span>}
+                <p className="text-xs font-medium flex-1 truncate">{n.title}</p>
+                <span className="text-xs text-muted-foreground shrink-0">{expandedId === n.id ? "▲" : "▼"}</span>
+              </button>
+              {expandedId === n.id && (
+                <div className="px-3 pb-3 text-xs text-muted-foreground whitespace-pre-wrap border-t border-border/50 pt-2">
+                  {n.content}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TrainerDashboard() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
@@ -173,6 +218,7 @@ function TrainerDashboard() {
 
   return (
     <div className="space-y-6">
+      <BannerAndNotices />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">대시보드</h1>
