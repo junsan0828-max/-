@@ -120,8 +120,8 @@ const authRouter = t.router({
       const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
       if (smtpConfigured) {
         const sent = await sendVerificationEmail(input.email, code);
-        if (!sent) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도하세요." });
-        return { sent: true, devCode: null as string | null };
+        if (sent) return { sent: true, devCode: null as string | null };
+        console.error("SMTP 발송 실패 - devCode로 폴백");
       }
       return { sent: false, devCode: code as string | null };
     }),
