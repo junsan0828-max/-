@@ -566,12 +566,14 @@ export default function LeadsPage() {
               <div>
                 <label className="text-xs text-muted-foreground">구분</label>
                 <div className="flex gap-2 mt-1">
-                  {(["신규", "재등록"] as const).map(s => (
-                    <button key={s} type="button" onClick={() => setRegForm(f => ({ ...f, subType: s }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.subType === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {s}
-                    </button>
-                  ))}
+                  <button type="button"
+                    className="flex-1 py-2 rounded-lg text-sm font-medium border bg-primary text-primary-foreground border-primary">
+                    신규
+                  </button>
+                  <button type="button" disabled
+                    className="flex-1 py-2 rounded-lg text-sm font-medium border bg-background border-border text-muted-foreground/40 cursor-not-allowed">
+                    재등록
+                  </button>
                 </div>
               </div>
               <div>
@@ -590,28 +592,25 @@ export default function LeadsPage() {
                 <div className="space-y-3 pl-3 border-l-2 border-primary/40">
                   <div>
                     <label className="text-xs text-muted-foreground">PT 프로그램</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      {PT_PROGRAMS.map(p => (
-                        <button key={p} type="button" onClick={() => setRegForm(f => ({ ...f, programKey: p, programCustom: "" }))}
-                          className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programKey === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                    {regForm.programKey === "기타" && (
-                      <input value={regForm.programCustom} onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))} placeholder="프로그램명 입력"
-                        className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                    )}
+                    <input
+                      value={regForm.programCustom || regForm.programKey}
+                      onChange={e => setRegForm(f => ({ ...f, programKey: "", programCustom: e.target.value }))}
+                      placeholder="예: 케어피티, 웨이트피티 등"
+                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">PT 횟수</label>
-                    <div className="flex gap-2 mt-1 flex-wrap">
-                      {PT_SESSIONS.map(n => (
-                        <button key={n} type="button" onClick={() => setRegForm(f => ({ ...f, sessions: f.sessions === n ? undefined : n }))}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.sessions === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                          {n}회
-                        </button>
-                      ))}
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="number"
+                        min={1}
+                        value={regForm.sessions ?? ""}
+                        onChange={e => setRegForm(f => ({ ...f, sessions: e.target.value ? parseInt(e.target.value) : undefined }))}
+                        placeholder="횟수 직접 입력"
+                        className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <span className="text-sm text-muted-foreground shrink-0">회</span>
                     </div>
                   </div>
                 </div>
@@ -832,8 +831,8 @@ export default function LeadsPage() {
             <div className="p-4 border-t border-border shrink-0 space-y-2">
               <p className="text-xs text-muted-foreground text-center">상담 상태를 선택해 저장하세요</p>
               <div className="flex gap-2">
-                <button type="button" onClick={() => handleSave("pending")}
-                  className="flex-1 bg-amber-500/80 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-amber-600 transition-colors">
+                <button type="button" disabled
+                  className="flex-1 bg-amber-500/30 text-white/40 rounded-lg py-2.5 text-sm font-semibold cursor-not-allowed">
                   상담대기
                 </button>
                 <button type="button" onClick={() => handleSave("consulted")}
