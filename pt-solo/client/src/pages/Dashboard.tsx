@@ -266,16 +266,16 @@ function TrainerDashboard() {
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />정산 현황
+            <TrendingUp className="h-4 w-4 text-primary" />매출 현황
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
-          <button onClick={() => setLocation("/trainer-settlement?view=daily")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
-            <p className="text-xs text-muted-foreground mb-1">일일 정산</p>
+          <button onClick={() => setLocation("/settlement?view=daily")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
+            <p className="text-xs text-muted-foreground mb-1">일일 매출</p>
             <p className="text-xl font-bold text-primary">{(stats?.dailySettlement ?? 0).toLocaleString()}원</p>
           </button>
-          <button onClick={() => setLocation("/trainer-settlement?view=monthly")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
-            <p className="text-xs text-muted-foreground mb-1">월 정산</p>
+          <button onClick={() => setLocation("/settlement?view=monthly")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
+            <p className="text-xs text-muted-foreground mb-1">월 매출</p>
             <p className="text-xl font-bold text-primary">{(stats?.monthlySettlement ?? 0).toLocaleString()}원</p>
           </button>
         </CardContent>
@@ -307,12 +307,12 @@ function TrainerDashboard() {
         </Card>
       )}
 
-      {/* 월별 매출/정산 추이 차트 */}
+      {/* 월별 매출 추이 차트 */}
       {revenueData && revenueData.some(r => r.매출 > 0) && (
         <Card className="bg-card border-border">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 매출/정산 추이
+              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 매출 추이
             </CardTitle>
           </CardHeader>
           <CardContent className="px-2 pb-4">

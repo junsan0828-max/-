@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
-  UserPlus,
+  UserPlus, TrendingUp,
 } from "lucide-react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -56,6 +56,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/leads", label: "상담관리", icon: UserPlus },
+    { path: "/settlement", label: "매출", icon: TrendingUp },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
