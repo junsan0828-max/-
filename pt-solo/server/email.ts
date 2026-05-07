@@ -15,7 +15,9 @@ export function createTransporter() {
     host,
     port,
     secure: port === 465,
+    requireTLS: port === 587,
     auth: { user, pass },
+    tls: { rejectUnauthorized: false },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 15000,
@@ -46,8 +48,8 @@ export async function sendVerificationEmail(to: string, code: string): Promise<b
       `,
     });
     return true;
-  } catch (e) {
-    console.error("이메일 발송 실패:", e);
+  } catch (e: any) {
+    console.error("이메일 발송 실패:", e?.message || e);
     return false;
   }
 }
