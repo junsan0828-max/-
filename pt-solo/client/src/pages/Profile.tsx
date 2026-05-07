@@ -74,17 +74,6 @@ export default function Profile() {
         <p className="text-sm text-muted-foreground mt-0.5">정보 수정 및 비밀번호 변경</p>
       </div>
 
-      {/* 정산 비율 */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">정산 비율</p>
-            <p className="text-2xl font-bold text-primary mt-1">{profile?.settlementRate ?? 50}%</p>
-          </div>
-          <p className="text-xs text-muted-foreground">수익의 정산 비율</p>
-        </CardContent>
-      </Card>
-
       {/* 통계 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
