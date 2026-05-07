@@ -8,7 +8,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<b
   }
 
   const resend = new Resend(apiKey);
-  const from = process.env.SMTP_FROM || "FIT STEP <onboarding@resend.dev>";
+  const from = "FIT STEP <onboarding@resend.dev>";
 
   try {
     const { error } = await resend.emails.send({
