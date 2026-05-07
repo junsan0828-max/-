@@ -3,9 +3,8 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, Dumbbell, Calendar } from "lucide-react";
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   active:    { label: "진행중", color: "bg-green-500/20 text-green-400 border-green-500/30" },
@@ -13,7 +12,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   expired:   { label: "만료",   color: "bg-red-500/20 text-red-400 border-red-500/30" },
 };
 
-export default function PT() {
+function PtPrograms() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "completed" | "expired">("all");
@@ -39,12 +38,6 @@ export default function PT() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">PT 관리</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">총 {packages?.length ?? 0}개 패키지</p>
-      </div>
-
-      {/* 검색 */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -55,16 +48,13 @@ export default function PT() {
         />
       </div>
 
-      {/* 상태 필터 탭 */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {(["all", "active", "completed", "expired"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s)}
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              filter === s
-                ? "bg-primary text-primary-foreground"
-                : "bg-accent text-muted-foreground hover:text-foreground"
+              filter === s ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"
             }`}
           >
             {s === "all" ? "전체" : statusLabels[s].label}
@@ -73,7 +63,6 @@ export default function PT() {
         ))}
       </div>
 
-      {/* PT 패키지 목록 */}
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -90,7 +79,6 @@ export default function PT() {
             const remaining = pkg.totalSessions - pkg.usedSessions;
             const pct = Math.min((pkg.usedSessions / pkg.totalSessions) * 100, 100);
             const st = statusLabels[pkg.status] ?? statusLabels.active;
-
             return (
               <button
                 key={pkg.id}
@@ -99,48 +87,32 @@ export default function PT() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    {/* 회원 이름 + 상태 배지 */}
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm">{pkg.memberName}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full border ${st.color}`}>
-                        {st.label}
-                      </span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full border ${st.color}`}>{st.label}</span>
                       {pkg.unpaidAmount && pkg.unpaidAmount > 0 ? (
-                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                          미수금
-                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">미수금</span>
                       ) : null}
                     </div>
-                    {/* 프로그램명 + 기간 */}
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {pkg.packageName || "PT 프로그램"}
-                      {pkg.expiryDate && (
-                        <> · 만료 {format(new Date(pkg.expiryDate), "yyyy.MM.dd", { locale: ko })}</>
-                      )}
+                      {pkg.expiryDate && <> · 만료 {format(new Date(pkg.expiryDate), "yyyy.MM.dd", { locale: ko })}</>}
                     </p>
-                    {/* 진행률 바 */}
                     <div className="mt-2 w-full bg-border rounded-full h-1.5">
                       <div className="bg-primary h-1.5 rounded-full" style={{ width: `${pct}%` }} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {pkg.usedSessions}/{pkg.totalSessions}회 사용 · 잔여 {remaining}회
                     </p>
-                    {/* 결제 정보 */}
                     {(pkg.paymentAmount || pkg.unpaidAmount) && (
                       <div className="flex gap-3 mt-1.5 text-xs">
                         {pkg.paymentAmount ? (
-                          <span className="text-muted-foreground">
-                            결제 <span className="text-foreground font-medium">{pkg.paymentAmount.toLocaleString()}원</span>
-                          </span>
+                          <span className="text-muted-foreground">결제 <span className="text-foreground font-medium">{pkg.paymentAmount.toLocaleString()}원</span></span>
                         ) : null}
                         {pkg.unpaidAmount && pkg.unpaidAmount > 0 ? (
-                          <span className="text-muted-foreground">
-                            미수금 <span className="text-orange-400 font-medium">{pkg.unpaidAmount.toLocaleString()}원</span>
-                          </span>
+                          <span className="text-muted-foreground">미수금 <span className="text-orange-400 font-medium">{pkg.unpaidAmount.toLocaleString()}원</span></span>
                         ) : null}
-                        {pkg.paymentMethod ? (
-                          <span className="text-muted-foreground">{pkg.paymentMethod}</span>
-                        ) : null}
+                        {pkg.paymentMethod ? <span className="text-muted-foreground">{pkg.paymentMethod}</span> : null}
                       </div>
                     )}
                   </div>
@@ -151,6 +123,159 @@ export default function PT() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function TrainingLogTab() {
+  const [, setLocation] = useLocation();
+  const [search, setSearch] = useState("");
+  const now = new Date();
+  const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+
+  const { data: logs, isLoading } = trpc.trainingLog.listAll.useQuery({ month });
+
+  const filtered = (logs ?? []).filter(log => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (log.memberName ?? "").toLowerCase().includes(q) ||
+      (log.bodyPart ?? "").toLowerCase().includes(q) ||
+      (log.notes ?? "").toLowerCase().includes(q);
+  });
+
+  const grouped: Record<string, typeof filtered> = {};
+  for (const log of filtered) {
+    const date = log.sessionDate ?? log.createdAt.substring(0, 10);
+    if (!grouped[date]) grouped[date] = [];
+    grouped[date].push(log);
+  }
+  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  const prevMonth = () => {
+    const [y, m] = month.split("-").map(Number);
+    setMonth(m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`);
+  };
+  const nextMonth = () => {
+    const [y, m] = month.split("-").map(Number);
+    setMonth(m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`);
+  };
+
+  const [y, m] = month.split("-").map(Number);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
+        <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground px-2 text-lg">‹</button>
+        <span className="text-base font-semibold min-w-[100px] text-center">{y}년 {m}월</span>
+        <button onClick={nextMonth} className="text-muted-foreground hover:text-foreground px-2 text-lg">›</button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="회원명, 부위, 메모 검색..."
+          className="w-full bg-card border border-border rounded-lg pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 rounded-lg bg-card border border-border animate-pulse" />
+          ))}
+        </div>
+      ) : sortedDates.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Dumbbell className="h-10 w-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">이 달 트레이닝 기록이 없습니다</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {sortedDates.map(date => (
+            <div key={date}>
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {format(new Date(date), "M월 d일 (EEE)", { locale: ko })}
+                </span>
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-xs text-muted-foreground">{grouped[date].length}건</span>
+              </div>
+              <div className="space-y-2">
+                {grouped[date].map(log => {
+                  let exercises: any[] = [];
+                  try { exercises = log.exercisesJson ? JSON.parse(log.exercisesJson) : []; } catch {}
+                  return (
+                    <button
+                      key={log.id}
+                      onClick={() => setLocation(`/members/${log.memberId}`)}
+                      className="w-full text-left bg-card border border-border rounded-xl p-4 hover:border-primary/40 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm">{log.memberName ?? "알 수 없음"}</span>
+                            {log.bodyPart && (
+                              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{log.bodyPart}</span>
+                            )}
+                          </div>
+                          {exercises.length > 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {exercises.slice(0, 3).map((e: any) => e.name).join(" · ")}
+                              {exercises.length > 3 && ` 외 ${exercises.length - 3}개`}
+                            </p>
+                          )}
+                          {log.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{log.notes}</p>}
+                          {log.goal && <p className="text-xs text-blue-400 mt-1 line-clamp-1">목표: {log.goal}</p>}
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PT() {
+  const [tab, setTab] = useState<"program" | "log">("program");
+  const { data: packages } = trpc.pt.list.useQuery();
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-bold">PT 관리</h1>
+      </div>
+
+      {/* 탭 */}
+      <div className="flex gap-1 bg-accent rounded-xl p-1">
+        <button
+          onClick={() => setTab("program")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === "program" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          PT 프로그램
+          <span className="ml-1.5 text-xs opacity-60">{packages?.length ?? 0}</span>
+        </button>
+        <button
+          onClick={() => setTab("log")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === "log" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          트레이닝 일지
+        </button>
+      </div>
+
+      {tab === "program" ? <PtPrograms /> : <TrainingLogTab />}
     </div>
   );
 }
