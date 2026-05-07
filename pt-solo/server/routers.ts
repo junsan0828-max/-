@@ -121,9 +121,9 @@ const authRouter = t.router({
       if (smtpConfigured) {
         const sent = await sendVerificationEmail(input.email, code);
         if (!sent) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "이메일 발송에 실패했습니다. 잠시 후 다시 시도하세요." });
-        return { sent: true };
+        return { sent: true, devCode: null as string | null };
       }
-      return { sent: false, devCode: code };
+      return { sent: false, devCode: code as string | null };
     }),
 
   verifyEmailCode: publicProcedure
