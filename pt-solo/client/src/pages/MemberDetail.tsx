@@ -142,8 +142,6 @@ export default function MemberDetail({ memberId }: Props) {
   const [memoForm, setMemoForm] = useState({ memoDate: new Date().toISOString().split("T")[0], content: "" });
   const [sessionMemoOpen, setSessionMemoOpen] = useState(false);
   const [sessionMemoContent, setSessionMemoContent] = useState("");
-  const [trainerChangeOpen, setTrainerChangeOpen] = useState(false);
-  const [selectedTrainerId, setSelectedTrainerId] = useState<string>("");
   const [shareOpen, setShareOpen] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -208,7 +206,6 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
-  const { data: myProfile } = trpc.trainers.getMyProfile.useQuery();
   const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
   const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
   const { data: conditionChecks } = trpc.attendanceChecks.listByMember.useQuery({ memberId });
@@ -299,16 +296,6 @@ export default function MemberDetail({ memberId }: Props) {
       setSessionMemoOpen(true);
     },
     onError: (err) => toast.error(err.message || "세션 사용 실패"),
-  });
-
-  // 담당 트레이너 변경
-  const updateMemberMutation = trpc.members.update.useMutation({
-    onSuccess: () => {
-      toast.success("담당 트레이너가 변경되었습니다.");
-      setTrainerChangeOpen(false);
-      utils.members.getById.invalidate({ id: memberId });
-    },
-    onError: (err) => toast.error(err.message || "변경 실패"),
   });
 
   // 미수금 업데이트
@@ -435,7 +422,6 @@ export default function MemberDetail({ memberId }: Props) {
     );
   }
 
-  const trainer = myProfile;
   const todayStr = new Date().toISOString().split("T")[0];
   const checkedInToday = attendanceList?.some((a) => a.attendDate === todayStr);
 
@@ -595,15 +581,6 @@ export default function MemberDetail({ memberId }: Props) {
                 {member.visitRoute && (
                   <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
                 )}
-                <div className="flex items-start gap-3">
-                  <div className="text-muted-foreground mt-0.5"><User className="h-4 w-4" /></div>
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">담당 트레이너</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-foreground">{trainer?.trainerName ?? "-"}</p>
-                    </div>
-                  </div>
-                </div>
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"
