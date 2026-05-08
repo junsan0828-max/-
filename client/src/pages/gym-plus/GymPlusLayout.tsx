@@ -26,15 +26,9 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
       {/* 상단 헤더 */}
       <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-black text-sm">G</span>
-          </div>
-          <div>
-            <span className="font-black text-sm text-foreground">GIANT GYM</span>
-            <span className="text-primary font-bold text-xs ml-1">+</span>
-          </div>
-        </div>
+        <span style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.1em" }} className="text-lg font-semibold text-foreground">
+          ZIANTGYM<span className="text-primary">+</span>
+        </span>
         <Button
           variant="ghost"
           size="sm"

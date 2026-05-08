@@ -3,14 +3,8 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 
 function getYoutubeEmbedUrl(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-  ];
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return `https://www.youtube.com/embed/${match[1]}?rel=0`;
-  }
-  return null;
+  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([^&\n?#]+)/);
+  return m ? `https://www.youtube.com/embed/${m[1]}?rel=0` : null;
 }
 
 const levelLabel: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
