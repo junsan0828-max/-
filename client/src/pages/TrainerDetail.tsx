@@ -59,6 +59,12 @@ export default function TrainerDetail({ trainerId }: Props) {
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
   const { data: settlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
   const { data: trainerStats } = trpc.trainers.getMyStats.useQuery({ trainerId });
+  const { data: expiringMembers, refetch: refetchExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 8, trainerId });
+  const [expiringOpen, setExpiringOpen] = useState(false);
+  const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
+    onSuccess: () => refetchExpiring(),
+    onError: (e) => toast.error(e.message),
+  });
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const d = new Date();
@@ -566,6 +572,59 @@ export default function TrainerDetail({ trainerId }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* 이번달 마감 임박 */}
+      {expiringMembers && expiringMembers.length > 0 && (
+        <Card className="bg-card border-purple-500/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2 text-purple-400">
+                <span className="text-base">⚠</span> 이번달 마감 임박
+              </span>
+              <button onClick={() => setExpiringOpen(!expiringOpen)} className="text-xs text-muted-foreground hover:text-foreground">
+                {expiringOpen ? "접기" : `${expiringMembers.length}명 보기`}
+              </button>
+            </CardTitle>
+          </CardHeader>
+          {expiringOpen && (
+            <CardContent className="pt-0">
+              <div className="divide-y divide-border">
+                {expiringMembers.map((m) => (
+                  <div key={m.id} className="py-2.5 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{m.name}</span>
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${m.remaining <= 3 ? "bg-red-500/20 text-red-400" : m.remaining <= 5 ? "bg-orange-500/20 text-orange-400" : "bg-purple-500/20 text-purple-400"}`}>
+                          잔여 {m.remaining}회
+                        </span>
+                      </div>
+                      {m.renewalIntent && (
+                        <span className={`text-[11px] ${m.renewalIntent === "재등록예정" ? "text-emerald-400" : "text-red-400"}`}>
+                          {m.renewalIntent === "재등록예정" ? "✔ 재등록 예정" : "✘ 이탈 예정"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      <button
+                        onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "재등록예정" ? null : "재등록예정" })}
+                        className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "재등록예정" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"}`}
+                      >
+                        재등록
+                      </button>
+                      <button
+                        onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "이탈예정" ? null : "이탈예정" })}
+                        className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "이탈예정" ? "bg-red-500/20 text-red-400 border-red-500/30" : "border-border text-muted-foreground hover:border-red-500/50 hover:text-red-400"}`}
+                      >
+                        이탈
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* 담당 회원 목록 */}
       <Card className="bg-card border-border">

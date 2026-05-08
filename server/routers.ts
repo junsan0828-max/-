@@ -487,6 +487,63 @@ const membersRouter = t.router({
       return result.filter(m => !m.lastAttendDate || m.lastAttendDate < cutoff);
     }),
 
+  // 이번달 마감 임박 회원 (잔여 세션 ≤ threshold, 기본 8회)
+  getMonthExpiring: protectedProcedure
+    .input(z.object({ threshold: z.number().default(8), trainerId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      let tid: number | undefined;
+      if (input.trainerId !== undefined) {
+        if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        tid = input.trainerId;
+      } else {
+        tid = ctx.user.trainerId;
+        if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const rows = await db
+        .select({
+          id: members.id,
+          name: members.name,
+          phone: members.phone,
+          renewalIntent: members.renewalIntent,
+          totalSessions: ptPackages.totalSessions,
+          usedSessions: ptPackages.usedSessions,
+          packageName: ptPackages.packageName,
+        })
+        .from(members)
+        .innerJoin(ptPackages, and(eq(ptPackages.memberId, members.id), eq(ptPackages.status, "active")))
+        .where(and(eq(members.trainerId, tid), eq(members.status, "active")))
+        .orderBy(members.name);
+
+      return rows
+        .map(r => ({ ...r, remaining: r.totalSessions - r.usedSessions }))
+        .filter(r => r.remaining <= input.threshold)
+        .sort((a, b) => a.remaining - b.remaining);
+    }),
+
+  // 재등록 의향 설정
+  setRenewalIntent: protectedProcedure
+    .input(z.object({ memberId: z.number(), intent: z.enum(["재등록예정", "이탈예정"]).nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const member = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, input.memberId)).limit(1);
+      const memberTrainerId = member[0]?.trainerId;
+      const isAdmin = ctx.user?.role === "admin" || ctx.user?.role === "sub_admin";
+      if (!isAdmin && memberTrainerId !== ctx.user.trainerId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      await db.update(members)
+        .set({ renewalIntent: input.intent ?? null })
+        .where(eq(members.id, input.memberId));
+      return { success: true };
+    }),
+
   // 회원 통계 (수업수/취소/노쇼/재등록 등)
   getStats: protectedProcedure
     .input(z.object({ memberId: z.number() }))

@@ -388,6 +388,7 @@ async function initDatabase() {
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "assignedConsultantId" INTEGER`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "exercisePurpose" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "signatureDataUrl" TEXT`,
+    `ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntent" TEXT`,
     `CREATE TABLE IF NOT EXISTS branches (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,

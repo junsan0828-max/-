@@ -410,6 +410,13 @@ function TrainerDashboard() {
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
   const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
+  const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 8 });
+  const [monthExpiringOpen, setMonthExpiringOpen] = useState(false);
+
+  const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
+    onSuccess: () => refetchMonthExpiring(),
+    onError: (e) => toast.error(e.message),
+  });
 
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [reregisterOpen, setReregisterOpen] = useState(false);
@@ -450,10 +457,11 @@ function TrainerDashboard() {
   const today = new Date();
 
   const alertItems = [
-    expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" } : null,
-    unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30" } : null,
-    longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30" } : null,
-  ].filter(Boolean) as { label: string; color: string }[];
+    expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30", onClick: undefined } : null,
+    unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30", onClick: undefined } : null,
+    longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30", onClick: undefined } : null,
+    monthExpiring?.length ? { label: `이번달 마감 ${monthExpiring.length}명`, color: "bg-purple-500/20 text-purple-400 border-purple-500/30", onClick: () => setMonthExpiringOpen(true) } : null,
+  ].filter(Boolean) as { label: string; color: string; onClick?: () => void }[];
 
   return (
     <div className="space-y-6">
@@ -471,9 +479,15 @@ function TrainerDashboard() {
       {alertItems.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {alertItems.map((item) => (
-            <span key={item.label} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color}`}>
-              ⚠ {item.label}
-            </span>
+            item.onClick ? (
+              <button key={item.label} onClick={item.onClick} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color} hover:opacity-80 transition-opacity`}>
+                ⚠ {item.label}
+              </button>
+            ) : (
+              <span key={item.label} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color}`}>
+                ⚠ {item.label}
+              </span>
+            )
           ))}
         </div>
       )}
@@ -1019,6 +1033,60 @@ function TrainerDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 이번달 마감 임박 회원 모달 */}
+      {monthExpiringOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/70 flex items-end md:items-center justify-center" onClick={() => setMonthExpiringOpen(false)}>
+          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <div>
+                <h2 className="font-semibold text-foreground">이번달 마감 임박</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">잔여 8회 이하 회원 {monthExpiring?.length ?? 0}명</p>
+              </div>
+              <button onClick={() => setMonthExpiringOpen(false)} className="text-muted-foreground hover:text-foreground p-1">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {!monthExpiring?.length ? (
+                <p className="text-center text-sm text-muted-foreground py-8">마감 임박 회원이 없습니다.</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {monthExpiring.map((m) => (
+                    <div key={m.id} className="px-4 py-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-foreground">{m.name}</span>
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${m.remaining <= 3 ? "bg-red-500/20 text-red-400" : m.remaining <= 5 ? "bg-orange-500/20 text-orange-400" : "bg-purple-500/20 text-purple-400"}`}>
+                            잔여 {m.remaining}회
+                          </span>
+                        </div>
+                        {m.renewalIntent && (
+                          <span className={`text-[11px] mt-0.5 inline-block ${m.renewalIntent === "재등록예정" ? "text-emerald-400" : "text-red-400"}`}>
+                            {m.renewalIntent === "재등록예정" ? "✔ 재등록 예정" : "✘ 이탈 예정"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "재등록예정" ? null : "재등록예정" })}
+                          className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "재등록예정" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"}`}
+                        >
+                          재등록
+                        </button>
+                        <button
+                          onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "이탈예정" ? null : "이탈예정" })}
+                          className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "이탈예정" ? "bg-red-500/20 text-red-400 border-red-500/30" : "border-border text-muted-foreground hover:border-red-500/50 hover:text-red-400"}`}
+                        >
+                          이탈
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -66,6 +66,7 @@ export const members = pgTable("members", {
   membershipEnd: text("membershipEnd"),
   profileNote: text("profileNote"),
   visitRoute: text("visitRoute"),
+  renewalIntent: text("renewalIntent"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
