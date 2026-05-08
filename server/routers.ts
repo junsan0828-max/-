@@ -2865,8 +2865,6 @@ const gymPlusRouter = t.router({
   admin_createLinkedMember: adminOnlyGymPlus
     .input(z.object({
       memberId: z.number(),
-      username: z.string().min(3),
-      password: z.string().min(6),
       membershipType: z.enum(["general", "premium", "vip"]).default("general"),
       membershipStart: z.string().optional(),
       membershipEnd: z.string().optional(),
@@ -2874,19 +2872,27 @@ const gymPlusRouter = t.router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const existing = await db.select({ id: gymPlusMembers.id })
-        .from(gymPlusMembers).where(eq(gymPlusMembers.username, input.username)).limit(1);
-      if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
 
       const mainMember = await db.select().from(members).where(eq(members.id, input.memberId)).limit(1);
       if (!mainMember[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!mainMember[0].phone) throw new TRPCError({ code: "BAD_REQUEST", message: "전화번호가 없는 회원입니다. 통합관리에서 전화번호를 먼저 등록해주세요." });
 
-      const hashed = await bcrypt.hash(input.password, 10);
+      // username = phone number, password = last 4 digits (digits only)
+      const phone = mainMember[0].phone;
+      const digitsOnly = phone.replace(/\D/g, "");
+      const last4 = digitsOnly.slice(-4);
+      const username = phone; // store as-is (e.g. 010-1234-5678)
+
+      const existing = await db.select({ id: gymPlusMembers.id })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.username, username)).limit(1);
+      if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 짐플러스 계정이 존재합니다." });
+
+      const hashed = await bcrypt.hash(last4, 10);
       const [row] = await db.insert(gymPlusMembers).values({
-        username: input.username,
+        username,
         password: hashed,
         name: mainMember[0].name,
-        phone: mainMember[0].phone ?? undefined,
+        phone,
         email: mainMember[0].email ?? undefined,
         memberId: input.memberId,
         membershipType: input.membershipType,

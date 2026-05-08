@@ -24,9 +24,9 @@ import { Tabs } from "@/components/ui/tabs";
 export function GymPlusMembersAdmin() {
   const utils = trpc.useUtils();
   const { data: mainMembers, isLoading } = trpc.gymPlus.admin_listMainMembers.useQuery();
-  const [linkTarget, setLinkTarget] = useState<{ id: number; name: string; membershipStart?: string | null; membershipEnd?: string | null } | null>(null);
+  const [linkTarget, setLinkTarget] = useState<{ id: number; name: string; phone?: string | null; membershipStart?: string | null; membershipEnd?: string | null } | null>(null);
   const [editTarget, setEditTarget] = useState<{ gymPlusId: number; name: string } | null>(null);
-  const [linkForm, setLinkForm] = useState({ username: "", password: "", membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "" });
+  const [linkForm, setLinkForm] = useState({ membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "" });
   const [editForm, setEditForm] = useState({ password: "", membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "", isActive: 1 });
 
   const createLinkedMutation = trpc.gymPlus.admin_createLinkedMember.useMutation({
@@ -94,8 +94,8 @@ export function GymPlusMembersAdmin() {
                   ) : (
                     <Button size="sm" className="h-7 text-[10px] px-2"
                       onClick={() => {
-                        setLinkTarget({ id: m.id, name: m.name, membershipStart: m.membershipStart, membershipEnd: m.membershipEnd });
-                        setLinkForm({ username: "", password: "", membershipType: "general", membershipStart: m.membershipStart ?? "", membershipEnd: m.membershipEnd ?? "" });
+                        setLinkTarget({ id: m.id, name: m.name, phone: m.phone, membershipStart: m.membershipStart, membershipEnd: m.membershipEnd });
+                        setLinkForm({ membershipType: "general", membershipStart: m.membershipStart ?? "", membershipEnd: m.membershipEnd ?? "" });
                       }}>계정 생성</Button>
                   )}
                 </div>
@@ -107,17 +107,18 @@ export function GymPlusMembersAdmin() {
 
       {/* 짐플러스 계정 생성 다이얼로그 */}
       <Dialog open={!!linkTarget} onOpenChange={(o) => { if (!o) setLinkTarget(null); }}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>{linkTarget?.name} — 짐플러스 계정 생성</DialogTitle></DialogHeader>
           <div className="space-y-3 pb-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">아이디 *</Label>
-              <Input value={linkForm.username} onChange={(e) => setLinkForm(p => ({ ...p, username: e.target.value }))} className="h-8 text-sm" placeholder="로그인 아이디" />
+            {/* 자동 설정 안내 */}
+            <div className="bg-muted/60 rounded-xl p-3 space-y-1">
+              <p className="text-xs font-semibold">자동 설정 정보</p>
+              <p className="text-xs text-muted-foreground">아이디: <span className="text-foreground font-medium">{linkTarget?.phone ?? "전화번호 없음"}</span></p>
+              <p className="text-xs text-muted-foreground">비밀번호: <span className="text-foreground font-medium">전화번호 뒷자리 4자리</span></p>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">비밀번호 *</Label>
-              <Input type="password" value={linkForm.password} onChange={(e) => setLinkForm(p => ({ ...p, password: e.target.value }))} className="h-8 text-sm" />
-            </div>
+            {!linkTarget?.phone && (
+              <p className="text-xs text-red-400">전화번호가 없는 회원입니다. 통합관리에서 먼저 등록해주세요.</p>
+            )}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">회원권 유형</Label>
               <Select value={linkForm.membershipType} onValueChange={(v) => setLinkForm(p => ({ ...p, membershipType: v as any }))}>
@@ -141,12 +142,11 @@ export function GymPlusMembersAdmin() {
             </div>
             <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setLinkTarget(null)}>취소</Button>
-              <Button className="flex-1 h-8 text-sm" disabled={createLinkedMutation.isPending}
+              <Button className="flex-1 h-8 text-sm" disabled={createLinkedMutation.isPending || !linkTarget?.phone}
                 onClick={() => {
-                  if (!linkForm.username || !linkForm.password) { toast.error("아이디와 비밀번호를 입력하세요."); return; }
-                  createLinkedMutation.mutate({ memberId: linkTarget!.id, ...linkForm, membershipStart: linkForm.membershipStart || undefined, membershipEnd: linkForm.membershipEnd || undefined });
+                  createLinkedMutation.mutate({ memberId: linkTarget!.id, membershipType: linkForm.membershipType, membershipStart: linkForm.membershipStart || undefined, membershipEnd: linkForm.membershipEnd || undefined });
                 }}>
-                {createLinkedMutation.isPending ? "생성 중..." : "생성"}
+                {createLinkedMutation.isPending ? "생성 중..." : "계정 생성"}
               </Button>
             </div>
           </div>
