@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Dumbbell, Check } from "lucide-react";
+import { ArrowLeft, Dumbbell, Check, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Props {
   memberId: number;
@@ -17,9 +17,20 @@ const DIET_OPTIONS = [
   "인스턴트탄수화물", "건강식탄수화물",
   "인스턴트단백질", "건강식단백질",
   "인스턴트지방", "건강식지방",
+  "미섭취",
 ];
 
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
+
+const BODY_PARTS = [
+  "목", "상부등",
+  "중부등", "어깨 전면",
+  "어깨 후면", "기립근",
+  "엉치", "고관절",
+  "무릎", "발목",
+  "발바닥", "팔꿈치",
+  "손목", "기타",
+];
 
 function nowTimeStr() {
   const d = new Date();
@@ -58,8 +69,8 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [energyLevel, setEnergyLevel] = useState("");
   const [dietItems, setDietItems] = useState<string[]>([]);
   const [painLevel, setPainLevel] = useState("");
-  const [painArea, setPainArea] = useState("");
-  const [painSide, setPainSide] = useState("");
+  const [painAreas, setPainAreas] = useState<string[]>([]);
+  const [painAreaOpen, setPainAreaOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [deductSession, setDeductSession] = useState(false);
   const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
@@ -103,8 +114,7 @@ export default function AttendanceCheck({ memberId }: Props) {
     setEnergyLevel(existing.energyLevel ?? "");
     setDietItems(existing.diet ? JSON.parse(existing.diet) : []);
     setPainLevel(existing.painLevel != null ? String(existing.painLevel) : "");
-    setPainArea(existing.painArea ?? "");
-    setPainSide(existing.painSide ?? "");
+    try { setPainAreas(existing.painArea ? JSON.parse(existing.painArea) : []); } catch { setPainAreas(existing.painArea ? [existing.painArea] : []); }
     setNotes(existing.notes ?? "");
   }, [existing]);
 
@@ -151,8 +161,8 @@ export default function AttendanceCheck({ memberId }: Props) {
       energyLevel: energyLevel || undefined,
       diet: dietItems.length ? JSON.stringify(dietItems) : undefined,
       painLevel: painLevel ? parseInt(painLevel) : undefined,
-      painArea: painArea || undefined,
-      painSide: painSide || undefined,
+      painArea: painAreas.length ? JSON.stringify(painAreas) : undefined,
+      painSide: undefined,
       notes: notes || undefined,
     });
   };
@@ -160,6 +170,12 @@ export default function AttendanceCheck({ memberId }: Props) {
   const toggleDiet = (option: string) => {
     setDietItems((prev) =>
       prev.includes(option) ? prev.filter((d) => d !== option) : [...prev, option]
+    );
+  };
+
+  const toggleBodyPart = (part: string) => {
+    setPainAreas((prev) =>
+      prev.includes(part) ? prev.filter((p) => p !== part) : [...prev, part]
     );
   };
 
@@ -318,13 +334,17 @@ export default function AttendanceCheck({ memberId }: Props) {
 
         {/* 통증 정보 */}
         <Section title="통증 정보">
-          <Field label="통증 수준 (0-10)">
-            <div className="flex gap-1.5 flex-wrap">
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>이상없음</span>
+              <span>통증심함</span>
+            </div>
+            <div className="flex gap-1">
               {Array.from({ length: 11 }, (_, i) => String(i)).map((v) => (
                 <button
                   key={v}
                   onClick={() => setPainLevel(painLevel === v ? "" : v)}
-                  className={`w-9 py-2 text-sm rounded-lg border transition-colors ${
+                  className={`flex-1 aspect-square flex items-center justify-center text-sm rounded-full border transition-colors ${
                     painLevel === v
                       ? "bg-primary/20 border-primary/40 text-primary"
                       : "border-border text-muted-foreground hover:border-primary/30"
@@ -334,32 +354,43 @@ export default function AttendanceCheck({ memberId }: Props) {
                 </button>
               ))}
             </div>
-          </Field>
-          <Field label="통증 부위">
-            <input
-              value={painArea}
-              onChange={(e) => setPainArea(e.target.value)}
-              placeholder="예: 허리, 어깨"
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-            />
-          </Field>
-          <Field label="통증 위치">
-            <div className="flex gap-2">
-              {["왼쪽", "오른쪽", "양쪽"].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setPainSide(painSide === v ? "" : v)}
-                  className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${
-                    painSide === v
-                      ? "bg-primary/20 border-primary/40 text-primary"
-                      : "border-border text-muted-foreground hover:border-primary/30"
-                  }`}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-          </Field>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm text-muted-foreground">통증 부위</label>
+            <button
+              onClick={() => setPainAreaOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg border border-border text-muted-foreground hover:border-primary/30 transition-colors"
+            >
+              <span>{painAreas.length > 0 ? painAreas.join(", ") : "부위 선택"}</span>
+              {painAreaOpen ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+            </button>
+            {painAreaOpen && (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="grid grid-cols-2">
+                  {BODY_PARTS.map((part, idx) => (
+                    <button
+                      key={part}
+                      onClick={() => toggleBodyPart(part)}
+                      className={`flex items-center gap-2 px-3 py-2.5 text-sm transition-colors text-left border-b border-border last:border-b-0 ${
+                        idx % 2 === 0 ? "border-r border-border" : ""
+                      } ${
+                        painAreas.includes(part)
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted/30"
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        painAreas.includes(part) ? "bg-primary border-primary" : "border-muted-foreground/50"
+                      }`}>
+                        {painAreas.includes(part) && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                      {part}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </Section>
 
         {/* 추가 메모 */}
