@@ -210,6 +210,11 @@ export function GymPlusMembersAdmin() {
 }
 
 // ─── 영상 관리 ────────────────────────────────────────────────────────────────
+function getYoutubeEmbed(url: string) {
+  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([^&\n?#]+)/);
+  return m ? `https://www.youtube.com/embed/${m[1]}?rel=0` : null;
+}
+
 export function GymPlusVideosAdmin() {
   const utils = trpc.useUtils();
   const { data: videos } = trpc.gymPlus.admin_listVideos.useQuery();
@@ -217,7 +222,8 @@ export function GymPlusVideosAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newCatName, setNewCatName] = useState("");
-  const [previewVideo, setPreviewVideo] = useState<{ title: string; url: string } | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<any | null>(null);
+  const [detailDesc, setDetailDesc] = useState("");
   const [form, setForm] = useState({
     title: "", description: "", videoUrl: "", thumbnailUrl: "", duration: "",
     level: "beginner" as "beginner" | "intermediate" | "advanced",
@@ -230,7 +236,11 @@ export function GymPlusVideosAdmin() {
   });
 
   const updateMutation = trpc.gymPlus.admin_updateVideo.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listVideos.invalidate(); setShowForm(false); setEditingId(null); resetForm(); toast.success("영상이 수정되었습니다."); },
+    onSuccess: () => {
+      utils.gymPlus.admin_listVideos.invalidate();
+      setShowForm(false); setEditingId(null); resetForm();
+      toast.success("저장되었습니다.");
+    },
     onError: (err) => toast.error(err.message),
   });
 
@@ -277,6 +287,147 @@ export function GymPlusVideosAdmin() {
 
   const levelLabel: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
 
+  const videoFormDialog = (
+    <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
+      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{editingId ? "영상 수정" : "영상 추가"}</DialogTitle></DialogHeader>
+        <div className="space-y-3 pb-2">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">제목 *</Label>
+            <Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">영상 URL (YouTube 또는 직접) *</Label>
+            <Input placeholder="https://youtube.com/watch?v=..." value={form.videoUrl} onChange={(e) => setForm((p) => ({ ...p, videoUrl: e.target.value }))} className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">썸네일 URL</Label>
+            <Input value={form.thumbnailUrl} onChange={(e) => setForm((p) => ({ ...p, thumbnailUrl: e.target.value }))} className="h-8 text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">카테고리</Label>
+              <Select value={form.categoryId || "none"} onValueChange={(v) => setForm((p) => ({ ...p, categoryId: v === "none" ? "" : v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">없음</SelectItem>
+                  {categories?.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">난이도</Label>
+              <Select value={form.level} onValueChange={(v) => setForm((p) => ({ ...p, level: v as any }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="beginner">초급</SelectItem>
+                  <SelectItem value="intermediate">중급</SelectItem>
+                  <SelectItem value="advanced">고급</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">운동부위</Label>
+              <Input placeholder="가슴" value={form.bodyPart} onChange={(e) => setForm((p) => ({ ...p, bodyPart: e.target.value }))} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">길이</Label>
+              <Input placeholder="10:30" value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: e.target.value }))} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">공개</Label>
+              <Select value={form.isPublished} onValueChange={(v) => setForm((p) => ({ ...p, isPublished: v }))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">공개</SelectItem>
+                  <SelectItem value="0">비공개</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setShowForm(false)}>취소</Button>
+            <Button className="flex-1 h-8 text-sm" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
+              {createMutation.isPending || updateMutation.isPending ? "저장 중..." : "저장"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
+  /* ── 영상 상세 뷰 ── */
+  if (selectedVideo) {
+    const embedUrl = getYoutubeEmbed(selectedVideo.videoUrl);
+    return (
+      <div className="space-y-4">
+        {/* 헤더 */}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSelectedVideo(null)} className="text-muted-foreground text-sm px-1">← 목록</button>
+          <p className="text-sm font-semibold flex-1 line-clamp-1">{selectedVideo.title}</p>
+          <Button variant="outline" size="sm" className="h-7 text-[10px] px-2" onClick={() => openEdit(selectedVideo)}>수정</Button>
+          <Button variant="destructive" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (confirm("삭제?")) { deleteMutation.mutate({ id: selectedVideo.id }); setSelectedVideo(null); } }}>삭제</Button>
+        </div>
+
+        {/* 영상 플레이어 */}
+        <div className="w-full bg-black aspect-video rounded-xl overflow-hidden">
+          {embedUrl ? (
+            <iframe src={embedUrl} className="w-full h-full" allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />
+          ) : (
+            <video src={selectedVideo.videoUrl} controls className="w-full h-full" playsInline />
+          )}
+        </div>
+
+        {/* 메타 정보 */}
+        <div className="flex gap-2 flex-wrap">
+          <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{levelLabel[selectedVideo.level ?? "beginner"]}</span>
+          {selectedVideo.bodyPart && <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{selectedVideo.bodyPart}</span>}
+          <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{selectedVideo.isPublished ? "공개" : "비공개"}</span>
+        </div>
+
+        {/* 운동 방법 소개글 */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold">운동 방법 소개</p>
+          <textarea
+            value={detailDesc}
+            onChange={(e) => setDetailDesc(e.target.value)}
+            rows={8}
+            placeholder="운동 방법, 주의사항, 세트/횟수 안내 등을 입력하세요..."
+            className="w-full bg-input border border-border rounded-xl p-3 text-sm text-foreground resize-none leading-relaxed"
+          />
+          <Button
+            className="w-full h-9 text-sm"
+            disabled={updateMutation.isPending}
+            onClick={() => {
+              const data = {
+                id: selectedVideo.id,
+                title: selectedVideo.title,
+                videoUrl: selectedVideo.videoUrl,
+                description: detailDesc,
+                isPublished: selectedVideo.isPublished,
+                sortOrder: selectedVideo.sortOrder ?? 0,
+                level: selectedVideo.level,
+                thumbnailUrl: selectedVideo.thumbnailUrl ?? undefined,
+                bodyPart: selectedVideo.bodyPart ?? undefined,
+                categoryId: selectedVideo.categoryId ?? undefined,
+                duration: selectedVideo.duration ?? undefined,
+              };
+              updateMutation.mutate(data);
+            }}
+          >
+            {updateMutation.isPending ? "저장 중..." : "저장"}
+          </Button>
+        </div>
+
+        {/* 수정 다이얼로그 */}
+        {videoFormDialog}
+      </div>
+    );
+  }
+
+  /* ── 영상 목록 뷰 ── */
   return (
     <div className="space-y-4">
       {/* 카테고리 */}
@@ -304,134 +455,28 @@ export function GymPlusVideosAdmin() {
 
       <div className="space-y-2">
         {videos?.map((v) => (
-          <div key={v.id} className="flex items-center gap-3 bg-background/50 rounded-xl p-3">
-            <button
-              className="w-12 h-8 rounded flex-shrink-0 overflow-hidden relative"
-              onClick={() => setPreviewVideo({ title: v.title, url: v.videoUrl })}
-            >
-              {v.thumbnailUrl ? (
-                <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-muted flex items-center justify-center text-xs">▶</div>
-              )}
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <span className="text-white text-[10px]">▶</span>
-              </div>
-            </button>
+          <button
+            key={v.id}
+            className="w-full flex items-center gap-3 bg-background/50 rounded-xl p-3 text-left"
+            onClick={() => { setSelectedVideo(v); setDetailDesc(v.description ?? ""); }}
+          >
+            <div className="w-12 h-8 rounded overflow-hidden flex-shrink-0 bg-muted flex items-center justify-center text-xs relative">
+              {v.thumbnailUrl
+                ? <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
+                : <span>▶</span>
+              }
+            </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium line-clamp-1">{v.title}</p>
               <p className="text-[10px] text-muted-foreground">{levelLabel[v.level ?? "beginner"]} · {v.isPublished ? "공개" : "비공개"}</p>
             </div>
-            <div className="flex gap-1.5 flex-shrink-0">
-              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => openEdit(v)}>수정</Button>
-              <Button variant="destructive" size="sm" className="h-6 text-[10px] px-2" onClick={() => { if (confirm("삭제?")) deleteMutation.mutate({ id: v.id }); }}>삭제</Button>
-            </div>
-          </div>
+            <span className="text-muted-foreground text-xs">›</span>
+          </button>
         ))}
+        {!videos?.length && <p className="text-xs text-muted-foreground text-center py-4">등록된 영상이 없습니다</p>}
       </div>
 
-      {/* 영상 미리보기 다이얼로그 */}
-      <Dialog open={!!previewVideo} onOpenChange={(o) => { if (!o) setPreviewVideo(null); }}>
-        <DialogContent className="max-w-sm p-0 overflow-hidden">
-          <DialogHeader className="px-4 pt-4 pb-2">
-            <DialogTitle className="text-sm">{previewVideo?.title}</DialogTitle>
-          </DialogHeader>
-          {previewVideo && (() => {
-            const youtubeMatch = previewVideo.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
-            const embedUrl = youtubeMatch ? `https://www.youtube.com/embed/${youtubeMatch[1]}?rel=0&autoplay=1` : null;
-            return embedUrl ? (
-              <div className="aspect-video w-full">
-                <iframe
-                  src={embedUrl}
-                  className="w-full h-full"
-                  allowFullScreen
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                />
-              </div>
-            ) : (
-              <div className="aspect-video w-full bg-black">
-                <video src={previewVideo.url} controls autoPlay className="w-full h-full" playsInline />
-              </div>
-            );
-          })()}
-          <div className="px-4 pb-4 pt-2">
-            <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={() => setPreviewVideo(null)}>닫기</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingId ? "영상 수정" : "영상 추가"}</DialogTitle></DialogHeader>
-          <div className="space-y-3 pb-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">제목 *</Label>
-              <Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} className="h-8 text-sm" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">영상 URL (YouTube 또는 직접) *</Label>
-              <Input placeholder="https://youtube.com/watch?v=..." value={form.videoUrl} onChange={(e) => setForm((p) => ({ ...p, videoUrl: e.target.value }))} className="h-8 text-sm" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">썸네일 URL</Label>
-              <Input value={form.thumbnailUrl} onChange={(e) => setForm((p) => ({ ...p, thumbnailUrl: e.target.value }))} className="h-8 text-sm" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">설명</Label>
-              <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={2} className="w-full bg-input border border-border rounded-lg p-2 text-sm text-foreground resize-none" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">카테고리</Label>
-                <Select value={form.categoryId || "none"} onValueChange={(v) => setForm((p) => ({ ...p, categoryId: v === "none" ? "" : v }))}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">없음</SelectItem>
-                    {categories?.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">난이도</Label>
-                <Select value={form.level} onValueChange={(v) => setForm((p) => ({ ...p, level: v as any }))}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="beginner">초급</SelectItem>
-                    <SelectItem value="intermediate">중급</SelectItem>
-                    <SelectItem value="advanced">고급</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">운동부위</Label>
-                <Input placeholder="가슴" value={form.bodyPart} onChange={(e) => setForm((p) => ({ ...p, bodyPart: e.target.value }))} className="h-8 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">길이</Label>
-                <Input placeholder="10:30" value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: e.target.value }))} className="h-8 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">공개</Label>
-                <Select value={form.isPublished} onValueChange={(v) => setForm((p) => ({ ...p, isPublished: v }))}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">공개</SelectItem>
-                    <SelectItem value="0">비공개</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setShowForm(false)}>취소</Button>
-              <Button className="flex-1 h-8 text-sm" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
-                {createMutation.isPending || updateMutation.isPending ? "저장 중..." : "저장"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {videoFormDialog}
     </div>
   );
 }
