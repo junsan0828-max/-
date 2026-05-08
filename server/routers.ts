@@ -2628,21 +2628,19 @@ const gymPlusRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 전화번호 형식 정규화: 입력값과 저장값 모두 숫자만 추출해서 비교
-      const digitsOnly = input.username.replace(/\D/g, "");
+      // 입력 전화번호 숫자만 추출
+      const inputDigits = input.username.replace(/\D/g, "");
 
-      // 짐플러스 회원 테이블 확인 (저장된 username의 비숫자 제거 후 비교)
-      const result = await db.select().from(gymPlusMembers)
-        .where(sql`REPLACE(REPLACE(REPLACE(${gymPlusMembers.username}, '-', ''), ' ', ''), '+', '') = ${digitsOnly}`)
-        .limit(1);
-      const member = result[0];
+      // 모든 짐플러스 회원 가져와서 JS에서 전화번호 숫자 비교
+      const allMembers = await db.select().from(gymPlusMembers);
+      const member = allMembers.find(m => m.username.replace(/\D/g, "") === inputDigits);
 
       if (member) {
         if (!member.isActive) throw new TRPCError({ code: "FORBIDDEN", message: "비활성화된 계정입니다." });
-        // 비밀번호는 항상 전화번호 뒷자리 4자리로 검증
+        // 비밀번호는 항상 전화번호 뒷자리 4자리
         const phoneDigits = (member.phone ?? member.username).replace(/\D/g, "");
         const last4 = phoneDigits.slice(-4);
-        if (input.password !== last4) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+        if (input.password !== last4) throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 잘못되었습니다. 전화번호 뒷자리 4자리를 입력하세요." });
 
         // admin 계정이면 통합관리 세션도 설정
         const userRow = await db.select().from(users).where(eq(users.username, input.username)).limit(1);
