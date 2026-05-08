@@ -2628,16 +2628,12 @@ const gymPlusRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 전화번호 형식 정규화: 하이픈/공백 제거 후 both formats 시도
-      const rawUsername = input.username;
-      const digitsOnly = rawUsername.replace(/\D/g, "");
+      // 전화번호 형식 정규화: 숫자만 추출해서 조회
+      const digitsOnly = input.username.replace(/\D/g, "");
 
-      // 짐플러스 회원 테이블 확인 (원본 또는 숫자만으로 조회)
+      // 짐플러스 회원 테이블 확인 (숫자만으로 조회)
       const result = await db.select().from(gymPlusMembers)
-        .where(or(
-          eq(gymPlusMembers.username, rawUsername),
-          eq(gymPlusMembers.username, digitsOnly),
-        )).limit(1);
+        .where(eq(gymPlusMembers.username, digitsOnly)).limit(1);
       const member = result[0];
 
       if (member) {
@@ -2884,11 +2880,11 @@ const gymPlusRouter = t.router({
       if (!mainMember[0]) throw new TRPCError({ code: "NOT_FOUND" });
       if (!mainMember[0].phone) throw new TRPCError({ code: "BAD_REQUEST", message: "전화번호가 없는 회원입니다. 통합관리에서 전화번호를 먼저 등록해주세요." });
 
-      // username = phone number, password = last 4 digits (digits only)
+      // username = digits-only phone, password = last 4 digits
       const phone = mainMember[0].phone;
       const digitsOnly = phone.replace(/\D/g, "");
       const last4 = digitsOnly.slice(-4);
-      const username = phone; // store as-is (e.g. 010-1234-5678)
+      const username = digitsOnly; // always store as digits-only e.g. 01077051640
 
       const existing = await db.select({ id: gymPlusMembers.id })
         .from(gymPlusMembers).where(eq(gymPlusMembers.username, username)).limit(1);
