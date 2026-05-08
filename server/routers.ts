@@ -2639,8 +2639,10 @@ const gymPlusRouter = t.router({
 
       if (member) {
         if (!member.isActive) throw new TRPCError({ code: "FORBIDDEN", message: "비활성화된 계정입니다." });
-        const valid = await bcrypt.compare(input.password, member.password);
-        if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+        // 비밀번호는 항상 전화번호 뒷자리 4자리로 검증
+        const phoneDigits = (member.phone ?? member.username).replace(/\D/g, "");
+        const last4 = phoneDigits.slice(-4);
+        if (input.password !== last4) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
 
         // admin 계정이면 통합관리 세션도 설정
         const userRow = await db.select().from(users).where(eq(users.username, input.username)).limit(1);

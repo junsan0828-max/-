@@ -44,10 +44,6 @@ export function GymPlusMembersAdmin() {
     onError: (err) => toast.error(err.message),
   });
 
-  const resetPwMutation = trpc.gymPlus.admin_resetPassword.useMutation({
-    onSuccess: () => toast.success("비밀번호가 전화번호 뒷자리 4자리로 초기화되었습니다."),
-    onError: (err) => toast.error(err.message),
-  });
 
   const connectedCount = mainMembers?.filter(m => m.gymPlus).length ?? 0;
 
@@ -87,12 +83,8 @@ export function GymPlusMembersAdmin() {
                 </div>
                 <div className="flex gap-1.5 flex-shrink-0 ml-2">
                   {m.gymPlus ? (
-                    <>
-                      <Button variant="outline" size="sm" className="h-7 text-[10px] px-2"
-                        onClick={() => { if (confirm(`${m.name}의 비밀번호를 전화번호 뒷자리 4자리로 초기화할까요?`)) resetPwMutation.mutate({ id: m.gymPlus!.id }); }}>비번초기화</Button>
-                      <Button variant="destructive" size="sm" className="h-7 text-[10px] px-2"
-                        onClick={() => { if (confirm(`${m.name}의 짐플러스 계정을 삭제하시겠습니까?`)) deleteMutation.mutate({ id: m.gymPlus!.id }); }}>삭제</Button>
-                    </>
+                    <Button variant="destructive" size="sm" className="h-7 text-[10px] px-2"
+                      onClick={() => { if (confirm(`${m.name}의 짐플러스 계정을 삭제하시겠습니까?`)) deleteMutation.mutate({ id: m.gymPlus!.id }); }}>삭제</Button>
                   ) : (
                     <Button size="sm" className="h-7 text-[10px] px-2"
                       onClick={() => {
