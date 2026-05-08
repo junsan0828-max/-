@@ -2974,6 +2974,22 @@ const gymPlusRouter = t.router({
       return { success: true };
     }),
 
+  admin_resetPassword: adminOnlyGymPlus
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const member = await db.select({ id: gymPlusMembers.id, phone: gymPlusMembers.phone })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.id, input.id)).limit(1);
+      if (!member[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!member[0].phone) throw new TRPCError({ code: "BAD_REQUEST", message: "전화번호가 없습니다." });
+      const last4 = member[0].phone.replace(/\D/g, "").slice(-4);
+      const hashed = await bcrypt.hash(last4, 10);
+      await db.update(gymPlusMembers).set({ password: hashed, updatedAt: new Date().toISOString() })
+        .where(eq(gymPlusMembers.id, input.id));
+      return { success: true };
+    }),
+
   admin_listVideos: adminOnlyGymPlus.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
