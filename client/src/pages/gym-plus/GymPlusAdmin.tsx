@@ -217,6 +217,7 @@ export function GymPlusVideosAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newCatName, setNewCatName] = useState("");
+  const [previewVideo, setPreviewVideo] = useState<{ title: string; url: string } | null>(null);
   const [form, setForm] = useState({
     title: "", description: "", videoUrl: "", thumbnailUrl: "", duration: "",
     level: "beginner" as "beginner" | "intermediate" | "advanced",
@@ -304,11 +305,19 @@ export function GymPlusVideosAdmin() {
       <div className="space-y-2">
         {videos?.map((v) => (
           <div key={v.id} className="flex items-center gap-3 bg-background/50 rounded-xl p-3">
-            {v.thumbnailUrl ? (
-              <img src={v.thumbnailUrl} alt={v.title} className="w-12 h-8 object-cover rounded flex-shrink-0" />
-            ) : (
-              <div className="w-12 h-8 bg-muted rounded flex items-center justify-center flex-shrink-0 text-xs">▶</div>
-            )}
+            <button
+              className="w-12 h-8 rounded flex-shrink-0 overflow-hidden relative"
+              onClick={() => setPreviewVideo({ title: v.title, url: v.videoUrl })}
+            >
+              {v.thumbnailUrl ? (
+                <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-muted flex items-center justify-center text-xs">▶</div>
+              )}
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <span className="text-white text-[10px]">▶</span>
+              </div>
+            </button>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium line-clamp-1">{v.title}</p>
               <p className="text-[10px] text-muted-foreground">{levelLabel[v.level ?? "beginner"]} · {v.isPublished ? "공개" : "비공개"}</p>
@@ -320,6 +329,36 @@ export function GymPlusVideosAdmin() {
           </div>
         ))}
       </div>
+
+      {/* 영상 미리보기 다이얼로그 */}
+      <Dialog open={!!previewVideo} onOpenChange={(o) => { if (!o) setPreviewVideo(null); }}>
+        <DialogContent className="max-w-sm p-0 overflow-hidden">
+          <DialogHeader className="px-4 pt-4 pb-2">
+            <DialogTitle className="text-sm">{previewVideo?.title}</DialogTitle>
+          </DialogHeader>
+          {previewVideo && (() => {
+            const youtubeMatch = previewVideo.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+            const embedUrl = youtubeMatch ? `https://www.youtube.com/embed/${youtubeMatch[1]}?rel=0&autoplay=1` : null;
+            return embedUrl ? (
+              <div className="aspect-video w-full">
+                <iframe
+                  src={embedUrl}
+                  className="w-full h-full"
+                  allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                />
+              </div>
+            ) : (
+              <div className="aspect-video w-full bg-black">
+                <video src={previewVideo.url} controls autoPlay className="w-full h-full" playsInline />
+              </div>
+            );
+          })()}
+          <div className="px-4 pb-4 pt-2">
+            <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={() => setPreviewVideo(null)}>닫기</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
