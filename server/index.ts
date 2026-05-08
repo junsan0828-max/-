@@ -359,6 +359,67 @@ async function initDatabase() {
       "targetAmount" INTEGER NOT NULL,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    // ─── ZIANTGYM+ 회원앱 테이블 ──────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS gym_plus_members (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      "memberId" INTEGER,
+      "membershipType" TEXT NOT NULL DEFAULT 'general',
+      "membershipStart" TEXT,
+      "membershipEnd" TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_video_categories (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_videos (
+      id SERIAL PRIMARY KEY,
+      "categoryId" INTEGER,
+      title TEXT NOT NULL,
+      description TEXT,
+      "videoUrl" TEXT NOT NULL,
+      "thumbnailUrl" TEXT,
+      duration INTEGER,
+      level TEXT DEFAULT 'beginner',
+      "bodyPart" TEXT,
+      "isPublished" INTEGER NOT NULL DEFAULT 1,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_events (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      "imageUrl" TEXT,
+      "eventType" TEXT DEFAULT 'notice',
+      "startDate" TEXT,
+      "endDate" TEXT,
+      "isPublished" INTEGER NOT NULL DEFAULT 1,
+      "isPinned" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_workout_logs (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "logDate" TEXT NOT NULL,
+      title TEXT NOT NULL,
+      "exercisesJson" TEXT,
+      "durationMinutes" INTEGER,
+      "caloriesBurned" INTEGER,
+      "bodyWeight" TEXT,
+      notes TEXT,
+      mood TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {
