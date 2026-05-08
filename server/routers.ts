@@ -1,7 +1,7 @@
 import { gymRouter } from "./gymRouters";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, sql, lte, gte, gt, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, lte, gte, gt, isNull, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb, getDashboardStats } from "./db";
 import {
@@ -2628,9 +2628,16 @@ const gymPlusRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 짐플러스 회원 테이블 확인
+      // 전화번호 형식 정규화: 하이픈/공백 제거 후 both formats 시도
+      const rawUsername = input.username;
+      const digitsOnly = rawUsername.replace(/\D/g, "");
+
+      // 짐플러스 회원 테이블 확인 (원본 또는 숫자만으로 조회)
       const result = await db.select().from(gymPlusMembers)
-        .where(eq(gymPlusMembers.username, input.username)).limit(1);
+        .where(or(
+          eq(gymPlusMembers.username, rawUsername),
+          eq(gymPlusMembers.username, digitsOnly),
+        )).limit(1);
       const member = result[0];
 
       if (member) {
