@@ -2375,6 +2375,42 @@ const adminRouter = t.router({
       return withPt;
     }),
 
+  // 관리자: 전체 트레이너 마감 임박 회원 요약
+  getTrainersExpiringSummary: protectedProcedure
+    .query(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const trainerList = await db
+        .select({ id: trainers.id })
+        .from(trainers);
+
+      const summary = await Promise.all(trainerList.map(async ({ id: tid }) => {
+        const rows = await db
+          .select({
+            id: members.id,
+            renewalIntent: members.renewalIntent,
+            totalSessions: ptPackages.totalSessions,
+            usedSessions: ptPackages.usedSessions,
+          })
+          .from(members)
+          .innerJoin(ptPackages, and(eq(ptPackages.memberId, members.id), eq(ptPackages.status, "active")))
+          .where(and(eq(members.trainerId, tid), eq(members.status, "active")));
+
+        const expiring = rows.filter(r => (r.totalSessions - r.usedSessions) <= 8);
+        return {
+          trainerId: tid,
+          total: expiring.length,
+          rereg: expiring.filter(r => r.renewalIntent === "재등록예정").length,
+          churn: expiring.filter(r => r.renewalIntent === "이탈예정").length,
+        };
+      }));
+
+      return Object.fromEntries(summary.map(s => [s.trainerId, s]));
+    }),
+
   // 관리자: 전체 트레이너 활동 통계 비교 (월별)
   getTrainerActivityStats: protectedProcedure
     .input(z.object({ yearMonth: z.string() }))

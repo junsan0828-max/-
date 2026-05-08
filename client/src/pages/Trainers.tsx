@@ -31,6 +31,7 @@ function TrainerList() {
   const [, setLocation] = useLocation();
   const { data: trainers, isLoading, refetch } = trpc.admin.listTrainers.useQuery();
   const { data: branchList } = trpc.admin.listBranches.useQuery();
+  const { data: expiringSummary } = trpc.admin.getTrainersExpiringSummary.useQuery();
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({
     username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none",
@@ -144,28 +145,55 @@ function TrainerList() {
         </div>
       ) : (
         <div className="space-y-2">
-          {trainers.map((trainer) => (
-            <button key={trainer.id} onClick={() => setLocation(`/trainers/${trainer.id}`)}
-              className="w-full text-left p-4 rounded-lg bg-card border border-border hover:border-primary/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
-                    {trainer.trainerName.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">{trainer.trainerName}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Users className="h-3 w-3" />{trainer.memberCount}명
-                      </span>
-                      <span className="text-xs text-primary">정산 {trainer.settlementRate}%</span>
+          {trainers.map((trainer) => {
+            const exp = expiringSummary?.[trainer.id];
+            const hasExpiring = exp && exp.total > 0;
+            const undecided = hasExpiring ? exp.total - exp.rereg - exp.churn : 0;
+            return (
+              <button key={trainer.id} onClick={() => setLocation(`/trainers/${trainer.id}`)}
+                className={`w-full text-left p-4 rounded-lg bg-card border transition-colors hover:border-primary/50 ${hasExpiring ? "border-purple-500/40" : "border-border"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                      {trainer.trainerName.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{trainer.trainerName}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Users className="h-3 w-3" />{trainer.memberCount}명
+                        </span>
+                        <span className="text-xs text-primary">정산 {trainer.settlementRate}%</span>
+                      </div>
+                      {hasExpiring && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/25 font-medium">
+                            마감임박 {exp.total}명
+                          </span>
+                          {exp.rereg > 0 && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                              재등록 {exp.rereg}명
+                            </span>
+                          )}
+                          {exp.churn > 0 && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-red-500/15 text-red-400 border border-red-500/25">
+                              이탈 {exp.churn}명
+                            </span>
+                          )}
+                          {undecided > 0 && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-muted/40 text-muted-foreground border border-border">
+                              미정 {undecided}명
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
