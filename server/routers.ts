@@ -2628,12 +2628,13 @@ const gymPlusRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 전화번호 형식 정규화: 숫자만 추출해서 조회
+      // 전화번호 형식 정규화: 입력값과 저장값 모두 숫자만 추출해서 비교
       const digitsOnly = input.username.replace(/\D/g, "");
 
-      // 짐플러스 회원 테이블 확인 (숫자만으로 조회)
+      // 짐플러스 회원 테이블 확인 (저장된 username의 비숫자 제거 후 비교)
       const result = await db.select().from(gymPlusMembers)
-        .where(eq(gymPlusMembers.username, digitsOnly)).limit(1);
+        .where(sql`REPLACE(REPLACE(REPLACE(${gymPlusMembers.username}, '-', ''), ' ', ''), '+', '') = ${digitsOnly}`)
+        .limit(1);
       const member = result[0];
 
       if (member) {
