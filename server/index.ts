@@ -52,6 +52,16 @@ app.use(
   })
 );
 
+// 디버그: 짐플러스 회원 조회
+app.get("/api/gymplus-debug", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, username, phone, is_active FROM gym_plus_members LIMIT 20");
+    res.json({ ok: true, count: result.rows.length, members: result.rows });
+  } catch (e: any) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
