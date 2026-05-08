@@ -55,10 +55,22 @@ app.use(
 // 디버그: 짐플러스 회원 조회
 app.get("/api/gymplus-debug", async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, username, phone, is_active FROM gym_plus_members LIMIT 20");
-    res.json({ ok: true, count: result.rows.length, members: result.rows });
+    // DB 연결 테스트
+    const ping = await pool.query("SELECT 1 as ok");
+    // 테이블 목록 확인
+    const tables = await pool.query("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename");
+    // gym_plus_members 조회 시도
+    let members: any[] = [];
+    let memberErr = "";
+    try {
+      const r = await pool.query("SELECT id, username, phone, is_active FROM gym_plus_members LIMIT 20");
+      members = r.rows;
+    } catch (e: any) {
+      memberErr = e.message;
+    }
+    res.json({ ok: true, tables: tables.rows.map((r: any) => r.tablename), members, memberErr });
   } catch (e: any) {
-    res.json({ ok: false, error: e.message });
+    res.json({ ok: false, error: e.message, stack: e.stack });
   }
 });
 
