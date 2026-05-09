@@ -68,8 +68,12 @@ export default function Admin() {
   const { data: branchList, refetch: refetchBranches } = trpc.admin.listBranches.useQuery(undefined, { enabled: isAdmin });
   const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery(undefined, { enabled: isAdmin });
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery(undefined, { enabled: isAdmin });
+  const { data: unassignedMembers, refetch: refetchUnassigned } = trpc.admin.listUnassignedMembers.useQuery(undefined, { enabled: !!user });
   const { data: unclassifiedMembers, refetch: refetchUnclassified } = trpc.members.listUnclassified.useQuery();
   const utils = trpc.useUtils();
+
+  const [assigningMemberId, setAssigningMemberId] = useState<number | null>(null);
+  const [assignMemberTrainerId, setAssignMemberTrainerId] = useState("");
 
   const [adminTab, setAdminTab] = useState<"account" | "work">("account");
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -168,6 +172,16 @@ export default function Admin() {
   const deletePendingMutation = trpc.admin.deletePending.useMutation({
     onSuccess: () => { toast.success("삭제되었습니다."); refetchPending(); },
     onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
+  const assignTrainerToMemberMutation = trpc.admin.assignTrainerToMember.useMutation({
+    onSuccess: () => {
+      toast.success("트레이너가 배정되었습니다.");
+      setAssigningMemberId(null);
+      setAssignMemberTrainerId("");
+      refetchUnassigned();
+    },
+    onError: (err) => toast.error(err.message || "배정 실패"),
   });
 
   const assignBranchMutation = trpc.members.assignBranch.useMutation({
@@ -393,6 +407,67 @@ export default function Admin() {
           </CardContent>
         )}
       </Card>
+
+      {/* ── 실제 미배정 회원 (members 테이블 trainerId NULL) ── */}
+      {unassignedMembers && unassignedMembers.length > 0 && (
+        <Card className="bg-card border-orange-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-orange-400" />
+              <span className="text-orange-400">트레이너 미배정 회원</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{unassignedMembers.length}명</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unassignedMembers.map((m) => (
+              <div key={m.id} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {m.phone ?? "연락처 없음"}
+                      {m.remainingPt > 0 && ` · 잔여 PT ${m.remainingPt}회`}
+                    </p>
+                  </div>
+                </div>
+                {assigningMemberId === m.id ? (
+                  <div className="flex gap-2">
+                    <Select value={assignMemberTrainerId} onValueChange={setAssignMemberTrainerId}>
+                      <SelectTrigger className="h-8 text-xs flex-1">
+                        <SelectValue placeholder="트레이너 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {trainers?.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)} className="text-xs">{t.trainerName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      disabled={!assignMemberTrainerId || assignTrainerToMemberMutation.isPending}
+                      onClick={() => assignTrainerToMemberMutation.mutate({ memberId: m.id, trainerId: parseInt(assignMemberTrainerId) })}
+                    >
+                      배정
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setAssigningMemberId(null); setAssignMemberTrainerId(""); }}>
+                      취소
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs h-7 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                    onClick={() => { setAssigningMemberId(m.id); setAssignMemberTrainerId(""); }}
+                  >
+                    트레이너 배정
+                  </Button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── 미배정 회원 (시트에서 가져온 후 트레이너 미배정) ── */}
       {pendingMembers && pendingMembers.length > 0 && (

@@ -2059,6 +2059,58 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
+  // 트레이너 미배정 실제 회원 목록 (members 테이블에서 trainerId NULL)
+  listUnassignedMembers: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+      throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) return [];
+
+    const rows = await db
+      .select({
+        id: members.id,
+        name: members.name,
+        phone: members.phone,
+        status: members.status,
+        createdAt: members.createdAt,
+      })
+      .from(members)
+      .where(isNull(members.trainerId))
+      .orderBy(desc(members.createdAt));
+
+    const withPt = await Promise.all(rows.map(async (m) => {
+      const pkgs = await db
+        .select({ totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions })
+        .from(ptPackages)
+        .where(and(eq(ptPackages.memberId, m.id), eq(ptPackages.status, "active")));
+      const remainingPt = pkgs.reduce((s, p) => s + (p.totalSessions - p.usedSessions), 0);
+      return { ...m, remainingPt };
+    }));
+
+    return withPt;
+  }),
+
+  // 미배정 회원에 트레이너 배정
+  assignTrainerToMember: protectedProcedure
+    .input(z.object({ memberId: z.number(), trainerId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      await db.update(members)
+        .set({ trainerId: input.trainerId })
+        .where(eq(members.id, input.memberId));
+
+      // PT 패키지도 trainerId 업데이트
+      await db.update(ptPackages)
+        .set({ trainerId: input.trainerId })
+        .where(and(eq(ptPackages.memberId, input.memberId), isNull(ptPackages.trainerId)));
+
+      return { success: true };
+    }),
+
   // 관리자 전체 통계
   getStats: protectedProcedure
     .input(z.object({ branchId: z.number().optional() }).optional())
