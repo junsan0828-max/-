@@ -2110,7 +2110,7 @@ const adminRouter = t.router({
         sessions: revenueEntries.sessions,
       })
       .from(revenueEntries)
-      .where(isNull(revenueEntries.trainerId))
+      .where(and(isNull(revenueEntries.trainerId), eq(revenueEntries.type, "PT")))
       .orderBy(desc(revenueEntries.paymentDate));
   }),
 
