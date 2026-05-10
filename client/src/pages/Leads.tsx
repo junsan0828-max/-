@@ -1332,7 +1332,7 @@ export default function LeadsPage() {
                   className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
                   상담완료
                 </button>
-                <button type="button" onClick={openContract}
+                <button type="button" onClick={editId ? () => handleSave("registered") : openContract}
                   className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
                   등록완료
                 </button>
