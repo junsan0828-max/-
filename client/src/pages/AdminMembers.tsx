@@ -5,8 +5,8 @@ import { Search, ChevronRight, MapPin } from "lucide-react";
 
 type TypeFilter = "all" | "PT" | "헬스" | "기타";
 
-function memberType(packages: { packageName: string; totalSessions: number }[], status: string): "PT" | "헬스" | "기타" {
-  if (packages.length > 0) return "PT";
+function memberType(packages: { packageName: string; totalSessions: number }[], status: string, hasPtRevenue?: boolean): "PT" | "헬스" | "기타" {
+  if (packages.length > 0 || hasPtRevenue) return "PT";
   if (status === "active") return "헬스";
   return "기타";
 }
@@ -57,8 +57,8 @@ export default function AdminMembers() {
     branchFilter ? { branchId: branchFilter } : undefined
   );
 
-  const ptMembers = allMembers?.filter((m) => memberType(m.packages, m.status) === "PT") ?? [];
-  const healthMembers = allMembers?.filter((m) => memberType(m.packages, m.status) === "헬스") ?? [];
+  const ptMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "PT") ?? [];
+  const healthMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "헬스") ?? [];
 
   // PT 횟수별 통계
   const sessionStats = (() => {
@@ -102,7 +102,7 @@ export default function AdminMembers() {
       (m.trainerName ?? "").toLowerCase().includes(q) ||
       (m.profileNote ?? "").toLowerCase().includes(q);
 
-    const mType = memberType(m.packages, m.status);
+    const mType = memberType(m.packages, m.status, m.hasPtRevenue);
     const matchType = typeFilter === "all" || mType === typeFilter;
 
     return matchSearch && matchType;
@@ -203,7 +203,7 @@ export default function AdminMembers() {
           <p className="text-center text-muted-foreground py-8 text-sm">검색 결과가 없습니다</p>
         )}
         {filtered?.map((m) => {
-          const mType = memberType(m.packages, m.status);
+          const mType = memberType(m.packages, m.status, m.hasPtRevenue);
           const pkgLabel = m.packages.map((p) => p.packageName).filter(Boolean).join(", ");
           return (
             <button

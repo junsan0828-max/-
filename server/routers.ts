@@ -166,7 +166,7 @@ const membersRouter = t.router({
 
     const whereClause = input?.branchId ? eq(members.branchId, input.branchId) : undefined;
 
-    const [rows, pkgs] = await Promise.all([
+    const [rows, pkgs, ptRevs] = await Promise.all([
       db.select({
         id: members.id,
         name: members.name,
@@ -188,6 +188,8 @@ const membersRouter = t.router({
         packageName: ptPackages.packageName,
         totalSessions: ptPackages.totalSessions,
       }).from(ptPackages),
+      db.select({ memberId: revenueEntries.memberId }).from(revenueEntries)
+        .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`)),
     ]);
 
     const pkgMap = new Map<number, { packageName: string; totalSessions: number }[]>();
@@ -195,8 +197,9 @@ const membersRouter = t.router({
       if (!pkgMap.has(p.memberId)) pkgMap.set(p.memberId, []);
       pkgMap.get(p.memberId)!.push({ packageName: p.packageName ?? "", totalSessions: p.totalSessions });
     }
+    const ptRevSet = new Set(ptRevs.map((r) => r.memberId).filter(Boolean) as number[]);
 
-    return rows.map((r) => ({ ...r, packages: pkgMap.get(r.id) ?? [] }));
+    return rows.map((r) => ({ ...r, packages: pkgMap.get(r.id) ?? [], hasPtRevenue: ptRevSet.has(r.id) }));
   }),
 
   getById: protectedProcedure
