@@ -1559,6 +1559,38 @@ const adminRouter = t.router({
       await db.update(users).set({ position: input.active ? null : "suspended" }).where(eq(users.id, input.userId));
       return { success: true };
     }),
+
+  grantPoints: adminProcedure
+    .input(z.object({ trainerId: z.number(), amount: z.number(), memo: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'admin_grant',$3,'completed')`,
+        [input.trainerId, input.amount, input.memo ?? null]
+      );
+      return { success: true };
+    }),
+
+  getTrainerPoints: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const bal = await pool.query<{ balance: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
+        [input.trainerId]
+      );
+      const logs = await pool.query<{ id: number; amount: number; type: string; memo: string | null; status: string; createdAt: string }>(
+        `SELECT id, amount, type, memo, status, "createdAt" FROM fit_point_logs WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 30`,
+        [input.trainerId]
+      );
+      return { balance: Number(bal.rows[0]?.balance ?? 0), logs: logs.rows };
+    }),
+
+  approveChargeRequest: adminProcedure
+    .input(z.object({ logId: z.number(), approve: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const status = input.approve ? "completed" : "rejected";
+      await pool.query(`UPDATE fit_point_logs SET status=$1 WHERE id=$2`, [status, input.logId]);
+      return { success: true };
+    }),
 });
 
 // ─── Channels Router ──────────────────────────────────────────────────────────
@@ -1753,6 +1785,42 @@ const trainingLogRouter = t.router({
     }),
 });
 
+// ─── FIT POINT Router ────────────────────────────────────────────────────────
+
+const fitPointsRouter = t.router({
+  getBalance: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const result = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
+      [trainerId]
+    );
+    return { balance: Number(result.rows[0]?.balance ?? 0) };
+  }),
+
+  getHistory: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const result = await pool.query<{ id: number; amount: number; type: string; memo: string | null; status: string; createdAt: string }>(
+      `SELECT id, amount, type, memo, status, "createdAt" FROM fit_point_logs WHERE "trainerId"=$1 ORDER BY id DESC`,
+      [trainerId]
+    );
+    return result.rows;
+  }),
+
+  requestCharge: protectedProcedure
+    .input(z.object({ amount: z.number().min(1), memo: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'charge_request',$3,'pending')`,
+        [trainerId, input.amount, input.memo ?? null]
+      );
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 
 export const appRouter = t.router({
@@ -1774,6 +1842,7 @@ export const appRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
   trainingLog: trainingLogRouter,
+  fitPoints: fitPointsRouter,
 });
 
 export type AppRouter = typeof appRouter;

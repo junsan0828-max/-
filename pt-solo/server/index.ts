@@ -322,6 +322,15 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS fit_point_logs (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'admin_grant',
+      memo TEXT,
+      status TEXT NOT NULL DEFAULT 'completed',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {

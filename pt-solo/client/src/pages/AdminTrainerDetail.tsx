@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, User, Activity, CreditCard, FileText } from "lucide-react";
+import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = [
@@ -42,6 +42,8 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   const [planValue, setPlanValue] = useState("");
   const [memo, setMemo] = useState("");
   const [memoEdit, setMemoEdit] = useState(false);
+  const [grantAmount, setGrantAmount] = useState("");
+  const [grantMemo, setGrantMemo] = useState("");
 
   const updateMutation = trpc.admin.updateTrainer.useMutation({
     onSuccess: () => { toast.success("저장되었습니다."); utils.admin.getTrainer.invalidate({ trainerId }); utils.admin.listTrainers.invalidate(); setMemoEdit(false); },
@@ -50,6 +52,18 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
 
   const toggleActiveMutation = trpc.admin.toggleUserActive.useMutation({
     onSuccess: () => { toast.success("계정 상태가 변경되었습니다."); utils.admin.getTrainer.invalidate({ trainerId }); utils.admin.listTrainers.invalidate(); },
+    onError: e => toast.error(e.message),
+  });
+
+  const { data: pointData, refetch: refetchPoints } = trpc.admin.getTrainerPoints.useQuery({ trainerId });
+
+  const grantMutation = trpc.admin.grantPoints.useMutation({
+    onSuccess: () => { toast.success("포인트가 지급되었습니다."); setGrantAmount(""); setGrantMemo(""); refetchPoints(); },
+    onError: e => toast.error(e.message),
+  });
+
+  const approveMutation = trpc.admin.approveChargeRequest.useMutation({
+    onSuccess: () => { toast.success("처리되었습니다."); refetchPoints(); },
     onError: e => toast.error(e.message),
   });
 
@@ -185,6 +199,69 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                 <Button size="sm" className="flex-1" onClick={() => updateMutation.mutate({ trainerId, adminMemo: memo })} disabled={updateMutation.isPending}>저장</Button>
               </div>
             </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* FIT POINT 관리 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2"><Coins className="h-4 w-4 text-primary" />FIT POINT 관리</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* 잔액 */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-primary/10 border border-primary/20">
+            <span className="text-sm text-muted-foreground">현재 잔액</span>
+            <span className="text-xl font-black text-primary">{(pointData?.balance ?? 0).toLocaleString()} P</span>
+          </div>
+
+          {/* 지급 폼 */}
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground">포인트 지급</label>
+            <div className="flex gap-2">
+              <Input type="number" placeholder="금액" value={grantAmount} onChange={e => setGrantAmount(e.target.value)}
+                className="h-9 text-sm bg-input border-border" />
+              <Input placeholder="메모" value={grantMemo} onChange={e => setGrantMemo(e.target.value)}
+                className="h-9 text-sm bg-input border-border flex-1" />
+            </div>
+            <Button size="sm" className="w-full" disabled={!grantAmount || grantMutation.isPending}
+              onClick={() => grantMutation.mutate({ trainerId, amount: Number(grantAmount), memo: grantMemo || undefined })}>
+              {grantMutation.isPending ? "지급 중..." : "포인트 지급"}
+            </Button>
+          </div>
+
+          {/* 충전 신청 내역 */}
+          {pointData && pointData.logs.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground font-medium">내역 (최근 30건)</p>
+              {pointData.logs.map(log => (
+                <div key={log.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-accent/20 border border-border/50">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {log.status === "completed" && <CheckCircle className="h-3 w-3 text-green-400 shrink-0" />}
+                      {log.status === "pending" && <Clock className="h-3 w-3 text-yellow-400 shrink-0" />}
+                      {log.status === "rejected" && <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
+                      <span className="text-xs font-medium">
+                        {log.type === "admin_grant" ? "관리자 지급" : log.type === "charge_request" ? "충전 신청" : "사용"}
+                      </span>
+                      {log.memo && <span className="text-xs text-muted-foreground truncate">· {log.memo}</span>}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">{log.createdAt.slice(0, 10)}</p>
+                  </div>
+                  <span className={`text-sm font-bold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
+                    {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()} P
+                  </span>
+                  {log.status === "pending" && (
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => approveMutation.mutate({ logId: log.id, approve: true })}
+                        className="text-[11px] bg-green-500/20 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded">승인</button>
+                      <button onClick={() => approveMutation.mutate({ logId: log.id, approve: false })}
+                        className="text-[11px] bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded">거절</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
