@@ -33,7 +33,7 @@ const PgSession = connectPgSimple(session);
 
 app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
 app.use(
   session({
     store: new PgSession({
@@ -285,6 +285,8 @@ async function initDatabase() {
       "isActive" INTEGER NOT NULL DEFAULT 0,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "imageUrl" TEXT`,
+    `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "bannerHeight" TEXT NOT NULL DEFAULT 'medium'`,
     `CREATE TABLE IF NOT EXISTS verification_codes (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,
