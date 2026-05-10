@@ -15,6 +15,12 @@ const STATUS_OPTIONS = [
   { value: "suspended", label: "비활성", color: "text-gray-400" },
 ];
 
+const PLAN_OPTIONS = [
+  { value: "free", label: "FREE", desc: "회원 20명 · 계약서 월 5회" },
+  { value: "light", label: "LIGHT", desc: "개인 트레이너용" },
+  { value: "pro", label: "PRO", desc: "팀장/센터/고급" },
+];
+
 function StatusBadge({ status, lastLoginAt }: { status: string; lastLoginAt?: string | null }) {
   if (status === "suspended") return <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-500/20 text-gray-400 border-gray-500/30">비활성</span>;
   if (status === "expired") return <span className="text-xs px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/30">만료</span>;
@@ -33,6 +39,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
 
   const [subStatus, setSubStatus] = useState("");
   const [subEndDate, setSubEndDate] = useState("");
+  const [planValue, setPlanValue] = useState("");
   const [memo, setMemo] = useState("");
   const [memoEdit, setMemoEdit] = useState(false);
 
@@ -106,12 +113,28 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
         </CardContent>
       </Card>
 
-      {/* 구독 관리 */}
+      {/* 플랜 관리 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2"><CreditCard className="h-4 w-4 text-primary" />구독 관리</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2"><CreditCard className="h-4 w-4 text-primary" />플랜 / 구독 관리</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">요금 플랜</label>
+            <div className="flex gap-2">
+              {PLAN_OPTIONS.map(o => (
+                <button key={o.value} onClick={() => setPlanValue(o.value)}
+                  className={`flex-1 py-2 px-2 rounded-lg border text-xs font-medium transition-colors ${
+                    (planValue || (t as any).plan || "free") === o.value
+                      ? "bg-primary/20 border-primary text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/40"
+                  }`}>
+                  <p>{o.label}</p>
+                  <p className="text-[10px] font-normal opacity-70 mt-0.5">{o.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">구독 상태</label>
             <Select value={subStatus || t.subscriptionStatus} onValueChange={setSubStatus}>
@@ -130,8 +153,9 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
             trainerId,
             subscriptionStatus: (subStatus || t.subscriptionStatus) as any,
             subscriptionEndDate: subEndDate || t.subscriptionEndDate,
+            plan: (planValue || (t as any).plan || "free") as any,
           })} disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? "저장 중..." : "구독 정보 저장"}
+            {updateMutation.isPending ? "저장 중..." : "저장"}
           </Button>
         </CardContent>
       </Card>

@@ -94,8 +94,11 @@ const authRouter = t.router({
     return { success: true };
   }),
 
-  me: publicProcedure.query(({ ctx }) => {
-    return ctx.user ?? null;
+  me: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) return null;
+    const db = getDb();
+    const row = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+    return { ...ctx.user, plan: row[0]?.plan ?? "free" };
   }),
 
   sendVerificationCode: publicProcedure
@@ -263,6 +266,12 @@ const membersRouter = t.router({
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
       const { ptProgram, ptSessions, paymentAmount, unpaidAmount, paymentMethod, paymentDate, paymentMemo, ...memberData } = input;
+
+      const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      if ((planRow?.plan ?? "free") === "free") {
+        const [cnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
+        if (Number(cnt?.count ?? 0) >= 20) throw new TRPCError({ code: "FORBIDDEN", message: "FREE 플랜은 회원을 최대 20명까지 등록할 수 있습니다." });
+      }
 
       const [insertResult] = await db.insert(members).values({ ...memberData, trainerId }).returning({ id: members.id });
       const memberId = insertResult.id;
@@ -1458,6 +1467,7 @@ const adminRouter = t.router({
         username: users.username,
         lastLoginAt: users.lastLoginAt,
         userId: trainers.userId,
+        plan: sql<string>`users."plan"`,
       })
       .from(trainers)
       .leftJoin(users, eq(trainers.userId, users.id))
@@ -1491,7 +1501,7 @@ const adminRouter = t.router({
     .query(async ({ input }) => {
       const db = getDb();
       const [tr] = await db
-        .select({ id: trainers.id, trainerName: trainers.trainerName, phone: trainers.phone, email: trainers.email, createdAt: trainers.createdAt, username: users.username, lastLoginAt: users.lastLoginAt, userId: trainers.userId, position: users.position })
+        .select({ id: trainers.id, trainerName: trainers.trainerName, phone: trainers.phone, email: trainers.email, createdAt: trainers.createdAt, username: users.username, lastLoginAt: users.lastLoginAt, userId: trainers.userId, position: users.position, plan: sql<string>`users."plan"` })
         .from(trainers).leftJoin(users, eq(trainers.userId, users.id)).where(eq(trainers.id, input.trainerId)).limit(1);
       if (!tr) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -1522,10 +1532,11 @@ const adminRouter = t.router({
       subscriptionStatus: z.enum(["trial", "active", "expired", "suspended"]).optional(),
       subscriptionEndDate: z.string().optional().nullable(),
       adminMemo: z.string().optional().nullable(),
+      plan: z.enum(["free", "light", "pro"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      const { trainerId, ...fields } = input;
+      const { trainerId, plan, ...fields } = input;
       const setParts: Record<string, any> = {};
       if (fields.subscriptionStatus !== undefined) setParts['"subscriptionStatus"'] = fields.subscriptionStatus;
       if (fields.subscriptionEndDate !== undefined) setParts['"subscriptionEndDate"'] = fields.subscriptionEndDate;
@@ -1534,6 +1545,9 @@ const adminRouter = t.router({
         const cols = Object.keys(setParts).map((k, i) => `${k} = $${i + 2}`).join(", ");
         const vals = Object.values(setParts);
         await pool.query(`UPDATE trainer_settings SET ${cols} WHERE "trainerId" = $1`, [trainerId, ...vals]);
+      }
+      if (plan !== undefined) {
+        await pool.query(`UPDATE users SET "plan" = $1 WHERE id = (SELECT "userId" FROM trainers WHERE id = $2)`, [plan, trainerId]);
       }
       return { success: true };
     }),
@@ -1669,6 +1683,19 @@ const leadsRouter = t.router({
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const db = getDb();
+
+      const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      const plan = planRow?.plan ?? "free";
+      if (plan === "free") {
+        const [totalCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
+        if (Number(totalCnt?.count ?? 0) >= 20) throw new TRPCError({ code: "FORBIDDEN", message: "FREE 플랜은 회원을 최대 20명까지 등록할 수 있습니다." });
+        const now = new Date();
+        const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const [monthlyCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members)
+          .where(and(eq(members.trainerId, trainerId), gte(members.createdAt, monthPrefix + "-01"), lte(members.createdAt, monthPrefix + "-31T23:59:59")));
+        if (Number(monthlyCnt?.count ?? 0) >= 5) throw new TRPCError({ code: "FORBIDDEN", message: "FREE 플랜은 온라인 계약서를 월 5회까지 작성할 수 있습니다." });
+      }
+
       const [member] = await db.insert(members).values({
         trainerId, name: input.name, phone: input.phone, gender: input.gender,
         status: "active", membershipStart: input.startDate,
