@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const CONTRACT_TERMS = `제1조 (목적)
 본 약관은 자이언트짐(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.
@@ -84,7 +84,18 @@ export default function ContractPrint() {
   const phone = params.get("phone") || "";
   const date = params.get("date") || new Date().toLocaleDateString("ko-KR");
   const marketing = params.get("marketing") === "1";
-  const signatureDataUrl = params.get("sig") || null;
+
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const sigKey = params.get("sigKey");
+    if (sigKey) {
+      const stored = localStorage.getItem(sigKey);
+      if (stored) {
+        setSignatureDataUrl(stored);
+        localStorage.removeItem(sigKey);
+      }
+    }
+  }, []);
 
   // 등록 내역
   const subType = params.get("subType") || "";

@@ -692,12 +692,14 @@ export default function LeadsPage() {
           signatureDataUrl={signatureDataUrl}
           regForm={regForm}
           onPrint={() => {
+            const sigKey = `contract_sig_${Date.now()}`;
+            localStorage.setItem(sigKey, signatureDataUrl);
             const p = new URLSearchParams({
               name: form.name,
               phone: form.phone || "",
               date: new Date().toLocaleDateString("ko-KR"),
               marketing: agreedMarketing ? "1" : "0",
-              sig: signatureDataUrl,
+              sigKey,
               subType: regForm.subType,
               itemTypes: regForm.itemTypes.join(","),
               programKey: regForm.programKey,
@@ -1701,7 +1703,9 @@ function ContractPdfButton({ lead }: { lead: any }) {
     }
 
     if (lead.signatureDataUrl) {
-      p.set("sig", lead.signatureDataUrl);
+      const sigKey = `contract_sig_${Date.now()}`;
+      localStorage.setItem(sigKey, lead.signatureDataUrl);
+      p.set("sigKey", sigKey);
     }
 
     window.open(`/contract-print?${p.toString()}`, "_blank");
