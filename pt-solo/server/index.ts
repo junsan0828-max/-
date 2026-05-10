@@ -4,6 +4,7 @@ import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
+import cron from "node-cron";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
@@ -386,6 +387,34 @@ async function initDatabase() {
   console.log("✨ DB 초기화 완료!");
 }
 
+const DAILY_POINT = 300;
+
+async function runDailyPointReset() {
+  const today = new Date().toISOString().slice(0, 10);
+  const trainerRows = await pool.query<{ id: number }>(`SELECT id FROM trainers`);
+  let count = 0;
+  for (const tr of trainerRows.rows) {
+    const alreadyDone = await pool.query(
+      `SELECT id FROM fit_point_logs WHERE "trainerId"=$1 AND type='daily_reset' AND "createdAt" >= $2`,
+      [tr.id, today + "T00:00:00"]
+    );
+    if (alreadyDone.rows.length > 0) continue;
+
+    const balRow = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
+      [tr.id]
+    );
+    const currentBalance = Number(balRow.rows[0]?.balance ?? 0);
+    const delta = DAILY_POINT - currentBalance;
+    await pool.query(
+      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'daily_reset','일일 포인트 초기화','completed')`,
+      [tr.id, delta]
+    );
+    count++;
+  }
+  if (count > 0) console.log(`✅ 일일 FIT POINT 초기화 완료: ${count}명 → ${DAILY_POINT}P`);
+}
+
 async function start() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 PT-Solo 서버 실행 중: http://0.0.0.0:${PORT}`);
@@ -396,6 +425,14 @@ async function start() {
   } catch (e) {
     console.error("DB 초기화 오류 (서버는 계속 실행):", e);
   }
+
+  // 매일 자정 FIT POINT 300P 초기화
+  cron.schedule("0 0 * * *", () => {
+    runDailyPointReset().catch(e => console.error("FIT POINT 초기화 오류:", e));
+  }, { timezone: "Asia/Seoul" });
+
+  // 서버 시작 시 당일 초기화 즉시 실행
+  runDailyPointReset().catch(e => console.error("FIT POINT 초기화 오류:", e));
 }
 
 start().catch(console.error);

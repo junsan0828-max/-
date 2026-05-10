@@ -242,7 +242,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                       {log.status === "pending" && <Clock className="h-3 w-3 text-yellow-400 shrink-0" />}
                       {log.status === "rejected" && <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
                       <span className="text-xs font-medium">
-                        {log.type === "admin_grant" ? "관리자 지급" : log.type === "charge_request" ? "충전 신청" : "사용"}
+                        {log.type === "admin_grant" ? "관리자 지급" : log.type === "charge_request" ? "충전 신청" : log.type === "daily_reset" ? "일일 초기화" : "사용"}
                       </span>
                       {log.memo && <span className="text-xs text-muted-foreground truncate">· {log.memo}</span>}
                     </div>

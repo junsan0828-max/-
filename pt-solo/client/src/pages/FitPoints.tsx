@@ -10,6 +10,7 @@ import TabBanner from "@/components/TabBanner";
 const TYPE_LABEL: Record<string, string> = {
   admin_grant: "관리자 지급",
   charge_request: "충전 신청",
+  daily_reset: "일일 초기화 (300P)",
   usage: "사용",
 };
 
