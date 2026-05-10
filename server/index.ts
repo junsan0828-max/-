@@ -615,9 +615,17 @@ async function initDatabase() {
       { name: "지인 소개", type: "referral", description: "기존 회원 소개" },
       { name: "현수막/전단", type: "offline", description: "오프라인 홍보물" },
       { name: "유튜브", type: "sns", description: "유튜브 채널" },
+      { name: "전화예약", type: "offline", description: "전화 예약 문의" },
       { name: "기타", type: "offline", description: "기타 채널" },
     ]);
     console.log("✅ 기본 채널 데이터 생성 완료");
+  } else {
+    // 전화예약 채널이 없으면 추가
+    const phoneChannel = await db.select({ id: channels.id }).from(channels).where(eq(channels.name, "전화예약")).limit(1);
+    if (!phoneChannel[0]) {
+      await db.insert(channels).values({ name: "전화예약", type: "offline", description: "전화 예약 문의" });
+      console.log("✅ 전화예약 채널 추가 완료");
+    }
   }
 
   // 구글시트 URL 고정 설정 (없으면 자동 생성, 있으면 URL만 갱신)

@@ -1205,21 +1205,6 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 소분류 — 선택된 대분류의 소분류 전부 표시 */}
-              {form.consultationTypes.some(t => CONSULT_TYPES[t]?.length > 0) && (
-                <div>
-                  <label className="text-xs text-muted-foreground">소분류 (복수 선택 가능)</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {form.consultationTypes.flatMap(t => CONSULT_TYPES[t] ?? []).map(sub => (
-                      <button key={sub} type="button" onClick={() => toggleSubType(sub)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${form.consultationSubTypes.includes(sub) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                        {sub}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* 관심 프로그램 */}
               <div className="space-y-2">
                 <div>
