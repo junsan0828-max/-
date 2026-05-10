@@ -295,14 +295,14 @@ function BpField({ systolic, diastolic, onChange }: {
             value={systolic}
             onChange={(e) => onChange(e.target.value, diastolic)}
             placeholder="수축기"
-            className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
           />
-          <span className="text-muted-foreground">/</span>
+          <span className="text-muted-foreground shrink-0">/</span>
           <input
             value={diastolic}
             onChange={(e) => onChange(systolic, e.target.value)}
             placeholder="이완기"
-            className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+            className="min-w-0 flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
           />
         </div>
       )}
