@@ -19,7 +19,7 @@ import AdminTrainers from "./pages/AdminTrainers";
 import AdminTrainerDetail from "./pages/AdminTrainerDetail";
 import AdminNotices from "./pages/AdminNotices";
 import Leads from "./pages/Leads";
-import FitPoints from "./pages/FitPoints";
+import Workshop from "./pages/Workshop";
 import Layout from "./components/Layout";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -105,7 +105,8 @@ function App() {
           <Route path="/leads">{() => <Leads />}</Route>
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
-          <Route path="/points">{() => <FitPoints />}</Route>
+          <Route path="/workshop">{() => <Workshop />}</Route>
+          <Route path="/points">{() => <Redirect to="/profile" />}</Route>
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
           </Route>
