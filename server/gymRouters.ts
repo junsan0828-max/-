@@ -204,6 +204,18 @@ const leadsRouter = t.router({
       return { success: true };
     }),
 
+  getByMemberId: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const [row] = await db.select({
+        consultationNote: leads.consultationNote,
+        memo: leads.memo,
+      }).from(leads).where(eq(leads.registeredMemberId, input.memberId)).limit(1);
+      return row ?? null;
+    }),
+
   stats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });

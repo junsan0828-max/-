@@ -906,11 +906,11 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 메모 */}
+              {/* 등록 진행 내용 */}
               <div>
-                <label className="text-xs text-muted-foreground">메모</label>
+                <label className="text-xs text-muted-foreground">등록 진행 내용</label>
                 <textarea value={regForm.memo} onChange={e => setRegForm(f => ({ ...f, memo: e.target.value }))} rows={2}
-                  placeholder="추가 메모..."
+                  placeholder="운동 가능 시간, 날짜, 특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
             </div>
@@ -1302,10 +1302,11 @@ export default function LeadsPage() {
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
 
-              {/* 메모 */}
+              {/* 등록 진행 내용 */}
               <div>
-                <label className="text-xs text-muted-foreground">메모</label>
+                <label className="text-xs text-muted-foreground">등록 진행 내용</label>
                 <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
+                  placeholder="운동 가능 시간, 날짜, 특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
 

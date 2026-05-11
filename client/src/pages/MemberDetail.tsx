@@ -303,6 +303,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: conditionChecks } = trpc.attendanceChecks.listByMember.useQuery({ memberId });
   const { data: stats } = trpc.members.getStats.useQuery({ memberId });
   const { data: pauses, refetch: refetchPauses } = trpc.pt.listPauses.useQuery({ memberId });
+  const { data: leadInfo } = trpc.gym.leads.getByMemberId.useQuery({ memberId });
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -752,6 +753,22 @@ export default function MemberDetail({ memberId }: Props) {
                 <div className="mt-4 p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
                   <p className="text-xs text-muted-foreground mb-1">특이사항</p>
                   <p className="text-sm text-foreground whitespace-pre-wrap">{member.profileNote}</p>
+                </div>
+              )}
+              {(leadInfo?.consultationNote || leadInfo?.memo) && (
+                <div className="mt-4 space-y-3">
+                  {leadInfo.consultationNote && (
+                    <div className="p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
+                      <p className="text-xs text-muted-foreground mb-1">상담 내용</p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{leadInfo.consultationNote}</p>
+                    </div>
+                  )}
+                  {leadInfo.memo && (
+                    <div className="p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
+                      <p className="text-xs text-muted-foreground mb-1">등록 진행 내용</p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{leadInfo.memo}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
