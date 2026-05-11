@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
-  AlertTriangle, UserPlus, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
+  AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -173,28 +173,6 @@ function TrainerDashboard() {
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
   const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
 
-  const [registerModalOpen, setRegisterModalOpen] = useState(false);
-  const [reregisterOpen, setReregisterOpen] = useState(false);
-  const [reregMemberId, setReregMemberId] = useState<string>("");
-  const [reregForm, setReregForm] = useState({
-    ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
-    paymentAmount: "", unpaidAmount: "", paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
-    paymentMemo: "",
-  });
-
-  const addPackageMutation = trpc.pt.addPackage.useMutation({
-    onSuccess: () => {
-      toast.success("재등록 완료");
-      setReregisterOpen(false);
-      setReregMemberId("");
-      setReregForm({ ptProgram: "", totalSessions: "", startDate: "", expiryDate: "", paymentAmount: "", unpaidAmount: "", paymentMethod: "", paymentMemo: "" });
-      utils.dashboard.getStats.invalidate();
-      utils.pt.list.invalidate();
-      utils.pt.listByMember.invalidate();
-    },
-    onError: (e: { message: string }) => toast.error(e.message),
-  });
-
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
@@ -226,9 +204,6 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
-        <Button size="sm" onClick={() => setRegisterModalOpen(true)} className="gap-1.5">
-          <UserPlus className="h-4 w-4" />회원 등록
-        </Button>
       </div>
 
       {/* 알림 뱃지 */}
@@ -647,142 +622,6 @@ function TrainerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* 회원 등록 선택 모달 */}
-      <Dialog open={registerModalOpen} onOpenChange={setRegisterModalOpen}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4 text-primary" />회원 등록
-            </DialogTitle>
-            <DialogDescription className="text-xs">등록 유형을 선택하세요.</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <button
-              onClick={() => { setRegisterModalOpen(false); setLocation("/members/new"); }}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-accent/20 hover:border-primary/50 hover:bg-primary/10 transition-colors"
-            >
-              <UserPlus className="h-7 w-7 text-primary" />
-              <span className="text-sm font-semibold">신규</span>
-              <span className="text-xs text-muted-foreground text-center">새 회원 등록</span>
-            </button>
-            <button
-              onClick={() => { setRegisterModalOpen(false); setReregisterOpen(true); }}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-accent/20 hover:border-green-500/50 hover:bg-green-500/10 transition-colors"
-            >
-              <RefreshCw className="h-7 w-7 text-green-400" />
-              <span className="text-sm font-semibold">재등록</span>
-              <span className="text-xs text-muted-foreground text-center">기존 회원 재등록</span>
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* 재등록 모달 */}
-      <Dialog open={reregisterOpen} onOpenChange={setReregisterOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-green-400" />재등록
-            </DialogTitle>
-            <DialogDescription className="text-xs">기존 회원에게 새 PT 패키지를 등록합니다.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">회원 선택 *</label>
-              <Select value={reregMemberId} onValueChange={setReregMemberId}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="회원을 선택하세요" /></SelectTrigger>
-                <SelectContent>
-                  {allMembers?.map(m => (
-                    <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">프로그램명</label>
-              <Input className="h-9 text-sm" placeholder="프로그램명 직접 입력" value={reregForm.ptProgram} onChange={e => setReregForm(p => ({ ...p, ptProgram: e.target.value }))} />
-              <div className="flex gap-1.5 flex-wrap">
-                {["케어피티", "웨이트피티", "이벤트피티"].map(preset => (
-                  <button key={preset} type="button"
-                    onClick={() => setReregForm(p => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
-                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.ptProgram === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
-                  >{preset}</button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">총 세션 수 *</label>
-              <Input className="h-9 text-sm" type="number" min={1} placeholder="횟수 직접 입력" value={reregForm.totalSessions} onChange={e => setReregForm(p => ({ ...p, totalSessions: e.target.value }))} />
-              <div className="flex gap-1.5 flex-wrap">
-                {["10", "20", "30", "40", "50"].map(preset => (
-                  <button key={preset} type="button"
-                    onClick={() => setReregForm(p => ({ ...p, totalSessions: p.totalSessions === preset ? "" : preset }))}
-                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.totalSessions === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
-                  >{preset}회</button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">시작일</label>
-                <Input className="h-9 text-sm" type="date" value={reregForm.startDate} onChange={e => setReregForm(p => ({ ...p, startDate: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">만료일</label>
-                <Input className="h-9 text-sm" type="date" value={reregForm.expiryDate} onChange={e => setReregForm(p => ({ ...p, expiryDate: e.target.value }))} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">결제금액 (원)</label>
-                <Input className="h-9 text-sm" type="number" placeholder="예) 1060000" value={reregForm.paymentAmount} onChange={e => setReregForm(p => ({ ...p, paymentAmount: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">미수금 (원)</label>
-                <Input className="h-9 text-sm" type="number" placeholder="0" value={reregForm.unpaidAmount} onChange={e => setReregForm(p => ({ ...p, unpaidAmount: e.target.value }))} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">결제 방법</label>
-              <Select value={reregForm.paymentMethod} onValueChange={(v) => setReregForm(p => ({ ...p, paymentMethod: v as any }))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                <SelectContent>
-                  {["현금영수증", "이체", "지역화폐", "카드"].map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">메모</label>
-              <Textarea className="text-sm resize-none" rows={2} placeholder="결제 관련 메모..." value={reregForm.paymentMemo} onChange={e => setReregForm(p => ({ ...p, paymentMemo: e.target.value }))} />
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => setReregisterOpen(false)}>취소</Button>
-              <Button
-                className="flex-1 bg-green-600 hover:bg-green-700"
-                disabled={!reregMemberId || !reregForm.totalSessions || addPackageMutation.isPending}
-                onClick={() => {
-                  if (!reregMemberId || !reregForm.totalSessions) return;
-                  addPackageMutation.mutate({
-                    memberId: Number(reregMemberId),
-                    ptProgram: reregForm.ptProgram || undefined,
-                    totalSessions: Number(reregForm.totalSessions),
-                    startDate: reregForm.startDate || undefined,
-                    expiryDate: reregForm.expiryDate || undefined,
-                    paymentAmount: reregForm.paymentAmount ? Number(reregForm.paymentAmount) : undefined,
-                    unpaidAmount: reregForm.unpaidAmount ? Number(reregForm.unpaidAmount) : undefined,
-                    paymentMethod: reregForm.paymentMethod || undefined,
-                    paymentMemo: reregForm.paymentMemo || undefined,
-                  });
-                }}
-              >
-                {addPackageMutation.isPending ? "등록 중..." : "재등록 완료"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

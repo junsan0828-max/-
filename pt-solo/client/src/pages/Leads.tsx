@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Phone, MessageSquare, CheckCircle2, Clock, XCircle, UserCheck, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Phone, MessageSquare, CheckCircle2, Clock, XCircle, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const STATUS_OPTIONS = [
   { value: "pending",    label: "상담대기", color: "text-amber-400",   bg: "bg-amber-400/10",   icon: Clock },
@@ -159,6 +162,48 @@ export default function LeadsPage() {
 
   const { data: leadsData, isLoading } = trpc.leads.list.useQuery({ year, month });
   const { data: channels } = trpc.channels.list.useQuery();
+  const { data: allMembers } = trpc.members.list.useQuery();
+
+  // 바로등록 상태
+  const [showQuickModal, setShowQuickModal] = useState(false);
+  const [quickStep, setQuickStep] = useState<"select" | "new" | "rereg">("select");
+  const [quickName, setQuickName] = useState("");
+  const [quickPhone, setQuickPhone] = useState("");
+  const [reregMemberId, setReregMemberId] = useState("");
+  const [reregPkg, setReregPkg] = useState({
+    ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
+    paymentAmount: "", unpaidAmount: "",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMemo: "",
+  });
+
+  const addPackageMutation = trpc.pt.addPackage.useMutation({
+    onSuccess: () => {
+      toast.success("재등록 완료!");
+      setShowQuickModal(false);
+      setReregMemberId("");
+      setReregPkg({ ptProgram: "", totalSessions: "", startDate: "", expiryDate: "", paymentAmount: "", unpaidAmount: "", paymentMethod: "", paymentMemo: "" });
+      utils.leads.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function openQuickModal() {
+    setQuickStep("select");
+    setQuickName("");
+    setQuickPhone("");
+    setShowQuickModal(true);
+  }
+
+  function startQuickNew() {
+    if (!quickName.trim()) return toast.error("이름을 입력해주세요");
+    setShowQuickModal(false);
+    setEditId(null);
+    setForm({ ...defaultForm, name: quickName, phone: quickPhone });
+    setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
+    setSignatureData("");
+    setShowContract(true);
+  }
 
   const createMutation = trpc.leads.create.useMutation({
     onSuccess: (data) => {
@@ -375,15 +420,23 @@ export default function LeadsPage() {
       <TabBanner tabKey="leads" />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">상담 관리</h1>
+          <h1 className="text-xl font-bold">상담실</h1>
           <p className="text-xs text-muted-foreground">월별 상담 및 전환 관리</p>
         </div>
-        <button
-          onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, consultationDate: new Date().toISOString().substring(0, 10) }); }}
-          className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" /> 상담 추가
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={openQuickModal}
+            className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+          >
+            <Zap className="h-4 w-4" /> 바로등록
+          </button>
+          <button
+            onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, consultationDate: new Date().toISOString().substring(0, 10) }); }}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> 상담 추가
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
@@ -549,6 +602,151 @@ export default function LeadsPage() {
                 취소
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 바로등록 모달 ── */}
+      {showQuickModal && (
+        <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm flex flex-col">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between rounded-t-2xl">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-emerald-400" />
+                <h2 className="font-bold">바로등록</h2>
+              </div>
+              <button onClick={() => setShowQuickModal(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            {/* 유형 선택 */}
+            {quickStep === "select" && (
+              <div className="p-4 space-y-3">
+                <p className="text-sm text-muted-foreground">등록 유형을 선택하세요.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => setQuickStep("new")}
+                    className="flex flex-col items-center gap-2 p-5 rounded-xl border border-border bg-accent/20 hover:border-primary/50 hover:bg-primary/10 transition-colors">
+                    <UserPlus className="h-8 w-8 text-primary" />
+                    <span className="text-sm font-bold">신규등록</span>
+                    <span className="text-xs text-muted-foreground text-center">새 회원 + 전자계약</span>
+                  </button>
+                  <button onClick={() => setQuickStep("rereg")}
+                    className="flex flex-col items-center gap-2 p-5 rounded-xl border border-border bg-accent/20 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-colors">
+                    <RefreshCw className="h-8 w-8 text-emerald-400" />
+                    <span className="text-sm font-bold">재등록</span>
+                    <span className="text-xs text-muted-foreground text-center">기존 회원 패키지 추가</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 신규등록 — 기본 정보 입력 후 전자계약 진행 */}
+            {quickStep === "new" && (
+              <div className="p-4 space-y-3">
+                <button onClick={() => setQuickStep("select")} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">← 뒤로</button>
+                <p className="text-sm font-semibold">신규 회원 정보</p>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">이름 *</label>
+                  <Input value={quickName} onChange={e => setQuickName(e.target.value)} placeholder="회원 이름" className="h-9 text-sm bg-input border-border" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">연락처</label>
+                  <Input value={quickPhone} onChange={e => setQuickPhone(e.target.value)} placeholder="010-0000-0000" className="h-9 text-sm bg-input border-border" />
+                </div>
+                <p className="text-xs text-muted-foreground">이름 입력 후 전자계약 화면으로 이동합니다.</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowQuickModal(false)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
+                  <button onClick={startQuickNew} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-bold hover:bg-primary/90">전자계약 진행</button>
+                </div>
+              </div>
+            )}
+
+            {/* 재등록 — 기존 회원 선택 + 패키지 */}
+            {quickStep === "rereg" && (
+              <div className="p-4 space-y-3 max-h-[75vh] overflow-y-auto">
+                <button onClick={() => setQuickStep("select")} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">← 뒤로</button>
+                <p className="text-sm font-semibold">재등록 — 기존 회원</p>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">회원 선택 *</label>
+                  <Select value={reregMemberId} onValueChange={setReregMemberId}>
+                    <SelectTrigger className="h-9 text-sm bg-input border-border"><SelectValue placeholder="회원 선택" /></SelectTrigger>
+                    <SelectContent>{allMembers?.map(m => <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">프로그램명</label>
+                  <Input className="h-9 text-sm bg-input border-border" placeholder="예: 케어피티" value={reregPkg.ptProgram} onChange={e => setReregPkg(p => ({ ...p, ptProgram: e.target.value }))} />
+                  <div className="flex gap-1.5 flex-wrap">
+                    {["케어피티", "웨이트피티", "이벤트피티"].map(pr => (
+                      <button key={pr} onClick={() => setReregPkg(p => ({ ...p, ptProgram: p.ptProgram === pr ? "" : pr }))}
+                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregPkg.ptProgram === pr ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{pr}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">총 세션 수 *</label>
+                  <Input className="h-9 text-sm bg-input border-border" type="number" min={1} placeholder="횟수" value={reregPkg.totalSessions} onChange={e => setReregPkg(p => ({ ...p, totalSessions: e.target.value }))} />
+                  <div className="flex gap-1.5 flex-wrap">
+                    {["10", "20", "30", "40", "50"].map(pr => (
+                      <button key={pr} onClick={() => setReregPkg(p => ({ ...p, totalSessions: p.totalSessions === pr ? "" : pr }))}
+                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregPkg.totalSessions === pr ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{pr}회</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">시작일</label>
+                    <Input className="h-9 text-sm bg-input border-border" type="date" value={reregPkg.startDate} onChange={e => setReregPkg(p => ({ ...p, startDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">만료일</label>
+                    <Input className="h-9 text-sm bg-input border-border" type="date" value={reregPkg.expiryDate} onChange={e => setReregPkg(p => ({ ...p, expiryDate: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">결제금액 (원)</label>
+                    <Input className="h-9 text-sm bg-input border-border" type="number" placeholder="0" value={reregPkg.paymentAmount} onChange={e => setReregPkg(p => ({ ...p, paymentAmount: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">미수금 (원)</label>
+                    <Input className="h-9 text-sm bg-input border-border" type="number" placeholder="0" value={reregPkg.unpaidAmount} onChange={e => setReregPkg(p => ({ ...p, unpaidAmount: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">결제 방법</label>
+                  <Select value={reregPkg.paymentMethod} onValueChange={v => setReregPkg(p => ({ ...p, paymentMethod: v as any }))}>
+                    <SelectTrigger className="h-9 text-sm bg-input border-border"><SelectValue placeholder="선택" /></SelectTrigger>
+                    <SelectContent>{["현금영수증", "이체", "지역화폐", "카드"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">메모</label>
+                  <Textarea className="text-sm resize-none bg-input border-border" rows={2} placeholder="결제 메모" value={reregPkg.paymentMemo} onChange={e => setReregPkg(p => ({ ...p, paymentMemo: e.target.value }))} />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setShowQuickModal(false)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
+                  <button
+                    disabled={!reregMemberId || !reregPkg.totalSessions || addPackageMutation.isPending}
+                    onClick={() => {
+                      if (!reregMemberId || !reregPkg.totalSessions) return;
+                      addPackageMutation.mutate({
+                        memberId: Number(reregMemberId),
+                        ptProgram: reregPkg.ptProgram || undefined,
+                        totalSessions: Number(reregPkg.totalSessions),
+                        startDate: reregPkg.startDate || undefined,
+                        expiryDate: reregPkg.expiryDate || undefined,
+                        paymentAmount: reregPkg.paymentAmount ? Number(reregPkg.paymentAmount) : undefined,
+                        unpaidAmount: reregPkg.unpaidAmount ? Number(reregPkg.unpaidAmount) : undefined,
+                        paymentMethod: reregPkg.paymentMethod || undefined,
+                        paymentMemo: reregPkg.paymentMemo || undefined,
+                      });
+                    }}
+                    className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-emerald-700 disabled:opacity-40">
+                    {addPackageMutation.isPending ? "등록 중..." : "재등록 완료"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -9,7 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Search, ChevronRight, Dumbbell, Calendar, UserPlus, AlertCircle,
+  Search, ChevronRight, Dumbbell, Calendar, AlertCircle,
   Clock, XCircle, CheckSquare, Square, CalendarPlus, X,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
@@ -140,9 +140,6 @@ function MembersTab() {
             <>
               <Button size="sm" variant="outline" onClick={() => setSelectMode(true)} className="gap-1.5">
                 <CheckSquare className="h-4 w-4" />선택
-              </Button>
-              <Button size="sm" onClick={() => setLocation("/members/new")} className="gap-1.5">
-                <UserPlus className="h-4 w-4" />신규 등록
               </Button>
             </>
           )}
