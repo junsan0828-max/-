@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw } from "lucide-react";
+import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, XCircle } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 const STATUS_OPTIONS = [
   { value: "consulted",  label: "상담완료", color: "text-blue-400",    bg: "bg-blue-400/10",    icon: MessageSquare },
   { value: "registered", label: "등록완료", color: "text-emerald-400", bg: "bg-emerald-400/10", icon: CheckCircle2 },
+  { value: "dropped",    label: "등록보류", color: "text-red-400",     bg: "bg-red-400/10",     icon: XCircle },
 ];
 
 const CONSULT_TYPES: Record<string, string[]> = {
@@ -1054,11 +1055,21 @@ export default function LeadsPage() {
                   </button>
                 </>
               ) : (
-                // 신규 상담 추가: 상담완료만
-                <button type="button" onClick={() => handleSave("consulted")}
-                  className="w-full bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
-                  상담완료
-                </button>
+                // 신규 상담 추가: 상담완료 / 등록완료 / 등록보류
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => handleSave("consulted")}
+                    className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
+                    상담완료
+                  </button>
+                  <button type="button" onClick={openContract}
+                    className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
+                    등록완료
+                  </button>
+                  <button type="button" onClick={() => handleSave("dropped")}
+                    className="flex-1 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-semibold hover:bg-red-500/10 transition-colors">
+                    등록보류
+                  </button>
+                </div>
               )}
             </div>
           </div>
