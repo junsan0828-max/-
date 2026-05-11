@@ -1147,16 +1147,20 @@ ${dataContext}
       }));
 
       // ── AI 프롬프트 구성
-      const memberProfile = [
+      const structuredInfo = [
         `이름: ${member.name}`,
         age ? `나이: ${age}세` : null,
         member.gender ? `성별: ${member.gender}` : null,
         lead?.interestType ? `관심 프로그램: ${lead.interestType}` : null,
         lead?.exercisePurpose ? `운동 목적: ${lead.exercisePurpose}` : null,
-        lead?.memo ? `운동 가능 시간/날짜/특이사항: ${lead.memo}` : null,
-        lead?.consultationNote ? `상담 내용: ${lead.consultationNote}` : null,
-        member.profileNote ? `특이사항: ${member.profileNote}` : null,
+        member.profileNote ? `회원 특이사항: ${member.profileNote}` : null,
       ].filter(Boolean).join("\n");
+
+      // 상담 내용·등록 진행 내용은 별도로 강조 (키워드가 많이 담겨있음)
+      const freeTextSection = [
+        lead?.consultationNote ? `[상담 내용 원문]\n${lead.consultationNote}` : null,
+        lead?.memo ? `[등록 진행 내용 원문]\n${lead.memo}` : null,
+      ].filter(Boolean).join("\n\n");
 
       const trainerContext = trainerStats.map(t =>
         `[${t.trainerName}]\n- 현재 담당 회원: ${t.activeMembers}명\n- 이번달 수업: ${t.monthSessions}회\n- 재등록률: ${t.reregRate}%\n- 주요 프로그램: ${t.topPrograms.join(", ") || "정보없음"}\n- 주요 활동 요일: ${t.activeDays || "정보없음"}`
@@ -1164,28 +1168,37 @@ ${dataContext}
 
       const prompt = `당신은 피트니스 센터 트레이너 매칭 전문 AI입니다.
 
-아래 신규 회원 프로필과 트레이너 현황을 분석하여 최적의 트레이너를 추천해주세요.
+## 회원 기본 정보
+${structuredInfo}
 
-## 회원 프로필
-${memberProfile}
+## 상담 기록 (운동 가능 시간·성향·상황 등 핵심 키워드 포함)
+${freeTextSection || "상담 기록 없음"}
 
 ## 트레이너 현황
 ${trainerContext}
 
-## 분석 기준
-1. 회원의 운동 가능 시간/요일과 트레이너 활동 패턴 매칭
-2. 회원 운동 목적과 트레이너 전문 프로그램 적합성
-3. 트레이너 재등록률 (높을수록 회원 만족도 높음)
-4. 트레이너 현재 워크로드 (담당 회원 수, 이번달 수업 수)
-5. 나이/성별 고려한 트레이너 스타일 적합성
+---
 
-## 출력 형식
-트레이너를 1~3순위로 추천하고, 각각에 대해:
-- **[순위]. 트레이너명** - 핵심 이유 1~2문장
-- 예상 시너지 포인트
+### 분석 지침
+상담 기록 원문에는 회원이 말한 다음 정보가 섞여 있을 수 있습니다. 반드시 원문을 꼼꼼히 읽고 키워드를 추출하세요:
+- 운동 가능 요일 (예: 평일만, 주말 포함, 월·수·금 등)
+- 운동 가능 시간대 (예: 오전 10시 이후, 저녁 7시 이후, 점심 시간 등)
+- 회원 성향/성격 (예: 동기부여 필요, 혼자 잘함, 꼼꼼한 설명 선호 등)
+- 건강 상태/주의사항 (예: 허리 통증, 무릎 불편, 임산부 등)
+- 운동 경험 수준 (초보/중급/고급)
+- 특별 요청사항
+
+### 출력 형식
+**[STEP 1: 회원 분석 요약]**
+상담 기록에서 추출한 핵심 키워드를 3~5줄로 정리
+
+**[STEP 2: 트레이너 매칭 추천]**
+1순위~3순위 트레이너를 추천하고, 각각:
+- **N순위. 트레이너명** - 추천 이유 (상담 내용 키워드와 연결하여 설명)
+- 예상 시너지
 - 주의사항 (있다면)
 
-마지막에 **종합 의견** 1~2문장으로 마무리해주세요.`;
+**[종합 의견]** 1~2문장`;
 
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
