@@ -2126,9 +2126,47 @@ const adminRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      // 매출 상세 조회
+      const [rev] = await db.select().from(revenueEntries).where(eq(revenueEntries.id, input.revenueId)).limit(1);
+      if (!rev) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // 매출에 트레이너 배정
       await db.update(revenueEntries)
         .set({ trainerId: input.trainerId })
         .where(eq(revenueEntries.id, input.revenueId));
+
+      if (rev.memberId) {
+        // 회원에도 트레이너 배정
+        await db.update(members)
+          .set({ trainerId: input.trainerId })
+          .where(eq(members.id, rev.memberId));
+
+        // PT 패키지가 없으면 매출 정보로 생성
+        const existingPkgs = await db.select({ id: ptPackages.id }).from(ptPackages)
+          .where(eq(ptPackages.memberId, rev.memberId));
+
+        if (existingPkgs.length === 0 && rev.sessions) {
+          await db.insert(ptPackages).values({
+            memberId: rev.memberId,
+            trainerId: input.trainerId,
+            totalSessions: rev.sessions,
+            usedSessions: 0,
+            packageName: rev.programDetail ?? null,
+            startDate: rev.startDate ?? rev.paymentDate,
+            status: "active",
+            price: rev.amount,
+            paymentAmount: rev.paidAmount,
+            unpaidAmount: rev.unpaidAmount,
+            paymentMethod: rev.paymentMethod ?? null,
+            paymentDate: rev.paymentDate,
+          });
+        } else if (existingPkgs.length > 0) {
+          // 기존 패키지에 trainerId만 업데이트
+          await db.update(ptPackages)
+            .set({ trainerId: input.trainerId })
+            .where(and(eq(ptPackages.memberId, rev.memberId), isNull(ptPackages.trainerId)));
+        }
+      }
 
       return { success: true };
     }),

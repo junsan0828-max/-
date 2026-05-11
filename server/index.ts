@@ -527,6 +527,41 @@ async function initDatabase() {
     console.error("PT 매출 누락 회원 생성 오류:", e);
   }
 
+  // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
+  try {
+    const ptRevs = await db
+      .select()
+      .from(revenueEntries)
+      .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`, sql`${revenueEntries.sessions} IS NOT NULL`));
+
+    for (const rev of ptRevs) {
+      if (!rev.memberId) continue;
+      const existing = await db.select({ id: ptPackages.id }).from(ptPackages).where(eq(ptPackages.memberId, rev.memberId));
+      if (existing.length === 0) {
+        const now = new Date().toISOString();
+        await db.insert(ptPackages).values({
+          memberId: rev.memberId,
+          trainerId: rev.trainerId ?? null,
+          totalSessions: rev.sessions!,
+          usedSessions: 0,
+          packageName: rev.programDetail ?? null,
+          startDate: rev.startDate ?? rev.paymentDate,
+          status: "active",
+          price: rev.amount,
+          paymentAmount: rev.paidAmount,
+          unpaidAmount: rev.unpaidAmount,
+          paymentMethod: rev.paymentMethod ?? null,
+          paymentDate: rev.paymentDate,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+    console.log("✅ PT 매출 기반 패키지 자동 생성 완료");
+  } catch (e) {
+    console.error("PT 패키지 자동 생성 오류:", e);
+  }
+
   // ── 전체 회원 운동시작일/운동만료일 자동 보정 (전체 적용) ─────────────────
   try {
     const allMembers = await db
