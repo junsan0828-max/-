@@ -501,13 +501,13 @@ async function initDatabase() {
       ));
 
     const toFix = missingMemberEntries.filter(
-      e => e.trainerId !== null && e.customerName && e.subType !== "이전"
+      e => e.customerName && e.subType !== "이전"
     );
 
     for (const entry of toFix) {
       const now = new Date().toISOString();
       const [newMember] = await db.insert(members).values({
-        trainerId: entry.trainerId!,
+        trainerId: entry.trainerId ?? undefined,
         name: entry.customerName!,
         phone: entry.phone ?? undefined,
         status: "active",
