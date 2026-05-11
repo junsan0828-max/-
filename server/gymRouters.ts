@@ -1068,6 +1068,153 @@ ${dataContext}
       }
     }),
 
+  trainerMatch: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // ── 회원 기본 정보
+      const [member] = await db.select().from(members).where(eq(members.id, input.memberId));
+      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // ── 연결된 리드 (상담 내용, 운동목적, 운동가능시간)
+      const [lead] = await db.select({
+        consultationNote: leads.consultationNote,
+        memo: leads.memo,
+        exercisePurpose: leads.exercisePurpose,
+        interestType: leads.interestType,
+      }).from(leads).where(eq(leads.registeredMemberId, input.memberId)).limit(1);
+
+      // ── 나이 계산
+      const age = member.birthDate
+        ? Math.floor((Date.now() - new Date(member.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+        : null;
+
+      // ── 트레이너 목록
+      const trainerList = await db.select({ id: trainers.id, trainerName: trainers.trainerName })
+        .from(trainers).orderBy(trainers.trainerName);
+
+      // ── 트레이너별 통계 수집
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+      const trainerStats = await Promise.all(trainerList.map(async (trainer) => {
+        const tid = trainer.id;
+
+        const [memberCountRes, pkgRows, monthLogsRes, allLogsRes] = await Promise.all([
+          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), eq(members.status, "active"))),
+          db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)`, packageName: ptPackages.packageName })
+            .from(ptPackages).where(eq(ptPackages.trainerId, tid)).groupBy(ptPackages.memberId, ptPackages.packageName),
+          db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(and(
+            eq(ptSessionLogs.trainerId, tid),
+            sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
+          )),
+          db.select({ sessionDate: ptSessionLogs.sessionDate }).from(ptSessionLogs)
+            .where(eq(ptSessionLogs.trainerId, tid)).orderBy(desc(ptSessionLogs.sessionDate)).limit(60),
+        ]);
+
+        // 재등록률
+        const reregMemberCount = pkgRows.filter(r => Number(r.count) > 1).length;
+        const totalMemberCount = new Set(pkgRows.map(r => r.memberId)).size;
+        const reregRate = totalMemberCount > 0 ? Math.round((reregMemberCount / totalMemberCount) * 100) : 0;
+
+        // 주요 프로그램 (전문 분야)
+        const programCounts: Record<string, number> = {};
+        for (const p of pkgRows) {
+          const name = p.packageName ?? "기타";
+          programCounts[name] = (programCounts[name] ?? 0) + 1;
+        }
+        const topPrograms = Object.entries(programCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n);
+
+        // 활동 요일 패턴 (최근 세션)
+        const dayCounts: Record<string, number> = { 월: 0, 화: 0, 수: 0, 목: 0, 금: 0, 토: 0, 일: 0 };
+        const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+        for (const log of allLogsRes) {
+          const day = dayNames[new Date(log.sessionDate).getDay()];
+          dayCounts[day]++;
+        }
+        const activeDays = Object.entries(dayCounts).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]).map(([d]) => d).join("");
+
+        return {
+          trainerName: trainer.trainerName,
+          activeMembers: Number(memberCountRes[0]?.c ?? 0),
+          monthSessions: Number(monthLogsRes[0]?.c ?? 0),
+          reregRate,
+          topPrograms,
+          activeDays,
+        };
+      }));
+
+      // ── AI 프롬프트 구성
+      const memberProfile = [
+        `이름: ${member.name}`,
+        age ? `나이: ${age}세` : null,
+        member.gender ? `성별: ${member.gender}` : null,
+        lead?.interestType ? `관심 프로그램: ${lead.interestType}` : null,
+        lead?.exercisePurpose ? `운동 목적: ${lead.exercisePurpose}` : null,
+        lead?.memo ? `운동 가능 시간/날짜/특이사항: ${lead.memo}` : null,
+        lead?.consultationNote ? `상담 내용: ${lead.consultationNote}` : null,
+        member.profileNote ? `특이사항: ${member.profileNote}` : null,
+      ].filter(Boolean).join("\n");
+
+      const trainerContext = trainerStats.map(t =>
+        `[${t.trainerName}]\n- 현재 담당 회원: ${t.activeMembers}명\n- 이번달 수업: ${t.monthSessions}회\n- 재등록률: ${t.reregRate}%\n- 주요 프로그램: ${t.topPrograms.join(", ") || "정보없음"}\n- 주요 활동 요일: ${t.activeDays || "정보없음"}`
+      ).join("\n\n");
+
+      const prompt = `당신은 피트니스 센터 트레이너 매칭 전문 AI입니다.
+
+아래 신규 회원 프로필과 트레이너 현황을 분석하여 최적의 트레이너를 추천해주세요.
+
+## 회원 프로필
+${memberProfile}
+
+## 트레이너 현황
+${trainerContext}
+
+## 분석 기준
+1. 회원의 운동 가능 시간/요일과 트레이너 활동 패턴 매칭
+2. 회원 운동 목적과 트레이너 전문 프로그램 적합성
+3. 트레이너 재등록률 (높을수록 회원 만족도 높음)
+4. 트레이너 현재 워크로드 (담당 회원 수, 이번달 수업 수)
+5. 나이/성별 고려한 트레이너 스타일 적합성
+
+## 출력 형식
+트레이너를 1~3순위로 추천하고, 각각에 대해:
+- **[순위]. 트레이너명** - 핵심 이유 1~2문장
+- 예상 시너지 포인트
+- 주의사항 (있다면)
+
+마지막에 **종합 의견** 1~2문장으로 마무리해주세요.`;
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        // Fallback: 재등록률 기반 단순 추천
+        const sorted = [...trainerStats].sort((a, b) => b.reregRate - a.reregRate);
+        const fallback = sorted.slice(0, 3).map((t, i) =>
+          `**${i + 1}. ${t.trainerName}** - 재등록률 ${t.reregRate}%, 담당 ${t.activeMembers}명`
+        ).join("\n");
+        return { analysis: `## AI 매칭 추천 (기본 분석)\n\n${fallback}\n\n*ANTHROPIC_API_KEY 미설정으로 기본 분석이 제공됩니다.*`, isAI: false, trainerStats };
+      }
+
+      try {
+        const client = new Anthropic({ apiKey });
+        const message = await client.messages.create({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1024,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = message.content[0].type === "text" ? message.content[0].text : "";
+        return { analysis: text, isAI: true, trainerStats };
+      } catch {
+        const sorted = [...trainerStats].sort((a, b) => b.reregRate - a.reregRate);
+        const fallback = sorted.slice(0, 3).map((t, i) =>
+          `**${i + 1}. ${t.trainerName}** - 재등록률 ${t.reregRate}%, 담당 ${t.activeMembers}명`
+        ).join("\n");
+        return { analysis: `## AI 매칭 추천 (기본 분석)\n\n${fallback}`, isAI: false, trainerStats };
+      }
+    }),
+
   generateMemberReport: protectedProcedure
     .input(z.object({ memberId: z.number() }))
     .mutation(async ({ ctx, input }) => {
