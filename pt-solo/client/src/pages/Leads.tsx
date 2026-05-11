@@ -211,7 +211,7 @@ export default function LeadsPage() {
       if (pendingLeadIdRef.current === -1) {
         pendingLeadIdRef.current = data.id;
         setShowForm(false);
-        setShowRegistration(true);
+        // 등록 모달은 confirmRegistration에서 이미 열었음
       } else {
         toast.success("상담이 등록되었습니다");
         resetForm();
@@ -225,7 +225,7 @@ export default function LeadsPage() {
       if (pendingLeadIdRef.current === -2) {
         pendingLeadIdRef.current = data!.id;
         setShowForm(false);
-        setShowRegistration(true);
+        // 등록 모달은 confirmRegistration에서 이미 열었음
       } else {
         toast.success("수정되었습니다");
         resetForm();
@@ -373,6 +373,8 @@ export default function LeadsPage() {
     setShowContract(false);
     const preTypes = INTEREST_OPTIONS.includes(form.interestType) ? [form.interestType] : [];
     setRegForm({ ...defaultReg, itemTypes: preTypes, paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10) });
+    // 등록 모달 즉시 오픈 (API 응답 기다리지 않음)
+    setShowRegistration(true);
     if (editId) {
       pendingLeadIdRef.current = -2;
       updateMutation.mutate({ id: editId, ...buildPayload("registered") });
@@ -384,7 +386,8 @@ export default function LeadsPage() {
 
   function saveRegistration() {
     const leadId = pendingLeadIdRef.current;
-    if (!leadId || leadId < 0) return toast.error("리드 ID 오류");
+    // leadId가 아직 -1/-2면 API 처리 중이므로 잠시 대기
+    if (!leadId || leadId < 0) return toast.error("잠시 후 다시 시도해주세요 (처리 중)");
     if (!regForm.paymentDate) return toast.error("결제일을 입력해주세요");
     if (!Number(regForm.amount)) return toast.error("금액을 입력해주세요");
     registerMutation.mutate({
@@ -899,9 +902,10 @@ export default function LeadsPage() {
               </div>
             </div>
             <div className="p-4 border-t border-border shrink-0 space-y-2">
-              <button type="button" onClick={saveRegistration} disabled={registerMutation.isPending}
+              <button type="button" onClick={saveRegistration}
+                disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50">
-                {registerMutation.isPending ? "처리 중..." : "등록 완료 및 회원 생성"}
+                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : "등록 완료 및 회원 생성"}
               </button>
               <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
