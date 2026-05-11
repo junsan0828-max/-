@@ -1,17 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Phone, MessageSquare, CheckCircle2, Clock, XCircle, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw } from "lucide-react";
+import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 const STATUS_OPTIONS = [
-  { value: "pending",    label: "상담대기", color: "text-amber-400",   bg: "bg-amber-400/10",   icon: Clock },
   { value: "consulted",  label: "상담완료", color: "text-blue-400",    bg: "bg-blue-400/10",    icon: MessageSquare },
   { value: "registered", label: "등록완료", color: "text-emerald-400", bg: "bg-emerald-400/10", icon: CheckCircle2 },
-  { value: "dropped",    label: "등록보류", color: "text-red-400",     bg: "bg-red-400/10",     icon: XCircle },
 ];
 
 const CONSULT_TYPES: Record<string, string[]> = {
@@ -1033,29 +1031,33 @@ export default function LeadsPage() {
               </div>
             </div>
             <div className="p-4 border-t border-border shrink-0 space-y-2">
-              <p className="text-xs text-muted-foreground text-center">상담 상태를 선택해 저장하세요</p>
-              <div className="flex gap-2">
-                <button type="button" disabled
-                  className="flex-1 bg-amber-500/30 text-white/40 rounded-lg py-2.5 text-sm font-semibold cursor-not-allowed">
-                  상담대기
-                </button>
+              {editId ? (
+                // 기존 상담 수정: 등록완료(계약서) or 확인(저장)
+                <>
+                  <div className="flex gap-2">
+                    <button type="button"
+                      onClick={() => {
+                        const cur = (leadsData ?? []).find(r => r.lead.id === editId);
+                        handleSave(cur?.lead.status ?? "consulted");
+                      }}
+                      className="flex-1 border border-border text-foreground rounded-lg py-2.5 text-sm font-semibold hover:bg-accent/40 transition-colors">
+                      확인
+                    </button>
+                    <button type="button" onClick={openContract}
+                      className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
+                      등록완료
+                    </button>
+                  </div>
+                  <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
+                    className="w-full border border-red-500/30 text-red-400 rounded-lg py-2 text-sm font-medium hover:bg-red-500/10">
+                    삭제
+                  </button>
+                </>
+              ) : (
+                // 신규 상담 추가: 상담완료만
                 <button type="button" onClick={() => handleSave("consulted")}
-                  className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
+                  className="w-full bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
                   상담완료
-                </button>
-                <button type="button" onClick={openContract}
-                  className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
-                  등록완료
-                </button>
-                <button type="button" onClick={() => handleSave("dropped")}
-                  className="flex-1 bg-red-500/80 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-red-600 transition-colors">
-                  보류
-                </button>
-              </div>
-              {editId && (
-                <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
-                  className="w-full border border-red-500/30 text-red-400 rounded-lg py-2 text-sm font-medium hover:bg-red-500/10">
-                  삭제
                 </button>
               )}
             </div>
