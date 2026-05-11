@@ -132,7 +132,7 @@ function MatchTab() {
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [result, setResult] = useState<{ analysis: string; isAI: boolean; trainerStats: { trainerName: string; activeMembers: number; monthSessions: number; reregRate: number; topPrograms: string[]; activeDays: string }[] } | null>(null);
 
-  const { data: allMembers } = trpc.members.list.useQuery();
+  const { data: allMembers } = trpc.admin.listUnassignedMembers.useQuery();
   const matchMutation = trpc.gym.ai.trainerMatch.useMutation({
     onSuccess: (data) => setResult(data),
     onError: (e) => toast.error("매칭 분석 오류: " + e.message),
@@ -163,13 +163,17 @@ function MatchTab() {
 
       {/* 회원 선택 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <label className="text-sm font-medium text-foreground">분석할 회원 선택</label>
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-foreground">미배정 회원 선택</label>
+          {allMembers && <span className="text-xs text-muted-foreground">{allMembers.length}명</span>}
+        </div>
         <select
           value={selectedMemberId ?? ""}
           onChange={e => { setSelectedMemberId(e.target.value ? Number(e.target.value) : null); setResult(null); }}
           className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         >
-          <option value="">회원을 선택하세요</option>
+          <option value="">트레이너 미배정 회원 중 선택</option>
+          {allMembers?.length === 0 && <option disabled>미배정 회원이 없습니다</option>}
           {allMembers?.map(m => (
             <option key={m.id} value={m.id}>{m.name}{m.phone ? ` · ${m.phone}` : ""}</option>
           ))}
