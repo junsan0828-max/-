@@ -332,6 +332,15 @@ async function initDatabase() {
       status TEXT NOT NULL DEFAULT 'completed',
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      category TEXT NOT NULL DEFAULT '기타',
+      memo TEXT,
+      "expenseDate" TEXT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {

@@ -1821,6 +1821,53 @@ const fitPointsRouter = t.router({
     }),
 });
 
+const expensesRouter = t.router({
+  list: protectedProcedure
+    .input(z.object({ yearMonth: z.string(), dateFilter: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const { yearMonth, dateFilter } = input;
+      const dateCondition = dateFilter
+        ? `AND "expenseDate" = $2`
+        : `AND "expenseDate" LIKE $2`;
+      const dateParam = dateFilter ? dateFilter : `${yearMonth}%`;
+      const result = await pool.query<{ id: number; amount: number; category: string; memo: string | null; expenseDate: string; createdAt: string }>(
+        `SELECT id, amount, category, memo, "expenseDate", "createdAt" FROM expenses WHERE "trainerId"=$1 ${dateCondition} ORDER BY "expenseDate" DESC, id DESC`,
+        [trainerId, dateParam]
+      );
+      const rows = result.rows;
+      const total = rows.reduce((s, r) => s + r.amount, 0);
+      return { expenses: rows, total, count: rows.length };
+    }),
+
+  create: protectedProcedure
+    .input(z.object({
+      amount: z.number().min(1),
+      category: z.string().default("기타"),
+      memo: z.string().optional(),
+      expenseDate: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `INSERT INTO expenses ("trainerId", amount, category, memo, "expenseDate") VALUES ($1,$2,$3,$4,$5)`,
+        [trainerId, input.amount, input.category, input.memo ?? null, input.expenseDate]
+      );
+      return { success: true };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(`DELETE FROM expenses WHERE id=$1 AND "trainerId"=$2`, [input.id, trainerId]);
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 
 export const appRouter = t.router({
@@ -1843,6 +1890,7 @@ export const appRouter = t.router({
   leads: leadsRouter,
   trainingLog: trainingLogRouter,
   fitPoints: fitPointsRouter,
+  expenses: expensesRouter,
 });
 
 export type AppRouter = typeof appRouter;

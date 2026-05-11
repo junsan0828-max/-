@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, BarChart2 } from "lucide-react";
+import { TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, BarChart2, Wallet, Plus, Trash2 } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 function fmt(n: number) { return n.toLocaleString(); }
@@ -167,6 +167,172 @@ function RevenueTab() {
   );
 }
 
+const EXPENSE_CATEGORIES = ["식비", "교통비", "교육비", "장비/용품", "마케팅", "기타"];
+
+function ExpenseTab() {
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
+  const [yearMonth, setYearMonth] = useState(
+    `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
+  );
+  const [view, setView] = useState<"monthly" | "daily">("monthly");
+  const [showForm, setShowForm] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("기타");
+  const [memo, setMemo] = useState("");
+  const [expenseDate, setExpenseDate] = useState(todayStr);
+
+  const utils = trpc.useUtils();
+
+  const { data } = trpc.expenses.list.useQuery({
+    yearMonth,
+    dateFilter: view === "daily" ? todayStr : undefined,
+  });
+
+  const createMutation = trpc.expenses.create.useMutation({
+    onSuccess: () => {
+      utils.expenses.list.invalidate();
+      setAmount(""); setCategory("기타"); setMemo(""); setExpenseDate(todayStr);
+      setShowForm(false);
+    },
+  });
+
+  const deleteMutation = trpc.expenses.delete.useMutation({
+    onSuccess: () => utils.expenses.list.invalidate(),
+  });
+
+  const handleSubmit = () => {
+    const n = parseInt(amount.replace(/,/g, ""), 10);
+    if (!n || n <= 0) return;
+    createMutation.mutate({ amount: n, category, memo: memo || undefined, expenseDate });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <button onClick={() => setView("daily")}
+          className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${view === "daily" ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}>
+          일일 지출
+        </button>
+        <button onClick={() => setView("monthly")}
+          className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${view === "monthly" ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}>
+          월 지출
+        </button>
+      </div>
+
+      {view === "monthly" && (
+        <div className="flex items-center justify-between">
+          <button onClick={() => setYearMonth(prevMonth(yearMonth))} className="p-2 rounded-lg hover:bg-accent/40">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-semibold">{yearMonth.replace("-", "년 ")}월</span>
+          <button onClick={() => setYearMonth(nextMonth(yearMonth))} className="p-2 rounded-lg hover:bg-accent/40">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      {view === "daily" && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Calendar className="h-4 w-4" />
+          <span>오늘 ({todayStr})</span>
+        </div>
+      )}
+
+      {data && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-orange-400" />
+              {view === "daily" ? "오늘 지출" : `${yearMonth.replace("-", "년 ")}월 지출`}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg bg-accent/20 border border-border">
+              <p className="text-xs text-muted-foreground mb-1">건수</p>
+              <p className="text-lg font-bold">{data.count}건</p>
+            </div>
+            <div className="p-3 rounded-lg bg-orange-400/10 border border-orange-400/30">
+              <p className="text-xs text-muted-foreground mb-1">총 지출</p>
+              <p className="text-lg font-bold text-orange-400">{fmt(data.total)}원</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <button onClick={() => setShowForm(v => !v)}
+        className="flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
+        <Plus className="h-4 w-4" />
+        지출 추가
+      </button>
+
+      {showForm && (
+        <Card className="bg-card border-border">
+          <CardContent className="pt-4 space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">날짜</label>
+              <input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">금액</label>
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="금액 입력"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">카테고리</label>
+              <select value={category} onChange={e => setCategory(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">메모 (선택)</label>
+              <input type="text" value={memo} onChange={e => setMemo(e.target.value)} placeholder="메모"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setShowForm(false)}
+                className="flex-1 border border-border text-foreground rounded-lg py-2 text-sm hover:bg-accent/40 transition-colors">
+                취소
+              </button>
+              <button onClick={handleSubmit} disabled={createMutation.isPending}
+                className="flex-1 bg-orange-500 text-white rounded-lg py-2 text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                저장
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {data && data.expenses.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">지출 내역</p>
+          {data.expenses.map(e => (
+            <div key={e.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{e.category}</p>
+                <p className="text-xs text-muted-foreground">{e.expenseDate}{e.memo ? ` · ${e.memo}` : ""}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <p className="text-sm font-semibold text-orange-400">{fmt(e.amount)}원</p>
+                <button onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: e.id }); }}
+                  className="text-muted-foreground hover:text-red-400 transition-colors p-1">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {data && data.expenses.length === 0 && !showForm && (
+        <p className="text-sm text-muted-foreground text-center py-8">
+          {view === "daily" ? "오늘 지출 내역이 없습니다." : `${yearMonth.replace("-", "년 ")}월 지출 내역이 없습니다.`}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function StatsTab() {
   const { data: profile } = trpc.trainers.getMyProfile.useQuery();
   const { data: stats } = trpc.trainers.getMyStats.useQuery();
@@ -258,7 +424,7 @@ function StatsTab() {
 }
 
 export default function TrainerSettlement() {
-  const [tab, setTab] = useState<"revenue" | "stats">("revenue");
+  const [tab, setTab] = useState<"revenue" | "expense" | "stats">("revenue");
 
   return (
     <div className="space-y-4">
@@ -274,13 +440,19 @@ export default function TrainerSettlement() {
           className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "revenue" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <TrendingUp className="h-4 w-4 inline mr-1.5 mb-0.5" />매출
         </button>
+        <button onClick={() => setTab("expense")}
+          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "expense" ? "border-orange-400 text-orange-400" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <Wallet className="h-4 w-4 inline mr-1.5 mb-0.5" />지출
+        </button>
         <button onClick={() => setTab("stats")}
           className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "stats" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <BarChart2 className="h-4 w-4 inline mr-1.5 mb-0.5" />통계
         </button>
       </div>
 
-      {tab === "revenue" ? <RevenueTab /> : <StatsTab />}
+      {tab === "revenue" && <RevenueTab />}
+      {tab === "expense" && <ExpenseTab />}
+      {tab === "stats" && <StatsTab />}
     </div>
   );
 }
