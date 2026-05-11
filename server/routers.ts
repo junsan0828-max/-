@@ -2570,6 +2570,7 @@ const adminRouter = t.router({
           totalMembersRes, totalSessionsRes, totalNoShowRes, totalChurnedRes, remainingPtRes,
           monthSessionsRes, monthNoShowRes, todaySessionsRes,
           pkgCountByMember,
+          totalMemosRes, monthMemosRes, todayMemosRes,
         ] = await Promise.all([
           db.select({ c: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, tid)),
           db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tid)),
@@ -2593,6 +2594,16 @@ const adminRouter = t.router({
           )),
           db.select({ memberId: ptPackages.memberId, count: sql<number>`COUNT(*)` })
             .from(ptPackages).where(eq(ptPackages.trainerId, tid)).groupBy(ptPackages.memberId),
+          db.select({ c: sql<number>`COUNT(*)` }).from(workoutMemos).where(eq(workoutMemos.trainerId, tid)),
+          db.select({ c: sql<number>`COUNT(*)` }).from(workoutMemos).where(and(
+            eq(workoutMemos.trainerId, tid),
+            sql`${workoutMemos.memoDate} >= ${monthStart}`,
+            sql`${workoutMemos.memoDate} < ${monthEnd}`,
+          )),
+          db.select({ c: sql<number>`COUNT(*)` }).from(workoutMemos).where(and(
+            eq(workoutMemos.trainerId, tid),
+            sql`${workoutMemos.memoDate} = ${today}`,
+          )),
         ]);
 
         const totalRereg = pkgCountByMember.reduce((s, r) => s + Math.max(0, Number(r.count) - 1), 0);
@@ -2619,6 +2630,9 @@ const adminRouter = t.router({
           monthNoShow: Number(monthNoShowRes[0]?.c ?? 0),
           todaySessions: Number(todaySessionsRes[0]?.c ?? 0),
           avgMonthlyPt: Math.round((totalSessionsNum / monthsActive) * 10) / 10,
+          totalMemos: Number(totalMemosRes[0]?.c ?? 0),
+          monthMemos: Number(monthMemosRes[0]?.c ?? 0),
+          todayMemos: Number(todayMemosRes[0]?.c ?? 0),
         };
       }));
 
