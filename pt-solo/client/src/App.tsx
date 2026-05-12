@@ -58,18 +58,21 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 // FIT STEP+ 회원앱 (트레이너별 독립 공간)
 function FitStepPlusApp({ trainerId }: { trainerId: number }) {
   const [location] = useLocation();
-  const { data: gymMember, isLoading } = trpc.fitStepPlus.memberMe.useQuery();
+  const { data: gymMember, isLoading: memberLoading } = trpc.fitStepPlus.memberMe.useQuery();
+  const { data: adminUser, isLoading: adminLoading } = trpc.auth.me.useQuery();
 
-  if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground text-sm">로딩 중...</p></div>;
+  if (memberLoading || adminLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground text-sm">로딩 중...</p></div>;
 
+  const isAdmin = adminUser?.role === "admin";
   const loginPath = `/fit-step-plus/${trainerId}/login`;
-  if (location === loginPath || !gymMember) {
-    return <FitStepPlusLogin trainerId={trainerId} />;
-  }
 
-  // 세션의 trainerId와 URL의 trainerId가 다르면 로그인 페이지로
-  if (gymMember.trainerId !== trainerId) {
-    return <FitStepPlusLogin trainerId={trainerId} />;
+  if (!isAdmin) {
+    if (location === loginPath || !gymMember) {
+      return <FitStepPlusLogin trainerId={trainerId} />;
+    }
+    if (gymMember.trainerId !== trainerId) {
+      return <FitStepPlusLogin trainerId={trainerId} />;
+    }
   }
 
   return (

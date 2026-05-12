@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ChevronDown } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 export default function AdminFitStepPlus() {
   const [, navigate] = useLocation();
+  const [showPicker, setShowPicker] = useState(false);
   const { data: overview, isLoading } = trpc.fitStepPlus.admin_overview.useQuery();
   const { data: trainers } = trpc.admin.listTrainers.useQuery();
 
@@ -13,9 +15,34 @@ export default function AdminFitStepPlus() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">FIT STEP+ 현황</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">트레이너별 FIT STEP+ 운영 현황</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">FIT STEP+ 현황</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">트레이너별 FIT STEP+ 운영 현황</p>
+        </div>
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={() => setShowPicker((v) => !v)}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold px-3 py-2 rounded-xl hover:bg-primary/90 transition-colors"
+          >
+            앱 입장
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          {showPicker && trainers && trainers.length > 0 && (
+            <div className="absolute right-0 top-10 z-50 bg-card border border-border rounded-xl shadow-lg min-w-[160px] overflow-hidden">
+              {trainers.map((trainer) => (
+                <button
+                  key={trainer.id}
+                  onClick={() => { setShowPicker(false); navigate(`/fit-step-plus/${trainer.id}`); }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent transition-colors"
+                >
+                  <p className="font-medium">{trainer.trainerName}</p>
+                  <p className="text-[10px] text-muted-foreground">@{trainer.username}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
