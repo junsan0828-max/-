@@ -47,6 +47,11 @@ export function GymPlusMembersAdmin() {
     onError: (err) => toast.error(err.message),
   });
 
+  const syncMutation = trpc.gymPlus.admin_syncAllMembers.useMutation({
+    onSuccess: (r) => { utils.gymPlus.admin_listMembers.invalidate(); toast.success(`동기화 완료: ${r.created}명 추가, ${r.skipped}명 스킵`); },
+    onError: (err) => toast.error(err.message),
+  });
+
   function resetForm() {
     setForm({ username: "", password: "", name: "", phone: "", email: "", membershipType: "general", membershipStart: "", membershipEnd: "" });
   }
@@ -72,7 +77,12 @@ export function GymPlusMembersAdmin() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-muted-foreground">짐+ 회원 ({members?.length ?? 0}명)</p>
-        <Button size="sm" className="h-7 text-xs" onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }}>+ 회원 추가</Button>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { if (confirm("전체 회원을 짐+ 계정으로 동기화할까요? (이미 있는 계정은 스킵)")) syncMutation.mutate(); }} disabled={syncMutation.isPending}>
+            {syncMutation.isPending ? "동기화 중..." : "전체 동기화"}
+          </Button>
+          <Button size="sm" className="h-7 text-xs" onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }}>+ 회원 추가</Button>
+        </div>
       </div>
 
       {isLoading ? (

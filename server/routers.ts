@@ -2998,6 +2998,42 @@ const gymPlusRouter = t.router({
       return { success: true };
     }),
 
+  // members 테이블 전체를 gym_plus_members로 동기화 (전화번호 기준, 중복 스킵)
+  admin_syncAllMembers: adminOnlyGymPlus.mutation(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const allMembers = await db.select({
+      id: members.id, name: members.name, phone: members.phone,
+      email: members.email, membershipEnd: members.membershipEnd,
+    }).from(members).where(eq(members.status, "active"));
+
+    let created = 0, skipped = 0;
+    for (const m of allMembers) {
+      if (!m.phone) { skipped++; continue; }
+      const digits = m.phone.replace(/\D/g, "");
+      if (digits.length < 4) { skipped++; continue; }
+      const username = digits;
+      const existing = await db.select({ id: gymPlusMembers.id })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.username, username)).limit(1);
+      if (existing[0]) { skipped++; continue; }
+      const last4 = digits.slice(-4);
+      const hashed = await bcrypt.hash(last4, 10);
+      await db.insert(gymPlusMembers).values({
+        username,
+        password: hashed,
+        name: m.name,
+        phone: m.phone,
+        email: m.email ?? undefined,
+        memberId: m.id,
+        membershipEnd: m.membershipEnd ?? undefined,
+        membershipType: "general",
+        isActive: 1,
+      });
+      created++;
+    }
+    return { created, skipped };
+  }),
+
   admin_listVideos: adminOnlyGymPlus.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
