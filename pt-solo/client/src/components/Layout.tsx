@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench,
+  UserPlus, TrendingUp, Wrench, Zap,
 } from "lucide-react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -49,6 +49,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/", label: "운영 현황", icon: LayoutDashboard },
     { path: "/admin/trainers", label: "트레이너 관리", icon: ShieldCheck },
     { path: "/admin/notices", label: "공지/배너", icon: Bell },
+    { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },
   ];
 
   const trainerNavItems = [
