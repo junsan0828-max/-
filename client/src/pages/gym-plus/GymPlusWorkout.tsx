@@ -5,6 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const moodLabel: Record<string, string> = {
   great: "최고 💪",
@@ -27,6 +43,76 @@ interface Exercise {
   weight: string;
 }
 
+interface SortableExerciseItemProps {
+  id: string;
+  ex: Exercise;
+  index: number;
+  onUpdate: (i: number, field: keyof Exercise, val: string) => void;
+  onRemove: (i: number) => void;
+}
+
+function SortableExerciseItem({ id, ex, index, onUpdate, onRemove }: SortableExerciseItemProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="bg-muted/50 rounded-xl p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        {/* 드래그 핸들 */}
+        <button
+          {...attributes}
+          {...listeners}
+          className="text-muted-foreground flex-shrink-0 touch-none cursor-grab active:cursor-grabbing px-1"
+          aria-label="순서 변경"
+        >
+          ⠿
+        </button>
+        <Input
+          placeholder="운동명"
+          value={ex.name}
+          onChange={(e) => onUpdate(index, "name", e.target.value)}
+          className="bg-background text-sm h-8"
+        />
+        <button onClick={() => onRemove(index)} className="text-red-400 text-xs flex-shrink-0">✕</button>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-0.5">세트</p>
+          <Input
+            placeholder="3"
+            value={ex.sets}
+            onChange={(e) => onUpdate(index, "sets", e.target.value)}
+            className="bg-background text-sm h-7 text-center"
+          />
+        </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-0.5">횟수</p>
+          <Input
+            placeholder="12"
+            value={ex.reps}
+            onChange={(e) => onUpdate(index, "reps", e.target.value)}
+            className="bg-background text-sm h-7 text-center"
+          />
+        </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-0.5">무게(kg)</p>
+          <Input
+            placeholder="60"
+            value={ex.weight}
+            onChange={(e) => onUpdate(index, "weight", e.target.value)}
+            className="bg-background text-sm h-7 text-center"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExerciseForm({
   exercises,
   setExercises,
@@ -34,6 +120,13 @@ function ExerciseForm({
   exercises: Exercise[];
   setExercises: (v: Exercise[]) => void;
 }) {
+  const ids = exercises.map((_, i) => `exercise-${i}`);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+  );
+
   const add = () =>
     setExercises([...exercises, { name: "", sets: "", reps: "", weight: "" }]);
   const update = (i: number, field: keyof Exercise, val: string) => {
@@ -43,50 +136,30 @@ function ExerciseForm({
   };
   const remove = (i: number) => setExercises(exercises.filter((_, j) => j !== i));
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = ids.indexOf(active.id as string);
+    const newIndex = ids.indexOf(over.id as string);
+    setExercises(arrayMove(exercises, oldIndex, newIndex));
+  }
+
   return (
     <div className="space-y-2">
-      {exercises.map((ex, i) => (
-        <div key={i} className="bg-muted/50 rounded-xl p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="운동명"
-              value={ex.name}
-              onChange={(e) => update(i, "name", e.target.value)}
-              className="bg-background text-sm h-8"
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          {exercises.map((ex, i) => (
+            <SortableExerciseItem
+              key={ids[i]}
+              id={ids[i]}
+              ex={ex}
+              index={i}
+              onUpdate={update}
+              onRemove={remove}
             />
-            <button onClick={() => remove(i)} className="text-red-400 text-xs flex-shrink-0">✕</button>
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-0.5">세트</p>
-              <Input
-                placeholder="3"
-                value={ex.sets}
-                onChange={(e) => update(i, "sets", e.target.value)}
-                className="bg-background text-sm h-7 text-center"
-              />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-0.5">횟수</p>
-              <Input
-                placeholder="12"
-                value={ex.reps}
-                onChange={(e) => update(i, "reps", e.target.value)}
-                className="bg-background text-sm h-7 text-center"
-              />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-0.5">무게(kg)</p>
-              <Input
-                placeholder="60"
-                value={ex.weight}
-                onChange={(e) => update(i, "weight", e.target.value)}
-                className="bg-background text-sm h-7 text-center"
-              />
-            </div>
-          </div>
-        </div>
-      ))}
+          ))}
+        </SortableContext>
+      </DndContext>
       <Button variant="outline" size="sm" className="w-full text-xs h-8" onClick={add}>
         + 운동 추가
       </Button>
