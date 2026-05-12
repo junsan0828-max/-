@@ -47,8 +47,11 @@ export function GymPlusMembersAdmin() {
     onError: (err) => toast.error(err.message),
   });
 
-  const syncMutation = trpc.gymPlus.admin_syncAllMembers.useMutation({
-    onSuccess: (r) => { utils.gymPlus.admin_listMembers.invalidate(); toast.success(`동기화 완료: ${r.created}명 추가, ${r.skipped}명 스킵`); },
+  const [showSync, setShowSync] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const { data: syncCandidates } = trpc.gymPlus.admin_listMembersForSync.useQuery(undefined, { enabled: showSync });
+  const syncMutation = trpc.gymPlus.admin_syncSelectedMembers.useMutation({
+    onSuccess: (r) => { utils.gymPlus.admin_listMembers.invalidate(); toast.success(`동기화 완료: ${r.created}명 추가, ${r.skipped}명 스킵`); setShowSync(false); setSelectedIds([]); },
     onError: (err) => toast.error(err.message),
   });
 
@@ -78,12 +81,54 @@ export function GymPlusMembersAdmin() {
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-muted-foreground">짐+ 회원 ({members?.length ?? 0}명)</p>
         <div className="flex gap-1.5">
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { if (confirm("전체 회원을 짐+ 계정으로 동기화할까요? (이미 있는 계정은 스킵)")) syncMutation.mutate(); }} disabled={syncMutation.isPending}>
-            {syncMutation.isPending ? "동기화 중..." : "전체 동기화"}
-          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowSync(true)}>회원 동기화</Button>
           <Button size="sm" className="h-7 text-xs" onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }}>+ 회원 추가</Button>
         </div>
       </div>
+
+      {/* 동기화 다이얼로그 */}
+      <Dialog open={showSync} onOpenChange={(o) => { setShowSync(o); if (!o) setSelectedIds([]); }}>
+        <DialogContent className="max-w-sm max-h-[85vh] flex flex-col">
+          <DialogHeader><DialogTitle>회원 동기화</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">동기화할 회원을 선택하세요. 이미 계정이 있는 회원은 회색으로 표시됩니다.</p>
+          <div className="flex gap-1.5 mb-1">
+            <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => {
+              const unsynced = (syncCandidates ?? []).filter(m => !m.alreadySynced && m.phone).map(m => m.id);
+              setSelectedIds(unsynced);
+            }}>전체 선택</Button>
+            <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => setSelectedIds([])}>전체 해제</Button>
+          </div>
+          <div className="overflow-y-auto flex-1 space-y-1 pr-1">
+            {!syncCandidates ? (
+              <p className="text-xs text-muted-foreground text-center py-4">불러오는 중...</p>
+            ) : syncCandidates.map(m => (
+              <button
+                key={m.id}
+                className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${m.alreadySynced ? "opacity-40 cursor-not-allowed" : selectedIds.includes(m.id) ? "bg-primary/20 border border-primary/40" : "bg-muted/40 hover:bg-muted"}`}
+                onClick={() => {
+                  if (m.alreadySynced) return;
+                  setSelectedIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]);
+                }}
+              >
+                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${selectedIds.includes(m.id) ? "bg-primary border-primary" : "border-muted-foreground"}`}>
+                  {selectedIds.includes(m.id) && <span className="text-[10px] text-primary-foreground">✓</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium">{m.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{m.phone ?? "전화번호 없음"} {m.alreadySynced ? "· 이미 등록됨" : ""}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-2 border-t">
+            <Button variant="outline" className="flex-1 h-8 text-xs" onClick={() => setShowSync(false)}>취소</Button>
+            <Button className="flex-1 h-8 text-xs" disabled={selectedIds.length === 0 || syncMutation.isPending}
+              onClick={() => syncMutation.mutate({ memberIds: selectedIds })}>
+              {syncMutation.isPending ? "동기화 중..." : `${selectedIds.length}명 동기화`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground text-center py-4">불러오는 중...</p>

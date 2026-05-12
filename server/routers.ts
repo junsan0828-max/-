@@ -2999,40 +2999,54 @@ const gymPlusRouter = t.router({
     }),
 
   // members 테이블 전체를 gym_plus_members로 동기화 (전화번호 기준, 중복 스킵)
-  admin_syncAllMembers: adminOnlyGymPlus.mutation(async () => {
+  // 동기화 대상 목록 조회 (members 테이블 전체 + 짐+ 계정 여부)
+  admin_listMembersForSync: adminOnlyGymPlus.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const allMembers = await db.select({
       id: members.id, name: members.name, phone: members.phone,
-      email: members.email, membershipEnd: members.membershipEnd,
-    }).from(members).where(eq(members.status, "active"));
-
-    let created = 0, skipped = 0;
-    for (const m of allMembers) {
-      if (!m.phone) { skipped++; continue; }
-      const digits = m.phone.replace(/\D/g, "");
-      if (digits.length < 4) { skipped++; continue; }
-      const username = digits;
-      const existing = await db.select({ id: gymPlusMembers.id })
-        .from(gymPlusMembers).where(eq(gymPlusMembers.username, username)).limit(1);
-      if (existing[0]) { skipped++; continue; }
-      const last4 = digits.slice(-4);
-      const hashed = await bcrypt.hash(last4, 10);
-      await db.insert(gymPlusMembers).values({
-        username,
-        password: hashed,
-        name: m.name,
-        phone: m.phone,
-        email: m.email ?? undefined,
-        memberId: m.id,
-        membershipEnd: m.membershipEnd ?? undefined,
-        membershipType: "general",
-        isActive: 1,
-      });
-      created++;
-    }
-    return { created, skipped };
+      email: members.email, membershipEnd: members.membershipEnd, status: members.status,
+    }).from(members).orderBy(members.name);
+    const gymPlusList = await db.select({ username: gymPlusMembers.username }).from(gymPlusMembers);
+    const existingUsernames = new Set(gymPlusList.map(g => g.username));
+    return allMembers.map(m => ({
+      ...m,
+      alreadySynced: m.phone ? existingUsernames.has(m.phone.replace(/\D/g, "")) : false,
+    }));
   }),
+
+  // 선택한 회원 IDs만 동기화
+  admin_syncSelectedMembers: adminOnlyGymPlus
+    .input(z.object({ memberIds: z.array(z.number()) }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const selected = await db.select({
+        id: members.id, name: members.name, phone: members.phone,
+        email: members.email, membershipEnd: members.membershipEnd,
+      }).from(members);
+      const targets = selected.filter(m => input.memberIds.includes(m.id));
+
+      let created = 0, skipped = 0;
+      for (const m of targets) {
+        if (!m.phone) { skipped++; continue; }
+        const digits = m.phone.replace(/\D/g, "");
+        if (digits.length < 4) { skipped++; continue; }
+        const username = digits;
+        const existing = await db.select({ id: gymPlusMembers.id })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.username, username)).limit(1);
+        if (existing[0]) { skipped++; continue; }
+        const last4 = digits.slice(-4);
+        const hashed = await bcrypt.hash(last4, 10);
+        await db.insert(gymPlusMembers).values({
+          username, password: hashed, name: m.name, phone: m.phone,
+          email: m.email ?? undefined, memberId: m.id,
+          membershipEnd: m.membershipEnd ?? undefined, membershipType: "general", isActive: 1,
+        });
+        created++;
+      }
+      return { created, skipped };
+    }),
 
   admin_listVideos: adminOnlyGymPlus.query(async () => {
     const db = await getDb();
