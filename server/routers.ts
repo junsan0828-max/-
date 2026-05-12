@@ -2598,11 +2598,15 @@ const gymPlusRouter = t.router({
       logDate: z.string(),
       title: z.string().optional(),
       exercisesJson: z.string().optional(),
+      bodyPartsJson: z.string().optional(),
       durationMinutes: z.number().optional(),
       caloriesBurned: z.number().optional(),
       bodyWeight: z.string().optional(),
       notes: z.string().optional(),
       mood: z.string().optional(),
+      conditionScore: z.number().optional(),
+      sleepHours: z.string().optional(),
+      energyLevel: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -2619,11 +2623,15 @@ const gymPlusRouter = t.router({
       logDate: z.string().optional(),
       title: z.string().optional(),
       exercisesJson: z.string().optional(),
+      bodyPartsJson: z.string().optional(),
       durationMinutes: z.number().optional(),
       caloriesBurned: z.number().optional(),
       bodyWeight: z.string().optional(),
       notes: z.string().optional(),
       mood: z.string().optional(),
+      conditionScore: z.number().optional(),
+      sleepHours: z.string().optional(),
+      energyLevel: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
