@@ -21,6 +21,11 @@ import {
   schedules,
   channels,
   leads,
+  fitStepPlusMembers,
+  fitStepPlusVideoCategories,
+  fitStepPlusVideos,
+  fitStepPlusEvents,
+  fitStepPlusWorkoutLogs,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
@@ -1821,6 +1826,366 @@ const fitPointsRouter = t.router({
     }),
 });
 
+// ─── FIT STEP+ 회원앱 (트레이너별 격리) ──────────────────────────────────────
+
+const fitStepPlusProtected = t.procedure.use(({ ctx, next }) => {
+  const memberId = (ctx.req.session as any).fitStepPlusMemberId as number | undefined;
+  if (!memberId) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return next({ ctx: { ...ctx, fitStepPlusMemberId: memberId } });
+});
+
+const fitStepPlusRouter = t.router({
+  // ── 회원 로그인/세션 ──
+  memberLogin: publicProcedure
+    .input(z.object({ username: z.string(), password: z.string(), trainerId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await getDb().select().from(fitStepPlusMembers)
+        .where(and(eq(fitStepPlusMembers.username, input.username), eq(fitStepPlusMembers.trainerId, input.trainerId))).limit(1);
+      const member = result[0];
+      if (!member) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+      if (!member.isActive) throw new TRPCError({ code: "FORBIDDEN", message: "비활성화된 계정입니다." });
+      const valid = await bcrypt.compare(input.password, member.password);
+      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+      (ctx.req.session as any).fitStepPlusMemberId = member.id;
+      await new Promise<void>((resolve, reject) => ctx.req.session.save((err) => err ? reject(err) : resolve()));
+      return { id: member.id, username: member.username, name: member.name, membershipType: member.membershipType };
+    }),
+
+  memberLogout: publicProcedure.mutation(async ({ ctx }) => {
+    delete (ctx.req.session as any).fitStepPlusMemberId;
+    await new Promise<void>((resolve, reject) => ctx.req.session.save((err) => err ? reject(err) : resolve()));
+    return { success: true };
+  }),
+
+  memberMe: publicProcedure.query(async ({ ctx }) => {
+    const memberId = (ctx.req.session as any).fitStepPlusMemberId as number | undefined;
+    if (!memberId) return null;
+    const result = await getDb().select({
+      id: fitStepPlusMembers.id, trainerId: fitStepPlusMembers.trainerId,
+      username: fitStepPlusMembers.username,
+      name: fitStepPlusMembers.name, phone: fitStepPlusMembers.phone, email: fitStepPlusMembers.email,
+      membershipType: fitStepPlusMembers.membershipType,
+      membershipStart: fitStepPlusMembers.membershipStart, membershipEnd: fitStepPlusMembers.membershipEnd,
+    }).from(fitStepPlusMembers).where(eq(fitStepPlusMembers.id, memberId)).limit(1);
+    return result[0] ?? null;
+  }),
+
+  // ── 공개 콘텐츠 (trainerId로 필터) ──
+  listVideoCategories: publicProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      return getDb().select().from(fitStepPlusVideoCategories)
+        .where(eq(fitStepPlusVideoCategories.trainerId, input.trainerId))
+        .orderBy(fitStepPlusVideoCategories.sortOrder);
+    }),
+
+  listVideos: publicProcedure
+    .input(z.object({ trainerId: z.number(), categoryId: z.number().optional(), level: z.string().optional() }))
+    .query(async ({ input }) => {
+      const conditions: any[] = [eq(fitStepPlusVideos.trainerId, input.trainerId), eq(fitStepPlusVideos.isPublished, 1)];
+      if (input.categoryId) conditions.push(eq(fitStepPlusVideos.categoryId, input.categoryId));
+      if (input.level) conditions.push(eq(fitStepPlusVideos.level, input.level));
+      return getDb().select().from(fitStepPlusVideos).where(and(...conditions))
+        .orderBy(fitStepPlusVideos.sortOrder, desc(fitStepPlusVideos.createdAt));
+    }),
+
+  getVideo: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const result = await getDb().select().from(fitStepPlusVideos)
+        .where(and(eq(fitStepPlusVideos.id, input.id), eq(fitStepPlusVideos.isPublished, 1))).limit(1);
+      if (!result[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      return result[0];
+    }),
+
+  listEvents: publicProcedure
+    .input(z.object({ trainerId: z.number(), eventType: z.string().optional() }))
+    .query(async ({ input }) => {
+      const conditions: any[] = [eq(fitStepPlusEvents.trainerId, input.trainerId), eq(fitStepPlusEvents.isPublished, 1)];
+      if (input.eventType) conditions.push(eq(fitStepPlusEvents.eventType, input.eventType));
+      return getDb().select().from(fitStepPlusEvents).where(and(...conditions))
+        .orderBy(desc(fitStepPlusEvents.isPinned), desc(fitStepPlusEvents.createdAt));
+    }),
+
+  getEvent: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const result = await getDb().select().from(fitStepPlusEvents)
+        .where(and(eq(fitStepPlusEvents.id, input.id), eq(fitStepPlusEvents.isPublished, 1))).limit(1);
+      if (!result[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      return result[0];
+    }),
+
+  // ── 회원 전용 (세션 인증) ──
+  listWorkoutLogs: fitStepPlusProtected
+    .input(z.object({ month: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      let logs = await getDb().select().from(fitStepPlusWorkoutLogs)
+        .where(eq(fitStepPlusWorkoutLogs.fitStepPlusMemberId, (ctx as any).fitStepPlusMemberId))
+        .orderBy(desc(fitStepPlusWorkoutLogs.logDate));
+      if (input?.month) logs = logs.filter(l => l.logDate.startsWith(input.month!));
+      return logs;
+    }),
+
+  createWorkoutLog: fitStepPlusProtected
+    .input(z.object({
+      logDate: z.string(), title: z.string().optional(), exercisesJson: z.string().optional(),
+      durationMinutes: z.number().optional(), caloriesBurned: z.number().optional(),
+      bodyWeight: z.string().optional(), notes: z.string().optional(), mood: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await getDb().insert(fitStepPlusWorkoutLogs).values({
+        fitStepPlusMemberId: (ctx as any).fitStepPlusMemberId,
+        title: input.title ?? "운동 기록", ...input,
+      }).returning();
+      return row;
+    }),
+
+  updateWorkoutLog: fitStepPlusProtected
+    .input(z.object({
+      id: z.number(), logDate: z.string().optional(), title: z.string().optional(),
+      exercisesJson: z.string().optional(), durationMinutes: z.number().optional(),
+      caloriesBurned: z.number().optional(), bodyWeight: z.string().optional(),
+      notes: z.string().optional(), mood: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      const existing = await getDb().select({ fitStepPlusMemberId: fitStepPlusWorkoutLogs.fitStepPlusMemberId })
+        .from(fitStepPlusWorkoutLogs).where(eq(fitStepPlusWorkoutLogs.id, id)).limit(1);
+      if (!existing[0] || existing[0].fitStepPlusMemberId !== (ctx as any).fitStepPlusMemberId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const [row] = await getDb().update(fitStepPlusWorkoutLogs).set(data).where(eq(fitStepPlusWorkoutLogs.id, id)).returning();
+      return row;
+    }),
+
+  deleteWorkoutLog: fitStepPlusProtected
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await getDb().select({ fitStepPlusMemberId: fitStepPlusWorkoutLogs.fitStepPlusMemberId })
+        .from(fitStepPlusWorkoutLogs).where(eq(fitStepPlusWorkoutLogs.id, input.id)).limit(1);
+      if (!existing[0] || existing[0].fitStepPlusMemberId !== (ctx as any).fitStepPlusMemberId)
+        throw new TRPCError({ code: "FORBIDDEN" });
+      await getDb().delete(fitStepPlusWorkoutLogs).where(eq(fitStepPlusWorkoutLogs.id, input.id));
+      return { success: true };
+    }),
+
+  updateProfile: fitStepPlusProtected
+    .input(z.object({ name: z.string().min(1).optional(), phone: z.string().optional(), email: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      await getDb().update(fitStepPlusMembers).set({ ...input, updatedAt: new Date().toISOString() })
+        .where(eq(fitStepPlusMembers.id, (ctx as any).fitStepPlusMemberId));
+      return { success: true };
+    }),
+
+  changePassword: fitStepPlusProtected
+    .input(z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(6) }))
+    .mutation(async ({ ctx, input }) => {
+      const [member] = await getDb().select({ password: fitStepPlusMembers.password })
+        .from(fitStepPlusMembers).where(eq(fitStepPlusMembers.id, (ctx as any).fitStepPlusMemberId)).limit(1);
+      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
+      const ok = await bcrypt.compare(input.currentPassword, member.password);
+      if (!ok) throw new TRPCError({ code: "BAD_REQUEST", message: "현재 비밀번호가 틀렸습니다." });
+      const hashed = await bcrypt.hash(input.newPassword, 10);
+      await getDb().update(fitStepPlusMembers).set({ password: hashed, updatedAt: new Date().toISOString() })
+        .where(eq(fitStepPlusMembers.id, (ctx as any).fitStepPlusMemberId));
+      return { success: true };
+    }),
+
+  // ── 트레이너 관리 (본인 trainerId 기준) ──
+  trainer_listMembers: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    return getDb().select({
+      id: fitStepPlusMembers.id, username: fitStepPlusMembers.username,
+      name: fitStepPlusMembers.name, phone: fitStepPlusMembers.phone,
+      membershipType: fitStepPlusMembers.membershipType,
+      membershipStart: fitStepPlusMembers.membershipStart, membershipEnd: fitStepPlusMembers.membershipEnd,
+      isActive: fitStepPlusMembers.isActive, createdAt: fitStepPlusMembers.createdAt,
+    }).from(fitStepPlusMembers).where(eq(fitStepPlusMembers.trainerId, trainerId))
+      .orderBy(desc(fitStepPlusMembers.createdAt));
+  }),
+
+  trainer_createMember: protectedProcedure
+    .input(z.object({
+      username: z.string().min(3), password: z.string().min(6), name: z.string().min(1),
+      phone: z.string().optional(), email: z.string().optional(),
+      membershipType: z.enum(["general", "premium", "vip"]).default("general"),
+      membershipStart: z.string().optional(), membershipEnd: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const existing = await getDb().select({ id: fitStepPlusMembers.id }).from(fitStepPlusMembers)
+        .where(and(eq(fitStepPlusMembers.trainerId, trainerId), eq(fitStepPlusMembers.username, input.username))).limit(1);
+      if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
+      const hashed = await bcrypt.hash(input.password, 10);
+      const [row] = await getDb().insert(fitStepPlusMembers).values({ ...input, trainerId, password: hashed }).returning();
+      const { password: _, ...safe } = row;
+      return safe;
+    }),
+
+  trainer_updateMember: protectedProcedure
+    .input(z.object({
+      id: z.number(), name: z.string().optional(), phone: z.string().optional(),
+      membershipType: z.enum(["general", "premium", "vip"]).optional(),
+      membershipStart: z.string().optional(), membershipEnd: z.string().optional(),
+      isActive: z.number().optional(), password: z.string().min(6).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const { id, password, ...rest } = input;
+      const updateData: any = { ...rest, updatedAt: new Date().toISOString() };
+      if (password) updateData.password = await bcrypt.hash(password, 10);
+      await getDb().update(fitStepPlusMembers).set(updateData)
+        .where(and(eq(fitStepPlusMembers.id, id), eq(fitStepPlusMembers.trainerId, trainerId)));
+      return { success: true };
+    }),
+
+  trainer_deleteMember: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await getDb().delete(fitStepPlusWorkoutLogs).where(eq(fitStepPlusWorkoutLogs.fitStepPlusMemberId, input.id));
+      await getDb().delete(fitStepPlusMembers)
+        .where(and(eq(fitStepPlusMembers.id, input.id), eq(fitStepPlusMembers.trainerId, trainerId)));
+      return { success: true };
+    }),
+
+  trainer_listVideos: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    return getDb().select().from(fitStepPlusVideos).where(eq(fitStepPlusVideos.trainerId, trainerId))
+      .orderBy(fitStepPlusVideos.sortOrder, desc(fitStepPlusVideos.createdAt));
+  }),
+
+  trainer_createVideo: protectedProcedure
+    .input(z.object({
+      categoryId: z.number().optional(), title: z.string().min(1),
+      description: z.string().optional(), videoUrl: z.string().min(1),
+      thumbnailUrl: z.string().optional(), duration: z.number().optional(),
+      level: z.enum(["beginner", "intermediate", "advanced"]).default("beginner"),
+      bodyPart: z.string().optional(), isPublished: z.number().default(1), sortOrder: z.number().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [row] = await getDb().insert(fitStepPlusVideos).values({ ...input, trainerId }).returning();
+      return row;
+    }),
+
+  trainer_updateVideo: protectedProcedure
+    .input(z.object({
+      id: z.number(), categoryId: z.number().optional(), title: z.string().optional(),
+      description: z.string().optional(), videoUrl: z.string().optional(),
+      thumbnailUrl: z.string().optional(), duration: z.number().optional(),
+      level: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+      bodyPart: z.string().optional(), isPublished: z.number().optional(), sortOrder: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const { id, ...data } = input;
+      await getDb().update(fitStepPlusVideos).set(data)
+        .where(and(eq(fitStepPlusVideos.id, id), eq(fitStepPlusVideos.trainerId, trainerId)));
+      return { success: true };
+    }),
+
+  trainer_deleteVideo: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await getDb().delete(fitStepPlusVideos)
+        .where(and(eq(fitStepPlusVideos.id, input.id), eq(fitStepPlusVideos.trainerId, trainerId)));
+      return { success: true };
+    }),
+
+  trainer_listCategories: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    return getDb().select().from(fitStepPlusVideoCategories)
+      .where(eq(fitStepPlusVideoCategories.trainerId, trainerId))
+      .orderBy(fitStepPlusVideoCategories.sortOrder);
+  }),
+
+  trainer_createCategory: protectedProcedure
+    .input(z.object({ name: z.string().min(1), sortOrder: z.number().default(0) }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [row] = await getDb().insert(fitStepPlusVideoCategories).values({ ...input, trainerId }).returning();
+      return row;
+    }),
+
+  trainer_deleteCategory: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await getDb().delete(fitStepPlusVideoCategories)
+        .where(and(eq(fitStepPlusVideoCategories.id, input.id), eq(fitStepPlusVideoCategories.trainerId, trainerId)));
+      return { success: true };
+    }),
+
+  trainer_listEvents: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    return getDb().select().from(fitStepPlusEvents).where(eq(fitStepPlusEvents.trainerId, trainerId))
+      .orderBy(desc(fitStepPlusEvents.createdAt));
+  }),
+
+  trainer_createEvent: protectedProcedure
+    .input(z.object({
+      title: z.string().min(1), content: z.string().min(1), imageUrl: z.string().optional(),
+      eventType: z.enum(["notice", "event", "promotion"]).default("notice"),
+      startDate: z.string().optional(), endDate: z.string().optional(),
+      isPublished: z.number().default(1), isPinned: z.number().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const [row] = await getDb().insert(fitStepPlusEvents).values({ ...input, trainerId }).returning();
+      return row;
+    }),
+
+  trainer_updateEvent: protectedProcedure
+    .input(z.object({
+      id: z.number(), title: z.string().optional(), content: z.string().optional(),
+      imageUrl: z.string().optional(), eventType: z.enum(["notice", "event", "promotion"]).optional(),
+      startDate: z.string().optional(), endDate: z.string().optional(),
+      isPublished: z.number().optional(), isPinned: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const { id, ...data } = input;
+      await getDb().update(fitStepPlusEvents).set(data)
+        .where(and(eq(fitStepPlusEvents.id, id), eq(fitStepPlusEvents.trainerId, trainerId)));
+      return { success: true };
+    }),
+
+  trainer_deleteEvent: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await getDb().delete(fitStepPlusEvents)
+        .where(and(eq(fitStepPlusEvents.id, input.id), eq(fitStepPlusEvents.trainerId, trainerId)));
+      return { success: true };
+    }),
+
+  // ── 어드민 현황 조회 ──
+  admin_overview: adminProcedure.query(async () => {
+    const memberCounts = await getDb().select({
+      trainerId: fitStepPlusMembers.trainerId,
+      count: sql<number>`COUNT(*)`,
+    }).from(fitStepPlusMembers).groupBy(fitStepPlusMembers.trainerId);
+    return { memberCounts };
+  }),
+});
+
 const expensesRouter = t.router({
   list: protectedProcedure
     .input(z.object({ yearMonth: z.string(), dateFilter: z.string().optional() }))
@@ -1891,6 +2256,7 @@ export const appRouter = t.router({
   trainingLog: trainingLogRouter,
   fitPoints: fitPointsRouter,
   expenses: expensesRouter,
+  fitStepPlus: fitStepPlusRouter,
 });
 
 export type AppRouter = typeof appRouter;

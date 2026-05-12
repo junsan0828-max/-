@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useRoute } from "wouter";
+import { Switch, Route, Redirect, useRoute, useLocation } from "wouter";
 import { Component, type ReactNode } from "react";
 import { trpc } from "./lib/trpc";
 import Login from "./pages/Login";
@@ -21,6 +21,16 @@ import AdminNotices from "./pages/AdminNotices";
 import Leads from "./pages/Leads";
 import Workshop from "./pages/Workshop";
 import Layout from "./components/Layout";
+import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
+import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
+import FitStepPlusDashboard from "./pages/fit-step-plus/FitStepPlusDashboard";
+import FitStepPlusVideos from "./pages/fit-step-plus/FitStepPlusVideos";
+import FitStepPlusVideoPlayer from "./pages/fit-step-plus/FitStepPlusVideoPlayer";
+import FitStepPlusEvents from "./pages/fit-step-plus/FitStepPlusEvents";
+import FitStepPlusEventDetail from "./pages/fit-step-plus/FitStepPlusEventDetail";
+import FitStepPlusWorkout from "./pages/fit-step-plus/FitStepPlusWorkout";
+import FitStepPlusMembership from "./pages/fit-step-plus/FitStepPlusMembership";
+import FitStepPlusProfile from "./pages/fit-step-plus/FitStepPlusProfile";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -44,8 +54,50 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
+// FIT STEP+ 회원앱 (트레이너별 독립 공간)
+function FitStepPlusApp({ trainerId }: { trainerId: number }) {
+  const [location] = useLocation();
+  const { data: gymMember, isLoading } = trpc.fitStepPlus.memberMe.useQuery();
+
+  if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground text-sm">로딩 중...</p></div>;
+
+  const loginPath = `/fit-step-plus/${trainerId}/login`;
+  if (location === loginPath || !gymMember) {
+    return <FitStepPlusLogin trainerId={trainerId} />;
+  }
+
+  // 세션의 trainerId와 URL의 trainerId가 다르면 로그인 페이지로
+  if (gymMember.trainerId !== trainerId) {
+    return <FitStepPlusLogin trainerId={trainerId} />;
+  }
+
+  return (
+    <FitStepPlusLayout trainerId={trainerId}>
+      <ErrorBoundary>
+        <Switch>
+          <Route path={`/fit-step-plus/${trainerId}`}>{() => <FitStepPlusDashboard trainerId={trainerId} />}</Route>
+          <Route path={`/fit-step-plus/${trainerId}/videos`}>{() => <FitStepPlusVideos trainerId={trainerId} />}</Route>
+          <Route path={`/fit-step-plus/${trainerId}/videos/:id`}>
+            {(params) => <FitStepPlusVideoPlayer videoId={parseInt(params.id!)} trainerId={trainerId} />}
+          </Route>
+          <Route path={`/fit-step-plus/${trainerId}/events`}>{() => <FitStepPlusEvents trainerId={trainerId} />}</Route>
+          <Route path={`/fit-step-plus/${trainerId}/events/:id`}>
+            {(params) => <FitStepPlusEventDetail eventId={parseInt(params.id!)} trainerId={trainerId} />}
+          </Route>
+          <Route path={`/fit-step-plus/${trainerId}/workout`}>{() => <FitStepPlusWorkout />}</Route>
+          <Route path={`/fit-step-plus/${trainerId}/membership`}>{() => <FitStepPlusMembership />}</Route>
+          <Route path={`/fit-step-plus/${trainerId}/profile`}>{() => <FitStepPlusProfile />}</Route>
+          <Route>{() => <Redirect to={`/fit-step-plus/${trainerId}`} />}</Route>
+        </Switch>
+      </ErrorBoundary>
+    </FitStepPlusLayout>
+  );
+}
+
 function App() {
   const [reportMatch, reportParams] = useRoute("/report/:token");
+  const [fitStepMatch, fitStepParams] = useRoute("/fit-step-plus/:trainerId/:rest*");
+  const [fitStepRootMatch, fitStepRootParams] = useRoute("/fit-step-plus/:trainerId");
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
   if (reportMatch && reportParams) {
@@ -54,6 +106,13 @@ function App() {
 
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;
+  }
+
+  // FIT STEP+ 회원앱 라우트 (트레이너 로그인 불필요)
+  const fspTrainerId = fitStepParams?.trainerId ?? fitStepRootParams?.trainerId;
+  if ((fitStepMatch || fitStepRootMatch) && fspTrainerId) {
+    const tid = parseInt(fspTrainerId);
+    if (!isNaN(tid)) return <FitStepPlusApp trainerId={tid} />;
   }
 
   if (isLoading) {
