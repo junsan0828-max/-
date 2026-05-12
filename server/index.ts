@@ -337,6 +337,9 @@ async function initDatabase() {
     )`,
     `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
     `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "bodyPartsJson" TEXT`,
+    `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "conditionScore" INTEGER`,
+    `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "sleepHours" TEXT`,
+    `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "energyLevel" TEXT`,
     `CREATE TABLE IF NOT EXISTS trainer_branches (
       id SERIAL PRIMARY KEY,
       "trainerId" INTEGER NOT NULL,

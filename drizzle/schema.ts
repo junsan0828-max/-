@@ -311,11 +311,14 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   title: text("title"),
   exercisesJson: text("exercisesJson"), // [{name, sets:[{reps,weight}]}]
   bodyPartsJson: text("bodyPartsJson"), // ["등","가슴",...]
+  conditionScore: integer("conditionScore"), // 1~5
+  sleepHours: text("sleepHours"), // "4h↓","5h",...,"9h+"
+  energyLevel: text("energyLevel"), // "높음","보통","낮음"
   durationMinutes: integer("durationMinutes"),
   caloriesBurned: integer("caloriesBurned"),
   bodyWeight: text("bodyWeight"),
   notes: text("notes"),
-  mood: text("mood"), // great, good, normal, tired
+  mood: text("mood"), // legacy
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

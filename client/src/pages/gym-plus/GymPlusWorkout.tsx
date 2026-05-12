@@ -22,19 +22,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const moodLabel: Record<string, string> = {
-  great: "최고 💪",
-  good: "좋음 😊",
-  normal: "보통 😐",
-  tired: "피곤 😴",
-};
-
-const moodColor: Record<string, string> = {
-  great: "bg-green-500/20 text-green-400 border-green-500/30",
-  good: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  normal: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  tired: "bg-red-500/20 text-red-400 border-red-500/30",
-};
+const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
+const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
 
 const BODY_PARTS = [
   "전신", "상체", "하체",
@@ -336,7 +325,9 @@ interface LogFormData {
   caloriesBurned: string;
   bodyWeight: string;
   notes: string;
-  mood: string;
+  conditionScore: number | null;
+  sleepHours: string;
+  energyLevel: string;
 }
 
 export default function GymPlusWorkout() {
@@ -351,7 +342,9 @@ export default function GymPlusWorkout() {
     caloriesBurned: "",
     bodyWeight: "",
     notes: "",
-    mood: "good",
+    conditionScore: null,
+    sleepHours: "",
+    energyLevel: "",
   });
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [bodyParts, setBodyParts] = useState<string[]>([]);
@@ -389,7 +382,7 @@ export default function GymPlusWorkout() {
   });
 
   function resetForm() {
-    setForm({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "", mood: "good" });
+    setForm({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "", conditionScore: null, sleepHours: "", energyLevel: "" });
     setExercises([]);
     setBodyParts([]);
   }
@@ -408,7 +401,9 @@ export default function GymPlusWorkout() {
       caloriesBurned: log.caloriesBurned?.toString() ?? "",
       bodyWeight: log.bodyWeight ?? "",
       notes: log.notes ?? "",
-      mood: log.mood ?? "good",
+      conditionScore: log.conditionScore ?? null,
+      sleepHours: log.sleepHours ?? "",
+      energyLevel: log.energyLevel ?? "",
     });
     try {
       const parsed = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
@@ -435,9 +430,15 @@ export default function GymPlusWorkout() {
 
   function handleSubmit() {
     const data = {
-      ...form,
+      logDate: form.logDate,
+      title: form.title || undefined,
       durationMinutes: form.durationMinutes ? parseInt(form.durationMinutes) : undefined,
       caloriesBurned: form.caloriesBurned ? parseInt(form.caloriesBurned) : undefined,
+      bodyWeight: form.bodyWeight || undefined,
+      notes: form.notes || undefined,
+      conditionScore: form.conditionScore ?? undefined,
+      sleepHours: form.sleepHours || undefined,
+      energyLevel: form.energyLevel || undefined,
       exercisesJson: exercises.length > 0 ? JSON.stringify(exercises) : undefined,
       bodyPartsJson: bodyParts.length > 0 ? JSON.stringify(bodyParts) : undefined,
     };
@@ -509,10 +510,14 @@ export default function GymPlusWorkout() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  {log.mood && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${moodColor[log.mood] ?? "bg-muted text-muted-foreground"}`}>
-                      {moodLabel[log.mood] ?? log.mood}
-                    </span>
+                  {(log as any).conditionScore && (
+                    <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {(log as any).conditionScore}/5</span>
+                  )}
+                  {(log as any).sleepHours && (
+                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">😴 {(log as any).sleepHours}</span>
+                  )}
+                  {(log as any).energyLevel && (
+                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">⚡ {(log as any).energyLevel}</span>
                   )}
                   {parsedBodyParts.map((p) => (
                     <span key={p} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">{p}</span>
@@ -561,21 +566,68 @@ export default function GymPlusWorkout() {
               />
             </div>
 
-            {/* 컨디션 */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">오늘 컨디션</Label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {Object.entries(moodLabel).map(([k, v]) => (
-                  <button
-                    key={k}
-                    onClick={() => setForm((p) => ({ ...p, mood: k }))}
-                    className={`py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                      form.mood === k ? moodColor[k] : "border-border text-muted-foreground"
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ))}
+            {/* 컨디션 평가 */}
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-primary">컨디션 평가</p>
+
+              {/* 오늘 컨디션 1~5 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">오늘 컨디션 (1 매우안좋음 → 5 최고)</Label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setForm((p) => ({ ...p, conditionScore: p.conditionScore === n ? null : n }))}
+                      className={`py-3 rounded-xl text-sm font-bold transition-colors border ${
+                        form.conditionScore === n
+                          ? "bg-primary/20 border-primary text-primary"
+                          : "border-border text-muted-foreground"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 수면시간 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">수면시간</Label>
+                <div className="grid grid-cols-6 gap-1">
+                  {SLEEP_OPTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setForm((p) => ({ ...p, sleepHours: p.sleepHours === s ? "" : s }))}
+                      className={`py-2.5 rounded-xl text-xs font-medium transition-colors border ${
+                        form.sleepHours === s
+                          ? "bg-primary/20 border-primary text-primary"
+                          : "border-border text-muted-foreground"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 에너지 수준 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">에너지 수준</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {ENERGY_OPTIONS.map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => setForm((p) => ({ ...p, energyLevel: p.energyLevel === e ? "" : e }))}
+                      className={`py-3 rounded-xl text-sm font-medium transition-colors border ${
+                        form.energyLevel === e
+                          ? "bg-primary/20 border-primary text-primary"
+                          : "border-border text-muted-foreground"
+                      }`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 

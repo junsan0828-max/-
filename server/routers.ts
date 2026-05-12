@@ -2548,6 +2548,9 @@ const gymPlusRouter = t.router({
       bodyWeight: z.string().optional(),
       notes: z.string().optional(),
       mood: z.string().optional(),
+      conditionScore: z.number().optional(),
+      sleepHours: z.string().optional(),
+      energyLevel: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -2570,6 +2573,9 @@ const gymPlusRouter = t.router({
       bodyWeight: z.string().optional(),
       notes: z.string().optional(),
       mood: z.string().optional(),
+      conditionScore: z.number().optional(),
+      sleepHours: z.string().optional(),
+      energyLevel: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
