@@ -1,6 +1,9 @@
+import { useLocation } from "wouter";
+import { ExternalLink } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 export default function AdminFitStepPlus() {
+  const [, navigate] = useLocation();
   const { data: overview, isLoading } = trpc.fitStepPlus.admin_overview.useQuery();
   const { data: trainers } = trpc.admin.listTrainers.useQuery();
 
@@ -45,9 +48,18 @@ export default function AdminFitStepPlus() {
                       <p className="font-semibold text-sm">{trainer.trainerName}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">@{trainer.username}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg">{memberCount}명</p>
-                      <p className="text-[10px] text-muted-foreground">FIT STEP+ 회원</p>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="font-bold text-lg">{memberCount}명</p>
+                        <p className="text-[10px] text-muted-foreground">FIT STEP+ 회원</p>
+                      </div>
+                      <button
+                        onClick={() => navigate(`/fit-step-plus/${trainer.id}`)}
+                        className="w-9 h-9 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary flex items-center justify-center transition-colors flex-shrink-0"
+                        title="회원 앱으로 이동"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                   <div className="mt-3 pt-3 border-t border-border">
