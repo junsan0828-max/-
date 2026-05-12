@@ -310,6 +310,7 @@ async function initDatabase() {
       "logDate" TEXT NOT NULL,
       title TEXT,
       "exercisesJson" TEXT,
+      "bodyPartsJson" TEXT,
       "durationMinutes" INTEGER,
       "caloriesBurned" INTEGER,
       "bodyWeight" TEXT,
@@ -335,6 +336,7 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "bodyPartsJson" TEXT`,
     `CREATE TABLE IF NOT EXISTS trainer_branches (
       id SERIAL PRIMARY KEY,
       "trainerId" INTEGER NOT NULL,

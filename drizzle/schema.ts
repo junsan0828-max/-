@@ -309,7 +309,8 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   gymPlusMemberId: integer("gymPlusMemberId").notNull(),
   logDate: text("logDate").notNull(),
   title: text("title"),
-  exercisesJson: text("exercisesJson"), // [{name, sets, reps, weight}]
+  exercisesJson: text("exercisesJson"), // [{name, sets:[{reps,weight}]}]
+  bodyPartsJson: text("bodyPartsJson"), // ["등","가슴",...]
   durationMinutes: integer("durationMinutes"),
   caloriesBurned: integer("caloriesBurned"),
   bodyWeight: text("bodyWeight"),

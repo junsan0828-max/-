@@ -36,22 +36,78 @@ const moodColor: Record<string, string> = {
   tired: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
-interface Exercise {
-  name: string;
-  sets: string;
+const BODY_PARTS = [
+  "전신", "상체", "하체",
+  "등", "어깨", "가슴",
+  "복부", "허리", "코어",
+  "고관절", "대퇴 후면", "대퇴 전면",
+  "하퇴", "발목·발", "이두",
+  "삼두", "유산소", "기타",
+];
+
+interface ExerciseSet {
   reps: string;
   weight: string;
 }
 
-interface SortableExerciseItemProps {
+interface Exercise {
+  name: string;
+  sets: ExerciseSet[];
+}
+
+// ── 세트 행 ──────────────────────────────────────────────────────────────────
+function SetRow({
+  setNum,
+  s,
+  onUpdate,
+  onCopy,
+  onRemove,
+}: {
+  setNum: number;
+  s: ExerciseSet;
+  onUpdate: (field: keyof ExerciseSet, val: string) => void;
+  onCopy: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground w-4 text-center flex-shrink-0">{setNum}</span>
+      <Input
+        placeholder="횟수"
+        value={s.reps}
+        onChange={(e) => onUpdate("reps", e.target.value)}
+        className="bg-background text-sm h-8 text-center flex-1"
+      />
+      <Input
+        placeholder="kg"
+        value={s.weight}
+        onChange={(e) => onUpdate("weight", e.target.value)}
+        className="bg-background text-sm h-8 text-center flex-1"
+      />
+      <button onClick={onCopy} className="text-muted-foreground flex-shrink-0 p-1" aria-label="복사">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>
+      <button onClick={onRemove} className="text-red-400 flex-shrink-0 p-1" aria-label="삭제">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </div>
+  );
+}
+
+// ── 드래그 가능한 운동 항목 ────────────────────────────────────────────────────
+function SortableExerciseItem({
+  id,
+  ex,
+  index,
+  onUpdateExercise,
+  onRemoveExercise,
+}: {
   id: string;
   ex: Exercise;
   index: number;
-  onUpdate: (i: number, field: keyof Exercise, val: string) => void;
-  onRemove: (i: number) => void;
-}
-
-function SortableExerciseItem({ id, ex, index, onUpdate, onRemove }: SortableExerciseItemProps) {
+  onUpdateExercise: (i: number, updated: Exercise) => void;
+  onRemoveExercise: (i: number) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
 
   const style = {
@@ -60,59 +116,83 @@ function SortableExerciseItem({ id, ex, index, onUpdate, onRemove }: SortableExe
     opacity: isDragging ? 0.5 : 1,
   };
 
+  function updateSet(si: number, field: keyof ExerciseSet, val: string) {
+    const newSets = ex.sets.map((s, j) => j === si ? { ...s, [field]: val } : s);
+    onUpdateExercise(index, { ...ex, sets: newSets });
+  }
+
+  function copySet(si: number) {
+    const newSets = [...ex.sets];
+    newSets.splice(si + 1, 0, { ...ex.sets[si] });
+    onUpdateExercise(index, { ...ex, sets: newSets });
+  }
+
+  function removeSet(si: number) {
+    if (ex.sets.length <= 1) return;
+    onUpdateExercise(index, { ...ex, sets: ex.sets.filter((_, j) => j !== si) });
+  }
+
+  function addSet() {
+    const last = ex.sets[ex.sets.length - 1] ?? { reps: "", weight: "" };
+    onUpdateExercise(index, { ...ex, sets: [...ex.sets, { ...last }] });
+  }
+
   return (
-    <div ref={setNodeRef} style={style} className="bg-muted/50 rounded-xl p-3 space-y-2">
+    <div ref={setNodeRef} style={style} className="bg-muted/30 border border-border rounded-xl p-3 space-y-2">
+      {/* 운동명 행 */}
       <div className="flex items-center gap-2">
-        {/* 드래그 핸들 */}
         <button
           {...attributes}
           {...listeners}
-          className="text-muted-foreground flex-shrink-0 touch-none cursor-grab active:cursor-grabbing px-1"
+          className="text-muted-foreground flex-shrink-0 touch-none cursor-grab active:cursor-grabbing px-1 text-base"
           aria-label="순서 변경"
         >
           ⠿
         </button>
         <Input
-          placeholder="운동명"
+          placeholder="운동명 (예: 레그프레스)"
           value={ex.name}
-          onChange={(e) => onUpdate(index, "name", e.target.value)}
-          className="bg-background text-sm h-8"
+          onChange={(e) => onUpdateExercise(index, { ...ex, name: e.target.value })}
+          className="bg-background text-sm h-8 flex-1"
         />
-        <button onClick={() => onRemove(index)} className="text-red-400 text-xs flex-shrink-0">✕</button>
+        <button onClick={() => onRemoveExercise(index)} className="text-red-400 flex-shrink-0 p-1" aria-label="운동 삭제">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+        </button>
       </div>
-      <div className="grid grid-cols-3 gap-1.5">
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-0.5">세트</p>
-          <Input
-            placeholder="3"
-            value={ex.sets}
-            onChange={(e) => onUpdate(index, "sets", e.target.value)}
-            className="bg-background text-sm h-7 text-center"
-          />
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-0.5">횟수</p>
-          <Input
-            placeholder="12"
-            value={ex.reps}
-            onChange={(e) => onUpdate(index, "reps", e.target.value)}
-            className="bg-background text-sm h-7 text-center"
-          />
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-0.5">무게(kg)</p>
-          <Input
-            placeholder="60"
-            value={ex.weight}
-            onChange={(e) => onUpdate(index, "weight", e.target.value)}
-            className="bg-background text-sm h-7 text-center"
-          />
-        </div>
+
+      {/* 세트 헤더 */}
+      <div className="flex items-center gap-2 px-0.5">
+        <span className="w-4" />
+        <span className="text-[10px] text-muted-foreground flex-1 text-center">세트  횟수</span>
+        <span className="text-[10px] text-muted-foreground flex-1 text-center">무게(kg)</span>
+        <span className="w-8" />
       </div>
+
+      {/* 세트 목록 */}
+      <div className="space-y-1.5">
+        {ex.sets.map((s, si) => (
+          <SetRow
+            key={si}
+            setNum={si + 1}
+            s={s}
+            onUpdate={(field, val) => updateSet(si, field, val)}
+            onCopy={() => copySet(si)}
+            onRemove={() => removeSet(si)}
+          />
+        ))}
+      </div>
+
+      <button
+        onClick={addSet}
+        className="text-xs text-primary font-medium py-1"
+      >
+        + 세트 추가
+      </button>
     </div>
   );
 }
 
+// ── 운동 폼 ──────────────────────────────────────────────────────────────────
 function ExerciseForm({
   exercises,
   setExercises,
@@ -127,14 +207,19 @@ function ExerciseForm({
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
   );
 
-  const add = () =>
-    setExercises([...exercises, { name: "", sets: "", reps: "", weight: "" }]);
-  const update = (i: number, field: keyof Exercise, val: string) => {
+  function addExercise() {
+    setExercises([...exercises, { name: "", sets: [{ reps: "", weight: "" }] }]);
+  }
+
+  function updateExercise(i: number, updated: Exercise) {
     const next = [...exercises];
-    next[i] = { ...next[i], [field]: val };
+    next[i] = updated;
     setExercises(next);
-  };
-  const remove = (i: number) => setExercises(exercises.filter((_, j) => j !== i));
+  }
+
+  function removeExercise(i: number) {
+    setExercises(exercises.filter((_, j) => j !== i));
+  }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -154,19 +239,96 @@ function ExerciseForm({
               id={ids[i]}
               ex={ex}
               index={i}
-              onUpdate={update}
-              onRemove={remove}
+              onUpdateExercise={updateExercise}
+              onRemoveExercise={removeExercise}
             />
           ))}
         </SortableContext>
       </DndContext>
-      <Button variant="outline" size="sm" className="w-full text-xs h-8" onClick={add}>
-        + 운동 추가
-      </Button>
+      <button
+        onClick={addExercise}
+        className="w-full border border-dashed border-border rounded-xl py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+      >
+        + 운동 종목 추가
+      </button>
     </div>
   );
 }
 
+// ── 운동 부위 선택 ────────────────────────────────────────────────────────────
+function BodyPartSelector({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  function toggle(part: string) {
+    if (selected.includes(part)) {
+      onChange(selected.filter((p) => p !== part));
+    } else if (selected.length < 3) {
+      onChange([...selected, part]);
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">운동 부위 (최대 3개)</Label>
+      <div className="grid grid-cols-3 gap-1.5">
+        {BODY_PARTS.map((part) => {
+          const active = selected.includes(part);
+          const disabled = !active && selected.length >= 3;
+          return (
+            <button
+              key={part}
+              onClick={() => toggle(part)}
+              disabled={disabled}
+              className={`py-2 rounded-xl text-xs font-medium transition-colors border ${
+                active
+                  ? "bg-primary/20 border-primary text-primary"
+                  : disabled
+                  ? "border-border text-muted-foreground/40"
+                  : "border-border text-muted-foreground hover:border-primary/40"
+              }`}
+            >
+              {part}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── 기록 목록에서 운동 표시 헬퍼 ─────────────────────────────────────────────
+function renderExerciseRow(ex: any, i: number) {
+  const name = ex.name;
+  if (!name) return null;
+  // 새 구조: sets: [{reps, weight}]
+  if (Array.isArray(ex.sets)) {
+    const totalSets = ex.sets.length;
+    const sample = ex.sets[0] as ExerciseSet | undefined;
+    return (
+      <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span className="text-foreground font-medium">{name}</span>
+        <span>{totalSets}세트</span>
+        {sample?.reps && <span>× {sample.reps}회</span>}
+        {sample?.weight && <span>{sample.weight}kg</span>}
+      </div>
+    );
+  }
+  // 구 구조 호환
+  return (
+    <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+      <span className="text-foreground font-medium">{name}</span>
+      {ex.sets && <span>{ex.sets}세트</span>}
+      {ex.reps && <span>× {ex.reps}회</span>}
+      {ex.weight && <span>{ex.weight}kg</span>}
+    </div>
+  );
+}
+
+// ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 interface LogFormData {
   logDate: string;
   title: string;
@@ -192,6 +354,7 @@ export default function GymPlusWorkout() {
     mood: "good",
   });
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [bodyParts, setBodyParts] = useState<string[]>([]);
 
   const utils = trpc.useUtils();
   const { data: logs, isLoading } = trpc.gymPlus.listWorkoutLogs.useQuery({ month: selectedMonth });
@@ -228,6 +391,7 @@ export default function GymPlusWorkout() {
   function resetForm() {
     setForm({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "", mood: "good" });
     setExercises([]);
+    setBodyParts([]);
   }
 
   function openCreate() {
@@ -247,9 +411,23 @@ export default function GymPlusWorkout() {
       mood: log.mood ?? "good",
     });
     try {
-      setExercises(log.exercisesJson ? JSON.parse(log.exercisesJson) : []);
+      const parsed = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
+      // 구 구조({name,sets,reps,weight}) → 신 구조({name,sets:[{reps,weight}]}) 변환
+      const migrated = parsed.map((ex: any) => {
+        if (Array.isArray(ex.sets)) return ex as Exercise;
+        return {
+          name: ex.name ?? "",
+          sets: [{ reps: ex.reps ?? "", weight: ex.weight ?? "" }],
+        } as Exercise;
+      });
+      setExercises(migrated);
     } catch {
       setExercises([]);
+    }
+    try {
+      setBodyParts(log.bodyPartsJson ? JSON.parse(log.bodyPartsJson) : []);
+    } catch {
+      setBodyParts([]);
     }
     setEditingId(log.id);
     setShowForm(true);
@@ -261,6 +439,7 @@ export default function GymPlusWorkout() {
       durationMinutes: form.durationMinutes ? parseInt(form.durationMinutes) : undefined,
       caloriesBurned: form.caloriesBurned ? parseInt(form.caloriesBurned) : undefined,
       exercisesJson: exercises.length > 0 ? JSON.stringify(exercises) : undefined,
+      bodyPartsJson: bodyParts.length > 0 ? JSON.stringify(bodyParts) : undefined,
     };
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...data });
@@ -307,8 +486,10 @@ export default function GymPlusWorkout() {
       ) : (
         <div className="space-y-3">
           {logs.map((log) => {
-            let parsedExercises: Exercise[] = [];
+            let parsedExercises: any[] = [];
             try { parsedExercises = log.exercisesJson ? JSON.parse(log.exercisesJson) : []; } catch {}
+            let parsedBodyParts: string[] = [];
+            try { parsedBodyParts = (log as any).bodyPartsJson ? JSON.parse((log as any).bodyPartsJson) : []; } catch {}
             return (
               <div key={log.id} className="bg-card border border-border rounded-xl p-4 space-y-2">
                 <div className="flex items-start justify-between">
@@ -319,9 +500,7 @@ export default function GymPlusWorkout() {
                   <div className="flex gap-1">
                     <button onClick={() => openEdit(log)} className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-lg">수정</button>
                     <button
-                      onClick={() => {
-                        if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: log.id });
-                      }}
+                      onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: log.id }); }}
                       className="text-xs text-red-400 px-2 py-1 bg-red-500/10 rounded-lg"
                     >
                       삭제
@@ -335,21 +514,17 @@ export default function GymPlusWorkout() {
                       {moodLabel[log.mood] ?? log.mood}
                     </span>
                   )}
+                  {parsedBodyParts.map((p) => (
+                    <span key={p} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">{p}</span>
+                  ))}
                   {log.durationMinutes && <span className="text-[10px] text-muted-foreground">⏱ {log.durationMinutes}분</span>}
                   {log.caloriesBurned && <span className="text-[10px] text-muted-foreground">🔥 {log.caloriesBurned}kcal</span>}
                   {log.bodyWeight && <span className="text-[10px] text-muted-foreground">⚖️ {log.bodyWeight}kg</span>}
                 </div>
 
                 {parsedExercises.length > 0 && (
-                  <div className="space-y-1">
-                    {parsedExercises.filter(e => e.name).map((ex, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="text-foreground font-medium">{ex.name}</span>
-                        {ex.sets && <span>{ex.sets}세트</span>}
-                        {ex.reps && <span>× {ex.reps}회</span>}
-                        {ex.weight && <span>{ex.weight}kg</span>}
-                      </div>
-                    ))}
+                  <div className="space-y-0.5">
+                    {parsedExercises.filter((e) => e.name).map((ex, i) => renderExerciseRow(ex, i))}
                   </div>
                 )}
 
@@ -404,9 +579,12 @@ export default function GymPlusWorkout() {
               </div>
             </div>
 
-            {/* 운동 목록 */}
+            {/* 운동 부위 */}
+            <BodyPartSelector selected={bodyParts} onChange={setBodyParts} />
+
+            {/* 운동 종목 */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">운동 목록</Label>
+              <Label className="text-xs text-muted-foreground">운동 종목</Label>
               <ExerciseForm exercises={exercises} setExercises={setExercises} />
             </div>
 
