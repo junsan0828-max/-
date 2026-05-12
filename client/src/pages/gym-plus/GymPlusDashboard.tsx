@@ -35,6 +35,45 @@ export default function GymPlusDashboard() {
 
   return (
     <div className="p-4 space-y-5">
+
+      {/* 이벤트/공지 최상단 배너 */}
+      {latestEvents.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-sm">이벤트 & 공지</p>
+            <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/events")}>전체보기 →</button>
+          </div>
+          <div className="space-y-2">
+            {latestEvents.map((e) => (
+              <div
+                key={e.id}
+                className="rounded-xl overflow-hidden cursor-pointer border border-border hover:border-primary/50 transition-colors"
+                onClick={() => navigate(`/gym-plus/events/${e.id}`)}
+              >
+                {e.imageUrl && (
+                  <img src={e.imageUrl} alt={e.title} className="w-full object-cover max-h-40" />
+                )}
+                <div className={`p-3 flex items-center gap-3 ${e.isPinned ? "bg-yellow-500/10" : "bg-card"}`}>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-sm ${
+                    e.eventType === "event" ? "bg-green-500/20" :
+                    e.eventType === "promotion" ? "bg-orange-500/20" : "bg-blue-500/20"
+                  }`}>
+                    {e.eventType === "event" ? "🎉" : e.eventType === "promotion" ? "🎁" : "📢"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {e.isPinned ? <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1 rounded">고정</span> : null}
+                      <p className="text-sm font-medium line-clamp-1">{e.title}</p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{e.createdAt?.slice(0, 10)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 회원 인사 */}
       <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-2xl p-4 border border-primary/20">
         <p className="text-muted-foreground text-xs mb-1">안녕하세요 👋</p>
@@ -87,26 +126,6 @@ export default function GymPlusDashboard() {
         )}
       </div>
 
-      {/* 공지/이벤트 핀 */}
-      {pinnedEvents.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="font-semibold text-sm">📌 공지사항</p>
-          </div>
-          <div className="space-y-2">
-            {pinnedEvents.map((e) => (
-              <div
-                key={e.id}
-                className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 cursor-pointer"
-                onClick={() => navigate(`/gym-plus/events/${e.id}`)}
-              >
-                <p className="text-sm font-medium text-foreground line-clamp-2">{e.title}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* 운동 영상 */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -140,40 +159,6 @@ export default function GymPlusDashboard() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* 이벤트 목록 */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="font-semibold text-sm">이벤트 & 공지</p>
-          <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/events")}>
-            전체보기 →
-          </button>
-        </div>
-        <div className="space-y-2">
-          {latestEvents.length === 0 ? (
-            <p className="text-muted-foreground text-sm text-center py-4">등록된 이벤트가 없습니다</p>
-          ) : (
-            latestEvents.map((e) => (
-              <div
-                key={e.id}
-                className="bg-card border border-border rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => navigate(`/gym-plus/events/${e.id}`)}
-              >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm ${
-                  e.eventType === "event" ? "bg-green-500/20" :
-                  e.eventType === "promotion" ? "bg-orange-500/20" : "bg-blue-500/20"
-                }`}>
-                  {e.eventType === "event" ? "🎉" : e.eventType === "promotion" ? "🎁" : "📢"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium line-clamp-1">{e.title}</p>
-                  <p className="text-[10px] text-muted-foreground">{e.createdAt?.slice(0, 10)}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
       </div>
     </div>
   );
