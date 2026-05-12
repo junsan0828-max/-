@@ -23,99 +23,111 @@ import { Tabs } from "@/components/ui/tabs";
 // ─── 회원 관리 ────────────────────────────────────────────────────────────────
 export function GymPlusMembersAdmin() {
   const utils = trpc.useUtils();
-  const { data: mainMembers, isLoading } = trpc.gymPlus.admin_listMainMembers.useQuery();
-  const [linkTarget, setLinkTarget] = useState<{ id: number; name: string; phone?: string | null; membershipStart?: string | null; membershipEnd?: string | null } | null>(null);
-  const [editTarget, setEditTarget] = useState<{ gymPlusId: number; name: string } | null>(null);
-  const [linkForm, setLinkForm] = useState({ membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "" });
-  const [editForm, setEditForm] = useState({ password: "", membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "", isActive: 1 });
+  const { data: members, isLoading } = trpc.gymPlus.admin_listMembers.useQuery();
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState({
+    username: "", password: "", name: "", phone: "", email: "",
+    membershipType: "general" as "general" | "premium" | "vip",
+    membershipStart: "", membershipEnd: "",
+  });
 
-  const createLinkedMutation = trpc.gymPlus.admin_createLinkedMember.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listMainMembers.invalidate(); setLinkTarget(null); toast.success("짐플러스 계정이 생성되었습니다."); },
+  const createMutation = trpc.gymPlus.admin_createMember.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listMembers.invalidate(); setShowForm(false); resetForm(); toast.success("회원이 생성되었습니다."); },
     onError: (err) => toast.error(err.message),
   });
 
   const updateMutation = trpc.gymPlus.admin_updateMember.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listMainMembers.invalidate(); setEditTarget(null); toast.success("수정되었습니다."); },
+    onSuccess: () => { utils.gymPlus.admin_listMembers.invalidate(); setShowForm(false); setEditingId(null); resetForm(); toast.success("회원 정보가 수정되었습니다."); },
     onError: (err) => toast.error(err.message),
   });
 
   const deleteMutation = trpc.gymPlus.admin_deleteMember.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listMainMembers.invalidate(); toast.success("계정이 삭제되었습니다."); },
+    onSuccess: () => { utils.gymPlus.admin_listMembers.invalidate(); toast.success("회원이 삭제되었습니다."); },
     onError: (err) => toast.error(err.message),
   });
 
+  function resetForm() {
+    setForm({ username: "", password: "", name: "", phone: "", email: "", membershipType: "general", membershipStart: "", membershipEnd: "" });
+  }
 
-  const connectedCount = mainMembers?.filter(m => m.gymPlus).length ?? 0;
+  function openEdit(m: any) {
+    setForm({ username: m.username, password: "", name: m.name, phone: m.phone ?? "", email: m.email ?? "", membershipType: m.membershipType ?? "general", membershipStart: m.membershipStart ?? "", membershipEnd: m.membershipEnd ?? "" });
+    setEditingId(m.id);
+    setShowForm(true);
+  }
+
+  function handleSubmit() {
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, name: form.name, phone: form.phone || undefined, email: form.email || undefined, membershipType: form.membershipType, membershipStart: form.membershipStart || undefined, membershipEnd: form.membershipEnd || undefined, password: form.password || undefined, isActive: 1 });
+    } else {
+      if (!form.username || !form.password || !form.name) { toast.error("아이디, 비밀번호, 이름은 필수입니다."); return; }
+      createMutation.mutate({ ...form, phone: form.phone || undefined, email: form.email || undefined, membershipStart: form.membershipStart || undefined, membershipEnd: form.membershipEnd || undefined });
+    }
+  }
+
+  const membershipTypeLabel: Record<string, string> = { general: "일반", premium: "프리미엄", vip: "VIP" };
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-muted-foreground">
-          전체 회원 ({mainMembers?.length ?? 0}명) · 짐+ 연동 {connectedCount}명
-        </p>
+        <p className="text-sm font-semibold text-muted-foreground">짐+ 회원 ({members?.length ?? 0}명)</p>
+        <Button size="sm" className="h-7 text-xs" onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }}>+ 회원 추가</Button>
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
-      ) : mainMembers?.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-6">등록된 회원이 없습니다</p>
+        <p className="text-sm text-muted-foreground text-center py-4">불러오는 중...</p>
+      ) : members?.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">등록된 회원이 없습니다</p>
       ) : (
         <div className="space-y-2">
-          {mainMembers?.map((m) => (
-            <div key={m.id} className="bg-card border border-border rounded-xl px-3 py-2.5">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{m.name}</p>
-                    {m.gymPlus ? (
-                      <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-medium">짐+ 연동</span>
-                    ) : (
-                      <span className="text-[9px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">미연동</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {m.phone ?? "연락처 없음"}
-                    {m.gymPlus && <span className="ml-2 text-primary/70">@{m.gymPlus.username}</span>}
-                  </p>
-                  {m.membershipEnd && (
-                    <p className="text-xs text-muted-foreground">회원권 만료: {m.membershipEnd.slice(0, 10)}</p>
-                  )}
-                </div>
-                <div className="flex gap-1.5 flex-shrink-0 ml-2">
-                  {m.gymPlus ? (
-                    <Button variant="destructive" size="sm" className="h-7 text-[10px] px-2"
-                      onClick={() => { if (confirm(`${m.name}의 짐플러스 계정을 삭제하시겠습니까?`)) deleteMutation.mutate({ id: m.gymPlus!.id }); }}>삭제</Button>
-                  ) : (
-                    <Button size="sm" className="h-7 text-[10px] px-2"
-                      onClick={() => {
-                        setLinkTarget({ id: m.id, name: m.name, phone: m.phone, membershipStart: m.membershipStart, membershipEnd: m.membershipEnd });
-                        setLinkForm({ membershipType: "general", membershipStart: m.membershipStart ?? "", membershipEnd: m.membershipEnd ?? "" });
-                      }}>계정 생성</Button>
-                  )}
-                </div>
+          {members?.map((m) => (
+            <div key={m.id} className="flex items-center justify-between bg-background/50 rounded-xl px-3 py-2.5">
+              <div>
+                <p className="text-sm font-medium">{m.name}</p>
+                <p className="text-xs text-muted-foreground">{m.username} · {membershipTypeLabel[m.membershipType] ?? m.membershipType}</p>
+                {m.membershipEnd && <p className="text-xs text-muted-foreground">만료: {m.membershipEnd.slice(0, 10)}</p>}
+              </div>
+              <div className="flex gap-1.5">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openEdit(m)}>수정</Button>
+                <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => { if (confirm(`${m.name} 회원을 삭제하시겠습니까?`)) deleteMutation.mutate({ id: m.id }); }}>삭제</Button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* 짐플러스 계정 생성 다이얼로그 */}
-      <Dialog open={!!linkTarget} onOpenChange={(o) => { if (!o) setLinkTarget(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>{linkTarget?.name} — 짐플러스 계정 생성</DialogTitle></DialogHeader>
+      <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editingId ? "회원 수정" : "짐+ 회원 추가"}</DialogTitle></DialogHeader>
           <div className="space-y-3 pb-2">
-            {/* 자동 설정 안내 */}
-            <div className="bg-muted/60 rounded-xl p-3 space-y-1">
-              <p className="text-xs font-semibold">자동 설정 정보</p>
-              <p className="text-xs text-muted-foreground">아이디: <span className="text-foreground font-medium">{linkTarget?.phone ?? "전화번호 없음"}</span></p>
-              <p className="text-xs text-muted-foreground">비밀번호: <span className="text-foreground font-medium">전화번호 뒷자리 4자리</span></p>
-            </div>
-            {!linkTarget?.phone && (
-              <p className="text-xs text-red-400">전화번호가 없는 회원입니다. 통합관리에서 먼저 등록해주세요.</p>
+            {!editingId && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">아이디 *</Label>
+                <Input value={form.username} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} className="h-8 text-sm" />
+              </div>
             )}
             <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">{editingId ? "새 비밀번호 (변경 시에만)" : "비밀번호 *"}</Label>
+              <Input type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">이름 *</Label>
+              <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="h-8 text-sm" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">연락처</Label>
+                <Input value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">이메일</Label>
+                <Input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} className="h-8 text-sm" />
+              </div>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">회원권 유형</Label>
-              <Select value={linkForm.membershipType} onValueChange={(v) => setLinkForm(p => ({ ...p, membershipType: v as any }))}>
+              <Select value={form.membershipType} onValueChange={(v) => setForm((p) => ({ ...p, membershipType: v as any }))}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="general">일반</SelectItem>
@@ -126,74 +138,18 @@ export function GymPlusMembersAdmin() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">시작일</Label>
-                <Input type="date" value={linkForm.membershipStart} onChange={(e) => setLinkForm(p => ({ ...p, membershipStart: e.target.value }))} className="h-8 text-sm" />
+                <Label className="text-xs text-muted-foreground">회원권 시작</Label>
+                <Input type="date" value={form.membershipStart} onChange={(e) => setForm((p) => ({ ...p, membershipStart: e.target.value }))} className="h-8 text-sm" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">만료일</Label>
-                <Input type="date" value={linkForm.membershipEnd} onChange={(e) => setLinkForm(p => ({ ...p, membershipEnd: e.target.value }))} className="h-8 text-sm" />
+                <Label className="text-xs text-muted-foreground">회원권 만료</Label>
+                <Input type="date" value={form.membershipEnd} onChange={(e) => setForm((p) => ({ ...p, membershipEnd: e.target.value }))} className="h-8 text-sm" />
               </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setLinkTarget(null)}>취소</Button>
-              <Button className="flex-1 h-8 text-sm" disabled={createLinkedMutation.isPending || !linkTarget?.phone}
-                onClick={() => {
-                  createLinkedMutation.mutate({ memberId: linkTarget!.id, membershipType: linkForm.membershipType, membershipStart: linkForm.membershipStart || undefined, membershipEnd: linkForm.membershipEnd || undefined });
-                }}>
-                {createLinkedMutation.isPending ? "생성 중..." : "계정 생성"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* 짐플러스 계정 수정 다이얼로그 */}
-      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) setEditTarget(null); }}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editTarget?.name} — 짐플러스 계정 수정</DialogTitle></DialogHeader>
-          <div className="space-y-3 pb-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">새 비밀번호 (변경 시에만)</Label>
-              <Input type="password" value={editForm.password} onChange={(e) => setEditForm(p => ({ ...p, password: e.target.value }))} className="h-8 text-sm" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">회원권 유형</Label>
-              <Select value={editForm.membershipType} onValueChange={(v) => setEditForm(p => ({ ...p, membershipType: v as any }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="general">일반</SelectItem>
-                  <SelectItem value="premium">프리미엄</SelectItem>
-                  <SelectItem value="vip">VIP</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">시작일</Label>
-                <Input type="date" value={editForm.membershipStart} onChange={(e) => setEditForm(p => ({ ...p, membershipStart: e.target.value }))} className="h-8 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">만료일</Label>
-                <Input type="date" value={editForm.membershipEnd} onChange={(e) => setEditForm(p => ({ ...p, membershipEnd: e.target.value }))} className="h-8 text-sm" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">계정 상태</Label>
-              <Select value={String(editForm.isActive)} onValueChange={(v) => setEditForm(p => ({ ...p, isActive: parseInt(v) }))}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">활성</SelectItem>
-                  <SelectItem value="0">비활성</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setEditTarget(null)}>취소</Button>
-              <Button className="flex-1 h-8 text-sm" disabled={updateMutation.isPending}
-                onClick={() => {
-                  updateMutation.mutate({ id: editTarget!.gymPlusId, membershipType: editForm.membershipType, membershipStart: editForm.membershipStart || undefined, membershipEnd: editForm.membershipEnd || undefined, isActive: editForm.isActive, password: editForm.password || undefined });
-                }}>
-                {updateMutation.isPending ? "저장 중..." : "저장"}
+              <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setShowForm(false)}>취소</Button>
+              <Button className="flex-1 h-8 text-sm" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
+                {createMutation.isPending || updateMutation.isPending ? "저장 중..." : "저장"}
               </Button>
             </div>
           </div>
@@ -204,8 +160,8 @@ export function GymPlusMembersAdmin() {
 }
 
 // ─── 영상 관리 ────────────────────────────────────────────────────────────────
-function getYoutubeEmbed(url: string) {
-  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([^&\n?#]+)/);
+function getYoutubeEmbed(url: string): string | null {
+  const m = url.match(/(?:(?:www\.|m\.)?youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([^&\n?#]+)/);
   return m ? `https://www.youtube.com/embed/${m[1]}?rel=0` : null;
 }
 
@@ -230,11 +186,7 @@ export function GymPlusVideosAdmin() {
   });
 
   const updateMutation = trpc.gymPlus.admin_updateVideo.useMutation({
-    onSuccess: () => {
-      utils.gymPlus.admin_listVideos.invalidate();
-      setShowForm(false); setEditingId(null); resetForm();
-      toast.success("저장되었습니다.");
-    },
+    onSuccess: () => { utils.gymPlus.admin_listVideos.invalidate(); setShowForm(false); setEditingId(null); resetForm(); toast.success("영상이 수정되었습니다."); },
     onError: (err) => toast.error(err.message),
   });
 
@@ -264,13 +216,7 @@ export function GymPlusVideosAdmin() {
   }
 
   function handleSubmit() {
-    const data = {
-      ...form,
-      categoryId: form.categoryId ? parseInt(form.categoryId) : undefined,
-      isPublished: parseInt(form.isPublished),
-      sortOrder: parseInt(form.sortOrder) || 0,
-      duration: form.duration ? parseInt(form.duration) || undefined : undefined,
-    };
+    const data = { ...form, categoryId: form.categoryId ? parseInt(form.categoryId) : undefined, isPublished: parseInt(form.isPublished), sortOrder: parseInt(form.sortOrder) || 0, duration: form.duration ? parseInt(form.duration) : undefined };
     if (!data.title || !data.videoUrl) { toast.error("제목과 영상 URL은 필수입니다."); return; }
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...data });
@@ -281,7 +227,7 @@ export function GymPlusVideosAdmin() {
 
   const levelLabel: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
 
-  const videoFormDialog = (
+  const formDialog = (
     <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
       <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{editingId ? "영상 수정" : "영상 추가"}</DialogTitle></DialogHeader>
@@ -297,6 +243,10 @@ export function GymPlusVideosAdmin() {
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">썸네일 URL</Label>
             <Input value={form.thumbnailUrl} onChange={(e) => setForm((p) => ({ ...p, thumbnailUrl: e.target.value }))} className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">설명</Label>
+            <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={2} className="w-full bg-input border border-border rounded-lg p-2 text-sm text-foreground resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
@@ -357,7 +307,6 @@ export function GymPlusVideosAdmin() {
     const embedUrl = getYoutubeEmbed(selectedVideo.videoUrl);
     return (
       <div className="space-y-4">
-        {/* 헤더 */}
         <div className="flex items-center gap-2">
           <button onClick={() => setSelectedVideo(null)} className="text-muted-foreground text-sm px-1">← 목록</button>
           <p className="text-sm font-semibold flex-1 line-clamp-1">{selectedVideo.title}</p>
@@ -365,7 +314,6 @@ export function GymPlusVideosAdmin() {
           <Button variant="destructive" size="sm" className="h-7 text-[10px] px-2" onClick={() => { if (confirm("삭제?")) { deleteMutation.mutate({ id: selectedVideo.id }); setSelectedVideo(null); } }}>삭제</Button>
         </div>
 
-        {/* 영상 플레이어 */}
         <div className="w-full bg-black aspect-video rounded-xl overflow-hidden">
           {embedUrl ? (
             <iframe src={embedUrl} className="w-full h-full" allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />
@@ -374,14 +322,12 @@ export function GymPlusVideosAdmin() {
           )}
         </div>
 
-        {/* 메타 정보 */}
         <div className="flex gap-2 flex-wrap">
           <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{levelLabel[selectedVideo.level ?? "beginner"]}</span>
           {selectedVideo.bodyPart && <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{selectedVideo.bodyPart}</span>}
           <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{selectedVideo.isPublished ? "공개" : "비공개"}</span>
         </div>
 
-        {/* 운동 방법 소개글 */}
         <div className="space-y-2">
           <p className="text-xs font-semibold">운동 방법 소개</p>
           <textarea
@@ -395,7 +341,7 @@ export function GymPlusVideosAdmin() {
             className="w-full h-9 text-sm"
             disabled={updateMutation.isPending}
             onClick={() => {
-              const data = {
+              updateMutation.mutate({
                 id: selectedVideo.id,
                 title: selectedVideo.title,
                 videoUrl: selectedVideo.videoUrl,
@@ -407,21 +353,18 @@ export function GymPlusVideosAdmin() {
                 bodyPart: selectedVideo.bodyPart ?? undefined,
                 categoryId: selectedVideo.categoryId ?? undefined,
                 duration: selectedVideo.duration ?? undefined,
-              };
-              updateMutation.mutate(data);
+              });
             }}
           >
             {updateMutation.isPending ? "저장 중..." : "저장"}
           </Button>
         </div>
 
-        {/* 수정 다이얼로그 */}
-        {videoFormDialog}
+        {formDialog}
       </div>
     );
   }
 
-  /* ── 영상 목록 뷰 ── */
   return (
     <div className="space-y-4">
       {/* 카테고리 */}
@@ -454,23 +397,21 @@ export function GymPlusVideosAdmin() {
             className="w-full flex items-center gap-3 bg-background/50 rounded-xl p-3 text-left"
             onClick={() => { setSelectedVideo(v); setDetailDesc(v.description ?? ""); }}
           >
-            <div className="w-12 h-8 rounded overflow-hidden flex-shrink-0 bg-muted flex items-center justify-center text-xs relative">
-              {v.thumbnailUrl
-                ? <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
-                : <span>▶</span>
-              }
-            </div>
+            {v.thumbnailUrl ? (
+              <img src={v.thumbnailUrl} alt={v.title} className="w-12 h-8 object-cover rounded flex-shrink-0" />
+            ) : (
+              <div className="w-12 h-8 bg-muted rounded flex items-center justify-center flex-shrink-0 text-xs">▶</div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium line-clamp-1">{v.title}</p>
-              <p className="text-[10px] text-muted-foreground">{levelLabel[v.level ?? "beginner"]} · {v.isPublished ? "공개" : "비공개"}</p>
+              <p className="text-[10px] text-muted-foreground">{v.level ? (levelLabel[v.level] ?? v.level) : ""} · {v.isPublished ? "공개" : "비공개"}</p>
             </div>
-            <span className="text-muted-foreground text-xs">›</span>
+            <span className="text-muted-foreground text-xs flex-shrink-0">›</span>
           </button>
         ))}
-        {!videos?.length && <p className="text-xs text-muted-foreground text-center py-4">등록된 영상이 없습니다</p>}
       </div>
 
-      {videoFormDialog}
+      {formDialog}
     </div>
   );
 }
@@ -536,7 +477,7 @@ export function GymPlusEventsAdmin() {
           <div key={e.id} className="flex items-center gap-3 bg-background/50 rounded-xl p-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-[10px] text-muted-foreground">{typeLabel[e.eventType ?? "notice"] ?? e.eventType}</span>
+                <span className="text-[10px] text-muted-foreground">{e.eventType ? (typeLabel[e.eventType] ?? e.eventType) : ""}</span>
                 {e.isPinned ? <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1 rounded">고정</span> : null}
                 {!e.isPublished ? <span className="text-[9px] bg-muted text-muted-foreground px-1 rounded">비공개</span> : null}
               </div>

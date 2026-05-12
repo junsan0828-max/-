@@ -219,7 +219,7 @@ export const payments = pgTable("payments", {
 export const channels = pgTable("channels", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  type: text("type").default("online").notNull(), // online / offline / referral / sns
+  type: text("type").default("online").notNull(),
   description: text("description"),
   isActive: integer("isActive").default(1).notNull(),
   createdAt: text("createdAt").default(now).notNull(),
@@ -235,16 +235,16 @@ export const leads = pgTable("leads", {
   ageGroup: text("ageGroup"),
   channelId: integer("channelId"),
   branchId: integer("branchId"),
-  status: text("status").default("pending").notNull(), // pending / consulted / registered / dropped
+  status: text("status").default("pending").notNull(),
   assignedTrainerId: integer("assignedTrainerId"),
-  assignedConsultantId: integer("assignedConsultantId"), // users 테이블 consultant
+  assignedConsultantId: integer("assignedConsultantId"),
   consultationDate: text("consultationDate"),
-  consultationType: text("consultationType"),    // 방문상담/예약상담/소개상담
-  consultationSubTypes: text("consultationSubTypes"), // 복수선택, comma-separated
+  consultationType: text("consultationType"),
+  consultationSubTypes: text("consultationSubTypes"),
   consultationNote: text("consultationNote"),
   registeredMemberId: integer("registeredMemberId"),
-  interestType: text("interestType"), // PT / 헬스 / 기타
-  exercisePurpose: text("exercisePurpose"), // 운동 목적 (comma-separated)
+  interestType: text("interestType"),
+  exercisePurpose: text("exercisePurpose"),
   memo: text("memo"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
@@ -260,19 +260,19 @@ export const revenueEntries = pgTable("revenue_entries", {
   branchId: integer("branchId"),
   channelId: integer("channelId"),
   createdBy: integer("createdBy"),
-  customerName: text("customerName"), // 회원 이름
-  phone: text("phone"),               // 연락처
-  programDetail: text("programDetail"), // PT 프로그램명 / 기타 항목(락커·운동복)
-  sessions: integer("sessions"),      // PT 횟수 (10/20/30/40/50회)
-  duration: integer("duration"),      // 이용 기간(개월) - 헬스/기타
-  type: text("type").notNull(), // PT / 헬스 / 기타
-  subType: text("subType").notNull(), // 신규 / 재등록
+  customerName: text("customerName"),
+  phone: text("phone"),
+  programDetail: text("programDetail"),
+  sessions: integer("sessions"),
+  duration: integer("duration"),
+  type: text("type").notNull(),
+  subType: text("subType").notNull(),
   amount: integer("amount").notNull(),
   discountAmount: integer("discountAmount").default(0).notNull(),
   paidAmount: integer("paidAmount").notNull(),
   unpaidAmount: integer("unpaidAmount").default(0).notNull(),
   refundAmount: integer("refundAmount").default(0).notNull(),
-  paymentMethod: text("paymentMethod"), // 카드 / 현금 / 계좌이체
+  paymentMethod: text("paymentMethod"),
   paymentDate: text("paymentDate").notNull(),
   startDate: text("startDate"),
   installments: integer("installments").default(1).notNull(),
@@ -285,10 +285,10 @@ export const revenueEntries = pgTable("revenue_entries", {
 export const expenseEntries = pgTable("expense_entries", {
   id: serial("id").primaryKey(),
   branchId: integer("branchId"),
-  category: text("category").notNull(),    // 대분류: 고정관리비/유동관리비/인건비/운영비
-  subCategory: text("subCategory"),        // 소분류
+  category: text("category").notNull(),
+  subCategory: text("subCategory"),
   amount: integer("amount").notNull(),
-  paymentMethod: text("paymentMethod"),    // 카드/현금/계좌이체
+  paymentMethod: text("paymentMethod"),
   vendor: text("vendor"),
   expenseDate: text("expenseDate").notNull(),
   memo: text("memo"),
@@ -389,7 +389,7 @@ export const gymPlusMembers = pgTable("gym_plus_members", {
   name: text("name").notNull(),
   phone: text("phone"),
   email: text("email"),
-  memberId: integer("memberId"), // 기존 members 테이블 연결 (선택)
+  memberId: integer("memberId"),
   membershipType: text("membershipType").default("general").notNull(),
   membershipStart: text("membershipStart"),
   membershipEnd: text("membershipEnd"),
@@ -438,11 +438,15 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   gymPlusMemberId: integer("gymPlusMemberId").notNull(),
   logDate: text("logDate").notNull(),
   title: text("title").notNull(),
-  exercisesJson: text("exercisesJson"),
+  exercisesJson: text("exercisesJson"),   // [{name, sets:[{reps,weight}]}]
+  bodyPartsJson: text("bodyPartsJson"),   // ["등","가슴",...]
+  conditionScore: integer("conditionScore"), // 1~5
+  sleepHours: text("sleepHours"),         // "4h↓","5h",...,"9h+"
+  energyLevel: text("energyLevel"),       // "높음","보통","낮음"
   durationMinutes: integer("durationMinutes"),
   caloriesBurned: integer("caloriesBurned"),
   bodyWeight: text("bodyWeight"),
   notes: text("notes"),
-  mood: text("mood"),
+  mood: text("mood"),                     // legacy
   createdAt: text("createdAt").default(now).notNull(),
 });
