@@ -8,7 +8,8 @@ import { trpc } from "./lib/trpc";
 import "./index.css";
 
 function handleUnauthorized() {
-  // 세션 만료 시 로그인 페이지로 이동
+  // 짐플러스 페이지에서는 관리시스템 리다이렉트 안 함
+  if (window.location.pathname.startsWith("/gym-plus")) return;
   toast.error("세션이 만료되었습니다. 다시 로그인해주세요.");
   setTimeout(() => { window.location.href = "/"; }, 1200);
 }

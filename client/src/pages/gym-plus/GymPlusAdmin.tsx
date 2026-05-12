@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 
 // ─── 회원 관리 ────────────────────────────────────────────────────────────────
-function GymPlusMembersAdmin() {
+export function GymPlusMembersAdmin() {
   const utils = trpc.useUtils();
   const { data: members, isLoading } = trpc.gymPlus.admin_listMembers.useQuery();
   const [showForm, setShowForm] = useState(false);
@@ -165,7 +165,7 @@ function getYoutubeEmbed(url: string): string | null {
   return m ? `https://www.youtube.com/embed/${m[1]}?rel=0` : null;
 }
 
-function GymPlusVideosAdmin() {
+export function GymPlusVideosAdmin() {
   const utils = trpc.useUtils();
   const { data: videos } = trpc.gymPlus.admin_listVideos.useQuery();
   const { data: categories } = trpc.gymPlus.admin_listCategories.useQuery();
@@ -417,7 +417,7 @@ function GymPlusVideosAdmin() {
 }
 
 // ─── 이벤트/공지 관리 ─────────────────────────────────────────────────────────
-function GymPlusEventsAdmin() {
+export function GymPlusEventsAdmin() {
   const utils = trpc.useUtils();
   const { data: events } = trpc.gymPlus.admin_listEvents.useQuery();
   const [showForm, setShowForm] = useState(false);
@@ -560,7 +560,7 @@ function GymPlusEventsAdmin() {
 }
 
 // ─── 운동기록 관리 ────────────────────────────────────────────────────────────
-function GymPlusWorkoutLogsAdmin() {
+export function GymPlusWorkoutLogsAdmin() {
   const utils = trpc.useUtils();
   const { data: logs, isLoading } = trpc.gymPlus.admin_listWorkoutLogs.useQuery({});
 
