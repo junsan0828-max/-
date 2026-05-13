@@ -327,6 +327,7 @@ const revenueRouter = t.router({
       phone: z.string().optional(),
       programDetail: z.string().optional(),
       sessions: z.number().optional(),
+      serviceSessions: z.number().min(0).default(0).optional(),
       duration: z.number().optional(),
       memberId: z.number().optional(),
       leadId: z.number().optional(),

@@ -77,6 +77,7 @@ export const ptPackages = pgTable("pt_packages", {
   memberId: integer("memberId").notNull(),
   trainerId: integer("trainerId"),
   totalSessions: integer("totalSessions").notNull(),
+  serviceSessions: integer("serviceSessions").default(0),
   usedSessions: integer("usedSessions").default(0).notNull(),
   packageName: text("packageName"),
   startDate: text("startDate"),
@@ -292,6 +293,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   phone: text("phone"),               // 연락처
   programDetail: text("programDetail"), // PT 프로그램명 / 기타 항목(락커·운동복)
   sessions: integer("sessions"),      // PT 횟수 (10/20/30/40/50회)
+  serviceSessions: integer("serviceSessions").default(0), // 서비스 횟수 (무상 제공)
   duration: integer("duration"),      // 이용 기간(개월) - 헬스/기타
   type: text("type").notNull(), // PT / 헬스 / 기타
   subType: text("subType").notNull(), // 신규 / 재등록

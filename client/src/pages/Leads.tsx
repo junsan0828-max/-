@@ -46,6 +46,7 @@ type RegForm = {
   programKey: string;
   programCustom: string;
   sessions?: number;
+  serviceSessions?: number;
   // 헬스
   duration?: number;
   // 기타
@@ -67,6 +68,7 @@ const defaultRegForm: RegForm = {
   programKey: "",
   programCustom: "",
   sessions: undefined,
+  serviceSessions: undefined,
   duration: undefined,
   otherItem: "",
   amount: "",
@@ -222,7 +224,7 @@ export default function LeadsPage() {
     grade: "basic" as "basic" | "vip", status: "active" as "active" | "paused",
     visitRoute: "", profileNote: "", trainerId: "",
     membershipStart: "", membershipEnd: "",
-    ptProgram: "", ptSessions: "", paymentAmount: "", unpaidAmount: "",
+    ptProgram: "", ptSessions: "", serviceSessions: "", paymentAmount: "", unpaidAmount: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
     paymentDate: "", paymentMemo: "",
   };
@@ -350,6 +352,7 @@ export default function LeadsPage() {
       subType: reg.subType,
       programDetail: parts.length > 0 ? parts.join(" + ") : undefined,
       sessions: reg.itemTypes.includes("PT") ? reg.sessions : undefined,
+      serviceSessions: reg.itemTypes.includes("PT") ? (reg.serviceSessions ?? 0) : undefined,
       duration: reg.itemTypes.includes("헬스") ? reg.duration : undefined,
       amount: Number(reg.amount) || 0,
       discountAmount: Number(reg.discountAmount) || 0,
@@ -803,6 +806,31 @@ export default function LeadsPage() {
                       ))}
                     </div>
                   </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">서비스 횟수 <span className="text-muted-foreground/60">(무상 제공)</span></label>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      {[0, 1, 2, 3, 5].map(n => (
+                        <button key={n} type="button"
+                          onClick={() => setRegForm(f => ({ ...f, serviceSessions: f.serviceSessions === n ? undefined : n }))}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${regForm.serviceSessions === n ? "bg-amber-500 text-white border-amber-500" : "bg-background border-border text-muted-foreground"}`}>
+                          {n === 0 ? "없음" : `+${n}회`}
+                        </button>
+                      ))}
+                      <input
+                        type="number" min="0"
+                        placeholder="직접"
+                        value={regForm.serviceSessions !== undefined && ![0,1,2,3,5].includes(regForm.serviceSessions) ? regForm.serviceSessions : ""}
+                        onChange={e => setRegForm(f => ({ ...f, serviceSessions: e.target.value ? Number(e.target.value) : undefined }))}
+                        className="w-16 bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    {(regForm.sessions || regForm.serviceSessions) && (
+                      <p className="text-xs text-primary mt-1 font-medium">
+                        총 {(regForm.sessions ?? 0) + (regForm.serviceSessions ?? 0)}회
+                        {regForm.serviceSessions ? <span className="text-muted-foreground"> (결제 {regForm.sessions ?? 0}회 + 서비스 {regForm.serviceSessions}회)</span> : ""}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1081,6 +1109,31 @@ export default function LeadsPage() {
                   ))}
                 </div>
               </div>
+              {/* 서비스 횟수 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">서비스 횟수 <span className="text-muted-foreground/60">(무상 제공)</span></label>
+                <div className="flex gap-1.5 flex-wrap items-center">
+                  {[0, 1, 2, 3, 5].map(n => (
+                    <button key={n} type="button"
+                      onClick={() => setDirectForm(f => ({ ...f, serviceSessions: f.serviceSessions === String(n) ? "" : String(n) }))}
+                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                      {n === 0 ? "없음" : `+${n}회`}
+                    </button>
+                  ))}
+                  <input
+                    type="number" min="0" placeholder="직접"
+                    value={directForm.serviceSessions && !["0","1","2","3","5"].includes(directForm.serviceSessions) ? directForm.serviceSessions : ""}
+                    onChange={e => setDirectForm(f => ({ ...f, serviceSessions: e.target.value }))}
+                    className="w-14 bg-background border border-border rounded-lg px-2 py-1 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                {(directForm.ptSessions || directForm.serviceSessions) && Number(directForm.serviceSessions) > 0 && (
+                  <p className="text-xs text-primary font-medium">
+                    총 {Number(directForm.ptSessions || 0) + Number(directForm.serviceSessions || 0)}회
+                    <span className="text-muted-foreground"> (결제 {directForm.ptSessions || 0}회 + 서비스 {directForm.serviceSessions}회)</span>
+                  </p>
+                )}
+              </div>
               {/* 결제 금액 / 미수금 */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -1133,6 +1186,7 @@ export default function LeadsPage() {
                     membershipEnd: directForm.membershipEnd || undefined,
                     ptProgram: directForm.ptProgram || undefined,
                     ptSessions: directForm.ptSessions || undefined,
+                    serviceSessions: directForm.serviceSessions ? parseInt(directForm.serviceSessions) : undefined,
                     paymentAmount: directForm.paymentAmount ? parseInt(directForm.paymentAmount) : undefined,
                     unpaidAmount: directForm.unpaidAmount ? parseInt(directForm.unpaidAmount) : undefined,
                     paymentMethod: directForm.paymentMethod || undefined,

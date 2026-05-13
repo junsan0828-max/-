@@ -389,6 +389,8 @@ async function initDatabase() {
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "exercisePurpose" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "signatureDataUrl" TEXT`,
     `ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntent" TEXT`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSessions" INTEGER DEFAULT 0`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceSessions" INTEGER DEFAULT 0`,
     `CREATE TABLE IF NOT EXISTS branches (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -539,10 +541,12 @@ async function initDatabase() {
       const existing = await db.select({ id: ptPackages.id }).from(ptPackages).where(eq(ptPackages.memberId, rev.memberId));
       if (existing.length === 0) {
         const now = new Date().toISOString();
+        const svcSessions = (rev as any).serviceSessions ?? 0;
         await db.insert(ptPackages).values({
           memberId: rev.memberId,
           trainerId: rev.trainerId ?? null,
-          totalSessions: rev.sessions!,
+          totalSessions: rev.sessions! + svcSessions,
+          serviceSessions: svcSessions,
           usedSessions: 0,
           packageName: rev.programDetail ?? null,
           startDate: rev.startDate ?? rev.paymentDate,

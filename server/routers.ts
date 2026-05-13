@@ -291,6 +291,7 @@ const membersRouter = t.router({
         visitRoute: z.string().optional(),
         ptProgram: z.string().optional(),
         ptSessions: z.string().optional(),
+        serviceSessions: z.number().min(0).default(0).optional(),
         paymentAmount: z.number().optional(),
         unpaidAmount: z.number().optional(),
         paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
@@ -313,6 +314,7 @@ const membersRouter = t.router({
       const {
         ptProgram,
         ptSessions,
+        serviceSessions,
         paymentAmount,
         unpaidAmount,
         paymentMethod,
@@ -331,13 +333,15 @@ const membersRouter = t.router({
 
       if (ptSessions) {
         const sessionCount = parseInt(ptSessions);
+        const svcSessions = serviceSessions ?? 0;
         const packageName = ptProgram || undefined;
         const pricePerSession = calcPricePerSession(paymentAmount, sessionCount, paymentMethod);
 
         await db.insert(ptPackages).values({
           memberId,
           trainerId,
-          totalSessions: sessionCount,
+          totalSessions: sessionCount + svcSessions,
+          serviceSessions: svcSessions,
           usedSessions: 0,
           packageName,
           startDate: memberData.membershipStart,
@@ -2146,10 +2150,12 @@ const adminRouter = t.router({
           .where(eq(ptPackages.memberId, rev.memberId));
 
         if (existingPkgs.length === 0 && rev.sessions) {
+          const svcSessions = (rev as any).serviceSessions ?? 0;
           await db.insert(ptPackages).values({
             memberId: rev.memberId,
             trainerId: input.trainerId,
-            totalSessions: rev.sessions,
+            totalSessions: rev.sessions + svcSessions,
+            serviceSessions: svcSessions,
             usedSessions: 0,
             packageName: rev.programDetail ?? null,
             startDate: rev.startDate ?? rev.paymentDate,
