@@ -2695,6 +2695,12 @@ const gymPlusRouter = t.router({
     return db.select().from(gymPlusVideoCategories).orderBy(gymPlusVideoCategories.sortOrder);
   }),
 
+  listCategories: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(gymPlusVideoCategories).orderBy(gymPlusVideoCategories.sortOrder);
+  }),
+
   listVideos: publicProcedure
     .input(z.object({ categoryId: z.number().optional(), level: z.string().optional() }).optional())
     .query(async ({ input }) => {

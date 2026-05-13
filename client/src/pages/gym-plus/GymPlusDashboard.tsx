@@ -23,15 +23,20 @@ export default function GymPlusDashboard() {
   const [, navigate] = useLocation();
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
   const { data: events } = trpc.gymPlus.listEvents.useQuery({});
-  const { data: videos } = trpc.gymPlus.listVideos.useQuery({});
+  const { data: categories } = trpc.gymPlus.listCategories.useQuery();
+  const { data: allVideos } = trpc.gymPlus.listVideos.useQuery({});
   const { data: logs } = trpc.gymPlus.listWorkoutLogs.useQuery({});
 
   const today = new Date().toISOString().slice(0, 10);
   const todayLog = logs?.find((l) => l.logDate === today);
   const daysLeft = daysUntil(member?.membershipEnd);
-  const pinnedEvents = events?.filter((e) => e.isPinned) ?? [];
   const latestEvents = events?.slice(0, 3) ?? [];
-  const featuredVideos = videos?.slice(0, 4) ?? [];
+
+  // "기구 안내" 카테고리 찾기 (이름에 "기구" 포함)
+  const equipmentCategory = categories?.find(c => c.name.includes("기구"));
+  const equipmentVideos = equipmentCategory
+    ? (allVideos ?? []).filter(v => v.categoryId === equipmentCategory.id).slice(0, 4)
+    : (allVideos ?? []).slice(0, 4);
 
   return (
     <div className="p-4 space-y-5">
@@ -126,19 +131,19 @@ export default function GymPlusDashboard() {
         )}
       </div>
 
-      {/* 운동 영상 */}
+      {/* 센터 기구 운동 안내 */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="font-semibold text-sm">추천 운동 영상</p>
+          <p className="font-semibold text-sm">센터 기구 운동 안내</p>
           <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/videos")}>
             전체보기 →
           </button>
         </div>
-        {featuredVideos.length === 0 ? (
+        {equipmentVideos.length === 0 ? (
           <p className="text-muted-foreground text-sm text-center py-4">등록된 영상이 없습니다</p>
         ) : (
           <div className="grid grid-cols-2 gap-2">
-            {featuredVideos.map((v) => (
+            {equipmentVideos.map((v) => (
               <div
                 key={v.id}
                 className="bg-card border border-border rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
