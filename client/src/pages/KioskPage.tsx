@@ -273,21 +273,37 @@ function NumberPad({
   const [error, setError] = useState<string | null>(null);
   const tabs: InputTab[] = ["출석번호", "휴대폰번호", "통합번호"];
 
-  const prefix = activeTab === "휴대폰번호" ? "010" : "";
-  const displayValue = prefix + input;
-  const maxLen = activeTab === "휴대폰번호" ? 8 : 10;
+  // 휴대폰번호: 010 고정 + 8자리 / 출석번호·통합번호: 자유 입력
+  const isPhone = activeTab === "휴대폰번호";
+  const maxLen = isPhone ? 8 : 10;
+
+  // 010-XXXX-XXXX 형식으로 표시
+  function formatPhoneDisplay(digits: string): string {
+    if (!digits) return "";
+    const all = "010" + digits;
+    if (all.length <= 3) return all;
+    if (all.length <= 7) return all.slice(0, 3) + "-" + all.slice(3);
+    return all.slice(0, 3) + "-" + all.slice(3, 7) + "-" + all.slice(7);
+  }
+
+  const displayValue = isPhone ? formatPhoneDisplay(input) : input;
+  const isComplete = isPhone ? input.length === 8 : input.length >= 4;
 
   const handleKey = (key: string) => {
     setError(null);
     if (key === "backspace") {
       setInput((p) => p.slice(0, -1));
     } else if (input.length < maxLen) {
-      setInput((p) => p + key);
+      const next = input + key;
+      setInput(next);
+      // 휴대폰번호 8자리 완성되면 자동 조회
+      if (isPhone && next.length === 8) {
+        setTimeout(() => doLookup("010" + next), 100);
+      }
     }
   };
 
-  const handleSubmit = async () => {
-    if (!input) return;
+  const doLookup = async (phoneOrNum: string) => {
     setLoading(true);
     setError(null);
     try {
@@ -295,13 +311,10 @@ function NumberPad({
       let body: Record<string, string> = {};
       if (activeTab === "출석번호") {
         url = "/api/kiosk/lookup/number";
-        body = { number: input };
-      } else if (activeTab === "휴대폰번호") {
-        url = "/api/kiosk/lookup/phone";
-        body = { phone: "010" + input };
+        body = { number: phoneOrNum };
       } else {
         url = "/api/kiosk/lookup/phone";
-        body = { phone: input };
+        body = { phone: phoneOrNum };
       }
       const res = await fetch(url, {
         method: "POST",
@@ -314,7 +327,6 @@ function NumberPad({
         return;
       }
       const member: MemberPayload = await res.json();
-      // Record attendance
       await fetch("/api/kiosk/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -323,10 +335,16 @@ function NumberPad({
       onMemberFound(member);
       setInput("");
     } catch {
-      setError("네트워크 오류");
+      setError("네트워크 오류가 발생했습니다");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = () => {
+    const value = isPhone ? "010" + input : input;
+    if (!input) return;
+    doLookup(value);
   };
 
   return (
@@ -353,20 +371,23 @@ function NumberPad({
 
       {/* Display */}
       <div
-        className="rounded-xl px-4 py-3 text-center text-2xl font-bold tracking-widest text-white"
-        style={{ background: "#111", minHeight: "56px", letterSpacing: "0.15em" }}
+        className="rounded-xl px-4 py-3 text-center font-bold text-white"
+        style={{ background: "#111", minHeight: "60px", letterSpacing: "0.08em", fontSize: displayValue ? "1.6rem" : "1rem" }}
       >
         {displayValue || (
-          <span className="text-gray-600 text-base font-normal">
-            {activeTab === "휴대폰번호" ? "010-XXXX-XXXX" : "번호를 입력하세요"}
+          <span className="text-gray-600 font-normal" style={{ fontSize: "0.9rem" }}>
+            {isPhone ? "010-XXXX-XXXX" : "번호를 입력하세요"}
           </span>
         )}
       </div>
 
       {error && (
-        <p className="text-center text-sm" style={{ color: "#ff4444" }}>
+        <div
+          className="rounded-xl px-3 py-2 text-center text-sm font-medium"
+          style={{ background: "rgba(255,68,68,0.15)", color: "#ff6666", border: "1px solid rgba(255,68,68,0.3)" }}
+        >
           {error}
-        </p>
+        </div>
       )}
 
       {/* Keypad */}
@@ -379,7 +400,7 @@ function NumberPad({
               else if (k === "⌫") handleKey("backspace");
               else handleKey(k);
             }}
-            className="rounded-xl py-3 text-lg font-semibold text-white transition-all active:scale-95"
+            className="rounded-xl py-4 text-xl font-semibold text-white transition-all active:scale-95"
             style={{
               background: k === "취소" ? "#2a2a2a" : k === "⌫" ? "#2a2a2a" : "#1e1e1e",
               border: "1px solid #333",
@@ -393,14 +414,15 @@ function NumberPad({
       {/* Submit button */}
       <button
         onClick={handleSubmit}
-        disabled={loading || !input}
-        className="w-full py-4 rounded-xl text-white font-bold text-lg transition-all active:scale-98"
+        disabled={loading || !isComplete}
+        className="w-full py-4 rounded-xl text-white font-bold text-lg transition-all"
         style={{
-          background: !input || loading ? "#444" : "#ff6b00",
-          cursor: !input || loading ? "not-allowed" : "pointer",
+          background: loading ? "#444" : isComplete ? "#ff6b00" : "#333",
+          cursor: isComplete && !loading ? "pointer" : "not-allowed",
+          opacity: isComplete || loading ? 1 : 0.5,
         }}
       >
-        {loading ? "확인 중..." : "출석하기"}
+        {loading ? "조회 중..." : "출석하기"}
       </button>
     </div>
   );

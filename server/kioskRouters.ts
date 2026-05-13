@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, or, like, desc } from "drizzle-orm";
+import { eq, and, or, like, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   members,
@@ -171,19 +171,21 @@ kioskRouter.post("/lookup/phone", async (req, res) => {
   try {
     const { phone } = req.body as { phone?: string };
     if (!phone) return res.status(400).json({ error: "번호를 입력하세요" });
+
+    // Strip all non-digits (handles 010-1234-5678, 01012345678, 010 1234 5678 등)
     const cleaned = phone.replace(/\D/g, "");
-    // Match full number OR last 4 digits
+    if (cleaned.length < 10) return res.status(400).json({ error: "번호를 정확히 입력하세요" });
+
+    // Normalize stored phone with REGEXP_REPLACE so dashes/spaces don't matter
     const [found] = await db
       .select()
       .from(members)
       .where(
-        or(
-          like(members.phone, `%${cleaned}`),
-          eq(members.phone, cleaned)
-        )!
+        sql`REGEXP_REPLACE(${members.phone}, '[^0-9]', '', 'g') = ${cleaned}`
       )
       .limit(1);
-    if (!found) return res.status(404).json({ error: "회원을 찾을 수 없습니다" });
+
+    if (!found) return res.status(404).json({ error: "등록된 회원을 찾을 수 없습니다" });
     const payload = await buildMemberPayload(found.id);
     res.json(payload);
   } catch (err) {
