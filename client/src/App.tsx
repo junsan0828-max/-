@@ -49,6 +49,8 @@ import ExpensesPage from "./pages/Expenses";
 import MarketingPage from "./pages/Marketing";
 import AiAnalysisPage from "./pages/AiAnalysis";
 import AdminMembers from "./pages/AdminMembers";
+import KioskCheckin from "./pages/KioskCheckin";
+import AccessManagement from "./pages/AccessManagement";
 import Layout from "./components/Layout";
 import GymPlusLogin from "./pages/gym-plus/GymPlusLogin";
 import GymPlusLayout from "./pages/gym-plus/GymPlusLayout";
@@ -117,6 +119,11 @@ function App() {
     return <GymPlusAdminPage />;
   }
 
+  // 키오스크 출입 체크인 (인증 불필요, 독립 풀스크린)
+  if (location === "/kiosk") {
+    return <KioskCheckin />;
+  }
+
   // 공개 보고서 / 계약서 페이지 - 인증 불필요
   if (reportMatch && reportParams) {
     return <MemberReport token={reportParams.token} />;
@@ -173,6 +180,7 @@ function App() {
         <Route path="/trainers/:id">
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
+        <Route path="/access">{() => <AccessManagement />}</Route>
         <Route path="/admin">{() => <Admin />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
