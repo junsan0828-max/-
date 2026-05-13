@@ -120,15 +120,15 @@ export default function Profile() {
       </Card>
 
       {/* 포인트 내역 */}
-      {history && history.length > 0 && (
+      {history && history.filter(l => l.type !== "daily_reset").length > 0 && (
         <Card className="bg-card border-border">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">FIT POINT 내역</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            {history.slice(0, 10).map((log, i) => (
+            {history.filter(l => l.type !== "daily_reset").slice(0, 10).map((log, i) => (
               <div key={log.id}
-                className={`flex items-center gap-3 px-4 py-3 ${i < Math.min(history.length, 10) - 1 ? "border-b border-border/50" : ""}`}>
+                className={`flex items-center gap-3 px-4 py-3 ${i < Math.min(history.filter(l => l.type !== "daily_reset").length, 10) - 1 ? "border-b border-border/50" : ""}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     {log.status === "completed" && <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />}
