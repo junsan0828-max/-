@@ -625,11 +625,30 @@ function FaceCamera({ faceDescriptors, onMemberFound, modelsLoaded }: FaceCamera
 
 const GYM_NAME = (import.meta as { env?: { VITE_GYM_NAME?: string } }).env?.VITE_GYM_NAME ?? "맞춤운동센터 자이언트짐";
 
+interface RawFaceEntry {
+  memberId: number;
+  name: string;
+  faceDescriptor: number[] | null;
+  photoBase64: string | null;
+}
+
+/** Load an image element from a base64 JPEG string */
+function base64ToImage(b64: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = `data:image/jpeg;base64,${b64}`;
+  });
+}
+
 export default function KioskPage() {
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [recognitionReady, setRecognitionReady] = useState(false);
   const [faceDescriptors, setFaceDescriptors] = useState<
     Array<{ memberId: number; name: string; faceDescriptor: number[] }>
   >([]);
+  const rawEntriesRef = useRef<RawFaceEntry[]>([]);
   const [activeMember, setActiveMember] = useState<MemberPayload | null>(null);
   const [currentTime, setCurrentTime] = useState(formatKoreanDateTime());
 
@@ -639,37 +658,87 @@ export default function KioskPage() {
     return () => clearInterval(t);
   }, []);
 
-  // Load face-api.js models
+  // Load face-api.js models (detection always; recognition net optional)
   useEffect(() => {
     (async () => {
       try {
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
           faceapi.nets.faceLandmark68TinyNet.loadFromUri("/models"),
-          faceapi.nets.faceRecognitionNet.loadFromUri("/models").catch(() => {}),
         ]);
         setModelsLoaded(true);
+        // Try recognition net separately — not bundled, may fail
+        try {
+          await faceapi.nets.faceRecognitionNet.loadFromUri("/models");
+          setRecognitionReady(true);
+        } catch {
+          console.info("[kiosk] faceRecognitionNet not available — lazy extraction skipped");
+        }
       } catch (err) {
-        console.warn("[kiosk] face-api models not fully loaded:", err);
-        // Still mark as loaded so face detection works even without recognition
+        console.warn("[kiosk] base models failed:", err);
         setModelsLoaded(true);
       }
     })();
   }, []);
 
-  // Fetch face descriptors
-  const loadFaceDescriptors = useCallback(async () => {
+  // Fetch enrolled faces from server
+  const loadFaceEntries = useCallback(async () => {
     try {
       const res = await fetch("/api/kiosk/faces");
-      if (res.ok) setFaceDescriptors(await res.json());
+      if (!res.ok) return;
+      const entries: RawFaceEntry[] = await res.json();
+      rawEntriesRef.current = entries;
+      // Use entries that already have a descriptor
+      const ready = entries.filter((e) => e.faceDescriptor && e.faceDescriptor.length > 0);
+      setFaceDescriptors(
+        ready.map((e) => ({ memberId: e.memberId, name: e.name, faceDescriptor: e.faceDescriptor! }))
+      );
     } catch {}
   }, []);
 
   useEffect(() => {
-    loadFaceDescriptors();
-    const t = setInterval(loadFaceDescriptors, 60_000);
+    loadFaceEntries();
+    const t = setInterval(loadFaceEntries, 60_000);
     return () => clearInterval(t);
-  }, [loadFaceDescriptors]);
+  }, [loadFaceEntries]);
+
+  // Lazy descriptor extraction: when recognition model loads, process photos with no descriptor
+  useEffect(() => {
+    if (!recognitionReady) return;
+    (async () => {
+      const pending = rawEntriesRef.current.filter(
+        (e) => e.photoBase64 && (!e.faceDescriptor || e.faceDescriptor.length === 0)
+      );
+      if (pending.length === 0) return;
+      console.info(`[kiosk] Extracting descriptors for ${pending.length} enrolled member(s)...`);
+      const extracted: Array<{ memberId: number; name: string; faceDescriptor: number[] }> = [];
+      for (const entry of pending) {
+        try {
+          const img = await base64ToImage(entry.photoBase64!);
+          const det = await faceapi
+            .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks(true)
+            .withFaceDescriptor();
+          if (!det) continue;
+          const descriptor = Array.from(det.descriptor);
+          extracted.push({ memberId: entry.memberId, name: entry.name, faceDescriptor: descriptor });
+          // Persist descriptor back to server
+          fetch("/api/kiosk/faces/update-descriptor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ memberId: entry.memberId, faceDescriptor: descriptor }),
+          }).catch(() => {});
+        } catch {}
+      }
+      if (extracted.length > 0) {
+        setFaceDescriptors((prev) => {
+          const existing = new Set(prev.map((e) => e.memberId));
+          return [...prev, ...extracted.filter((e) => !existing.has(e.memberId))];
+        });
+        console.info(`[kiosk] ${extracted.length} descriptor(s) extracted and cached`);
+      }
+    })();
+  }, [recognitionReady]);
 
   const handleFaceMatch = useCallback(async (memberId: number) => {
     try {

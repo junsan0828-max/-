@@ -71,6 +71,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import FaceEnrollPanel from "@/components/kiosk/FaceEnrollPanel";
 
 interface Props {
   memberId: number;
@@ -626,6 +627,9 @@ export default function MemberDetail({ memberId }: Props) {
               )}
             </CardContent>
           </Card>
+
+          {/* 얼굴인식 등록 패널 */}
+          <FaceEnrollPanel memberId={memberId} memberName={member.name} />
         </TabsContent>
 
         {/* ── PT 프로그램 탭 ── */}

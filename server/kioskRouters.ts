@@ -105,41 +105,63 @@ async function buildMemberPayload(memberId: number) {
 
 // ─── Public endpoints (no auth required for kiosk) ───────────────────────────
 
-/** GET /api/kiosk/faces — returns all face descriptors for client-side matching */
+/** GET /api/kiosk/faces — returns all enrolled members with descriptors and/or photos */
 kioskRouter.get("/faces", async (_req, res) => {
   try {
+    // All enrolled face rows (photo required, descriptor optional)
     const rows = await db
       .select({
         memberId: kioskFaceData.memberId,
         faceDescriptor: kioskFaceData.faceDescriptor,
+        photoBase64: kioskFaceData.photoBase64,
       })
-      .from(kioskFaceData)
-      .where(eq(kioskFaceData.faceDescriptor, kioskFaceData.faceDescriptor)); // filter non-null
-    // Only return rows that actually have a descriptor
-    const valid = rows.filter((r) => r.faceDescriptor);
-    // Also grab names for FaceMatcher labels
-    const memberIds = valid.map((r) => r.memberId);
+      .from(kioskFaceData);
+
+    if (rows.length === 0) return res.json([]);
+
+    const memberIds = rows.map((r) => r.memberId);
+    const names = await db
+      .select({ id: members.id, name: members.name })
+      .from(members)
+      .where(
+        memberIds.length === 1
+          ? eq(members.id, memberIds[0])
+          : or(...memberIds.map((id) => eq(members.id, id)))!
+      );
     const nameMap: Record<number, string> = {};
-    if (memberIds.length > 0) {
-      const names = await db
-        .select({ id: members.id, name: members.name })
-        .from(members)
-        .where(
-          memberIds.length === 1
-            ? eq(members.id, memberIds[0])
-            : or(...memberIds.map((id) => eq(members.id, id)))!
-        );
-      names.forEach((n) => { nameMap[n.id] = n.name; });
-    }
+    names.forEach((n) => { nameMap[n.id] = n.name; });
+
     res.json(
-      valid.map((r) => ({
+      rows.map((r) => ({
         memberId: r.memberId,
         name: nameMap[r.memberId] ?? "Unknown",
-        faceDescriptor: JSON.parse(r.faceDescriptor!),
+        // null if not yet extracted — kiosk will extract lazily from photo
+        faceDescriptor: r.faceDescriptor ? JSON.parse(r.faceDescriptor) : null,
+        // photo for lazy descriptor extraction when model loads on kiosk
+        photoBase64: r.photoBase64 ?? null,
       }))
     );
   } catch (err) {
     console.error("[kiosk/faces]", err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+/** POST /api/kiosk/faces/update-descriptor — kiosk saves extracted descriptor back */
+kioskRouter.post("/faces/update-descriptor", async (req, res) => {
+  try {
+    const { memberId, faceDescriptor } = req.body as {
+      memberId?: number;
+      faceDescriptor?: number[];
+    };
+    if (!memberId || !faceDescriptor?.length) return res.status(400).json({ error: "필드 누락" });
+    await db
+      .update(kioskFaceData)
+      .set({ faceDescriptor: JSON.stringify(faceDescriptor) })
+      .where(eq(kioskFaceData.memberId, memberId));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[kiosk/faces/update-descriptor]", err);
     res.status(500).json({ error: "서버 오류" });
   }
 });
@@ -370,6 +392,42 @@ kioskRouter.post("/admin/member-info", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("[kiosk/admin/member-info]", err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+/** GET /api/kiosk/admin/face/:memberId — get face data (photo + descriptor) for one member */
+kioskRouter.get("/admin/face/:memberId", async (req, res) => {
+  try {
+    const memberId = parseInt(req.params.memberId);
+    if (isNaN(memberId)) return res.status(400).json({ error: "잘못된 memberId" });
+    const [row] = await db
+      .select()
+      .from(kioskFaceData)
+      .where(eq(kioskFaceData.memberId, memberId))
+      .limit(1);
+    if (!row) return res.status(404).json({ error: "등록된 얼굴 없음" });
+    res.json({
+      memberId: row.memberId,
+      photoBase64: row.photoBase64,
+      hasDescriptor: !!row.faceDescriptor,
+      updatedAt: row.updatedAt,
+    });
+  } catch (err) {
+    console.error("[kiosk/admin/face/:id]", err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+/** DELETE /api/kiosk/admin/face/:memberId — remove face enrollment */
+kioskRouter.delete("/admin/face/:memberId", async (req, res) => {
+  try {
+    const memberId = parseInt(req.params.memberId);
+    if (isNaN(memberId)) return res.status(400).json({ error: "잘못된 memberId" });
+    await db.delete(kioskFaceData).where(eq(kioskFaceData.memberId, memberId));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[kiosk/admin/face/delete]", err);
     res.status(500).json({ error: "서버 오류" });
   }
 });
