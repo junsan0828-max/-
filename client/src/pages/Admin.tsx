@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList, MapPin, ExternalLink, Lock, CheckCircle2, Clock } from "lucide-react";
+import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Bell, Plus, ClipboardList, MapPin, ExternalLink, Lock, CheckCircle2, Clock, Server, LogIn } from "lucide-react";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -78,7 +78,7 @@ export default function Admin() {
   const [assigningRevenueId, setAssigningRevenueId] = useState<number | null>(null);
   const [assignRevenueTrainerId, setAssignRevenueTrainerId] = useState("");
 
-  const [adminTab, setAdminTab] = useState<"account" | "work">("account");
+  const [adminTab, setAdminTab] = useState<"account" | "work" | "server">("account");
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [dbRestoring, setDbRestoring] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
@@ -207,18 +207,7 @@ export default function Admin() {
   if (user?.role !== "admin" && user?.role !== "sub_admin") {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">관리자 설정</h1>
-          <a
-            href="https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-semibold transition-colors"
-          >
-            <ExternalLink className="h-4 w-4" />
-            ZIANTGYM+
-          </a>
-        </div>
+        <h1 className="text-xl font-bold">관리자 설정</h1>
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
           <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
             <Lock className="h-6 w-6 text-red-400" />
@@ -253,15 +242,6 @@ export default function Admin() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">관리자 설정</h1>
-        <a
-          href="https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-semibold transition-colors"
-        >
-          <ExternalLink className="h-4 w-4" />
-          ZIANTGYM+
-        </a>
       </div>
 
       {/* 탭 */}
@@ -274,6 +254,10 @@ export default function Admin() {
           className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "work" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
           업무 관리
         </button>
+        <button onClick={() => setAdminTab("server")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "server" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          서버 관리
+        </button>
       </div>
 
       {adminTab === "work" && (
@@ -282,6 +266,8 @@ export default function Admin() {
           <NoticeManagementSection />
         </>
       )}
+
+      {adminTab === "server" && <ServerManagementSection />}
 
       {adminTab === "account" && (<>
 
@@ -1157,6 +1143,143 @@ function SubAdminSection() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── 서버 관리 ──────────────────────────────────────────────────────────────────
+const GYMPLUS_URL = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
+const ACCESS_ADMIN_URL_KEY = "ziantgym_access_admin_url";
+
+function ServerManagementSection() {
+  const [accessUrl, setAccessUrl] = useState(() => localStorage.getItem(ACCESS_ADMIN_URL_KEY) ?? "");
+  const [editingAccess, setEditingAccess] = useState(false);
+  const [accessInput, setAccessInput] = useState(accessUrl);
+
+  function saveAccessUrl() {
+    const trimmed = accessInput.trim();
+    localStorage.setItem(ACCESS_ADMIN_URL_KEY, trimmed);
+    setAccessUrl(trimmed);
+    setEditingAccess(false);
+    toast.success("출입 어드민 URL이 저장되었습니다");
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* ZIANTGYM+ */}
+      <div className="bg-card border border-violet-500/30 rounded-xl p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0">
+                <ExternalLink className="h-4 w-4 text-violet-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">ZIANTGYM+</p>
+                <p className="text-xs text-muted-foreground">회원 앱 어드민 (자이언트짐+)</p>
+              </div>
+            </div>
+          </div>
+          <a
+            href={GYMPLUS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-semibold transition-colors shrink-0"
+          >
+            <LogIn className="h-4 w-4" />
+            열기
+          </a>
+        </div>
+        <p className="text-xs text-muted-foreground/60 mt-2 truncate">{GYMPLUS_URL}</p>
+      </div>
+
+      {/* 출입 어드민 */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <Server className="h-4 w-4 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">출입 어드민</p>
+              <p className="text-xs text-muted-foreground">락커 관리 · 회원 출입 관리</p>
+            </div>
+          </div>
+          {accessUrl ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => { setAccessInput(accessUrl); setEditingAccess(true); }}
+                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 border border-border rounded-lg transition-colors"
+              >
+                수정
+              </button>
+              <a
+                href={accessUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-colors"
+              >
+                <LogIn className="h-4 w-4" />
+                열기
+              </a>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setAccessInput(""); setEditingAccess(true); }}
+              className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors shrink-0"
+            >
+              <Plus className="h-4 w-4" />
+              URL 설정
+            </button>
+          )}
+        </div>
+
+        {accessUrl && !editingAccess && (
+          <p className="text-xs text-muted-foreground/60 truncate">{accessUrl}</p>
+        )}
+
+        {editingAccess && (
+          <div className="space-y-2 pt-1 border-t border-border">
+            <label className="text-xs text-muted-foreground">출입 어드민 URL</label>
+            <input
+              type="url"
+              value={accessInput}
+              onChange={e => setAccessInput(e.target.value)}
+              placeholder="https://..."
+              autoFocus
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingAccess(false)}
+                className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={saveAccessUrl}
+                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 안내 */}
+      <div className="bg-accent/20 border border-border rounded-xl p-4 space-y-1.5">
+        <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+          <Server className="h-3.5 w-3.5 text-muted-foreground" />서버 연동 안내
+        </p>
+        <ul className="text-xs text-muted-foreground space-y-1 pl-1">
+          <li>• ZIANTGYM+ : 회원 전용 모바일 앱 관리자 페이지</li>
+          <li>• 출입 어드민 : 락커·출입 카드·회원 출입 관리 페이지</li>
+          <li>• 각 링크는 새 탭에서 열립니다</li>
+        </ul>
+      </div>
+    </div>
   );
 }
 
