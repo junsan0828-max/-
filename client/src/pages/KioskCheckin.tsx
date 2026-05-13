@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { trpc } from "../lib/trpc";
 
 type CheckResult = {
@@ -49,15 +49,21 @@ function daysUntil(dateStr: string): number {
 }
 
 export default function KioskCheckin() {
-  const [digits, setDigits] = useState(""); // 010 뒤 8자리
+  const [digits, setDigits] = useState("");
   const [result, setResult] = useState<CheckResult>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
   const now = useClock();
 
   const checkIn = trpc.access.checkIn.useMutation({
     onSuccess: (data) => {
+      setErrorMsg(null);
       setResult(data as CheckResult);
-      setCountdown(8);
+      setCountdown(10);
+    },
+    onError: (err) => {
+      setErrorMsg(err.message || "서버 오류가 발생했습니다.");
+      setCountdown(5);
     },
   });
 
@@ -66,7 +72,12 @@ export default function KioskCheckin() {
     if (countdown <= 0) return;
     const t = setInterval(() => {
       setCountdown((c) => {
-        if (c <= 1) { setResult(null); setDigits(""); return 0; }
+        if (c <= 1) {
+          setResult(null);
+          setErrorMsg(null);
+          setDigits("");
+          return 0;
+        }
         return c - 1;
       });
     }, 1000);
@@ -74,23 +85,29 @@ export default function KioskCheckin() {
   }, [countdown]);
 
   const handleKey = useCallback((k: string) => {
-    if (result) return;
+    if (result || errorMsg) return;
     if (k === "del") { setDigits((v) => v.slice(0, -1)); return; }
     if (k === "clear") { setDigits(""); return; }
     if (digits.length >= 8) return;
     setDigits((v) => v + k);
-  }, [digits, result]);
+  }, [digits, result, errorMsg]);
 
   const handleSubmit = useCallback(() => {
     if (digits.length !== 8 || checkIn.isPending) return;
     checkIn.mutate({ phone: "010" + digits });
   }, [digits, checkIn]);
 
-  // 키보드 지원
+  const handleClose = useCallback(() => {
+    setResult(null);
+    setErrorMsg(null);
+    setDigits("");
+    setCountdown(0);
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (result) {
-        if (e.key === "Escape" || e.key === "Enter") { setResult(null); setDigits(""); setCountdown(0); }
+      if (result || errorMsg) {
+        if (e.key === "Escape" || e.key === "Enter") handleClose();
         return;
       }
       if (e.key >= "0" && e.key <= "9") handleKey(e.key);
@@ -99,153 +116,179 @@ export default function KioskCheckin() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleKey, handleSubmit, result]);
+  }, [handleKey, handleSubmit, handleClose, result, errorMsg]);
 
-  // 전화번호 표시: 010-????-????
-  const d1 = digits.slice(0, 4).padEnd(4, "_");
-  const d2 = digits.slice(4, 8).padEnd(4, "_");
-  const displayPhone = `010-${d1}-${d2}`;
+  // 전화번호 표시
+  const a = digits.slice(0, 4).padEnd(4, "_");
+  const b = digits.slice(4, 8).padEnd(4, "_");
+
+  const showPopup = result !== null || errorMsg !== null;
 
   return (
-    <div className="fixed inset-0 bg-[#0a0a0a] flex flex-col overflow-hidden select-none font-sans">
-
-      {/* ── 상단 배경 영역 ── */}
-      <div className="relative flex-[0_0_52%] overflow-hidden">
-        {/* 배경 그라디언트 (헬스장 이미지 없을 때 대체) */}
+    <div
+      className="fixed inset-0 flex flex-col overflow-hidden select-none"
+      style={{ background: "#0a0a0a", fontFamily: "'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif" }}
+    >
+      {/* ── 상단 배경 배너 ── */}
+      <div
+        className="relative overflow-hidden"
+        style={{ height: "38%", minHeight: 200 }}
+      >
         <div
           className="absolute inset-0"
           style={{
-            background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 70%, #1a1a2e 100%)",
+            background:
+              "radial-gradient(ellipse at 60% 40%, #0f3460 0%, #16213e 50%, #0a0a0a 100%)",
           }}
         />
-        {/* 상단 헬스장 이름 */}
-        <div className="absolute top-0 left-0 right-0 z-10 px-6 pt-5">
-          <p className="text-white text-xl font-bold tracking-[0.15em] drop-shadow-lg">
+        {/* 헬스장 이름 */}
+        <div className="absolute top-4 left-0 right-0 text-center z-10">
+          <p className="text-white font-bold tracking-[0.2em]" style={{ fontSize: 15 }}>
             맞춤운동센터 자이언트짐
           </p>
         </div>
-        {/* 중앙 장식 텍스트 */}
-        <div className="absolute inset-0 flex flex-col items-start justify-center pl-8 pb-4 z-10">
-          <p className="text-white/80 text-2xl font-light tracking-widest mb-1">여러분의 형제,</p>
+        {/* 슬로건 */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pb-4">
+          <p className="text-white/70 font-light tracking-widest mb-1" style={{ fontSize: 18 }}>
+            여러분의 형제,
+          </p>
           <p
-            className="text-5xl font-extrabold tracking-widest"
-            style={{ color: "#ff6600", textShadow: "0 0 30px rgba(255,102,0,0.6)" }}
+            className="font-extrabold tracking-widest leading-none"
+            style={{
+              fontSize: 54,
+              color: "#ff6600",
+              textShadow: "0 0 40px rgba(255,102,0,0.5), 0 0 80px rgba(255,102,0,0.2)",
+            }}
           >
-            자이언트짐
+            브로제이
           </p>
         </div>
-        {/* 우측 하단 페이드 */}
-        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0a0a0a] to-transparent z-10" />
+        {/* 하단 페이드 */}
+        <div
+          className="absolute bottom-0 left-0 right-0"
+          style={{ height: 60, background: "linear-gradient(to bottom, transparent, #0a0a0a)" }}
+        />
       </div>
 
-      {/* ── 하단 체크인 영역 ── */}
-      <div className="flex-1 flex gap-0">
-
-        {/* 카메라 영역 */}
-        <div className="w-[42%] relative bg-[#111] flex items-center justify-center overflow-hidden">
-          <div className="w-full h-full bg-[#0d0d0d] flex items-center justify-center">
-            {/* 카메라 미리보기 자리 */}
-            <div className="relative w-36 h-36">
-              {/* 원형 스캔 애니메이션 */}
-              <div
-                className="absolute inset-0 rounded-full border-2 opacity-60"
-                style={{ borderColor: "#ff6600", animation: "ping 2s cubic-bezier(0,0,0.2,1) infinite" }}
-              />
-              <div
-                className="absolute inset-2 rounded-full border opacity-40"
-                style={{ borderColor: "#ff6600" }}
-              />
-              <div
-                className="absolute inset-0 rounded-full border-2"
-                style={{ borderColor: "#ff6600" }}
-              />
-              {/* 얼굴 아이콘 */}
-              <svg className="absolute inset-0 w-full h-full p-8 opacity-50" viewBox="0 0 100 100" fill="none">
-                <circle cx="50" cy="38" r="18" stroke="#ff6600" strokeWidth="3"/>
-                <path d="M20 85 C20 65 80 65 80 85" stroke="#ff6600" strokeWidth="3" strokeLinecap="round"/>
-                <circle cx="42" cy="34" r="3" fill="#ff6600"/>
-                <circle cx="58" cy="34" r="3" fill="#ff6600"/>
-                <path d="M43 45 Q50 51 57 45" stroke="#ff6600" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+      {/* ── 하단 키패드 영역 ── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* 카메라 영역 (가로 화면에서만 표시) */}
+        <div
+          className="hidden landscape:flex flex-col items-center justify-center"
+          style={{ width: "38%", background: "#080808", borderRight: "1px solid #1a1a1a" }}
+        >
+          <div className="relative" style={{ width: 140, height: 140 }}>
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{ border: "2px solid #ff6600", animation: "pulse-ring 2s ease-in-out infinite" }}
+            />
+            <div
+              className="absolute rounded-full"
+              style={{ inset: 8, border: "1px solid rgba(255,102,0,0.4)" }}
+            />
+            <div
+              className="absolute inset-0 rounded-full flex items-center justify-center"
+              style={{ border: "2px solid #ff6600" }}
+            >
+              <svg width="56" height="60" viewBox="0 0 56 60" fill="none">
+                <circle cx="28" cy="20" r="12" stroke="#ff6600" strokeWidth="2"/>
+                <path d="M8 56C8 42 48 42 48 56" stroke="#ff6600" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="23" cy="18" r="2" fill="#ff6600"/>
+                <circle cx="33" cy="18" r="2" fill="#ff6600"/>
+                <path d="M23 26Q28 30 33 26" stroke="#ff6600" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
               </svg>
             </div>
           </div>
-          <p className="absolute bottom-4 text-xs text-gray-500 tracking-widest">Searching...</p>
+          <p className="mt-4 text-gray-600 tracking-widest" style={{ fontSize: 11 }}>Searching...</p>
         </div>
 
-        {/* 키패드 영역 */}
-        <div className="flex-1 bg-[#0f0f0f] flex flex-col px-4 py-3 gap-2">
-
+        {/* 키패드 패널 */}
+        <div className="flex-1 flex flex-col px-5 py-3 gap-2" style={{ background: "#0a0a0a" }}>
           {/* 탭 */}
-          <div className="flex text-xs">
-            {(["출석번호", "휴대폰번호", "통합번호"] as const).map((label) => (
-              <button
-                key={label}
-                className={`flex-1 py-1.5 text-center transition-colors ${
-                  label === "휴대폰번호"
-                    ? "text-white border-b-2"
-                    : "text-gray-600 border-b border-gray-800"
-                }`}
-                style={label === "휴대폰번호" ? { borderColor: "#ff6600" } : {}}
-              >
-                {label}
-              </button>
-            ))}
+          <div
+            className="flex"
+            style={{ borderBottom: "1px solid #1e1e1e", paddingBottom: 0 }}
+          >
+            {["출석번호", "휴대폰번호", "통합번호"].map((label) => {
+              const active = label === "휴대폰번호";
+              return (
+                <button
+                  key={label}
+                  className="flex-1 py-2 text-center transition-colors"
+                  style={{
+                    fontSize: 12,
+                    color: active ? "white" : "#555",
+                    borderBottom: active ? "2px solid #ff6600" : "2px solid transparent",
+                    marginBottom: -1,
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           {/* 전화번호 표시 */}
           <div className="text-center py-1">
             <span
-              className="text-2xl font-bold tracking-[0.2em] font-mono"
-              style={{ color: "#ff6600" }}
+              className="font-mono font-bold tracking-[0.15em] whitespace-nowrap"
+              style={{ fontSize: 30, color: "#ff6600" }}
             >
-              {displayPhone}
+              010-{a}-{b}
             </span>
           </div>
 
-          {/* 키패드 */}
-          <div className="grid grid-cols-3 gap-1.5 flex-1">
-            {["1","2","3","4","5","6","7","8","9","취소","0","del"].map((k) => (
-              <button
-                key={k}
-                onClick={() => k === "취소" ? handleKey("clear") : handleKey(k)}
-                className="flex items-center justify-center rounded-lg text-white font-semibold text-xl transition-all active:scale-95"
-                style={{
-                  background: k === "취소" || k === "del" ? "#1a1a1a" : "#181818",
-                  border: "1px solid #2a2a2a",
-                  minHeight: "52px",
-                }}
-                onMouseDown={(e) => { (e.target as HTMLElement).style.background = "#2a2a2a"; }}
-                onMouseUp={(e) => {
-                  (e.target as HTMLElement).style.background =
-                    k === "취소" || k === "del" ? "#1a1a1a" : "#181818";
-                }}
-                onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#2a2a2a"; }}
-                onTouchEnd={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    k === "취소" || k === "del" ? "#1a1a1a" : "#181818";
-                }}
-              >
-                {k === "del" ? (
-                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
-                    <path d="M7 1H19C19.55 1 20 1.45 20 2V14C20 14.55 19.55 15 19 15H7L1 8L7 1Z" stroke="#aaa" strokeWidth="1.5"/>
-                    <path d="M13 5.5L9 10.5M9 5.5L13 10.5" stroke="#aaa" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                ) : k === "취소" ? (
-                  <span className="text-gray-400 text-sm">{k}</span>
-                ) : k}
-              </button>
-            ))}
+          {/* 키패드 3×4 */}
+          <div
+            className="grid gap-2 flex-1"
+            style={{ gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(4, 1fr)" }}
+          >
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "취소", "0", "del"].map((k) => {
+              const isAction = k === "취소" || k === "del";
+              return (
+                <button
+                  key={k}
+                  onClick={() => (k === "취소" ? handleKey("clear") : handleKey(k))}
+                  className="flex items-center justify-center rounded-xl font-semibold transition-all active:scale-95"
+                  style={{
+                    background: isAction ? "#141414" : "#111111",
+                    border: "1px solid #222",
+                    color: isAction ? "#888" : "white",
+                    fontSize: k === "취소" ? 13 : 22,
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                  onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#252525"; }}
+                  onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.background = isAction ? "#141414" : "#111111"; }}
+                >
+                  {k === "del" ? (
+                    <svg width="22" height="17" viewBox="0 0 22 17" fill="none">
+                      <path d="M8 1H21C21.55 1 22 1.45 22 2V15C22 15.55 21.55 16 21 16H8L1 8.5L8 1Z" stroke="#888" strokeWidth="1.5"/>
+                      <line x1="10" y1="5.5" x2="16" y2="11.5" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
+                      <line x1="16" y1="5.5" x2="10" y2="11.5" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  ) : k}
+                </button>
+              );
+            })}
           </div>
 
           {/* 출석하기 버튼 */}
           <button
             onClick={handleSubmit}
             disabled={digits.length !== 8 || checkIn.isPending}
-            className="w-full py-3.5 rounded-lg font-bold text-lg tracking-widest transition-all active:scale-[0.98] disabled:opacity-30"
+            className="w-full rounded-xl font-bold tracking-widest transition-all active:scale-[0.98] disabled:opacity-30"
             style={{
-              background: digits.length === 8 ? "linear-gradient(135deg, #ff6600, #ff4400)" : "#2a2a2a",
+              height: 54,
+              fontSize: 17,
+              background:
+                digits.length === 8
+                  ? "linear-gradient(135deg, #ff6600, #e55000)"
+                  : "#1a1a1a",
               color: "white",
-              boxShadow: digits.length === 8 ? "0 4px 20px rgba(255,102,0,0.4)" : "none",
+              border: "none",
+              boxShadow: digits.length === 8 ? "0 4px 24px rgba(255,102,0,0.35)" : "none",
+              WebkitTapHighlightColor: "transparent",
             }}
           >
             {checkIn.isPending ? "확인 중..." : "출석하기"}
@@ -253,43 +296,58 @@ export default function KioskCheckin() {
         </div>
       </div>
 
-      {/* ── 결과 팝업 ── */}
-      {result && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.85)" }}
-          onClick={() => { setResult(null); setDigits(""); setCountdown(0); }}
+      {/* ── 결과 / 에러 팝업 ── */}
+      {showPopup && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.88)" }}
+          onClick={handleClose}
         >
           <div
-            className="w-full max-w-[360px] rounded-2xl overflow-hidden relative"
-            style={{ background: "rgba(20,20,20,0.97)", border: "1px solid rgba(255,255,255,0.08)" }}
+            className="w-full rounded-t-3xl sm:rounded-2xl sm:max-w-sm relative overflow-hidden"
+            style={{
+              background: "#141414",
+              border: "1px solid rgba(255,255,255,0.07)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* 드래그 핸들 (모바일) */}
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#333" }} />
+            </div>
+
             {/* 닫기 버튼 */}
             <button
-              onClick={() => { setResult(null); setDigits(""); setCountdown(0); }}
-              className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"
-              style={{ background: "rgba(255,255,255,0.1)" }}
+              onClick={handleClose}
+              className="absolute top-4 right-4 z-10 flex items-center justify-center rounded-full"
+              style={{ width: 28, height: 28, background: "rgba(255,255,255,0.1)" }}
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <line x1="1" y1="1" x2="9" y2="9" stroke="#aaa" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="9" y1="1" x2="1" y2="9" stroke="#aaa" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </button>
 
-            {result.result === "not_found" ? (
+            {/* 컨텐츠 */}
+            {errorMsg ? (
+              <ErrorCard msg={errorMsg} />
+            ) : result?.result === "not_found" ? (
               <NotFoundCard />
-            ) : result.result === "blocked" ? (
+            ) : result?.result === "blocked" ? (
               <BlockedCard name={result.member!.name} now={now} />
-            ) : (
+            ) : result ? (
               <MemberCard result={result} now={now} expired={result.result === "expired"} />
-            )}
+            ) : null}
 
             {/* 카운트다운 바 */}
-            <div className="h-0.5 bg-gray-800">
+            <div style={{ height: 3, background: "#1e1e1e" }}>
               <div
-                className="h-full transition-all"
                 style={{
-                  width: `${(countdown / 8) * 100}%`,
-                  background: "linear-gradient(90deg, #ff6600, #ff4400)",
+                  height: "100%",
+                  width: `${(countdown / 10) * 100}%`,
+                  background: "linear-gradient(90deg, #ff6600, #ff3300)",
                   transition: "width 1s linear",
                 }}
               />
@@ -299,14 +357,20 @@ export default function KioskCheckin() {
       )}
 
       <style>{`
-        @keyframes ping {
-          0% { transform: scale(1); opacity: 0.6; }
-          75%, 100% { transform: scale(1.5); opacity: 0; }
+        @keyframes pulse-ring {
+          0%, 100% { transform: scale(1); opacity: 0.8; }
+          50% { transform: scale(1.12); opacity: 0.3; }
         }
+        .landscape\\:flex { display: none; }
+        @media (orientation: landscape) { .landscape\\:flex { display: flex !important; } }
+        .hidden.landscape\\:flex { display: none; }
+        @media (orientation: landscape) { .hidden.landscape\\:flex { display: flex !important; } }
       `}</style>
     </div>
   );
 }
+
+/* ── 카드 컴포넌트들 ── */
 
 function MemberCard({
   result,
@@ -318,181 +382,245 @@ function MemberCard({
   expired: boolean;
 }) {
   const m = result.member!;
-  const today = new Date().toISOString().substring(0, 10);
 
   return (
     <div>
-      {/* 헤더: 이름 + 시간 */}
-      <div className="flex items-start gap-3 p-4 pb-3">
-        {/* 프로필 사진 자리 */}
+      {/* 헤더 */}
+      <div className="flex items-start gap-3 px-5 pt-5 pb-4">
         <div
-          className="w-16 h-16 rounded-xl shrink-0 flex items-center justify-center overflow-hidden"
-          style={{ background: "rgba(255,102,0,0.15)", border: "1px solid rgba(255,102,0,0.3)" }}
+          className="shrink-0 flex items-center justify-center rounded-xl overflow-hidden"
+          style={{ width: 64, height: 64, background: "rgba(255,102,0,0.12)", border: "1px solid rgba(255,102,0,0.25)" }}
         >
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <circle cx="14" cy="10" r="6" stroke="#ff6600" strokeWidth="1.5"/>
-            <path d="M4 26C4 20 24 20 24 26" stroke="#ff6600" strokeWidth="1.5" strokeLinecap="round"/>
+          <svg width="28" height="30" viewBox="0 0 28 30" fill="none">
+            <circle cx="14" cy="10" r="7" stroke="#ff6600" strokeWidth="1.5"/>
+            <path d="M2 28C2 20 26 20 26 28" stroke="#ff6600" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-lg font-bold text-white leading-tight">
+          <p className="font-bold text-white leading-snug" style={{ fontSize: 18 }}>
             <span style={{ color: "#ff6600" }}>{m.name}</span>님, 환영합니다.
           </p>
-          <p className="text-xs text-gray-400 mt-0.5">{formatClockFull(now)}</p>
-          <p className="text-xs text-gray-600 mt-0.5">보유 마일리지 &nbsp;-점</p>
+          <p className="text-gray-400 mt-0.5" style={{ fontSize: 12 }}>{formatClockFull(now)}</p>
+          <p className="text-gray-600 mt-0.5" style={{ fontSize: 11 }}>보유 마일리지 &nbsp;-점</p>
         </div>
       </div>
 
-      <div className="h-px bg-white/5 mx-4" />
+      <Divider />
 
-      {/* 회원권 섹션 */}
-      <div className="px-4 py-3 flex gap-3 items-start">
-        {/* 아이콘 */}
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: expired ? "rgba(180,0,0,0.3)" : "rgba(255,102,0,0.2)" }}
-        >
-          <svg width="18" height="16" viewBox="0 0 18 16" fill="none">
-            <rect x="1" y="3" width="16" height="10" rx="2" stroke={expired ? "#cc3333" : "#ff6600"} strokeWidth="1.5"/>
-            <path d="M1 7H17" stroke={expired ? "#cc3333" : "#ff6600"} strokeWidth="1"/>
-            <circle cx="5" cy="5" r="1" fill={expired ? "#cc3333" : "#ff6600"}/>
-            <circle cx="13" cy="5" r="1" fill={expired ? "#cc3333" : "#ff6600"}/>
+      {/* 회원권 */}
+      <SectionRow
+        icon={
+          <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
+            <rect x="1" y="1" width="18" height="14" rx="2.5" stroke={expired ? "#cc3333" : "#ff6600"} strokeWidth="1.5"/>
+            <line x1="1" y1="6" x2="19" y2="6" stroke={expired ? "#cc3333" : "#ff6600"} strokeWidth="0.8"/>
+            <circle cx="5.5" cy="3.5" r="1.2" fill={expired ? "#cc3333" : "#ff6600"}/>
+            <circle cx="14.5" cy="3.5" r="1.2" fill={expired ? "#cc3333" : "#ff6600"}/>
           </svg>
-        </div>
-        <div className="flex-1">
-          {expired ? (
-            <>
-              <p className="text-sm font-bold text-red-400">회원권이 만료되었습니다.</p>
-              <p className="text-xs text-red-600 mt-0.5">관리자에게 문의해주세요.</p>
-              {m.membershipEnd && (
-                <p className="text-xs text-gray-600 mt-1">만료일: {m.membershipEnd}</p>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">현재 회원권</span>
-                <span className="text-xs text-white font-medium">{m.membershipType ?? "-"}</span>
-              </div>
-              {m.membershipEnd && (
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-gray-500">회원권 만료일</span>
-                  <span className={`text-xs font-medium ${daysUntil(m.membershipEnd) <= 7 ? "text-orange-400" : "text-white"}`}>
-                    {m.membershipEnd}
-                    {daysUntil(m.membershipEnd) <= 7 && (
-                      <span className="ml-1 text-orange-500">D-{daysUntil(m.membershipEnd)}</span>
-                    )}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between items-center mt-1">
-                <span className="text-xs text-gray-500">남은 입장 횟수</span>
-                <span className="text-xs font-bold" style={{ color: "#ff6600" }}>무제한</span>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+        }
+        iconBg={expired ? "rgba(180,0,0,0.2)" : "rgba(255,102,0,0.15)"}
+      >
+        {expired ? (
+          <>
+            <p className="font-bold" style={{ color: "#ff4444", fontSize: 16 }}>회원권이 만료되었습니다.</p>
+            <p style={{ color: "#993333", fontSize: 12, marginTop: 2 }}>관리자에게 문의해주세요.</p>
+            {m.membershipEnd && (
+              <p style={{ color: "#555", fontSize: 11, marginTop: 4 }}>만료일: {m.membershipEnd}</p>
+            )}
+          </>
+        ) : (
+          <div className="space-y-1.5">
+            <InfoRow label="현재 회원권" value={m.membershipType ?? "-"} />
+            {m.membershipEnd && (
+              <InfoRow
+                label="회원권 만료일"
+                value={m.membershipEnd}
+                accent={daysUntil(m.membershipEnd) <= 7 ? `D-${daysUntil(m.membershipEnd)}` : undefined}
+              />
+            )}
+            <InfoRow label="남은 입장 횟수" value="무제한" valueColor="#ff6600" />
+          </div>
+        )}
+      </SectionRow>
 
-      <div className="h-px bg-white/5 mx-4" />
+      <Divider />
 
-      {/* 수강권 섹션 */}
-      <div className="px-4 py-3 flex gap-3 items-start">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: "rgba(80,80,80,0.3)" }}
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <polygon points="9,1 11.5,6.5 17.5,7.3 13,11.7 14.1,17.7 9,14.8 3.9,17.7 5,11.7 0.5,7.3 6.5,6.5" stroke="#888" strokeWidth="1.2" fill="none"/>
+      {/* 수강권 */}
+      <SectionRow
+        icon={
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 1L12.6 6.9L19 7.6L14.5 12L15.8 18.3L10 15.1L4.2 18.3L5.5 12L1 7.6L7.4 6.9Z"
+              stroke="#666" strokeWidth="1.3" fill="none"/>
           </svg>
+        }
+        iconBg="rgba(80,80,80,0.2)"
+      >
+        <div className="space-y-1.5">
+          <InfoRow label="수강권 만료일" value={m.ptPackage?.expiryDate ?? "-"} />
+          <InfoRow label="잔여 수강" value={m.ptPackage ? `${m.ptPackage.remainingSessions}회` : "-"} />
+          <InfoRow label="수강권 상품명" value={m.ptPackage?.name ?? "-"} />
         </div>
-        <div className="flex-1">
+      </SectionRow>
+
+      <Divider />
+
+      {/* 락커 */}
+      <SectionRow
+        icon={
+          <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+            <rect x="1" y="8" width="14" height="11" rx="2" stroke={result.locker ? "#ff6600" : "#555"} strokeWidth="1.5"/>
+            <path d="M4.5 8V5.5C4.5 3.6 6.1 2 8 2C9.9 2 11.5 3.6 11.5 5.5V8"
+              stroke={result.locker ? "#ff6600" : "#555"} strokeWidth="1.5" strokeLinecap="round"/>
+            <circle cx="8" cy="14.5" r="1.8" fill={result.locker ? "#ff6600" : "#555"}/>
+          </svg>
+        }
+        iconBg={result.locker ? "rgba(255,102,0,0.15)" : "rgba(60,60,60,0.3)"}
+      >
+        <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="text-xs text-gray-500">수강권 만료일</span>
-            <span className="text-xs text-white">{m.ptPackage?.expiryDate ?? "-"}</span>
-          </div>
-          <div className="flex justify-between items-center mt-1">
-            <span className="text-xs text-gray-500">잔여 수강</span>
-            <span className="text-xs text-white">{m.ptPackage ? `${m.ptPackage.remainingSessions}회` : "-"}</span>
-          </div>
-          <div className="flex justify-between items-center mt-1">
-            <span className="text-xs text-gray-500">수강권 상품명</span>
-            <span className="text-xs text-white truncate max-w-[140px]">{m.ptPackage?.name ?? "-"}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="h-px bg-white/5 mx-4" />
-
-      {/* 락커 섹션 */}
-      <div className="px-4 py-3 flex gap-3 items-start">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: result.locker ? "rgba(255,102,0,0.2)" : "rgba(80,80,80,0.3)" }}
-        >
-          <svg width="16" height="18" viewBox="0 0 16 18" fill="none">
-            <rect x="1" y="7" width="14" height="10" rx="2" stroke={result.locker ? "#ff6600" : "#666"} strokeWidth="1.5"/>
-            <path d="M5 7V5C5 3.3 6.3 2 8 2C9.7 2 11 3.3 11 5V7" stroke={result.locker ? "#ff6600" : "#666"} strokeWidth="1.5" strokeLinecap="round"/>
-            <circle cx="8" cy="13" r="1.5" fill={result.locker ? "#ff6600" : "#666"}/>
-          </svg>
-        </div>
-        <div className="flex-1">
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-gray-500">개인락커</span>
+            <span style={{ color: "#888", fontSize: 13 }}>개인락커</span>
             <div className="flex items-center gap-1.5">
               {result.locker ? (
                 <>
-                  <span className="text-xs text-white font-medium">{result.locker.lockerNumber}번</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded font-medium text-white" style={{ background: "#ff6600" }}>사용중</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded font-medium text-white" style={{ background: "#444" }}>무제한</span>
+                  <span style={{ color: "white", fontSize: 13, fontWeight: 500 }}>{result.locker.lockerNumber}번</span>
+                  <Badge text="사용중" color="#ff6600" />
+                  <Badge text="무제한" color="#444" />
                 </>
               ) : (
-                <span className="text-xs text-gray-600">-</span>
+                <span style={{ color: "#555", fontSize: 13 }}>-</span>
               )}
             </div>
           </div>
-          <div className="flex justify-between items-center mt-1.5">
-            <span className="text-xs text-gray-500">운동복</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium text-white" style={{ background: "#333" }}>미사용</span>
+          <div className="flex justify-between items-center">
+            <span style={{ color: "#888", fontSize: 13 }}>운동복</span>
+            <Badge text="미사용" color="#333" />
           </div>
         </div>
-      </div>
+      </SectionRow>
+
+      <div style={{ height: 8 }} />
     </div>
   );
 }
 
 function NotFoundCard() {
   return (
-    <div className="p-8 text-center">
+    <div className="flex flex-col items-center py-10 px-6 text-center">
       <div
-        className="w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-4"
-        style={{ background: "rgba(100,100,100,0.2)" }}
+        className="flex items-center justify-center rounded-full mb-4"
+        style={{ width: 64, height: 64, background: "rgba(80,80,80,0.2)" }}
       >
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
           <circle cx="14" cy="14" r="12" stroke="#666" strokeWidth="1.5"/>
-          <path d="M9 9L19 19M19 9L9 19" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="9" y1="9" x2="19" y2="19" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="19" y1="9" x2="9" y2="19" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
       </div>
-      <p className="text-white font-bold text-base">등록된 회원을 찾을 수 없습니다.</p>
-      <p className="text-gray-500 text-sm mt-1">전화번호를 다시 확인해주세요.</p>
+      <p className="font-bold text-white" style={{ fontSize: 16 }}>등록된 회원을 찾을 수 없습니다.</p>
+      <p className="text-gray-500 mt-1" style={{ fontSize: 13 }}>전화번호를 다시 확인해주세요.</p>
     </div>
   );
 }
 
 function BlockedCard({ name, now }: { name: string; now: Date }) {
   return (
-    <div className="p-6">
-      <p className="text-lg font-bold text-white mb-1">
+    <div className="px-5 pt-5 pb-6">
+      <p className="font-bold text-white" style={{ fontSize: 18 }}>
         <span style={{ color: "#ff6600" }}>{name}</span>님
       </p>
-      <p className="text-xs text-gray-400 mb-4">{formatClockFull(now)}</p>
+      <p className="text-gray-500 mt-0.5 mb-4" style={{ fontSize: 12 }}>{formatClockFull(now)}</p>
       <div
-        className="rounded-xl p-4 text-center"
-        style={{ background: "rgba(180,0,0,0.2)", border: "1px solid rgba(180,0,0,0.4)" }}
+        className="rounded-2xl px-4 py-4 text-center"
+        style={{ background: "rgba(160,0,0,0.18)", border: "1px solid rgba(180,0,0,0.35)" }}
       >
-        <p className="text-red-400 font-bold">출입이 제한된 회원입니다.</p>
-        <p className="text-red-600 text-sm mt-1">관리자에게 문의해주세요.</p>
+        <p className="font-bold" style={{ color: "#ff4444", fontSize: 16 }}>출입이 제한된 회원입니다.</p>
+        <p style={{ color: "#993333", fontSize: 13, marginTop: 4 }}>관리자에게 문의해주세요.</p>
       </div>
     </div>
+  );
+}
+
+function ErrorCard({ msg }: { msg: string }) {
+  return (
+    <div className="flex flex-col items-center py-10 px-6 text-center">
+      <div
+        className="flex items-center justify-center rounded-full mb-4"
+        style={{ width: 64, height: 64, background: "rgba(180,100,0,0.2)" }}
+      >
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="12" stroke="#ff8800" strokeWidth="1.5"/>
+          <line x1="14" y1="8" x2="14" y2="15" stroke="#ff8800" strokeWidth="2" strokeLinecap="round"/>
+          <circle cx="14" cy="19" r="1.2" fill="#ff8800"/>
+        </svg>
+      </div>
+      <p className="font-bold text-white" style={{ fontSize: 15 }}>오류가 발생했습니다</p>
+      <p className="text-gray-500 mt-1" style={{ fontSize: 12 }}>{msg}</p>
+    </div>
+  );
+}
+
+/* ── 공통 UI ── */
+
+function Divider() {
+  return <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 20px" }} />;
+}
+
+function SectionRow({
+  icon,
+  iconBg,
+  children,
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-3 px-5 py-3.5">
+      <div
+        className="shrink-0 flex items-center justify-center rounded-full"
+        style={{ width: 40, height: 40, background: iconBg }}
+      >
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0 flex items-center">{children}</div>
+    </div>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+  accent,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  accent?: string;
+  valueColor?: string;
+}) {
+  return (
+    <div className="flex justify-between items-center">
+      <span style={{ color: "#888", fontSize: 13 }}>{label}</span>
+      <div className="flex items-center gap-1.5">
+        <span style={{ color: valueColor ?? "white", fontSize: 13, fontWeight: 500 }}>{value}</span>
+        {accent && <span style={{ color: "#ff8800", fontSize: 11 }}>{accent}</span>}
+      </div>
+    </div>
+  );
+}
+
+function Badge({ text, color }: { text: string; color: string }) {
+  return (
+    <span
+      className="font-medium"
+      style={{
+        fontSize: 11,
+        padding: "2px 8px",
+        borderRadius: 4,
+        background: color,
+        color: "white",
+      }}
+    >
+      {text}
+    </span>
   );
 }
