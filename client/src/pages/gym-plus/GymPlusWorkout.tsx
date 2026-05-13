@@ -290,30 +290,65 @@ function BodyPartSelector({
 }
 
 // ── 기록 목록에서 운동 표시 헬퍼 ─────────────────────────────────────────────
-function renderExerciseRow(ex: any, i: number) {
+function getYoutubeEmbedUrl(url: string): string | null {
+  const m = url.match(/(?:(?:www\.|m\.)?youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([^&\n?#]+)/);
+  return m ? `https://www.youtube.com/embed/${m[1]}?rel=0` : null;
+}
+
+function ExerciseVideoModal({ videoUrl, onClose }: { videoUrl: string; onClose: () => void }) {
+  const embedUrl = getYoutubeEmbedUrl(videoUrl);
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-sm p-0 overflow-hidden">
+        <div className="w-full bg-black aspect-video">
+          {embedUrl ? (
+            <iframe src={embedUrl} className="w-full h-full" allowFullScreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />
+          ) : (
+            <video src={videoUrl} controls className="w-full h-full" playsInline />
+          )}
+        </div>
+        <div className="p-3">
+          <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={onClose}>닫기</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ExerciseRowWithVideo({ ex, i }: { ex: any; i: number }) {
+  const [showVideo, setShowVideo] = useState(false);
   const name = ex.name;
   if (!name) return null;
-  // 새 구조: sets: [{reps, weight}]
-  if (Array.isArray(ex.sets)) {
-    const totalSets = ex.sets.length;
-    const sample = ex.sets[0] as ExerciseSet | undefined;
-    return (
-      <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="text-foreground font-medium">{name}</span>
-        <span>{totalSets}세트</span>
-        {sample?.reps && <span>× {sample.reps}회</span>}
-        {sample?.weight && <span>{sample.weight}kg</span>}
-      </div>
-    );
-  }
-  // 구 구조 호환
-  return (
-    <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
-      <span className="text-foreground font-medium">{name}</span>
+
+  const setInfo = Array.isArray(ex.sets) ? (
+    <>
+      <span>{ex.sets.length}세트</span>
+      {ex.sets[0]?.reps && <span>× {ex.sets[0].reps}회</span>}
+      {ex.sets[0]?.weight && <span>{ex.sets[0].weight}kg</span>}
+    </>
+  ) : (
+    <>
       {ex.sets && <span>{ex.sets}세트</span>}
       {ex.reps && <span>× {ex.reps}회</span>}
       {ex.weight && <span>{ex.weight}kg</span>}
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span className="text-foreground font-medium flex-1">{name}</span>
+        {setInfo}
+        {ex.videoUrl && (
+          <button
+            onClick={() => setShowVideo(true)}
+            className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full flex-shrink-0"
+          >▶ 운동영상</button>
+        )}
+      </div>
+      {showVideo && <ExerciseVideoModal videoUrl={ex.videoUrl} onClose={() => setShowVideo(false)} />}
+    </>
   );
 }
 
@@ -528,8 +563,10 @@ export default function GymPlusWorkout() {
                 </div>
 
                 {parsedExercises.length > 0 && (
-                  <div className="space-y-0.5">
-                    {parsedExercises.filter((e) => e.name).map((ex, i) => renderExerciseRow(ex, i))}
+                  <div className="space-y-1">
+                    {parsedExercises.filter((e) => e.name).map((ex, i) => (
+                      <ExerciseRowWithVideo key={i} ex={ex} i={i} />
+                    ))}
                   </div>
                 )}
 

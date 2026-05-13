@@ -617,47 +617,160 @@ export function GymPlusEventsAdmin() {
 // ─── 운동기록 관리 ────────────────────────────────────────────────────────────
 export function GymPlusWorkoutLogsAdmin() {
   const utils = trpc.useUtils();
-  const { data: logs, isLoading } = trpc.gymPlus.admin_listWorkoutLogs.useQuery({});
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  const [filterPt, setFilterPt] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [videoModal, setVideoModal] = useState<{ logId: number; exIdx: number; currentUrl: string } | null>(null);
+  const [videoUrl, setVideoUrl] = useState("");
+
+  const { data: ptMembers } = trpc.gymPlus.admin_listPtMembers.useQuery();
+  const { data: allMembers } = trpc.gymPlus.admin_listMembers.useQuery();
+  const displayMembers = filterPt ? (ptMembers ?? []) : (allMembers ?? []);
+
+  const { data: logs, isLoading } = trpc.gymPlus.admin_listWorkoutLogs.useQuery(
+    selectedMemberId ? { gymPlusMemberId: selectedMemberId } : {},
+  );
 
   const deleteMutation = trpc.gymPlus.admin_deleteWorkoutLog.useMutation({
     onSuccess: () => { utils.gymPlus.admin_listWorkoutLogs.invalidate(); toast.success("삭제되었습니다."); },
     onError: (err) => toast.error(err.message),
   });
 
-  const moodLabel: Record<string, string> = { great: "😄 최상", good: "🙂 좋음", okay: "😐 보통", tired: "😫 피곤", bad: "😞 나쁨" };
+  const updateMutation = trpc.gymPlus.admin_updateWorkoutLog.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listWorkoutLogs.invalidate(); toast.success("저장되었습니다."); setVideoModal(null); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function parseExercises(json: string | null | undefined): any[] {
+    if (!json) return [];
+    try { return JSON.parse(json); } catch { return []; }
+  }
+
+  function saveVideoUrl() {
+    if (!videoModal || !selectedLog) return;
+    const exercises = parseExercises(selectedLog.exercisesJson);
+    exercises[videoModal.exIdx] = { ...exercises[videoModal.exIdx], videoUrl: videoUrl.trim() || undefined };
+    updateMutation.mutate({ id: videoModal.logId, exercisesJson: JSON.stringify(exercises) });
+    setSelectedLog({ ...selectedLog, exercisesJson: JSON.stringify(exercises) });
+  }
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-muted-foreground">전체 운동기록 ({logs?.length ?? 0}건)</p>
+      {/* 필터 */}
+      <div className="flex items-center gap-2">
+        <button
+          className={`text-xs px-3 py-1 rounded-full border transition-colors ${!filterPt ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}
+          onClick={() => { setFilterPt(false); setSelectedMemberId(null); }}
+        >전체 회원</button>
+        <button
+          className={`text-xs px-3 py-1 rounded-full border transition-colors ${filterPt ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}
+          onClick={() => { setFilterPt(true); setSelectedMemberId(null); }}
+        >PT 회원만</button>
+      </div>
+
+      {/* 회원 선택 */}
+      <div className="flex gap-1.5 flex-wrap">
+        <button
+          className={`text-xs px-2 py-1 rounded-lg border ${selectedMemberId === null ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
+          onClick={() => setSelectedMemberId(null)}
+        >전체</button>
+        {displayMembers.map((m: any) => (
+          <button key={m.id}
+            className={`text-xs px-2 py-1 rounded-lg border ${selectedMemberId === m.id ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
+            onClick={() => setSelectedMemberId(m.id)}
+          >{m.name}</button>
+        ))}
+      </div>
+
+      {/* 기록 목록 */}
+      <p className="text-xs text-muted-foreground">운동기록 {logs?.length ?? 0}건</p>
       {isLoading ? (
         <p className="text-sm text-muted-foreground text-center py-4">불러오는 중...</p>
       ) : !logs?.length ? (
         <p className="text-sm text-muted-foreground text-center py-4">운동기록이 없습니다</p>
       ) : (
         <div className="space-y-2">
-          {logs.map((log) => (
-            <div key={log.id} className="flex items-center gap-3 bg-background/50 rounded-xl p-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="text-xs font-semibold text-primary">{log.memberName ?? "알 수 없음"}</p>
-                  <p className="text-[10px] text-muted-foreground">{log.logDate}</p>
-                </div>
-                <p className="text-xs font-medium line-clamp-1">{log.title || "운동 기록"}</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {log.durationMinutes ? `${log.durationMinutes}분` : ""}
-                  {log.durationMinutes && log.caloriesBurned ? " · " : ""}
-                  {log.caloriesBurned ? `${log.caloriesBurned}kcal` : ""}
-                  {log.mood ? ` · ${moodLabel[log.mood] ?? log.mood}` : ""}
-                </p>
+          {logs.map((log) => {
+            const exercises = parseExercises((log as any).exercisesJson);
+            const isOpen = selectedLog?.id === log.id;
+            return (
+              <div key={log.id} className="bg-background/50 rounded-xl border border-border overflow-hidden">
+                <button
+                  className="w-full flex items-center gap-3 p-3 text-left"
+                  onClick={() => setSelectedLog(isOpen ? null : { ...log, exercisesJson: (log as any).exercisesJson })}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-xs font-semibold text-primary">{log.memberName ?? "알 수 없음"}</p>
+                      <p className="text-[10px] text-muted-foreground">{log.logDate}</p>
+                    </div>
+                    <p className="text-xs font-medium">{log.title || "운동 기록"}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {log.durationMinutes ? `${log.durationMinutes}분` : ""}
+                      {log.caloriesBurned ? ` · ${log.caloriesBurned}kcal` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Button variant="destructive" size="sm" className="h-6 text-[10px] px-2"
+                      onClick={(e) => { e.stopPropagation(); if (confirm("삭제?")) deleteMutation.mutate({ id: log.id }); }}
+                    >삭제</Button>
+                    <span className="text-muted-foreground text-xs">{isOpen ? "▲" : "▼"}</span>
+                  </div>
+                </button>
+
+                {/* 운동 목록 (펼침) */}
+                {isOpen && (
+                  <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
+                    {exercises.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">운동 종목 없음</p>
+                    ) : exercises.map((ex: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 bg-muted/40 rounded-lg px-3 py-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium">{ex.name}</p>
+                          {ex.sets?.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground">{ex.sets.length}세트</p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant={ex.videoUrl ? "default" : "outline"}
+                          className="h-6 text-[10px] px-2 flex-shrink-0"
+                          onClick={() => { setVideoModal({ logId: log.id, exIdx: idx, currentUrl: ex.videoUrl ?? "" }); setVideoUrl(ex.videoUrl ?? ""); }}
+                        >
+                          {ex.videoUrl ? "영상수정" : "운동영상"}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <Button
-                variant="destructive" size="sm" className="h-6 text-[10px] px-2 flex-shrink-0"
-                onClick={() => { if (confirm("삭제?")) deleteMutation.mutate({ id: log.id }); }}
-              >삭제</Button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* 운동영상 URL 입력 모달 */}
+      <Dialog open={!!videoModal} onOpenChange={(o) => { if (!o) setVideoModal(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>운동영상 링크 등록</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">YouTube 또는 영상 URL을 입력하세요. 회원이 해당 운동에서 영상을 확인할 수 있습니다.</p>
+          <Input
+            placeholder="https://youtube.com/watch?v=..."
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            className="h-9 text-sm"
+          />
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 h-8 text-xs" onClick={() => setVideoModal(null)}>취소</Button>
+            {videoModal?.currentUrl && (
+              <Button variant="destructive" className="h-8 text-xs px-3" onClick={() => { setVideoUrl(""); saveVideoUrl(); }}>삭제</Button>
+            )}
+            <Button className="flex-1 h-8 text-xs" onClick={saveVideoUrl} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? "저장 중..." : "저장"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

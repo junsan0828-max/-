@@ -3198,6 +3198,7 @@ const gymPlusRouter = t.router({
         gymPlusMemberId: gymPlusWorkoutLogs.gymPlusMemberId,
         logDate: gymPlusWorkoutLogs.logDate,
         title: gymPlusWorkoutLogs.title,
+        exercisesJson: gymPlusWorkoutLogs.exercisesJson,
         durationMinutes: gymPlusWorkoutLogs.durationMinutes,
         caloriesBurned: gymPlusWorkoutLogs.caloriesBurned,
         bodyWeight: gymPlusWorkoutLogs.bodyWeight,
@@ -3221,6 +3222,59 @@ const gymPlusRouter = t.router({
       await db.delete(gymPlusWorkoutLogs).where(eq(gymPlusWorkoutLogs.id, input.id));
       return { success: true };
     }),
+
+  // 운동기록 상세 조회 (exercisesJson 포함)
+  admin_getWorkoutLog: adminOnlyGymPlus
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.select().from(gymPlusWorkoutLogs)
+        .where(eq(gymPlusWorkoutLogs.id, input.id)).limit(1);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      return row;
+    }),
+
+  // 운동기록 수정 (어드민)
+  admin_updateWorkoutLog: adminOnlyGymPlus
+    .input(z.object({
+      id: z.number(),
+      title: z.string().optional(),
+      exercisesJson: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { id, ...data } = input;
+      await db.update(gymPlusWorkoutLogs).set(data)
+        .where(eq(gymPlusWorkoutLogs.id, id));
+      return { success: true };
+    }),
+
+  // PT 회원만 조회 (memberId가 있고 PT 패키지 보유)
+  admin_listPtMembers: adminOnlyGymPlus.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    // gymPlusMembers 중 memberId가 있는 회원
+    const linked = await db.select({
+      id: gymPlusMembers.id,
+      name: gymPlusMembers.name,
+      phone: gymPlusMembers.phone,
+      memberId: gymPlusMembers.memberId,
+      membershipEnd: gymPlusMembers.membershipEnd,
+    }).from(gymPlusMembers).where(sql`${gymPlusMembers.memberId} IS NOT NULL`);
+
+    // 해당 memberId에 PT 패키지가 있는지 확인
+    const ptResult = [];
+    for (const m of linked) {
+      if (!m.memberId) continue;
+      const pkg = await db.select({ id: ptPackages.id }).from(ptPackages)
+        .where(and(eq(ptPackages.memberId, m.memberId), eq(ptPackages.status, "active"))).limit(1);
+      if (pkg[0]) ptResult.push(m);
+    }
+    return ptResult;
+  }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
