@@ -200,6 +200,7 @@ export default function LeadsPage() {
   const [filterStatus, setFilterStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [editStatus, setEditStatus] = useState<string>("");  // 수정 중인 리드의 현재 상태
   const [form, setForm] = useState<LeadForm>(defaultForm);
   const [showContract, setShowContract] = useState(false);
   const [agreedTerms, setAgreedTerms] = useState(false);
@@ -274,7 +275,7 @@ export default function LeadsPage() {
   });
 
   function resetForm() {
-    setShowForm(false); setEditId(null); setForm(defaultForm);
+    setShowForm(false); setEditId(null); setEditStatus(""); setForm(defaultForm);
     setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
     setShowSignature(false); setSignatureDataUrl(null); setShowSignedContract(false);
     setShowRegistration(false); setRegForm(defaultRegForm);
@@ -366,6 +367,7 @@ export default function LeadsPage() {
 
   function openEdit(row: any) {
     setEditId(row.lead.id);
+    setEditStatus(row.lead.status ?? "");
     setForm({
       name: row.lead.name,
       phone: row.lead.phone ?? "",
@@ -1320,7 +1322,7 @@ export default function LeadsPage() {
                   className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
                   상담완료
                 </button>
-                <button type="button" onClick={editId ? () => handleSave("registered") : openContract}
+                <button type="button" onClick={editId && editStatus === "registered" ? () => handleSave("registered") : openContract}
                   className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
                   등록완료
                 </button>
