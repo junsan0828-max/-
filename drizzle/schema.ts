@@ -446,3 +446,54 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   mood: text("mood"),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+// ─── 키오스크 얼굴인식 입장 앱 ──────────────────────────────────────────────────
+
+// 얼굴 인식 데이터
+export const kioskFaceData = pgTable("kiosk_face_data", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId").notNull().unique(),
+  faceDescriptor: text("faceDescriptor"), // JSON array of 128 floats
+  photoBase64: text("photoBase64"),       // thumbnail for display
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 락커 배정
+export const kioskLockers = pgTable("kiosk_lockers", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId").notNull(),
+  lockerNumber: text("lockerNumber"),
+  lockerType: text("lockerType").default("개인락커").notNull(), // 개인락커 | 운동복
+  status: text("status").default("사용중").notNull(),           // 사용중 | 미사용
+  expiryType: text("expiryType").default("무제한").notNull(),   // 무제한 | 기간
+  expiryDate: text("expiryDate"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 수강권 / 헬스 상세 회원권
+export const kioskMemberships = pgTable("kiosk_memberships", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId").notNull(),
+  productName: text("productName").notNull(),                    // "헬스 12개월", "수강권 3개월"
+  membershipType: text("membershipType").default("헬스").notNull(), // 헬스 | 수강
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  totalSessions: integer("totalSessions"),
+  remainingSessions: integer("remainingSessions"),
+  unlimitedEntry: integer("unlimitedEntry").default(1).notNull(), // 1=무제한, 0=횟수제
+  status: text("status").default("active").notNull(),            // active | expired | suspended
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 회원 마일리지 / 출석번호
+export const kioskMemberInfo = pgTable("kiosk_member_info", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId").notNull().unique(),
+  attendanceNumber: text("attendanceNumber").unique(), // 4-6자리 고유 출석번호
+  mileagePoints: integer("mileagePoints").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});

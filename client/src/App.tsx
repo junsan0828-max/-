@@ -61,6 +61,7 @@ import GymPlusWorkout from "./pages/gym-plus/GymPlusWorkout";
 import GymPlusMembership from "./pages/gym-plus/GymPlusMembership";
 import GymPlusProfile from "./pages/gym-plus/GymPlusProfile";
 import GymPlusAdminPage from "./pages/GymPlusAdminPage";
+import KioskPage from "./pages/KioskPage";
 
 // ZIANTGYM+ 회원앱 (통합관리 시스템과 완전 분리)
 function GymPlusApp() {
@@ -106,6 +107,11 @@ function App() {
   const [reportMatch, reportParams] = useRoute("/report/:token");
   const [location] = useLocation();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
+
+  // 키오스크 얼굴인식 입장 앱 - 인증 불필요, 풀스크린
+  if (location.startsWith("/kiosk")) {
+    return <KioskPage />;
+  }
 
   // ZIANTGYM+ 회원앱 (Layout 밖에서 독립 렌더)
   if (location.startsWith("/gym-plus")) {

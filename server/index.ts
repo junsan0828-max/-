@@ -12,6 +12,7 @@ import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches } from "../drizzle/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
+import { kioskRouter } from "./kioskRouters";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -51,6 +52,9 @@ app.use(
     }),
   })
 );
+
+// 키오스크 얼굴인식 API
+app.use("/api/kiosk", kioskRouter);
 
 // 디버그: 짐플러스 회원 조회
 app.get("/api/gymplus-debug", async (req, res) => {
