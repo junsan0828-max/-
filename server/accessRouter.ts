@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc, and, like } from "drizzle-orm";
-import { getDb } from "./db";
+import { getDb, pool } from "./db";
 import { members, lockers, accessLogs, ptPackages } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -23,6 +23,21 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
+// PostgreSQL REGEXP_REPLACE로 DB에서 직접 전화번호 정규화 비교
+async function findMemberByPhone(phoneInput: string) {
+  const digits = normalizePhone(phoneInput);
+  const last8 = digits.slice(-8); // 010 없이 저장된 경우 대비
+
+  const result = await pool.query(
+    `SELECT * FROM members
+     WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = $1
+        OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = $2
+     ORDER BY id LIMIT 1`,
+    [digits, last8]
+  );
+  return result.rows[0] ?? null;
+}
+
 export const accessRouter = t.router({
   // 키오스크 체크인 (인증 불필요)
   checkIn: publicProcedure
@@ -31,14 +46,7 @@ export const accessRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const digits = normalizePhone(input.phone);
-
-      // 전화번호로 회원 검색 (정규화 비교)
-      const allMembers = await db.select().from(members);
-      const found = allMembers.find((m) => {
-        if (!m.phone) return false;
-        return normalizePhone(m.phone) === digits;
-      });
+      const found = await findMemberByPhone(input.phone);
 
       if (!found) {
         await db.insert(accessLogs).values({
@@ -65,7 +73,7 @@ export const accessRouter = t.router({
           )
         );
       const validPT = activePT.filter(
-        (p) => !p.expiryDate || p.expiryDate >= today
+        (p: any) => !p.expiryDate || p.expiryDate >= today
       );
       const hasPT = validPT.length > 0;
 
@@ -159,12 +167,6 @@ export const accessRouter = t.router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      let query = db
-        .select()
-        .from(accessLogs)
-        .orderBy(desc(accessLogs.accessedAt))
-        .limit(input.limit)
-        .offset((input.page - 1) * input.limit);
 
       if (input.date) {
         return db
@@ -174,7 +176,12 @@ export const accessRouter = t.router({
           .orderBy(desc(accessLogs.accessedAt))
           .limit(input.limit);
       }
-      return query;
+      return db
+        .select()
+        .from(accessLogs)
+        .orderBy(desc(accessLogs.accessedAt))
+        .limit(input.limit)
+        .offset((input.page - 1) * input.limit);
     }),
 
   // 락커 목록
