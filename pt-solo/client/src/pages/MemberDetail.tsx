@@ -1148,11 +1148,13 @@ export default function MemberDetail({ memberId }: Props) {
                 ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                 : ""
             }`}
-            disabled={checkedInToday || checkInMutation.isPending}
-            onClick={() => checkInMutation.mutate({ memberId })}
+            disabled={checkedInToday}
+            onClick={() => {
+              if (!checkedInToday) setLocation(`/attendance/${memberId}?date=${todayStr}`);
+            }}
           >
             <CheckCircle className="h-4 w-4" />
-            {checkedInToday ? "오늘 출석 완료 ✓" : checkInMutation.isPending ? "체크 중..." : "오늘 출석 체크"}
+            {checkedInToday ? "오늘 출석 완료 ✓" : "오늘 출석 체크"}
           </Button>
 
           {/* 달력 카드 */}
