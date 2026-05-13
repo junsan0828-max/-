@@ -446,3 +446,39 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   mood: text("mood"),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+// ─── 키오스크 얼굴인식 입장 시스템 ──────────────────────────────────────────
+
+// 얼굴 등록 (하드웨어 faceId ↔ 회원 연결)
+export const faceEnrollments = pgTable("face_enrollments", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId").notNull(),
+  faceId: text("faceId").notNull().unique(),
+  isActive: integer("isActive").default(1).notNull(),
+  enrolledAt: text("enrolledAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 락커 관리
+export const lockers = pgTable("lockers", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId"),
+  lockerNumber: text("lockerNumber").notNull(),
+  lockerType: text("lockerType").default("개인락커").notNull(), // 개인락커 / 운동복
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  isActive: integer("isActive").default(1).notNull(),
+  notes: text("notes"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 키오스크 입장 로그
+export const kioskLogs = pgTable("kiosk_logs", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId").notNull(),
+  checkinMethod: text("checkinMethod").notNull(), // face / phone / number
+  checkinAt: text("checkinAt").default(now).notNull(),
+  faceId: text("faceId"),
+  confidence: text("confidence"),
+});

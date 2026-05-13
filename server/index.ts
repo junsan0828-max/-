@@ -9,8 +9,8 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches } from "../drizzle/schema";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, faceEnrollments, lockers, kioskLogs, attendances } from "../drizzle/schema";
+import { eq, and, isNull, sql, or, like } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
 
 const app = express();
@@ -71,6 +71,193 @@ app.get("/api/gymplus-debug", async (req, res) => {
     res.json({ ok: true, tables: tables.rows.map((r: any) => r.tablename), members, memberErr });
   } catch (e: any) {
     res.json({ ok: false, error: e.message, stack: e.stack });
+  }
+});
+
+// ─── 키오스크 API ─────────────────────────────────────────────────────────────
+
+// SSE 클라이언트 목록 (키오스크 화면 실시간 업데이트용)
+const kioskClients = new Set<express.Response>();
+
+// 회원 정보 조회 헬퍼
+async function getMemberKioskInfo(memberId: number) {
+  const memberRows = await db.select().from(members).where(eq(members.id, memberId)).limit(1);
+  const member = memberRows[0];
+  if (!member) return null;
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const ptRows = await db
+    .select()
+    .from(ptPackages)
+    .where(and(eq(ptPackages.memberId, memberId), eq(ptPackages.status, "active")))
+    .limit(5);
+
+  const lockerRows = await db
+    .select()
+    .from(lockers)
+    .where(and(eq(lockers.memberId, memberId), eq(lockers.isActive, 1)));
+
+  const membershipExpired = member.membershipEnd ? member.membershipEnd < today : false;
+
+  return {
+    id: member.id,
+    name: member.name,
+    phone: member.phone,
+    membershipStart: member.membershipStart,
+    membershipEnd: member.membershipEnd,
+    membershipExpired,
+    status: member.status,
+    activePtPackages: ptRows.map((p) => ({
+      id: p.id,
+      packageName: p.packageName,
+      remainingSessions: (p.totalSessions ?? 0) - (p.usedSessions ?? 0),
+      expiryDate: p.expiryDate,
+    })),
+    lockers: lockerRows.map((l) => ({
+      id: l.id,
+      lockerNumber: l.lockerNumber,
+      lockerType: l.lockerType,
+      endDate: l.endDate,
+    })),
+  };
+}
+
+// SSE 스트림 엔드포인트 (키오스크가 구독)
+app.get("/api/kiosk/events", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  res.write("data: {\"type\":\"connected\"}\n\n");
+
+  const heartbeat = setInterval(() => {
+    res.write("data: {\"type\":\"ping\"}\n\n");
+  }, 25000);
+
+  kioskClients.add(res);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    kioskClients.delete(res);
+  });
+});
+
+function broadcastKiosk(data: object) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  for (const client of kioskClients) {
+    client.write(payload);
+  }
+}
+
+// 얼굴인식 하드웨어 Webhook 수신
+app.post("/api/kiosk/webhook/face", async (req, res) => {
+  try {
+    const { faceId, confidence, personId } = req.body;
+    const resolvedFaceId = faceId || personId;
+    if (!resolvedFaceId) {
+      return res.status(400).json({ ok: false, message: "faceId 필드가 없습니다" });
+    }
+
+    const enrollment = await db
+      .select()
+      .from(faceEnrollments)
+      .where(and(eq(faceEnrollments.faceId, resolvedFaceId), eq(faceEnrollments.isActive, 1)))
+      .limit(1);
+
+    if (!enrollment[0]) {
+      broadcastKiosk({ type: "face_unknown", faceId: resolvedFaceId });
+      return res.json({ ok: true, found: false });
+    }
+
+    const memberId = enrollment[0].memberId;
+    const info = await getMemberKioskInfo(memberId);
+    if (!info) return res.json({ ok: true, found: false });
+
+    const today = new Date().toISOString().split("T")[0];
+    await db.insert(kioskLogs).values({
+      memberId,
+      checkinMethod: "face",
+      faceId: resolvedFaceId,
+      confidence: confidence ? String(confidence) : null,
+    });
+
+    await db.insert(attendances).values({
+      memberId,
+      trainerId: 1,
+      attendDate: today,
+      status: "attended",
+    }).onConflictDoNothing();
+
+    broadcastKiosk({ type: "face_recognized", member: info, confidence });
+    return res.json({ ok: true, found: true, member: info });
+  } catch (e: any) {
+    console.error("[kiosk webhook]", e);
+    return res.status(500).json({ ok: false, message: e.message });
+  }
+});
+
+// 전화번호/출석번호로 회원 조회
+app.post("/api/kiosk/lookup", async (req, res) => {
+  try {
+    const { phone, attendanceNumber } = req.body;
+
+    let member: typeof members.$inferSelect | undefined;
+
+    if (phone) {
+      const cleaned = phone.replace(/\D/g, "");
+      const rows = await db
+        .select()
+        .from(members)
+        .where(or(like(members.phone, `%${cleaned}%`), like(members.phone, `%${phone}%`)))
+        .limit(1);
+      member = rows[0];
+    } else if (attendanceNumber) {
+      const rows = await db
+        .select()
+        .from(members)
+        .where(eq(members.id, parseInt(attendanceNumber)))
+        .limit(1);
+      member = rows[0];
+    }
+
+    if (!member) {
+      return res.json({ ok: true, found: false });
+    }
+
+    const info = await getMemberKioskInfo(member.id);
+    return res.json({ ok: true, found: true, member: info });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, message: e.message });
+  }
+});
+
+// 출석 체크인 확정
+app.post("/api/kiosk/checkin", async (req, res) => {
+  try {
+    const { memberId, method } = req.body;
+    if (!memberId) return res.status(400).json({ ok: false, message: "memberId 필요" });
+
+    const today = new Date().toISOString().split("T")[0];
+
+    await db.insert(kioskLogs).values({
+      memberId,
+      checkinMethod: method || "phone",
+    });
+
+    await db.insert(attendances).values({
+      memberId,
+      trainerId: 1,
+      attendDate: today,
+      status: "attended",
+    }).onConflictDoNothing();
+
+    const info = await getMemberKioskInfo(memberId);
+    broadcastKiosk({ type: "checkin_complete", member: info, method });
+    return res.json({ ok: true, member: info });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, message: e.message });
   }
 });
 
