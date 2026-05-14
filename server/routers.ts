@@ -1,5 +1,6 @@
 import { gymRouter } from "./gymRouters";
 import { accessRouter } from "./accessRouter";
+import { backofficeRouter } from "./backofficeRouter";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, sql, lte, gte, gt, isNull, or } from "drizzle-orm";
@@ -3177,6 +3178,7 @@ export const appRouter = t.router({
   gym: gymRouter,
   gymPlus: gymPlusRouter,
   access: accessRouter,
+  backoffice: backofficeRouter,
 });
 
 export type AppRouter = typeof appRouter;

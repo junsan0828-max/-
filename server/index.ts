@@ -631,6 +631,14 @@ async function initDatabase() {
     }
   }
 
+  // access 계정 (백오피스용) 복구
+  const existingAccess = await db.select({ id: users.id }).from(users).where(eq(users.username, "access")).limit(1);
+  if (!existingAccess[0]) {
+    const pw = bcrypt.hashSync("access123", 10);
+    await db.insert(users).values({ username: "access", password: pw, role: "access" });
+    console.log("✅ 백오피스 계정: access / access123");
+  }
+
   // 기본 채널 시드 (없으면 생성)
   const existingChannels = await db.select({ id: channels.id }).from(channels).limit(1);
   if (!existingChannels[0]) {

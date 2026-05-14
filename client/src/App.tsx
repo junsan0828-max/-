@@ -51,6 +51,7 @@ import AiAnalysisPage from "./pages/AiAnalysis";
 import AdminMembers from "./pages/AdminMembers";
 import KioskCheckin from "./pages/KioskCheckin";
 import AccessManagement from "./pages/AccessManagement";
+import Backoffice from "./pages/Backoffice";
 import Layout from "./components/Layout";
 import GymPlusLogin from "./pages/gym-plus/GymPlusLogin";
 import GymPlusLayout from "./pages/gym-plus/GymPlusLayout";
@@ -124,6 +125,12 @@ function App() {
     return <KioskCheckin />;
   }
 
+  // 백오피스 (access 역할 전용, 별도 레이아웃)
+  if (location === "/backoffice") {
+    if (!user && !isLoading) return <Login />;
+    if (user) return <Backoffice />;
+  }
+
   // 공개 보고서 / 계약서 페이지 - 인증 불필요
   if (reportMatch && reportParams) {
     return <MemberReport token={reportParams.token} />;
@@ -143,6 +150,11 @@ function App() {
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
     return <Login />;
+  }
+
+  // access 역할은 백오피스로 리디렉션
+  if (user.role === "access" && location !== "/backoffice") {
+    return <Redirect to="/backoffice" />;
   }
 
   return (
