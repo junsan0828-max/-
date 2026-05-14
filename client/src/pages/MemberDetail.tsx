@@ -73,6 +73,8 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Send,
+  CheckCheck,
 } from "lucide-react";
 
 interface Props {
@@ -376,6 +378,14 @@ export default function MemberDetail({ memberId }: Props) {
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
+  const shareLogMutation = trpc.pt.shareLog.useMutation({
+    onSuccess: (_, vars) => {
+      toast.success(vars.share ? "회원에게 전송되었습니다." : "전송이 취소되었습니다.");
+      utils.pt.sessionLogs.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "전송 실패"),
   });
 
   // PT 세션 사용 (완료 후 메모 입력 유도)
@@ -1270,6 +1280,11 @@ export default function MemberDetail({ memberId }: Props) {
                             {log.packageId && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
                             )}
+                            {(log as any).sharedToMember ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center gap-0.5">
+                                <CheckCheck className="h-2.5 w-2.5" />전송됨
+                              </span>
+                            ) : null}
                           </div>
                           {isExpanded
                             ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -1307,30 +1322,48 @@ export default function MemberDetail({ memberId }: Props) {
                             {log.notes && (
                               <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
                             )}
-                            <div className="flex justify-end gap-3 pt-1">
+                            <div className="flex items-center justify-between pt-1">
+                              {/* 전송 버튼 */}
                               <button
-                                onClick={() => {
-                                  setEditJournalForm({
-                                    id: log.id,
-                                    sessionDate: log.sessionDate,
-                                    goal: (log as any).goal ?? "",
-                                    bodyPart: (log as any).bodyPart ?? "",
-                                    exercises: exs,
-                                    feedback: (log as any).feedback ?? "",
-                                    notes: log.notes ?? "",
-                                  });
-                                  setEditJournalOpen(true);
-                                }}
-                                className="text-muted-foreground hover:text-primary transition-colors"
+                                onClick={() => shareLogMutation.mutate({ id: log.id, share: !(log as any).sharedToMember })}
+                                disabled={shareLogMutation.isPending}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  (log as any).sharedToMember
+                                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10"
+                                    : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+                                }`}
                               >
-                                <Edit className="h-3.5 w-3.5" />
+                                {(log as any).sharedToMember
+                                  ? <><CheckCheck className="h-3.5 w-3.5" />전송됨</>
+                                  : <><Send className="h-3.5 w-3.5" />회원 전송</>
+                                }
                               </button>
-                              <button
-                                onClick={() => deleteLogMutation.mutate({ id: log.id })}
-                                className="text-muted-foreground hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {/* 수정/삭제 */}
+                              <div className="flex gap-3">
+                                <button
+                                  onClick={() => {
+                                    setEditJournalForm({
+                                      id: log.id,
+                                      sessionDate: log.sessionDate,
+                                      goal: (log as any).goal ?? "",
+                                      bodyPart: (log as any).bodyPart ?? "",
+                                      exercises: exs,
+                                      feedback: (log as any).feedback ?? "",
+                                      notes: log.notes ?? "",
+                                    });
+                                    setEditJournalOpen(true);
+                                  }}
+                                  className="text-muted-foreground hover:text-primary transition-colors"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => deleteLogMutation.mutate({ id: log.id })}
+                                  className="text-muted-foreground hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         )}

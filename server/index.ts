@@ -391,6 +391,8 @@ async function initDatabase() {
     `ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntent" TEXT`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSessions" INTEGER DEFAULT 0`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceSessions" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sharedToMember" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sharedAt" TEXT`,
     `CREATE TABLE IF NOT EXISTS branches (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,

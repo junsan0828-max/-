@@ -927,6 +927,20 @@ const ptRouter = t.router({
         .orderBy(desc(ptSessionLogs.sessionDate));
     }),
 
+  shareLog: protectedProcedure
+    .input(z.object({ id: z.number(), share: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(ptSessionLogs)
+        .set({
+          sharedToMember: input.share ? 1 : 0,
+          sharedAt: input.share ? new Date().toISOString() : null,
+        })
+        .where(eq(ptSessionLogs.id, input.id));
+      return { success: true };
+    }),
+
   // 미수금 업데이트 (결제 완료 처리)
   updatePayment: protectedProcedure
     .input(
