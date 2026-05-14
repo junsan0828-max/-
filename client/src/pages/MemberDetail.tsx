@@ -288,14 +288,32 @@ export default function MemberDetail({ memberId }: Props) {
   const [liveTrainingOpen, setLiveTrainingOpen] = useState(false);
   const [liveLog, setLiveLog] = useState<any>(null);
   const [liveExercises, setLiveExercises] = useState<Exercise[]>([]);
-  const [checkedExercises, setCheckedExercises] = useState<Set<number>>(new Set());
+  // "exIdx-setIdx" 형식으로 완료된 세트 추적
+  const [checkedSets, setCheckedSets] = useState<Set<string>>(new Set());
 
   function openLiveTraining(log: any) {
     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
     setLiveLog(log);
     setLiveExercises(exs);
-    setCheckedExercises(new Set());
+    setCheckedSets(new Set());
     setLiveTrainingOpen(true);
+  }
+
+  function toggleSetCheck(exIdx: number, setIdx: number) {
+    const key = `${exIdx}-${setIdx}`;
+    setCheckedSets((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  function insertExerciseAfter(afterIdx: number) {
+    setLiveExercises((prev) => {
+      const next = [...prev];
+      next.splice(afterIdx + 1, 0, { name: "", sets: [{ reps: "", weight: "" }] });
+      return next;
+    });
   }
 
   const { data: currentUser } = trpc.auth.me.useQuery();
@@ -2026,26 +2044,16 @@ export default function MemberDetail({ memberId }: Props) {
               <p className="text-sm text-muted-foreground text-center py-4">운동 종목이 없습니다.</p>
             )}
             {liveExercises.map((ex, i) => {
-              const isDone = checkedExercises.has(i);
+              const allDone = ex.sets.length > 0 && ex.sets.every((_, j) => checkedSets.has(`${i}-${j}`));
               return (
                 <div
                   key={i}
-                  className={`border rounded-lg p-3 space-y-2 transition-colors ${isDone ? "border-green-500/40 bg-green-500/5" : "border-border bg-accent/10"}`}
+                  className={`border rounded-lg p-3 space-y-2 transition-colors ${allDone ? "border-green-500/40 bg-green-500/5" : "border-border bg-accent/10"}`}
                 >
-                  {/* 운동명 + 체크 버튼 */}
+                  {/* 운동명 헤더 */}
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCheckedExercises((prev) => {
-                        const next = new Set(prev);
-                        next.has(i) ? next.delete(i) : next.add(i);
-                        return next;
-                      })}
-                      className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isDone ? "border-green-500 bg-green-500" : "border-muted-foreground hover:border-primary"}`}
-                    >
-                      {isDone && <Check className="h-3 w-3 text-white" />}
-                    </button>
                     <input
-                      className={`flex-1 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 ${isDone ? "text-muted-foreground line-through" : "text-foreground"}`}
+                      className="flex-1 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 text-foreground"
                       value={ex.name}
                       placeholder="운동명"
                       onChange={(e) => setLiveExercises((prev) =>
@@ -2062,7 +2070,8 @@ export default function MemberDetail({ memberId }: Props) {
 
                   {/* 세트 헤더 */}
                   {ex.sets.length > 0 && (
-                    <div className="grid grid-cols-[24px_1fr_1fr_28px] gap-1 px-0.5">
+                    <div className="grid grid-cols-[20px_20px_1fr_1fr_28px] gap-1 px-0.5">
+                      <span />
                       <span className="text-[10px] text-muted-foreground text-center">세트</span>
                       <span className="text-[10px] text-muted-foreground">횟수</span>
                       <span className="text-[10px] text-muted-foreground">무게(kg)</span>
@@ -2070,72 +2079,92 @@ export default function MemberDetail({ memberId }: Props) {
                     </div>
                   )}
 
-                  {/* 세트 목록 */}
+                  {/* 세트 목록 - 세트별 체크박스 */}
                   <div className="space-y-1">
-                    {ex.sets.map((s, j) => (
-                      <div key={j} className="grid grid-cols-[24px_1fr_1fr_28px] gap-1 items-center">
-                        <span className="text-xs text-muted-foreground text-center">{j + 1}</span>
-                        <Input
-                          placeholder="횟수"
-                          value={s.reps}
-                          onChange={(e) => setLiveExercises((prev) =>
-                            prev.map((ex2, idx) => {
-                              if (idx !== i) return ex2;
-                              return { ...ex2, sets: ex2.sets.map((s2, k) => k === j ? { ...s2, reps: e.target.value } : s2) };
-                            })
-                          )}
-                          className="h-7 text-xs"
-                          type="number"
-                          min="0"
-                        />
-                        <Input
-                          placeholder="kg"
-                          value={s.weight}
-                          onChange={(e) => setLiveExercises((prev) =>
-                            prev.map((ex2, idx) => {
-                              if (idx !== i) return ex2;
-                              return { ...ex2, sets: ex2.sets.map((s2, k) => k === j ? { ...s2, weight: e.target.value } : s2) };
-                            })
-                          )}
-                          className="h-7 text-xs"
-                          type="number"
-                          min="0"
-                          step="0.5"
-                        />
-                        <button
-                          onClick={() => setLiveExercises((prev) =>
-                            prev.map((ex2, idx) => {
-                              if (idx !== i) return ex2;
-                              return { ...ex2, sets: ex2.sets.filter((_, k) => k !== j) };
-                            })
-                          )}
-                          className="text-muted-foreground hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
+                    {ex.sets.map((s, j) => {
+                      const setKey = `${i}-${j}`;
+                      const isSetDone = checkedSets.has(setKey);
+                      return (
+                        <div key={j} className="grid grid-cols-[20px_20px_1fr_1fr_28px] gap-1 items-center">
+                          <button
+                            onClick={() => toggleSetCheck(i, j)}
+                            className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${isSetDone ? "border-green-500 bg-green-500" : "border-muted-foreground hover:border-primary"}`}
+                          >
+                            {isSetDone && <Check className="h-2.5 w-2.5 text-white" />}
+                          </button>
+                          <span className={`text-xs text-muted-foreground text-center ${isSetDone ? "opacity-40" : ""}`}>{j + 1}</span>
+                          <Input
+                            placeholder="횟수"
+                            value={s.reps}
+                            onChange={(e) => setLiveExercises((prev) =>
+                              prev.map((ex2, idx) => {
+                                if (idx !== i) return ex2;
+                                return { ...ex2, sets: ex2.sets.map((s2, k) => k === j ? { ...s2, reps: e.target.value } : s2) };
+                              })
+                            )}
+                            className={`h-7 text-xs ${isSetDone ? "opacity-40" : ""}`}
+                            type="number"
+                            min="0"
+                          />
+                          <Input
+                            placeholder="kg"
+                            value={s.weight}
+                            onChange={(e) => setLiveExercises((prev) =>
+                              prev.map((ex2, idx) => {
+                                if (idx !== i) return ex2;
+                                return { ...ex2, sets: ex2.sets.map((s2, k) => k === j ? { ...s2, weight: e.target.value } : s2) };
+                              })
+                            )}
+                            className={`h-7 text-xs ${isSetDone ? "opacity-40" : ""}`}
+                            type="number"
+                            min="0"
+                            step="0.5"
+                          />
+                          <button
+                            onClick={() => setLiveExercises((prev) =>
+                              prev.map((ex2, idx) => {
+                                if (idx !== i) return ex2;
+                                return { ...ex2, sets: ex2.sets.filter((_, k) => k !== j) };
+                              })
+                            )}
+                            className="text-muted-foreground hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* 세트 추가 */}
-                  <button
-                    onClick={() => setLiveExercises((prev) =>
-                      prev.map((ex2, idx) => {
-                        if (idx !== i) return ex2;
-                        const last = ex2.sets[ex2.sets.length - 1];
-                        return { ...ex2, sets: [...ex2.sets, last ? { ...last } : { reps: "", weight: "" }] };
-                      })
-                    )}
-                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/70 transition-colors"
-                  >
-                    <Plus className="h-3 w-3" />
-                    + 세트 추가
-                  </button>
+                  {/* 세트 추가 | 여기에 운동 삽입 */}
+                  <div className="flex items-center gap-3 pt-0.5">
+                    <button
+                      onClick={() => setLiveExercises((prev) =>
+                        prev.map((ex2, idx) => {
+                          if (idx !== i) return ex2;
+                          const last = ex2.sets[ex2.sets.length - 1];
+                          return { ...ex2, sets: [...ex2.sets, last ? { ...last } : { reps: "", weight: "" }] };
+                        })
+                      )}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/70 transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      세트 추가
+                    </button>
+                    <span className="text-muted-foreground/30 text-xs">|</span>
+                    <button
+                      onClick={() => insertExerciseAfter(i)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      운동 삽입
+                    </button>
+                  </div>
                 </div>
               );
             })}
 
-            {/* 운동 추가 */}
+            {/* 맨 끝에 운동 추가 */}
             <button
               onClick={() => setLiveExercises((prev) => [...prev, { name: "", sets: [{ reps: "", weight: "" }] }])}
               className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-primary/40 rounded-lg text-sm text-primary hover:bg-primary/5 transition-colors"
