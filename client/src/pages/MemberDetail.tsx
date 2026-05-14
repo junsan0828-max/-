@@ -284,14 +284,19 @@ export default function MemberDetail({ memberId }: Props) {
   // 메모 검색
   const [memoSearch, setMemoSearch] = useState("");
 
-  // 트레이닝 일지 펼치기
-  const [expandedLogIds, setExpandedLogIds] = useState<Set<number>>(new Set());
-  const toggleLog = (id: number) =>
-    setExpandedLogIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  // 라이브 트레이닝 모달
+  const [liveTrainingOpen, setLiveTrainingOpen] = useState(false);
+  const [liveLog, setLiveLog] = useState<any>(null);
+  const [liveExercises, setLiveExercises] = useState<Exercise[]>([]);
+  const [checkedExercises, setCheckedExercises] = useState<Set<number>>(new Set());
+
+  function openLiveTraining(log: any) {
+    const exs = parseExercisesJson((log as any).exercisesJson as string | null);
+    setLiveLog(log);
+    setLiveExercises(exs);
+    setCheckedExercises(new Set());
+    setLiveTrainingOpen(true);
+  }
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
@@ -367,6 +372,7 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: () => {
       toast.success("일지가 수정되었습니다.");
       setEditJournalOpen(false);
+      setLiveTrainingOpen(false);
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "수정 실패"),
@@ -384,6 +390,7 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: (_, vars) => {
       toast.success(vars.share ? "회원에게 전송되었습니다." : "전송이 취소되었습니다.");
       utils.pt.sessionLogs.invalidate({ memberId });
+      setLiveLog((prev: any) => prev ? { ...prev, sharedToMember: vars.share ? 1 : 0 } : prev);
     },
     onError: (err) => toast.error(err.message || "전송 실패"),
   });
@@ -1263,15 +1270,13 @@ export default function MemberDetail({ memberId }: Props) {
               ) : (
                 <div className="space-y-2">
                   {sessionLogs.map((log) => {
-                    const exs = parseExercisesJson((log as any).exercisesJson as string | null);
-                    const isExpanded = expandedLogIds.has(log.id);
                     return (
-                      <div key={log.id} className="rounded-lg bg-accent/20 border border-border overflow-hidden">
-                        {/* 접힌 헤더 - 항상 표시 */}
-                        <button
-                          className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-                          onClick={() => toggleLog(log.id)}
-                        >
+                      <button
+                        key={log.id}
+                        className="w-full rounded-lg bg-accent/20 border border-border overflow-hidden hover:border-primary/40 hover:bg-accent/30 transition-colors text-left"
+                        onClick={() => openLiveTraining(log)}
+                      >
+                        <div className="flex items-center justify-between px-3 py-2.5">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
                             {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
@@ -1286,88 +1291,9 @@ export default function MemberDetail({ memberId }: Props) {
                               </span>
                             ) : null}
                           </div>
-                          {isExpanded
-                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          }
-                        </button>
-
-                        {/* 펼쳐진 상세 내용 */}
-                        {isExpanded && (
-                          <div className="px-3 pb-3 space-y-2 border-t border-border/40">
-                            {(log as any).goal && (
-                              <div className="pt-2">
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">목표</span>
-                                <p className="text-xs text-foreground mt-0.5">{(log as any).goal}</p>
-                              </div>
-                            )}
-                            {exs.length > 0 && (
-                              <div className="space-y-1 pt-1">
-                                {exs.map((ex, i) => (
-                                  <div key={i} className="text-xs">
-                                    <span className="font-medium text-foreground/80">{ex.name}</span>
-                                    <span className="text-muted-foreground ml-2">
-                                      {ex.sets.map((s, j) => `${j + 1}세트${s.reps ? " " + s.reps + "회" : ""}${s.weight ? " " + s.weight + "kg" : ""}`).join(" · ")}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {(log as any).feedback && (
-                              <div>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">피드백</span>
-                                <p className="text-xs text-foreground mt-0.5 whitespace-pre-wrap">{(log as any).feedback}</p>
-                              </div>
-                            )}
-                            {log.notes && (
-                              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
-                            )}
-                            <div className="flex items-center justify-between pt-1">
-                              {/* 전송 버튼 */}
-                              <button
-                                onClick={() => shareLogMutation.mutate({ id: log.id, share: !(log as any).sharedToMember })}
-                                disabled={shareLogMutation.isPending}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                  (log as any).sharedToMember
-                                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10"
-                                    : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
-                                }`}
-                              >
-                                {(log as any).sharedToMember
-                                  ? <><CheckCheck className="h-3.5 w-3.5" />전송됨</>
-                                  : <><Send className="h-3.5 w-3.5" />회원 전송</>
-                                }
-                              </button>
-                              {/* 수정/삭제 */}
-                              <div className="flex gap-3">
-                                <button
-                                  onClick={() => {
-                                    setEditJournalForm({
-                                      id: log.id,
-                                      sessionDate: log.sessionDate,
-                                      goal: (log as any).goal ?? "",
-                                      bodyPart: (log as any).bodyPart ?? "",
-                                      exercises: exs,
-                                      feedback: (log as any).feedback ?? "",
-                                      notes: log.notes ?? "",
-                                    });
-                                    setEditJournalOpen(true);
-                                  }}
-                                  className="text-muted-foreground hover:text-primary transition-colors"
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => deleteLogMutation.mutate({ id: log.id })}
-                                  className="text-muted-foreground hover:text-red-400 transition-colors"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -2073,6 +1999,217 @@ export default function MemberDetail({ memberId }: Props) {
                 onClick={() => updateMemberMutation.mutate({ id: memberId, trainerId: parseInt(selectedTrainerId) })}
               >
                 {updateMemberMutation.isPending ? "변경 중..." : "변경"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 라이브 트레이닝 모달 ── */}
+      <Dialog open={liveTrainingOpen} onOpenChange={setLiveTrainingOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Dumbbell className="h-4 w-4 text-primary" />
+              트레이닝 기록
+            </DialogTitle>
+            {liveLog && (
+              <DialogDescription>
+                {fmtDate(liveLog.sessionDate, "yyyy.MM.dd (EEE)")}
+                {liveLog.goal ? ` · ${liveLog.goal}` : ""}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {liveExercises.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">운동 종목이 없습니다.</p>
+            )}
+            {liveExercises.map((ex, i) => {
+              const isDone = checkedExercises.has(i);
+              return (
+                <div
+                  key={i}
+                  className={`border rounded-lg p-3 space-y-2 transition-colors ${isDone ? "border-green-500/40 bg-green-500/5" : "border-border bg-accent/10"}`}
+                >
+                  {/* 운동명 + 체크 버튼 */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCheckedExercises((prev) => {
+                        const next = new Set(prev);
+                        next.has(i) ? next.delete(i) : next.add(i);
+                        return next;
+                      })}
+                      className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isDone ? "border-green-500 bg-green-500" : "border-muted-foreground hover:border-primary"}`}
+                    >
+                      {isDone && <Check className="h-3 w-3 text-white" />}
+                    </button>
+                    <input
+                      className={`flex-1 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 ${isDone ? "text-muted-foreground line-through" : "text-foreground"}`}
+                      value={ex.name}
+                      placeholder="운동명"
+                      onChange={(e) => setLiveExercises((prev) =>
+                        prev.map((ex2, idx) => idx === i ? { ...ex2, name: e.target.value } : ex2)
+                      )}
+                    />
+                    <button
+                      onClick={() => setLiveExercises((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  {/* 세트 헤더 */}
+                  {ex.sets.length > 0 && (
+                    <div className="grid grid-cols-[24px_1fr_1fr_28px] gap-1 px-0.5">
+                      <span className="text-[10px] text-muted-foreground text-center">세트</span>
+                      <span className="text-[10px] text-muted-foreground">횟수</span>
+                      <span className="text-[10px] text-muted-foreground">무게(kg)</span>
+                      <span />
+                    </div>
+                  )}
+
+                  {/* 세트 목록 */}
+                  <div className="space-y-1">
+                    {ex.sets.map((s, j) => (
+                      <div key={j} className="grid grid-cols-[24px_1fr_1fr_28px] gap-1 items-center">
+                        <span className="text-xs text-muted-foreground text-center">{j + 1}</span>
+                        <Input
+                          placeholder="횟수"
+                          value={s.reps}
+                          onChange={(e) => setLiveExercises((prev) =>
+                            prev.map((ex2, idx) => {
+                              if (idx !== i) return ex2;
+                              return { ...ex2, sets: ex2.sets.map((s2, k) => k === j ? { ...s2, reps: e.target.value } : s2) };
+                            })
+                          )}
+                          className="h-7 text-xs"
+                          type="number"
+                          min="0"
+                        />
+                        <Input
+                          placeholder="kg"
+                          value={s.weight}
+                          onChange={(e) => setLiveExercises((prev) =>
+                            prev.map((ex2, idx) => {
+                              if (idx !== i) return ex2;
+                              return { ...ex2, sets: ex2.sets.map((s2, k) => k === j ? { ...s2, weight: e.target.value } : s2) };
+                            })
+                          )}
+                          className="h-7 text-xs"
+                          type="number"
+                          min="0"
+                          step="0.5"
+                        />
+                        <button
+                          onClick={() => setLiveExercises((prev) =>
+                            prev.map((ex2, idx) => {
+                              if (idx !== i) return ex2;
+                              return { ...ex2, sets: ex2.sets.filter((_, k) => k !== j) };
+                            })
+                          )}
+                          className="text-muted-foreground hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 세트 추가 */}
+                  <button
+                    onClick={() => setLiveExercises((prev) =>
+                      prev.map((ex2, idx) => {
+                        if (idx !== i) return ex2;
+                        const last = ex2.sets[ex2.sets.length - 1];
+                        return { ...ex2, sets: [...ex2.sets, last ? { ...last } : { reps: "", weight: "" }] };
+                      })
+                    )}
+                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/70 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    + 세트 추가
+                  </button>
+                </div>
+              );
+            })}
+
+            {/* 운동 추가 */}
+            <button
+              onClick={() => setLiveExercises((prev) => [...prev, { name: "", sets: [{ reps: "", weight: "" }] }])}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-primary/40 rounded-lg text-sm text-primary hover:bg-primary/5 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              운동 추가
+            </button>
+          </div>
+
+          {/* 하단 액션 */}
+          <div className="flex items-center justify-between pt-3 border-t border-border/40">
+            {/* 회원 전송 */}
+            {liveLog && (
+              <button
+                onClick={() => shareLogMutation.mutate({ id: liveLog.id, share: !(liveLog as any).sharedToMember })}
+                disabled={shareLogMutation.isPending}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  (liveLog as any).sharedToMember
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10"
+                    : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+                }`}
+              >
+                {(liveLog as any).sharedToMember
+                  ? <><CheckCheck className="h-3.5 w-3.5" />전송됨</>
+                  : <><Send className="h-3.5 w-3.5" />회원 전송</>
+                }
+              </button>
+            )}
+            {/* 수정/삭제/저장 */}
+            <div className="flex items-center gap-2 ml-auto">
+              {liveLog && (
+                <>
+                  <button
+                    onClick={() => {
+                      if (!liveLog) return;
+                      const exs = parseExercisesJson((liveLog as any).exercisesJson as string | null);
+                      setEditJournalForm({
+                        id: liveLog.id,
+                        sessionDate: liveLog.sessionDate,
+                        goal: (liveLog as any).goal ?? "",
+                        bodyPart: (liveLog as any).bodyPart ?? "",
+                        exercises: exs,
+                        feedback: (liveLog as any).feedback ?? "",
+                        notes: liveLog.notes ?? "",
+                      });
+                      setLiveTrainingOpen(false);
+                      setEditJournalOpen(true);
+                    }}
+                    className="text-muted-foreground hover:text-primary transition-colors p-1"
+                    title="상세 수정"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => { deleteLogMutation.mutate({ id: liveLog.id }); setLiveTrainingOpen(false); }}
+                    className="text-muted-foreground hover:text-red-400 transition-colors p-1"
+                    title="삭제"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+              <Button
+                size="sm"
+                disabled={updateLogMutation.isPending}
+                onClick={() => {
+                  if (!liveLog) return;
+                  updateLogMutation.mutate({
+                    id: liveLog.id,
+                    exercisesJson: liveExercises.length > 0 ? JSON.stringify(liveExercises) : undefined,
+                  });
+                }}
+              >
+                {updateLogMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "저장"}
               </Button>
             </div>
           </div>
