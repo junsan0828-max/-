@@ -1147,128 +1147,156 @@ function SubAdminSection() {
 }
 
 // ── 서버 관리 ──────────────────────────────────────────────────────────────────
-const GYMPLUS_URL = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
+const GYMPLUS_URL_KEY = "ziantgym_gymplus_url";
+const GYMPLUS_URL_DEFAULT = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
 const ACCESS_ADMIN_URL_KEY = "ziantgym_access_admin_url";
 
-function ServerManagementSection() {
-  const [accessUrl, setAccessUrl] = useState(() => localStorage.getItem(ACCESS_ADMIN_URL_KEY) ?? "");
-  const [editingAccess, setEditingAccess] = useState(false);
-  const [accessInput, setAccessInput] = useState(accessUrl);
+interface ExternalServiceCardProps {
+  icon: React.ReactNode;
+  iconBg: string;
+  borderColor: string;
+  buttonColor: string;
+  title: string;
+  description: string;
+  url: string;
+  urlKey: string;
+  onSave: (url: string) => void;
+}
 
-  function saveAccessUrl() {
-    const trimmed = accessInput.trim();
-    localStorage.setItem(ACCESS_ADMIN_URL_KEY, trimmed);
-    setAccessUrl(trimmed);
-    setEditingAccess(false);
+function ExternalServiceCard({ icon, iconBg, borderColor, buttonColor, title, description, url, urlKey, onSave }: ExternalServiceCardProps) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState(url);
+
+  function handleSave() {
+    const trimmed = input.trim();
+    onSave(trimmed);
+    setEditing(false);
+  }
+
+  function handleEdit() {
+    setInput(url);
+    setEditing(true);
+  }
+
+  return (
+    <div className={`bg-card border ${borderColor} rounded-xl p-4 space-y-3`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>
+            {icon}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">{title}</p>
+            <p className="text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        {!editing && (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleEdit}
+              className="text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 border border-border rounded-lg transition-colors"
+            >
+              {url ? "수정" : "URL 설정"}
+            </button>
+            {url && (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center gap-1.5 px-4 py-2 ${buttonColor} text-white rounded-lg text-sm font-semibold transition-colors`}
+              >
+                <LogIn className="h-4 w-4" />
+                열기
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+
+      {url && !editing && (
+        <p className="text-xs text-muted-foreground/60 truncate">{url}</p>
+      )}
+
+      {editing && (
+        <div className="space-y-2 pt-1 border-t border-border">
+          <label className="text-xs text-muted-foreground">{title} URL</label>
+          <input
+            type="url"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder="https://..."
+            autoFocus
+            onKeyDown={e => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setEditing(false); }}
+            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent transition-colors"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              저장
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ServerManagementSection() {
+  const [gymplusUrl, setGymplusUrl] = useState(
+    () => localStorage.getItem(GYMPLUS_URL_KEY) ?? GYMPLUS_URL_DEFAULT
+  );
+  const [accessUrl, setAccessUrl] = useState(
+    () => localStorage.getItem(ACCESS_ADMIN_URL_KEY) ?? ""
+  );
+
+  function saveGymplusUrl(url: string) {
+    localStorage.setItem(GYMPLUS_URL_KEY, url || GYMPLUS_URL_DEFAULT);
+    setGymplusUrl(url || GYMPLUS_URL_DEFAULT);
+    toast.success("ZIANTGYM+ URL이 저장되었습니다");
+  }
+
+  function saveAccessUrl(url: string) {
+    localStorage.setItem(ACCESS_ADMIN_URL_KEY, url);
+    setAccessUrl(url);
     toast.success("출입 어드민 URL이 저장되었습니다");
   }
 
   return (
     <div className="space-y-4">
-      {/* ZIANTGYM+ */}
-      <div className="bg-card border border-violet-500/30 rounded-xl p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0">
-                <ExternalLink className="h-4 w-4 text-violet-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">ZIANTGYM+</p>
-                <p className="text-xs text-muted-foreground">회원 앱 어드민 (자이언트짐+)</p>
-              </div>
-            </div>
-          </div>
-          <a
-            href={GYMPLUS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-semibold transition-colors shrink-0"
-          >
-            <LogIn className="h-4 w-4" />
-            열기
-          </a>
-        </div>
-        <p className="text-xs text-muted-foreground/60 mt-2 truncate">{GYMPLUS_URL}</p>
-      </div>
+      <ExternalServiceCard
+        icon={<ExternalLink className="h-4 w-4 text-violet-400" />}
+        iconBg="bg-violet-500/20"
+        borderColor="border-violet-500/30"
+        buttonColor="bg-violet-600 hover:bg-violet-500"
+        title="ZIANTGYM+"
+        description="회원 앱 어드민 (자이언트짐+)"
+        url={gymplusUrl}
+        urlKey={GYMPLUS_URL_KEY}
+        onSave={saveGymplusUrl}
+      />
 
-      {/* 출입 어드민 */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
-              <Server className="h-4 w-4 text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">출입 어드민</p>
-              <p className="text-xs text-muted-foreground">락커 관리 · 회원 출입 관리</p>
-            </div>
-          </div>
-          {accessUrl ? (
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => { setAccessInput(accessUrl); setEditingAccess(true); }}
-                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 border border-border rounded-lg transition-colors"
-              >
-                수정
-              </button>
-              <a
-                href={accessUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-colors"
-              >
-                <LogIn className="h-4 w-4" />
-                열기
-              </a>
-            </div>
-          ) : (
-            <button
-              onClick={() => { setAccessInput(""); setEditingAccess(true); }}
-              className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors shrink-0"
-            >
-              <Plus className="h-4 w-4" />
-              URL 설정
-            </button>
-          )}
-        </div>
+      <ExternalServiceCard
+        icon={<Server className="h-4 w-4 text-emerald-400" />}
+        iconBg="bg-emerald-500/20"
+        borderColor="border-border"
+        buttonColor="bg-emerald-600 hover:bg-emerald-500"
+        title="출입 어드민"
+        description="락커 관리 · 회원 출입 관리"
+        url={accessUrl}
+        urlKey={ACCESS_ADMIN_URL_KEY}
+        onSave={saveAccessUrl}
+      />
 
-        {accessUrl && !editingAccess && (
-          <p className="text-xs text-muted-foreground/60 truncate">{accessUrl}</p>
-        )}
-
-        {editingAccess && (
-          <div className="space-y-2 pt-1 border-t border-border">
-            <label className="text-xs text-muted-foreground">출입 어드민 URL</label>
-            <input
-              type="url"
-              value={accessInput}
-              onChange={e => setAccessInput(e.target.value)}
-              placeholder="https://..."
-              autoFocus
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setEditingAccess(false)}
-                className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent transition-colors"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={saveAccessUrl}
-                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                저장
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 안내 */}
       <div className="bg-accent/20 border border-border rounded-xl p-4 space-y-1.5">
         <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
           <Server className="h-3.5 w-3.5 text-muted-foreground" />서버 연동 안내
@@ -1277,6 +1305,7 @@ function ServerManagementSection() {
           <li>• ZIANTGYM+ : 회원 전용 모바일 앱 관리자 페이지</li>
           <li>• 출입 어드민 : 락커·출입 카드·회원 출입 관리 페이지</li>
           <li>• 각 링크는 새 탭에서 열립니다</li>
+          <li>• URL은 기기에 저장됩니다</li>
         </ul>
       </div>
     </div>
