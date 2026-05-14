@@ -791,22 +791,31 @@ const ptRouter = t.router({
       exercisesJson: z.string().optional(),
       feedback: z.string().optional(),
       notes: z.string().optional(),
+      overrideTrainerId: z.number().optional(), // admin이 대신 기록할 때
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const isStaff = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
+      let trainerId: number | null = ctx.user.trainerId ?? null;
+
+      if (isStaff) {
+        // admin: overrideTrainerId 또는 회원의 담당 트레이너 사용
+        if (input.overrideTrainerId) {
+          trainerId = input.overrideTrainerId;
+        } else {
+          const [mem] = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, input.memberId)).limit(1);
+          trainerId = mem?.trainerId ?? null;
+        }
+      } else if (!trainerId) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const { overrideTrainerId: _, ...logFields } = input;
       const [row] = await db.insert(ptSessionLogs).values({
-        memberId: input.memberId,
-        trainerId,
-        packageId: undefined,
-        sessionDate: input.sessionDate,
-        goal: input.goal,
-        bodyPart: input.bodyPart,
-        exercisesJson: input.exercisesJson,
-        feedback: input.feedback,
-        notes: input.notes,
+        ...logFields,
+        trainerId: trainerId ?? 0,
       }).returning();
       return row;
     }),
