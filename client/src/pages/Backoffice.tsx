@@ -9,11 +9,20 @@ function todayStr() {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} (${DAYS[d.getDay()]}) 기준`;
 }
 
-// ── 로고 ────────────────────────────────────────────────────────────────────
-function ZiantLogo({ size = 28 }: { size?: number }) {
+// ── 로고 — 바벨 + Z 구조 (|H-Z-H|) ────────────────────────────────────────
+function ZiantLogo({ size = 28, color = "white" }: { size?: number; color?: string }) {
+  const w = Math.round(size * 2.75);
   return (
-    <svg width={size * 1.1} height={size} viewBox="0 0 44 36" fill="none">
-      <path d="M2 34L10 4H18L14 18L22 4L30 4L26 18L34 4H42L34 34H26L30 20L22 34L14 20L18 34Z" fill="white"/>
+    <svg width={w} height={size} viewBox="0 0 220 80" fill="none">
+      <rect x="1" y="20" width="11" height="40" rx="3" fill={color}/>
+      <rect x="18" y="10" width="14" height="60" rx="3" fill={color}/>
+      <rect x="36" y="10" width="14" height="60" rx="3" fill={color}/>
+      <rect x="18" y="33" width="32" height="14" fill={color}/>
+      <polygon points="50,10 162,10 162,22 100,22 162,58 162,70 50,70 50,58 112,58 50,22" fill={color}/>
+      <rect x="164" y="10" width="14" height="60" rx="3" fill={color}/>
+      <rect x="182" y="10" width="14" height="60" rx="3" fill={color}/>
+      <rect x="164" y="33" width="32" height="14" fill={color}/>
+      <rect x="208" y="20" width="11" height="40" rx="3" fill={color}/>
     </svg>
   );
 }

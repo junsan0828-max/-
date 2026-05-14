@@ -47,11 +47,29 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((end.getTime() - today.getTime()) / 86400000);
 }
 
-// ZIANTGYM 로고 SVG
-function ZiantLogo({ size = 36 }: { size?: number }) {
+// ZIANTGYM 로고 SVG — 바벨 + Z 구조 (|H-Z-H|)
+function ZiantLogo({ size = 36, color = "white" }: { size?: number; color?: string }) {
+  const w = Math.round(size * 2.75); // 220:80 비율
   return (
-    <svg width={size * 1.1} height={size} viewBox="0 0 44 36" fill="none">
-      <path d="M2 34L10 4H18L14 18L22 4L30 4L26 18L34 4H42L34 34H26L30 20L22 34L14 20L18 34Z" fill="white"/>
+    <svg width={w} height={size} viewBox="0 0 220 80" fill="none">
+      {/* 왼쪽 외부 플레이트 */}
+      <rect x="1" y="20" width="11" height="40" rx="3" fill={color}/>
+      {/* 왼쪽 H — 왼쪽 바 */}
+      <rect x="18" y="10" width="14" height="60" rx="3" fill={color}/>
+      {/* 왼쪽 H — 오른쪽 바 */}
+      <rect x="36" y="10" width="14" height="60" rx="3" fill={color}/>
+      {/* 왼쪽 H 크로스바 */}
+      <rect x="18" y="33" width="32" height="14" fill={color}/>
+      {/* 중앙 Z 형태 — 평행한 두 대각선 엣지 (기울기 36/62) */}
+      <polygon points="50,10 162,10 162,22 100,22 162,58 162,70 50,70 50,58 112,58 50,22" fill={color}/>
+      {/* 오른쪽 H — 왼쪽 바 */}
+      <rect x="164" y="10" width="14" height="60" rx="3" fill={color}/>
+      {/* 오른쪽 H — 오른쪽 바 */}
+      <rect x="182" y="10" width="14" height="60" rx="3" fill={color}/>
+      {/* 오른쪽 H 크로스바 */}
+      <rect x="164" y="33" width="32" height="14" fill={color}/>
+      {/* 오른쪽 외부 플레이트 */}
+      <rect x="208" y="20" width="11" height="40" rx="3" fill={color}/>
     </svg>
   );
 }
