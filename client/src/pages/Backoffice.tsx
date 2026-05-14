@@ -1,360 +1,748 @@
 import { useState } from "react";
 import { trpc } from "../lib/trpc";
 
-type Tab = "members" | "lockers" | "logs";
+type BottomTab = "home" | "locker" | "search" | "logs" | "stats";
 
-function Badge({ result }: { result: string }) {
-  const map: Record<string, string> = {
-    allowed: "bg-green-100 text-green-700",
-    expired: "bg-yellow-100 text-yellow-700",
-    blocked: "bg-red-100 text-red-700",
-    not_found: "bg-gray-100 text-gray-500",
-  };
-  const label: Record<string, string> = {
-    allowed: "입장",
-    expired: "만료",
-    blocked: "차단",
-    not_found: "미등록",
-  };
+const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} (${DAYS[d.getDay()]}) 기준`;
+}
+
+// ── 로고 ────────────────────────────────────────────────────────────────────
+function ZiantLogo({ size = 28 }: { size?: number }) {
   return (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium ${map[result] ?? "bg-gray-100 text-gray-500"}`}>
-      {label[result] ?? result}
-    </span>
+    <svg width={size * 1.1} height={size} viewBox="0 0 44 36" fill="none">
+      <path d="M2 34L10 4H18L14 18L22 4L30 4L26 18L34 4H42L34 34H26L30 20L22 34L14 20L18 34Z" fill="white"/>
+    </svg>
   );
 }
 
-// ── 회원 관리 탭 ──────────────────────────────────────────────────────────────
-function MembersTab() {
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+// ── 아이콘 ───────────────────────────────────────────────────────────────────
+function Icon({ children, active }: { children: React.ReactNode; active: boolean }) {
+  return <span style={{ color: active ? "white" : "#555" }}>{children}</span>;
+}
+const navItems: [BottomTab, string, React.ReactNode][] = [
+  ["home", "홈", <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M1 10L11 2L21 10V20C21 20.55 20.55 21 20 21H14V15H8V21H2C1.45 21 1 20.55 1 20V10Z" stroke="currentColor" strokeWidth="1.5" fill="none"/></svg>],
+  ["locker", "락커현황", <svg width="20" height="22" viewBox="0 0 20 22" fill="none"><rect x="1" y="6" width="18" height="15" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M6 6V4C6 2.34 7.34 1 9 1H11C12.66 1 14 2.34 14 4V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><circle cx="10" cy="13.5" r="2" stroke="currentColor" strokeWidth="1.5"/></svg>],
+  ["search", "회원검색", <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="1.5"/><line x1="14" y1="14" x2="21" y2="21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>],
+  ["logs", "출입기록", <svg width="20" height="22" viewBox="0 0 20 22" fill="none"><rect x="1" y="1" width="18" height="20" rx="2" stroke="currentColor" strokeWidth="1.5"/><line x1="5" y1="7" x2="15" y2="7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><line x1="5" y1="11" x2="15" y2="11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><line x1="5" y1="15" x2="10" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>],
+  ["stats", "더보기", <svg width="22" height="6" viewBox="0 0 22 6" fill="none"><circle cx="3" cy="3" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="11" cy="3" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="19" cy="3" r="2" stroke="currentColor" strokeWidth="1.5"/></svg>],
+];
 
-  const { data: rows = [], refetch } = trpc.backoffice.searchMembers.useQuery({ q, page });
-  const { data: detail } = trpc.backoffice.getMember.useQuery(
-    { id: selectedId! },
-    { enabled: selectedId !== null }
-  );
-
-  const updateMember = trpc.backoffice.updateMember.useMutation({ onSuccess: () => refetch() });
-  const [editMode, setEditMode] = useState(false);
-  const [form, setForm] = useState<Record<string, string>>({});
-
-  function openMember(id: number) {
-    setSelectedId(id);
-    setEditMode(false);
-    setForm({});
-  }
-
-  function startEdit() {
-    if (!detail) return;
-    setForm({
-      name: detail.member.name ?? "",
-      phone: detail.member.phone ?? "",
-      status: detail.member.status ?? "active",
-      membershipStart: detail.member.membershipStart ?? "",
-      membershipEnd: detail.member.membershipEnd ?? "",
-      memo: detail.member.memo ?? "",
-    });
-    setEditMode(true);
-  }
-
-  function saveEdit() {
-    if (!selectedId) return;
-    updateMember.mutate({
-      id: selectedId,
-      ...form,
-      membershipStart: form.membershipStart || null,
-      membershipEnd: form.membershipEnd || null,
-      memo: form.memo || null,
-    });
-    setEditMode(false);
-  }
-
+// ── 공통 카드 ─────────────────────────────────────────────────────────────────
+function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div className="flex gap-4 h-full">
-      {/* 목록 */}
-      <div className="w-72 flex-shrink-0 flex flex-col gap-2">
-        <input
-          className="border rounded px-3 py-2 text-sm w-full"
-          placeholder="이름 / 전화번호 검색"
-          value={q}
-          onChange={(e) => { setQ(e.target.value); setPage(1); }}
-        />
-        <div className="overflow-y-auto flex-1 border rounded divide-y">
-          {rows.map((m: any) => (
-            <button
-              key={m.id}
-              onClick={() => openMember(m.id)}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-orange-50 transition-colors ${selectedId === m.id ? "bg-orange-50 font-semibold" : ""}`}
-            >
-              <div className="font-medium">{m.name}</div>
-              <div className="text-xs text-gray-400">{m.phone}</div>
-              <div className={`text-xs ${m.status === "active" ? "text-green-600" : "text-red-400"}`}>
-                {m.status === "active" ? "활성" : m.status} · {m.membershipEnd ? `~${m.membershipEnd}` : "기간없음"}
-              </div>
-            </button>
-          ))}
-          {rows.length === 0 && <p className="text-center text-gray-400 text-sm py-6">검색 결과 없음</p>}
-        </div>
-        <div className="flex gap-2 justify-center text-xs">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-2 py-1 border rounded disabled:opacity-40">이전</button>
-          <span className="py-1">{page}페이지</span>
-          <button disabled={rows.length < 30} onClick={() => setPage(p => p + 1)} className="px-2 py-1 border rounded disabled:opacity-40">다음</button>
-        </div>
-      </div>
-
-      {/* 상세 */}
-      <div className="flex-1 border rounded p-4 overflow-y-auto">
-        {!detail ? (
-          <p className="text-gray-400 text-sm text-center pt-10">회원을 선택하세요</p>
-        ) : editMode ? (
-          <div className="space-y-3">
-            <h3 className="font-bold text-base">회원 정보 수정</h3>
-            {[
-              { label: "이름", key: "name" },
-              { label: "전화번호", key: "phone" },
-              { label: "상태 (active/inactive)", key: "status" },
-              { label: "회원권 시작일 (YYYY-MM-DD)", key: "membershipStart" },
-              { label: "회원권 종료일 (YYYY-MM-DD)", key: "membershipEnd" },
-              { label: "메모", key: "memo" },
-            ].map(({ label, key }) => (
-              <div key={key}>
-                <label className="text-xs text-gray-500 block mb-1">{label}</label>
-                <input
-                  className="border rounded px-3 py-1.5 text-sm w-full"
-                  value={form[key] ?? ""}
-                  onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
-                />
-              </div>
-            ))}
-            <div className="flex gap-2 pt-2">
-              <button onClick={saveEdit} className="bg-orange-500 text-white px-4 py-2 rounded text-sm font-medium">저장</button>
-              <button onClick={() => setEditMode(false)} className="border px-4 py-2 rounded text-sm">취소</button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-lg">{detail.member.name}</h3>
-                <p className="text-sm text-gray-500">{detail.member.phone}</p>
-                <p className={`text-xs font-medium ${detail.member.status === "active" ? "text-green-600" : "text-red-500"}`}>
-                  {detail.member.status === "active" ? "활성 회원" : "비활성"}
-                </p>
-              </div>
-              <button onClick={startEdit} className="text-xs border rounded px-3 py-1.5 hover:bg-gray-50">수정</button>
-            </div>
-
-            <section>
-              <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">회원권</h4>
-              <div className="bg-gray-50 rounded p-3 text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">시작일</span>
-                  <span>{detail.member.membershipStart ?? "-"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">종료일</span>
-                  <span>{detail.member.membershipEnd ?? "-"}</span>
-                </div>
-              </div>
-            </section>
-
-            {detail.locker && (
-              <section>
-                <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">락커</h4>
-                <div className="bg-blue-50 rounded p-3 text-sm">
-                  {detail.locker.lockerNumber}번 · {detail.locker.lockerType} · ~{detail.locker.endDate ?? "무기한"}
-                </div>
-              </section>
-            )}
-
-            {detail.packages.length > 0 && (
-              <section>
-                <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">PT 패키지</h4>
-                <div className="space-y-2">
-                  {detail.packages.map((p: any) => (
-                    <div key={p.id} className="border rounded p-3 text-sm space-y-1">
-                      <div className="flex justify-between font-medium">
-                        <span>{p.packageName}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${p.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{p.status}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-500">
-                        <span>잔여 {(p.totalSessions ?? 0) - (p.usedSessions ?? 0)}회</span>
-                        <span>{p.expiryDate ? `~${p.expiryDate}` : "기간제한없음"}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {detail.member.memo && (
-              <section>
-                <h4 className="text-xs font-semibold text-gray-400 uppercase mb-1">메모</h4>
-                <p className="text-sm bg-yellow-50 rounded p-3">{detail.member.memo}</p>
-              </section>
-            )}
-          </div>
-        )}
-      </div>
+    <div style={{ background: "#1a1a1a", border: "1px solid #252525", borderRadius: 16, padding: "16px 20px", ...style }}>
+      {children}
     </div>
   );
 }
 
-// ── 락커 관리 탭 ──────────────────────────────────────────────────────────────
-function LockersTab() {
-  const { data: lockers = [], refetch } = trpc.backoffice.getLockers.useQuery();
-  const releaseLocker = trpc.backoffice.releaseLocker.useMutation({ onSuccess: refetch });
-  const deleteLocker = trpc.backoffice.deleteLocker.useMutation({ onSuccess: refetch });
-  const createLocker = trpc.backoffice.createLocker.useMutation({ onSuccess: () => { refetch(); setNewNum(""); } });
-  const [newNum, setNewNum] = useState("");
-
-  const free = lockers.filter((l: any) => !l.isOccupied).length;
-  const used = lockers.filter((l: any) => l.isOccupied).length;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex gap-4 text-sm">
-        <div className="bg-green-50 rounded px-4 py-2">사용가능 <strong>{free}</strong></div>
-        <div className="bg-orange-50 rounded px-4 py-2">사용중 <strong>{used}</strong></div>
-        <div className="bg-gray-50 rounded px-4 py-2">전체 <strong>{lockers.length}</strong></div>
-        <div className="ml-auto flex gap-2">
-          <input
-            className="border rounded px-2 py-1 text-sm w-24"
-            placeholder="락커 번호"
-            value={newNum}
-            onChange={(e) => setNewNum(e.target.value)}
-          />
-          <button
-            disabled={!newNum}
-            onClick={() => createLocker.mutate({ lockerNumber: newNum })}
-            className="bg-orange-500 text-white px-3 py-1 rounded text-sm disabled:opacity-40"
-          >추가</button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-        {lockers.map((l: any) => (
-          <div
-            key={l.id}
-            className={`rounded-lg border p-2 text-xs text-center relative group ${l.isOccupied ? "bg-orange-50 border-orange-200" : "bg-gray-50"}`}
-          >
-            <div className="font-bold text-sm">{l.lockerNumber}</div>
-            {l.isOccupied ? (
-              <>
-                <div className="text-gray-600 truncate">{l.memberName}</div>
-                <div className="text-gray-400">{l.endDate ? `~${l.endDate.slice(5)}` : "무기한"}</div>
-                <button
-                  onClick={() => { if (confirm(`${l.lockerNumber}번 락커를 반납 처리하시겠습니까?`)) releaseLocker.mutate({ lockerId: l.id }); }}
-                  className="mt-1 text-orange-500 text-xs underline hidden group-hover:block"
-                >반납</button>
-              </>
-            ) : (
-              <>
-                <div className="text-gray-400">비어있음</div>
-                <button
-                  onClick={() => { if (confirm(`${l.lockerNumber}번 락커를 삭제하시겠습니까?`)) deleteLocker.mutate({ lockerId: l.id }); }}
-                  className="mt-1 text-red-400 text-xs underline hidden group-hover:block"
-                >삭제</button>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── 출입 로그 탭 ──────────────────────────────────────────────────────────────
-function LogsTab() {
-  const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate] = useState(today);
-  const { data: logs = [] } = trpc.backoffice.todayLogs.useQuery();
-
-  const filtered = date === today
-    ? logs
-    : logs.filter((l: any) => l.accessedAt?.startsWith(date));
-
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-3 items-center">
-        <input type="date" className="border rounded px-3 py-1.5 text-sm" value={date} onChange={(e) => setDate(e.target.value)} />
-        <span className="text-sm text-gray-500">{filtered.length}건</span>
-      </div>
-      <div className="overflow-auto border rounded">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs text-gray-500">
-            <tr>
-              <th className="px-3 py-2 text-left">시간</th>
-              <th className="px-3 py-2 text-left">이름</th>
-              <th className="px-3 py-2 text-left">전화번호</th>
-              <th className="px-3 py-2 text-left">결과</th>
-              <th className="px-3 py-2 text-left">회원권</th>
-              <th className="px-3 py-2 text-left">락커</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {filtered.map((l: any) => (
-              <tr key={l.id} className="hover:bg-gray-50">
-                <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
-                  {l.accessedAt ? l.accessedAt.slice(11, 16) : "-"}
-                </td>
-                <td className="px-3 py-2 font-medium">{l.memberName ?? "-"}</td>
-                <td className="px-3 py-2 text-gray-500">{l.phone}</td>
-                <td className="px-3 py-2"><Badge result={l.accessResult} /></td>
-                <td className="px-3 py-2 text-gray-500">{l.membershipType ?? "-"}</td>
-                <td className="px-3 py-2 text-gray-500">{l.lockerNumber ?? "-"}</td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={6} className="text-center text-gray-400 py-8">출입 기록이 없습니다</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ── 메인 페이지 ───────────────────────────────────────────────────────────────
-export default function Backoffice() {
-  const [tab, setTab] = useState<Tab>("members");
+// ── 홈 탭 ────────────────────────────────────────────────────────────────────
+function HomeTab({ setTab }: { setTab: (t: BottomTab) => void }) {
   const { data: stats } = trpc.access.todayStats.useQuery();
+  const { data: lockers = [] } = trpc.backoffice.getLockers.useQuery();
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "members", label: "회원관리" },
-    { id: "lockers", label: "락커관리" },
-    { id: "logs", label: "출입로그" },
+  const total = (lockers as any[]).length;
+  const used = (lockers as any[]).filter((l) => l.isOccupied).length;
+  const free = total - used;
+  const today = new Date().toISOString().slice(0, 10);
+  const expiringSoon = (lockers as any[]).filter((l) => l.isOccupied && l.endDate && l.endDate >= today && daysLeft(l.endDate) <= 7).length;
+  const expired = (lockers as any[]).filter((l) => l.isOccupied && l.endDate && l.endDate < today).length;
+
+  const lockerPct = total > 0 ? Math.round((used / total) * 100) : 0;
+
+  const shortcuts = [
+    { label: "회원 검색", icon: "🔍", tab: "search" as BottomTab },
+    { label: "락커 현황", icon: "🔒", tab: "locker" as BottomTab },
+    { label: "만료 예정", icon: "📅", tab: "locker" as BottomTab },
+    { label: "장기 미사용", icon: "👤", tab: "logs" as BottomTab },
+    { label: "출입 기록", icon: "📋", tab: "logs" as BottomTab },
+    { label: "락커 배정", icon: "🔑", tab: "locker" as BottomTab },
+    { label: "통계", icon: "📊", tab: "stats" as BottomTab },
+    { label: "설정", icon: "⚙️", tab: "stats" as BottomTab },
   ];
 
   return (
-    <div className="p-4 h-screen flex flex-col max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-orange-500">자이언트짐 백오피스</h1>
-        {stats && (
-          <div className="flex gap-3 text-sm">
-            <div className="bg-green-50 rounded px-3 py-1">오늘 입장 <strong>{stats.allowed}</strong></div>
-            <div className="bg-red-50 rounded px-3 py-1">거부 <strong>{stats.denied}</strong></div>
-          </div>
-        )}
+    <div className="flex-1 overflow-y-auto" style={{ padding: "16px 16px 8px" }}>
+      {/* 오늘의 현황 */}
+      <Card style={{ marginBottom: 12 }}>
+        <div className="flex justify-between items-center mb-4">
+          <p style={{ fontSize: 15, fontWeight: 700, color: "white" }}>오늘의 현황</p>
+          <p style={{ fontSize: 11, color: "#555" }}>{todayStr()}</p>
+        </div>
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: "전체 회원", value: "-" },
+            { label: "오늘 출석", value: stats?.total ?? 0 },
+            { label: "출석률", value: "-" },
+            { label: "락커사용률", value: `${lockerPct}%` },
+          ].map((s) => (
+            <div key={s.label} className="text-center">
+              <p style={{ fontSize: 22, fontWeight: 700, color: "white" }}>{s.value}</p>
+              <p style={{ fontSize: 10, color: "#555", marginTop: 2 }}>{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* 락커 현황 */}
+      <Card style={{ marginBottom: 12 }}>
+        <div className="flex justify-between items-center mb-4">
+          <p style={{ fontSize: 15, fontWeight: 700, color: "white" }}>락커 현황</p>
+          <button onClick={() => setTab("locker")} style={{ fontSize: 12, color: "#555" }}>총 {total}개 &gt;</button>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: "사용중", value: used, dot: "#4CAF50" },
+            { label: "빈 락커", value: free, dot: "#555" },
+            { label: "만료 임박", value: expiringSoon, sub: "(7일 이내)", dot: "#ff8800" },
+            { label: "만료", value: expired, dot: "#cc4444" },
+          ].map((s) => (
+            <div key={s.label} className="text-center">
+              <div className="flex justify-center items-center gap-1 mb-1">
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, display: "inline-block" }}/>
+                <span style={{ fontSize: 10, color: "#666" }}>{s.label}</span>
+              </div>
+              <p style={{ fontSize: 24, fontWeight: 700, color: "white" }}>{s.value}</p>
+              {s.sub && <p style={{ fontSize: 9, color: "#555" }}>{s.sub}</p>}
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* 바로가기 */}
+      <Card style={{ marginBottom: 12 }}>
+        <p style={{ fontSize: 15, fontWeight: 700, color: "white", marginBottom: 14 }}>바로가기</p>
+        <div className="grid grid-cols-4 gap-3">
+          {shortcuts.map((s) => (
+            <button
+              key={s.label}
+              onClick={() => setTab(s.tab)}
+              className="flex flex-col items-center gap-2"
+            >
+              <div style={{ width: 48, height: 48, background: "#252525", borderRadius: 14, fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {s.icon}
+              </div>
+              <span style={{ fontSize: 11, color: "#888" }}>{s.label}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* 최근 알림 */}
+      <Card>
+        <div className="flex justify-between items-center mb-3">
+          <p style={{ fontSize: 15, fontWeight: 700, color: "white" }}>최근 알림</p>
+          <button style={{ fontSize: 12, color: "#555" }}>전체보기 &gt;</button>
+        </div>
+        <div className="space-y-4">
+          {expiringSoon > 0 && (
+            <AlertRow icon="📅" title={`락커 만료 임박`} desc={`${expiringSoon}개 락커가 7일 이내 만료됩니다.`} time="방금" />
+          )}
+          {expired > 0 && (
+            <AlertRow icon="⚠️" title={`만료된 락커`} desc={`${expired}개 락커가 이미 만료되었습니다.`} time="확인 필요" />
+          )}
+          {stats && stats.denied > 0 && (
+            <AlertRow icon="🚫" title={`출입 거부`} desc={`오늘 ${stats.denied}건 출입이 거부되었습니다.`} time="오늘" />
+          )}
+          {!expiringSoon && !expired && (!stats || stats.denied === 0) && (
+            <p style={{ color: "#444", fontSize: 13, textAlign: "center", padding: "8px 0" }}>새로운 알림이 없습니다</p>
+          )}
+        </div>
+      </Card>
+
+      <div style={{ height: 16 }} />
+    </div>
+  );
+}
+
+function AlertRow({ icon, title, desc, time }: { icon: string; title: string; desc: string; time: string }) {
+  return (
+    <div className="flex gap-3 items-start">
+      <div style={{ width: 36, height: 36, background: "#252525", borderRadius: 10, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</div>
+      <div className="flex-1 min-w-0">
+        <div className="flex justify-between items-start">
+          <p style={{ fontSize: 13, fontWeight: 600, color: "white" }}>{title}</p>
+          <span style={{ fontSize: 11, color: "#555", flexShrink: 0, marginLeft: 8 }}>{time}</span>
+        </div>
+        <p style={{ fontSize: 12, color: "#666", marginTop: 2 }}>{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+function daysLeft(dateStr: string) {
+  const end = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.ceil((end.getTime() - today.getTime()) / 86400000);
+}
+
+// ── 락커 탭 ──────────────────────────────────────────────────────────────────
+type LockerCategory = "all" | "male_a" | "male_b" | "female_a";
+
+function LockerTab() {
+  const { data: lockers = [], refetch } = trpc.backoffice.getLockers.useQuery();
+  const [cat, setCat] = useState<LockerCategory>("all");
+  const [newNum, setNewNum] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const createLocker = trpc.backoffice.createLocker.useMutation({ onSuccess: () => { refetch(); setNewNum(""); setShowAdd(false); } });
+  const releaseLocker = trpc.backoffice.releaseLocker.useMutation({ onSuccess: refetch });
+  const deleteLocker = trpc.backoffice.deleteLocker.useMutation({ onSuccess: refetch });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const allLockers = lockers as any[];
+
+  const cats: [LockerCategory, string][] = [["all","전체"],["male_a","남자락커룸 A"],["male_b","남자락커룸 B"],["female_a","여자락커룸 A"]];
+  const filtered = cat === "all" ? allLockers : allLockers.filter((l) => l.lockerType === cat);
+
+  function statusOf(l: any) {
+    if (!l.isOccupied) return "empty";
+    if (l.endDate && l.endDate < today) return "expired";
+    if (l.endDate && daysLeft(l.endDate) <= 7) return "expiring";
+    return "used";
+  }
+  const statusStyle: Record<string, React.CSSProperties> = {
+    empty: { background: "#1c1c1c", border: "1px solid #2a2a2a" },
+    used: { background: "#1c2c1c", border: "1px solid #2a4a2a" },
+    expiring: { background: "#2a2000", border: "1px solid #554400" },
+    expired: { background: "#2a0000", border: "1px solid #550000" },
+  };
+  const statusLabel: Record<string, { text: string; color: string }> = {
+    empty: { text: "비어있음", color: "#444" },
+    used: { text: "사용중", color: "#4CAF50" },
+    expiring: { text: "만료임박", color: "#ff8800" },
+    expired: { text: "만료", color: "#cc4444" },
+  };
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* 카테고리 탭 */}
+      <div className="overflow-x-auto flex-shrink-0" style={{ borderBottom: "1px solid #222" }}>
+        <div className="flex whitespace-nowrap">
+          {cats.map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setCat(id)}
+              style={{
+                padding: "10px 16px",
+                fontSize: 13,
+                color: cat === id ? "white" : "#555",
+                borderBottom: cat === id ? "2px solid white" : "2px solid transparent",
+                fontWeight: cat === id ? 600 : 400,
+                background: "transparent",
+                marginBottom: -1,
+                flexShrink: 0,
+              }}
+            >{label}</button>
+          ))}
+        </div>
       </div>
 
-      <div className="flex gap-1 border-b mb-4">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t.id ? "border-orange-500 text-orange-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
-          >
-            {t.label}
-          </button>
+      {/* 필터 배지 */}
+      <div className="flex gap-2 px-4 py-3 flex-shrink-0">
+        {[
+          { label: `사용중 ${allLockers.filter(l=>statusOf(l)==="used").length}`, color: "#4CAF50" },
+          { label: `비어있음 ${allLockers.filter(l=>statusOf(l)==="empty").length}`, color: "#555" },
+          { label: `만료임박 ${allLockers.filter(l=>statusOf(l)==="expiring").length}`, color: "#ff8800" },
+          { label: `만료 ${allLockers.filter(l=>statusOf(l)==="expired").length}`, color: "#cc4444" },
+        ].map((b) => (
+          <span key={b.label} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "#1c1c1c", color: b.color, border: "1px solid #2a2a2a" }}>{b.label}</span>
+        ))}
+        <button
+          onClick={() => setShowAdd(true)}
+          className="ml-auto"
+          style={{ fontSize: 12, padding: "3px 12px", borderRadius: 20, background: "#252525", color: "white", border: "1px solid #333" }}
+        >+ 추가</button>
+      </div>
+
+      {/* 락커 그리드 */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="grid grid-cols-4 gap-2">
+          {filtered.map((l: any) => {
+            const s = statusOf(l);
+            return (
+              <div
+                key={l.id}
+                className="rounded-xl p-2 relative group"
+                style={{ ...statusStyle[s], minHeight: 72 }}
+              >
+                <div style={{ fontSize: 16, fontWeight: 700, color: "white", marginBottom: 2 }}>{l.lockerNumber}</div>
+                <div style={{ fontSize: 10, color: statusLabel[s].color, fontWeight: 600 }}>{statusLabel[s].text}</div>
+                {l.isOccupied && (
+                  <>
+                    <div style={{ fontSize: 10, color: "#666", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.memberName}</div>
+                    {l.endDate && <div style={{ fontSize: 9, color: "#555" }}>{l.endDate.slice(5)}</div>}
+                    <button
+                      onClick={() => confirm(`${l.lockerNumber}번 반납?`) && releaseLocker.mutate({ lockerId: l.id })}
+                      className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ fontSize: 9, padding: "2px 6px", background: "#333", color: "#aaa", borderRadius: 4 }}
+                    >반납</button>
+                  </>
+                )}
+                {!l.isOccupied && (
+                  <button
+                    onClick={() => confirm(`${l.lockerNumber}번 삭제?`) && deleteLocker.mutate({ lockerId: l.id })}
+                    className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ fontSize: 9, padding: "2px 6px", background: "#2a1a1a", color: "#884444", borderRadius: 4 }}
+                  >삭제</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 범례 */}
+      <div className="flex justify-center gap-4 py-3 flex-shrink-0" style={{ borderTop: "1px solid #1c1c1c" }}>
+        {[["사용중","#4CAF50"],["비어있음","#444"],["만료임박","#ff8800"],["만료","#cc4444"],["장기미사용","#8844ff"]].map(([l,c])=>(
+          <div key={l} className="flex items-center gap-1">
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: c, display: "inline-block" }}/>
+            <span style={{ fontSize: 10, color: "#666" }}>{l}</span>
+          </div>
         ))}
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        {tab === "members" && <MembersTab />}
-        {tab === "lockers" && <LockersTab />}
+      {/* 락커 추가 모달 */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.85)" }} onClick={() => setShowAdd(false)}>
+          <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 20, padding: 24, width: 280 }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: "white", marginBottom: 16 }}>락커 추가</p>
+            <input
+              className="w-full text-white"
+              placeholder="락커 번호"
+              value={newNum}
+              onChange={e => setNewNum(e.target.value)}
+              style={{ background: "#252525", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 12 }}
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, background: "#252525", color: "#888", fontSize: 14 }}>취소</button>
+              <button
+                disabled={!newNum}
+                onClick={() => createLocker.mutate({ lockerNumber: newNum })}
+                style={{ flex: 1, padding: "10px", borderRadius: 10, background: newNum ? "white" : "#333", color: newNum ? "#0d0d0d" : "#555", fontSize: 14, fontWeight: 600 }}
+              >추가</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 회원검색 탭 ───────────────────────────────────────────────────────────────
+function SearchTab() {
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
+
+  const { data: rows = [], refetch } = trpc.backoffice.searchMembers.useQuery({ q, page });
+  const { data: detail } = trpc.backoffice.getMember.useQuery({ id: selectedId! }, { enabled: selectedId !== null });
+  const updateMember = trpc.backoffice.updateMember.useMutation({ onSuccess: () => { refetch(); setEditMode(false); } });
+
+  function openMember(id: number) { setSelectedId(id); setEditMode(false); }
+  function startEdit() {
+    if (!detail) return;
+    setForm({ name: detail.member.name ?? "", phone: detail.member.phone ?? "", status: detail.member.status ?? "active", membershipStart: detail.member.membershipStart ?? "", membershipEnd: detail.member.membershipEnd ?? "", memo: detail.member.memo ?? "" });
+    setEditMode(true);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (selectedId && detail) {
+    const m = detail.member;
+    const isActive = m.membershipEnd && m.membershipEnd >= today;
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid #1e1e1e" }}>
+          <button onClick={() => { setSelectedId(null); setEditMode(false); }} style={{ color: "#888", fontSize: 14 }}>← 뒤로</button>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "white" }}>회원 상세 정보</p>
+          <button onClick={editMode ? () => updateMember.mutate({ id: selectedId, ...form, membershipStart: form.membershipStart||null, membershipEnd: form.membershipEnd||null, memo: form.memo||null }) : startEdit}
+            style={{ marginLeft: "auto", fontSize: 13, padding: "4px 14px", background: "#252525", color: "white", borderRadius: 8 }}>
+            {editMode ? "저장" : "수정"}
+          </button>
+          {editMode && <button onClick={() => setEditMode(false)} style={{ fontSize: 13, padding: "4px 14px", background: "#1c1c1c", color: "#888", borderRadius: 8 }}>취소</button>}
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {/* 프로필 헤더 */}
+          <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid #1e1e1e" }}>
+            <div className="flex items-center gap-4">
+              <div style={{ width: 60, height: 60, background: "#252525", borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>👤</div>
+              <div>
+                {editMode ? (
+                  <input className="text-white font-bold" value={form.name} onChange={e => setForm(f=>({...f,name:e.target.value}))} style={{ fontSize: 20, background: "#252525", border: "1px solid #333", borderRadius: 8, padding: "4px 10px", outline: "none" }}/>
+                ) : (
+                  <p style={{ fontSize: 20, fontWeight: 700, color: "white" }}>{m.name}</p>
+                )}
+                <p style={{ fontSize: 12, color: "#555", marginTop: 2 }}>회원번호 {String(m.id).padStart(7, "0")}</p>
+                {editMode ? (
+                  <input value={form.phone} onChange={e => setForm(f=>({...f,phone:e.target.value}))} style={{ fontSize: 13, background: "#252525", border: "1px solid #333", borderRadius: 8, padding: "3px 8px", color: "#aaa", marginTop: 4, outline: "none" }}/>
+                ) : (
+                  <p style={{ fontSize: 13, color: "#888", marginTop: 2 }}>{m.phone}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 락커 배정 */}
+          {detail.locker && (
+            <InfoSection title="락커 번호">
+              <DetailRow icon="🔒" label="락커번호" value={`${detail.locker.lockerNumber} (${detail.locker.lockerType})`}/>
+            </InfoSection>
+          )}
+
+          {/* 이용권 */}
+          <InfoSection title="이용권">
+            <DetailRow icon="💳" label="이용권" value={isActive ? "헬스 회원권" : "만료"} valueColor={isActive ? "#4CAF50" : "#cc4444"}/>
+            <DetailRow icon="📅" label="이용기간"
+              value={m.membershipStart && m.membershipEnd ? `${m.membershipStart} ~ ${m.membershipEnd}` : "-"}
+            />
+            {editMode && (
+              <>
+                <div className="flex gap-2 mt-2">
+                  <div className="flex-1">
+                    <p style={{ fontSize: 11, color: "#555", marginBottom: 4 }}>시작일</p>
+                    <input type="date" value={form.membershipStart} onChange={e => setForm(f=>({...f,membershipStart:e.target.value}))} style={{ width: "100%", background: "#252525", border: "1px solid #333", borderRadius: 8, padding: "6px 10px", color: "white", fontSize: 12, outline: "none" }}/>
+                  </div>
+                  <div className="flex-1">
+                    <p style={{ fontSize: 11, color: "#555", marginBottom: 4 }}>종료일</p>
+                    <input type="date" value={form.membershipEnd} onChange={e => setForm(f=>({...f,membershipEnd:e.target.value}))} style={{ width: "100%", background: "#252525", border: "1px solid #333", borderRadius: 8, padding: "6px 10px", color: "white", fontSize: 12, outline: "none" }}/>
+                  </div>
+                </div>
+              </>
+            )}
+          </InfoSection>
+
+          {/* PT 패키지 */}
+          {detail.packages.length > 0 && (
+            <InfoSection title="수강권">
+              {detail.packages.map((p: any) => (
+                <DetailRow key={p.id} icon="⭐" label={p.packageName}
+                  value={`잔여 ${(p.totalSessions??0)-(p.usedSessions??0)}회 · ${p.expiryDate ? `~${p.expiryDate}` : "무기한"}`}
+                  valueColor={p.status === "active" ? "#4CAF50" : "#555"}
+                />
+              ))}
+            </InfoSection>
+          )}
+
+          {/* 메모 */}
+          <InfoSection title="메모">
+            {editMode ? (
+              <textarea
+                value={form.memo}
+                onChange={e => setForm(f=>({...f,memo:e.target.value}))}
+                placeholder="특이사항 입력..."
+                style={{ width: "100%", background: "#252525", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", color: "white", fontSize: 13, outline: "none", minHeight: 80, resize: "none" }}
+              />
+            ) : (
+              <p style={{ fontSize: 13, color: m.memo ? "#aaa" : "#444" }}>{m.memo || "특이사항 없음"}</p>
+            )}
+          </InfoSection>
+
+          {editMode && (
+            <InfoSection title="상태">
+              <select value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value}))}
+                style={{ background: "#252525", border: "1px solid #333", borderRadius: 8, padding: "6px 10px", color: "white", fontSize: 13, outline: "none" }}>
+                <option value="active">활성</option>
+                <option value="inactive">비활성</option>
+                <option value="blocked">차단</option>
+              </select>
+            </InfoSection>
+          )}
+
+          <div style={{ height: 24 }} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="px-4 pt-4 pb-2 flex-shrink-0">
+        <div style={{ background: "#1c1c1c", border: "1px solid #272727", borderRadius: 12, display: "flex", alignItems: "center", padding: "0 14px", gap: 10 }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="#555" strokeWidth="1.5"/><line x1="10" y1="10" x2="15" y2="15" stroke="#555" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          <input
+            className="flex-1 text-white"
+            placeholder="이름 또는 전화번호 검색"
+            value={q}
+            onChange={e => { setQ(e.target.value); setPage(1); }}
+            style={{ background: "transparent", border: "none", outline: "none", padding: "12px 0", fontSize: 14 }}
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="space-y-2">
+          {(rows as any[]).map((m: any) => {
+            const active = m.membershipEnd && m.membershipEnd >= today;
+            return (
+              <button key={m.id} onClick={() => openMember(m.id)} className="w-full text-left"
+                style={{ background: "#1a1a1a", border: "1px solid #252525", borderRadius: 14, padding: "14px 16px", display: "block" }}>
+                <div className="flex items-center gap-3">
+                  <div style={{ width: 44, height: 44, background: "#252525", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>👤</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p style={{ fontSize: 15, fontWeight: 600, color: "white" }}>{m.name}</p>
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: active ? "rgba(76,175,80,0.15)" : "rgba(180,0,0,0.15)", color: active ? "#4CAF50" : "#cc4444", fontWeight: 500 }}>
+                        {active ? "활성" : "만료"}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#666", marginTop: 2 }}>{m.phone}</p>
+                    <p style={{ fontSize: 11, color: "#444", marginTop: 1 }}>{m.membershipEnd ? `~${m.membershipEnd}` : "기간 없음"}</p>
+                  </div>
+                  <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><polyline points="1,1 7,7 1,13" stroke="#444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>
+              </button>
+            );
+          })}
+          {(rows as any[]).length === 0 && (
+            <div className="text-center py-16">
+              <p style={{ fontSize: 14, color: "#444" }}>{q ? "검색 결과가 없습니다" : "이름 또는 전화번호를 입력하세요"}</p>
+            </div>
+          )}
+        </div>
+
+        {(rows as any[]).length === 30 && (
+          <div className="flex justify-center gap-3 mt-4">
+            <button disabled={page === 1} onClick={() => setPage(p=>p-1)} style={{ padding: "6px 16px", background: "#1c1c1c", color: page===1?"#333":"#888", borderRadius: 8, fontSize: 13 }}>이전</button>
+            <span style={{ padding: "6px 0", color: "#555", fontSize: 13 }}>{page}p</span>
+            <button onClick={() => setPage(p=>p+1)} style={{ padding: "6px 16px", background: "#1c1c1c", color: "#888", borderRadius: 8, fontSize: 13 }}>다음</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InfoSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: "14px 20px", borderBottom: "1px solid #1a1a1a" }}>
+      <p style={{ fontSize: 11, color: "#555", letterSpacing: "0.08em", marginBottom: 10 }}>{title}</p>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+function DetailRow({ icon, label, value, valueColor }: { icon: string; label: string; value: string; valueColor?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: 13, color: "#666", flex: 1 }}>{label}</span>
+      <span style={{ fontSize: 13, color: valueColor ?? "#aaa", fontWeight: 500 }}>{value}</span>
+    </div>
+  );
+}
+
+// ── 출입기록 탭 ───────────────────────────────────────────────────────────────
+type LogFilter = "all" | "allowed" | "denied";
+
+function LogsTab() {
+  const { data: logs = [] } = trpc.backoffice.todayLogs.useQuery();
+  const [filter, setFilter] = useState<LogFilter>("all");
+
+  const allLogs = logs as any[];
+  const filtered = filter === "all" ? allLogs : filter === "allowed" ? allLogs.filter(l => l.accessResult === "allowed") : allLogs.filter(l => l.accessResult !== "allowed");
+
+  const resultInfo: Record<string, { label: string; color: string; bg: string }> = {
+    allowed: { label: "입장", color: "#4CAF50", bg: "rgba(76,175,80,0.12)" },
+    expired: { label: "만료", color: "#ff8800", bg: "rgba(255,136,0,0.12)" },
+    blocked: { label: "차단", color: "#cc4444", bg: "rgba(180,0,0,0.12)" },
+    not_found: { label: "미등록", color: "#555", bg: "rgba(80,80,80,0.12)" },
+  };
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* 필터 탭 */}
+      <div className="flex px-4 py-3 gap-2 flex-shrink-0" style={{ borderBottom: "1px solid #1e1e1e" }}>
+        {([["all","전체"],["allowed","입장"],["denied","거부"]] as [LogFilter, string][]).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setFilter(id)}
+            style={{
+              padding: "5px 16px",
+              fontSize: 13,
+              borderRadius: 20,
+              background: filter === id ? "white" : "#1c1c1c",
+              color: filter === id ? "#0d0d0d" : "#666",
+              fontWeight: filter === id ? 600 : 400,
+              border: "1px solid " + (filter === id ? "white" : "#2a2a2a"),
+            }}
+          >{label}</button>
+        ))}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#444", alignSelf: "center" }}>{filtered.length}건</span>
+      </div>
+
+      {/* 날짜 헤더 */}
+      <div style={{ padding: "10px 20px 6px", flexShrink: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "#777" }}>
+          {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
+        </p>
+      </div>
+
+      {/* 로그 목록 */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="space-y-2">
+          {filtered.map((l: any) => {
+            const info = resultInfo[l.accessResult] ?? resultInfo.not_found;
+            return (
+              <div key={l.id} style={{ background: "#1a1a1a", border: "1px solid #252525", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, background: info.bg, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: 18 }}>{l.accessResult === "allowed" ? "✓" : l.accessResult === "blocked" ? "🚫" : l.accessResult === "expired" ? "⏰" : "?"}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "white" }}>{l.memberName ?? "미등록"}</p>
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: info.bg, color: info.color, fontWeight: 600 }}>{info.label}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "#555", marginTop: 1 }}>
+                    {l.phone}
+                    {l.membershipType ? ` · ${l.membershipType}` : ""}
+                    {l.lockerNumber ? ` · 락커 ${l.lockerNumber}` : ""}
+                  </p>
+                </div>
+                <p style={{ fontSize: 13, color: "#555", flexShrink: 0 }}>
+                  {l.accessedAt ? l.accessedAt.slice(11, 16) : "-"}
+                </p>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className="text-center py-16"><p style={{ fontSize: 14, color: "#444" }}>출입 기록이 없습니다</p></div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 통계 탭 ──────────────────────────────────────────────────────────────────
+function StatsTab() {
+  const { data: stats } = trpc.access.todayStats.useQuery();
+  const { data: lockers = [] } = trpc.backoffice.getLockers.useQuery();
+
+  const total = (lockers as any[]).length;
+  const used = (lockers as any[]).filter((l: any) => l.isOccupied).length;
+  const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+
+  const circumference = 2 * Math.PI * 40;
+  const offset = circumference * (1 - pct / 100);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4">
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* 일간/주간/월간/연간 탭 */}
+        <Card style={{ gridColumn: "1 / -1" }}>
+          <div className="flex gap-1 mb-4">
+            {["일간","주간","월간","연간"].map((l, i) => (
+              <button key={l} style={{ flex: 1, padding: "6px", fontSize: 12, borderRadius: 8, background: i===0 ? "#252525" : "transparent", color: i===0 ? "white" : "#555", fontWeight: i===0 ? 600 : 400 }}>{l}</button>
+            ))}
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span style={{ color: "#555", fontSize: 12 }}>← 오늘 →</span>
+          </div>
+          {/* 간단한 막대 그래프 */}
+          <div className="flex items-end gap-1" style={{ height: 60 }}>
+            {[30,45,60,40,55,70,stats?.allowed ?? 0].map((v, i) => (
+              <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(v,4)}%`, background: i===6 ? "white" : "#2a2a2a" }}/>
+            ))}
+          </div>
+          <div className="flex justify-between mt-1">
+            {["06","08","10","12","14","16","18"].map(h=>(
+              <span key={h} style={{ fontSize: 9, color: "#444" }}>{h}</span>
+            ))}
+          </div>
+        </Card>
+
+        {/* 락커 사용률 도넛 */}
+        <Card>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>락커 사용률</p>
+          <div className="flex items-center gap-3">
+            <svg width="88" height="88" viewBox="0 0 88 88">
+              <circle cx="44" cy="44" r="40" fill="none" stroke="#1c1c1c" strokeWidth="8"/>
+              <circle cx="44" cy="44" r="40" fill="none" stroke="white" strokeWidth="8"
+                strokeDasharray={circumference}
+                strokeDashoffset={offset}
+                strokeLinecap="round"
+                style={{ transform: "rotate(-90deg)", transformOrigin: "center", transition: "stroke-dashoffset 0.5s" }}
+              />
+              <text x="44" y="44" textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="14" fontWeight="bold">{pct}%</text>
+            </svg>
+            <div>
+              <p style={{ fontSize: 22, fontWeight: 700, color: "white" }}>({used} / {total})</p>
+              <p style={{ fontSize: 11, color: "#555", marginTop: 2 }}>사용 / 전체</p>
+            </div>
+          </div>
+        </Card>
+
+        {/* 출석 현황 */}
+        <Card>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 12 }}>출석 현황</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "white" }}>{stats?.allowed ?? 0}</p>
+          <p style={{ fontSize: 11, color: "#555", marginTop: 2 }}>오늘 입장</p>
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+            <div style={{ flex: 1, textAlign: "center", background: "#1c1c1c", borderRadius: 8, padding: "8px 4px" }}>
+              <p style={{ fontSize: 16, fontWeight: 700, color: "#4CAF50" }}>{stats?.allowed ?? 0}</p>
+              <p style={{ fontSize: 10, color: "#555" }}>입장</p>
+            </div>
+            <div style={{ flex: 1, textAlign: "center", background: "#1c1c1c", borderRadius: 8, padding: "8px 4px" }}>
+              <p style={{ fontSize: 16, fontWeight: 700, color: "#cc4444" }}>{stats?.denied ?? 0}</p>
+              <p style={{ fontSize: 10, color: "#555" }}>거부</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div style={{ height: 8 }} />
+    </div>
+  );
+}
+
+// ── 메인 ─────────────────────────────────────────────────────────────────────
+export default function Backoffice() {
+  const [tab, setTab] = useState<BottomTab>("home");
+
+  return (
+    <div className="fixed inset-0 flex flex-col overflow-hidden select-none"
+      style={{ background: "#0d0d0d", fontFamily: "'Apple SD Gothic Neo','Noto Sans KR',sans-serif", color: "white" }}
+    >
+      {/* 상단 헤더 */}
+      <div className="flex items-center px-5 py-3 flex-shrink-0" style={{ borderBottom: "1px solid #1a1a1a", background: "#0d0d0d" }}>
+        <ZiantLogo size={24} />
+        <p className="font-bold tracking-widest ml-2" style={{ fontSize: 15 }}>ZIANTGYM</p>
+        <div className="ml-auto flex items-center gap-3">
+          <button style={{ color: "#555" }}>
+            <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
+              <path d="M10 22C11.1 22 12 21.1 12 20H8C8 21.1 8.9 22 10 22ZM18 16V10C18 6.93 16.37 4.36 13.5 3.68V3C13.5 2.17 12.83 1.5 12 1.5H8C7.17 1.5 6.5 2.17 6.5 3V3.68C3.64 4.36 2 6.92 2 10V16L0 18V19H20V18L18 16Z" fill="#555"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* 콘텐츠 */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {tab === "home" && <HomeTab setTab={setTab} />}
+        {tab === "locker" && <LockerTab />}
+        {tab === "search" && <SearchTab />}
         {tab === "logs" && <LogsTab />}
+        {tab === "stats" && <StatsTab />}
+      </div>
+
+      {/* 하단 네비게이션 */}
+      <div className="flex flex-shrink-0" style={{ background: "#111111", borderTop: "1px solid #1e1e1e", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        {navItems.map(([id, label, icon]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className="flex-1 flex flex-col items-center justify-center py-3 gap-1"
+            style={{ WebkitTapHighlightColor: "transparent" }}
+          >
+            <Icon active={tab === id}>{icon}</Icon>
+            <span style={{ fontSize: 10, color: tab === id ? "white" : "#555", fontWeight: tab === id ? 600 : 400 }}>{label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );
