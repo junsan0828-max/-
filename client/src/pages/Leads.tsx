@@ -60,6 +60,7 @@ type RegForm = {
   paymentDate: string;
   startDate: string;
   memo: string;
+  branchId?: number;
 };
 
 const defaultRegForm: RegForm = {
@@ -79,6 +80,7 @@ const defaultRegForm: RegForm = {
   paymentDate: new Date().toISOString().substring(0, 10),
   startDate: new Date().toISOString().substring(0, 10),
   memo: "",
+  branchId: undefined,
 };
 
 type LeadForm = {
@@ -227,6 +229,7 @@ export default function LeadsPage() {
     ptProgram: "", ptSessions: "", serviceSessions: "", paymentAmount: "", unpaidAmount: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
     paymentDate: "", paymentMemo: "",
+    branchId: "" as string,
   };
   const [directForm, setDirectForm] = useState(defaultDirectForm);
 
@@ -234,6 +237,7 @@ export default function LeadsPage() {
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
 
   const directRegMutation = trpc.members.create.useMutation({
     onSuccess: (data) => {
@@ -362,6 +366,7 @@ export default function LeadsPage() {
       paymentDate: reg.paymentDate,
       startDate: reg.startDate || undefined,
       memo: reg.memo || undefined,
+      branchId: reg.branchId ?? undefined,
     });
   }
 
@@ -938,6 +943,25 @@ export default function LeadsPage() {
                 </div>
               </div>
 
+              {/* 지점 선택 */}
+              {branchList && branchList.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted-foreground">지점</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    <button type="button" onClick={() => setRegForm(f => ({ ...f, branchId: undefined }))}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!regForm.branchId ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      미지정
+                    </button>
+                    {branchList.map((b: any) => (
+                      <button key={b.id} type="button" onClick={() => setRegForm(f => ({ ...f, branchId: b.id }))}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* 등록 진행 내용 */}
               <div>
                 <label className="text-xs text-muted-foreground">등록 진행 내용</label>
@@ -1168,6 +1192,24 @@ export default function LeadsPage() {
                 <input value={directForm.paymentMemo} onChange={e => setDirectForm(f => ({ ...f, paymentMemo: e.target.value }))} placeholder="분납 등 메모"
                   className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
+              {/* 지점 선택 */}
+              {branchList && branchList.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">지점</label>
+                  <div className="flex gap-2 flex-wrap">
+                    <button type="button" onClick={() => setDirectForm(f => ({ ...f, branchId: "" }))}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!directForm.branchId ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      미지정
+                    </button>
+                    {branchList.map((b: any) => (
+                      <button key={b.id} type="button" onClick={() => setDirectForm(f => ({ ...f, branchId: String(b.id) }))}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${directForm.branchId === String(b.id) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="p-4 border-t border-border shrink-0">
               <button type="button" disabled={directRegMutation.isPending}
@@ -1193,6 +1235,7 @@ export default function LeadsPage() {
                     paymentDate: directForm.paymentDate || undefined,
                     paymentMemo: directForm.paymentMemo || undefined,
                     adminTrainerId: directForm.trainerId ? parseInt(directForm.trainerId) : undefined,
+                    branchId: directForm.branchId ? parseInt(directForm.branchId) : undefined,
                     subType: "신규" as const,
                   });
                 }}

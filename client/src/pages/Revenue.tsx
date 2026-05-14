@@ -337,6 +337,11 @@ function RevenueContent() {
                     <span>· {row.entry.paymentDate}</span>
                     {row.entry.paymentMethod && <span>· {row.entry.paymentMethod}</span>}
                   </div>
+                  {(row as any).branchName && (
+                    <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-medium">
+                      {(row as any).branchName}
+                    </span>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="text-base font-bold text-foreground">{fmt(row.entry.paidAmount)}원</div>
@@ -598,6 +603,25 @@ function RevenueContent() {
                   </select>
                 </div>
               </div>
+
+              {/* 지점 선택 */}
+              {branchList && branchList.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted-foreground">지점 *</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    <button type="button" onClick={() => setForm(f => ({ ...f, branchId: undefined }))}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!form.branchId ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      미지정
+                    </button>
+                    {branchList.map((b) => (
+                      <button key={b.id} type="button" onClick={() => setForm(f => ({ ...f, branchId: b.id }))}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${form.branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="text-xs text-muted-foreground">메모</label>

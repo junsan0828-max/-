@@ -297,7 +297,8 @@ const membersRouter = t.router({
         paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
         paymentDate: z.string().optional(),
         paymentMemo: z.string().optional(),
-        adminTrainerId: z.number().optional(), // 관리자가 직접 담당 트레이너 지정
+        adminTrainerId: z.number().optional(),
+        branchId: z.number().optional(),
         subType: z.enum(["신규", "재등록"]).default("재등록"),
       })
     )
