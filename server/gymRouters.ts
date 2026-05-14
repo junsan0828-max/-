@@ -12,6 +12,7 @@ import {
   trainers,
   members,
   branches,
+  trainerBranches,
   users,
   tasks,
   notices,
@@ -356,9 +357,19 @@ const revenueRouter = t.router({
         trainerId: input.trainerId ?? ctx.user.trainerId ?? undefined,
         consultantId: input.consultantId ?? ctx.user.id,
       } : {};
+      const resolvedTrainerId = (trainerAutoFields as any).trainerId ?? input.trainerId ?? undefined;
+
+      // branchId 미지정 시 트레이너 소속 지점으로 자동 할당
+      let resolvedBranchId = input.branchId ?? undefined;
+      if (!resolvedBranchId && resolvedTrainerId) {
+        const [tr] = await db.select({ branchId: trainers.branchId }).from(trainers).where(eq(trainers.id, resolvedTrainerId)).limit(1);
+        if (tr?.branchId) resolvedBranchId = tr.branchId;
+      }
+
       const [row] = await db.insert(revenueEntries).values({
         ...input,
         ...trainerAutoFields,
+        branchId: resolvedBranchId ?? null,
         createdBy: ctx.user!.id,
         updatedAt: new Date().toISOString(),
       }).returning();
@@ -764,13 +775,32 @@ const kpiRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const revenueWhere = input.branchId ? eq(revenueEntries.branchId, input.branchId) : undefined;
-      const expenseWhere = input.branchId ? eq(expenseEntries.branchId, input.branchId) : undefined;
+      let branchTrainerIdsForDetail: Set<number> | null = null;
+      if (input.branchId) {
+        const [tbRows, trainerPrimaryRows] = await Promise.all([
+          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
+        ]);
+        branchTrainerIdsForDetail = new Set([
+          ...tbRows.map(r => r.trainerId),
+          ...trainerPrimaryRows.map(r => r.id),
+        ]);
+      }
 
-      const [allRevenue, allExpenses] = await Promise.all([
-        revenueWhere ? db.select().from(revenueEntries).where(revenueWhere) : db.select().from(revenueEntries),
-        expenseWhere ? db.select().from(expenseEntries).where(expenseWhere) : db.select().from(expenseEntries),
+      const [allRevenueRaw2, allExpensesRaw2] = await Promise.all([
+        db.select().from(revenueEntries),
+        db.select().from(expenseEntries),
       ]);
+
+      const allRevenue = input.branchId
+        ? allRevenueRaw2.filter(r =>
+            r.branchId === input.branchId ||
+            (!r.branchId && r.trainerId != null && branchTrainerIdsForDetail!.has(r.trainerId))
+          )
+        : allRevenueRaw2;
+      const allExpenses = input.branchId
+        ? allExpensesRaw2.filter(e => e.branchId === input.branchId)
+        : allExpensesRaw2;
 
       const computeMonth = (m: number) => {
         const prefix = `${input.year}-${String(m).padStart(2, "0")}`;
@@ -845,15 +875,36 @@ const kpiRouter = t.router({
       const today = new Date().toISOString().substring(0, 10);
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
 
-      const revenueWhere = input.branchId ? eq(revenueEntries.branchId, input.branchId) : undefined;
-      const expenseWhere = input.branchId ? eq(expenseEntries.branchId, input.branchId) : undefined;
+      // 지점 필터: 명시적 branchId 매칭 + branchId 없는 항목은 트레이너 소속 지점으로 판단
+      let branchTrainerIds: Set<number> | null = null;
+      if (input.branchId) {
+        const [tbRows, trainerPrimaryRows] = await Promise.all([
+          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
+        ]);
+        branchTrainerIds = new Set([
+          ...tbRows.map(r => r.trainerId),
+          ...trainerPrimaryRows.map(r => r.id),
+        ]);
+      }
 
-      const [allRevenue, allExpenses, allLeads, allTargets] = await Promise.all([
-        revenueWhere ? db.select().from(revenueEntries).where(revenueWhere) : db.select().from(revenueEntries),
-        expenseWhere ? db.select().from(expenseEntries).where(expenseWhere) : db.select().from(expenseEntries),
+      const [allRevenueRaw, allExpensesRaw, allLeads, allTargets] = await Promise.all([
+        db.select().from(revenueEntries),
+        db.select().from(expenseEntries),
         db.select().from(leads),
         db.select().from(revenueTargets),
       ]);
+
+      const allRevenue = input.branchId
+        ? allRevenueRaw.filter(r =>
+            r.branchId === input.branchId ||
+            (!r.branchId && r.trainerId != null && branchTrainerIds!.has(r.trainerId))
+          )
+        : allRevenueRaw;
+
+      const allExpenses = input.branchId
+        ? allExpensesRaw.filter(e => e.branchId === input.branchId)
+        : allExpensesRaw;
 
       // 오늘 매출 (이전 제외)
       const todayRevenue = allRevenue.filter(r => r.paymentDate === today && r.subType !== "이전").reduce((s, r) => s + r.paidAmount, 0);
