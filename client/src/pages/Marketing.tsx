@@ -36,6 +36,8 @@ export default function MarketingPage() {
   const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, month });
   const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
   const { data: annualData } = trpc.gym.revenue.channelAnnual.useQuery({ year });
+  const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year, month });
+  const { data: programAnnual } = trpc.gym.revenue.programAnnual.useQuery({ year });
 
   const createChannelMutation = trpc.gym.channels.create.useMutation({
     onSuccess: () => { toast.success("채널이 추가되었습니다"); utils.gym.channels.invalidate(); setShowChannelForm(false); setChannelForm({ name: "", type: "online", description: "" }); },
@@ -192,6 +194,52 @@ export default function MarketingPage() {
                   <Bar dataKey="등록" fill="#10b981" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* PT 프로그램별 통계 (이벤트피티 포함) */}
+          {programStats && programStats.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-3">PT 프로그램별 현황</h2>
+              <div className="space-y-2">
+                {programStats.map((prog, i) => {
+                  const isEvent = prog.name.includes("이벤트");
+                  const maxRev = programStats[0].revenue;
+                  const pct = maxRev > 0 ? Math.round((prog.revenue / maxRev) * 100) : 0;
+                  return (
+                    <div key={prog.name}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-1.5 py-0.5 rounded-full font-medium ${isEvent ? "bg-amber-400/15 text-amber-400" : "bg-primary/10 text-primary"}`}>
+                            {prog.name}
+                          </span>
+                          <span className="text-muted-foreground">{prog.count}건</span>
+                          <span className="text-muted-foreground text-[10px]">(신규 {prog.newCount} / 재등록 {prog.renewalCount})</span>
+                        </div>
+                        <span className="font-semibold text-foreground">{fmtWon(prog.revenue)}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: isEvent ? "#f59e0b" : COLORS[i % COLORS.length] }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* 이벤트피티 합산 */}
+              {(() => {
+                const evList = programStats.filter(p => p.name.includes("이벤트"));
+                if (!evList.length) return null;
+                const evTotal = evList.reduce((s, p) => s + p.revenue, 0);
+                const evCount = evList.reduce((s, p) => s + p.count, 0);
+                const totalRev = programStats.reduce((s, p) => s + p.revenue, 0);
+                const evPct = totalRev > 0 ? Math.round((evTotal / totalRev) * 100) : 0;
+                return (
+                  <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
+                    <span className="text-amber-400 font-medium">이벤트피티 합계</span>
+                    <span className="text-foreground font-semibold">{evCount}건 · {fmtWon(evTotal)} ({evPct}%)</span>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -370,6 +418,81 @@ export default function MarketingPage() {
                         <div className="text-muted-foreground">{annualTotalLeads}건</div>
                       </td>
                     </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 이벤트피티 월별 추이 (연간) */}
+          {programAnnual && programAnnual.programs.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-1">PT 프로그램별 월별 등록 건수</h2>
+              <p className="text-xs text-muted-foreground mb-4">이벤트피티 포함 프로그램별 월별 추이</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={programAnnual.monthlyData}
+                  barSize={8}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#9ca3af" }} />
+                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }}
+                    formatter={(value: any, name: any) => [String(value) + "건", String(name).replace("_count", "")]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "10px" }} formatter={(v: any) => String(v).replace("_count", "")} />
+                  {programAnnual.programs.map((prog, i) => (
+                    <Bar
+                      key={prog}
+                      dataKey={prog + "_count"}
+                      name={prog + "_count"}
+                      fill={prog.includes("이벤트") ? "#f59e0b" : COLORS[i % COLORS.length]}
+                      radius={[2, 2, 0, 0]}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* 이벤트피티 연간 요약 테이블 */}
+          {programAnnual && programAnnual.programs.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-3">프로그램별 월별 매출 요약</h2>
+              <div className="overflow-x-auto -mx-2">
+                <table className="w-full text-xs min-w-[500px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left text-muted-foreground py-2 pl-2 pr-1 font-medium w-20">프로그램</th>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <th key={i} className="text-center text-muted-foreground py-2 px-0.5 font-medium">{i + 1}월</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {programAnnual.programs.map((prog, idx) => {
+                      const isEvent = prog.includes("이벤트");
+                      return (
+                        <tr key={prog} className={idx % 2 === 0 ? "bg-muted/20" : ""}>
+                          <td className={`py-2 pl-2 pr-1 font-medium truncate max-w-[72px] ${isEvent ? "text-amber-400" : "text-foreground"}`}>{prog}</td>
+                          {programAnnual.monthlyData.map((m) => {
+                            const rev = m[prog + "_revenue"] as number ?? 0;
+                            const cnt = m[prog + "_count"] as number ?? 0;
+                            return (
+                              <td key={m.month} className="text-center py-2 px-0.5">
+                                {cnt > 0 ? (
+                                  <div>
+                                    <div className={`font-semibold ${isEvent ? "text-amber-400" : "text-primary"}`}>{cnt}건</div>
+                                    <div className="text-muted-foreground">{fmtWon(rev)}</div>
+                                  </div>
+                                ) : <span className="text-muted-foreground/30">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

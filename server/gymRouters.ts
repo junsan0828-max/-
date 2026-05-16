@@ -672,6 +672,67 @@ const revenueRouter = t.router({
         return row;
       }
     }),
+
+  // 이달 PT 프로그램별 통계 (이벤트피티 포함)
+  programStats: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      const allEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${prefix}%`));
+      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전"
+        && (!input.branchId || e.branchId === input.branchId));
+
+      const byProgram: Record<string, { name: string; count: number; revenue: number; newCount: number; renewalCount: number }> = {};
+      for (const e of entries) {
+        const key = e.programDetail ?? "기타PT";
+        if (!byProgram[key]) byProgram[key] = { name: key, count: 0, revenue: 0, newCount: 0, renewalCount: 0 };
+        byProgram[key].count++;
+        byProgram[key].revenue += e.paidAmount;
+        if (e.subType === "신규") byProgram[key].newCount++;
+        if (e.subType === "재등록") byProgram[key].renewalCount++;
+      }
+      return Object.values(byProgram).sort((a, b) => b.revenue - a.revenue);
+    }),
+
+  // 연간 월별 PT 프로그램별 추이
+  programAnnual: protectedProcedure
+    .input(z.object({ year: z.number(), branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const allEntries = await db.select().from(revenueEntries)
+        .where(like(revenueEntries.paymentDate, `${input.year}%`));
+      const entries = allEntries.filter(e => e.type === "PT" && e.subType !== "이전"
+        && (!input.branchId || e.branchId === input.branchId));
+
+      const programs = new Set<string>();
+      const monthly: Record<number, Record<string, { count: number; revenue: number }>> = {};
+      for (let m = 1; m <= 12; m++) monthly[m] = {};
+
+      for (const e of entries) {
+        const m = parseInt(e.paymentDate.substring(5, 7));
+        const prog = e.programDetail ?? "기타PT";
+        programs.add(prog);
+        if (!monthly[m][prog]) monthly[m][prog] = { count: 0, revenue: 0 };
+        monthly[m][prog].count++;
+        monthly[m][prog].revenue += e.paidAmount;
+      }
+
+      const programList = Array.from(programs);
+      const monthlyData = Array.from({ length: 12 }, (_, i) => {
+        const m = i + 1;
+        const row: Record<string, any> = { month: m, label: `${m}월` };
+        for (const prog of programList) {
+          row[prog + "_count"] = monthly[m][prog]?.count ?? 0;
+          row[prog + "_revenue"] = monthly[m][prog]?.revenue ?? 0;
+        }
+        return row;
+      });
+
+      return { programs: programList, monthlyData };
+    }),
 });
 
 // ─── Expense Entries (지출 장부) ──────────────────────────────────────────────
