@@ -209,7 +209,9 @@ function ActiveWorkoutModal({
   onClose: (durationMinutes: number, updatedExercises: Exercise[]) => void;
 }) {
   const [elapsed, setElapsed] = useState(0);
+  const [paused, setPaused] = useState(false);
   const startRef = useRef(Date.now());
+  const pausedAtRef = useRef(0);
   const [exList, setExList] = useState<ActiveExercise[]>(() => {
     try {
       const parsed: any[] = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
@@ -224,9 +226,22 @@ function ActiveWorkoutModal({
   const [showVideo, setShowVideo] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    const id = setInterval(() => {
+      if (!paused) setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    }, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [paused]);
+
+  function togglePause() {
+    if (paused) {
+      // 재개: 일시정지된 시간만큼 startRef를 앞으로 당김
+      startRef.current += Date.now() - pausedAtRef.current;
+      setPaused(false);
+    } else {
+      pausedAtRef.current = Date.now();
+      setPaused(true);
+    }
+  }
 
   function toggleDone(i: number) {
     setExList((prev) => prev.map((e, j) => j === i ? { ...e, done: !e.done } : e));
@@ -269,12 +284,26 @@ function ActiveWorkoutModal({
 
   return (
     <Dialog open onOpenChange={() => {}}>
-      <DialogContent className="max-w-sm max-h-[92vh] overflow-y-auto p-0">
+      <DialogContent className="max-w-sm max-h-[92vh] overflow-y-auto p-0 [&>button]:hidden">
         {/* 타이머 헤더 */}
         <div className="bg-primary/10 border-b border-primary/20 px-4 py-4 text-center sticky top-0 z-10">
-          <p className="text-xs text-primary font-medium mb-1">운동 중</p>
-          <p className="text-4xl font-mono font-bold text-foreground">{formatTime(elapsed)}</p>
+          <p className={`text-xs font-medium mb-1 ${paused ? "text-yellow-400" : "text-primary"}`}>
+            {paused ? "일시정지" : "운동 중"}
+          </p>
+          <p className={`text-4xl font-mono font-bold ${paused ? "text-yellow-400" : "text-foreground"}`}>
+            {formatTime(elapsed)}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{doneCount}/{exList.length} 완료</p>
+          <button
+            onClick={togglePause}
+            className={`mt-2 px-4 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+              paused
+                ? "bg-primary/20 border-primary text-primary"
+                : "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
+            }`}
+          >
+            {paused ? "▶ 재개" : "⏸ 일시정지"}
+          </button>
         </div>
 
         <div className="p-4 space-y-3">
