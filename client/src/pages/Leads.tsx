@@ -315,7 +315,13 @@ export default function LeadsPage() {
     const amount = Number(reg.amount);
     if (!amount) return toast.error("금액을 입력해주세요");
     setShowRegistration(false);
-    setShowSignature(true);
+    // PT 포함 시에만 서명 필요, 헬스/기타는 바로 저장
+    if (reg.itemTypes.includes("PT")) {
+      setShowSignature(true);
+    } else {
+      regPendingRef.current = reg;
+      handleSave("registered");
+    }
   }
 
   function proceedAfterSignature(sigDataUrl: string) {
@@ -973,7 +979,7 @@ export default function LeadsPage() {
             <div className="p-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={saveRegistration}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors">
-                등록 완료
+                {regForm.itemTypes.includes("PT") ? "서명 진행" : "등록 완료"}
               </button>
               <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
