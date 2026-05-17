@@ -190,22 +190,63 @@ function daysLeft(dateStr: string) {
 }
 
 // ── 락커 탭 ──────────────────────────────────────────────────────────────────
-type LockerCategory = "all" | "male_a" | "male_b" | "female_a";
+const DEFAULT_CATS = [
+  { id: "male_a", label: "남자락커룸 A" },
+  { id: "male_b", label: "남자락커룸 B" },
+  { id: "female_a", label: "여자락커룸 A" },
+];
+
+function loadCats(): { id: string; label: string }[] {
+  try {
+    const s = localStorage.getItem("ziant_locker_cats");
+    if (s) return JSON.parse(s);
+  } catch {}
+  return DEFAULT_CATS;
+}
+function saveCats(cats: { id: string; label: string }[]) {
+  localStorage.setItem("ziant_locker_cats", JSON.stringify(cats));
+}
 
 function LockerTab() {
   const { data: lockers = [], refetch } = trpc.backoffice.getLockers.useQuery();
-  const [cat, setCat] = useState<LockerCategory>("all");
+  const [cat, setCat] = useState("all");
+  const [cats, setCatsState] = useState(loadCats);
   const [newNum, setNewNum] = useState("");
+  const [newCatId, setNewCatId] = useState("all");
   const [showAdd, setShowAdd] = useState(false);
-  const createLocker = trpc.backoffice.createLocker.useMutation({ onSuccess: () => { refetch(); setNewNum(""); setShowAdd(false); } });
+  const [showCatMgr, setShowCatMgr] = useState(false);
+  const [editingCat, setEditingCat] = useState<{ id: string; label: string } | null>(null);
+  const [newCatLabel, setNewCatLabel] = useState("");
+
+  const createLocker = trpc.backoffice.createLocker.useMutation({ onSuccess: () => { refetch(); setNewNum(""); setNewCatId("all"); setShowAdd(false); } });
   const releaseLocker = trpc.backoffice.releaseLocker.useMutation({ onSuccess: refetch });
   const deleteLocker = trpc.backoffice.deleteLocker.useMutation({ onSuccess: refetch });
 
   const today = new Date().toISOString().slice(0, 10);
   const allLockers = lockers as any[];
-
-  const cats: [LockerCategory, string][] = [["all","전체"],["male_a","남자락커룸 A"],["male_b","남자락커룸 B"],["female_a","여자락커룸 A"]];
+  const allCats = [{ id: "all", label: "전체" }, ...cats];
   const filtered = cat === "all" ? allLockers : allLockers.filter((l) => l.lockerType === cat);
+
+  function updateCats(next: { id: string; label: string }[]) {
+    setCatsState(next);
+    saveCats(next);
+  }
+  function addCat() {
+    if (!newCatLabel.trim()) return;
+    const id = "cat_" + Date.now();
+    const next = [...cats, { id, label: newCatLabel.trim() }];
+    updateCats(next);
+    setNewCatLabel("");
+  }
+  function renameCat(id: string, label: string) {
+    updateCats(cats.map((c) => (c.id === id ? { id, label } : c)));
+    setEditingCat(null);
+  }
+  function removeCat(id: string) {
+    if (!confirm("이 탭을 삭제하면 해당 탭의 락커는 '전체'에서만 보입니다.\n삭제하시겠습니까?")) return;
+    if (cat === id) setCat("all");
+    updateCats(cats.filter((c) => c.id !== id));
+  }
 
   function statusOf(l: any) {
     if (!l.isOccupied) return "empty";
@@ -230,8 +271,8 @@ function LockerTab() {
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* 카테고리 탭 */}
       <div className="overflow-x-auto flex-shrink-0" style={{ borderBottom: "1px solid #222" }}>
-        <div className="flex whitespace-nowrap">
-          {cats.map(([id, label]) => (
+        <div className="flex whitespace-nowrap items-end">
+          {allCats.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setCat(id)}
@@ -247,23 +288,29 @@ function LockerTab() {
               }}
             >{label}</button>
           ))}
+          {/* 탭 설정 버튼 */}
+          <button
+            onClick={() => setShowCatMgr(true)}
+            style={{ padding: "10px 14px", fontSize: 18, color: "#444", marginBottom: -1, flexShrink: 0 }}
+            title="탭 설정"
+          >⚙</button>
         </div>
       </div>
 
       {/* 필터 배지 */}
-      <div className="flex gap-2 px-4 py-3 flex-shrink-0">
+      <div className="flex gap-2 px-4 py-3 flex-shrink-0 overflow-x-auto">
         {[
-          { label: `사용중 ${allLockers.filter(l=>statusOf(l)==="used").length}`, color: "#4CAF50" },
-          { label: `비어있음 ${allLockers.filter(l=>statusOf(l)==="empty").length}`, color: "#555" },
-          { label: `만료임박 ${allLockers.filter(l=>statusOf(l)==="expiring").length}`, color: "#ff8800" },
-          { label: `만료 ${allLockers.filter(l=>statusOf(l)==="expired").length}`, color: "#cc4444" },
+          { label: `사용중 ${filtered.filter(l=>statusOf(l)==="used").length}`, color: "#4CAF50" },
+          { label: `비어있음 ${filtered.filter(l=>statusOf(l)==="empty").length}`, color: "#555" },
+          { label: `만료임박 ${filtered.filter(l=>statusOf(l)==="expiring").length}`, color: "#ff8800" },
+          { label: `만료 ${filtered.filter(l=>statusOf(l)==="expired").length}`, color: "#cc4444" },
         ].map((b) => (
-          <span key={b.label} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "#1c1c1c", color: b.color, border: "1px solid #2a2a2a" }}>{b.label}</span>
+          <span key={b.label} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 20, background: "#1c1c1c", color: b.color, border: "1px solid #2a2a2a", flexShrink: 0 }}>{b.label}</span>
         ))}
         <button
-          onClick={() => setShowAdd(true)}
+          onClick={() => { setNewCatId(cat === "all" ? (cats[0]?.id ?? "all") : cat); setShowAdd(true); }}
           className="ml-auto"
-          style={{ fontSize: 12, padding: "3px 12px", borderRadius: 20, background: "#252525", color: "white", border: "1px solid #333" }}
+          style={{ fontSize: 12, padding: "3px 12px", borderRadius: 20, background: "#252525", color: "white", border: "1px solid #333", flexShrink: 0 }}
         >+ 추가</button>
       </div>
 
@@ -301,12 +348,17 @@ function LockerTab() {
               </div>
             );
           })}
+          {filtered.length === 0 && (
+            <div className="col-span-4 text-center py-16" style={{ color: "#444", fontSize: 14 }}>
+              락커가 없습니다
+            </div>
+          )}
         </div>
       </div>
 
       {/* 범례 */}
-      <div className="flex justify-center gap-4 py-3 flex-shrink-0" style={{ borderTop: "1px solid #1c1c1c" }}>
-        {[["사용중","#4CAF50"],["비어있음","#444"],["만료임박","#ff8800"],["만료","#cc4444"],["장기미사용","#8844ff"]].map(([l,c])=>(
+      <div className="flex justify-center gap-4 py-3 flex-shrink-0 overflow-x-auto" style={{ borderTop: "1px solid #1c1c1c" }}>
+        {[["사용중","#4CAF50"],["비어있음","#444"],["만료임박","#ff8800"],["만료","#cc4444"]].map(([l,c])=>(
           <div key={l} className="flex items-center gap-1">
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: c, display: "inline-block" }}/>
             <span style={{ fontSize: 10, color: "#666" }}>{l}</span>
@@ -317,22 +369,98 @@ function LockerTab() {
       {/* 락커 추가 모달 */}
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.85)" }} onClick={() => setShowAdd(false)}>
-          <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 20, padding: 24, width: 280 }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 20, padding: 24, width: 300 }} onClick={e => e.stopPropagation()}>
             <p style={{ fontSize: 16, fontWeight: 700, color: "white", marginBottom: 16 }}>락커 추가</p>
+            <p style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>락커 번호</p>
             <input
               className="w-full text-white"
-              placeholder="락커 번호"
+              placeholder="예: 001"
               value={newNum}
               onChange={e => setNewNum(e.target.value)}
-              style={{ background: "#252525", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 12 }}
+              style={{ background: "#252525", border: "1px solid #333", borderRadius: 10, padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 14 }}
             />
+            <p style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>구역 (탭)</p>
+            <div className="flex flex-wrap gap-2" style={{ marginBottom: 16 }}>
+              {cats.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setNewCatId(c.id)}
+                  style={{
+                    padding: "6px 14px", borderRadius: 20, fontSize: 13,
+                    background: newCatId === c.id ? "white" : "#252525",
+                    color: newCatId === c.id ? "#0d0d0d" : "#888",
+                    border: "1px solid " + (newCatId === c.id ? "white" : "#333"),
+                    fontWeight: newCatId === c.id ? 600 : 400,
+                  }}
+                >{c.label}</button>
+              ))}
+            </div>
             <div className="flex gap-2">
               <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, background: "#252525", color: "#888", fontSize: 14 }}>취소</button>
               <button
-                disabled={!newNum}
-                onClick={() => createLocker.mutate({ lockerNumber: newNum })}
-                style={{ flex: 1, padding: "10px", borderRadius: 10, background: newNum ? "white" : "#333", color: newNum ? "#0d0d0d" : "#555", fontSize: 14, fontWeight: 600 }}
+                disabled={!newNum || !newCatId || newCatId === "all"}
+                onClick={() => createLocker.mutate({ lockerNumber: newNum, lockerType: newCatId })}
+                style={{ flex: 1, padding: "10px", borderRadius: 10, background: (newNum && newCatId && newCatId !== "all") ? "white" : "#333", color: (newNum && newCatId && newCatId !== "all") ? "#0d0d0d" : "#555", fontSize: 14, fontWeight: 600 }}
               >추가</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 탭 설정 모달 */}
+      {showCatMgr && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.85)" }} onClick={() => { setShowCatMgr(false); setEditingCat(null); setNewCatLabel(""); }}>
+          <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "20px 20px 0 0", padding: "20px 20px 32px", width: "100%", maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <p style={{ fontSize: 16, fontWeight: 700, color: "white" }}>락커 탭 설정</p>
+              <button onClick={() => { setShowCatMgr(false); setEditingCat(null); setNewCatLabel(""); }} style={{ color: "#555", fontSize: 20, lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* 기존 탭 목록 */}
+            <div className="space-y-2 mb-4">
+              {cats.map((c) => (
+                <div key={c.id} style={{ background: "#252525", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                  {editingCat?.id === c.id ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={editingCat.label}
+                        onChange={e => setEditingCat({ ...editingCat, label: e.target.value })}
+                        onKeyDown={e => { if (e.key === "Enter") renameCat(c.id, editingCat.label); if (e.key === "Escape") setEditingCat(null); }}
+                        style={{ flex: 1, background: "#1a1a1a", border: "1px solid #444", borderRadius: 8, padding: "5px 10px", color: "white", fontSize: 14, outline: "none" }}
+                      />
+                      <button onClick={() => renameCat(c.id, editingCat.label)} style={{ fontSize: 13, padding: "5px 12px", background: "white", color: "#0d0d0d", borderRadius: 8, fontWeight: 600 }}>저장</button>
+                      <button onClick={() => setEditingCat(null)} style={{ fontSize: 13, padding: "5px 10px", background: "#333", color: "#888", borderRadius: 8 }}>취소</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ flex: 1, fontSize: 14, color: "white" }}>{c.label}</span>
+                      <span style={{ fontSize: 12, color: "#555" }}>{allLockers.filter(l => l.lockerType === c.id).length}개</span>
+                      <button onClick={() => setEditingCat({ ...c })} style={{ fontSize: 12, padding: "4px 10px", background: "#333", color: "#aaa", borderRadius: 7 }}>이름 변경</button>
+                      <button onClick={() => removeCat(c.id)} style={{ fontSize: 12, padding: "4px 10px", background: "#2a1a1a", color: "#884444", borderRadius: 7 }}>삭제</button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* 새 탭 추가 */}
+            <div style={{ background: "#252525", borderRadius: 12, padding: "12px 14px" }}>
+              <p style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>새 탭 추가</p>
+              <div className="flex gap-2">
+                <input
+                  placeholder="탭 이름 (예: 여자락커룸 B)"
+                  value={newCatLabel}
+                  onChange={e => setNewCatLabel(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") addCat(); }}
+                  style={{ flex: 1, background: "#1a1a1a", border: "1px solid #444", borderRadius: 10, padding: "8px 12px", color: "white", fontSize: 13, outline: "none" }}
+                />
+                <button
+                  disabled={!newCatLabel.trim()}
+                  onClick={addCat}
+                  style={{ padding: "8px 16px", borderRadius: 10, background: newCatLabel.trim() ? "white" : "#333", color: newCatLabel.trim() ? "#0d0d0d" : "#555", fontSize: 14, fontWeight: 600 }}
+                >추가</button>
+              </div>
             </div>
           </div>
         </div>
