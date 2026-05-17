@@ -372,36 +372,15 @@ export default function GymPlusDashboard() {
         </div>
       )}
 
-      {/* 오늘 운동 */}
-      <div
-        className="bg-card rounded-xl p-4 border border-border cursor-pointer hover:border-primary/50 transition-colors"
-        onClick={() => navigate("/gym-plus/workout")}
-      >
-        <div className="flex items-center justify-between mb-2">
-          <p className="font-semibold text-sm">오늘의 운동</p>
-          <span className="text-xs text-primary">기록하기 →</span>
-        </div>
-        {todayLog ? (
-          <div>
-            <p className="font-medium text-foreground">{todayLog.title || "운동 완료"}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {todayLog.durationMinutes ? `${todayLog.durationMinutes}분` : ""}
-              {todayLog.durationMinutes && todayLog.caloriesBurned ? " · " : ""}
-              {todayLog.caloriesBurned ? `${todayLog.caloriesBurned}kcal` : ""}
-            </p>
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-sm">아직 오늘 운동 기록이 없어요</p>
-        )}
-      </div>
-
       {/* 오늘의 추천 운동 */}
-      {todayRec && todayRec.recommendedVideos.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="font-semibold text-sm">오늘의 추천 운동</p>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="font-semibold text-sm">오늘의 추천 운동</p>
+          {todayRec && todayRec.recommendedVideos.length > 0 && (
             <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/videos")}>전체보기 →</button>
-          </div>
+          )}
+        </div>
+        {todayRec && todayRec.recommendedVideos.length > 0 ? (
           <div className="space-y-2">
             {todayRec.recommendedVideos.map((v: any) => (
               <div key={v.id}
@@ -427,8 +406,44 @@ export default function GymPlusDashboard() {
               </div>
             ))}
           </div>
+        ) : (
+          <div
+            className="bg-card border border-dashed border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => setShowCheckIn(true)}
+          >
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-xl">🎯</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">출석체크 후 추천 운동을 확인하세요</p>
+              <p className="text-xs text-muted-foreground mt-0.5">오늘의 컨디션과 운동 부위를 입력하면<br />맞춤 운동 영상 3개를 추천해 드려요</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 오늘 운동 */}
+      <div
+        className="bg-card rounded-xl p-4 border border-border cursor-pointer hover:border-primary/50 transition-colors"
+        onClick={() => navigate("/gym-plus/workout")}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <p className="font-semibold text-sm">오늘의 운동</p>
+          <span className="text-xs text-primary">기록하기 →</span>
         </div>
-      )}
+        {todayLog ? (
+          <div>
+            <p className="font-medium text-foreground">{todayLog.title || "운동 완료"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {todayLog.durationMinutes ? `${todayLog.durationMinutes}분` : ""}
+              {todayLog.durationMinutes && todayLog.caloriesBurned ? " · " : ""}
+              {todayLog.caloriesBurned ? `${todayLog.caloriesBurned}kcal` : ""}
+            </p>
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm">아직 오늘 운동 기록이 없어요</p>
+        )}
+      </div>
 
       {/* 센터 기구 운동 안내 */}
       <div>
