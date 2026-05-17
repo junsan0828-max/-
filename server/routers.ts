@@ -2782,19 +2782,30 @@ const gymPlusRouter = t.router({
       return row;
     }),
 
-  // 출석 체크인 (컨디션 저장 + 추천 영상 반환)
+  // 출석 체크인 (컨디션 + 운동부위 + 주제 + 강도 저장 + 추천 영상 반환)
   checkIn: gymPlusProtected
     .input(z.object({
       conditionScore: z.number().min(1).max(5),
       sleepHours: z.string(),
       energyLevel: z.string(),
+      bodyPartsJson: z.string().optional(),  // JSON array
+      workoutTheme: z.string().optional(),   // JSON array
+      intensity: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const today = new Date().toISOString().slice(0, 10);
 
-      // 오늘 이미 체크인 기록 있으면 업데이트, 없으면 생성
+      const saveData = {
+        conditionScore: input.conditionScore,
+        sleepHours: input.sleepHours,
+        energyLevel: input.energyLevel,
+        bodyPartsJson: input.bodyPartsJson,
+        workoutTheme: input.workoutTheme,
+        intensity: input.intensity,
+      };
+
       const existing = await db.select({ id: gymPlusWorkoutLogs.id })
         .from(gymPlusWorkoutLogs)
         .where(and(
@@ -2804,32 +2815,124 @@ const gymPlusRouter = t.router({
         )).limit(1);
 
       if (existing[0]) {
-        await db.update(gymPlusWorkoutLogs)
-          .set({ conditionScore: input.conditionScore, sleepHours: input.sleepHours, energyLevel: input.energyLevel })
+        await db.update(gymPlusWorkoutLogs).set(saveData)
           .where(eq(gymPlusWorkoutLogs.id, existing[0].id));
       } else {
         await db.insert(gymPlusWorkoutLogs).values({
           gymPlusMemberId: ctx.gymPlusMemberId,
           logDate: today,
           title: "출석체크",
-          conditionScore: input.conditionScore,
-          sleepHours: input.sleepHours,
-          energyLevel: input.energyLevel,
+          ...saveData,
         });
       }
 
-      // 컨디션 기반 추천 영상 (3개)
-      const level = input.conditionScore >= 4 ? "intermediate"
-        : input.conditionScore <= 2 ? "beginner" : null;
-      const conditions = [eq(gymPlusVideos.isPublished, 1)];
-      if (level) conditions.push(eq(gymPlusVideos.level, level));
-      const videos = await db.select().from(gymPlusVideos)
-        .where(and(...conditions))
-        .orderBy(sql`RANDOM()`)
-        .limit(3);
+      // 추천 영상: 운동 부위 → 강도(level) → 랜덤 순으로 필터링
+      const themes: string[] = input.workoutTheme ? JSON.parse(input.workoutTheme) : [];
+      const bodyParts: string[] = input.bodyPartsJson ? JSON.parse(input.bodyPartsJson) : [];
 
-      return { success: true, recommendedVideos: videos };
+      const levelMap: Record<string, string> = { "높음": "advanced", "보통": "intermediate", "낮음": "beginner" };
+      const level = input.intensity ? levelMap[input.intensity] : null;
+
+      let videos: any[] = [];
+
+      // 1차: 부위 매칭 영상
+      if (bodyParts.length > 0) {
+        for (const part of bodyParts) {
+          const found = await db.select().from(gymPlusVideos)
+            .where(and(eq(gymPlusVideos.isPublished, 1), sql`${gymPlusVideos.bodyPart} ILIKE ${'%' + part + '%'}`))
+            .limit(3);
+          videos.push(...found);
+        }
+      }
+
+      // 2차: 주제별 키워드 매칭
+      if (videos.length < 3 && themes.length > 0) {
+        for (const theme of themes) {
+          const keyword = theme === "유산소 위주" ? "유산소" : theme === "스트레칭 위주" ? "스트레칭" : null;
+          if (keyword) {
+            const found = await db.select().from(gymPlusVideos)
+              .where(and(eq(gymPlusVideos.isPublished, 1), sql`(${gymPlusVideos.bodyPart} ILIKE ${'%' + keyword + '%'} OR ${gymPlusVideos.title} ILIKE ${'%' + keyword + '%'})`))
+              .limit(3);
+            videos.push(...found);
+          }
+        }
+      }
+
+      // 3차: 강도(level) 기반
+      if (videos.length < 3 && level) {
+        const found = await db.select().from(gymPlusVideos)
+          .where(and(eq(gymPlusVideos.isPublished, 1), eq(gymPlusVideos.level, level)))
+          .orderBy(sql`RANDOM()`).limit(3);
+        videos.push(...found);
+      }
+
+      // 4차: 그래도 부족하면 랜덤
+      if (videos.length < 3) {
+        const found = await db.select().from(gymPlusVideos)
+          .where(eq(gymPlusVideos.isPublished, 1))
+          .orderBy(sql`RANDOM()`).limit(3);
+        videos.push(...found);
+      }
+
+      // 중복 제거 후 최대 3개
+      const seen = new Set<number>();
+      const unique = videos.filter(v => { if (seen.has(v.id)) return false; seen.add(v.id); return true; }).slice(0, 3);
+
+      return { success: true, recommendedVideos: unique };
     }),
+
+  // 오늘의 추천 운동 (체크인 기반)
+  getTodayRecommendations: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const [checkIn] = await db.select().from(gymPlusWorkoutLogs)
+      .where(and(
+        eq(gymPlusWorkoutLogs.gymPlusMemberId, ctx.gymPlusMemberId),
+        eq(gymPlusWorkoutLogs.logDate, today),
+        sql`${gymPlusWorkoutLogs.title} = '출석체크'`
+      )).limit(1);
+    if (!checkIn) return null;
+
+    const bodyParts: string[] = checkIn.bodyPartsJson ? JSON.parse(checkIn.bodyPartsJson) : [];
+    const themes: string[] = checkIn.workoutTheme ? JSON.parse(checkIn.workoutTheme) : [];
+    const levelMap: Record<string, string> = { "높음": "advanced", "보통": "intermediate", "낮음": "beginner" };
+    const level = checkIn.intensity ? levelMap[checkIn.intensity] : null;
+
+    let videos: any[] = [];
+    if (bodyParts.length > 0) {
+      for (const part of bodyParts) {
+        const found = await db.select().from(gymPlusVideos)
+          .where(and(eq(gymPlusVideos.isPublished, 1), sql`${gymPlusVideos.bodyPart} ILIKE ${'%' + part + '%'}`)).limit(2);
+        videos.push(...found);
+      }
+    }
+    if (videos.length < 3 && themes.length > 0) {
+      for (const theme of themes) {
+        const keyword = theme === "유산소 위주" ? "유산소" : theme === "스트레칭 위주" ? "스트레칭" : null;
+        if (keyword) {
+          const found = await db.select().from(gymPlusVideos)
+            .where(and(eq(gymPlusVideos.isPublished, 1), sql`(${gymPlusVideos.bodyPart} ILIKE ${'%' + keyword + '%'} OR ${gymPlusVideos.title} ILIKE ${'%' + keyword + '%'})`)).limit(2);
+          videos.push(...found);
+        }
+      }
+    }
+    if (videos.length < 3 && level) {
+      const found = await db.select().from(gymPlusVideos)
+        .where(and(eq(gymPlusVideos.isPublished, 1), eq(gymPlusVideos.level, level)))
+        .orderBy(sql`RANDOM()`).limit(3);
+      videos.push(...found);
+    }
+    if (videos.length < 3) {
+      const found = await db.select().from(gymPlusVideos)
+        .where(eq(gymPlusVideos.isPublished, 1)).orderBy(sql`RANDOM()`).limit(3);
+      videos.push(...found);
+    }
+    const seen = new Set<number>();
+    const unique = videos.filter(v => { if (seen.has(v.id)) return false; seen.add(v.id); return true; }).slice(0, 3);
+
+    return { checkIn, recommendedVideos: unique };
+  }),
 
   updateWorkoutLog: gymPlusProtected
     .input(z.object({

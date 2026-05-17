@@ -440,6 +440,8 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   title: text("title").notNull(),
   exercisesJson: text("exercisesJson"),   // [{name, sets:[{reps,weight}]}]
   bodyPartsJson: text("bodyPartsJson"),   // ["등","가슴",...]
+  workoutTheme: text("workoutTheme"),     // JSON: ["유산소 위주","근력운동"]
+  intensity: text("intensity"),           // "낮음"|"보통"|"높음"
   conditionScore: integer("conditionScore"), // 1~5
   sleepHours: text("sleepHours"),         // "4h↓","5h",...,"9h+"
   energyLevel: text("energyLevel"),       // "높음","보통","낮음"
