@@ -677,39 +677,6 @@ export default function GymPlusWorkout() {
               <ExerciseForm exercises={exercises} setExercises={setExercises} />
             </div>
 
-            {/* 통계 */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">운동시간(분)</Label>
-                <Input
-                  type="number"
-                  placeholder="60"
-                  value={form.durationMinutes}
-                  onChange={(e) => setForm((p) => ({ ...p, durationMinutes: e.target.value }))}
-                  className="bg-input border-border text-sm h-8 text-center"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">칼로리(kcal)</Label>
-                <Input
-                  type="number"
-                  placeholder="300"
-                  value={form.caloriesBurned}
-                  onChange={(e) => setForm((p) => ({ ...p, caloriesBurned: e.target.value }))}
-                  className="bg-input border-border text-sm h-8 text-center"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">체중(kg)</Label>
-                <Input
-                  placeholder="75"
-                  value={form.bodyWeight}
-                  onChange={(e) => setForm((p) => ({ ...p, bodyWeight: e.target.value }))}
-                  className="bg-input border-border text-sm h-8 text-center"
-                />
-              </div>
-            </div>
-
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">메모</Label>
               <textarea
