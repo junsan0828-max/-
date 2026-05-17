@@ -93,6 +93,12 @@ const leadsRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      // 관리상담 → 상담완료 자동 전환: 상담일 기준 7일 경과 시
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
+      await db.update(leads)
+        .set({ status: "consulted", updatedAt: new Date().toISOString() })
+        .where(and(eq(leads.status, "followup"), lte(leads.consultationDate, cutoff)));
+
       const consultantAlias = db.select({ id: users.id, username: users.username }).from(users).as("consultant");
       const rows = await db.select({
         lead: leads,
@@ -223,10 +229,9 @@ const leadsRouter = t.router({
 
     const allLeads = await db.select().from(leads);
     const total = allLeads.length;
-    const pending = allLeads.filter(l => l.status === "pending").length;
     const consulted = allLeads.filter(l => l.status === "consulted").length;
+    const followup = allLeads.filter(l => l.status === "followup").length;
     const registered = allLeads.filter(l => l.status === "registered").length;
-    const dropped = allLeads.filter(l => l.status === "dropped").length;
     const conversionRate = total > 0 ? Math.round((registered / total) * 100) : 0;
 
     // 채널별 리드 수
@@ -237,7 +242,7 @@ const leadsRouter = t.router({
       byChannel[ch.id] = { name: ch.name, count: chLeads.length, registered: chLeads.filter(l => l.status === "registered").length };
     }
 
-    return { total, pending, consulted, registered, dropped, conversionRate, byChannel };
+    return { total, consulted, followup, registered, conversionRate, byChannel };
   }),
 
   statsByMonth: protectedProcedure
@@ -252,8 +257,8 @@ const leadsRouter = t.router({
 
       const total = monthLeads.length;
       const consulted = monthLeads.filter(l => l.status === "consulted").length;
+      const followup = monthLeads.filter(l => l.status === "followup").length;
       const registered = monthLeads.filter(l => l.status === "registered").length;
-      const dropped = monthLeads.filter(l => l.status === "dropped").length;
       const conversionRate = total > 0 ? Math.round((registered / total) * 100) : 0;
 
       const channelList = await db.select().from(channels);
@@ -264,7 +269,7 @@ const leadsRouter = t.router({
           byChannel[ch.id] = { name: ch.name, count: chLeads.length, registered: chLeads.filter(l => l.status === "registered").length };
       }
 
-      return { total, consulted, registered, dropped, conversionRate, byChannel };
+      return { total, consulted, followup, registered, conversionRate, byChannel };
     }),
 });
 

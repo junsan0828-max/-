@@ -3,15 +3,14 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   Plus, Search, Phone, MessageSquare, CheckCircle2,
-  Clock, XCircle, UserCheck, ChevronLeft, ChevronRight, X,
+  Bell, UserCheck, ChevronLeft, ChevronRight, X,
   PenLine, RotateCcw, Printer, Check, FileText,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
-  { value: "pending",    label: "상담대기", color: "text-amber-400",  bg: "bg-amber-400/10",  icon: Clock },
-  { value: "consulted",  label: "상담완료", color: "text-blue-400",   bg: "bg-blue-400/10",   icon: MessageSquare },
-  { value: "registered", label: "등록완료", color: "text-emerald-400",bg: "bg-emerald-400/10",icon: CheckCircle2 },
-  { value: "dropped",    label: "등록보류", color: "text-red-400",    bg: "bg-red-400/10",    icon: XCircle },
+  { value: "consulted",  label: "상담완료", color: "text-blue-400",    bg: "bg-blue-400/10",    icon: MessageSquare },
+  { value: "followup",   label: "관리상담", color: "text-purple-400",  bg: "bg-purple-400/10",  icon: Bell },
+  { value: "registered", label: "등록완료", color: "text-emerald-400", bg: "bg-emerald-400/10", icon: CheckCircle2 },
 ];
 
 const CONSULT_TYPES: Record<string, string[]> = {
@@ -509,7 +508,7 @@ export default function LeadsPage() {
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {statCounts.map(s => (
           <button key={s.value} onClick={() => setFilterStatus(filterStatus === s.value ? "" : s.value)}
             className={`rounded-xl p-3 border transition-all text-center ${filterStatus === s.value ? `${s.bg} border-current ${s.color}` : "bg-card border-border"}`}>
@@ -1417,17 +1416,13 @@ export default function LeadsPage() {
             <div className="p-4 border-t border-border shrink-0 space-y-2">
               <p className="text-xs text-muted-foreground text-center">아래 버튼을 누르면 상담 일지가 저장됩니다</p>
               <div className="flex gap-2">
-                <button type="button" onClick={() => handleSave("consulted")}
+                <button type="button" onClick={() => handleSave("followup")}
                   className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
                   상담완료
                 </button>
                 <button type="button" onClick={editId && editHasSig ? () => handleSave("registered") : openContract}
                   className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
                   등록완료
-                </button>
-                <button type="button" onClick={() => handleSave("dropped")}
-                  className="flex-1 bg-red-500/80 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-red-600 transition-colors">
-                  등록보류
                 </button>
               </div>
               {editId && !isSubAdmin && (
