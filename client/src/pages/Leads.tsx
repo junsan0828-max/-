@@ -225,7 +225,8 @@ export default function LeadsPage() {
     grade: "basic" as "basic" | "vip", status: "active" as "active" | "paused",
     visitRoute: "", profileNote: "", trainerId: "",
     membershipStart: "", membershipEnd: "",
-    ptProgram: "", ptSessions: "", serviceSessions: "", paymentAmount: "", unpaidAmount: "",
+    ptProgram: "", ptSessions: "", serviceSessions: "", healthDuration: "" as string,
+    paymentAmount: "", unpaidAmount: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
     paymentDate: "", paymentMemo: "",
     branchId: "" as string,
@@ -1111,64 +1112,119 @@ export default function LeadsPage() {
               <div className="border-t border-border pt-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">프로그램 / 결제</p>
               </div>
-              {/* 프로그램명 */}
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">프로그램명</label>
-                <input value={directForm.ptProgram} onChange={e => setDirectForm(f => ({ ...f, ptProgram: e.target.value }))} placeholder="프로그램명 직접 입력"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                <div className="flex gap-1.5 flex-wrap">
+
+              {/* 프로그램 선택 — 헬스 / PT 계열 */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">프로그램</label>
+                <div className="flex gap-2 flex-wrap">
+                  {/* 헬스 */}
+                  <button type="button"
+                    onClick={() => setDirectForm(f => ({
+                      ...f,
+                      ptProgram: f.ptProgram === "헬스" ? "" : "헬스",
+                      ptSessions: "",
+                      serviceSessions: "",
+                      membershipEnd: "",
+                      healthDuration: "",
+                    }))}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${directForm.ptProgram === "헬스" ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                    헬스
+                  </button>
+                  {/* PT 계열 */}
                   {["케어피티", "웨이트피티", "이벤트피티"].map(p => (
-                    <button key={p} type="button" onClick={() => setDirectForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p }))}
-                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>{p}</button>
-                  ))}
-                </div>
-              </div>
-              {/* PT 횟수 */}
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">PT 횟수</label>
-                <input value={directForm.ptSessions}
-                  onChange={e => {
-                    const s = e.target.value;
-                    setDirectForm(f => ({ ...f, ptSessions: s, membershipEnd: calcEndDate(f.membershipStart, s) }));
-                  }}
-                  placeholder="횟수 직접 입력" type="number" min="1"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                <div className="flex gap-1.5 flex-wrap">
-                  {[10, 20, 30, 40, 50].map(n => (
-                    <button key={n} type="button"
-                      onClick={() => setDirectForm(f => {
-                        const next = f.ptSessions === String(n) ? "" : String(n);
-                        return { ...f, ptSessions: next, membershipEnd: calcEndDate(f.membershipStart, next) };
-                      })}
-                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.ptSessions === String(n) ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>{n}회</button>
-                  ))}
-                </div>
-              </div>
-              {/* 서비스 횟수 */}
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">서비스 횟수 <span className="text-muted-foreground/60">(무상 제공)</span></label>
-                <div className="flex gap-1.5 flex-wrap items-center">
-                  {[0, 1, 2, 3, 5].map(n => (
-                    <button key={n} type="button"
-                      onClick={() => setDirectForm(f => ({ ...f, serviceSessions: f.serviceSessions === String(n) ? "" : String(n) }))}
-                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground hover:border-primary/40"}`}>
-                      {n === 0 ? "없음" : `+${n}회`}
+                    <button key={p} type="button"
+                      onClick={() => setDirectForm(f => ({
+                        ...f,
+                        ptProgram: f.ptProgram === p ? "" : p,
+                        healthDuration: "",
+                      }))}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${directForm.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                      {p}
                     </button>
                   ))}
-                  <input
-                    type="number" min="0" placeholder="직접"
-                    value={directForm.serviceSessions && !["0","1","2","3","5"].includes(directForm.serviceSessions) ? directForm.serviceSessions : ""}
-                    onChange={e => setDirectForm(f => ({ ...f, serviceSessions: e.target.value }))}
-                    className="w-14 bg-background border border-border rounded-lg px-2 py-1 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
                 </div>
-                {(directForm.ptSessions || directForm.serviceSessions) && Number(directForm.serviceSessions) > 0 && (
-                  <p className="text-xs text-primary font-medium">
-                    총 {Number(directForm.ptSessions || 0) + Number(directForm.serviceSessions || 0)}회
-                    <span className="text-muted-foreground"> (결제 {directForm.ptSessions || 0}회 + 서비스 {directForm.serviceSessions}회)</span>
-                  </p>
+                {/* 직접 입력 (헬스/PT 미선택 시) */}
+                {!directForm.ptProgram && (
+                  <input value={directForm.ptProgram} onChange={e => setDirectForm(f => ({ ...f, ptProgram: e.target.value, healthDuration: "", ptSessions: "", serviceSessions: "" }))}
+                    placeholder="직접 입력"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 )}
               </div>
+
+              {/* 헬스 선택 시: 이용 기간 */}
+              {directForm.ptProgram === "헬스" && (
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">이용 기간</label>
+                  <div className="flex gap-2">
+                    {[1, 3, 6, 12].map(d => (
+                      <button key={d} type="button"
+                        onClick={() => {
+                          const dur = String(d);
+                          setDirectForm(f => {
+                            const end = f.membershipStart
+                              ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + d); return e.toISOString().substring(0, 10); })()
+                              : "";
+                            return { ...f, healthDuration: f.healthDuration === dur ? "" : dur, membershipEnd: end };
+                          });
+                        }}
+                        className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${directForm.healthDuration === String(d) ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                        {d}개월
+                      </button>
+                    ))}
+                  </div>
+                  {directForm.membershipEnd && (
+                    <p className="text-xs text-emerald-400 font-medium">만료일: {directForm.membershipEnd}</p>
+                  )}
+                </div>
+              )}
+
+              {/* PT 선택 시: 횟수 + 서비스 횟수 */}
+              {directForm.ptProgram && directForm.ptProgram !== "헬스" && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">PT 횟수</label>
+                    <input value={directForm.ptSessions}
+                      onChange={e => {
+                        const s = e.target.value;
+                        setDirectForm(f => ({ ...f, ptSessions: s, membershipEnd: calcEndDate(f.membershipStart, s) }));
+                      }}
+                      placeholder="횟수 직접 입력" type="number" min="1"
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[10, 20, 30, 40, 50].map(n => (
+                        <button key={n} type="button"
+                          onClick={() => setDirectForm(f => {
+                            const next = f.ptSessions === String(n) ? "" : String(n);
+                            return { ...f, ptSessions: next, membershipEnd: calcEndDate(f.membershipStart, next) };
+                          })}
+                          className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.ptSessions === String(n) ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>{n}회</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">서비스 횟수 <span className="text-muted-foreground/60">(무상 제공)</span></label>
+                    <div className="flex gap-1.5 flex-wrap items-center">
+                      {[0, 1, 2, 3, 5].map(n => (
+                        <button key={n} type="button"
+                          onClick={() => setDirectForm(f => ({ ...f, serviceSessions: f.serviceSessions === String(n) ? "" : String(n) }))}
+                          className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                          {n === 0 ? "없음" : `+${n}회`}
+                        </button>
+                      ))}
+                      <input type="number" min="0" placeholder="직접"
+                        value={directForm.serviceSessions && !["0","1","2","3","5"].includes(directForm.serviceSessions) ? directForm.serviceSessions : ""}
+                        onChange={e => setDirectForm(f => ({ ...f, serviceSessions: e.target.value }))}
+                        className="w-14 bg-background border border-border rounded-lg px-2 py-1 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    </div>
+                    {(directForm.ptSessions || directForm.serviceSessions) && Number(directForm.serviceSessions) > 0 && (
+                      <p className="text-xs text-primary font-medium">
+                        총 {Number(directForm.ptSessions || 0) + Number(directForm.serviceSessions || 0)}회
+                        <span className="text-muted-foreground"> (결제 {directForm.ptSessions || 0}회 + 서비스 {directForm.serviceSessions}회)</span>
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
               {/* 결제 금액 / 미수금 */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">

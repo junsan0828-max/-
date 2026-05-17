@@ -390,6 +390,16 @@ const membersRouter = t.router({
         const sessionCount = ptSessions ? parseInt(ptSessions) : undefined;
         const paid = Math.max(0, (paymentAmount ?? 0) - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
+        const isHealth = ptProgram === "헬스";
+        const revenueType = sessionCount ? "PT" : isHealth ? "헬스" : "기타";
+        // 헬스 기간 계산 (membershipStart → membershipEnd diff)
+        let healthDuration: number | undefined;
+        if (isHealth && memberData.membershipStart && memberData.membershipEnd) {
+          const s = new Date(memberData.membershipStart);
+          const e = new Date(memberData.membershipEnd);
+          const diff = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+          if (diff > 0) healthDuration = diff;
+        }
         await db.insert(revenueEntries).values({
           memberId,
           trainerId,
@@ -398,7 +408,8 @@ const membersRouter = t.router({
           phone: memberData.phone,
           programDetail: ptProgram || (sessionCount ? `PT ${sessionCount}회` : undefined),
           sessions: sessionCount,
-          type: sessionCount ? "PT" : "기타",
+          duration: healthDuration,
+          type: revenueType,
           subType,
           amount: paymentAmount ?? 0,
           discountAmount: 0,
