@@ -269,7 +269,7 @@ function BodyPartSelector({ selected, onChange }: { selected: string[]; onChange
 }
 
 // ── 운동 진행 모달 (타이머 + 세트 기록) ───────────────────────────────────────
-interface ActiveSet { reps: string; weight: string; }
+interface ActiveSet { reps: string; weight: string; done: boolean; }
 interface ActiveExercise { name: string; sets: ActiveSet[]; done: boolean; videoUrl?: string; }
 
 function ActiveWorkoutModal({
@@ -297,7 +297,7 @@ function ActiveWorkoutModal({
       const parsed: any[] = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
       return parsed.map((e: any) => ({
         name: e.name ?? "",
-        sets: Array.isArray(e.sets) && e.sets.length > 0 ? e.sets : [{ reps: "", weight: "" }],
+        sets: Array.isArray(e.sets) && e.sets.length > 0 ? e.sets.map((s: any) => ({ reps: s.reps ?? "", weight: s.weight ?? "", done: false })) : [{ reps: "", weight: "", done: false }],
         done: false,
         videoUrl: e.videoUrl,
       }));
@@ -322,8 +322,13 @@ function ActiveWorkoutModal({
     }
   }
 
-  function toggleDone(i: number) {
-    setExList((prev) => prev.map((e, j) => j === i ? { ...e, done: !e.done } : e));
+  function toggleSetDone(ei: number, si: number) {
+    setExList((prev) => prev.map((e, j) => {
+      if (j !== ei) return e;
+      const sets = e.sets.map((s, k) => k === si ? { ...s, done: !s.done } : s);
+      const done = sets.every(s => s.done);
+      return { ...e, sets, done };
+    }));
   }
 
   function updateSet(ei: number, si: number, field: keyof ActiveSet, val: string) {
@@ -336,8 +341,8 @@ function ActiveWorkoutModal({
   function addSet(ei: number) {
     setExList((prev) => prev.map((e, j) => {
       if (j !== ei) return e;
-      const last = e.sets[e.sets.length - 1] ?? { reps: "", weight: "" };
-      return { ...e, sets: [...e.sets, { ...last }] };
+      const last = e.sets[e.sets.length - 1] ?? { reps: "", weight: "", done: false };
+      return { ...e, sets: [...e.sets, { ...last, done: false }] };
     }));
   }
 
@@ -476,58 +481,67 @@ function ActiveWorkoutModal({
         </div>
 
         <div className="p-4 space-y-3">
-          {exList.map((ex, ei) => (
-            <div key={ei} className={`border rounded-xl overflow-hidden transition-colors ${ex.done ? "border-green-500/40 bg-green-500/5" : "border-border bg-card"}`}>
-              <div className="flex items-center gap-2 px-3 py-2.5">
-                <button onClick={() => toggleDone(ei)}
-                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    ex.done ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground"
-                  }`}
-                >
-                  {ex.done && <span className="text-xs">✓</span>}
-                </button>
-                <span className={`flex-1 text-sm font-medium ${ex.done ? "text-green-400 line-through" : "text-foreground"}`}>
-                  {ex.name}
-                </span>
-                {ex.videoUrl && (
-                  <button onClick={() => setShowVideo(ex.videoUrl!)}
-                    className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full flex-shrink-0">
-                    ▶ 영상
-                  </button>
-                )}
-              </div>
-
-              <div className="px-3 pb-3 space-y-1.5">
-                <div className="flex gap-2 text-[10px] text-muted-foreground px-7">
-                  <span className="flex-1 text-center">세트</span>
-                  <span className="flex-1 text-center">횟수</span>
-                  <span className="flex-1 text-center">무게(kg)</span>
-                  <span className="w-5" />
-                </div>
-                {ex.sets.map((s, si) => (
-                  <div key={si} className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-7 text-center flex-shrink-0">{si + 1}</span>
-                    <Input type="number" placeholder="횟수" value={s.reps}
-                      onChange={(e) => updateSet(ei, si, "reps", e.target.value)}
-                      className="bg-background text-sm h-8 text-center flex-1" />
-                    <Input type="number" placeholder="kg" value={s.weight}
-                      onChange={(e) => updateSet(ei, si, "weight", e.target.value)}
-                      className="bg-background text-sm h-8 text-center flex-1" />
-                    <button onClick={() => removeSet(ei, si)} className="text-red-400 p-1 flex-shrink-0 w-5">
-                      {ex.sets.length > 1 && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                      )}
+          {exList.map((ex, ei) => {
+            const doneSets = ex.sets.filter(s => s.done).length;
+            const allDone = doneSets === ex.sets.length;
+            return (
+              <div key={ei} className={`border rounded-xl overflow-hidden transition-colors ${allDone ? "border-green-500/40 bg-green-500/5" : "border-border bg-card"}`}>
+                {/* 종목 헤더 */}
+                <div className="flex items-center gap-2 px-3 py-2.5">
+                  <span className={`flex-1 text-sm font-medium ${allDone ? "text-green-400" : "text-foreground"}`}>
+                    {ex.name}
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${allDone ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                    {doneSets}/{ex.sets.length} 완료
+                  </span>
+                  {ex.videoUrl && (
+                    <button onClick={() => setShowVideo(ex.videoUrl!)}
+                      className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full flex-shrink-0">
+                      ▶ 영상
                     </button>
+                  )}
+                </div>
+
+                {/* 세트 행 */}
+                <div className="px-3 pb-3 space-y-1.5">
+                  <div className="flex gap-1.5 text-[10px] text-muted-foreground">
+                    <span className="w-7" />
+                    <span className="flex-1 text-center">횟수</span>
+                    <span className="flex-1 text-center">무게(kg)</span>
+                    <span className="w-8 text-center">완료</span>
+                    <span className="w-5" />
                   </div>
-                ))}
-                <button onClick={() => addSet(ei)} className="text-xs text-primary font-medium py-0.5 pl-7">
-                  + 세트 추가
-                </button>
+                  {ex.sets.map((s, si) => (
+                    <div key={si} className={`flex items-center gap-1.5 rounded-lg transition-colors ${s.done ? "bg-green-500/10" : ""}`}>
+                      <span className="text-xs text-muted-foreground w-7 text-center flex-shrink-0">{si + 1}</span>
+                      <Input type="number" placeholder="횟수" value={s.reps}
+                        onChange={(e) => updateSet(ei, si, "reps", e.target.value)}
+                        className={`text-sm h-8 text-center flex-1 ${s.done ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-background"}`} />
+                      <Input type="number" placeholder="kg" value={s.weight}
+                        onChange={(e) => updateSet(ei, si, "weight", e.target.value)}
+                        className={`text-sm h-8 text-center flex-1 ${s.done ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-background"}`} />
+                      <button onClick={() => toggleSetDone(ei, si)}
+                        className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                          s.done ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground text-muted-foreground hover:border-green-500 hover:text-green-400"
+                        }`}>
+                        <span className="text-xs font-bold">✓</span>
+                      </button>
+                      <button onClick={() => removeSet(ei, si)} className="text-red-400 p-1 flex-shrink-0 w-5">
+                        {ex.sets.length > 1 && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                  <button onClick={() => addSet(ei)} className="text-xs text-primary font-medium py-0.5 pl-7">
+                    + 세트 추가
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           <Button className="w-full h-12 text-base font-bold mt-2 bg-red-500 hover:bg-red-600 text-white" onClick={handleFinish}>
             운동 종료 · {formatTime(elapsed)}
