@@ -37,6 +37,76 @@ const BODY_PARTS = [
 interface ExerciseSet { reps: string; weight: string; }
 interface Exercise { name: string; sets: ExerciseSet[]; videoUrl?: string; }
 
+// ── 칼로리 계산 ───────────────────────────────────────────────────────────────
+const COMPOUND_KEYWORDS = ["스쿼트", "데드리프트", "벤치", "랫풀", "런지", "로우", "딥스", "풀업", "프레스", "클린", "턱걸이", "친업"];
+const LOWER_BODY_PARTS = ["하체", "허벅지", "엉덩이", "대퇴 후면", "대퇴 전면", "하퇴"];
+const FULL_BODY_PARTS = ["전신"];
+
+function classifyExercise(name: string): "compound" | "isolation" | "cardio" {
+  if (["런닝", "사이클", "로잉", "달리기", "트레드밀", "줄넘기"].some(k => name.includes(k))) return "cardio";
+  if (COMPOUND_KEYWORDS.some(k => name.includes(k))) return "compound";
+  return "isolation";
+}
+
+interface WorkoutStats {
+  calories: number;
+  totalVolume: number;
+  intensity: "LOW" | "MEDIUM" | "HIGH";
+  score: number;
+  durationMinutes: number;
+}
+
+function calculateWorkoutStats(
+  exercises: { name: string; sets: ExerciseSet[]; done: boolean }[],
+  durationMinutes: number,
+  bodyParts: string[],
+  bodyWeightKg = 70,
+): WorkoutStats {
+  const totalVolume = exercises.reduce((sum, ex) =>
+    sum + ex.sets.reduce((s2, set) => s2 + (parseFloat(set.reps) || 0) * (parseFloat(set.weight) || 0), 0), 0);
+
+  const hasLower = bodyParts.some(p => LOWER_BODY_PARTS.includes(p));
+  const hasFull = bodyParts.some(p => FULL_BODY_PARTS.includes(p));
+  const compoundCount = exercises.filter(e => classifyExercise(e.name) === "compound").length;
+  const totalSets = exercises.reduce((sum, e) => sum + e.sets.length, 0);
+  const weights = exercises.flatMap(e => e.sets.map(s => parseFloat(s.weight) || 0)).filter(w => w > 0);
+  const avgWeight = weights.length > 0 ? weights.reduce((a, b) => a + b, 0) / weights.length : 0;
+
+  // 강도 자동 추정
+  let intensityScore = 0;
+  if (hasFull) intensityScore += 4;
+  if (hasLower) intensityScore += 3;
+  if (compoundCount >= 3) intensityScore += 3;
+  if (totalSets >= 15) intensityScore += 2;
+  if (avgWeight >= 60) intensityScore += 2;
+  if (durationMinutes >= 60) intensityScore += 1;
+
+  const intensity: "LOW" | "MEDIUM" | "HIGH" =
+    intensityScore >= 7 ? "HIGH" : intensityScore >= 3 ? "MEDIUM" : "LOW";
+
+  // MET 기반 칼로리
+  const metBase = intensity === "HIGH" ? 8 : intensity === "MEDIUM" ? 5.5 : 3.5;
+  let multiplier = 1.0;
+  if (hasFull) multiplier += 0.25;
+  else if (hasLower) multiplier += 0.20;
+  else if (compoundCount >= 2) multiplier += 0.15;
+
+  let calories = metBase * bodyWeightKg * (durationMinutes / 60) * multiplier;
+  calories += Math.min(totalVolume / 120, 60); // 볼륨 보너스 (최대 60kcal)
+  calories = Math.round(calories);
+
+  // 운동 점수 (100점 만점)
+  const completedCount = exercises.filter(e => e.done).length;
+  let score = 0;
+  score += Math.min(completedCount * 5, 25);
+  score += Math.min(Math.floor(totalVolume / 500) * 2, 20);
+  score += Math.min(Math.floor(durationMinutes / 10) * 3, 30);
+  score += intensity === "HIGH" ? 25 : intensity === "MEDIUM" ? 15 : 5;
+  score = Math.min(score, 100);
+
+  return { calories, totalVolume: Math.round(totalVolume), intensity, score, durationMinutes };
+}
+
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 function getYoutubeEmbedUrl(url: string): string | null {
   const m = url.match(/(?:(?:www\.|m\.)?youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([^&\n?#]+)/);
@@ -48,6 +118,7 @@ function formatTime(seconds: number) {
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
@@ -206,12 +277,21 @@ function ActiveWorkoutModal({
   onClose,
 }: {
   log: any;
-  onClose: (durationMinutes: number, updatedExercises: Exercise[]) => void;
+  onClose: (durationMinutes: number, updatedExercises: Exercise[], caloriesBurned: number) => void;
 }) {
+  const [step, setStep] = useState<"workout" | "result">("workout");
   const [elapsed, setElapsed] = useState(0);
   const [paused, setPaused] = useState(false);
   const startRef = useRef(Date.now());
   const pausedAtRef = useRef(0);
+  const [bodyWeightKg, setBodyWeightKg] = useState("70");
+  const [result, setResult] = useState<WorkoutStats | null>(null);
+  const [updatedExercises, setUpdatedExercises] = useState<Exercise[]>([]);
+
+  const bodyParts: string[] = (() => {
+    try { return log.bodyPartsJson ? JSON.parse(log.bodyPartsJson) : []; } catch { return []; }
+  })();
+
   const [exList, setExList] = useState<ActiveExercise[]>(() => {
     try {
       const parsed: any[] = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
@@ -234,7 +314,6 @@ function ActiveWorkoutModal({
 
   function togglePause() {
     if (paused) {
-      // 재개: 일시정지된 시간만큼 startRef를 앞으로 당김
       startRef.current += Date.now() - pausedAtRef.current;
       setPaused(false);
     } else {
@@ -250,8 +329,7 @@ function ActiveWorkoutModal({
   function updateSet(ei: number, si: number, field: keyof ActiveSet, val: string) {
     setExList((prev) => prev.map((e, j) => {
       if (j !== ei) return e;
-      const sets = e.sets.map((s, k) => k === si ? { ...s, [field]: val } : s);
-      return { ...e, sets };
+      return { ...e, sets: e.sets.map((s, k) => k === si ? { ...s, [field]: val } : s) };
     }));
   }
 
@@ -272,15 +350,109 @@ function ActiveWorkoutModal({
 
   function handleFinish() {
     const minutes = Math.max(1, Math.round(elapsed / 60));
-    const updated: Exercise[] = exList.map((e) => ({
-      name: e.name,
-      sets: e.sets,
-      videoUrl: e.videoUrl,
-    }));
-    onClose(minutes, updated);
+    const updated: Exercise[] = exList.map((e) => ({ name: e.name, sets: e.sets, videoUrl: e.videoUrl }));
+    const stats = calculateWorkoutStats(exList, minutes, bodyParts, parseFloat(bodyWeightKg) || 70);
+    setResult(stats);
+    setUpdatedExercises(updated);
+    setStep("result");
+  }
+
+  function handleSave() {
+    if (!result) return;
+    onClose(result.durationMinutes, updatedExercises, result.calories);
   }
 
   const doneCount = exList.filter((e) => e.done).length;
+  const intensityColor = { LOW: "text-blue-400", MEDIUM: "text-yellow-400", HIGH: "text-red-400" };
+  const intensityBg = { LOW: "bg-blue-500/10 border-blue-500/30", MEDIUM: "bg-yellow-500/10 border-yellow-500/30", HIGH: "bg-red-500/10 border-red-500/30" };
+  const scoreColor = result ? (result.score >= 80 ? "text-green-400" : result.score >= 50 ? "text-yellow-400" : "text-muted-foreground") : "";
+
+  if (step === "result" && result) {
+    return (
+      <Dialog open onOpenChange={() => {}}>
+        <DialogContent className="max-w-sm max-h-[92vh] overflow-y-auto p-0 [&>button]:hidden">
+          {/* 결과 헤더 */}
+          <div className="bg-green-500/10 border-b border-green-500/20 px-4 py-5 text-center">
+            <p className="text-2xl mb-1">🏆</p>
+            <p className="font-bold text-lg text-foreground">운동 완료!</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{log.title || "운동 기록"}</p>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* 체중 입력 (칼로리 재계산용) */}
+            <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2.5">
+              <span className="text-xs text-muted-foreground flex-1">체중 입력 (칼로리 계산)</span>
+              <Input
+                type="number"
+                value={bodyWeightKg}
+                onChange={(e) => {
+                  setBodyWeightKg(e.target.value);
+                  const w = parseFloat(e.target.value) || 70;
+                  const recalc = calculateWorkoutStats(exList, result.durationMinutes, bodyParts, w);
+                  setResult(recalc);
+                }}
+                className="bg-background text-sm h-7 w-20 text-center"
+              />
+              <span className="text-xs text-muted-foreground">kg</span>
+            </div>
+
+            {/* 스탯 카드 */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-card border border-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-muted-foreground mb-1">총 운동시간</p>
+                <p className="text-xl font-bold text-foreground">{result.durationMinutes}<span className="text-sm font-normal text-muted-foreground">분</span></p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-muted-foreground mb-1">예상 칼로리</p>
+                <p className="text-xl font-bold text-primary">{result.calories.toLocaleString()}<span className="text-sm font-normal text-muted-foreground">kcal</span></p>
+              </div>
+              <div className={`border rounded-xl p-3 text-center ${intensityBg[result.intensity]}`}>
+                <p className="text-[10px] text-muted-foreground mb-1">운동 강도</p>
+                <p className={`text-xl font-bold ${intensityColor[result.intensity]}`}>{result.intensity}</p>
+              </div>
+              <div className="bg-card border border-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-muted-foreground mb-1">총 볼륨</p>
+                <p className="text-xl font-bold text-foreground">{result.totalVolume.toLocaleString()}<span className="text-sm font-normal text-muted-foreground">kg</span></p>
+              </div>
+            </div>
+
+            {/* 운동 점수 */}
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-muted-foreground">운동 점수</p>
+                <p className={`text-2xl font-bold ${scoreColor}`}>{result.score}<span className="text-sm font-normal text-muted-foreground">점</span></p>
+              </div>
+              <div className="w-full bg-muted rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${result.score >= 80 ? "bg-green-500" : result.score >= 50 ? "bg-yellow-500" : "bg-primary"}`}
+                  style={{ width: `${result.score}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
+                <span>완료 {doneCount}/{exList.length}종목</span>
+                <span>{result.durationMinutes}분 · {result.intensity}</span>
+              </div>
+            </div>
+
+            {/* 운동 부위 태그 */}
+            {bodyParts.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {bodyParts.map(p => (
+                  <span key={p} className="text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20">{p}</span>
+                ))}
+              </div>
+            )}
+
+            <p className="text-[10px] text-muted-foreground text-center">※ 예상 칼로리는 운동 데이터 기반 추정치입니다.</p>
+
+            <Button className="w-full h-11 font-bold" onClick={handleSave}>
+              저장하기
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={() => {}}>
@@ -294,12 +466,9 @@ function ActiveWorkoutModal({
             {formatTime(elapsed)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">{doneCount}/{exList.length} 완료</p>
-          <button
-            onClick={togglePause}
+          <button onClick={togglePause}
             className={`mt-2 px-4 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-              paused
-                ? "bg-primary/20 border-primary text-primary"
-                : "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
+              paused ? "bg-primary/20 border-primary text-primary" : "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
             }`}
           >
             {paused ? "▶ 재개" : "⏸ 일시정지"}
@@ -309,10 +478,8 @@ function ActiveWorkoutModal({
         <div className="p-4 space-y-3">
           {exList.map((ex, ei) => (
             <div key={ei} className={`border rounded-xl overflow-hidden transition-colors ${ex.done ? "border-green-500/40 bg-green-500/5" : "border-border bg-card"}`}>
-              {/* 종목 헤더 */}
               <div className="flex items-center gap-2 px-3 py-2.5">
-                <button
-                  onClick={() => toggleDone(ei)}
+                <button onClick={() => toggleDone(ei)}
                   className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                     ex.done ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground"
                   }`}
@@ -330,9 +497,7 @@ function ActiveWorkoutModal({
                 )}
               </div>
 
-              {/* 세트 기록 (접히지 않음) */}
               <div className="px-3 pb-3 space-y-1.5">
-                {/* 헤더 */}
                 <div className="flex gap-2 text-[10px] text-muted-foreground px-7">
                   <span className="flex-1 text-center">세트</span>
                   <span className="flex-1 text-center">횟수</span>
@@ -342,22 +507,13 @@ function ActiveWorkoutModal({
                 {ex.sets.map((s, si) => (
                   <div key={si} className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground w-7 text-center flex-shrink-0">{si + 1}</span>
-                    <Input
-                      type="number"
-                      placeholder="횟수"
-                      value={s.reps}
+                    <Input type="number" placeholder="횟수" value={s.reps}
                       onChange={(e) => updateSet(ei, si, "reps", e.target.value)}
-                      className="bg-background text-sm h-8 text-center flex-1"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="kg"
-                      value={s.weight}
+                      className="bg-background text-sm h-8 text-center flex-1" />
+                    <Input type="number" placeholder="kg" value={s.weight}
                       onChange={(e) => updateSet(ei, si, "weight", e.target.value)}
-                      className="bg-background text-sm h-8 text-center flex-1"
-                    />
-                    <button onClick={() => removeSet(ei, si)}
-                      className="text-red-400 p-1 flex-shrink-0 w-5">
+                      className="bg-background text-sm h-8 text-center flex-1" />
+                    <button onClick={() => removeSet(ei, si)} className="text-red-400 p-1 flex-shrink-0 w-5">
                       {ex.sets.length > 1 && (
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -366,22 +522,17 @@ function ActiveWorkoutModal({
                     </button>
                   </div>
                 ))}
-                <button onClick={() => addSet(ei)}
-                  className="text-xs text-primary font-medium py-0.5 pl-7">
+                <button onClick={() => addSet(ei)} className="text-xs text-primary font-medium py-0.5 pl-7">
                   + 세트 추가
                 </button>
               </div>
             </div>
           ))}
 
-          {/* 운동 종료 */}
-          <Button
-            className="w-full h-12 text-base font-bold mt-2 bg-red-500 hover:bg-red-600 text-white"
-            onClick={handleFinish}
-          >
+          <Button className="w-full h-12 text-base font-bold mt-2 bg-red-500 hover:bg-red-600 text-white" onClick={handleFinish}>
             운동 종료 · {formatTime(elapsed)}
           </Button>
-          <p className="text-xs text-muted-foreground text-center">종료하면 운동 시간이 자동으로 기록됩니다</p>
+          <p className="text-xs text-muted-foreground text-center">종료하면 칼로리 리포트를 확인할 수 있어요</p>
         </div>
 
         {showVideo && <ExerciseVideoModal videoUrl={showVideo} onClose={() => setShowVideo(null)} />}
@@ -462,17 +613,18 @@ export default function GymPlusWorkout() {
     else createMutation.mutate(data);
   }
 
-  function handleWorkoutFinish(durationMinutes: number, updatedExercises: Exercise[]) {
+  function handleWorkoutFinish(durationMinutes: number, updatedExercises: Exercise[], caloriesBurned: number) {
     if (!activeLog) return;
     updateMutation.mutate({
       id: activeLog.id,
       durationMinutes,
+      caloriesBurned,
       exercisesJson: JSON.stringify(updatedExercises),
     }, {
       onSuccess: () => {
         setActiveLog(null);
         utils.gymPlus.listWorkoutLogs.invalidate();
-        toast.success(`운동 완료! ${durationMinutes}분 기록됨`);
+        toast.success(`운동 완료! ${durationMinutes}분 · ${caloriesBurned}kcal`);
       },
     });
   }
@@ -548,6 +700,9 @@ export default function GymPlusWorkout() {
                   ))}
                   {log.durationMinutes && (
                     <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">⏱ {log.durationMinutes}분</span>
+                  )}
+                  {log.caloriesBurned && (
+                    <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">🔥 {log.caloriesBurned}kcal</span>
                   )}
                 </div>
 
