@@ -164,6 +164,35 @@ const membersRouter = t.router({
     if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
       throw new TRPCError({ code: "FORBIDDEN" });
 
+    // 기존 헬스 매출 중 memberId 없는 것 소급 회원 생성
+    const orphanHealth = await db.select().from(revenueEntries)
+      .where(and(eq(revenueEntries.type, "헬스"), isNull(revenueEntries.memberId)));
+    for (const entry of orphanHealth) {
+      if (!entry.customerName) continue;
+      const now = new Date().toISOString();
+      let membershipEnd: string | undefined;
+      if (entry.startDate && entry.duration) {
+        const end = new Date(entry.startDate);
+        end.setMonth(end.getMonth() + entry.duration);
+        membershipEnd = end.toISOString().substring(0, 10);
+      }
+      const [newMember] = await db.insert(members).values({
+        trainerId: entry.trainerId ?? null,
+        branchId: entry.branchId ?? null,
+        name: entry.customerName,
+        phone: entry.phone ?? undefined,
+        status: "active",
+        grade: "basic",
+        membershipStart: entry.startDate ?? undefined,
+        membershipEnd: membershipEnd ?? undefined,
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: members.id });
+      if (newMember) {
+        await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, entry.id));
+      }
+    }
+
     const whereClause = input?.branchId ? eq(members.branchId, input.branchId) : undefined;
 
     const [rows, pkgs, ptRevs] = await Promise.all([
