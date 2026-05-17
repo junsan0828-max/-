@@ -49,9 +49,9 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 // ── 홈 탭 ────────────────────────────────────────────────────────────────────
-function HomeTab({ setTab }: { setTab: (t: BottomTab) => void }) {
+function HomeTab({ setTab, branchId }: { setTab: (t: BottomTab) => void; branchId: number | null }) {
   const { data: stats } = trpc.access.todayStats.useQuery();
-  const { data: lockers = [] } = trpc.backoffice.getLockers.useQuery();
+  const { data: lockers = [] } = trpc.backoffice.getLockers.useQuery({ branchId });
 
   const total = (lockers as any[]).length;
   const used = (lockers as any[]).filter((l) => l.isOccupied).length;
@@ -207,8 +207,8 @@ function saveCats(cats: { id: string; label: string }[]) {
   localStorage.setItem("ziant_locker_cats", JSON.stringify(cats));
 }
 
-function LockerTab() {
-  const { data: lockers = [], refetch } = trpc.backoffice.getLockers.useQuery();
+function LockerTab({ branchId }: { branchId: number | null }) {
+  const { data: lockers = [], refetch } = trpc.backoffice.getLockers.useQuery({ branchId });
   const [cat, setCat] = useState("all");
   const [cats, setCatsState] = useState(loadCats);
   const [newNum, setNewNum] = useState("");
@@ -399,7 +399,7 @@ function LockerTab() {
               <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, background: "#252525", color: "#888", fontSize: 14 }}>취소</button>
               <button
                 disabled={!newNum || !newCatId || newCatId === "all"}
-                onClick={() => createLocker.mutate({ lockerNumber: newNum, lockerType: newCatId })}
+                onClick={() => createLocker.mutate({ lockerNumber: newNum, lockerType: newCatId, ...(branchId != null ? { branchId } : {}) })}
                 style={{ flex: 1, padding: "10px", borderRadius: 10, background: (newNum && newCatId && newCatId !== "all") ? "white" : "#333", color: (newNum && newCatId && newCatId !== "all") ? "#0d0d0d" : "#555", fontSize: 14, fontWeight: 600 }}
               >추가</button>
             </div>
@@ -470,14 +470,14 @@ function LockerTab() {
 }
 
 // ── 회원검색 탭 ───────────────────────────────────────────────────────────────
-function SearchTab() {
+function SearchTab({ branchId }: { branchId: number | null }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
 
-  const { data: rows = [], refetch } = trpc.backoffice.searchMembers.useQuery({ q, page });
+  const { data: rows = [], refetch } = trpc.backoffice.searchMembers.useQuery({ q, page, branchId });
   const { data: detail } = trpc.backoffice.getMember.useQuery({ id: selectedId! }, { enabled: selectedId !== null });
   const updateMember = trpc.backoffice.updateMember.useMutation({ onSuccess: () => { refetch(); setEditMode(false); } });
 
@@ -676,8 +676,8 @@ function DetailRow({ icon, label, value, valueColor }: { icon: string; label: st
 // ── 출입기록 탭 ───────────────────────────────────────────────────────────────
 type LogFilter = "all" | "allowed" | "denied";
 
-function LogsTab() {
-  const { data: logs = [] } = trpc.backoffice.todayLogs.useQuery();
+function LogsTab({ branchId }: { branchId: number | null }) {
+  const { data: logs = [] } = trpc.backoffice.todayLogs.useQuery({ branchId });
   const [filter, setFilter] = useState<LogFilter>("all");
 
   const allLogs = logs as any[];
@@ -756,9 +756,9 @@ function LogsTab() {
 }
 
 // ── 통계 탭 ──────────────────────────────────────────────────────────────────
-function StatsTab() {
+function StatsTab({ branchId }: { branchId: number | null }) {
   const { data: stats } = trpc.access.todayStats.useQuery();
-  const { data: lockers = [] } = trpc.backoffice.getLockers.useQuery();
+  const { data: lockers = [] } = trpc.backoffice.getLockers.useQuery({ branchId });
 
   const total = (lockers as any[]).length;
   const used = (lockers as any[]).filter((l: any) => l.isOccupied).length;
@@ -840,6 +840,25 @@ function StatsTab() {
 // ── 메인 ─────────────────────────────────────────────────────────────────────
 export default function Backoffice() {
   const [tab, setTab] = useState<BottomTab>("home");
+  const [branchId, setBranchId] = useState<number | null>(null);
+  const { data: branchList = [] } = trpc.backoffice.getBranches.useQuery();
+  const branches = branchList as { id: number; name: string }[];
+
+  const currentBranchName =
+    branchId === null
+      ? "전체"
+      : branches.find((b) => b.id === branchId)?.name ?? "전체";
+
+  function cycleBranch() {
+    if (branches.length === 0) return;
+    if (branchId === null) {
+      setBranchId(branches[0].id);
+    } else {
+      const idx = branches.findIndex((b) => b.id === branchId);
+      if (idx === branches.length - 1) setBranchId(null);
+      else setBranchId(branches[idx + 1].id);
+    }
+  }
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden select-none"
@@ -848,6 +867,30 @@ export default function Backoffice() {
       {/* 상단 헤더 */}
       <div className="flex items-center px-5 py-3 flex-shrink-0" style={{ borderBottom: "1px solid #1a1a1a", background: "#0d0d0d" }}>
         <p className="font-bold tracking-widest" style={{ fontSize: 15 }}>ZIANTGYM</p>
+
+        {/* 지점 토글 — 지점이 등록된 경우에만 표시 */}
+        {branches.length > 0 && (
+          <button
+            onClick={cycleBranch}
+            className="flex items-center gap-1.5 ml-3"
+            style={{
+              padding: "4px 12px",
+              borderRadius: 20,
+              background: branchId !== null ? "white" : "#252525",
+              color: branchId !== null ? "#0d0d0d" : "#888",
+              border: "1px solid " + (branchId !== null ? "white" : "#333"),
+              fontSize: 12,
+              fontWeight: 600,
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            {currentBranchName}
+            <svg width="10" height="7" viewBox="0 0 10 7" fill="none">
+              <path d="M1 1.5L5 5.5L9 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        )}
+
         <div className="ml-auto flex items-center gap-3">
           <button style={{ color: "#555" }}>
             <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
@@ -859,11 +902,11 @@ export default function Backoffice() {
 
       {/* 콘텐츠 */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {tab === "home" && <HomeTab setTab={setTab} />}
-        {tab === "locker" && <LockerTab />}
-        {tab === "search" && <SearchTab />}
-        {tab === "logs" && <LogsTab />}
-        {tab === "stats" && <StatsTab />}
+        {tab === "home" && <HomeTab setTab={setTab} branchId={branchId} />}
+        {tab === "locker" && <LockerTab branchId={branchId} />}
+        {tab === "search" && <SearchTab branchId={branchId} />}
+        {tab === "logs" && <LogsTab branchId={branchId} />}
+        {tab === "stats" && <StatsTab branchId={branchId} />}
       </div>
 
       {/* 하단 네비게이션 */}

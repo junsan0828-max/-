@@ -1,8 +1,8 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, or, desc, like, sql } from "drizzle-orm";
+import { eq, and, or, desc, like, isNull } from "drizzle-orm";
 import { getDb, pool } from "./db";
-import { members, ptPackages, lockers, accessLogs } from "../drizzle/schema";
+import { members, ptPackages, lockers, accessLogs, branches } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -17,17 +17,27 @@ const proc = t.procedure.use(({ ctx, next }) => {
 });
 
 export const backofficeRouter = t.router({
+  // ── 지점 목록 ──────────────────────────────────────────────────────────────
+  getBranches: proc.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(branches).orderBy(branches.id);
+  }),
+
   // ── 회원 검색 ──────────────────────────────────────────────────────────────
   searchMembers: proc
-    .input(z.object({ q: z.string().default(""), page: z.number().default(1) }))
+    .input(z.object({ q: z.string().default(""), page: z.number().default(1), branchId: z.number().nullable().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const limit = 30;
       const offset = (input.page - 1) * limit;
       const q = `%${input.q}%`;
+      const searchCond = input.q ? or(like(members.name, q), like(members.phone, q)) : undefined;
+      const branchCond = input.branchId != null ? eq(members.branchId, input.branchId) : undefined;
+      const whereCond = searchCond && branchCond ? and(searchCond, branchCond) : searchCond ?? branchCond;
       const rows = await db.select().from(members)
-        .where(input.q ? or(like(members.name, q), like(members.phone, q)) : undefined)
+        .where(whereCond)
         .orderBy(desc(members.createdAt))
         .limit(limit).offset(offset);
       return rows;
@@ -115,14 +125,17 @@ export const backofficeRouter = t.router({
     }),
 
   // ── 락커 전체 목록 ─────────────────────────────────────────────────────────
-  getLockers: proc.query(async () => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select().from(lockers).orderBy(lockers.lockerNumber);
-  }),
+  getLockers: proc
+    .input(z.object({ branchId: z.number().nullable().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const whereCond = input.branchId != null ? eq(lockers.branchId, input.branchId) : undefined;
+      return db.select().from(lockers).where(whereCond).orderBy(lockers.lockerNumber);
+    }),
 
   createLocker: proc
-    .input(z.object({ lockerNumber: z.string(), lockerType: z.string().default("personal"), memo: z.string().optional() }))
+    .input(z.object({ lockerNumber: z.string(), lockerType: z.string().default("personal"), branchId: z.number().optional(), memo: z.string().optional() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -158,10 +171,14 @@ export const backofficeRouter = t.router({
     }),
 
   // ── 오늘 출입 로그 ─────────────────────────────────────────────────────────
-  todayLogs: proc.query(async () => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    const today = new Date().toISOString().substring(0, 10);
-    return db.select().from(accessLogs).where(like(accessLogs.accessedAt, `${today}%`)).orderBy(desc(accessLogs.accessedAt)).limit(100);
-  }),
+  todayLogs: proc
+    .input(z.object({ branchId: z.number().nullable().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const today = new Date().toISOString().substring(0, 10);
+      const dateCond = like(accessLogs.accessedAt, `${today}%`);
+      const whereCond = input.branchId != null ? and(dateCond, eq(accessLogs.branchId, input.branchId)) : dateCond;
+      return db.select().from(accessLogs).where(whereCond).orderBy(desc(accessLogs.accessedAt)).limit(100);
+    }),
 });
