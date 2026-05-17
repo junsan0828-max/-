@@ -21,9 +21,9 @@ const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
 const CONDITION_LABELS = ["", "매우 피곤", "피곤", "보통", "좋음", "최고"];
 
-const BODY_PARTS = ["등", "가슴", "어깨", "팔", "팔꿈치", "손목", "복근", "허리", "엉덩이", "허벅지", "무릎", "종아리", "발목", "목", "전신", "유산소", "유연성", "기타"];
+const BODY_PARTS = ["등", "가슴", "어깨", "팔", "복근", "허리", "엉덩이", "허벅지", "종아리", "전신", "기타"];
 const WORKOUT_THEMES = ["유산소 위주", "스트레칭 위주", "근력운동"];
-const INTENSITY_OPTIONS = ["낮음", "보통", "높음"];
+const INTENSITY_OPTIONS = ["1", "2", "3", "4", "5"];
 
 function daysUntil(dateStr: string | null | undefined) {
   if (!dateStr) return null;
@@ -170,10 +170,10 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
             {/* 강도 */}
             <div className="space-y-2">
               <p className="text-sm font-medium">운동 강도</p>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-5 gap-1.5">
                 {INTENSITY_OPTIONS.map((opt) => (
                   <button key={opt}
-                    className={`py-2 rounded-xl border text-sm transition-colors ${intensity === opt ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                    className={`py-2 rounded-xl border text-sm font-medium transition-colors ${intensity === opt ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
                     onClick={() => setIntensity(opt)}
                   >{opt}</button>
                 ))}
