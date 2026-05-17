@@ -719,8 +719,7 @@ export default function Backoffice() {
     >
       {/* 상단 헤더 */}
       <div className="flex items-center px-5 py-3 flex-shrink-0" style={{ borderBottom: "1px solid #1a1a1a", background: "#0d0d0d" }}>
-        <ZiantLogo size={24} />
-        <p className="font-bold tracking-widest ml-2" style={{ fontSize: 15 }}>ZIANTGYM</p>
+        <p className="font-bold tracking-widest" style={{ fontSize: 15 }}>ZIANTGYM</p>
         <div className="ml-auto flex items-center gap-3">
           <button style={{ color: "#555" }}>
             <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
