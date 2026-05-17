@@ -578,6 +578,8 @@ export default function GymPlusWorkout() {
   const utils = trpc.useUtils();
   const { data: logs, isLoading } = trpc.gymPlus.listWorkoutLogs.useQuery({ month: selectedMonth });
 
+  const [tab, setTab] = useState<"workout" | "history">("workout");
+
   const createMutation = trpc.gymPlus.createWorkoutLog.useMutation({
     onSuccess: () => { utils.gymPlus.listWorkoutLogs.invalidate(); setShowForm(false); resetForm(); toast.success("운동 계획이 저장되었습니다"); },
     onError: (err) => toast.error(err.message),
@@ -648,100 +650,157 @@ export default function GymPlusWorkout() {
     return d.toISOString().slice(0, 7);
   });
 
-  return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="font-bold text-lg">운동 기록</h1>
-        <Button size="sm" className="h-8 text-xs" onClick={openCreate}>+ 기록하기</Button>
-      </div>
-
-      {/* 월 선택 */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
-        {months.map((m) => (
-          <button key={m} onClick={() => setSelectedMonth(m)}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              selectedMonth === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {m.replace("-", "년 ")}월
-          </button>
-        ))}
-      </div>
-
-      {isLoading ? (
-        <div className="text-center py-10 text-muted-foreground text-sm">불러오는 중...</div>
-      ) : !logs || logs.length === 0 ? (
-        <div className="text-center py-10 space-y-3">
-          <p className="text-muted-foreground text-sm">이 달의 운동 기록이 없습니다</p>
-          <Button variant="outline" size="sm" onClick={openCreate}>첫 기록 남기기</Button>
+  // 로그 카드 렌더 (두 탭 공유)
+  function renderLogCard(log: any) {
+    let parsedExercises: any[] = [];
+    try { parsedExercises = log.exercisesJson ? JSON.parse(log.exercisesJson) : []; } catch {}
+    let parsedBodyParts: string[] = [];
+    try { parsedBodyParts = (log as any).bodyPartsJson ? JSON.parse((log as any).bodyPartsJson) : []; } catch {}
+    const isCheckIn = log.title === "출석체크";
+    return (
+      <div key={log.id} className="bg-card border border-border rounded-xl p-4 space-y-2">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground">{log.logDate}</p>
+            <p className="font-semibold text-sm">{log.title || "운동 기록"}</p>
+          </div>
+          <div className="flex gap-1">
+            {!isCheckIn && (
+              <button onClick={() => openEdit(log)} className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-lg">수정</button>
+            )}
+            <button onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: log.id }); }}
+              className="text-xs text-red-400 px-2 py-1 bg-red-500/10 rounded-lg">삭제</button>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {logs.map((log) => {
-            let parsedExercises: any[] = [];
-            try { parsedExercises = log.exercisesJson ? JSON.parse(log.exercisesJson) : []; } catch {}
-            let parsedBodyParts: string[] = [];
-            try { parsedBodyParts = (log as any).bodyPartsJson ? JSON.parse((log as any).bodyPartsJson) : []; } catch {}
-            const isCheckIn = log.title === "출석체크";
-            return (
-              <div key={log.id} className="bg-card border border-border rounded-xl p-4 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground">{log.logDate}</p>
-                    <p className="font-semibold text-sm">{log.title || "운동 기록"}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    {!isCheckIn && (
-                      <button onClick={() => openEdit(log)} className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-lg">수정</button>
-                    )}
-                    <button onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: log.id }); }}
-                      className="text-xs text-red-400 px-2 py-1 bg-red-500/10 rounded-lg">삭제</button>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(log as any).conditionScore && (
-                    <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {(log as any).conditionScore}/5</span>
-                  )}
-                  {(log as any).sleepHours && (
-                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">😴 {(log as any).sleepHours}</span>
-                  )}
-                  {(log as any).energyLevel && (
-                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">⚡ {(log as any).energyLevel}</span>
-                  )}
-                  {parsedBodyParts.map((p) => (
-                    <span key={p} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">{p}</span>
-                  ))}
-                  {log.durationMinutes && (
-                    <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">⏱ {log.durationMinutes}분</span>
-                  )}
-                  {log.caloriesBurned && (
-                    <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">🔥 {log.caloriesBurned}kcal</span>
-                  )}
-                </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {(log as any).conditionScore && (
+            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {(log as any).conditionScore}/5</span>
+          )}
+          {(log as any).sleepHours && (
+            <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">😴 {(log as any).sleepHours}</span>
+          )}
+          {(log as any).energyLevel && (
+            <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">⚡ {(log as any).energyLevel}</span>
+          )}
+          {parsedBodyParts.map((p) => (
+            <span key={p} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">{p}</span>
+          ))}
+          {log.durationMinutes && (
+            <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">⏱ {log.durationMinutes}분</span>
+          )}
+          {log.caloriesBurned && (
+            <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">🔥 {log.caloriesBurned}kcal</span>
+          )}
+        </div>
 
-                {parsedExercises.length > 0 && (
-                  <div className="space-y-1">
-                    {parsedExercises.filter((e) => e.name).map((ex, i) => (
-                      <ExerciseRowWithVideo key={i} ex={ex} />
-                    ))}
-                  </div>
-                )}
+        {parsedExercises.length > 0 && (
+          <div className="space-y-1">
+            {parsedExercises.filter((e: any) => e.name).map((ex: any, i: number) => (
+              <ExerciseRowWithVideo key={i} ex={ex} />
+            ))}
+          </div>
+        )}
 
-                {log.notes && <p className="text-xs text-muted-foreground border-t border-border pt-2">{log.notes}</p>}
+        {log.notes && <p className="text-xs text-muted-foreground border-t border-border pt-2">{log.notes}</p>}
 
-                {/* 운동 시작 버튼 */}
-                {!isCheckIn && parsedExercises.filter(e => e.name).length > 0 && (
-                  <button
-                    onClick={() => setActiveLog(log)}
-                    className="w-full mt-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
-                  >
-                    <span>▶</span> 운동 시작
-                  </button>
-                )}
-              </div>
-            );
-          })}
+        {!isCheckIn && parsedExercises.filter((e: any) => e.name).length > 0 && (
+          <button
+            onClick={() => setActiveLog(log)}
+            className="w-full mt-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
+          >
+            <span>▶</span> 운동 시작
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const todayLogs = (logs ?? []).filter(l => l.logDate === today && l.title !== "출석체크");
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* 탭 헤더 */}
+      <div className="flex border-b border-border bg-background sticky top-0 z-10">
+        <button
+          onClick={() => setTab("workout")}
+          className={`flex-1 py-3 text-sm font-medium transition-colors ${
+            tab === "workout" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
+          }`}
+        >
+          오늘 운동
+        </button>
+        <button
+          onClick={() => setTab("history")}
+          className={`flex-1 py-3 text-sm font-medium transition-colors ${
+            tab === "history" ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
+          }`}
+        >
+          기록
+        </button>
+      </div>
+
+      {/* ── 오늘 운동 탭 ── */}
+      {tab === "workout" && (
+        <div className="p-4 space-y-4">
+          {/* 오늘 운동 추가 CTA */}
+          <button
+            onClick={openCreate}
+            className="w-full py-4 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 flex flex-col items-center gap-1 hover:bg-primary/10 transition-colors"
+          >
+            <span className="text-2xl">➕</span>
+            <span className="text-sm font-semibold text-primary">오늘 운동 계획 추가</span>
+            <span className="text-xs text-muted-foreground">종목을 입력하고 운동을 시작하세요</span>
+          </button>
+
+          {/* 오늘 운동 목록 */}
+          {todayLogs.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground font-medium">오늘 등록된 운동</p>
+              {todayLogs.map(log => renderLogCard(log))}
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <p className="text-muted-foreground text-sm">오늘 등록된 운동이 없어요</p>
+              <p className="text-xs text-muted-foreground mt-1">위 버튼으로 오늘 운동을 추가해보세요</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 기록 탭 ── */}
+      {tab === "history" && (
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-sm">운동 기록</p>
+            <Button size="sm" className="h-7 text-xs" onClick={openCreate}>+ 추가</Button>
+          </div>
+
+          {/* 월 선택 */}
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+            {months.map((m) => (
+              <button key={m} onClick={() => setSelectedMonth(m)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  selectedMonth === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {m.replace("-", "년 ")}월
+              </button>
+            ))}
+          </div>
+
+          {isLoading ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">불러오는 중...</div>
+          ) : !logs || logs.filter(l => l.title !== "출석체크").length === 0 ? (
+            <div className="text-center py-10 space-y-3">
+              <p className="text-muted-foreground text-sm">이 달의 운동 기록이 없습니다</p>
+              <Button variant="outline" size="sm" onClick={openCreate}>첫 기록 남기기</Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(logs ?? []).filter(l => l.title !== "출석체크").map(log => renderLogCard(log))}
+            </div>
+          )}
         </div>
       )}
 
