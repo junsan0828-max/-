@@ -328,6 +328,7 @@ const membersRouter = t.router({
         paymentMemo: z.string().optional(),
         adminTrainerId: z.number().optional(),
         branchId: z.number().optional(),
+        primaryType: z.enum(["PT", "헬스", "기타"]).optional(),
         subType: z.enum(["신규", "재등록"]).default("재등록"),
       })
     )
@@ -390,11 +391,10 @@ const membersRouter = t.router({
         const sessionCount = ptSessions ? parseInt(ptSessions) : undefined;
         const paid = Math.max(0, (paymentAmount ?? 0) - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
-        const isHealth = ptProgram === "헬스";
-        const revenueType = sessionCount ? "PT" : isHealth ? "헬스" : "기타";
+        const revenueType = input.primaryType ?? (sessionCount ? "PT" : ptProgram === "헬스" ? "헬스" : "기타");
         // 헬스 기간 계산 (membershipStart → membershipEnd diff)
         let healthDuration: number | undefined;
-        if (isHealth && memberData.membershipStart && memberData.membershipEnd) {
+        if (revenueType === "헬스" && memberData.membershipStart && memberData.membershipEnd) {
           const s = new Date(memberData.membershipStart);
           const e = new Date(memberData.membershipEnd);
           const diff = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
