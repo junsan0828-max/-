@@ -21,6 +21,10 @@ const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
 const CONDITION_LABELS = ["", "매우 피곤", "피곤", "보통", "좋음", "최고"];
 
+const BODY_PARTS = ["등", "가슴", "어깨", "팔", "팔꿈치", "손목", "복근", "허리", "엉덩이", "허벅지", "무릎", "종아리", "발목", "목", "전신", "유산소", "유연성", "기타"];
+const WORKOUT_THEMES = ["유산소 위주", "스트레칭 위주", "근력운동"];
+const INTENSITY_OPTIONS = ["낮음", "보통", "높음"];
+
 function daysUntil(dateStr: string | null | undefined) {
   if (!dateStr) return null;
   const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
@@ -39,6 +43,9 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
   const [conditionScore, setConditionScore] = useState<number | null>(null);
   const [sleepHours, setSleepHours] = useState("");
   const [energyLevel, setEnergyLevel] = useState("");
+  const [selectedBodyParts, setSelectedBodyParts] = useState<string[]>([]);
+  const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
+  const [intensity, setIntensity] = useState("");
   const [recommendedVideos, setRecommendedVideos] = useState<any[]>([]);
   const [previewVideo, setPreviewVideo] = useState<any | null>(null);
 
@@ -50,12 +57,31 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
     onError: (err) => toast.error(err.message),
   });
 
+  function toggleBodyPart(part: string) {
+    setSelectedBodyParts(prev =>
+      prev.includes(part) ? prev.filter(p => p !== part) : [...prev, part]
+    );
+  }
+
+  function toggleTheme(theme: string) {
+    setSelectedThemes(prev =>
+      prev.includes(theme) ? prev.filter(t => t !== theme) : [...prev, theme]
+    );
+  }
+
   function handleSubmit() {
     if (!conditionScore || !sleepHours || !energyLevel) {
-      toast.error("모든 항목을 선택해주세요.");
+      toast.error("컨디션, 수면시간, 에너지 레벨을 선택해주세요.");
       return;
     }
-    checkInMutation.mutate({ conditionScore, sleepHours, energyLevel });
+    checkInMutation.mutate({
+      conditionScore,
+      sleepHours,
+      energyLevel,
+      bodyPartsJson: selectedBodyParts.length > 0 ? JSON.stringify(selectedBodyParts) : undefined,
+      workoutTheme: selectedThemes.length > 0 ? JSON.stringify(selectedThemes) : undefined,
+      intensity: intensity || undefined,
+    });
   }
 
   const conditionEmoji = ["", "😴", "😔", "😐", "😊", "💪"];
@@ -115,6 +141,45 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
+            {/* 운동 부위 */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">오늘의 운동 부위 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {BODY_PARTS.map((part) => (
+                  <button key={part}
+                    className={`px-3 py-1.5 rounded-full border text-xs transition-colors ${selectedBodyParts.includes(part) ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                    onClick={() => toggleBodyPart(part)}
+                  >{part}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* 운동 주제 */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">오늘의 운동 주제 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {WORKOUT_THEMES.map((theme) => (
+                  <button key={theme}
+                    className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${selectedThemes.includes(theme) ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                    onClick={() => toggleTheme(theme)}
+                  >{theme}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* 강도 */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">운동 강도</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {INTENSITY_OPTIONS.map((opt) => (
+                  <button key={opt}
+                    className={`py-2 rounded-xl border text-sm transition-colors ${intensity === opt ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                    onClick={() => setIntensity(opt)}
+                  >{opt}</button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1 h-9" onClick={onClose}>취소</Button>
               <Button className="flex-1 h-9" onClick={handleSubmit} disabled={checkInMutation.isPending}>
@@ -134,6 +199,9 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
               <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {conditionScore}/5</span>
               <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">😴 {sleepHours}</span>
               <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">⚡ {energyLevel}</span>
+              {intensity && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">강도 {intensity}</span>}
+              {selectedBodyParts.length > 0 && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{selectedBodyParts.slice(0, 3).join(", ")}{selectedBodyParts.length > 3 ? " +" + (selectedBodyParts.length - 3) : ""}</span>}
+              {selectedThemes.length > 0 && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{selectedThemes.join(", ")}</span>}
             </div>
 
             {/* 추천 영상 */}
@@ -206,7 +274,8 @@ export default function GymPlusDashboard() {
   const { data: events } = trpc.gymPlus.listEvents.useQuery({});
   const { data: categories } = trpc.gymPlus.listCategories.useQuery();
   const { data: allVideos } = trpc.gymPlus.listVideos.useQuery({});
-  const { data: logs } = trpc.gymPlus.listWorkoutLogs.useQuery({});
+  const { data: logs, refetch: refetchLogs } = trpc.gymPlus.listWorkoutLogs.useQuery({});
+  const { data: todayRec, refetch: refetchRec } = trpc.gymPlus.getTodayRecommendations.useQuery();
 
   const today = new Date().toISOString().slice(0, 10);
   const todayLog = logs?.find((l) => l.logDate === today && l.title !== "출석체크");
@@ -326,6 +395,41 @@ export default function GymPlusDashboard() {
         )}
       </div>
 
+      {/* 오늘의 추천 운동 */}
+      {todayRec && todayRec.recommendedVideos.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-sm">오늘의 추천 운동</p>
+            <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/videos")}>전체보기 →</button>
+          </div>
+          <div className="space-y-2">
+            {todayRec.recommendedVideos.map((v: any) => (
+              <div key={v.id}
+                className="bg-card border border-border rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => navigate(`/gym-plus/videos/${v.id}`)}
+              >
+                <div className="flex items-center gap-3 p-3">
+                  {v.thumbnailUrl ? (
+                    <img src={v.thumbnailUrl} alt={v.title} className="w-20 h-12 object-cover rounded-lg flex-shrink-0" />
+                  ) : (
+                    <div className="w-20 h-12 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-xl">▶</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium line-clamp-2">{v.title}</p>
+                    <div className="flex gap-1 mt-1 flex-wrap">
+                      {v.bodyPart && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{v.bodyPart}</span>}
+                      {v.level && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{v.level}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 센터 기구 운동 안내 */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -359,7 +463,7 @@ export default function GymPlusDashboard() {
       </div>
 
       {/* 출석 체크인 모달 */}
-      {showCheckIn && <CheckInModal onClose={() => setShowCheckIn(false)} />}
+      {showCheckIn && <CheckInModal onClose={() => { setShowCheckIn(false); refetchLogs(); refetchRec(); }} />}
     </div>
   );
 }
