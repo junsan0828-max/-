@@ -2782,6 +2782,55 @@ const gymPlusRouter = t.router({
       return row;
     }),
 
+  // 출석 체크인 (컨디션 저장 + 추천 영상 반환)
+  checkIn: gymPlusProtected
+    .input(z.object({
+      conditionScore: z.number().min(1).max(5),
+      sleepHours: z.string(),
+      energyLevel: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const today = new Date().toISOString().slice(0, 10);
+
+      // 오늘 이미 체크인 기록 있으면 업데이트, 없으면 생성
+      const existing = await db.select({ id: gymPlusWorkoutLogs.id })
+        .from(gymPlusWorkoutLogs)
+        .where(and(
+          eq(gymPlusWorkoutLogs.gymPlusMemberId, ctx.gymPlusMemberId),
+          eq(gymPlusWorkoutLogs.logDate, today),
+          sql`${gymPlusWorkoutLogs.title} = '출석체크'`
+        )).limit(1);
+
+      if (existing[0]) {
+        await db.update(gymPlusWorkoutLogs)
+          .set({ conditionScore: input.conditionScore, sleepHours: input.sleepHours, energyLevel: input.energyLevel })
+          .where(eq(gymPlusWorkoutLogs.id, existing[0].id));
+      } else {
+        await db.insert(gymPlusWorkoutLogs).values({
+          gymPlusMemberId: ctx.gymPlusMemberId,
+          logDate: today,
+          title: "출석체크",
+          conditionScore: input.conditionScore,
+          sleepHours: input.sleepHours,
+          energyLevel: input.energyLevel,
+        });
+      }
+
+      // 컨디션 기반 추천 영상 (3개)
+      const level = input.conditionScore >= 4 ? "intermediate"
+        : input.conditionScore <= 2 ? "beginner" : null;
+      const conditions = [eq(gymPlusVideos.isPublished, 1)];
+      if (level) conditions.push(eq(gymPlusVideos.level, level));
+      const videos = await db.select().from(gymPlusVideos)
+        .where(and(...conditions))
+        .orderBy(sql`RANDOM()`)
+        .limit(3);
+
+      return { success: true, recommendedVideos: videos };
+    }),
+
   updateWorkoutLog: gymPlusProtected
     .input(z.object({
       id: z.number(),
