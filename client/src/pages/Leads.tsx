@@ -315,13 +315,7 @@ export default function LeadsPage() {
     const amount = Number(reg.amount);
     if (!amount) return toast.error("금액을 입력해주세요");
     setShowRegistration(false);
-    // PT 포함 시에만 서명 필요, 헬스/기타는 바로 저장
-    if (reg.itemTypes.includes("PT")) {
-      setShowSignature(true);
-    } else {
-      regPendingRef.current = reg;
-      handleSave("registered");
-    }
+    setShowSignature(true);
   }
 
   function proceedAfterSignature(sigDataUrl: string) {
@@ -766,110 +760,122 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 항목 유형 — 복수 선택 */}
-              <div>
+              {/* 항목 유형 — 복수 선택 + 인라인 상세 */}
+              <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">항목 유형 (복수 선택 가능)</label>
-                <div className="flex gap-2 mt-1">
-                  {["PT", "헬스", "기타"].map(t => (
-                    <button key={t} type="button"
-                      onClick={() => setRegForm(f => {
-                        const has = f.itemTypes.includes(t);
-                        return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== t) : [...f.itemTypes, t] };
-                      })}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.itemTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {t}
-                    </button>
-                  ))}
+
+                {/* PT */}
+                <div className={`rounded-xl border transition-colors ${regForm.itemTypes.includes("PT") ? "border-primary/60 bg-primary/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setRegForm(f => {
+                    const has = f.itemTypes.includes("PT");
+                    return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== "PT") : [...f.itemTypes, "PT"] };
+                  })} className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={regForm.itemTypes.includes("PT") ? "text-primary" : "text-muted-foreground"}>PT</span>
+                    {regForm.itemTypes.includes("PT") && <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {regForm.itemTypes.includes("PT") && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-primary/20">
+                      <div className="pt-3">
+                        <label className="text-xs text-muted-foreground">PT 프로그램</label>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          {PT_PROGRAMS.map(p => (
+                            <button key={p} type="button"
+                              onClick={() => setRegForm(f => ({ ...f, programKey: p, programCustom: "" }))}
+                              className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programKey === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                        {regForm.programKey === "기타" && (
+                          <input value={regForm.programCustom}
+                            onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))}
+                            placeholder="프로그램명 입력"
+                            className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">PT 횟수</label>
+                        <div className="flex gap-2 mt-1">
+                          {PT_SESSIONS.map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setRegForm(f => ({ ...f, sessions: f.sessions === n ? undefined : n }))}
+                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.sessions === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                              {n}회
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">서비스 횟수 <span className="text-muted-foreground/60">(무상 제공)</span></label>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                          {[0, 1, 2, 3, 5].map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setRegForm(f => ({ ...f, serviceSessions: f.serviceSessions === n ? undefined : n }))}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${regForm.serviceSessions === n ? "bg-amber-500 text-white border-amber-500" : "bg-background border-border text-muted-foreground"}`}>
+                              {n === 0 ? "없음" : `+${n}회`}
+                            </button>
+                          ))}
+                          <input type="number" min="0" placeholder="직접"
+                            value={regForm.serviceSessions !== undefined && ![0,1,2,3,5].includes(regForm.serviceSessions) ? regForm.serviceSessions : ""}
+                            onChange={e => setRegForm(f => ({ ...f, serviceSessions: e.target.value ? Number(e.target.value) : undefined }))}
+                            className="w-16 bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                        </div>
+                        {(regForm.sessions || regForm.serviceSessions) && (
+                          <p className="text-xs text-primary mt-1 font-medium">
+                            총 {(regForm.sessions ?? 0) + (regForm.serviceSessions ?? 0)}회
+                            {regForm.serviceSessions ? <span className="text-muted-foreground"> (결제 {regForm.sessions ?? 0}회 + 서비스 {regForm.serviceSessions}회)</span> : ""}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 헬스 */}
+                <div className={`rounded-xl border transition-colors ${regForm.itemTypes.includes("헬스") ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setRegForm(f => {
+                    const has = f.itemTypes.includes("헬스");
+                    return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== "헬스") : [...f.itemTypes, "헬스"] };
+                  })} className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={regForm.itemTypes.includes("헬스") ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                    {regForm.itemTypes.includes("헬스") && <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {regForm.itemTypes.includes("헬스") && (
+                    <div className="px-4 pb-4 border-t border-emerald-500/20">
+                      <label className="text-xs text-muted-foreground block pt-3">이용 기간</label>
+                      <div className="flex gap-2 mt-1">
+                        {DURATIONS.map(d => (
+                          <button key={d} type="button"
+                            onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                            {d}개월
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 기타 */}
+                <div className={`rounded-xl border transition-colors ${regForm.itemTypes.includes("기타") ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setRegForm(f => {
+                    const has = f.itemTypes.includes("기타");
+                    return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== "기타") : [...f.itemTypes, "기타"] };
+                  })} className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={regForm.itemTypes.includes("기타") ? "text-amber-400" : "text-muted-foreground"}>기타 <span className="font-normal text-xs">(운동복, 락커 등)</span></span>
+                    {regForm.itemTypes.includes("기타") && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {regForm.itemTypes.includes("기타") && (
+                    <div className="px-4 pb-4 border-t border-amber-500/20">
+                      <label className="text-xs text-muted-foreground block pt-3">항목명</label>
+                      <input value={regForm.otherItem}
+                        onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))}
+                        placeholder="예: 락커 1개월, 운동복 등"
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* PT 프로그램 + 횟수 */}
-              {regForm.itemTypes.includes("PT") && (
-                <div className="space-y-3 pl-3 border-l-2 border-primary/40">
-                  <div>
-                    <label className="text-xs text-muted-foreground">PT 프로그램</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      {PT_PROGRAMS.map(p => (
-                        <button key={p} type="button"
-                          onClick={() => setRegForm(f => ({ ...f, programKey: p, programCustom: "" }))}
-                          className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programKey === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                    {regForm.programKey === "기타" && (
-                      <input value={regForm.programCustom}
-                        onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))}
-                        placeholder="프로그램명 입력"
-                        className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">PT 횟수</label>
-                    <div className="flex gap-2 mt-1">
-                      {PT_SESSIONS.map(n => (
-                        <button key={n} type="button"
-                          onClick={() => setRegForm(f => ({ ...f, sessions: f.sessions === n ? undefined : n }))}
-                          className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.sessions === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                          {n}회
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">서비스 횟수 <span className="text-muted-foreground/60">(무상 제공)</span></label>
-                    <div className="flex gap-2 mt-1 flex-wrap">
-                      {[0, 1, 2, 3, 5].map(n => (
-                        <button key={n} type="button"
-                          onClick={() => setRegForm(f => ({ ...f, serviceSessions: f.serviceSessions === n ? undefined : n }))}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${regForm.serviceSessions === n ? "bg-amber-500 text-white border-amber-500" : "bg-background border-border text-muted-foreground"}`}>
-                          {n === 0 ? "없음" : `+${n}회`}
-                        </button>
-                      ))}
-                      <input
-                        type="number" min="0"
-                        placeholder="직접"
-                        value={regForm.serviceSessions !== undefined && ![0,1,2,3,5].includes(regForm.serviceSessions) ? regForm.serviceSessions : ""}
-                        onChange={e => setRegForm(f => ({ ...f, serviceSessions: e.target.value ? Number(e.target.value) : undefined }))}
-                        className="w-16 bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    {(regForm.sessions || regForm.serviceSessions) && (
-                      <p className="text-xs text-primary mt-1 font-medium">
-                        총 {(regForm.sessions ?? 0) + (regForm.serviceSessions ?? 0)}회
-                        {regForm.serviceSessions ? <span className="text-muted-foreground"> (결제 {regForm.sessions ?? 0}회 + 서비스 {regForm.serviceSessions}회)</span> : ""}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 헬스 기간 */}
-              {regForm.itemTypes.includes("헬스") && (
-                <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">헬스 이용 기간</label>
-                  <div className="flex gap-2 mt-1">
-                    {DURATIONS.map(d => (
-                      <button key={d} type="button"
-                        onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                        {d}개월
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 기타 항목명 */}
-              {regForm.itemTypes.includes("기타") && (
-                <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">기타 항목명</label>
-                  <input value={regForm.otherItem}
-                    onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))}
-                    placeholder="예: 락커, 운동복 등"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                </div>
-              )}
 
               {/* 금액 */}
               <div className="grid grid-cols-2 gap-3">
@@ -979,7 +985,7 @@ export default function LeadsPage() {
             <div className="p-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={saveRegistration}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors">
-                {regForm.itemTypes.includes("PT") ? "서명 진행" : "등록 완료"}
+                등록 완료
               </button>
               <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
