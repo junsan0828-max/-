@@ -559,7 +559,7 @@ function SearchTab() {
             <InfoSection title="수강권">
               {detail.packages.map((p: any) => (
                 <DetailRow key={p.id} icon="⭐" label={p.packageName}
-                  value={`잔여 ${(p.totalSessions??0)-(p.usedSessions??0)}회 · ${p.expiryDate ? `~${p.expiryDate}` : "무기한"}`}
+                  value={`잔여 ${(p.totalSessions??0)-(p.usedSessions??0)}회`}
                   valueColor={p.status === "active" ? "#4CAF50" : "#555"}
                 />
               ))}
