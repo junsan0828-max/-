@@ -3,6 +3,7 @@ import { trpc } from "../lib/trpc";
 
 type CheckResult = {
   result: string;
+  branchName?: string | null;
   member: {
     id: number;
     name: string;
@@ -319,7 +320,7 @@ export default function KioskCheckin() {
 
             {errorMsg ? <ErrorCard msg={errorMsg} />
               : result?.result === "not_found" ? <NotFoundCard />
-              : result?.result === "blocked" ? <BlockedCard name={result.member!.name} now={now} />
+              : result?.result === "blocked" ? <BlockedCard name={result.member!.name} now={now} branchName={result.branchName} />
               : result ? <MemberCard result={result} now={now} expired={result.result === "expired"} />
               : null}
 
@@ -374,9 +375,16 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
             </svg>
           </div>
           <div>
-            <p style={{ fontSize: 20, fontWeight: 700, color: "white" }}>
-              {m.name}<span style={{ color: "#888", fontWeight: 400, fontSize: 16 }}>님</span>
-            </p>
+            <div className="flex items-center gap-2">
+              <p style={{ fontSize: 20, fontWeight: 700, color: "white" }}>
+                {m.name}<span style={{ color: "#888", fontWeight: 400, fontSize: 16 }}>님</span>
+              </p>
+              {result.branchName && (
+                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: "rgba(255,255,255,0.1)", color: "#aaa", fontWeight: 500 }}>
+                  {result.branchName}
+                </span>
+              )}
+            </div>
             <p style={{ color: "#555", fontSize: 12, marginTop: 2 }}>{fmtDate(now)} {fmtTime(now)}</p>
           </div>
           <div className="ml-auto text-right">
@@ -463,10 +471,13 @@ function NotFoundCard() {
   );
 }
 
-function BlockedCard({ name, now }: { name: string; now: Date }) {
+function BlockedCard({ name, now, branchName }: { name: string; now: Date; branchName?: string | null }) {
   return (
     <div className="px-5 pt-5 pb-8">
-      <p style={{ fontSize: 20, fontWeight: 700 }}>{name}<span style={{ color: "#888", fontWeight: 400, fontSize: 16 }}>님</span></p>
+      <div className="flex items-center gap-2">
+        <p style={{ fontSize: 20, fontWeight: 700 }}>{name}<span style={{ color: "#888", fontWeight: 400, fontSize: 16 }}>님</span></p>
+        {branchName && <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: "rgba(255,255,255,0.1)", color: "#aaa" }}>{branchName}</span>}
+      </div>
       <p style={{ color: "#555", fontSize: 12, marginTop: 4, marginBottom: 20 }}>{fmtDate(now)} {fmtTime(now)}</p>
       <div className="rounded-2xl px-5 py-5 text-center" style={{ background: "rgba(140,0,0,0.15)", border: "1px solid rgba(160,0,0,0.3)" }}>
         <p className="font-bold" style={{ color: "#ff4444", fontSize: 16 }}>출입이 제한된 회원입니다</p>

@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc, and, like } from "drizzle-orm";
 import { getDb, pool } from "./db";
-import { members, lockers, accessLogs, ptPackages } from "../drizzle/schema";
+import { members, lockers, accessLogs, ptPackages, branches } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -97,6 +97,13 @@ export const accessRouter = t.router({
         .where(and(eq(lockers.memberId, found.id), eq(lockers.isOccupied, 1)))
         .limit(1);
 
+      // 지점명 조회
+      let branchName: string | null = null;
+      if (found.branchId) {
+        const [branch] = await db.select().from(branches).where(eq(branches.id, found.branchId));
+        branchName = branch?.name ?? null;
+      }
+
       // 출입 로그 기록
       await db.insert(accessLogs).values({
         memberId: found.id,
@@ -111,6 +118,7 @@ export const accessRouter = t.router({
 
       return {
         result: accessResult,
+        branchName,
         member: {
           id: found.id,
           name: found.name,
