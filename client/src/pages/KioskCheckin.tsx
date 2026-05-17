@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { trpc } from "../lib/trpc";
 
 type CheckResult = {
@@ -125,6 +125,26 @@ export default function KioskCheckin() {
 
   const handleClose = useCallback(() => {
     setResult(null); setErrorMsg(null); setDigits(""); setCountdown(0);
+  }, []);
+
+  // ── 안드로이드 뒤로 버튼 처리 ─────────────────────────────────────────────
+  const backStateRef = useRef({ result, errorMsg, bottomNav });
+  useEffect(() => { backStateRef.current = { result, errorMsg, bottomNav }; }, [result, errorMsg, bottomNav]);
+
+  useEffect(() => {
+    history.pushState(null, "");
+    const handler = () => {
+      const { result: r, errorMsg: e, bottomNav: nav } = backStateRef.current;
+      if (r !== null || e !== null) {
+        setResult(null); setErrorMsg(null); setDigits(""); setCountdown(0);
+        history.pushState(null, "");
+      } else if (nav !== "home") {
+        setBottomNav("home");
+        history.pushState(null, "");
+      }
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
   }, []);
 
   useEffect(() => {

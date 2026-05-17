@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "../lib/trpc";
 
 type BottomTab = "home" | "locker" | "search" | "logs" | "stats";
@@ -470,10 +470,9 @@ function LockerTab({ branchId }: { branchId: number | null }) {
 }
 
 // ── 회원검색 탭 ───────────────────────────────────────────────────────────────
-function SearchTab({ branchId }: { branchId: number | null }) {
+function SearchTab({ branchId, selectedId, setSelectedId }: { branchId: number | null; selectedId: number | null; setSelectedId: (id: number | null) => void }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
 
@@ -841,8 +840,30 @@ function StatsTab({ branchId }: { branchId: number | null }) {
 export default function Backoffice() {
   const [tab, setTab] = useState<BottomTab>("home");
   const [branchId, setBranchId] = useState<number | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const { data: branchList = [] } = trpc.backoffice.getBranches.useQuery();
   const branches = branchList as { id: number; name: string }[];
+
+  // ── 안드로이드 뒤로 버튼 처리 ───────────────────────────────────────────────
+  const backStateRef = useRef({ tab, selectedMemberId });
+  useEffect(() => { backStateRef.current = { tab, selectedMemberId }; }, [tab, selectedMemberId]);
+
+  useEffect(() => {
+    history.pushState(null, "");
+    const handler = () => {
+      const { tab: t, selectedMemberId: sid } = backStateRef.current;
+      if (sid !== null) {
+        setSelectedMemberId(null);
+        history.pushState(null, "");
+      } else if (t !== "home") {
+        setTab("home");
+        history.pushState(null, "");
+      }
+      // home에서 뒤로 → 브라우저 기본 동작 (앱 종료 or 이전 페이지)
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, []);
 
   const currentBranchName =
     branchId === null
@@ -904,7 +925,7 @@ export default function Backoffice() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {tab === "home" && <HomeTab setTab={setTab} branchId={branchId} />}
         {tab === "locker" && <LockerTab branchId={branchId} />}
-        {tab === "search" && <SearchTab branchId={branchId} />}
+        {tab === "search" && <SearchTab branchId={branchId} selectedId={selectedMemberId} setSelectedId={setSelectedMemberId} />}
         {tab === "logs" && <LogsTab branchId={branchId} />}
         {tab === "stats" && <StatsTab branchId={branchId} />}
       </div>
@@ -914,7 +935,7 @@ export default function Backoffice() {
         {navItems.map(([id, label, icon]) => (
           <button
             key={id}
-            onClick={() => setTab(id)}
+            onClick={() => { setSelectedMemberId(null); setTab(id); }}
             className="flex-1 flex flex-col items-center justify-center py-3 gap-1"
             style={{ WebkitTapHighlightColor: "transparent" }}
           >
