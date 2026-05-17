@@ -577,8 +577,16 @@ export default function GymPlusWorkout() {
 
   const utils = trpc.useUtils();
   const { data: logs, isLoading } = trpc.gymPlus.listWorkoutLogs.useQuery({ month: selectedMonth });
+  const { data: patternData, isFetching: patternLoading, refetch: refetchPattern } =
+    trpc.gymPlus.analyzeWorkoutPattern.useQuery(undefined, { enabled: false });
 
   const [tab, setTab] = useState<"workout" | "history">("workout");
+  const [analysisRequested, setAnalysisRequested] = useState(false);
+
+  function requestAnalysis() {
+    setAnalysisRequested(true);
+    refetchPattern();
+  }
 
   const createMutation = trpc.gymPlus.createWorkoutLog.useMutation({
     onSuccess: () => { utils.gymPlus.listWorkoutLogs.invalidate(); setShowForm(false); resetForm(); toast.success("운동 계획이 저장되었습니다"); },
@@ -774,6 +782,111 @@ export default function GymPlusWorkout() {
           <div className="flex items-center justify-between">
             <p className="font-semibold text-sm">운동 기록</p>
             <Button size="sm" className="h-7 text-xs" onClick={openCreate}>+ 추가</Button>
+          </div>
+
+          {/* AI 운동 패턴 분석 */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🤖</span>
+                <p className="font-semibold text-sm">AI 운동 패턴 분석</p>
+                {patternData?.isAI && <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">AI</span>}
+              </div>
+              <button
+                onClick={requestAnalysis}
+                disabled={patternLoading}
+                className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 transition-opacity"
+              >
+                {patternLoading ? "분석 중..." : analysisRequested ? "재분석" : "분석하기"}
+              </button>
+            </div>
+
+            {patternLoading && (
+              <div className="p-6 text-center space-y-2">
+                <div className="text-2xl animate-pulse">🏋️</div>
+                <p className="text-sm text-muted-foreground">운동 데이터를 분석하고 있어요...</p>
+              </div>
+            )}
+
+            {!patternLoading && patternData && (
+              <div className="p-4 space-y-4">
+                {/* 통계 카드 */}
+                {patternData.stats && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-muted/40 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-muted-foreground mb-1">총 운동 횟수</p>
+                        <p className="text-xl font-bold text-foreground">{patternData.stats.totalWorkouts}<span className="text-xs font-normal text-muted-foreground">회</span></p>
+                      </div>
+                      <div className="bg-muted/40 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-muted-foreground mb-1">총 운동 시간</p>
+                        <p className="text-xl font-bold text-foreground">{patternData.stats.totalMinutes}<span className="text-xs font-normal text-muted-foreground">분</span></p>
+                      </div>
+                      <div className="bg-muted/40 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-muted-foreground mb-1">총 소모 칼로리</p>
+                        <p className="text-xl font-bold text-orange-400">{patternData.stats.totalCalories.toLocaleString()}<span className="text-xs font-normal text-muted-foreground">kcal</span></p>
+                      </div>
+                      <div className="bg-muted/40 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-muted-foreground mb-1">총 볼륨</p>
+                        <p className="text-xl font-bold text-primary">{(patternData.stats.totalVolume / 1000).toFixed(1)}<span className="text-xs font-normal text-muted-foreground">t</span></p>
+                      </div>
+                    </div>
+
+                    {/* 자주 훈련한 부위 */}
+                    {patternData.stats.topParts.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">최근 60일 부위별 빈도</p>
+                        {patternData.stats.topParts.map(([part, count]: [string, number]) => (
+                          <div key={part} className="flex items-center gap-2">
+                            <span className="text-xs text-foreground w-16 flex-shrink-0">{part}</span>
+                            <div className="flex-1 bg-muted rounded-full h-2">
+                              <div
+                                className="bg-primary h-2 rounded-full transition-all"
+                                style={{ width: `${Math.min((count / (patternData.stats!.totalWorkouts || 1)) * 100, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground w-8 text-right">{count}회</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 미훈련 부위 경고 */}
+                    {patternData.stats.missingParts.length > 0 && (
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                        <p className="text-xs font-medium text-yellow-400 mb-1.5">⚠️ 훈련이 부족한 부위</p>
+                        <div className="flex flex-wrap gap-1">
+                          {patternData.stats.missingParts.map(p => (
+                            <span key={p} className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">{p}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* AI 분석 텍스트 */}
+                {patternData.analysis && (
+                  <div className="space-y-2">
+                    <div className="h-px bg-border" />
+                    <p className="text-xs font-medium text-primary">AI 코치 피드백</p>
+                    <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                      {patternData.analysis}
+                    </div>
+                  </div>
+                )}
+
+                {!patternData.analysis && patternData.stats && (
+                  <p className="text-xs text-muted-foreground text-center">ANTHROPIC_API_KEY 설정 시 AI 분석이 활성화됩니다</p>
+                )}
+              </div>
+            )}
+
+            {!patternLoading && !analysisRequested && (
+              <div className="p-4 text-center text-xs text-muted-foreground">
+                분석하기 버튼을 눌러 최근 60일 운동 패턴을 확인하세요
+              </div>
+            )}
           </div>
 
           {/* 월 선택 */}

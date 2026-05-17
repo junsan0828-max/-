@@ -1,4 +1,5 @@
 import { gymRouter } from "./gymRouters";
+import Anthropic from "@anthropic-ai/sdk";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, sql, lte, gte, gt, isNull, or } from "drizzle-orm";
@@ -2932,6 +2933,108 @@ const gymPlusRouter = t.router({
     const unique = videos.filter(v => { if (seen.has(v.id)) return false; seen.add(v.id); return true; }).slice(0, 3);
 
     return { checkIn, recommendedVideos: unique };
+  }),
+
+  analyzeWorkoutPattern: gymPlusProtected.query(async ({ ctx }) => {
+    const db = getDb();
+    const memberId = ctx.gymPlusMemberId;
+
+    // 최근 60일 운동 기록 가져오기
+    const since = new Date();
+    since.setDate(since.getDate() - 60);
+    const sinceStr = since.toISOString().slice(0, 10);
+
+    const logs = await db.select().from(gymPlusWorkoutLogs)
+      .where(and(
+        eq(gymPlusWorkoutLogs.gymPlusMemberId, memberId),
+        sql`${gymPlusWorkoutLogs.logDate} >= ${sinceStr}`,
+        sql`${gymPlusWorkoutLogs.title} != '출석체크'`,
+      ))
+      .orderBy(desc(gymPlusWorkoutLogs.logDate));
+
+    if (logs.length === 0) {
+      return { analysis: null, stats: null, isAI: false };
+    }
+
+    // 통계 계산
+    const totalWorkouts = logs.length;
+    const totalMinutes = logs.reduce((s, l) => s + (l.durationMinutes ?? 0), 0);
+    const totalCalories = logs.reduce((s, l) => s + (l.caloriesBurned ?? 0), 0);
+
+    const bodyPartCount: Record<string, number> = {};
+    let totalVolume = 0;
+    for (const log of logs) {
+      try {
+        const parts: string[] = log.bodyPartsJson ? JSON.parse(log.bodyPartsJson) : [];
+        parts.forEach(p => { bodyPartCount[p] = (bodyPartCount[p] ?? 0) + 1; });
+      } catch {}
+      try {
+        const exs: any[] = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
+        for (const ex of exs) {
+          if (Array.isArray(ex.sets)) {
+            for (const s of ex.sets) {
+              totalVolume += (parseFloat(s.reps) || 0) * (parseFloat(s.weight) || 0);
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const topParts = Object.entries(bodyPartCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const allParts = ["전신", "상체", "하체", "등", "어깨", "가슴", "복부", "허리", "코어", "엉덩이", "대퇴 후면", "대퇴 전면", "하퇴", "이두", "삼두"];
+    const missingParts = allParts.filter(p => !bodyPartCount[p]);
+
+    const stats = {
+      totalWorkouts,
+      totalMinutes,
+      totalCalories,
+      totalVolume: Math.round(totalVolume),
+      topParts,
+      missingParts,
+      avgMinutesPerWorkout: totalWorkouts > 0 ? Math.round(totalMinutes / totalWorkouts) : 0,
+      avgCaloriesPerWorkout: totalWorkouts > 0 ? Math.round(totalCalories / totalWorkouts) : 0,
+    };
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return { analysis: null, stats, isAI: false };
+    }
+
+    const dataContext = `
+최근 60일 운동 데이터:
+- 총 운동 횟수: ${totalWorkouts}회
+- 총 운동 시간: ${totalMinutes}분 (평균 ${stats.avgMinutesPerWorkout}분/회)
+- 총 소모 칼로리: ${totalCalories}kcal (평균 ${stats.avgCaloriesPerWorkout}kcal/회)
+- 총 운동 볼륨: ${stats.totalVolume.toLocaleString()}kg
+- 자주 훈련한 부위: ${topParts.map(([p, c]) => `${p}(${c}회)`).join(", ") || "없음"}
+- 훈련하지 않은 부위: ${missingParts.join(", ") || "없음"}
+`;
+
+    try {
+      const client = new Anthropic({ apiKey });
+      const message = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 800,
+        messages: [{
+          role: "user",
+          content: `당신은 개인 트레이닝 전문 AI 코치입니다. 아래 회원의 운동 데이터를 분석하여 한국어로 짧고 실용적인 피드백을 제공해주세요.
+
+${dataContext}
+
+다음 3가지 항목을 각각 2~3문장으로 분석해주세요:
+
+1. **운동 패턴 요약**: 운동 빈도, 강도, 일관성에 대한 평가
+2. **부위 불균형 분석**: 과도하게 훈련된 부위와 부족한 부위 지적
+3. **이번 주 추천**: 구체적인 운동 부위와 방향 제안
+
+친근하고 동기부여가 되는 톤으로 작성해주세요.`,
+        }],
+      });
+      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      return { analysis: text, stats, isAI: true };
+    } catch {
+      return { analysis: null, stats, isAI: false };
+    }
   }),
 
   updateWorkoutLog: gymPlusProtected
