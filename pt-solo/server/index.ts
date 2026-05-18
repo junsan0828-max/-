@@ -443,6 +443,28 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "specialties" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileBonusGranted" INTEGER NOT NULL DEFAULT 0`);
 
+  // 포인트 자동 지급 규칙 테이블
+  await pool.query(`CREATE TABLE IF NOT EXISTS point_auto_rules (
+    id SERIAL PRIMARY KEY,
+    event TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    description TEXT,
+    amount INTEGER NOT NULL DEFAULT 100,
+    "isEnabled" INTEGER NOT NULL DEFAULT 1,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  // 기본 규칙 시드 (없을 때만)
+  const ruleCount = await pool.query(`SELECT COUNT(*) FROM point_auto_rules`);
+  if (Number(ruleCount.rows[0].count) === 0) {
+    await pool.query(`INSERT INTO point_auto_rules (event, label, description, amount, "isEnabled") VALUES
+      ('profile_complete', '프로필 완성', '근무형태·근무지·경력·전문분야를 모두 입력한 경우', 200, 1),
+      ('registration', '신규 가입 보너스', '트레이너가 처음 가입했을 때', 100, 0),
+      ('first_member', '첫 번째 회원 등록', '첫 번째 PT 회원을 등록했을 때', 50, 0),
+      ('member_milestone_10', '회원 10명 달성', 'PT 회원이 10명이 되었을 때', 200, 0),
+      ('session_milestone_50', 'PT 50회 달성', 'PT 세션 누적 50회를 달성했을 때', 300, 0)
+    `);
+  }
+
   // 회원권 날짜 자동 보정
   try {
     const noStartMembers = await db.select({ id: members.id }).from(members).where(isNull(members.membershipStart));

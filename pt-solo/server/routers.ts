@@ -874,12 +874,18 @@ const trainersRouter = t.router({
       const bonusGranted = check.rows[0]?.profileBonusGranted ?? 0;
       const isComplete = !!(input.employmentType && input.workplaceName && input.workYears !== undefined && input.specialties);
       if (isComplete && bonusGranted === 0) {
-        await pool.query(
-          `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,200,'profile_bonus','트레이너 프로필 완성 보너스','completed')`,
-          [ctx.user.trainerId]
+        const rule = await pool.query<{ amount: number; isEnabled: number }>(
+          `SELECT amount, "isEnabled" FROM point_auto_rules WHERE event='profile_complete'`
         );
+        const ruleRow = rule.rows[0];
+        if (ruleRow && ruleRow.isEnabled) {
+          await pool.query(
+            `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'profile_bonus','트레이너 프로필 완성 보너스','completed')`,
+            [ctx.user.trainerId, ruleRow.amount]
+          );
+        }
         await pool.query(`UPDATE trainers SET "profileBonusGranted"=1 WHERE id=$1`, [ctx.user.trainerId]);
-        return { success: true, bonusGranted: true };
+        return { success: true, bonusGranted: !!(ruleRow && ruleRow.isEnabled), bonusAmount: ruleRow?.amount ?? 0 };
       }
       return { success: true, bonusGranted: false };
     }),
@@ -1677,6 +1683,42 @@ const adminRouter = t.router({
     .mutation(async ({ input }) => {
       const status = input.approve ? "completed" : "rejected";
       await pool.query(`UPDATE fit_point_logs SET status=$1 WHERE id=$2`, [status, input.logId]);
+      return { success: true };
+    }),
+
+  // ── 포인트 관리 ──
+  listTrainersWithPoints: adminProcedure.query(async () => {
+    const result = await pool.query<{
+      trainerId: number; trainerName: string; username: string;
+      balance: string; pendingAmount: string;
+    }>(`
+      SELECT t.id AS "trainerId", t."trainerName", u.username,
+        COALESCE(SUM(CASE WHEN l.status='completed' THEN l.amount ELSE 0 END),0) AS balance,
+        COALESCE(SUM(CASE WHEN l.status='pending' THEN l.amount ELSE 0 END),0) AS "pendingAmount"
+      FROM trainers t
+      JOIN users u ON u.id = t."userId"
+      LEFT JOIN fit_point_logs l ON l."trainerId" = t.id
+      GROUP BY t.id, t."trainerName", u.username
+      ORDER BY t."trainerName"
+    `);
+    return result.rows.map(r => ({ ...r, balance: Number(r.balance), pendingAmount: Number(r.pendingAmount) }));
+  }),
+
+  getAutoRules: adminProcedure.query(async () => {
+    const result = await pool.query<{
+      id: number; event: string; label: string; description: string | null;
+      amount: number; isEnabled: number; updatedAt: string;
+    }>(`SELECT * FROM point_auto_rules ORDER BY id`);
+    return result.rows;
+  }),
+
+  updateAutoRule: adminProcedure
+    .input(z.object({ event: z.string(), amount: z.number().int().min(0), isEnabled: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `UPDATE point_auto_rules SET amount=$1, "isEnabled"=$2, "updatedAt"=now()::text WHERE event=$3`,
+        [input.amount, input.isEnabled ? 1 : 0, input.event]
+      );
       return { success: true };
     }),
 });
