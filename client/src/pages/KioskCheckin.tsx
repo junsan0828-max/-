@@ -87,6 +87,11 @@ export default function KioskCheckin() {
   const [bottomNav, setBottomNav] = useState<BottomNav>("home");
   const now = useClock();
 
+  // 탭별 최대 자리수
+  const maxDigits = activeTab === "number" ? 6 : 8;
+  // 출석번호: 4~6자리, 휴대폰: 8자리
+  const isReady = activeTab === "number" ? digits.length >= 4 : digits.length === 8;
+
   const checkIn = trpc.access.checkIn.useMutation({
     onSuccess: (data) => {
       setErrorMsg(null);
@@ -114,22 +119,33 @@ export default function KioskCheckin() {
     if (result || errorMsg) return;
     if (k === "del") { setDigits((v) => v.slice(0, -1)); return; }
     if (k === "clear") { setDigits(""); return; }
-    if (digits.length >= 8) return;
+    if (digits.length >= maxDigits) return;
     setDigits((v) => v + k);
-  }, [digits, result, errorMsg]);
+  }, [digits, result, errorMsg, maxDigits]);
 
   const handleSubmit = useCallback(() => {
-    if (digits.length !== 8 || checkIn.isPending) return;
-    checkIn.mutate({ phone: "010" + digits });
-  }, [digits, checkIn]);
+    if (!isReady || checkIn.isPending) return;
+    if (activeTab === "number") {
+      checkIn.mutate({ memberNumber: digits });
+    } else {
+      checkIn.mutate({ phone: "010" + digits });
+    }
+  }, [digits, checkIn, activeTab, isReady]);
 
   const handleClose = useCallback(() => {
     setResult(null); setErrorMsg(null); setDigits(""); setCountdown(0);
   }, []);
 
+  const handleTabChange = useCallback((tab: KioskTab) => {
+    setActiveTab(tab);
+    setDigits("");
+    setResult(null);
+    setErrorMsg(null);
+  }, []);
+
   // ── 안드로이드 뒤로 버튼 처리 ─────────────────────────────────────────────
-  const backStateRef = useRef({ result, errorMsg, bottomNav });
-  useEffect(() => { backStateRef.current = { result, errorMsg, bottomNav }; }, [result, errorMsg, bottomNav]);
+  const backStateRef = useRef({ result, errorMsg, bottomNav, activeTab });
+  useEffect(() => { backStateRef.current = { result, errorMsg, bottomNav, activeTab }; }, [result, errorMsg, bottomNav, activeTab]);
 
   useEffect(() => {
     history.pushState(null, "");
@@ -164,6 +180,9 @@ export default function KioskCheckin() {
   const aDisplay = a.padEnd(4, "_").split("").join(" ");
   const bDisplay = b.padEnd(4, "_").split("").join(" ");
 
+  // 출석번호 표시: 최대 6자리 블록
+  const numDisplay = digits.padEnd(6, "_").split("").join("  ");
+
   const showPopup = result !== null || errorMsg !== null;
 
   return (
@@ -192,7 +211,7 @@ export default function KioskCheckin() {
             {([["number","출석번호"], ["phone","휴대폰번호"], ["qr","QR 출입"]] as [KioskTab,string][]).map(([id, label]) => (
               <button
                 key={id}
-                onClick={() => setActiveTab(id)}
+                onClick={() => handleTabChange(id as KioskTab)}
                 className="flex-1 py-3 text-center text-sm transition-colors"
                 style={{
                   color: activeTab === id ? "white" : "#555",
@@ -207,75 +226,110 @@ export default function KioskCheckin() {
             ))}
           </div>
 
-          {/* 전화번호 표시 */}
-          <div className="text-center py-5">
-            <span className="font-mono font-bold tracking-widest whitespace-nowrap" style={{ fontSize: 26, color: "white", letterSpacing: "0.08em" }}>
-              010 - {aDisplay} - {bDisplay}
-            </span>
-          </div>
-
-          {/* 키패드 */}
-          <div className="flex-1 flex flex-col px-5 gap-2" style={{ minHeight: 0 }}>
-            <div
-              className="grid gap-2 flex-1"
-              style={{ gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(4, 1fr)" }}
-            >
-              {["1","2","3","4","5","6","7","8","9","취소","0","del"].map((k) => {
-                const isAction = k === "취소" || k === "del";
-                return (
-                  <button
-                    key={k}
-                    onClick={() => k === "취소" ? handleKey("clear") : handleKey(k)}
-                    className="flex items-center justify-center rounded-2xl font-semibold transition-all active:scale-95"
-                    style={{
-                      background: isAction ? "#181818" : "#1c1c1c",
-                      border: "1px solid #2a2a2a",
-                      color: isAction ? "#666" : "white",
-                      fontSize: k === "취소" ? 13 : 24,
-                      WebkitTapHighlightColor: "transparent",
-                    }}
-                    onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#303030"; }}
-                    onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.background = isAction ? "#181818" : "#1c1c1c"; }}
-                  >
-                    {k === "del" ? (
-                      <svg width="24" height="18" viewBox="0 0 24 18" fill="none">
-                        <path d="M9 1H23V17H9L1 9L9 1Z" stroke="#666" strokeWidth="1.5"/>
-                        <line x1="11" y1="6" x2="17" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
-                        <line x1="17" y1="6" x2="11" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
-                    ) : k}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* 출입하기 버튼 */}
-            <button
-              onClick={handleSubmit}
-              disabled={digits.length !== 8 || checkIn.isPending}
-              className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
-              style={{
-                height: 58,
-                fontSize: 17,
-                background: digits.length === 8 ? "#ffffff" : "#1c1c1c",
-                color: digits.length === 8 ? "#0d0d0d" : "#333",
-                border: "none",
-                letterSpacing: "0.08em",
-                WebkitTapHighlightColor: "transparent",
-                marginBottom: 8,
-              }}
-            >
-              {checkIn.isPending ? "확인 중..." : (
-                <>
-                  출입하기
-                  <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-                    <line x1="0" y1="7" x2="16" y2="7" stroke={digits.length === 8 ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round"/>
-                    <polyline points="10,1 16,7 10,13" stroke={digits.length === 8 ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          {/* 입력 표시 */}
+          <div className="text-center py-5 px-4">
+            {activeTab === "phone" ? (
+              <span className="font-mono font-bold tracking-widest whitespace-nowrap" style={{ fontSize: 26, color: "white", letterSpacing: "0.08em" }}>
+                010 - {aDisplay} - {bDisplay}
+              </span>
+            ) : activeTab === "number" ? (
+              <div>
+                <p style={{ fontSize: 11, color: "#555", letterSpacing: "0.15em", marginBottom: 10 }}>ATTENDANCE NUMBER</p>
+                <span className="font-mono font-bold" style={{ fontSize: 32, color: "white", letterSpacing: "0.18em" }}>
+                  {numDisplay}
+                </span>
+                <p style={{ fontSize: 11, color: "#444", marginTop: 8 }}>4 ~ 6자리 출석번호를 입력하세요</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <div style={{ width: 64, height: 64, background: "#1c1c1c", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <rect x="2" y="2" width="28" height="28" rx="4" stroke="#555" strokeWidth="1.5"/>
+                    <rect x="7" y="7" width="8" height="8" fill="#555"/>
+                    <rect x="17" y="7" width="8" height="8" fill="#555"/>
+                    <rect x="7" y="17" width="8" height="8" fill="#555"/>
+                    <rect x="19" y="19" width="2" height="2" fill="#555"/>
+                    <rect x="23" y="19" width="2" height="2" fill="#555"/>
+                    <rect x="19" y="23" width="2" height="2" fill="#555"/>
+                    <rect x="23" y="23" width="2" height="2" fill="#555"/>
                   </svg>
-                </>
-              )}
-            </button>
+                </div>
+                <p style={{ color: "#555", fontSize: 13 }}>QR 출입은 준비 중입니다</p>
+              </div>
+            )}
           </div>
+
+          {/* 키패드 (QR 탭이 아닐 때만) */}
+          {activeTab !== "qr" && (
+            <div className="flex-1 flex flex-col px-5 gap-2" style={{ minHeight: 0 }}>
+              <div
+                className="grid gap-2 flex-1"
+                style={{ gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(4, 1fr)" }}
+              >
+                {["1","2","3","4","5","6","7","8","9","취소","0","del"].map((k) => {
+                  const isAction = k === "취소" || k === "del";
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => k === "취소" ? handleKey("clear") : handleKey(k)}
+                      className="flex items-center justify-center rounded-2xl font-semibold transition-all active:scale-95"
+                      style={{
+                        background: isAction ? "#181818" : "#1c1c1c",
+                        border: "1px solid #2a2a2a",
+                        color: isAction ? "#666" : "white",
+                        fontSize: k === "취소" ? 13 : 24,
+                        WebkitTapHighlightColor: "transparent",
+                      }}
+                      onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#303030"; }}
+                      onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.background = isAction ? "#181818" : "#1c1c1c"; }}
+                    >
+                      {k === "del" ? (
+                        <svg width="24" height="18" viewBox="0 0 24 18" fill="none">
+                          <path d="M9 1H23V17H9L1 9L9 1Z" stroke="#666" strokeWidth="1.5"/>
+                          <line x1="11" y1="6" x2="17" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
+                          <line x1="17" y1="6" x2="11" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                      ) : k}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 출입하기 버튼 */}
+              <button
+                onClick={handleSubmit}
+                disabled={!isReady || checkIn.isPending}
+                className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+                style={{
+                  height: 58,
+                  fontSize: 17,
+                  background: isReady ? "#ffffff" : "#1c1c1c",
+                  color: isReady ? "#0d0d0d" : "#333",
+                  border: "none",
+                  letterSpacing: "0.08em",
+                  WebkitTapHighlightColor: "transparent",
+                  marginBottom: 8,
+                }}
+              >
+                {checkIn.isPending ? "확인 중..." : (
+                  <>
+                    출입하기
+                    <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+                      <line x1="0" y1="7" x2="16" y2="7" stroke={isReady ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round"/>
+                      <polyline points="10,1 16,7 10,13" stroke={isReady ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* QR 탭: 준비중 안내 */}
+          {activeTab === "qr" && (
+            <div className="flex-1 flex items-center justify-center">
+              <p style={{ color: "#444", fontSize: 14 }}>서비스 준비 중입니다</p>
+            </div>
+          )}
         </div>
       )}
 

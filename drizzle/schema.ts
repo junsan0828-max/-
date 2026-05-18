@@ -60,6 +60,7 @@ export const members = pgTable("members", {
   email: text("email"),
   birthDate: text("birthDate"),
   gender: text("gender"),
+  memberNumber: text("memberNumber"),
   grade: text("grade").default("basic").notNull(),
   status: text("status").default("active").notNull(),
   membershipStart: text("membershipStart"),

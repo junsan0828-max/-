@@ -66,6 +66,7 @@ export const backofficeRouter = t.router({
       id: z.number(),
       name: z.string().optional(),
       phone: z.string().optional(),
+      memberNumber: z.string().nullable().optional(),
       status: z.string().optional(),
       membershipStart: z.string().nullable().optional(),
       membershipEnd: z.string().nullable().optional(),

@@ -41,16 +41,27 @@ async function findMemberByPhone(phoneInput: string) {
 export const accessRouter = t.router({
   // 키오스크 체크인 (인증 불필요)
   checkIn: publicProcedure
-    .input(z.object({ phone: z.string() }))
+    .input(z.object({ phone: z.string().optional(), memberNumber: z.string().optional() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const found = await findMemberByPhone(input.phone);
+      let found: any = null;
+      if (input.memberNumber) {
+        const result = await pool.query(
+          `SELECT * FROM members WHERE "memberNumber" = $1 LIMIT 1`,
+          [input.memberNumber]
+        );
+        found = result.rows[0] ?? null;
+      } else if (input.phone) {
+        found = await findMemberByPhone(input.phone);
+      }
+
+      const phoneForLog = input.phone ?? input.memberNumber ?? "";
 
       if (!found) {
         await db.insert(accessLogs).values({
-          phone: input.phone,
+          phone: phoneForLog,
           accessResult: "not_found",
         });
         return { result: "not_found", member: null, locker: null };
@@ -108,7 +119,7 @@ export const accessRouter = t.router({
       await db.insert(accessLogs).values({
         memberId: found.id,
         memberName: found.name,
-        phone: input.phone,
+        phone: phoneForLog,
         branchId: found.branchId ?? null,
         accessResult,
         membershipType,

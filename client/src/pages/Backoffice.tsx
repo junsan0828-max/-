@@ -483,7 +483,7 @@ function SearchTab({ branchId, selectedId, setSelectedId }: { branchId: number |
   function openMember(id: number) { setSelectedId(id); setEditMode(false); }
   function startEdit() {
     if (!detail) return;
-    setForm({ name: detail.member.name ?? "", phone: detail.member.phone ?? "", status: detail.member.status ?? "active", membershipStart: detail.member.membershipStart ?? "", membershipEnd: detail.member.membershipEnd ?? "", memo: detail.member.memo ?? "" });
+    setForm({ name: detail.member.name ?? "", phone: detail.member.phone ?? "", memberNumber: (detail.member as any).memberNumber ?? "", status: detail.member.status ?? "active", membershipStart: detail.member.membershipStart ?? "", membershipEnd: detail.member.membershipEnd ?? "", memo: detail.member.memo ?? "" });
     setEditMode(true);
   }
 
@@ -497,7 +497,7 @@ function SearchTab({ branchId, selectedId, setSelectedId }: { branchId: number |
         <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid #1e1e1e" }}>
           <button onClick={() => { setSelectedId(null); setEditMode(false); }} style={{ color: "#888", fontSize: 14 }}>← 뒤로</button>
           <p style={{ fontSize: 15, fontWeight: 700, color: "white" }}>회원 상세 정보</p>
-          <button onClick={editMode ? () => updateMember.mutate({ id: selectedId, ...form, membershipStart: form.membershipStart||null, membershipEnd: form.membershipEnd||null, memo: form.memo||null }) : startEdit}
+          <button onClick={editMode ? () => updateMember.mutate({ id: selectedId, ...form, memberNumber: form.memberNumber||null, membershipStart: form.membershipStart||null, membershipEnd: form.membershipEnd||null, memo: form.memo||null }) : startEdit}
             style={{ marginLeft: "auto", fontSize: 13, padding: "4px 14px", background: "#252525", color: "white", borderRadius: 8 }}>
             {editMode ? "저장" : "수정"}
           </button>
@@ -516,9 +516,20 @@ function SearchTab({ branchId, selectedId, setSelectedId }: { branchId: number |
                 )}
                 <p style={{ fontSize: 12, color: "#555", marginTop: 2 }}>회원번호 {String(m.id).padStart(7, "0")}</p>
                 {editMode ? (
-                  <input value={form.phone} onChange={e => setForm(f=>({...f,phone:e.target.value}))} style={{ fontSize: 13, background: "#252525", border: "1px solid #333", borderRadius: 8, padding: "3px 8px", color: "#aaa", marginTop: 4, outline: "none" }}/>
+                  <>
+                    <input value={form.phone} onChange={e => setForm(f=>({...f,phone:e.target.value}))} style={{ fontSize: 13, background: "#252525", border: "1px solid #333", borderRadius: 8, padding: "3px 8px", color: "#aaa", marginTop: 4, outline: "none", display: "block" }}/>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span style={{ fontSize: 11, color: "#555", whiteSpace: "nowrap" }}>출석번호</span>
+                      <input value={form.memberNumber} onChange={e => setForm(f=>({...f,memberNumber:e.target.value}))} placeholder="4~6자리 숫자" maxLength={6} style={{ width: 90, fontSize: 13, background: "#252525", border: "1px solid #333", borderRadius: 8, padding: "3px 8px", color: "#fff", outline: "none" }}/>
+                    </div>
+                  </>
                 ) : (
-                  <p style={{ fontSize: 13, color: "#888", marginTop: 2 }}>{m.phone}</p>
+                  <>
+                    <p style={{ fontSize: 13, color: "#888", marginTop: 2 }}>{m.phone}</p>
+                    {(m as any).memberNumber && (
+                      <p style={{ fontSize: 12, color: "#666", marginTop: 2 }}>출석번호 <span style={{ color: "#aaa", fontWeight: 600 }}>{(m as any).memberNumber}</span></p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
