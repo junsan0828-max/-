@@ -33,9 +33,13 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-sm bg-card border-border">
-        <CardHeader className="flex flex-col items-center pb-6 pt-6">
-          <Logo className="h-12" textSize="text-lg" />
-          <p className="text-sm text-muted-foreground mt-3">로그인하여 시작하세요</p>
+        <CardHeader className="flex flex-col items-center pb-6 pt-8">
+          <Logo className="h-16" textSize="text-4xl" />
+          <p className="text-xs text-muted-foreground/70 mt-1 tracking-widest uppercase"
+            style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.2em" }}>
+            트레이너의 성장과 운영을 하나로
+          </p>
+          <p className="text-sm text-muted-foreground mt-4">로그인하여 시작하세요</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
