@@ -96,6 +96,17 @@ export default function ContractPrint() {
     window.print();
   }
 
+  function handleKakaoShare() {
+    const url = window.location.href;
+    const text = `[${name}님 회원 계약서]\n계약 내용을 확인해 주세요.\n${url}`;
+    // 카카오톡 앱 공유 (모바일) / 클립보드 복사 (데스크탑 fallback)
+    if (navigator.share) {
+      navigator.share({ title: `${name} 회원 계약서`, text, url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text).then(() => alert("링크가 클립보드에 복사되었습니다.\n카카오톡에 붙여넣기 하세요.")).catch(() => {});
+    }
+  }
+
   return (
     <>
       {/* 인쇄 전용 스타일 */}
@@ -112,10 +123,14 @@ export default function ContractPrint() {
         }
       `}</style>
 
-      {/* 인쇄 버튼 (화면에서만 보임) */}
+      {/* 버튼 (화면에서만 보임) */}
       <div className="no-print fixed top-4 right-4 z-50 flex gap-2">
+        <button onClick={handleKakaoShare}
+          className="bg-yellow-400 text-gray-900 px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-yellow-500 transition-colors flex items-center gap-1.5">
+          💬 카카오 공유
+        </button>
         <button onClick={handlePrint}
-          className="bg-emerald-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-emerald-700 transition-colors">
+          className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5">
           🖨️ PDF 저장 / 인쇄
         </button>
       </div>

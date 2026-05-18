@@ -1,16 +1,25 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, XCircle } from "lucide-react";
+import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, ClipboardList } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+// 관리상담: consulted 상태이고 상담일로부터 7일 이내
+function resolveDisplayStatus(status: string, consultationDate: string | null | undefined): string {
+  if (status === "consulted" && consultationDate) {
+    const days = Math.floor((Date.now() - new Date(consultationDate).getTime()) / 86400000);
+    if (days <= 7) return "managed";
+  }
+  return status;
+}
+
 const STATUS_OPTIONS = [
+  { value: "managed",    label: "관리상담", color: "text-yellow-400",  bg: "bg-yellow-400/10",  icon: ClipboardList },
   { value: "consulted",  label: "상담완료", color: "text-blue-400",    bg: "bg-blue-400/10",    icon: MessageSquare },
   { value: "registered", label: "등록완료", color: "text-emerald-400", bg: "bg-emerald-400/10", icon: CheckCircle2 },
-  { value: "dropped",    label: "등록보류", color: "text-red-400",     bg: "bg-red-400/10",     icon: XCircle },
 ];
 
 const CONSULT_TYPES: Record<string, string[]> = {
@@ -408,11 +417,15 @@ export default function LeadsPage() {
 
   const filtered = (leadsData ?? []).filter(row => {
     const q = search.toLowerCase();
+    const display = resolveDisplayStatus(row.lead.status, row.lead.consultationDate);
     return (!q || row.lead.name.toLowerCase().includes(q) || (row.lead.phone ?? "").includes(q))
-      && (!filterStatus || row.lead.status === filterStatus);
+      && (!filterStatus || display === filterStatus);
   });
 
-  const statCounts = STATUS_OPTIONS.map(s => ({ ...s, count: (leadsData ?? []).filter(r => r.lead.status === s.value).length }));
+  const statCounts = STATUS_OPTIONS.map(s => ({
+    ...s,
+    count: (leadsData ?? []).filter(r => resolveDisplayStatus(r.lead.status, r.lead.consultationDate) === s.value).length,
+  }));
   const total = (leadsData ?? []).length;
   const registered = (leadsData ?? []).filter(r => r.lead.status === "registered").length;
   const conversionRate = total > 0 ? Math.round((registered / total) * 100) : 0;
@@ -447,11 +460,11 @@ export default function LeadsPage() {
         <button onClick={nextMonth} className="text-muted-foreground hover:text-foreground"><ChevronRight className="h-5 w-5" /></button>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {statCounts.map(s => (
           <button key={s.value} onClick={() => setFilterStatus(filterStatus === s.value ? "" : s.value)}
             className={`rounded-xl p-3 border transition-all text-center ${filterStatus === s.value ? `${s.bg} border-current ${s.color}` : "bg-card border-border"}`}>
-            <div className={`text-lg font-bold ${s.color}`}>{s.count}</div>
+            <div className={`text-xl font-bold ${s.color}`}>{s.count}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
           </button>
         ))}
@@ -485,7 +498,8 @@ export default function LeadsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map(row => {
-            const s = STATUS_OPTIONS.find(s => s.value === row.lead.status);
+            const displayStatus = resolveDisplayStatus(row.lead.status, row.lead.consultationDate);
+            const s = STATUS_OPTIONS.find(s => s.value === displayStatus);
             const mainTypes = row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [];
             const subTypes = row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [];
             return (
@@ -1055,7 +1069,7 @@ export default function LeadsPage() {
                   </button>
                 </>
               ) : (
-                // 신규 상담 추가: 상담완료 / 등록완료 / 등록보류
+                // 신규 상담 추가: 상담완료 / 등록완료
                 <div className="flex gap-2">
                   <button type="button" onClick={() => handleSave("consulted")}
                     className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
@@ -1064,10 +1078,6 @@ export default function LeadsPage() {
                   <button type="button" onClick={openContract}
                     className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
                     등록완료
-                  </button>
-                  <button type="button" onClick={() => handleSave("dropped")}
-                    className="flex-1 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-semibold hover:bg-red-500/10 transition-colors">
-                    등록보류
                   </button>
                 </div>
               )}
