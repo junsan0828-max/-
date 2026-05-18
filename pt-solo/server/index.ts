@@ -427,6 +427,9 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT NOT NULL DEFAULT 'trial'`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionEndDate" TEXT`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "adminMemo" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "termsOfService" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "privacyPolicy" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "marketingConsent" TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "plan" TEXT NOT NULL DEFAULT 'free'`);
   await pool.query(`ALTER TABLE fit_step_plus_members ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
   await pool.query(`ALTER TABLE fit_step_plus_video_categories ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);

@@ -31,6 +31,9 @@ export const trainerSettings = pgTable("trainer_settings", {
   id: serial("id").primaryKey(),
   trainerId: integer("trainerId").notNull().unique(),
   settlementRate: integer("settlementRate").default(50).notNull(),
+  termsOfService: text("termsOfService"),
+  privacyPolicy: text("privacyPolicy"),
+  marketingConsent: text("marketingConsent"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

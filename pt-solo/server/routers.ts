@@ -878,6 +878,36 @@ const trainersRouter = t.router({
       return { success: true };
     }),
 
+  getContractTerms: protectedProcedure.query(async ({ ctx }) => {
+    const db = getDb();
+    if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const row = await db.select({
+      termsOfService: sql<string>`"termsOfService"`,
+      privacyPolicy: sql<string>`"privacyPolicy"`,
+      marketingConsent: sql<string>`"marketingConsent"`,
+    }).from(trainerSettings).where(eq(trainerSettings.trainerId, ctx.user.trainerId)).limit(1);
+    return row[0] ?? { termsOfService: null, privacyPolicy: null, marketingConsent: null };
+  }),
+
+  updateContractTerms: protectedProcedure
+    .input(z.object({
+      termsOfService: z.string().optional(),
+      privacyPolicy: z.string().optional(),
+      marketingConsent: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = getDb();
+      if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const existing = await db.select({ id: trainerSettings.id }).from(trainerSettings).where(eq(trainerSettings.trainerId, ctx.user.trainerId)).limit(1);
+      const data = { termsOfService: input.termsOfService, privacyPolicy: input.privacyPolicy, marketingConsent: input.marketingConsent };
+      if (existing[0]) {
+        await db.update(trainerSettings).set(data).where(eq(trainerSettings.trainerId, ctx.user.trainerId));
+      } else {
+        await db.insert(trainerSettings).values({ trainerId: ctx.user.trainerId, settlementRate: 50, ...data });
+      }
+      return { success: true };
+    }),
+
   getMyStats: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     const trainerId = ctx.user.trainerId;

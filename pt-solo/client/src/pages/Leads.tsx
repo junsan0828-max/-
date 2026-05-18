@@ -171,6 +171,7 @@ export default function LeadsPage() {
   const { data: leadsData, isLoading } = trpc.leads.list.useQuery({ year, month });
   const { data: channels } = trpc.channels.list.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
+  const { data: contractTerms } = trpc.trainers.getContractTerms.useQuery();
 
   // 바로등록 상태
   const [showQuickModal, setShowQuickModal] = useState(false);
@@ -546,9 +547,9 @@ export default function LeadsPage() {
             </div>
             <div className="overflow-y-auto flex-1 p-4 space-y-5">
               <div className="space-y-2">
-                <h3 className="font-semibold text-sm text-foreground">센터 이용 약관</h3>
+                <h3 className="font-semibold text-sm text-foreground">이용 약관</h3>
                 <div className="bg-background border border-border rounded-lg p-3 h-36 overflow-y-auto">
-                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{CONTRACT_TERMS}</pre>
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{contractTerms?.termsOfService || CONTRACT_TERMS}</pre>
                 </div>
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={agreedTerms} onChange={e => setAgreedTerms(e.target.checked)} className="w-4 h-4 accent-emerald-500 shrink-0" />
@@ -558,7 +559,7 @@ export default function LeadsPage() {
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-foreground">개인정보 수집·이용 동의서</h3>
                 <div className="bg-background border border-border rounded-lg p-3 h-36 overflow-y-auto">
-                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{PRIVACY_TERMS}</pre>
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{contractTerms?.privacyPolicy || PRIVACY_TERMS}</pre>
                 </div>
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={agreedPrivacy} onChange={e => setAgreedPrivacy(e.target.checked)} className="w-4 h-4 accent-emerald-500 shrink-0" />
@@ -568,7 +569,7 @@ export default function LeadsPage() {
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-foreground">광고성 정보 수신 동의서</h3>
                 <div className="bg-background border border-border rounded-lg p-3 h-28 overflow-y-auto">
-                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{MARKETING_TERMS}</pre>
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{contractTerms?.marketingConsent || MARKETING_TERMS}</pre>
                 </div>
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={agreedMarketing} onChange={e => setAgreedMarketing(e.target.checked)} className="w-4 h-4 accent-blue-500 shrink-0" />
@@ -606,12 +607,6 @@ export default function LeadsPage() {
               <button type="button" onClick={confirmRegistration} disabled={!agreedTerms || !agreedPrivacy || !signatureData}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 진행
-              </button>
-              <button type="button" onClick={() => {
-                const p = new URLSearchParams({ name: form.name, phone: form.phone || "", date: new Date().toLocaleDateString("ko-KR"), marketing: agreedMarketing ? "1" : "0" });
-                window.open(`/contract-print?${p.toString()}`, "_blank");
-              }} className="w-full border border-emerald-500/40 text-emerald-400 rounded-xl py-2.5 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
-                계약서 PDF 출력
               </button>
               <button type="button" onClick={() => setShowContract(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">

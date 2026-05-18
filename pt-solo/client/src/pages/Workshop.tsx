@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Users, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
+import { Wrench, ExternalLink, Users, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const MEMBERSHIP_LABELS: Record<string, string> = { general: "일반회원", premium: "프리미엄", vip: "VIP" };
@@ -415,9 +415,60 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
 }
 
 // ── 메인 Workshop 페이지 ────────────────────────────────────────────────────
+function ContractTermsEditor() {
+  const utils = trpc.useUtils();
+  const { data: terms } = trpc.trainers.getContractTerms.useQuery();
+  const updateMutation = trpc.trainers.updateContractTerms.useMutation({
+    onSuccess: () => { toast.success("약관이 저장되었습니다"); utils.trainers.getContractTerms.invalidate(); },
+    onError: () => toast.error("저장에 실패했습니다"),
+  });
+
+  const [termsOfService, setTermsOfService] = useState("");
+  const [privacyPolicy, setPrivacyPolicy] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState("");
+  const [initialized, setInitialized] = useState(false);
+
+  if (terms && !initialized) {
+    setTermsOfService(terms.termsOfService ?? "");
+    setPrivacyPolicy(terms.privacyPolicy ?? "");
+    setMarketingConsent(terms.marketingConsent ?? "");
+    setInitialized(true);
+  }
+
+  return (
+    <div className="space-y-4">
+      {[
+        { label: "이용 약관", value: termsOfService, onChange: setTermsOfService },
+        { label: "개인정보 수집·이용 동의서", value: privacyPolicy, onChange: setPrivacyPolicy },
+        { label: "광고성 정보 수신 동의서", value: marketingConsent, onChange: setMarketingConsent },
+      ].map(({ label, value, onChange }) => (
+        <div key={label} className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">{label}</Label>
+          <textarea
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            rows={6}
+            placeholder={`${label} 내용을 입력하세요...`}
+            className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
+          />
+        </div>
+      ))}
+      <Button
+        size="sm"
+        className="w-full"
+        disabled={updateMutation.isPending}
+        onClick={() => updateMutation.mutate({ termsOfService, privacyPolicy, marketingConsent })}
+      >
+        {updateMutation.isPending ? "저장 중..." : "저장"}
+      </Button>
+    </div>
+  );
+}
+
 export default function Workshop() {
   const { data: user } = trpc.auth.me.useQuery();
   const [showFitStepPlus, setShowFitStepPlus] = useState(false);
+  const [showTermsEditor, setShowTermsEditor] = useState(false);
   const trainerId = (user as any)?.trainerId as number | undefined;
 
   return (
@@ -450,12 +501,26 @@ export default function Workshop() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="bg-card border-border">
-          <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
-            <Wrench className="h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">FIT STEP+를 눌러 회원 앱을 관리하세요.</p>
-          </CardContent>
-        </Card>
+        <div className="space-y-3">
+          {/* 회원 계약서 약관 수정 */}
+          <Card className="bg-card border-border">
+            <button
+              className="w-full flex items-center justify-between px-4 py-3 text-left"
+              onClick={() => setShowTermsEditor(v => !v)}
+            >
+              <div className="flex items-center gap-2.5">
+                <FileText className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-sm">회원 계약서 약관 수정</span>
+              </div>
+              {showTermsEditor ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+            {showTermsEditor && (
+              <CardContent className="pt-0 pb-4">
+                <ContractTermsEditor />
+              </CardContent>
+            )}
+          </Card>
+        </div>
       )}
     </div>
   );
