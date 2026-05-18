@@ -262,6 +262,7 @@ export default function MemberDetail({ memberId }: Props) {
     exercises: [] as Exercise[],
     feedback: "",
     notes: "",
+    isDraft: false,
   });
   const [editJournalOpen, setEditJournalOpen] = useState(false);
   const [editJournalForm, setEditJournalForm] = useState({
@@ -272,6 +273,7 @@ export default function MemberDetail({ memberId }: Props) {
     exercises: [] as Exercise[],
     feedback: "",
     notes: "",
+    isDraft: false,
   });
 
   // 건강보고서
@@ -392,7 +394,7 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: () => {
       toast.success("트레이닝 일지가 저장되었습니다.");
       setJournalOpen(false);
-      setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "" });
+      setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "", isDraft: false });
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "저장 실패"),
@@ -1287,7 +1289,7 @@ export default function MemberDetail({ memberId }: Props) {
                 size="sm"
                 className="w-full gap-1.5 text-xs"
                 onClick={() => {
-                  setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "" });
+                  setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "", isDraft: false });
                   setJournalOpen(true);
                 }}
               >
@@ -1300,29 +1302,62 @@ export default function MemberDetail({ memberId }: Props) {
               ) : (
                 <div className="space-y-2">
                   {sessionLogs.map((log) => {
+                    const isDraft = !!(log as any).isDraft;
                     return (
                       <button
                         key={log.id}
-                        className="w-full rounded-lg bg-accent/20 border border-border overflow-hidden hover:border-primary/40 hover:bg-accent/30 transition-colors text-left"
-                        onClick={() => openLiveTraining(log)}
+                        className={`w-full rounded-lg overflow-hidden transition-colors text-left border ${
+                          isDraft
+                            ? "bg-yellow-500/5 border-yellow-500/30 hover:border-yellow-500/60 hover:bg-yellow-500/10"
+                            : "bg-accent/20 border-border hover:border-primary/40 hover:bg-accent/30"
+                        }`}
+                        onClick={() => {
+                          if (isDraft) {
+                            const exs = parseExercisesJson((log as any).exercisesJson as string | null);
+                            setEditJournalForm({
+                              id: log.id,
+                              sessionDate: log.sessionDate,
+                              goal: (log as any).goal ?? "",
+                              bodyPart: (log as any).bodyPart ?? "",
+                              exercises: exs,
+                              feedback: (log as any).feedback ?? "",
+                              notes: log.notes ?? "",
+                              isDraft: true,
+                            });
+                            setEditJournalOpen(true);
+                          } else {
+                            openLiveTraining(log);
+                          }
+                        }}
                       >
                         <div className="flex items-center justify-between px-3 py-2.5">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
+                            {isDraft ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 font-medium">📝 날짜 미정</span>
+                            ) : (
+                              <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
+                            )}
                             {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
                               <span key={bp} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{bp}</span>
                             ))}
                             {log.packageId && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
                             )}
-                            {(log as any).sharedToMember ? (
+                            {!isDraft && (log as any).sharedToMember ? (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center gap-0.5">
                                 <CheckCheck className="h-2.5 w-2.5" />전송됨
                               </span>
                             ) : null}
                           </div>
-                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          {isDraft ? (
+                            <span className="text-[10px] text-yellow-400 shrink-0">날짜 확정 →</span>
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          )}
                         </div>
+                        {isDraft && (log as any).goal && (
+                          <div className="px-3 pb-2 text-[10px] text-muted-foreground truncate">{(log as any).goal}</div>
+                        )}
                       </button>
                     );
                   })}
@@ -1763,9 +1798,23 @@ export default function MemberDetail({ memberId }: Props) {
             <DialogDescription>{member?.name}님의 트레이닝 기록을 작성합니다.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* 날짜 미정 토글 */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={journalForm.isDraft}
+                onChange={e => setJournalForm(p => ({ ...p, isDraft: e.target.checked }))}
+                className="rounded"
+              />
+              <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
+            </label>
             <div className="space-y-1.5">
               <Label className="text-xs">날짜</Label>
-              <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+              {journalForm.isDraft ? (
+                <div className="h-9 flex items-center px-3 text-sm text-muted-foreground border border-border rounded-md bg-muted/30 italic">미정</div>
+              ) : (
+                <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">오늘의 목표</Label>
@@ -1792,14 +1841,15 @@ export default function MemberDetail({ memberId }: Props) {
               <Button className="flex-1" disabled={createLogMutation.isPending}
                 onClick={() => createLogMutation.mutate({
                   memberId,
-                  sessionDate: journalForm.sessionDate,
+                  sessionDate: journalForm.isDraft ? new Date().toISOString().split("T")[0] : journalForm.sessionDate,
                   goal: journalForm.goal || undefined,
                   bodyPart: journalForm.bodyPart || undefined,
                   exercisesJson: journalForm.exercises.length > 0 ? JSON.stringify(journalForm.exercises) : undefined,
                   feedback: journalForm.feedback || undefined,
                   notes: journalForm.notes || undefined,
+                  isDraft: journalForm.isDraft,
                 })}>
-                {createLogMutation.isPending ? "저장 중..." : "저장"}
+                {createLogMutation.isPending ? "저장 중..." : journalForm.isDraft ? "임시 저장" : "저장"}
               </Button>
             </div>
           </div>
@@ -1814,9 +1864,23 @@ export default function MemberDetail({ memberId }: Props) {
             <DialogDescription>{editJournalForm.sessionDate ? fmtDate(editJournalForm.sessionDate, "yyyy.MM.dd (EEE)") : ""}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* 날짜 미정 토글 */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={editJournalForm.isDraft}
+                onChange={e => setEditJournalForm(p => ({ ...p, isDraft: e.target.checked }))}
+                className="rounded"
+              />
+              <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
+            </label>
             <div className="space-y-1.5">
               <Label className="text-xs">날짜</Label>
-              <Input type="date" value={editJournalForm.sessionDate} onChange={e => setEditJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+              {editJournalForm.isDraft ? (
+                <div className="h-9 flex items-center px-3 text-sm text-muted-foreground border border-border rounded-md bg-muted/30 italic">미정</div>
+              ) : (
+                <Input type="date" value={editJournalForm.sessionDate} onChange={e => setEditJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">오늘의 목표</Label>
@@ -1843,14 +1907,17 @@ export default function MemberDetail({ memberId }: Props) {
               <Button className="flex-1" disabled={updateLogMutation.isPending}
                 onClick={() => updateLogMutation.mutate({
                   id: editJournalForm.id,
-                  sessionDate: editJournalForm.sessionDate || undefined,
+                  sessionDate: editJournalForm.isDraft
+                    ? (editJournalForm.sessionDate || new Date().toISOString().split("T")[0])
+                    : editJournalForm.sessionDate || undefined,
                   goal: editJournalForm.goal || undefined,
                   bodyPart: editJournalForm.bodyPart || undefined,
                   exercisesJson: editJournalForm.exercises.length > 0 ? JSON.stringify(editJournalForm.exercises) : undefined,
                   feedback: editJournalForm.feedback || undefined,
                   notes: editJournalForm.notes || undefined,
+                  isDraft: editJournalForm.isDraft,
                 })}>
-                {updateLogMutation.isPending ? "저장 중..." : "저장"}
+                {updateLogMutation.isPending ? "저장 중..." : editJournalForm.isDraft ? "임시 저장" : "저장"}
               </Button>
             </div>
           </div>
@@ -2222,6 +2289,7 @@ export default function MemberDetail({ memberId }: Props) {
                         exercises: exs,
                         feedback: (liveLog as any).feedback ?? "",
                         notes: liveLog.notes ?? "",
+                        isDraft: !!((liveLog as any).isDraft),
                       });
                       setLiveTrainingOpen(false);
                       setEditJournalOpen(true);

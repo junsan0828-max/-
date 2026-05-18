@@ -833,6 +833,7 @@ const ptRouter = t.router({
       exercisesJson: z.string().optional(),
       feedback: z.string().optional(),
       notes: z.string().optional(),
+      isDraft: z.boolean().optional(),
       overrideTrainerId: z.number().optional(), // admin이 대신 기록할 때
     }))
     .mutation(async ({ ctx, input }) => {
@@ -854,10 +855,11 @@ const ptRouter = t.router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 
-      const { overrideTrainerId: _, ...logFields } = input;
+      const { overrideTrainerId: _, isDraft, ...logFields } = input;
       const [row] = await db.insert(ptSessionLogs).values({
         ...logFields,
         trainerId: trainerId ?? 0,
+        isDraft: isDraft ? 1 : 0,
       }).returning();
       return row;
     }),
@@ -872,12 +874,16 @@ const ptRouter = t.router({
       exercisesJson: z.string().optional(),
       feedback: z.string().optional(),
       notes: z.string().optional(),
+      isDraft: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const { id, ...fields } = input;
-      await db.update(ptSessionLogs).set(fields).where(eq(ptSessionLogs.id, id));
+      const { id, isDraft, ...fields } = input;
+      await db.update(ptSessionLogs).set({
+        ...fields,
+        ...(isDraft !== undefined ? { isDraft: isDraft ? 1 : 0 } : {}),
+      }).where(eq(ptSessionLogs.id, id));
       return { success: true };
     }),
 
@@ -966,7 +972,7 @@ const ptRouter = t.router({
       return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
     }),
 
-  // 세션 로그 목록 (회원별)
+  // 세션 로그 목록 (회원별) — 날짜 미정(draft) 먼저, 이후 날짜 역순
   sessionLogs: protectedProcedure
     .input(z.object({ memberId: z.number() }))
     .query(async ({ input }) => {
@@ -975,7 +981,7 @@ const ptRouter = t.router({
         .select()
         .from(ptSessionLogs)
         .where(eq(ptSessionLogs.memberId, input.memberId))
-        .orderBy(desc(ptSessionLogs.sessionDate));
+        .orderBy(desc(ptSessionLogs.isDraft), desc(ptSessionLogs.sessionDate));
     }),
 
   shareLog: protectedProcedure
