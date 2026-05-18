@@ -194,7 +194,7 @@ export default function KioskCheckin() {
                 <path d="M10 22C11.1 22 12 21.1 12 20H8C8 21.1 8.9 22 10 22ZM18 16V10C18 6.93 16.37 4.36 13.5 3.68V3C13.5 2.17 12.83 1.5 12 1.5H8C7.17 1.5 6.5 2.17 6.5 3V3.68C3.64 4.36 2 6.92 2 10V16L0 18V19H20V18L18 16Z" fill="#555"/>
               </svg>
             </button>
-            <p style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 22, fontWeight: 900, color: "#4d9de0", letterSpacing: "0.25em", textShadow: "0 0 14px rgba(77,157,224,0.55)" }}>ZIANTGYM</p>
+            <p style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 30, fontWeight: 900, color: "#4d9de0", letterSpacing: "0.22em", textShadow: "0 0 16px rgba(77,157,224,0.55)" }}>ZIANTGYM</p>
             <p className="mt-2 tracking-[0.15em] text-gray-500" style={{ fontSize: 11 }}>ACCESS SYSTEM</p>
             <h1 className="font-bold tracking-tight mt-1" style={{ fontSize: 28 }}>출입 시스템</h1>
           </div>
