@@ -379,7 +379,7 @@ export default function Workshop() {
       <TabBanner tabKey="workshop" />
       <div>
         <h1 className="text-xl font-bold">작업실</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">트레이너 전용 작업 공간</p>
+        <p className="text-sm text-muted-foreground mt-0.5">스테퍼 전용 작업 공간</p>
       </div>
 
       <div className="space-y-3">
@@ -391,10 +391,13 @@ export default function Workshop() {
           >
             <div className="flex items-center gap-2.5">
               <Wrench className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-sm">
-                <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
-                <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP+</span>
-              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="font-semibold text-base">
+                  <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+                  <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP+</span>
+                </span>
+                <span className="text-xs text-muted-foreground">개인 회원 관리 페이지</span>
+              </div>
             </div>
             {openSection === "fitstep" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
