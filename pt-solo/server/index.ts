@@ -442,6 +442,10 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "workYears" INTEGER`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "specialties" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileBonusGranted" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "jobType" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "careerRange" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "activityArea" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileImage" TEXT`);
 
   // 포인트 자동 지급 규칙 테이블
   await pool.query(`CREATE TABLE IF NOT EXISTS point_auto_rules (

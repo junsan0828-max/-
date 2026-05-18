@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star } from "lucide-react";
+import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera } from "lucide-react";
 import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
 
@@ -16,11 +16,32 @@ const TYPE_LABEL: Record<string, string> = {
   profile_bonus: "프로필 완성 보너스",
 };
 
-const SPECIALTIES_OPTIONS = ["웨이트 트레이닝", "필라테스", "크로스핏", "다이어트", "재활/체형교정", "근육증가", "유산소/달리기", "요가", "스포츠 전문", "시니어 피트니스"];
+const JOB_TYPES = ["퍼스널트레이너", "필라테스강사", "트레이너 준비생", "센터 운영자", "프리랜서", "학생"];
+const CAREER_RANGES = ["준비 중", "1년 미만", "1~3년", "3~5년", "5년 이상"];
 
-function ProfileCompletionBanner({ profile }: { profile: { employmentType?: string | null; workplaceName?: string | null; workYears?: number | null; specialties?: string | null; profileBonusGranted?: number } | undefined }) {
+async function resizeImageToBase64(file: File, maxSize = 300): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function ProfileCompletionBanner({ profile }: { profile: { jobType?: string | null; careerRange?: string | null; activityArea?: string | null; profileBonusGranted?: number } | undefined }) {
   if (!profile) return null;
-  const fields = [profile.employmentType, profile.workplaceName, profile.workYears !== null && profile.workYears !== undefined, profile.specialties];
+  const fields = [profile.jobType, profile.careerRange, profile.activityArea];
   const filled = fields.filter(Boolean).length;
   const total = fields.length;
   const pct = Math.round((filled / total) * 100);
@@ -30,7 +51,7 @@ function ProfileCompletionBanner({ profile }: { profile: { employmentType?: stri
       <Gift className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-yellow-300">트레이너 프로필 완성 시 <span className="text-yellow-400">+200P</span> 지급!</p>
-        <p className="text-xs text-muted-foreground mt-0.5">근무형태, 근무지, 경력, 전문분야를 모두 입력하면 FIT POINT 200P를 드립니다.</p>
+        <p className="text-xs text-muted-foreground mt-0.5">직무, 경력, 활동지역을 모두 입력하면 FIT POINT 200P를 드립니다.</p>
         <div className="mt-2">
           <div className="flex justify-between text-xs text-muted-foreground mb-1">
             <span>프로필 완성도</span>
@@ -50,9 +71,10 @@ export default function Profile() {
   const utils = trpc.useUtils();
   const { data: balanceData } = trpc.fitPoints.getBalance.useQuery();
   const { data: history } = trpc.fitPoints.getHistory.useQuery();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
-  const [ext, setExt] = useState({ employmentType: "" as "" | "freelancer" | "employed", workplaceName: "", workYears: "", specialties: "" });
+  const [ext, setExt] = useState({ jobType: "", careerRange: "", activityArea: "", profileImage: "" });
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [infoMsg, setInfoMsg] = useState("");
   const [pwMsg, setPwMsg] = useState("");
@@ -64,10 +86,10 @@ export default function Profile() {
     if (profile) {
       setInfo({ trainerName: profile.trainerName, phone: profile.phone ?? "", email: profile.email ?? "" });
       setExt({
-        employmentType: (profile.employmentType as "" | "freelancer" | "employed") ?? "",
-        workplaceName: profile.workplaceName ?? "",
-        workYears: profile.workYears !== null && profile.workYears !== undefined ? String(profile.workYears) : "",
-        specialties: profile.specialties ?? "",
+        jobType: (profile as any).jobType ?? "",
+        careerRange: (profile as any).careerRange ?? "",
+        activityArea: (profile as any).activityArea ?? "",
+        profileImage: (profile as any).profileImage ?? "",
       });
     }
   }, [profile]);
@@ -114,18 +136,23 @@ export default function Profile() {
   const handleExtSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     updateExtended.mutate({
-      employmentType: ext.employmentType || undefined,
-      workplaceName: ext.workplaceName || undefined,
-      workYears: ext.workYears ? parseInt(ext.workYears) : undefined,
-      specialties: ext.specialties || undefined,
+      jobType: ext.jobType || undefined,
+      careerRange: ext.careerRange || undefined,
+      activityArea: ext.activityArea || undefined,
+      profileImage: ext.profileImage || undefined,
     });
   };
 
-  const toggleSpecialty = (s: string) => {
-    const arr = ext.specialties ? ext.specialties.split(",").map(x => x.trim()).filter(Boolean) : [];
-    const idx = arr.indexOf(s);
-    if (idx >= 0) arr.splice(idx, 1); else arr.push(s);
-    setExt(p => ({ ...p, specialties: arr.join(", ") }));
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await resizeImageToBase64(file);
+      setExt(p => ({ ...p, profileImage: base64 }));
+    } catch {
+      toast.error("이미지 처리 중 오류가 발생했습니다.");
+    }
+    e.target.value = "";
   };
 
   const handlePwSubmit = (e: React.FormEvent) => {
@@ -137,7 +164,6 @@ export default function Profile() {
   };
 
   const balance = balanceData?.balance ?? 0;
-  const selectedSpecialties = ext.specialties ? ext.specialties.split(",").map(x => x.trim()).filter(Boolean) : [];
 
   return (
     <div className="space-y-6">
@@ -148,7 +174,7 @@ export default function Profile() {
       </div>
 
       {/* 프로필 완성 보너스 안내 */}
-      <ProfileCompletionBanner profile={profile} />
+      <ProfileCompletionBanner profile={profile as any} />
 
       {/* FIT POINT */}
       <Card className="bg-primary/10 border-primary/30">
@@ -227,12 +253,12 @@ export default function Profile() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-primary" />트레이너 상세 정보
-            {!profile?.profileBonusGranted && (
+            {!(profile as any)?.profileBonusGranted && (
               <span className="ml-auto flex items-center gap-1 text-xs font-normal text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full">
                 <Gift className="h-3 w-3" />완성 시 +200P
               </span>
             )}
-            {!!profile?.profileBonusGranted && (
+            {!!(profile as any)?.profileBonusGranted && (
               <span className="ml-auto flex items-center gap-1 text-xs font-normal text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">
                 <Star className="h-3 w-3" />보너스 지급 완료
               </span>
@@ -240,67 +266,66 @@ export default function Profile() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleExtSubmit} className="space-y-4">
-            {/* 근무 형태 */}
+          <form onSubmit={handleExtSubmit} className="space-y-5">
+            {/* 프로필 이미지 */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full bg-primary/10 border-2 border-border overflow-hidden flex items-center justify-center">
+                  {ext.profileImage ? (
+                    <img src={ext.profileImage} alt="프로필" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="h-10 w-10 text-muted-foreground/50" />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center border-2 border-card"
+                >
+                  <Camera className="h-3.5 w-3.5 text-primary-foreground" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">프로필 사진을 설정하세요</p>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+            </div>
+
+            {/* 직무 선택 */}
             <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">근무 형태</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {[{ value: "freelancer", label: "프리랜서" }, { value: "employed", label: "센터 소속" }].map(opt => (
-                  <button key={opt.value} type="button"
-                    onClick={() => setExt(p => ({ ...p, employmentType: opt.value as "freelancer" | "employed" }))}
-                    className={`py-2.5 rounded-lg border text-sm font-medium transition-colors ${ext.employmentType === opt.value ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
-                    {opt.label}
+              <Label className="text-sm text-muted-foreground">직무 선택</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {JOB_TYPES.map(jt => (
+                  <button key={jt} type="button"
+                    onClick={() => setExt(p => ({ ...p, jobType: jt }))}
+                    className={`py-2 rounded-lg border text-xs font-medium transition-colors ${ext.jobType === jt ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
+                    {jt}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* 근무지 */}
+            {/* 경력 선택 */}
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">경력 선택</Label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {CAREER_RANGES.map(cr => (
+                  <button key={cr} type="button"
+                    onClick={() => setExt(p => ({ ...p, careerRange: cr }))}
+                    className={`py-2 rounded-lg border text-xs font-medium transition-colors ${ext.careerRange === cr ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
+                    {cr}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 활동지역 */}
             <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">
-                {ext.employmentType === "freelancer" ? "주 활동 지역" : "근무 센터/헬스장 이름"}
-              </Label>
+              <Label className="text-sm text-muted-foreground">활동지역</Label>
               <Input
-                value={ext.workplaceName}
-                onChange={e => setExt(p => ({ ...p, workplaceName: e.target.value }))}
-                placeholder={ext.employmentType === "freelancer" ? "예: 강남구, 서초구" : "예: 강남 피트니스 센터"}
+                value={ext.activityArea}
+                onChange={e => setExt(p => ({ ...p, activityArea: e.target.value }))}
+                placeholder="예: 서울 강남구, 서초구"
                 className="bg-input border-border"
               />
-            </div>
-
-            {/* 경력 */}
-            <div className="space-y-1">
-              <Label className="text-sm text-muted-foreground">경력 (년)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number" min="0" max="50"
-                  value={ext.workYears}
-                  onChange={e => setExt(p => ({ ...p, workYears: e.target.value }))}
-                  placeholder="예: 3"
-                  className="bg-input border-border w-28"
-                />
-                <span className="text-sm text-muted-foreground">년차</span>
-              </div>
-            </div>
-
-            {/* 전문분야 */}
-            <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">전문분야 (복수 선택)</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {SPECIALTIES_OPTIONS.map(s => {
-                  const selected = selectedSpecialties.includes(s);
-                  return (
-                    <button key={s} type="button"
-                      onClick={() => toggleSpecialty(s)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${selected ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
-                      {s}
-                    </button>
-                  );
-                })}
-              </div>
-              {ext.specialties && (
-                <p className="text-xs text-muted-foreground">선택: {ext.specialties}</p>
-              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={updateExtended.isPending}>

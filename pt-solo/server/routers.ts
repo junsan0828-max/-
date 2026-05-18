@@ -844,8 +844,9 @@ const trainersRouter = t.router({
     const row = await pool.query<{
       employmentType: string | null; workplaceName: string | null;
       workYears: number | null; specialties: string | null; profileBonusGranted: number;
-    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
-    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0 };
+      jobType: string | null; careerRange: string | null; activityArea: string | null; profileImage: string | null;
+    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
+    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null };
     return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50, ...ext };
   }),
 
@@ -860,6 +861,11 @@ const trainersRouter = t.router({
 
   updateExtendedProfile: protectedProcedure
     .input(z.object({
+      jobType: z.string().optional(),
+      careerRange: z.string().optional(),
+      activityArea: z.string().optional(),
+      profileImage: z.string().optional(),
+      // legacy fields kept for backward compat
       employmentType: z.enum(["freelancer", "employed"]).optional(),
       workplaceName: z.string().optional(),
       workYears: z.number().int().min(0).max(50).optional(),
@@ -868,15 +874,19 @@ const trainersRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       await pool.query(
-        `UPDATE trainers SET "employmentType"=$1,"workplaceName"=$2,"workYears"=$3,"specialties"=$4 WHERE id=$5`,
-        [input.employmentType ?? null, input.workplaceName ?? null, input.workYears ?? null, input.specialties ?? null, ctx.user.trainerId]
+        `UPDATE trainers SET "jobType"=$1,"careerRange"=$2,"activityArea"=$3,"profileImage"=$4,"employmentType"=$5,"workplaceName"=$6,"workYears"=$7,"specialties"=$8 WHERE id=$9`,
+        [
+          input.jobType ?? null, input.careerRange ?? null, input.activityArea ?? null, input.profileImage ?? null,
+          input.employmentType ?? null, input.workplaceName ?? null, input.workYears ?? null, input.specialties ?? null,
+          ctx.user.trainerId,
+        ]
       );
       // 프로필 완성 보너스 자동 지급 (최초 1회)
       const check = await pool.query<{ profileBonusGranted: number }>(
         `SELECT "profileBonusGranted" FROM trainers WHERE id=$1`, [ctx.user.trainerId]
       );
       const bonusGranted = check.rows[0]?.profileBonusGranted ?? 0;
-      const isComplete = !!(input.employmentType && input.workplaceName && input.workYears !== undefined && input.specialties);
+      const isComplete = !!(input.jobType && input.careerRange && input.activityArea);
       if (isComplete && bonusGranted === 0) {
         const rule = await pool.query<{ amount: number; isEnabled: number }>(
           `SELECT amount, "isEnabled" FROM point_auto_rules WHERE event='profile_complete'`

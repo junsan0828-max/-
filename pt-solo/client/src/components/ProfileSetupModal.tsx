@@ -3,16 +3,16 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Coins, Briefcase, MapPin, Clock3, Star, X, ChevronRight } from "lucide-react";
+import { Coins, Briefcase, MapPin, Clock3, Camera, X, ChevronRight } from "lucide-react";
 
 const BEBAS = { fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" };
 const SESSION_KEY = "profile-modal-dismissed";
 
 const STEPS = [
-  { icon: Briefcase, label: "근무 형태", desc: "프리랜서 / 센터 소속" },
-  { icon: MapPin,    label: "근무지",   desc: "센터 이름 또는 활동 지역" },
-  { icon: Clock3,    label: "경력",     desc: "몇 년차 트레이너인지" },
-  { icon: Star,      label: "전문분야", desc: "웨이트, 필라테스, 다이어트 등" },
+  { icon: Camera,   label: "프로필 사진", desc: "나를 소개하는 사진" },
+  { icon: Briefcase, label: "직무 선택",  desc: "퍼스널트레이너, 필라테스강사 등" },
+  { icon: Clock3,    label: "경력 선택",  desc: "준비중, 1년미만, 1~3년 등" },
+  { icon: MapPin,    label: "활동지역",   desc: "주로 활동하는 지역" },
 ];
 
 export default function ProfileSetupModal() {
