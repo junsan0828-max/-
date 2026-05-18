@@ -39,7 +39,7 @@ export default function Login() {
             style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.2em" }}>
             성장하는 운동전문가 플랫폼
           </p>
-          <p className="text-sm text-muted-foreground mt-4">로그인하여 시작하세요</p>
+          <p className="text-sm text-muted-foreground mt-4">STEPER로 시작하세요</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
