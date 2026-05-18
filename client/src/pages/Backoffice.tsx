@@ -887,7 +887,7 @@ export default function Backoffice() {
     >
       {/* 상단 헤더 */}
       <div className="flex items-center px-5 py-3 flex-shrink-0" style={{ borderBottom: "1px solid #1a1a1a", background: "#0d0d0d" }}>
-        <p className="font-bold tracking-widest" style={{ fontSize: 15 }}>ZIANTGYM</p>
+        <p style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, letterSpacing: "0.2em", fontSize: 15, color: "white" }}>ZIANTGYM</p>
 
         {/* 지점 토글 — 지점이 등록된 경우에만 표시 */}
         {branches.length > 0 && (
