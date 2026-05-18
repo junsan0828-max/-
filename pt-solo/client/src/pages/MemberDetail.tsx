@@ -666,7 +666,7 @@ export default function MemberDetail({ memberId }: Props) {
                         className="h-9 text-sm"
                       />
                       <div className="flex gap-1.5 flex-wrap">
-                        {["케어피티", "웨이트피티", "이벤트피티", "필라테스"].map((preset) => (
+                        {["피티", "필라테스", "이벤트 세션"].map((preset) => (
                           <button
                             key={preset}
                             type="button"
@@ -1325,9 +1325,9 @@ export default function MemberDetail({ memberId }: Props) {
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label className="text-xs">PT 프로그램</Label>
-              <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="케어피티" className="h-9 text-sm" />
+              <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="피티" className="h-9 text-sm" />
               <div className="flex gap-1.5 flex-wrap">
-                {["케어피티", "웨이트피티", "이벤트피티", "필라테스"].map(preset => (
+                {["피티", "필라테스", "이벤트 세션"].map(preset => (
                   <button key={preset} type="button"
                     onClick={() => setEditPkgForm(p => ({ ...p, packageName: p.packageName === preset ? "" : preset }))}
                     className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${editPkgForm.packageName === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>

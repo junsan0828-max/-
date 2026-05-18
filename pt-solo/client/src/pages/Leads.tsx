@@ -33,7 +33,7 @@ const EXERCISE_PURPOSES = [
   "재활 운동 (병원 진단 후 운동)", "근력/체력 향상", "바디라인 개선 (근육, 몸매)",
   "건강 관리 (예방 목적)", "운동 습관 만들기", "기타",
 ];
-const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
+const PT_PROGRAMS = ["피티", "필라테스", "이벤트 세션", "기타"];
 const PT_SESSIONS = [10, 20, 30, 40, 50];
 const DURATIONS = [1, 3, 6, 12];
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "지역화폐"];
@@ -685,9 +685,9 @@ export default function LeadsPage() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground">프로그램명</label>
-                  <Input className="h-9 text-sm bg-input border-border" placeholder="예: 케어피티" value={reregPkg.ptProgram} onChange={e => setReregPkg(p => ({ ...p, ptProgram: e.target.value }))} />
+                  <Input className="h-9 text-sm bg-input border-border" placeholder="예: 피티" value={reregPkg.ptProgram} onChange={e => setReregPkg(p => ({ ...p, ptProgram: e.target.value }))} />
                   <div className="flex gap-1.5 flex-wrap">
-                    {["케어피티", "웨이트피티", "이벤트피티"].map(pr => (
+                    {["피티", "필라테스", "이벤트 세션"].map(pr => (
                       <button key={pr} onClick={() => setReregPkg(p => ({ ...p, ptProgram: p.ptProgram === pr ? "" : pr }))}
                         className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregPkg.ptProgram === pr ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{pr}</button>
                     ))}
@@ -806,7 +806,7 @@ export default function LeadsPage() {
                     <input
                       value={regForm.programCustom || regForm.programKey}
                       onChange={e => setRegForm(f => ({ ...f, programKey: "", programCustom: e.target.value }))}
-                      placeholder="예: 케어피티, 웨이트피티 등"
+                      placeholder="예: 피티"
                       className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
