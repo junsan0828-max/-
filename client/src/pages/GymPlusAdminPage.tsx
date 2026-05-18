@@ -21,7 +21,7 @@ export default function GymPlusAdminPage() {
           style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.1em" }}
           className="text-xl font-semibold text-foreground"
         >
-          자이언트짐<span className="text-primary">+</span>
+          ZIANTGYM<span className="text-primary">+</span>
         </span>
         <div />
       </header>

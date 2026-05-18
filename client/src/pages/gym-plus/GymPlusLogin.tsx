@@ -43,10 +43,10 @@ export default function GymPlusLogin() {
         {/* 로고 */}
         <div className="flex flex-col items-center mb-10">
           <p
-            style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.05em" }}
+            style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.15em" }}
             className="text-3xl font-semibold text-foreground"
           >
-            자이언트짐<span className="text-primary">+</span>
+            ZIANTGYM<span className="text-primary">+</span>
           </p>
           <p className="text-muted-foreground text-sm mt-2">회원 전용 서비스</p>
         </div>
