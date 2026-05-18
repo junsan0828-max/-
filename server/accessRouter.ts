@@ -43,17 +43,17 @@ async function findMemberByPhone(phoneInput: string) {
 // 5자리: 앞 4자리가 뒷자리, 마지막 1자리가 0부터 시작하는 순번 (가입순 오름차순)
 async function findMemberByAttendanceNumber(attendanceNumber: string) {
   const digits = attendanceNumber.replace(/\D/g, "");
-  if (digits.length < 5) return { member: null, ambiguous: false };
+  if (digits.length < 4) return { member: null, ambiguous: false };
 
-  const last5 = digits.slice(0, 5);
-  const hasSuffix = digits.length >= 6;
-  const suffix = hasSuffix ? parseInt(digits[5]) : undefined;
+  const last4 = digits.slice(0, 4);
+  const hasSuffix = digits.length >= 5;
+  const suffix = hasSuffix ? parseInt(digits[4]) : undefined;
 
   const result = await pool.query(
     `SELECT * FROM members
      WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
      ORDER BY id ASC`,
-    [`%${last5}`]
+    [`%${last4}`]
   );
   const rows = result.rows;
 
@@ -84,7 +84,7 @@ export const accessRouter = t.router({
         if (ambiguous) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "중복된 출석번호입니다. 숫자를 한 자리 더 입력해주세요 (예: 12345 → 123450, 123451...)",
+            message: "중복된 출석번호입니다. 숫자를 한 자리 더 입력해주세요 (예: 1234 → 12340, 12341...)",
           });
         }
         found = member;
