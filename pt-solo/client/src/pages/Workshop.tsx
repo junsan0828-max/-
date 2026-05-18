@@ -267,9 +267,9 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
       <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">
-            <span className="font-black" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-            <span className="font-black text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
-            <span className="font-black text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>+</span>
+            <span className="font-black" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+            <span className="font-black text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
+            <span className="font-black text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
             <span className="font-normal text-muted-foreground text-xs ml-2">회원 전용 앱</span>
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">회원에게 이 링크를 공유하세요</p>
@@ -392,8 +392,8 @@ export default function Workshop() {
             <div className="flex items-center gap-2.5">
               <Wrench className="h-4 w-4 text-primary" />
               <span className="font-semibold text-sm">
-                <span style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-                <span className="text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP+</span>
+                <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+                <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP+</span>
               </span>
             </div>
             {openSection === "fitstep" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
