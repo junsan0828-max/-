@@ -2093,6 +2093,33 @@ const fitStepPlusRouter = t.router({
       return { success: true };
     }),
 
+  trainer_listWorkoutLogs: protectedProcedure
+    .input(z.object({ memberId: z.number().optional(), month: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const rows = await getDb()
+        .select({
+          id: fitStepPlusWorkoutLogs.id,
+          memberId: fitStepPlusMembers.id,
+          memberName: fitStepPlusMembers.name,
+          logDate: fitStepPlusWorkoutLogs.logDate,
+          title: fitStepPlusWorkoutLogs.title,
+          exercisesJson: fitStepPlusWorkoutLogs.exercisesJson,
+          durationMinutes: fitStepPlusWorkoutLogs.durationMinutes,
+          notes: fitStepPlusWorkoutLogs.notes,
+          mood: fitStepPlusWorkoutLogs.mood,
+          createdAt: fitStepPlusWorkoutLogs.createdAt,
+        })
+        .from(fitStepPlusWorkoutLogs)
+        .innerJoin(fitStepPlusMembers, eq(fitStepPlusWorkoutLogs.fitStepPlusMemberId, fitStepPlusMembers.id))
+        .where(eq(fitStepPlusMembers.trainerId, trainerId))
+        .orderBy(desc(fitStepPlusWorkoutLogs.logDate), desc(fitStepPlusWorkoutLogs.createdAt));
+      if (input?.memberId) return rows.filter(r => r.memberId === input.memberId);
+      if (input?.month) return rows.filter(r => r.logDate.startsWith(input.month!));
+      return rows;
+    }),
+
   trainer_listVideos: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
