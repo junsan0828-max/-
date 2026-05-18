@@ -2037,11 +2037,12 @@ const fitStepPlusRouter = t.router({
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
     return getDb().select({
-      id: members.id, name: members.name, phone: members.phone,
-      membershipStart: members.membershipStart, membershipEnd: members.membershipEnd,
-      createdAt: members.createdAt,
-    }).from(members).where(eq(members.trainerId, trainerId))
-      .orderBy(desc(members.createdAt));
+      id: fitStepPlusMembers.id, name: fitStepPlusMembers.name, phone: fitStepPlusMembers.phone,
+      username: fitStepPlusMembers.username, membershipType: fitStepPlusMembers.membershipType,
+      membershipStart: fitStepPlusMembers.membershipStart, membershipEnd: fitStepPlusMembers.membershipEnd,
+      createdAt: fitStepPlusMembers.createdAt,
+    }).from(fitStepPlusMembers).where(eq(fitStepPlusMembers.trainerId, trainerId))
+      .orderBy(desc(fitStepPlusMembers.createdAt));
   }),
 
   trainer_createMember: protectedProcedure
