@@ -777,8 +777,29 @@ ${expenseByCat.length > 0 ? expenseByCat.map(c => {
 - 재등록률: ${monthRevenue.length > 0 ? Math.round(monthRevenue.filter(r => r.subType === "재등록").length / monthRevenue.length * 100) : 0}%
 `;
 
-      const apiKey = process.env.ANTHROPIC_API_KEY;
+      const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
       if (!apiKey) {
+        return {
+          analysis: generateFallbackAnalysis({ monthTotal, prevTotal, totalUnpaid, conversionRate, channelStats, trainerStats, monthRevenue }),
+          isAI: false,
+        };
+      }
+
+      const promptContent = `당신은 피트니스 센터 운영 전문 AI 컨설턴트입니다. 아래 데이터를 분석하여 한국어로 실용적인 운영 인사이트를 제공해주세요.
+
+${dataContext}
+
+다음 항목을 분석해주세요 (각 항목 2-3문장):
+1. **매출 구조 요약**: 이번달 매출의 핵심 특징
+2. **지출 분석**: 대분류별 지출 비중과 절감 가능 항목
+3. **수익성**: 순이익 및 매출 대비 지출 비율 평가
+4. **주요 이슈**: 미수금, 재등록률, 전환율 등 개선 필요 사항
+5. **채널 & 트레이너 효율**: 효과적인 채널과 트레이너 성과
+6. **다음 행동 제안**: 구체적인 액션 아이템 3가지
+
+간결하고 실용적으로 작성해주세요.`.trim();
+
+      if (!promptContent) {
         return {
           analysis: generateFallbackAnalysis({ monthTotal, prevTotal, totalUnpaid, conversionRate, channelStats, trainerStats, monthRevenue }),
           isAI: false,
@@ -792,22 +813,17 @@ ${expenseByCat.length > 0 ? expenseByCat.map(c => {
           max_tokens: 1024,
           messages: [{
             role: "user",
-            content: `당신은 피트니스 센터 운영 전문 AI 컨설턴트입니다. 아래 데이터를 분석하여 한국어로 실용적인 운영 인사이트를 제공해주세요.
-
-${dataContext}
-
-다음 항목을 분석해주세요 (각 항목 2-3문장):
-1. **매출 구조 요약**: 이번달 매출의 핵심 특징
-2. **지출 분석**: 대분류별 지출 비중과 절감 가능 항목
-3. **수익성**: 순이익 및 매출 대비 지출 비율 평가
-4. **주요 이슈**: 미수금, 재등록률, 전환율 등 개선 필요 사항
-5. **채널 & 트레이너 효율**: 효과적인 채널과 트레이너 성과
-6. **다음 행동 제안**: 구체적인 액션 아이템 3가지
-
-간결하고 실용적으로 작성해주세요.`,
+            content: promptContent,
           }],
         });
-        const text = message.content[0].type === "text" ? message.content[0].text : "";
+        const textBlock = message.content.find(b => b.type === "text");
+        const text = textBlock?.type === "text" ? textBlock.text.trim() : "";
+        if (!text) {
+          return {
+            analysis: generateFallbackAnalysis({ monthTotal, prevTotal, totalUnpaid, conversionRate, channelStats, trainerStats, monthRevenue }),
+            isAI: false,
+          };
+        }
         return { analysis: text, isAI: true };
       } catch (err) {
         return {
