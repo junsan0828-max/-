@@ -470,6 +470,41 @@ async function initDatabase() {
     await pool.query(stmt);
   }
 
+  // ─── 출입 관리 테이블 ──────────────────────────────────────────────────────────
+  const accessTables = [
+    `CREATE TABLE IF NOT EXISTS lockers (
+      id SERIAL PRIMARY KEY,
+      "lockerNumber" TEXT NOT NULL,
+      "branchId" INTEGER,
+      "memberId" INTEGER,
+      "memberName" TEXT,
+      "memberPhone" TEXT,
+      "lockerType" TEXT NOT NULL DEFAULT 'personal',
+      "isOccupied" INTEGER NOT NULL DEFAULT 0,
+      "startDate" TEXT,
+      "endDate" TEXT,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS access_logs (
+      id SERIAL PRIMARY KEY,
+      "memberId" INTEGER,
+      "memberName" TEXT,
+      phone TEXT NOT NULL,
+      "branchId" INTEGER,
+      "accessResult" TEXT NOT NULL,
+      "membershipType" TEXT,
+      "membershipEnd" TEXT,
+      "lockerNumber" TEXT,
+      "accessedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+  ];
+  for (const stmt of accessTables) {
+    await pool.query(stmt);
+  }
+  console.log("✅ 출입 관리 테이블 준비 완료");
+
   console.log("✅ 테이블 준비 완료");
 
   // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────

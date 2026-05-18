@@ -49,6 +49,8 @@ import ExpensesPage from "./pages/Expenses";
 import MarketingPage from "./pages/Marketing";
 import AiAnalysisPage from "./pages/AiAnalysis";
 import AdminMembers from "./pages/AdminMembers";
+import AccessManagement from "./pages/AccessManagement";
+import KioskCheckin from "./pages/KioskCheckin";
 import Layout from "./components/Layout";
 
 function App() {
@@ -61,6 +63,9 @@ function App() {
   }
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;
+  }
+  if (window.location.pathname === "/kiosk") {
+    return <KioskCheckin />;
   }
 
   if (isLoading) {
@@ -111,6 +116,7 @@ function App() {
         <Route path="/trainers/:id">
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
+        <Route path="/access">{() => <AccessManagement />}</Route>
         <Route path="/admin">{() => <Admin />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
