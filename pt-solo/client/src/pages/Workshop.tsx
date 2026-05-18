@@ -467,61 +467,67 @@ function ContractTermsEditor() {
 
 export default function Workshop() {
   const { data: user } = trpc.auth.me.useQuery();
-  const [showFitStepPlus, setShowFitStepPlus] = useState(false);
-  const [showTermsEditor, setShowTermsEditor] = useState(false);
+  const [openSection, setOpenSection] = useState<"fitstep" | "terms" | null>(null);
   const trainerId = (user as any)?.trainerId as number | undefined;
+
+  function toggle(key: "fitstep" | "terms") {
+    setOpenSection(v => v === key ? null : key);
+  }
 
   return (
     <div className="space-y-4">
       <TabBanner tabKey="workshop" />
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">작업실</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">트레이너 전용 작업 공간</p>
-        </div>
-        <button
-          onClick={() => setShowFitStepPlus(v => !v)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-            showFitStepPlus
-              ? "bg-primary/20 border-primary/40 text-primary"
-              : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
-          }`}
-        >
-          <span className="font-black" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-          <span className="font-black text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP+</span>
-        </button>
+      <div>
+        <h1 className="text-xl font-bold">작업실</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">트레이너 전용 작업 공간</p>
       </div>
 
-      {showFitStepPlus && trainerId ? (
-        <FitStepPlusPanel trainerId={trainerId} />
-      ) : showFitStepPlus && !trainerId ? (
+      <div className="space-y-3">
+        {/* FIT STEP+ */}
         <Card className="bg-card border-border">
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            트레이너 계정에서만 사용할 수 있습니다.
-          </CardContent>
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+            onClick={() => toggle("fitstep")}
+          >
+            <div className="flex items-center gap-2.5">
+              <Wrench className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-sm">
+                <span style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
+                <span className="text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP+</span>
+              </span>
+            </div>
+            {openSection === "fitstep" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "fitstep" && (
+            <CardContent className="pt-0 pb-4">
+              {trainerId ? (
+                <FitStepPlusPanel trainerId={trainerId} />
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>
+              )}
+            </CardContent>
+          )}
         </Card>
-      ) : (
-        <div className="space-y-3">
-          {/* 회원 계약서 약관 수정 */}
-          <Card className="bg-card border-border">
-            <button
-              className="w-full flex items-center justify-between px-4 py-3 text-left"
-              onClick={() => setShowTermsEditor(v => !v)}
-            >
-              <div className="flex items-center gap-2.5">
-                <FileText className="h-4 w-4 text-primary" />
-                <span className="font-semibold text-sm">회원 계약서 약관 수정</span>
-              </div>
-              {showTermsEditor ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-            </button>
-            {showTermsEditor && (
-              <CardContent className="pt-0 pb-4">
-                <ContractTermsEditor />
-              </CardContent>
-            )}
-          </Card>
-        </div>
-      )}
+
+        {/* 회원 계약서 약관 수정 */}
+        <Card className="bg-card border-border">
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+            onClick={() => toggle("terms")}
+          >
+            <div className="flex items-center gap-2.5">
+              <FileText className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-sm">회원 계약서 약관 수정</span>
+            </div>
+            {openSection === "terms" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "terms" && (
+            <CardContent className="pt-0 pb-4">
+              <ContractTermsEditor />
+            </CardContent>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
