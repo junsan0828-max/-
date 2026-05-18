@@ -75,7 +75,7 @@ function ZiantLogo({ size = 36, color = "white" }: { size?: number; color?: stri
   );
 }
 
-type KioskTab = "phone" | "number" | "qr";
+type KioskTab = "phone" | "number";
 type BottomNav = "home" | "locker" | "search" | "logs" | "more";
 
 export default function KioskCheckin() {
@@ -114,14 +114,21 @@ export default function KioskCheckin() {
     if (result || errorMsg) return;
     if (k === "del") { setDigits((v) => v.slice(0, -1)); return; }
     if (k === "clear") { setDigits(""); return; }
-    if (digits.length >= 8) return;
+    const max = activeTab === "number" ? 5 : 8;
+    if (digits.length >= max) return;
     setDigits((v) => v + k);
-  }, [digits, result, errorMsg]);
+  }, [digits, result, errorMsg, activeTab]);
 
   const handleSubmit = useCallback(() => {
-    if (digits.length !== 8 || checkIn.isPending) return;
-    checkIn.mutate({ phone: "010" + digits });
-  }, [digits, checkIn]);
+    if (checkIn.isPending) return;
+    if (activeTab === "phone") {
+      if (digits.length !== 8) return;
+      checkIn.mutate({ phone: "010" + digits });
+    } else {
+      if (digits.length < 4) return;
+      checkIn.mutate({ attendanceNumber: digits });
+    }
+  }, [digits, checkIn, activeTab]);
 
   const handleClose = useCallback(() => {
     setResult(null); setErrorMsg(null); setDigits(""); setCountdown(0);
@@ -158,11 +165,16 @@ export default function KioskCheckin() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handleKey, handleSubmit, handleClose, result, errorMsg]);
 
-  // 전화번호 표시: 010 - XXXX - XXXX
+  // 휴대폰번호 표시: 010 - XXXX - XXXX
   const a = digits.slice(0, 4);
   const b = digits.slice(4, 8);
   const aDisplay = a.padEnd(4, "_").split("").join(" ");
   const bDisplay = b.padEnd(4, "_").split("").join(" ");
+
+  // 출석번호 표시: 4자리 + 선택적 5번째 자리
+  const numBase = digits.padEnd(4, "_").slice(0, 4).split("").join(" ");
+  const numSuffix = digits.length > 4 ? ` - ${digits[4]}` : "";
+  const numDisplay = numBase + numSuffix;
 
   const showPopup = result !== null || errorMsg !== null;
 
@@ -182,17 +194,17 @@ export default function KioskCheckin() {
                 <path d="M10 22C11.1 22 12 21.1 12 20H8C8 21.1 8.9 22 10 22ZM18 16V10C18 6.93 16.37 4.36 13.5 3.68V3C13.5 2.17 12.83 1.5 12 1.5H8C7.17 1.5 6.5 2.17 6.5 3V3.68C3.64 4.36 2 6.92 2 10V16L0 18V19H20V18L18 16Z" fill="#555"/>
               </svg>
             </button>
-            <p className="font-bold tracking-[0.3em] text-white" style={{ fontSize: 13 }}>ZIANTGYM</p>
-            <p className="mt-3 tracking-[0.15em] text-gray-500" style={{ fontSize: 11 }}>ACCESS SYSTEM</p>
+            <p style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 22, fontWeight: 900, color: "#4d9de0", letterSpacing: "0.25em", textShadow: "0 0 14px rgba(77,157,224,0.55)" }}>ZIANTGYM</p>
+            <p className="mt-2 tracking-[0.15em] text-gray-500" style={{ fontSize: 11 }}>ACCESS SYSTEM</p>
             <h1 className="font-bold tracking-tight mt-1" style={{ fontSize: 28 }}>출입 시스템</h1>
           </div>
 
           {/* 탭 */}
           <div className="flex" style={{ borderBottom: "1px solid #1e1e1e" }}>
-            {([["number","출석번호"], ["phone","휴대폰번호"], ["qr","QR 출입"]] as [KioskTab,string][]).map(([id, label]) => (
+            {([["number","출석번호"], ["phone","휴대폰번호"]] as [KioskTab,string][]).map(([id, label]) => (
               <button
                 key={id}
-                onClick={() => setActiveTab(id)}
+                onClick={() => { setActiveTab(id); setDigits(""); }}
                 className="flex-1 py-3 text-center text-sm transition-colors"
                 style={{
                   color: activeTab === id ? "white" : "#555",
@@ -207,11 +219,17 @@ export default function KioskCheckin() {
             ))}
           </div>
 
-          {/* 전화번호 표시 */}
+          {/* 번호 표시 */}
           <div className="text-center py-5">
-            <span className="font-mono font-bold tracking-widest whitespace-nowrap" style={{ fontSize: 26, color: "white", letterSpacing: "0.08em" }}>
-              010 - {aDisplay} - {bDisplay}
-            </span>
+            {activeTab === "phone" ? (
+              <span className="font-mono font-bold tracking-widest whitespace-nowrap" style={{ fontSize: 26, color: "white", letterSpacing: "0.08em" }}>
+                010 - {aDisplay} - {bDisplay}
+              </span>
+            ) : (
+              <span className="font-mono font-bold whitespace-nowrap" style={{ fontSize: 30, color: "white", letterSpacing: "0.18em" }}>
+                {numDisplay}
+              </span>
+            )}
           </div>
 
           {/* 키패드 */}
@@ -252,13 +270,13 @@ export default function KioskCheckin() {
             {/* 출입하기 버튼 */}
             <button
               onClick={handleSubmit}
-              disabled={digits.length !== 8 || checkIn.isPending}
+              disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 4) || checkIn.isPending}
               className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
               style={{
                 height: 58,
                 fontSize: 17,
-                background: digits.length === 8 ? "#ffffff" : "#1c1c1c",
-                color: digits.length === 8 ? "#0d0d0d" : "#333",
+                background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
+                color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#333",
                 border: "none",
                 letterSpacing: "0.08em",
                 WebkitTapHighlightColor: "transparent",
@@ -269,8 +287,7 @@ export default function KioskCheckin() {
                 <>
                   출입하기
                   <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-                    <line x1="0" y1="7" x2="16" y2="7" stroke={digits.length === 8 ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round"/>
-                    <polyline points="10,1 16,7 10,13" stroke={digits.length === 8 ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    {(() => { const active = activeTab === "phone" ? digits.length === 8 : digits.length >= 4; return (<><line x1="0" y1="7" x2="16" y2="7" stroke={active ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round"/><polyline points="10,1 16,7 10,13" stroke={active ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>); })()}
                   </svg>
                 </>
               )}

@@ -38,19 +38,67 @@ async function findMemberByPhone(phoneInput: string) {
   return result.rows[0] ?? null;
 }
 
+// 출석번호(전화번호 뒷자리 4자리 + 중복 구분 suffix)로 회원 조회
+// 4자리: 해당 뒷자리 회원이 1명이면 그 회원, 여러 명이면 ambiguous
+// 5자리: 앞 4자리가 뒷자리, 마지막 1자리가 0부터 시작하는 순번 (가입순 오름차순)
+async function findMemberByAttendanceNumber(attendanceNumber: string) {
+  const digits = attendanceNumber.replace(/\D/g, "");
+  if (digits.length < 4) return { member: null, ambiguous: false };
+
+  const last4 = digits.slice(0, 4);
+  const hasSuffix = digits.length >= 5;
+  const suffix = hasSuffix ? parseInt(digits[4]) : undefined;
+
+  const result = await pool.query(
+    `SELECT * FROM members
+     WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
+     ORDER BY id ASC`,
+    [`%${last4}`]
+  );
+  const rows = result.rows;
+
+  if (rows.length === 0) return { member: null, ambiguous: false };
+
+  if (suffix === undefined) {
+    if (rows.length === 1) return { member: rows[0], ambiguous: false };
+    return { member: null, ambiguous: true };
+  }
+
+  return { member: rows[suffix] ?? null, ambiguous: false };
+}
+
 export const accessRouter = t.router({
   // 키오스크 체크인 (인증 불필요)
   checkIn: publicProcedure
-    .input(z.object({ phone: z.string() }))
+    .input(z.object({
+      phone: z.string().optional(),
+      attendanceNumber: z.string().optional(),
+    }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const found = await findMemberByPhone(input.phone);
+      let found: any = null;
+      if (input.attendanceNumber) {
+        const { member, ambiguous } = await findMemberByAttendanceNumber(input.attendanceNumber);
+        if (ambiguous) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "중복된 출석번호입니다. 숫자를 한 자리 더 입력해주세요 (예: 1234 → 12340, 12341...)",
+          });
+        }
+        found = member;
+      } else if (input.phone) {
+        found = await findMemberByPhone(input.phone);
+      } else {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "전화번호 또는 출석번호를 입력해주세요." });
+      }
+
+      const phoneForLog = input.phone ?? input.attendanceNumber ?? "";
 
       if (!found) {
         await db.insert(accessLogs).values({
-          phone: input.phone,
+          phone: phoneForLog,
           accessResult: "not_found",
         });
         return { result: "not_found", member: null, locker: null };
@@ -108,7 +156,7 @@ export const accessRouter = t.router({
       await db.insert(accessLogs).values({
         memberId: found.id,
         memberName: found.name,
-        phone: input.phone,
+        phone: phoneForLog,
         branchId: found.branchId ?? null,
         accessResult,
         membershipType,
