@@ -174,6 +174,13 @@ export const accessRouter = t.router({
     };
   }),
 
+  // 지점 목록
+  getBranches: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(branches).orderBy(branches.id);
+  }),
+
   // 출입 로그 조회
   getAccessLogs: protectedProcedure
     .input(
@@ -181,34 +188,37 @@ export const accessRouter = t.router({
         page: z.number().default(1),
         limit: z.number().default(100),
         date: z.string().optional(),
+        branchId: z.number().optional(),
       })
     )
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      if (input.date) {
-        return db
-          .select()
-          .from(accessLogs)
-          .where(like(accessLogs.accessedAt, `${input.date}%`))
-          .orderBy(desc(accessLogs.accessedAt))
-          .limit(input.limit);
-      }
+      const conditions = [];
+      if (input.date) conditions.push(like(accessLogs.accessedAt, `${input.date}%`));
+      if (input.branchId) conditions.push(eq(accessLogs.branchId, input.branchId));
+
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
       return db
         .select()
         .from(accessLogs)
+        .where(where)
         .orderBy(desc(accessLogs.accessedAt))
         .limit(input.limit)
-        .offset((input.page - 1) * input.limit);
+        .offset(input.date ? 0 : (input.page - 1) * input.limit);
     }),
 
   // 락커 목록
-  getLockers: protectedProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select().from(lockers).orderBy(lockers.lockerNumber);
-  }),
+  getLockers: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const where = input.branchId ? eq(lockers.branchId, input.branchId) : undefined;
+      return db.select().from(lockers).where(where).orderBy(lockers.lockerNumber);
+    }),
 
   // 락커 생성
   createLocker: protectedProcedure

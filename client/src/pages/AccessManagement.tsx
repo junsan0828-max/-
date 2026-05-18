@@ -16,6 +16,8 @@ import {
   LogIn,
 } from "lucide-react";
 
+type Branch = { id: number; name: string };
+
 type Locker = {
   id: number;
   lockerNumber: string;
@@ -27,6 +29,7 @@ type Locker = {
   startDate: string | null;
   endDate: string | null;
   memo: string | null;
+  branchId: number | null;
 };
 
 type AccessLog = {
@@ -64,14 +67,17 @@ function formatDate(iso: string) {
 export default function AccessManagement() {
   const [tab, setTab] = useState<"logs" | "lockers">("logs");
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
+  const [logBranchId, setLogBranchId] = useState<number | undefined>(undefined);
+  const [lockerBranchId, setLockerBranchId] = useState<number | undefined>(undefined);
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
 
   const utils = trpc.useUtils();
 
   const todayStats = trpc.access.todayStats.useQuery();
-  const accessLogs = trpc.access.getAccessLogs.useQuery({ date: logDate, limit: 200 });
-  const lockersQuery = trpc.access.getLockers.useQuery();
+  const branchesQuery = trpc.access.getBranches.useQuery();
+  const accessLogs = trpc.access.getAccessLogs.useQuery({ date: logDate, limit: 200, branchId: logBranchId });
+  const lockersQuery = trpc.access.getLockers.useQuery({ branchId: lockerBranchId });
   const membersQuery = trpc.access.getMembersForLocker.useQuery();
 
   const releaseLocker = trpc.access.releaseLocker.useMutation({
@@ -81,6 +87,7 @@ export default function AccessManagement() {
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 삭제 완료"); },
   });
 
+  const branches = (branchesQuery.data ?? []) as Branch[];
   const lockers = (lockersQuery.data ?? []) as Locker[];
   const logs = (accessLogs.data ?? []) as AccessLog[];
   const members = (membersQuery.data ?? []) as Member[];
@@ -155,6 +162,33 @@ export default function AccessManagement() {
       {/* 출입 로그 */}
       {tab === "logs" && (
         <div className="space-y-3">
+          {branches.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setLogBranchId(undefined)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                  logBranchId === undefined
+                    ? "bg-primary/20 text-primary border-primary/40"
+                    : "border-border text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                전체
+              </button>
+              {branches.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => setLogBranchId(b.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                    logBranchId === b.id
+                      ? "bg-primary/20 text-primary border-primary/40"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <input
               type="date"
@@ -228,6 +262,33 @@ export default function AccessManagement() {
       {/* 락커 관리 */}
       {tab === "lockers" && (
         <div className="space-y-3">
+          {branches.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setLockerBranchId(undefined)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                  lockerBranchId === undefined
+                    ? "bg-primary/20 text-primary border-primary/40"
+                    : "border-border text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                전체
+              </button>
+              {branches.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => setLockerBranchId(b.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                    lockerBranchId === b.id
+                      ? "bg-primary/20 text-primary border-primary/40"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
               사용 중 {occupiedCount}개 / 전체 {lockers.length}개
@@ -384,11 +445,17 @@ function AddLockerModal({
   const [bulk, setBulk] = useState(false);
   const [bulkFrom, setBulkFrom] = useState("1");
   const [bulkTo, setBulkTo] = useState("10");
+  const [branchId, setBranchId] = useState("");
+
+  const branchesQuery = trpc.access.getBranches.useQuery();
+  const branches = (branchesQuery.data ?? []) as Branch[];
 
   const createLocker = trpc.access.createLocker.useMutation({
     onSuccess: onAdded,
     onError: () => toast.error("락커 추가 실패"),
   });
+
+  const parsedBranchId = branchId ? parseInt(branchId) : undefined;
 
   const handleSubmit = async () => {
     if (bulk) {
@@ -399,11 +466,11 @@ function AddLockerModal({
         return;
       }
       for (let i = from; i <= to; i++) {
-        await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo });
+        await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo, branchId: parsedBranchId });
       }
     } else {
       if (!number.trim()) { toast.error("락커 번호를 입력하세요"); return; }
-      createLocker.mutate({ lockerNumber: number.trim(), lockerType: type, memo });
+      createLocker.mutate({ lockerNumber: number.trim(), lockerType: type, memo, branchId: parsedBranchId });
     }
   };
 
@@ -441,6 +508,19 @@ function AddLockerModal({
             className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
             placeholder="락커 번호 (예: 101)"
           />
+        )}
+
+        {branches.length > 0 && (
+          <select
+            value={branchId}
+            onChange={(e) => setBranchId(e.target.value)}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+          >
+            <option value="">지점 선택 (선택)</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
         )}
 
         <select
