@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc, and, like } from "drizzle-orm";
 import { getDb, pool } from "./db";
-import { members, lockers, accessLogs, ptPackages, branches } from "../drizzle/schema";
+import { members, lockers, accessLogs, ptPackages, branches, kioskBanners } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -381,4 +381,94 @@ export const accessRouter = t.router({
       .where(eq(members.status, "active"))
       .orderBy(members.name);
   }),
+
+  // ── 키오스크 배너 ──────────────────────────────────────────────────────────
+
+  // 배너 목록 조회 (키오스크 — 인증 불필요)
+  getBanners: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const today = new Date().toISOString().substring(0, 10);
+    const rows = await db
+      .select()
+      .from(kioskBanners)
+      .where(eq(kioskBanners.isActive, 1))
+      .orderBy(kioskBanners.sortOrder, kioskBanners.id);
+    return rows.filter((b) => {
+      if (b.startDate && b.startDate > today) return false;
+      if (b.endDate && b.endDate < today) return false;
+      return true;
+    });
+  }),
+
+  // 배너 전체 목록 (관리자용)
+  getAllBanners: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(kioskBanners).orderBy(kioskBanners.sortOrder, kioskBanners.id);
+  }),
+
+  // 배너 생성
+  createBanner: protectedProcedure
+    .input(z.object({
+      title: z.string(),
+      body: z.string().optional(),
+      imageUrl: z.string().optional(),
+      bgColor: z.string().default("#1a3a6e"),
+      textColor: z.string().default("#ffffff"),
+      sortOrder: z.number().default(0),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [banner] = await db.insert(kioskBanners).values({
+        title: input.title,
+        body: input.body,
+        imageUrl: input.imageUrl,
+        bgColor: input.bgColor,
+        textColor: input.textColor,
+        isActive: 1,
+        sortOrder: input.sortOrder,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      }).returning();
+      return banner;
+    }),
+
+  // 배너 수정
+  updateBanner: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      title: z.string().optional(),
+      body: z.string().optional(),
+      imageUrl: z.string().optional(),
+      bgColor: z.string().optional(),
+      textColor: z.string().optional(),
+      isActive: z.boolean().optional(),
+      sortOrder: z.number().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { id, isActive, ...rest } = input;
+      const [updated] = await db.update(kioskBanners).set({
+        ...rest,
+        ...(isActive !== undefined ? { isActive: isActive ? 1 : 0 } : {}),
+      }).where(eq(kioskBanners.id, id)).returning();
+      return updated;
+    }),
+
+  // 배너 삭제
+  deleteBanner: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(kioskBanners).where(eq(kioskBanners.id, input.id));
+      return { ok: true };
+    }),
 });

@@ -500,6 +500,19 @@ async function initDatabase() {
       "lockerNumber" TEXT,
       "accessedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS kiosk_banners (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT,
+      "imageUrl" TEXT,
+      "bgColor" TEXT NOT NULL DEFAULT '#1a3a6e',
+      "textColor" TEXT NOT NULL DEFAULT '#ffffff',
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "startDate" TEXT,
+      "endDate" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of accessTables) {
     await pool.query(stmt);

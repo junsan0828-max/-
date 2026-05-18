@@ -14,6 +14,10 @@ import {
   XCircle,
   AlertCircle,
   LogIn,
+  Image,
+  Eye,
+  EyeOff,
+  Pencil,
 } from "lucide-react";
 
 type Branch = { id: number; name: string };
@@ -46,6 +50,20 @@ type AccessLog = {
 
 type Member = { id: number; name: string; phone: string | null };
 
+type KioskBanner = {
+  id: number;
+  title: string;
+  body: string | null;
+  imageUrl: string | null;
+  bgColor: string;
+  textColor: string;
+  isActive: number;
+  sortOrder: number;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+};
+
 function resultLabel(r: string) {
   switch (r) {
     case "allowed": return { label: "입장", color: "text-green-400", icon: CheckCircle2 };
@@ -62,11 +80,16 @@ function formatTime(iso: string) {
 }
 
 export default function AccessManagement() {
-  const [tab, setTab] = useState<"logs" | "lockers">("logs");
+  const [tab, setTab] = useState<"logs" | "lockers" | "banners">("logs");
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
+  const [showBannerForm, setShowBannerForm] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<KioskBanner | null>(null);
+  const [bannerForm, setBannerForm] = useState({
+    title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "",
+  });
 
   const utils = trpc.useUtils();
 
@@ -75,6 +98,7 @@ export default function AccessManagement() {
   const accessLogs = trpc.access.getAccessLogs.useQuery({ date: logDate, limit: 200 });
   const lockersQuery = trpc.access.getLockers.useQuery();
   const membersQuery = trpc.access.getMembersForLocker.useQuery();
+  const bannersQuery = trpc.access.getAllBanners.useQuery();
 
   const releaseLocker = trpc.access.releaseLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 반납 완료"); },
@@ -82,6 +106,44 @@ export default function AccessManagement() {
   const deleteLocker = trpc.access.deleteLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 삭제 완료"); },
   });
+  const createBanner = trpc.access.createBanner.useMutation({
+    onSuccess: () => { utils.access.getAllBanners.invalidate(); setShowBannerForm(false); resetBannerForm(); toast.success("배너 추가 완료"); },
+  });
+  const updateBanner = trpc.access.updateBanner.useMutation({
+    onSuccess: () => { utils.access.getAllBanners.invalidate(); setEditingBanner(null); resetBannerForm(); toast.success("배너 수정 완료"); },
+  });
+  const deleteBanner = trpc.access.deleteBanner.useMutation({
+    onSuccess: () => { utils.access.getAllBanners.invalidate(); toast.success("배너 삭제 완료"); },
+  });
+
+  function resetBannerForm() {
+    setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "" });
+  }
+  function openEditBanner(b: KioskBanner) {
+    setEditingBanner(b);
+    setBannerForm({
+      title: b.title, body: b.body ?? "", imageUrl: b.imageUrl ?? "",
+      bgColor: b.bgColor, textColor: b.textColor, sortOrder: b.sortOrder,
+      startDate: b.startDate ?? "", endDate: b.endDate ?? "",
+    });
+  }
+  function saveBanner() {
+    const payload = {
+      title: bannerForm.title,
+      body: bannerForm.body || undefined,
+      imageUrl: bannerForm.imageUrl || undefined,
+      bgColor: bannerForm.bgColor,
+      textColor: bannerForm.textColor,
+      sortOrder: bannerForm.sortOrder,
+      startDate: bannerForm.startDate || undefined,
+      endDate: bannerForm.endDate || undefined,
+    };
+    if (editingBanner) {
+      updateBanner.mutate({ id: editingBanner.id, ...payload });
+    } else {
+      createBanner.mutate(payload);
+    }
+  }
 
   const branches = (branchesQuery.data ?? []) as Branch[];
   const allLockers = (lockersQuery.data ?? []) as Locker[];
@@ -177,7 +239,7 @@ export default function AccessManagement() {
 
       {/* 탭 */}
       <div className="flex gap-0 rounded-lg overflow-hidden border border-border">
-        {(["logs", "lockers"] as const).map((t, i) => (
+        {(["logs", "lockers", "banners"] as const).map((t, i) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -185,15 +247,19 @@ export default function AccessManagement() {
               tab === t
                 ? "bg-primary/20 text-primary"
                 : "text-muted-foreground hover:bg-accent"
-            } ${i === 0 ? "border-r border-border" : ""}`}
+            } ${i < 2 ? "border-r border-border" : ""}`}
           >
             {t === "logs" ? (
               <span className="flex items-center justify-center gap-1.5">
                 <CalendarDays className="h-3.5 w-3.5" /> 출입 로그
               </span>
-            ) : (
+            ) : t === "lockers" ? (
               <span className="flex items-center justify-center gap-1.5">
                 <Lock className="h-3.5 w-3.5" /> 락커 관리 ({occupiedCount}/{lockers.length})
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-1.5">
+                <Image className="h-3.5 w-3.5" /> 배너 관리
               </span>
             )}
           </button>
@@ -356,6 +422,190 @@ export default function AccessManagement() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 배너 관리 */}
+      {tab === "banners" && (
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-muted-foreground">
+              키오스크 상단에 표시되는 이벤트/공지 배너입니다.
+            </p>
+            <button
+              onClick={() => { resetBannerForm(); setEditingBanner(null); setShowBannerForm(true); }}
+              className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> 배너 추가
+            </button>
+          </div>
+
+          {/* 배너 등록/수정 폼 */}
+          {(showBannerForm || editingBanner) && (
+            <div className="border border-border rounded-xl p-4 bg-card space-y-3">
+              <h3 className="font-semibold text-sm">{editingBanner ? "배너 수정" : "새 배너 추가"}</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">제목 *</label>
+                  <input
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                    placeholder="예: 🎉 5월 특별 이벤트"
+                    value={bannerForm.title}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, title: e.target.value }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">내용 (선택)</label>
+                  <textarea
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none"
+                    rows={2}
+                    placeholder="예: 신규 회원 등록 시 PT 3회 무료 증정"
+                    value={bannerForm.body}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, body: e.target.value }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">이미지 URL (선택)</label>
+                  <input
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                    placeholder="https://..."
+                    value={bannerForm.imageUrl}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, imageUrl: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">배경색 (이미지 없을 때)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      className="w-10 h-9 rounded border border-border bg-background cursor-pointer"
+                      value={bannerForm.bgColor}
+                      onChange={(e) => setBannerForm((f) => ({ ...f, bgColor: e.target.value }))}
+                    />
+                    <input
+                      className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                      value={bannerForm.bgColor}
+                      onChange={(e) => setBannerForm((f) => ({ ...f, bgColor: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">글자색</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      className="w-10 h-9 rounded border border-border bg-background cursor-pointer"
+                      value={bannerForm.textColor}
+                      onChange={(e) => setBannerForm((f) => ({ ...f, textColor: e.target.value }))}
+                    />
+                    <input
+                      className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                      value={bannerForm.textColor}
+                      onChange={(e) => setBannerForm((f) => ({ ...f, textColor: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">노출 시작일 (선택)</label>
+                  <input type="date" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                    value={bannerForm.startDate}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, startDate: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">노출 종료일 (선택)</label>
+                  <input type="date" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                    value={bannerForm.endDate}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, endDate: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">순서</label>
+                  <input type="number" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                    value={bannerForm.sortOrder}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, sortOrder: Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+              {/* 미리보기 */}
+              <div
+                className="rounded-xl p-4 relative overflow-hidden"
+                style={{
+                  height: 100,
+                  background: bannerForm.imageUrl
+                    ? `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.55)), url(${bannerForm.imageUrl}) center/cover`
+                    : bannerForm.bgColor,
+                }}
+              >
+                <p className="font-bold text-sm" style={{ color: bannerForm.textColor }}>{bannerForm.title || "제목 미리보기"}</p>
+                {bannerForm.body && <p className="text-xs mt-1 opacity-80" style={{ color: bannerForm.textColor }}>{bannerForm.body}</p>}
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => { setShowBannerForm(false); setEditingBanner(null); resetBannerForm(); }}
+                  className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-accent"
+                >취소</button>
+                <button
+                  onClick={saveBanner}
+                  disabled={!bannerForm.title || createBanner.isPending || updateBanner.isPending}
+                  className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+                >{editingBanner ? "수정 완료" : "추가"}</button>
+              </div>
+            </div>
+          )}
+
+          {/* 배너 목록 */}
+          <div className="space-y-2">
+            {(bannersQuery.data ?? []).length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground text-sm">등록된 배너가 없습니다.</div>
+            ) : (
+              (bannersQuery.data as KioskBanner[] ?? []).map((b) => (
+                <div key={b.id} className="flex items-center gap-3 border border-border rounded-xl p-3 bg-card">
+                  {/* 미니 배너 미리보기 */}
+                  <div
+                    className="shrink-0 rounded-lg flex items-end p-2"
+                    style={{
+                      width: 80, height: 52,
+                      background: b.imageUrl
+                        ? `linear-gradient(to bottom,rgba(0,0,0,0.1),rgba(0,0,0,0.55)),url(${b.imageUrl}) center/cover`
+                        : b.bgColor,
+                    }}
+                  >
+                    <p className="text-xs font-semibold truncate" style={{ color: b.textColor }}>{b.title}</p>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{b.title}</p>
+                    {b.body && <p className="text-xs text-muted-foreground truncate">{b.body}</p>}
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {b.startDate && `${b.startDate} ~`} {b.endDate && b.endDate}
+                      {!b.startDate && !b.endDate && "항상 표시"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => updateBanner.mutate({ id: b.id, isActive: b.isActive === 0 })}
+                      className={`p-1.5 rounded-lg transition-colors ${b.isActive ? "text-primary" : "text-muted-foreground"} hover:bg-accent`}
+                      title={b.isActive ? "비활성화" : "활성화"}
+                    >
+                      {b.isActive ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    </button>
+                    <button
+                      onClick={() => { openEditBanner(b); setShowBannerForm(false); }}
+                      className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => { if (confirm("배너를 삭제하시겠습니까?")) deleteBanner.mutate({ id: b.id }); }}
+                      className="p-1.5 rounded-lg hover:bg-accent text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 

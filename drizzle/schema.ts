@@ -442,3 +442,17 @@ export const accessLogs = pgTable("access_logs", {
   lockerNumber: text("lockerNumber"),
   accessedAt: text("accessedAt").default(now).notNull(),
 });
+
+export const kioskBanners = pgTable("kiosk_banners", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body"),
+  imageUrl: text("imageUrl"),
+  bgColor: text("bgColor").default("#1a3a6e").notNull(),
+  textColor: text("textColor").default("#ffffff").notNull(),
+  isActive: integer("isActive").default(1).notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  createdAt: text("createdAt").default(now).notNull(),
+});

@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { trpc } from "../lib/trpc";
 
+type Banner = {
+  id: number;
+  title: string;
+  body: string | null;
+  imageUrl: string | null;
+  bgColor: string;
+  textColor: string;
+  sortOrder: number;
+};
+
 type CheckResult = {
   result: string;
   branchName?: string | null;
@@ -86,7 +96,18 @@ export default function KioskCheckin() {
   const [countdown, setCountdown] = useState(0);
   const [activeTab, setActiveTab] = useState<KioskTab>("phone");
   const [bottomNav, setBottomNav] = useState<BottomNav>("home");
+  const [bannerIdx, setBannerIdx] = useState(0);
+  const bannerTouchX = useRef<number | null>(null);
   const now = useClock();
+
+  const bannersQuery = trpc.access.getBanners.useQuery(undefined, { refetchInterval: 60000 });
+  const banners = (bannersQuery.data ?? []) as Banner[];
+
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const t = setInterval(() => setBannerIdx((i) => (i + 1) % banners.length), 5000);
+    return () => clearInterval(t);
+  }, [banners.length]);
 
   const checkIn = trpc.access.checkIn.useMutation({
     onSuccess: (data) => {
@@ -188,17 +209,77 @@ export default function KioskCheckin() {
       {/* ── 메인 컨텐츠 ── */}
       {bottomNav === "home" && (
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* ── 배너 캐러셀 ── */}
+          {banners.length > 0 && (
+            <div
+              className="relative overflow-hidden shrink-0"
+              style={{ height: "40vh" }}
+              onTouchStart={(e) => { bannerTouchX.current = e.touches[0].clientX; }}
+              onTouchEnd={(e) => {
+                if (bannerTouchX.current === null) return;
+                const dx = e.changedTouches[0].clientX - bannerTouchX.current;
+                bannerTouchX.current = null;
+                if (Math.abs(dx) < 30) return;
+                setBannerIdx((i) => dx < 0 ? (i + 1) % banners.length : (i - 1 + banners.length) % banners.length);
+              }}
+            >
+              {banners.map((b, i) => (
+                <div
+                  key={b.id}
+                  className="absolute inset-0 flex flex-col justify-end transition-opacity duration-700"
+                  style={{
+                    opacity: i === bannerIdx ? 1 : 0,
+                    pointerEvents: i === bannerIdx ? "auto" : "none",
+                    background: b.imageUrl
+                      ? `linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%), url(${b.imageUrl}) center/cover no-repeat`
+                      : b.bgColor,
+                  }}
+                >
+                  <div className="px-5 pb-4 pt-8">
+                    <p
+                      className="font-bold leading-snug"
+                      style={{ fontSize: 20, color: b.textColor, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
+                    >
+                      {b.title}
+                    </p>
+                    {b.body && (
+                      <p
+                        className="mt-1 leading-relaxed"
+                        style={{ fontSize: 13, color: b.textColor, opacity: 0.8, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
+                      >
+                        {b.body}
+                      </p>
+                    )}
+                  </div>
+                  {/* 점 인디케이터 */}
+                  {banners.length > 1 && (
+                    <div className="flex justify-center gap-1.5 pb-3">
+                      {banners.map((_, di) => (
+                        <button
+                          key={di}
+                          onClick={() => setBannerIdx(di)}
+                          style={{
+                            width: di === bannerIdx ? 16 : 6,
+                            height: 6,
+                            borderRadius: 3,
+                            background: di === bannerIdx ? b.textColor : "rgba(255,255,255,0.35)",
+                            transition: "width 0.3s",
+                            border: "none",
+                            padding: 0,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* 헤더 */}
-          <div className="flex flex-col items-center pt-8 pb-4 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
-            {/* 알림 아이콘 */}
-            <button className="absolute top-4 right-4 p-2">
-              <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
-                <path d="M10 22C11.1 22 12 21.1 12 20H8C8 21.1 8.9 22 10 22ZM18 16V10C18 6.93 16.37 4.36 13.5 3.68V3C13.5 2.17 12.83 1.5 12 1.5H8C7.17 1.5 6.5 2.17 6.5 3V3.68C3.64 4.36 2 6.92 2 10V16L0 18V19H20V18L18 16Z" fill="#555"/>
-              </svg>
-            </button>
+          <div className="flex flex-col items-center pt-4 pb-3 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
             <p style={{ fontFamily: "'Cinzel', serif", fontSize: 30, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.28em", textShadow: "0 0 18px rgba(42,95,196,0.45)" }}>ZIANTGYM</p>
-            <p className="mt-2 tracking-[0.15em] text-gray-500" style={{ fontSize: 11 }}>ACCESS SYSTEM</p>
-            <h1 className="font-bold tracking-tight mt-1" style={{ fontSize: 28 }}>출입 시스템</h1>
+            <p className="mt-1 tracking-[0.15em] text-gray-500" style={{ fontSize: 10 }}>ACCESS SYSTEM</p>
           </div>
 
           {/* 탭 */}
