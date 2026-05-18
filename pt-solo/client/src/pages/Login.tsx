@@ -37,7 +37,7 @@ export default function Login() {
           <Logo className="h-16" textSize="text-4xl" />
           <p className="text-xs text-muted-foreground/70 mt-1 tracking-widest uppercase"
             style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.2em" }}>
-            트레이너의 성장과 운영을 하나로
+            성장하는 운동전문가 플랫폼
           </p>
           <p className="text-sm text-muted-foreground mt-4">로그인하여 시작하세요</p>
         </CardHeader>
@@ -84,7 +84,7 @@ export default function Login() {
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               계정이 없으신가요?{" "}
-              <a href="/register" className="text-primary underline">트레이너 회원가입</a>
+              <a href="/register" className="text-primary underline">STEPER 회원가입</a>
             </p>
           </form>
         </CardContent>

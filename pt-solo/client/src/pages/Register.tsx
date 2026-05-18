@@ -37,7 +37,7 @@ export default function Register() {
             <span className="text-4xl" style={BEBAS}>FIT</span>
             <span className="text-4xl text-primary" style={BEBAS}>STEP</span>
           </div>
-          <CardTitle className="text-lg mt-2">트레이너 회원가입</CardTitle>
+          <CardTitle className="text-lg mt-2">STEPER 회원가입</CardTitle>
         </CardHeader>
 
         <CardContent>
