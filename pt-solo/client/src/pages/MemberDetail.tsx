@@ -200,12 +200,12 @@ export default function MemberDetail({ memberId }: Props) {
       return next;
     });
 
-  // 트레이닝 기록 상세 모달 (체크박스)
+  // 트레이닝 기록 상세 모달 (인라인 편집)
   const [viewLogOpen, setViewLogOpen] = useState(false);
   const [viewLogData, setViewLogData] = useState<{ log: any; exs: Exercise[] } | null>(null);
   const [checkedSets, setCheckedSets] = useState<Record<string, boolean>>({});
   const openViewLog = (log: any, exs: Exercise[]) => {
-    setViewLogData({ log, exs });
+    setViewLogData({ log, exs: JSON.parse(JSON.stringify(exs)) }); // deep copy for editing
     setCheckedSets({});
     setViewLogOpen(true);
   };
@@ -213,6 +213,33 @@ export default function MemberDetail({ memberId }: Props) {
     const key = `${exIdx}-${setIdx}`;
     setCheckedSets(prev => ({ ...prev, [key]: !prev[key] }));
   };
+  const updateViewExs = (updater: (exs: Exercise[]) => Exercise[]) => {
+    setViewLogData(prev => prev ? { ...prev, exs: updater(prev.exs) } : prev);
+  };
+  const updateViewSet = (exIdx: number, setIdx: number, field: "reps" | "weight", val: string) =>
+    updateViewExs(exs => exs.map((ex, i) => i !== exIdx ? ex : {
+      ...ex, sets: ex.sets.map((s, j) => j !== setIdx ? s : { ...s, [field]: val })
+    }));
+  const addViewSet = (exIdx: number) =>
+    updateViewExs(exs => exs.map((ex, i) => i !== exIdx ? ex : {
+      ...ex, sets: [...ex.sets, { reps: "", weight: "" }]
+    }));
+  const removeViewSet = (exIdx: number, setIdx: number) =>
+    updateViewExs(exs => exs.map((ex, i) => i !== exIdx ? ex : {
+      ...ex, sets: ex.sets.filter((_, j) => j !== setIdx)
+    }));
+  const addViewExercise = (afterIdx?: number) =>
+    updateViewExs(exs => {
+      const newEx = { name: "", sets: [{ reps: "", weight: "" }] };
+      if (afterIdx === undefined) return [...exs, newEx];
+      const next = [...exs];
+      next.splice(afterIdx + 1, 0, newEx);
+      return next;
+    });
+  const removeViewExercise = (exIdx: number) =>
+    updateViewExs(exs => exs.filter((_, i) => i !== exIdx));
+  const updateViewExName = (exIdx: number, name: string) =>
+    updateViewExs(exs => exs.map((ex, i) => i !== exIdx ? ex : { ...ex, name }));
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
@@ -1764,85 +1791,96 @@ export default function MemberDetail({ memberId }: Props) {
                 </p>
               </div>
 
-              <div className="px-5 py-4 space-y-5">
+              <div className="px-4 py-4 space-y-3">
                 {viewLogData.exs.map((ex, exIdx) => (
-                  <div key={exIdx} className="bg-muted/30 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="font-bold text-sm text-primary">{ex.name}</p>
+                  <div key={exIdx} className="bg-muted/30 border border-border rounded-xl p-3 space-y-2">
+                    {/* 운동명 */}
+                    <div className="flex items-center justify-between gap-2">
+                      <input
+                        value={ex.name}
+                        onChange={e => updateViewExName(exIdx, e.target.value)}
+                        placeholder="운동명"
+                        className="font-bold text-sm text-primary bg-transparent border-none outline-none flex-1 min-w-0"
+                      />
+                      <button onClick={() => removeViewExercise(exIdx)} className="text-muted-foreground hover:text-red-400 transition-colors shrink-0">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-[auto_1fr_1fr] gap-2 text-[10px] text-muted-foreground px-1">
-                        <span className="w-6" />
+
+                    {/* 세트 목록 */}
+                    <div className="space-y-1.5">
+                      <div className="grid grid-cols-[20px_28px_1fr_1fr_20px] gap-1.5 text-[10px] text-muted-foreground px-0.5">
+                        <span />
+                        <span className="text-center">#</span>
                         <span>세트 횟수</span>
                         <span>무게(kg)</span>
+                        <span />
                       </div>
                       {ex.sets.map((s, setIdx) => {
                         const key = `${exIdx}-${setIdx}`;
                         const checked = !!checkedSets[key];
                         return (
-                          <div
-                            key={setIdx}
-                            className={`grid grid-cols-[auto_1fr_1fr] gap-2 items-center rounded-lg px-1 py-1 transition-colors ${checked ? "opacity-40" : ""}`}
-                          >
+                          <div key={setIdx} className={`grid grid-cols-[20px_28px_1fr_1fr_20px] gap-1.5 items-center transition-opacity ${checked ? "opacity-40" : ""}`}>
                             <button
                               onClick={() => toggleSetCheck(exIdx, setIdx)}
-                              className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                checked ? "bg-primary border-primary" : "border-border"
-                              }`}
+                              className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-colors ${checked ? "bg-primary border-primary" : "border-border"}`}
                             >
-                              {checked && <span className="text-primary-foreground text-[10px] font-bold">✓</span>}
+                              {checked && <span className="text-primary-foreground text-[9px] font-bold">✓</span>}
                             </button>
-                            <div className={`bg-card border rounded-lg px-3 py-2 text-sm font-medium text-center ${checked ? "line-through text-muted-foreground" : ""}`}>
-                              {s.reps || "-"}
-                            </div>
-                            <div className="bg-card border rounded-lg px-3 py-2 text-sm font-medium text-center text-muted-foreground">
-                              {s.weight || "-"}
-                            </div>
+                            <span className="text-[11px] text-muted-foreground text-center">{setIdx + 1}</span>
+                            <input
+                              type="number"
+                              value={s.reps}
+                              onChange={e => updateViewSet(exIdx, setIdx, "reps", e.target.value)}
+                              placeholder="횟수"
+                              className={`bg-card border border-border rounded-lg px-2 py-1.5 text-sm text-center w-full outline-none focus:border-primary/50 ${checked ? "line-through text-muted-foreground" : ""}`}
+                            />
+                            <input
+                              type="number"
+                              value={s.weight}
+                              onChange={e => updateViewSet(exIdx, setIdx, "weight", e.target.value)}
+                              placeholder="kg"
+                              className="bg-card border border-border rounded-lg px-2 py-1.5 text-sm text-center w-full outline-none focus:border-primary/50 text-muted-foreground"
+                            />
+                            <button onClick={() => removeViewSet(exIdx, setIdx)} className="text-muted-foreground hover:text-red-400 transition-colors">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
                           </div>
                         );
                       })}
                     </div>
+
+                    {/* 세트 추가 / 운동 삽입 */}
+                    <div className="flex gap-3 pt-1">
+                      <button onClick={() => addViewSet(exIdx)} className="text-xs text-primary hover:text-primary/80 transition-colors">+ 세트 추가</button>
+                      <span className="text-border">|</span>
+                      <button onClick={() => addViewExercise(exIdx)} className="text-xs text-primary hover:text-primary/80 transition-colors">+ 운동 삽입</button>
+                    </div>
                   </div>
                 ))}
 
-                {viewLogData.log.goal && (
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
-                    <p className="text-[10px] text-blue-400 uppercase tracking-wide mb-1">목표</p>
-                    <p className="text-sm text-foreground">{viewLogData.log.goal}</p>
-                  </div>
-                )}
-                {viewLogData.log.feedback && (
-                  <div className="bg-muted/30 rounded-xl p-3">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">피드백</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{viewLogData.log.feedback}</p>
-                  </div>
-                )}
-                {viewLogData.log.notes && (
-                  <div className="bg-muted/30 rounded-xl p-3">
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{viewLogData.log.notes}</p>
-                  </div>
-                )}
+                {/* 운동 추가 */}
+                <button
+                  onClick={() => addViewExercise()}
+                  className="w-full py-2.5 rounded-xl border border-dashed border-primary/40 text-primary text-xs hover:bg-primary/5 transition-colors"
+                >
+                  + 운동 추가
+                </button>
 
+                {/* 저장 / 삭제 */}
                 <div className="flex gap-2 pt-1">
                   <Button
-                    variant="outline"
                     size="sm"
                     className="flex-1 gap-1.5 text-xs"
+                    disabled={updateLogMutation.isPending}
                     onClick={() => {
-                      setViewLogOpen(false);
-                      setEditJournalForm({
+                      updateLogMutation.mutate({
                         id: viewLogData.log.id,
-                        sessionDate: viewLogData.log.sessionDate,
-                        goal: viewLogData.log.goal ?? "",
-                        bodyPart: viewLogData.log.bodyPart ?? "",
-                        exercises: viewLogData.exs,
-                        feedback: viewLogData.log.feedback ?? "",
-                        notes: viewLogData.log.notes ?? "",
-                      });
-                      setEditJournalOpen(true);
+                        exercisesJson: JSON.stringify(viewLogData.exs),
+                      }, { onSuccess: () => setViewLogOpen(false) });
                     }}
                   >
-                    <Edit className="h-3.5 w-3.5" /> 수정
+                    {updateLogMutation.isPending ? "저장 중..." : "저장"}
                   </Button>
                   <Button
                     variant="outline"
