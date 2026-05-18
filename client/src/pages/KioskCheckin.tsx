@@ -4,6 +4,7 @@ import { trpc } from "../lib/trpc";
 type CheckResult = {
   result: string;
   branchName?: string | null;
+  candidates?: { id: number; name: string }[];
   member: {
     id: number;
     name: string;
@@ -91,7 +92,8 @@ export default function KioskCheckin() {
     onSuccess: (data) => {
       setErrorMsg(null);
       setResult(data as CheckResult);
-      setCountdown(10);
+      // ambiguous(이름 선택)는 카운트다운 없이 대기
+      if ((data as any).result !== "ambiguous") setCountdown(10);
     },
     onError: (err) => {
       setErrorMsg(err.message || "서버 오류가 발생했습니다.");
@@ -355,6 +357,16 @@ export default function KioskCheckin() {
             </button>
 
             {errorMsg ? <ErrorCard msg={errorMsg} />
+              : result?.result === "ambiguous" ? (
+                <AmbiguousCard
+                  candidates={result.candidates ?? []}
+                  onSelect={(id) => {
+                    setResult(null);
+                    checkIn.mutate({ memberId: id });
+                  }}
+                  onCancel={handleClose}
+                />
+              )
               : result?.result === "not_found" ? <NotFoundCard />
               : result?.result === "blocked" ? <BlockedCard name={result.member!.name} now={now} branchName={result.branchName} />
               : result ? <MemberCard result={result} now={now} expired={result.result === "expired"} />
@@ -535,6 +547,71 @@ function ErrorCard({ msg }: { msg: string }) {
       </div>
       <p className="font-bold text-white" style={{ fontSize: 15 }}>오류가 발생했습니다</p>
       <p style={{ color: "#555", fontSize: 12, marginTop: 6 }}>{msg}</p>
+    </div>
+  );
+}
+
+function AmbiguousCard({
+  candidates,
+  onSelect,
+  onCancel,
+}: {
+  candidates: { id: number; name: string }[];
+  onSelect: (id: number) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="px-5 pt-5 pb-6">
+      <div className="flex flex-col items-center mb-6">
+        <div
+          className="flex items-center justify-center rounded-full mb-4"
+          style={{ width: 56, height: 56, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+            <circle cx="13" cy="8" r="5.5" stroke="white" strokeWidth="1.5"/>
+            <path d="M2 25C2 18.5 24 18.5 24 25" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <p style={{ fontSize: 17, fontWeight: 700, color: "white" }}>본인 이름을 선택해주세요</p>
+        <p style={{ fontSize: 13, color: "#555", marginTop: 4 }}>동일한 출석번호를 가진 회원이 있습니다</p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {candidates.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => onSelect(c.id)}
+            className="w-full rounded-2xl font-bold transition-all active:scale-[0.98]"
+            style={{
+              height: 60,
+              fontSize: 18,
+              background: "#1c1c1c",
+              border: "1px solid #2a2a2a",
+              color: "white",
+              WebkitTapHighlightColor: "transparent",
+            }}
+            onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#303030"; }}
+            onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.background = "#1c1c1c"; }}
+          >
+            {c.name}
+          </button>
+        ))}
+
+        <button
+          onClick={onCancel}
+          className="w-full rounded-2xl font-semibold transition-all active:scale-[0.98] mt-1"
+          style={{
+            height: 48,
+            fontSize: 14,
+            background: "transparent",
+            border: "1px solid #2a2a2a",
+            color: "#555",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          취소
+        </button>
+      </div>
     </div>
   );
 }
