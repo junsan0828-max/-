@@ -1126,8 +1126,26 @@ const attendanceChecksRouter = t.router({
         .from(attendanceChecks)
         .where(and(eq(attendanceChecks.trainerId, trainerId), eq(attendanceChecks.checkDate, input.date)));
 
+      const pkgRows = await db
+        .select({ memberId: ptPackages.memberId, totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions })
+        .from(ptPackages)
+        .where(and(eq(ptPackages.trainerId, trainerId), eq(ptPackages.status, "active")));
+
+      const pkgMap = new Map<number, { remaining: number; total: number }>();
+      for (const p of pkgRows) {
+        const prev = pkgMap.get(p.memberId);
+        const remaining = (p.totalSessions ?? 0) - (p.usedSessions ?? 0);
+        if (!prev) pkgMap.set(p.memberId, { remaining, total: p.totalSessions ?? 0 });
+        else pkgMap.set(p.memberId, { remaining: prev.remaining + remaining, total: prev.total + (p.totalSessions ?? 0) });
+      }
+
       const checkMap = new Map(checks.map((c) => [c.memberId, c]));
-      return memberList.map((m) => ({ ...m, check: checkMap.get(m.id) ?? null }));
+      return memberList.map((m) => ({
+        ...m,
+        check: checkMap.get(m.id) ?? null,
+        remaining: pkgMap.get(m.id)?.remaining ?? null,
+        totalSessions: pkgMap.get(m.id)?.total ?? null,
+      }));
     }),
 
   recentSummary: protectedProcedure.query(async ({ ctx }) => {
