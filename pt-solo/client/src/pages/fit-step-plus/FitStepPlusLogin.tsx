@@ -46,14 +46,15 @@ export default function FitStepPlusLogin({ trainerId }: { trainerId: number }) {
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="username" className="text-sm text-muted-foreground">아이디</Label>
+                <Label htmlFor="username" className="text-sm text-muted-foreground">휴대폰 번호</Label>
                 <Input
                   id="username"
                   value={form.username}
                   onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
-                  placeholder="아이디 입력"
+                  placeholder="010-0000-0000"
                   className="bg-input border-border"
-                  autoComplete="username"
+                  autoComplete="tel"
+                  inputMode="tel"
                 />
               </div>
               <div className="space-y-1.5">
@@ -63,9 +64,11 @@ export default function FitStepPlusLogin({ trainerId }: { trainerId: number }) {
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                  placeholder="비밀번호 입력"
+                  placeholder="휴대폰 뒷자리 4자리"
                   className="bg-input border-border"
                   autoComplete="current-password"
+                  inputMode="numeric"
+                  maxLength={4}
                 />
               </div>
               {errorMsg && (
@@ -81,7 +84,7 @@ export default function FitStepPlusLogin({ trainerId }: { trainerId: number }) {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          계정 문의는 트레이너에게 문의하세요
+          아이디: 휴대폰 번호 · 비밀번호: 뒷자리 4자리
         </p>
       </div>
     </div>

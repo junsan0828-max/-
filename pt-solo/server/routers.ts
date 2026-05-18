@@ -1887,16 +1887,18 @@ const fitStepPlusRouter = t.router({
   memberLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string(), trainerId: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      const result = await getDb().select().from(fitStepPlusMembers)
-        .where(and(eq(fitStepPlusMembers.username, input.username), eq(fitStepPlusMembers.trainerId, input.trainerId))).limit(1);
-      const member = result[0];
-      if (!member) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
-      if (!member.isActive) throw new TRPCError({ code: "FORBIDDEN", message: "비활성화된 계정입니다." });
-      const valid = await bcrypt.compare(input.password, member.password);
-      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+      const normalizePhone = (p: string) => p.replace(/\D/g, "");
+      const inputPhone = normalizePhone(input.username);
+      const result = await getDb().select().from(members)
+        .where(eq(members.trainerId, input.trainerId)).limit(200);
+      const member = result.find(m => m.phone && normalizePhone(m.phone) === inputPhone);
+      if (!member) throw new TRPCError({ code: "UNAUTHORIZED", message: "등록된 휴대폰 번호가 아닙니다." });
+      const digits = normalizePhone(member.phone ?? "");
+      const last4 = digits.slice(-4);
+      if (input.password !== last4) throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 틀렸습니다. (휴대폰 뒷자리 4자리)" });
       (ctx.req.session as any).fitStepPlusMemberId = member.id;
       await new Promise<void>((resolve, reject) => ctx.req.session.save((err) => err ? reject(err) : resolve()));
-      return { id: member.id, username: member.username, name: member.name, membershipType: member.membershipType };
+      return { id: member.id, username: member.phone ?? "", name: member.name, membershipType: "general" };
     }),
 
   memberLogout: publicProcedure.mutation(async ({ ctx }) => {
@@ -1909,13 +1911,12 @@ const fitStepPlusRouter = t.router({
     const memberId = (ctx.req.session as any).fitStepPlusMemberId as number | undefined;
     if (!memberId) return null;
     const result = await getDb().select({
-      id: fitStepPlusMembers.id, trainerId: fitStepPlusMembers.trainerId,
-      username: fitStepPlusMembers.username,
-      name: fitStepPlusMembers.name, phone: fitStepPlusMembers.phone, email: fitStepPlusMembers.email,
-      membershipType: fitStepPlusMembers.membershipType,
-      membershipStart: fitStepPlusMembers.membershipStart, membershipEnd: fitStepPlusMembers.membershipEnd,
-    }).from(fitStepPlusMembers).where(eq(fitStepPlusMembers.id, memberId)).limit(1);
-    return result[0] ?? null;
+      id: members.id, trainerId: members.trainerId,
+      name: members.name, phone: members.phone, email: members.email,
+      membershipStart: members.membershipStart, membershipEnd: members.membershipEnd,
+    }).from(members).where(eq(members.id, memberId)).limit(1);
+    if (!result[0]) return null;
+    return { ...result[0], username: result[0].phone ?? "", membershipType: "general" as const };
   }),
 
   // ── 공개 콘텐츠 (trainerId로 필터) ──
@@ -2020,23 +2021,15 @@ const fitStepPlusRouter = t.router({
   updateProfile: fitStepPlusProtected
     .input(z.object({ name: z.string().min(1).optional(), phone: z.string().optional(), email: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      await getDb().update(fitStepPlusMembers).set({ ...input, updatedAt: new Date().toISOString() })
-        .where(eq(fitStepPlusMembers.id, (ctx as any).fitStepPlusMemberId));
+      await getDb().update(members).set({ ...input, updatedAt: new Date().toISOString() })
+        .where(eq(members.id, (ctx as any).fitStepPlusMemberId));
       return { success: true };
     }),
 
   changePassword: fitStepPlusProtected
-    .input(z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(6) }))
-    .mutation(async ({ ctx, input }) => {
-      const [member] = await getDb().select({ password: fitStepPlusMembers.password })
-        .from(fitStepPlusMembers).where(eq(fitStepPlusMembers.id, (ctx as any).fitStepPlusMemberId)).limit(1);
-      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
-      const ok = await bcrypt.compare(input.currentPassword, member.password);
-      if (!ok) throw new TRPCError({ code: "BAD_REQUEST", message: "현재 비밀번호가 틀렸습니다." });
-      const hashed = await bcrypt.hash(input.newPassword, 10);
-      await getDb().update(fitStepPlusMembers).set({ password: hashed, updatedAt: new Date().toISOString() })
-        .where(eq(fitStepPlusMembers.id, (ctx as any).fitStepPlusMemberId));
-      return { success: true };
+    .input(z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(4) }))
+    .mutation(async () => {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "비밀번호는 휴대폰 뒷자리 4자리로 고정됩니다." });
     }),
 
   // ── 트레이너 관리 (본인 trainerId 기준) ──
@@ -2044,13 +2037,11 @@ const fitStepPlusRouter = t.router({
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
     return getDb().select({
-      id: fitStepPlusMembers.id, username: fitStepPlusMembers.username,
-      name: fitStepPlusMembers.name, phone: fitStepPlusMembers.phone,
-      membershipType: fitStepPlusMembers.membershipType,
-      membershipStart: fitStepPlusMembers.membershipStart, membershipEnd: fitStepPlusMembers.membershipEnd,
-      isActive: fitStepPlusMembers.isActive, createdAt: fitStepPlusMembers.createdAt,
-    }).from(fitStepPlusMembers).where(eq(fitStepPlusMembers.trainerId, trainerId))
-      .orderBy(desc(fitStepPlusMembers.createdAt));
+      id: members.id, name: members.name, phone: members.phone,
+      membershipStart: members.membershipStart, membershipEnd: members.membershipEnd,
+      createdAt: members.createdAt,
+    }).from(members).where(eq(members.trainerId, trainerId))
+      .orderBy(desc(members.createdAt));
   }),
 
   trainer_createMember: protectedProcedure
@@ -2227,9 +2218,9 @@ const fitStepPlusRouter = t.router({
   // ── 어드민 현황 조회 ──
   admin_overview: adminProcedure.query(async () => {
     const memberCounts = await getDb().select({
-      trainerId: fitStepPlusMembers.trainerId,
+      trainerId: members.trainerId,
       count: sql<number>`COUNT(*)`,
-    }).from(fitStepPlusMembers).groupBy(fitStepPlusMembers.trainerId);
+    }).from(members).groupBy(members.trainerId);
     return { memberCounts };
   }),
 });

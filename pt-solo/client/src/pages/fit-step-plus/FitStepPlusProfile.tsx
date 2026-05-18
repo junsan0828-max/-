@@ -34,10 +34,6 @@ export default function FitStepPlusProfile() {
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileMsg, setProfileMsg] = useState("");
 
-  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  const [pwMsg, setPwMsg] = useState("");
-  const [pwExpanded, setPwExpanded] = useState(false);
-
   const updateProfile = trpc.fitStepPlus.updateProfile.useMutation({
     onSuccess: () => {
       utils.fitStepPlus.memberMe.invalidate();
@@ -46,16 +42,6 @@ export default function FitStepPlusProfile() {
       setTimeout(() => setProfileMsg(""), 3000);
     },
     onError: (e) => setProfileMsg(e.message || "저장 실패"),
-  });
-
-  const changePassword = trpc.fitStepPlus.changePassword.useMutation({
-    onSuccess: () => {
-      setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      setPwMsg("비밀번호가 변경되었습니다.");
-      setPwExpanded(false);
-      setTimeout(() => setPwMsg(""), 3000);
-    },
-    onError: (e) => setPwMsg(e.message || "변경 실패"),
   });
 
   const startEdit = () => {
@@ -67,16 +53,6 @@ export default function FitStepPlusProfile() {
   const submitProfile = (e: React.FormEvent) => {
     e.preventDefault();
     updateProfile.mutate({ name: profileForm.name || undefined, phone: profileForm.phone || undefined, email: profileForm.email || undefined });
-  };
-
-  const submitPassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPwMsg("");
-    if (pwForm.newPassword !== pwForm.confirmPassword) {
-      setPwMsg("새 비밀번호가 일치하지 않습니다.");
-      return;
-    }
-    changePassword.mutate({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword });
   };
 
   const daysLeft = daysUntil(member?.membershipEnd);
@@ -158,9 +134,8 @@ export default function FitStepPlusProfile() {
         ) : (
           <div className="space-y-2">
             {[
-              { label: "아이디", value: member?.username },
               { label: "이름", value: member?.name ?? "-" },
-              { label: "연락처", value: member?.phone ?? "-" },
+              { label: "휴대폰 (아이디)", value: member?.phone ?? "-" },
               { label: "이메일", value: member?.email ?? "-" },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
@@ -177,35 +152,7 @@ export default function FitStepPlusProfile() {
       </div>
 
       <div className="bg-card border border-border rounded-xl p-4">
-        <button className="w-full flex items-center justify-between"
-          onClick={() => { setPwExpanded((v) => !v); setPwMsg(""); }}>
-          <h2 className="font-semibold text-sm">비밀번호 변경</h2>
-          <span className="text-xs text-muted-foreground">{pwExpanded ? "▲" : "▼"}</span>
-        </button>
-
-        {pwExpanded && (
-          <form onSubmit={submitPassword} className="mt-3 space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">현재 비밀번호</Label>
-              <Input type="password" value={pwForm.currentPassword} onChange={(e) => setPwForm((p) => ({ ...p, currentPassword: e.target.value }))} placeholder="현재 비밀번호" className="bg-input border-border h-9 text-sm" autoComplete="current-password" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">새 비밀번호</Label>
-              <Input type="password" value={pwForm.newPassword} onChange={(e) => setPwForm((p) => ({ ...p, newPassword: e.target.value }))} placeholder="6자 이상" className="bg-input border-border h-9 text-sm" autoComplete="new-password" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">새 비밀번호 확인</Label>
-              <Input type="password" value={pwForm.confirmPassword} onChange={(e) => setPwForm((p) => ({ ...p, confirmPassword: e.target.value }))} placeholder="비밀번호 재입력" className="bg-input border-border h-9 text-sm" autoComplete="new-password" />
-            </div>
-            <Button type="submit" size="sm" className="w-full" disabled={changePassword.isPending}>
-              {changePassword.isPending ? "변경 중..." : "비밀번호 변경"}
-            </Button>
-          </form>
-        )}
-
-        {pwMsg && (
-          <p className={`text-xs mt-2 ${pwMsg.includes("변경") ? "text-green-400" : "text-red-400"}`}>{pwMsg}</p>
-        )}
+        <p className="text-xs text-muted-foreground">비밀번호: 휴대폰 번호 뒷자리 4자리</p>
       </div>
     </div>
   );

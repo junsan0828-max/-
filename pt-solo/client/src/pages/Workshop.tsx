@@ -359,7 +359,7 @@ function EventSection({ trainerId }: { trainerId: number }) {
 // ── FIT STEP+ 메인 관리 패널 ────────────────────────────────────────────────
 function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   const [, navigate] = useLocation();
-  const [activeSection, setActiveSection] = useState<"members" | "videos" | "events" | null>(null);
+  const [activeSection, setActiveSection] = useState<"videos" | "events" | null>(null);
   const [copied, setCopied] = useState(false);
 
   function copyLink() {
@@ -371,7 +371,6 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   }
 
   const sections = [
-    { key: "members" as const, label: "회원 계정", icon: Users, desc: "회원 앱 계정 생성 및 관리" },
     { key: "videos" as const, label: "운동 영상", icon: Video, desc: "영상 등록 및 카테고리 관리" },
     { key: "events" as const, label: "공지/이벤트", icon: Bell, desc: "공지, 이벤트, 프로모션 관리" },
   ];
@@ -419,7 +418,6 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
           </button>
           {activeSection === key && (
             <CardContent className="pt-0 pb-4">
-              {key === "members" && <MemberSection trainerId={trainerId} />}
               {key === "videos" && <VideoSection trainerId={trainerId} />}
               {key === "events" && <EventSection trainerId={trainerId} />}
             </CardContent>
