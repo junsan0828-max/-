@@ -326,6 +326,18 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
   const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
   const { data: conditionChecks } = trpc.attendanceChecks.listByMember.useQuery({ memberId });
+
+  // 이 회원의 과거 운동명 목록 (자동완성용)
+  const exerciseSuggestions = useMemo(() => {
+    if (!sessionLogs) return [];
+    const names = new Set<string>();
+    sessionLogs.forEach((log: any) => {
+      parseExercisesJson(log.exercisesJson).forEach((ex) => {
+        if (ex.name.trim()) names.add(ex.name.trim());
+      });
+    });
+    return Array.from(names);
+  }, [sessionLogs]);
   const { data: stats } = trpc.members.getStats.useQuery({ memberId });
   const { data: pauses, refetch: refetchPauses } = trpc.pt.listPauses.useQuery({ memberId });
   const { data: leadInfo } = trpc.gym.leads.getByMemberId.useQuery({ memberId });
@@ -1765,7 +1777,7 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
+              <ExerciseEditor exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">피드백</Label>
@@ -1816,7 +1828,7 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} />
+              <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">피드백</Label>
@@ -1951,6 +1963,7 @@ export default function MemberDetail({ memberId }: Props) {
               <ExerciseEditor
                 exercises={sessionForm.exercises}
                 onChange={exs => setSessionForm(p => ({ ...p, exercises: exs }))}
+                suggestions={exerciseSuggestions}
               />
             </div>
             <div className="space-y-1.5">

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Copy } from "lucide-react";
 
@@ -11,9 +12,12 @@ function newSet(prev?: ExSet): ExSet {
 interface Props {
   exercises: Exercise[];
   onChange: (exs: Exercise[]) => void;
+  suggestions?: string[];
 }
 
-export default function ExerciseEditor({ exercises, onChange }: Props) {
+export default function ExerciseEditor({ exercises, onChange, suggestions = [] }: Props) {
+  const [focusedExIdx, setFocusedExIdx] = useState<number | null>(null);
+
   const addExercise = () =>
     onChange([...exercises, { name: "", sets: [{ reps: "", weight: "" }] }]);
 
@@ -60,87 +64,121 @@ export default function ExerciseEditor({ exercises, onChange }: Props) {
       })
     );
 
+  const getFilteredSuggestions = (name: string) => {
+    if (!name.trim()) return [];
+    const q = name.toLowerCase();
+    return suggestions.filter(
+      (s) => s.toLowerCase().startsWith(q) && s.toLowerCase() !== q
+    );
+  };
+
   return (
     <div className="space-y-2">
-      {exercises.map((ex, i) => (
-        <div key={i} className="border border-border rounded-lg p-3 space-y-2 bg-accent/10">
-          {/* 운동명 행 */}
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="운동명 (예: 레그프레스)"
-              value={ex.name}
-              onChange={e => updateName(i, e.target.value)}
-              className="h-8 text-sm flex-1"
-            />
+      {exercises.map((ex, i) => {
+        const filtered = getFilteredSuggestions(ex.name);
+        const showSuggestions = focusedExIdx === i && filtered.length > 0;
+
+        return (
+          <div key={i} className="border border-border rounded-lg p-3 space-y-2 bg-accent/10">
+            {/* 운동명 행 */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  placeholder="운동명 (예: 레그프레스)"
+                  value={ex.name}
+                  onChange={e => updateName(i, e.target.value)}
+                  onFocus={() => setFocusedExIdx(i)}
+                  onBlur={() => setTimeout(() => setFocusedExIdx(null), 150)}
+                  className="h-8 text-sm w-full"
+                />
+                {showSuggestions && (
+                  <div className="absolute left-0 top-full mt-0.5 w-full bg-popover border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+                    {filtered.slice(0, 7).map((s) => (
+                      <button
+                        key={s}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          updateName(i, s);
+                          setFocusedExIdx(null);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors truncate"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => removeExercise(i)}
+                className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* 세트 헤더 */}
+            {ex.sets.length > 0 && (
+              <div className="grid grid-cols-[28px_1fr_1fr_48px] gap-1 px-0.5">
+                <span className="text-[10px] text-muted-foreground text-center">세트</span>
+                <span className="text-[10px] text-muted-foreground">횟수</span>
+                <span className="text-[10px] text-muted-foreground">무게(kg)</span>
+                <span />
+              </div>
+            )}
+
+            {/* 세트 목록 */}
+            <div className="space-y-1">
+              {ex.sets.map((s, j) => (
+                <div key={j} className="grid grid-cols-[28px_1fr_1fr_48px] gap-1 items-center">
+                  <span className="text-xs text-muted-foreground text-center font-medium">{j + 1}</span>
+                  <Input
+                    placeholder="횟수"
+                    value={s.reps}
+                    onChange={e => updateSet(i, j, "reps", e.target.value)}
+                    className="h-8 text-xs"
+                    type="number"
+                    min="0"
+                  />
+                  <Input
+                    placeholder="kg"
+                    value={s.weight}
+                    onChange={e => updateSet(i, j, "weight", e.target.value)}
+                    className="h-8 text-xs"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                  />
+                  <div className="flex gap-0.5 justify-end">
+                    <button
+                      onClick={() => copySet(i, j)}
+                      title="이 세트 복사"
+                      className="text-muted-foreground hover:text-primary transition-colors p-1"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => removeSet(i, j)}
+                      className="text-muted-foreground hover:text-red-400 transition-colors p-1"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 세트 추가 */}
             <button
-              onClick={() => removeExercise(i)}
-              className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+              onClick={() => addSet(i)}
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary/70 transition-colors"
             >
-              <Trash2 className="h-4 w-4" />
+              <Plus className="h-3 w-3" />
+              세트 추가
             </button>
           </div>
-
-          {/* 세트 헤더 */}
-          {ex.sets.length > 0 && (
-            <div className="grid grid-cols-[28px_1fr_1fr_48px] gap-1 px-0.5">
-              <span className="text-[10px] text-muted-foreground text-center">세트</span>
-              <span className="text-[10px] text-muted-foreground">횟수</span>
-              <span className="text-[10px] text-muted-foreground">무게(kg)</span>
-              <span />
-            </div>
-          )}
-
-          {/* 세트 목록 */}
-          <div className="space-y-1">
-            {ex.sets.map((s, j) => (
-              <div key={j} className="grid grid-cols-[28px_1fr_1fr_48px] gap-1 items-center">
-                <span className="text-xs text-muted-foreground text-center font-medium">{j + 1}</span>
-                <Input
-                  placeholder="횟수"
-                  value={s.reps}
-                  onChange={e => updateSet(i, j, "reps", e.target.value)}
-                  className="h-8 text-xs"
-                  type="number"
-                  min="0"
-                />
-                <Input
-                  placeholder="kg"
-                  value={s.weight}
-                  onChange={e => updateSet(i, j, "weight", e.target.value)}
-                  className="h-8 text-xs"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                />
-                <div className="flex gap-0.5 justify-end">
-                  <button
-                    onClick={() => copySet(i, j)}
-                    title="이 세트 복사"
-                    className="text-muted-foreground hover:text-primary transition-colors p-1"
-                  >
-                    <Copy className="h-3 w-3" />
-                  </button>
-                  <button
-                    onClick={() => removeSet(i, j)}
-                    className="text-muted-foreground hover:text-red-400 transition-colors p-1"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 세트 추가 */}
-          <button
-            onClick={() => addSet(i)}
-            className="flex items-center gap-1 text-xs text-primary hover:text-primary/70 transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            세트 추가
-          </button>
-        </div>
-      ))}
+        );
+      })}
 
       <button
         onClick={addExercise}

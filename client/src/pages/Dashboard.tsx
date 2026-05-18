@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
   AreaChart, Area, LineChart, Line,
 } from "recharts";
-import ExerciseEditor, { type Exercise } from "@/components/ExerciseEditor";
+import ExerciseEditor, { type Exercise, parseExercisesJson } from "@/components/ExerciseEditor";
 import BodyPartPicker from "@/components/BodyPartPicker";
 
 const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
@@ -387,6 +387,21 @@ function TrainerDashboard() {
 
   const [journalOpen, setJournalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
+
+  const { data: memberSessionLogs } = trpc.pt.sessionLogs.useQuery(
+    { memberId: selectedMember?.id ?? 0 },
+    { enabled: !!selectedMember }
+  );
+  const exerciseSuggestions = useMemo(() => {
+    if (!memberSessionLogs) return [];
+    const names = new Set<string>();
+    memberSessionLogs.forEach((log: any) => {
+      parseExercisesJson(log.exercisesJson).forEach((ex: any) => {
+        if (ex.name.trim()) names.add(ex.name.trim());
+      });
+    });
+    return Array.from(names);
+  }, [memberSessionLogs]);
   const [journalForm, setJournalForm] = useState<{
     sessionDate: string; exerciseType: string; bodyPart: string;
     notes: string; exercises: Exercise[];
@@ -785,6 +800,7 @@ function TrainerDashboard() {
               <ExerciseEditor
                 exercises={journalForm.exercises}
                 onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))}
+                suggestions={exerciseSuggestions}
               />
             </div>
             <div className="space-y-1.5">
