@@ -114,7 +114,7 @@ export default function KioskCheckin() {
     if (result || errorMsg) return;
     if (k === "del") { setDigits((v) => v.slice(0, -1)); return; }
     if (k === "clear") { setDigits(""); return; }
-    const max = activeTab === "number" ? 5 : 8;
+    const max = activeTab === "number" ? 6 : 8;
     if (digits.length >= max) return;
     setDigits((v) => v + k);
   }, [digits, result, errorMsg, activeTab]);
@@ -125,7 +125,7 @@ export default function KioskCheckin() {
       if (digits.length !== 8) return;
       checkIn.mutate({ phone: "010" + digits });
     } else {
-      if (digits.length < 4) return;
+      if (digits.length < 5) return;
       checkIn.mutate({ attendanceNumber: digits });
     }
   }, [digits, checkIn, activeTab]);
@@ -172,8 +172,8 @@ export default function KioskCheckin() {
   const bDisplay = b.padEnd(4, "_").split("").join(" ");
 
   // 출석번호 표시: 4자리 + 선택적 5번째 자리
-  const numBase = digits.padEnd(4, "_").slice(0, 4).split("").join(" ");
-  const numSuffix = digits.length > 4 ? ` - ${digits[4]}` : "";
+  const numBase = digits.padEnd(5, "_").slice(0, 5).split("").join(" ");
+  const numSuffix = digits.length > 5 ? ` - ${digits[5]}` : "";
   const numDisplay = numBase + numSuffix;
 
   const showPopup = result !== null || errorMsg !== null;
@@ -270,13 +270,13 @@ export default function KioskCheckin() {
             {/* 출입하기 버튼 */}
             <button
               onClick={handleSubmit}
-              disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 4) || checkIn.isPending}
+              disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 5) || checkIn.isPending}
               className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
               style={{
                 height: 58,
                 fontSize: 17,
-                background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
-                color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#333",
+                background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 5) ? "#ffffff" : "#1c1c1c",
+                color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 5) ? "#0d0d0d" : "#333",
                 border: "none",
                 letterSpacing: "0.08em",
                 WebkitTapHighlightColor: "transparent",
@@ -287,7 +287,7 @@ export default function KioskCheckin() {
                 <>
                   출입하기
                   <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-                    {(() => { const active = activeTab === "phone" ? digits.length === 8 : digits.length >= 4; return (<><line x1="0" y1="7" x2="16" y2="7" stroke={active ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round"/><polyline points="10,1 16,7 10,13" stroke={active ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>); })()}
+                    {(() => { const active = activeTab === "phone" ? digits.length === 8 : digits.length >= 5; return (<><line x1="0" y1="7" x2="16" y2="7" stroke={active ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round"/><polyline points="10,1 16,7 10,13" stroke={active ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>); })()}
                   </svg>
                 </>
               )}
