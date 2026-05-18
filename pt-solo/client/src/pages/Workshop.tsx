@@ -6,11 +6,105 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, BookOpen, ChevronRight } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
 const EVENT_TYPE_LABELS: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션" };
+const MOOD_LABELS: Record<string, string> = { great: "최고", good: "좋음", okay: "보통", tired: "피곤", bad: "힘듦" };
+
+// ── 트레이닝 일지 섹션 ──────────────────────────────────────────────────────
+function WorkoutLogSection() {
+  const [selectedMemberId, setSelectedMemberId] = useState<number | "all">("all");
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const { data: logs } = trpc.fitStepPlus.trainer_listWorkoutLogs.useQuery(
+    selectedMemberId === "all"
+      ? { month: selectedMonth }
+      : { memberId: selectedMemberId, month: selectedMonth }
+  );
+
+  const memberNames = logs
+    ? Array.from(new Map(logs.map(l => [l.memberId, l.memberName])).entries())
+    : [];
+
+  function prevMonth() {
+    const d = new Date(selectedMonth + "-01");
+    d.setMonth(d.getMonth() - 1);
+    setSelectedMonth(d.toISOString().slice(0, 7));
+  }
+  function nextMonth() {
+    const d = new Date(selectedMonth + "-01");
+    d.setMonth(d.getMonth() + 1);
+    setSelectedMonth(d.toISOString().slice(0, 7));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <button onClick={prevMonth} className="p-1 text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4 rotate-180" /></button>
+        <span className="text-sm font-semibold">{selectedMonth.replace("-", "년 ")}월</span>
+        <button onClick={nextMonth} className="p-1 text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+      </div>
+      <select
+        value={selectedMemberId}
+        onChange={e => setSelectedMemberId(e.target.value === "all" ? "all" : Number(e.target.value))}
+        className="w-full h-8 bg-background border border-border rounded-md px-2 text-sm"
+      >
+        <option value="all">전체 회원</option>
+        {memberNames.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+      </select>
+      <div className="space-y-2">
+        {logs?.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">이번 달 작성된 트레이닝 일지가 없습니다</p>}
+        {logs?.map(log => {
+          const isExpanded = expandedId === log.id;
+          let exercises: any[] = [];
+          try { exercises = log.exercisesJson ? JSON.parse(log.exercisesJson) : []; } catch {}
+          return (
+            <div key={log.id} className="rounded-lg bg-accent/20 border border-border overflow-hidden">
+              <button className="w-full flex items-center justify-between px-3 py-2.5 text-left" onClick={() => setExpandedId(isExpanded ? null : log.id)}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-primary font-medium">{log.memberName}</span>
+                    <span className="text-xs text-muted-foreground">{log.logDate}</span>
+                    {log.mood && <span className="text-xs text-muted-foreground">{MOOD_LABELS[log.mood] ?? log.mood}</span>}
+                  </div>
+                  <p className="text-sm font-medium truncate mt-0.5">{log.title}</p>
+                  {log.durationMinutes && <p className="text-xs text-muted-foreground">{log.durationMinutes}분</p>}
+                </div>
+                {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+              </button>
+              {isExpanded && (
+                <div className="px-3 pb-3 space-y-2 border-t border-border pt-2">
+                  {exercises.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-1">운동 목록</p>
+                      <div className="space-y-1">
+                        {exercises.map((ex: any, i: number) => (
+                          <div key={i} className="text-xs flex items-start gap-2">
+                            <span className="text-foreground font-medium">{ex.name}</span>
+                            {ex.sets && <span className="text-muted-foreground">{ex.sets}세트{ex.reps ? ` × ${ex.reps}회` : ""}{ex.weight ? ` · ${ex.weight}kg` : ""}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {log.notes && (
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-0.5">메모</p>
+                      <p className="text-xs text-foreground whitespace-pre-wrap">{log.notes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ── 영상 관리 섹션 ──────────────────────────────────────────────────────────
 function VideoSection({ trainerId }: { trainerId: number }) {
@@ -245,7 +339,7 @@ function EventSection({ trainerId }: { trainerId: number }) {
 // ── FIT STEP+ 메인 관리 패널 ────────────────────────────────────────────────
 function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   const [, navigate] = useLocation();
-  const [activeSection, setActiveSection] = useState<"videos" | "events" | null>(null);
+  const [activeSection, setActiveSection] = useState<"workoutLogs" | "videos" | "events" | null>(null);
   const [copied, setCopied] = useState(false);
 
   function copyLink() {
@@ -257,6 +351,7 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   }
 
   const sections = [
+    { key: "workoutLogs" as const, label: "트레이닝 일지", icon: BookOpen, desc: "회원들이 작성한 운동 일지 확인" },
     { key: "videos" as const, label: "운동 영상", icon: Video, desc: "영상 등록 및 카테고리 관리" },
     { key: "events" as const, label: "공지/이벤트", icon: Bell, desc: "공지, 이벤트, 프로모션 관리" },
   ];
@@ -304,6 +399,7 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
           </button>
           {activeSection === key && (
             <CardContent className="pt-0 pb-4">
+              {key === "workoutLogs" && <WorkoutLogSection />}
               {key === "videos" && <VideoSection trainerId={trainerId} />}
               {key === "events" && <EventSection trainerId={trainerId} />}
             </CardContent>
