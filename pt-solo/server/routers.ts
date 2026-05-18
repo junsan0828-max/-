@@ -1713,12 +1713,40 @@ const adminRouter = t.router({
   }),
 
   updateAutoRule: adminProcedure
-    .input(z.object({ event: z.string(), amount: z.number().int().min(0), isEnabled: z.boolean() }))
+    .input(z.object({
+      event: z.string(),
+      label: z.string().min(1).optional(),
+      description: z.string().optional(),
+      amount: z.number().int().min(0),
+      isEnabled: z.boolean(),
+    }))
     .mutation(async ({ input }) => {
       await pool.query(
-        `UPDATE point_auto_rules SET amount=$1, "isEnabled"=$2, "updatedAt"=now()::text WHERE event=$3`,
-        [input.amount, input.isEnabled ? 1 : 0, input.event]
+        `UPDATE point_auto_rules SET amount=$1, "isEnabled"=$2, label=COALESCE($3,label), description=COALESCE($4,description), "updatedAt"=now()::text WHERE event=$5`,
+        [input.amount, input.isEnabled ? 1 : 0, input.label ?? null, input.description ?? null, input.event]
       );
+      return { success: true };
+    }),
+
+  createAutoRule: adminProcedure
+    .input(z.object({
+      label: z.string().min(1),
+      description: z.string().optional(),
+      amount: z.number().int().min(0),
+    }))
+    .mutation(async ({ input }) => {
+      const event = `custom_${Date.now()}`;
+      await pool.query(
+        `INSERT INTO point_auto_rules (event, label, description, amount, "isEnabled") VALUES ($1,$2,$3,$4,1)`,
+        [event, input.label, input.description ?? null, input.amount]
+      );
+      return { success: true };
+    }),
+
+  deleteAutoRule: adminProcedure
+    .input(z.object({ event: z.string() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`DELETE FROM point_auto_rules WHERE event=$1`, [input.event]);
       return { success: true };
     }),
 });
