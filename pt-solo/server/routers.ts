@@ -74,6 +74,11 @@ const authRouter = t.router({
       if (!valid)
         throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
 
+      if (user.position === "pending")
+        throw new TRPCError({ code: "FORBIDDEN", message: "가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다." });
+      if (user.position === "rejected")
+        throw new TRPCError({ code: "FORBIDDEN", message: "가입이 거절되었습니다. 관리자에게 문의하세요." });
+
       const trainerResult = await db
         .select({ id: trainers.id })
         .from(trainers)
@@ -155,22 +160,21 @@ const authRouter = t.router({
       password: z.string().min(6),
       trainerName: z.string().min(1),
       phone: z.string().optional(),
-      email: z.string().email(),
+      email: z.string().email().optional().or(z.literal("")),
     }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = getDb();
 
       const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1);
       if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
 
       const hashed = await bcrypt.hash(input.password, 10);
-      const [userRow] = await db.insert(users).values({ username: input.username, password: hashed, role: "trainer" }).returning({ id: users.id });
-      const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: input.trainerName, phone: input.phone, email: input.email }).returning({ id: trainers.id });
+      // position: "pending" → 관리자 승인 전까지 로그인 불가
+      const [userRow] = await db.insert(users).values({ username: input.username, password: hashed, role: "trainer", position: "pending" }).returning({ id: users.id });
+      const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: input.trainerName, phone: input.phone, email: input.email || undefined }).returning({ id: trainers.id });
       await db.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
 
-      const authUser: AuthUser = { id: userRow.id, username: input.username, role: "trainer", trainerId: trainerRow.id };
-      ctx.req.session.user = authUser;
-      return authUser;
+      return { success: true, message: "가입 신청이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다." };
     }),
 });
 
@@ -1683,6 +1687,40 @@ const adminRouter = t.router({
     .mutation(async ({ input }) => {
       const status = input.approve ? "completed" : "rejected";
       await pool.query(`UPDATE fit_point_logs SET status=$1 WHERE id=$2`, [status, input.logId]);
+      return { success: true };
+    }),
+
+  // ── 가입 관리 ──
+  getRegistrations: adminProcedure.query(async () => {
+    const result = await pool.query<{
+      userId: number; trainerId: number; username: string; trainerName: string;
+      phone: string | null; email: string | null; position: string | null; createdAt: string;
+    }>(`
+      SELECT u.id AS "userId", t.id AS "trainerId", u.username, t."trainerName",
+             t.phone, t.email, u.position, t."createdAt"
+      FROM users u
+      JOIN trainers t ON t."userId" = u.id
+      WHERE u.position IN ('pending','rejected') OR (u.role='trainer' AND u.position IS NULL)
+      ORDER BY
+        CASE u.position WHEN 'pending' THEN 0 WHEN NULL THEN 1 ELSE 2 END,
+        t."createdAt" DESC
+    `);
+    return result.rows;
+  }),
+
+  approveRegistration: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.update(users).set({ position: null }).where(eq(users.id, input.userId));
+      return { success: true };
+    }),
+
+  rejectRegistration: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.update(users).set({ position: "rejected" }).where(eq(users.id, input.userId));
       return { success: true };
     }),
 

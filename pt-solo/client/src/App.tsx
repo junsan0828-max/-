@@ -20,6 +20,7 @@ import AdminTrainerDetail from "./pages/AdminTrainerDetail";
 import AdminNotices from "./pages/AdminNotices";
 import AdminFitStepPlus from "./pages/AdminFitStepPlus";
 import AdminPoints from "./pages/AdminPoints";
+import AdminRegistrations from "./pages/AdminRegistrations";
 import Leads from "./pages/Leads";
 import Workshop from "./pages/Workshop";
 import Layout from "./components/Layout";
@@ -174,6 +175,7 @@ function App() {
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
           </Route>
+          <Route path="/admin/registrations">{() => <AdminRegistrations />}</Route>
           <Route path="/admin/trainers">{() => <AdminTrainers />}</Route>
           <Route path="/admin/points">{() => <AdminPoints />}</Route>
           <Route path="/admin/notices">{() => <AdminNotices />}</Route>

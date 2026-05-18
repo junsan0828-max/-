@@ -4,18 +4,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle, Clock } from "lucide-react";
 
 const BEBAS = { fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" };
 
 export default function Register() {
   const [form, setForm] = useState({ username: "", password: "", confirmPassword: "", trainerName: "", phone: "", email: "" });
   const [errorMsg, setErrorMsg] = useState("");
+  const [done, setDone] = useState(false);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const registerMutation = trpc.auth.register.useMutation({
-    onSuccess: () => { window.location.href = "/"; },
+    onSuccess: () => setDone(true),
     onError: (e) => setErrorMsg(e.message || "회원가입 실패"),
   });
 
@@ -40,6 +41,27 @@ export default function Register() {
         </CardHeader>
 
         <CardContent>
+          {done ? (
+            <div className="py-4 space-y-4 text-center">
+              <div className="flex justify-center">
+                <div className="w-16 h-16 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
+                  <CheckCircle className="h-8 w-8 text-green-400" />
+                </div>
+              </div>
+              <div>
+                <p className="font-semibold text-foreground mb-1">가입 신청 완료!</p>
+                <p className="text-sm text-muted-foreground">관리자 승인 후 로그인할 수 있습니다.</p>
+              </div>
+              <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2.5">
+                <Clock className="h-4 w-4 text-yellow-400 shrink-0" />
+                <p className="text-xs text-yellow-300">승인은 보통 1영업일 이내 처리됩니다.</p>
+              </div>
+              <a href="/login" className="block w-full">
+                <Button variant="outline" className="w-full">로그인 페이지로</Button>
+              </a>
+            </div>
+          ) : (
+          <>
           {errorMsg && <p className="text-red-500 text-sm bg-red-500/10 rounded p-2 mb-3">{errorMsg}</p>}
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1">
@@ -74,6 +96,8 @@ export default function Register() {
               <a href="/login" className="text-primary underline">로그인</a>
             </p>
           </form>
+          </>
+          )}
         </CardContent>
       </Card>
     </div>
