@@ -351,74 +351,82 @@ function StatsTab() {
 
   return (
     <div className="space-y-4">
-      {/* 누적 */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">누적 통계</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-2">
-          <StatItem label="회원 수" value={`${stats?.totalMembers ?? 0}명`} color="text-blue-400" />
-          <StatItem label="수업 수" value={`${stats?.totalSessions ?? 0}회`} color="text-green-400" />
-          <StatItem label="재등록 수" value={`${stats?.totalRereg ?? 0}회`} color="text-primary" />
-          <StatItem label="노쇼 수" value={`${stats?.totalNoShow ?? 0}회`} color="text-orange-400" />
-          <StatItem label="잔여 PT" value={`${stats?.remainingPt ?? 0}회`} color="text-purple-400" />
-        </CardContent>
-      </Card>
+      {/* 누적 통계 */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">누적 통계</p>
+        </div>
+        {[
+          { label: "회원 수",  value: `${stats?.totalMembers ?? 0}명`,   color: "text-blue-400" },
+          { label: "수업 수",  value: `${stats?.totalSessions ?? 0}회`,  color: "text-green-400" },
+          { label: "재등록 수", value: `${stats?.totalRereg ?? 0}회`,    color: "text-primary" },
+          { label: "노쇼 수",  value: `${stats?.totalNoShow ?? 0}회`,    color: "text-orange-400" },
+          { label: "잔여 PT",  value: `${stats?.remainingPt ?? 0}회`,    color: "text-purple-400" },
+        ].map((item, i, arr) => (
+          <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
+            <span className="text-sm text-muted-foreground">{item.label}</span>
+            <span className={`text-sm font-bold ${item.color}`}>{item.value}</span>
+          </div>
+        ))}
+      </div>
 
       {/* 월평균 */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">월평균</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <StatItem label="신규배정" value={`${stats?.avgMonthlyNewMembers ?? 0}명`} />
-            <StatItem label="재등록" value={`${stats?.avgMonthlyRereg ?? 0}회`} />
-            <StatItem label="PT 수" value={`${stats?.avgMonthlyPt ?? 0}회`} />
-            <StatItem label="재등록률" value={`${stats?.reregRate ?? 0}%`} />
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">월평균</p>
+        </div>
+        {[
+          { label: "신규배정", value: `${stats?.avgMonthlyNewMembers ?? 0}명` },
+          { label: "PT 수",   value: `${stats?.avgMonthlyPt ?? 0}회` },
+          { label: "재등록",  value: `${stats?.avgMonthlyRereg ?? 0}회` },
+        ].map((item, i, arr) => (
+          <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
+            <span className="text-sm text-muted-foreground">{item.label}</span>
+            <span className="text-sm font-bold">{item.value}</span>
           </div>
-          <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground">재등록률</p>
-              <p className="text-xs text-muted-foreground mt-0.5">전체 회원 중 재등록 비율</p>
-            </div>
-            <p className="text-2xl font-bold text-primary">{stats?.reregRate ?? 0}%</p>
+        ))}
+        <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
+          <div>
+            <p className="text-sm text-muted-foreground">재등록률</p>
+            <p className="text-[11px] text-muted-foreground/60">전체 회원 중 재등록 비율</p>
           </div>
-        </CardContent>
-      </Card>
+          <span className="text-xl font-bold text-primary">{stats?.reregRate ?? 0}%</span>
+        </div>
+      </div>
 
       {/* 월별 조회 */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">월별 조회</CardTitle>
-            <Select value={statsMonth} onValueChange={setStatsMonth}>
-              <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {monthOptions.map(ym => {
-                  const [y, mo] = ym.split("-");
-                  return <SelectItem key={ym} value={ym}>{y}년 {parseInt(mo)}월</SelectItem>;
-                })}
-              </SelectContent>
-            </Select>
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">월별 조회</p>
+          <Select value={statsMonth} onValueChange={setStatsMonth}>
+            <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {monthOptions.map(ym => {
+                const [y, mo] = ym.split("-");
+                return <SelectItem key={ym} value={ym}>{y}년 {parseInt(mo)}월</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+        {[
+          { label: "수업 수",   value: `${monthlyStats?.sessionCount ?? 0}회`, color: "text-green-400" },
+          { label: "노쇼",     value: `${monthlyStats?.noShow ?? 0}회`,        color: "text-orange-400" },
+          { label: "신규 배정", value: `${monthlyStats?.newMembers ?? 0}명`,   color: "text-blue-400" },
+          { label: "재등록",   value: `${monthlyStats?.rereg ?? 0}회`,          color: "text-primary" },
+        ].map((item, i, arr) => (
+          <div key={item.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? "border-b border-border/50" : ""}`}>
+            <span className="text-sm text-muted-foreground">{item.label}</span>
+            <span className={`text-sm font-bold ${item.color}`}>{item.value}</span>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <StatItem label="수업 수" value={`${monthlyStats?.sessionCount ?? 0}회`} color="text-green-400" />
-            <StatItem label="노쇼" value={`${monthlyStats?.noShow ?? 0}회`} color="text-orange-400" />
-            <StatItem label="신규 배정" value={`${monthlyStats?.newMembers ?? 0}명`} color="text-blue-400" />
-            <StatItem label="재등록" value={`${monthlyStats?.rereg ?? 0}회`} color="text-primary" />
+        ))}
+        <div className="flex items-center justify-between px-4 py-3 bg-yellow-500/10 border-t border-yellow-500/20">
+          <div>
+            <p className="text-sm text-muted-foreground">이달 매출</p>
+            <p className="text-[11px] text-muted-foreground/60">등록 패키지 결제금액 합산</p>
           </div>
-          <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground">이달 매출</p>
-              <p className="text-xs text-muted-foreground mt-0.5">등록 패키지 결제금액 합산</p>
-            </div>
-            <p className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</p>
-          </div>
-        </CardContent>
-      </Card>
+          <span className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</span>
+        </div>
+      </div>
     </div>
   );
 }
