@@ -200,6 +200,20 @@ export default function MemberDetail({ memberId }: Props) {
       return next;
     });
 
+  // 트레이닝 기록 상세 모달 (체크박스)
+  const [viewLogOpen, setViewLogOpen] = useState(false);
+  const [viewLogData, setViewLogData] = useState<{ log: any; exs: Exercise[] } | null>(null);
+  const [checkedSets, setCheckedSets] = useState<Record<string, boolean>>({});
+  const openViewLog = (log: any, exs: Exercise[]) => {
+    setViewLogData({ log, exs });
+    setCheckedSets({});
+    setViewLogOpen(true);
+  };
+  const toggleSetCheck = (exIdx: number, setIdx: number) => {
+    const key = `${exIdx}-${setIdx}`;
+    setCheckedSets(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
   const { data: ptPackages, refetch: refetchPt } = trpc.pt.listByMember.useQuery({ memberId });
@@ -980,7 +994,7 @@ export default function MemberDetail({ memberId }: Props) {
                         {/* 접힌 헤더 - 항상 표시 */}
                         <button
                           className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-                          onClick={() => toggleLog(log.id)}
+                          onClick={() => exs.length > 0 ? openViewLog(log, exs) : toggleLog(log.id)}
                         >
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
@@ -1732,6 +1746,119 @@ export default function MemberDetail({ memberId }: Props) {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 트레이닝 기록 상세 모달 (체크박스) ── */}
+      <Dialog open={viewLogOpen} onOpenChange={setViewLogOpen}>
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto p-0">
+          {viewLogData && (
+            <>
+              <div className="sticky top-0 bg-card z-10 px-5 pt-5 pb-3 border-b border-border">
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <span className="text-primary text-lg">🏋️</span> 트레이닝 기록
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {fmtDate(viewLogData.log.sessionDate, "yyyy.MM.dd (EEE)")}
+                  {viewLogData.log.bodyPart && ` · ${viewLogData.log.bodyPart}`}
+                </p>
+              </div>
+
+              <div className="px-5 py-4 space-y-5">
+                {viewLogData.exs.map((ex, exIdx) => (
+                  <div key={exIdx} className="bg-muted/30 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-sm text-primary">{ex.name}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-[auto_1fr_1fr] gap-2 text-[10px] text-muted-foreground px-1">
+                        <span className="w-6" />
+                        <span>세트 횟수</span>
+                        <span>무게(kg)</span>
+                      </div>
+                      {ex.sets.map((s, setIdx) => {
+                        const key = `${exIdx}-${setIdx}`;
+                        const checked = !!checkedSets[key];
+                        return (
+                          <div
+                            key={setIdx}
+                            className={`grid grid-cols-[auto_1fr_1fr] gap-2 items-center rounded-lg px-1 py-1 transition-colors ${checked ? "opacity-40" : ""}`}
+                          >
+                            <button
+                              onClick={() => toggleSetCheck(exIdx, setIdx)}
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                checked ? "bg-primary border-primary" : "border-border"
+                              }`}
+                            >
+                              {checked && <span className="text-primary-foreground text-[10px] font-bold">✓</span>}
+                            </button>
+                            <div className={`bg-card border rounded-lg px-3 py-2 text-sm font-medium text-center ${checked ? "line-through text-muted-foreground" : ""}`}>
+                              {s.reps || "-"}
+                            </div>
+                            <div className="bg-card border rounded-lg px-3 py-2 text-sm font-medium text-center text-muted-foreground">
+                              {s.weight || "-"}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {viewLogData.log.goal && (
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                    <p className="text-[10px] text-blue-400 uppercase tracking-wide mb-1">목표</p>
+                    <p className="text-sm text-foreground">{viewLogData.log.goal}</p>
+                  </div>
+                )}
+                {viewLogData.log.feedback && (
+                  <div className="bg-muted/30 rounded-xl p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">피드백</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{viewLogData.log.feedback}</p>
+                  </div>
+                )}
+                {viewLogData.log.notes && (
+                  <div className="bg-muted/30 rounded-xl p-3">
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{viewLogData.log.notes}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1.5 text-xs"
+                    onClick={() => {
+                      setViewLogOpen(false);
+                      setEditJournalForm({
+                        id: viewLogData.log.id,
+                        sessionDate: viewLogData.log.sessionDate,
+                        goal: viewLogData.log.goal ?? "",
+                        bodyPart: viewLogData.log.bodyPart ?? "",
+                        exercises: viewLogData.exs,
+                        feedback: viewLogData.log.feedback ?? "",
+                        notes: viewLogData.log.notes ?? "",
+                      });
+                      setEditJournalOpen(true);
+                    }}
+                  >
+                    <Edit className="h-3.5 w-3.5" /> 수정
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-red-400 hover:text-red-400 hover:bg-red-500/10 border-red-500/30"
+                    onClick={() => {
+                      deleteLogMutation.mutate({ id: viewLogData.log.id });
+                      setViewLogOpen(false);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
