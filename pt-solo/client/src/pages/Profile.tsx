@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera } from "lucide-react";
+import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
 
@@ -81,6 +81,7 @@ export default function Profile() {
   const [chargeAmount, setChargeAmount] = useState("");
   const [chargeMemo, setChargeMemo] = useState("");
   const [showChargeForm, setShowChargeForm] = useState(false);
+  const [showPointDetail, setShowPointDetail] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -164,6 +165,8 @@ export default function Profile() {
   };
 
   const balance = balanceData?.balance ?? 0;
+  const freeBalance = balanceData?.freeBalance ?? 0;
+  const earnedBalance = balanceData?.earnedBalance ?? 0;
 
   return (
     <div className="space-y-6">
@@ -187,6 +190,13 @@ export default function Profile() {
             <p className="text-2xl font-black text-primary tracking-tight">
               {balance.toLocaleString()} <span className="text-sm font-semibold">P</span>
             </p>
+            <button
+              onClick={() => setShowPointDetail(v => !v)}
+              className="flex items-center gap-0.5 text-[10px] text-muted-foreground/70 hover:text-muted-foreground mt-1 transition-colors"
+            >
+              포인트 상세
+              <ChevronDown className={`h-3 w-3 transition-transform ${showPointDetail ? "rotate-180" : ""}`} />
+            </button>
           </div>
           {!showChargeForm && (
             <button onClick={() => setShowChargeForm(true)}
@@ -195,6 +205,36 @@ export default function Profile() {
             </button>
           )}
         </CardContent>
+
+        {showPointDetail && (
+          <CardContent className="pt-0 pb-4 px-5">
+            <div className="rounded-xl bg-background/40 border border-primary/20 divide-y divide-border/50 text-xs">
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                  <span className="text-muted-foreground">무료포인트</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-bold text-blue-400">{freeBalance.toLocaleString()} P</span>
+                  <span className="text-muted-foreground/60 ml-1.5">/ 300 P</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                  <span className="text-muted-foreground">적립포인트</span>
+                </div>
+                <span className="font-bold text-primary">{earnedBalance.toLocaleString()} P</span>
+              </div>
+              <div className="px-3 py-2 bg-blue-500/5 rounded-b-xl">
+                <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                  💡 무료포인트는 매일 <span className="text-blue-400 font-medium">300P</span>로 제공되며 <span className="text-blue-400 font-medium">00시에 초기화</span>됩니다.
+                  적립포인트는 보너스·관리자 지급 포인트로 초기화되지 않습니다.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        )}
 
         {showChargeForm && (
           <CardContent className="pt-0 space-y-3">
