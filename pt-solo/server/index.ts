@@ -4,6 +4,7 @@ import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
+import cron from "node-cron";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
@@ -33,7 +34,7 @@ const PgSession = connectPgSimple(session);
 
 app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
 app.use(
   session({
     store: new PgSession({
@@ -72,6 +73,12 @@ app.use(
     },
   })
 );
+
+app.get("/api/test-smtp", async (_req, res) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return res.json({ ok: false, reason: "RESEND_API_KEY missing" });
+  res.json({ ok: true, provider: "resend", keyPrefix: apiKey.slice(0, 8) + "..." });
+});
 
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
@@ -269,11 +276,134 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS tab_banners (
+      id SERIAL PRIMARY KEY,
+      "tabKey" TEXT NOT NULL UNIQUE,
+      text TEXT NOT NULL DEFAULT '',
+      "subText" TEXT,
+      link TEXT,
+      "bgColor" TEXT NOT NULL DEFAULT '#6366f1',
+      "isActive" INTEGER NOT NULL DEFAULT 0,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "imageUrl" TEXT`,
+    `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "bannerHeight" TEXT NOT NULL DEFAULT 'medium'`,
     `CREATE TABLE IF NOT EXISTS verification_codes (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,
       code TEXT NOT NULL,
       "expiresAt" BIGINT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS channels (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'online',
+      description TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS leads (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      gender TEXT,
+      "ageGroup" TEXT,
+      "channelId" INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "consultationDate" TEXT,
+      "consultationType" TEXT,
+      "consultationSubTypes" TEXT,
+      "consultationNote" TEXT,
+      "interestType" TEXT,
+      "exercisePurpose" TEXT,
+      memo TEXT,
+      "registeredMemberId" INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS fit_point_logs (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'admin_grant',
+      memo TEXT,
+      status TEXT NOT NULL DEFAULT 'completed',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      category TEXT NOT NULL DEFAULT '기타',
+      memo TEXT,
+      "expenseDate" TEXT NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS fit_step_plus_members (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      "memberId" INTEGER,
+      "membershipType" TEXT NOT NULL DEFAULT 'general',
+      "membershipStart" TEXT,
+      "membershipEnd" TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text,
+      UNIQUE("trainerId", username)
+    )`,
+    `CREATE TABLE IF NOT EXISTS fit_step_plus_video_categories (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS fit_step_plus_videos (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      "categoryId" INTEGER,
+      title TEXT NOT NULL,
+      description TEXT,
+      "videoUrl" TEXT NOT NULL,
+      "thumbnailUrl" TEXT,
+      duration INTEGER,
+      level TEXT DEFAULT 'beginner',
+      "bodyPart" TEXT,
+      "isPublished" INTEGER NOT NULL DEFAULT 1,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS fit_step_plus_events (
+      id SERIAL PRIMARY KEY,
+      "trainerId" INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      "imageUrl" TEXT,
+      "eventType" TEXT DEFAULT 'notice',
+      "startDate" TEXT,
+      "endDate" TEXT,
+      "isPublished" INTEGER NOT NULL DEFAULT 1,
+      "isPinned" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS fit_step_plus_workout_logs (
+      id SERIAL PRIMARY KEY,
+      "fitStepPlusMemberId" INTEGER NOT NULL,
+      "logDate" TEXT NOT NULL,
+      title TEXT NOT NULL,
+      "exercisesJson" TEXT,
+      "durationMinutes" INTEGER,
+      "caloriesBurned" INTEGER,
+      "bodyWeight" TEXT,
+      notes TEXT,
+      mood TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
   ];
@@ -284,10 +414,27 @@ async function initDatabase() {
 
   console.log("✅ 테이블 준비 완료");
 
+  // 기본 채널 시드
+  const existingChannels = await pool.query(`SELECT id FROM channels LIMIT 1`);
+  if (existingChannels.rows.length === 0) {
+    await pool.query(`INSERT INTO channels (name, type) VALUES
+      ('인스타그램', 'sns'), ('네이버 블로그', 'online'), ('카카오 플레이스', 'online'),
+      ('지인소개', 'referral'), ('현수막/전단지', 'offline'), ('직접방문', 'offline'), ('기타', 'other')`);
+    console.log("✅ 기본 채널 시드 완료");
+  }
+
   // trainer_settings 컬럼 추가 (없으면)
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT NOT NULL DEFAULT 'trial'`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionEndDate" TEXT`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "adminMemo" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "termsOfService" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "privacyPolicy" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "marketingConsent" TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "plan" TEXT NOT NULL DEFAULT 'free'`);
+  await pool.query(`ALTER TABLE fit_step_plus_members ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
+  await pool.query(`ALTER TABLE fit_step_plus_video_categories ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
+  await pool.query(`ALTER TABLE fit_step_plus_videos ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
+  await pool.query(`ALTER TABLE fit_step_plus_events ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
 
   // 회원권 날짜 자동 보정
   try {
@@ -321,6 +468,34 @@ async function initDatabase() {
   console.log("✨ DB 초기화 완료!");
 }
 
+const DAILY_POINT = 300;
+
+async function runDailyPointReset() {
+  const today = new Date().toISOString().slice(0, 10);
+  const trainerRows = await pool.query<{ id: number }>(`SELECT id FROM trainers`);
+  let count = 0;
+  for (const tr of trainerRows.rows) {
+    const alreadyDone = await pool.query(
+      `SELECT id FROM fit_point_logs WHERE "trainerId"=$1 AND type='daily_reset' AND "createdAt" >= $2`,
+      [tr.id, today + "T00:00:00"]
+    );
+    if (alreadyDone.rows.length > 0) continue;
+
+    const balRow = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
+      [tr.id]
+    );
+    const currentBalance = Number(balRow.rows[0]?.balance ?? 0);
+    const delta = DAILY_POINT - currentBalance;
+    await pool.query(
+      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'daily_reset','일일 포인트 초기화','completed')`,
+      [tr.id, delta]
+    );
+    count++;
+  }
+  if (count > 0) console.log(`✅ 일일 FIT POINT 초기화 완료: ${count}명 → ${DAILY_POINT}P`);
+}
+
 async function start() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 PT-Solo 서버 실행 중: http://0.0.0.0:${PORT}`);
@@ -331,6 +506,14 @@ async function start() {
   } catch (e) {
     console.error("DB 초기화 오류 (서버는 계속 실행):", e);
   }
+
+  // 매일 자정 FIT POINT 300P 초기화
+  cron.schedule("0 0 * * *", () => {
+    runDailyPointReset().catch(e => console.error("FIT POINT 초기화 오류:", e));
+  }, { timezone: "Asia/Seoul" });
+
+  // 서버 시작 시 당일 초기화 즉시 실행
+  runDailyPointReset().catch(e => console.error("FIT POINT 초기화 오류:", e));
 }
 
 start().catch(console.error);

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const CONTRACT_TERMS = `제1조 (목적)
 본 약관은 자이언트짐(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.
@@ -84,13 +84,27 @@ export default function ContractPrint() {
   const phone = params.get("phone") || "";
   const date = params.get("date") || new Date().toLocaleDateString("ko-KR");
   const marketing = params.get("marketing") === "1";
+  const [signatureImg, setSignatureImg] = useState<string>("");
 
   useEffect(() => {
-    document.title = `${name} 회원 계약서 - 자이언트짐`;
+    document.title = `${name} 회원 계약서`;
+    const sig = sessionStorage.getItem("contractSignature");
+    if (sig) setSignatureImg(sig);
   }, [name]);
 
   function handlePrint() {
     window.print();
+  }
+
+  function handleKakaoShare() {
+    const url = window.location.href;
+    const text = `[${name}님 회원 계약서]\n계약 내용을 확인해 주세요.\n${url}`;
+    // 카카오톡 앱 공유 (모바일) / 클립보드 복사 (데스크탑 fallback)
+    if (navigator.share) {
+      navigator.share({ title: `${name} 회원 계약서`, text, url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text).then(() => alert("링크가 클립보드에 복사되었습니다.\n카카오톡에 붙여넣기 하세요.")).catch(() => {});
+    }
   }
 
   return (
@@ -109,10 +123,14 @@ export default function ContractPrint() {
         }
       `}</style>
 
-      {/* 인쇄 버튼 (화면에서만 보임) */}
+      {/* 버튼 (화면에서만 보임) */}
       <div className="no-print fixed top-4 right-4 z-50 flex gap-2">
+        <button onClick={handleKakaoShare}
+          className="bg-yellow-400 text-gray-900 px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-yellow-500 transition-colors flex items-center gap-1.5">
+          💬 카카오 공유
+        </button>
         <button onClick={handlePrint}
-          className="bg-emerald-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-emerald-700 transition-colors">
+          className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5">
           🖨️ PDF 저장 / 인쇄
         </button>
       </div>
@@ -209,9 +227,15 @@ export default function ContractPrint() {
             </div>
             <div className="flex-1">
               <p className="text-xs text-gray-500 mb-1">회원 성명 (서명)</p>
-              <div className="border-b border-gray-400 pb-8 flex items-end justify-between">
+              <div className="border-b border-gray-400 pb-2">
                 <span className="text-sm font-semibold">{name}</span>
-                <span className="text-xs text-gray-400">(서명)</span>
+                {signatureImg ? (
+                  <img src={signatureImg} alt="전자서명" className="mt-1 h-16 max-w-full object-contain" style={{ imageRendering: "pixelated" }} />
+                ) : (
+                  <div className="h-16 flex items-end">
+                    <span className="text-xs text-gray-400">(서명)</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

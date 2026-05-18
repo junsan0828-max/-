@@ -142,8 +142,6 @@ export default function MemberDetail({ memberId }: Props) {
   const [memoForm, setMemoForm] = useState({ memoDate: new Date().toISOString().split("T")[0], content: "" });
   const [sessionMemoOpen, setSessionMemoOpen] = useState(false);
   const [sessionMemoContent, setSessionMemoContent] = useState("");
-  const [trainerChangeOpen, setTrainerChangeOpen] = useState(false);
-  const [selectedTrainerId, setSelectedTrainerId] = useState<string>("");
   const [shareOpen, setShareOpen] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -202,13 +200,53 @@ export default function MemberDetail({ memberId }: Props) {
       return next;
     });
 
+  // 트레이닝 기록 상세 모달 (인라인 편집)
+  const [viewLogOpen, setViewLogOpen] = useState(false);
+  const [viewLogData, setViewLogData] = useState<{ log: any; exs: Exercise[] } | null>(null);
+  const [checkedSets, setCheckedSets] = useState<Record<string, boolean>>({});
+  const openViewLog = (log: any, exs: Exercise[]) => {
+    setViewLogData({ log, exs: JSON.parse(JSON.stringify(exs)) }); // deep copy for editing
+    setCheckedSets({});
+    setViewLogOpen(true);
+  };
+  const toggleSetCheck = (exIdx: number, setIdx: number) => {
+    const key = `${exIdx}-${setIdx}`;
+    setCheckedSets(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+  const updateViewExs = (updater: (exs: Exercise[]) => Exercise[]) => {
+    setViewLogData(prev => prev ? { ...prev, exs: updater(prev.exs) } : prev);
+  };
+  const updateViewSet = (exIdx: number, setIdx: number, field: "reps" | "weight", val: string) =>
+    updateViewExs(exs => exs.map((ex, i) => i !== exIdx ? ex : {
+      ...ex, sets: ex.sets.map((s, j) => j !== setIdx ? s : { ...s, [field]: val })
+    }));
+  const addViewSet = (exIdx: number) =>
+    updateViewExs(exs => exs.map((ex, i) => i !== exIdx ? ex : {
+      ...ex, sets: [...ex.sets, { reps: "", weight: "" }]
+    }));
+  const removeViewSet = (exIdx: number, setIdx: number) =>
+    updateViewExs(exs => exs.map((ex, i) => i !== exIdx ? ex : {
+      ...ex, sets: ex.sets.filter((_, j) => j !== setIdx)
+    }));
+  const addViewExercise = (afterIdx?: number) =>
+    updateViewExs(exs => {
+      const newEx = { name: "", sets: [{ reps: "", weight: "" }] };
+      if (afterIdx === undefined) return [...exs, newEx];
+      const next = [...exs];
+      next.splice(afterIdx + 1, 0, newEx);
+      return next;
+    });
+  const removeViewExercise = (exIdx: number) =>
+    updateViewExs(exs => exs.filter((_, i) => i !== exIdx));
+  const updateViewExName = (exIdx: number, name: string) =>
+    updateViewExs(exs => exs.map((ex, i) => i !== exIdx ? ex : { ...ex, name }));
+
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
   const { data: ptPackages, refetch: refetchPt } = trpc.pt.listByMember.useQuery({ memberId });
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
     trpc.attendances.listByMember.useQuery({ memberId });
-  const { data: myProfile } = trpc.trainers.getMyProfile.useQuery();
   const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
   const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
   const { data: conditionChecks } = trpc.attendanceChecks.listByMember.useQuery({ memberId });
@@ -299,16 +337,6 @@ export default function MemberDetail({ memberId }: Props) {
       setSessionMemoOpen(true);
     },
     onError: (err) => toast.error(err.message || "세션 사용 실패"),
-  });
-
-  // 담당 트레이너 변경
-  const updateMemberMutation = trpc.members.update.useMutation({
-    onSuccess: () => {
-      toast.success("담당 트레이너가 변경되었습니다.");
-      setTrainerChangeOpen(false);
-      utils.members.getById.invalidate({ id: memberId });
-    },
-    onError: (err) => toast.error(err.message || "변경 실패"),
   });
 
   // 미수금 업데이트
@@ -435,7 +463,6 @@ export default function MemberDetail({ memberId }: Props) {
     );
   }
 
-  const trainer = myProfile;
   const todayStr = new Date().toISOString().split("T")[0];
   const checkedInToday = attendanceList?.some((a) => a.attendDate === todayStr);
 
@@ -595,15 +622,6 @@ export default function MemberDetail({ memberId }: Props) {
                 {member.visitRoute && (
                   <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
                 )}
-                <div className="flex items-start gap-3">
-                  <div className="text-muted-foreground mt-0.5"><User className="h-4 w-4" /></div>
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">담당 트레이너</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-foreground">{trainer?.trainerName ?? "-"}</p>
-                    </div>
-                  </div>
-                </div>
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"
@@ -648,7 +666,7 @@ export default function MemberDetail({ memberId }: Props) {
                         className="h-9 text-sm"
                       />
                       <div className="flex gap-1.5 flex-wrap">
-                        {["케어피티", "웨이트피티", "이벤트피티", "필라테스"].map((preset) => (
+                        {["피티", "필라테스", "이벤트 세션"].map((preset) => (
                           <button
                             key={preset}
                             type="button"
@@ -1003,7 +1021,7 @@ export default function MemberDetail({ memberId }: Props) {
                         {/* 접힌 헤더 - 항상 표시 */}
                         <button
                           className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-                          onClick={() => toggleLog(log.id)}
+                          onClick={() => exs.length > 0 ? openViewLog(log, exs) : toggleLog(log.id)}
                         >
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
@@ -1171,11 +1189,13 @@ export default function MemberDetail({ memberId }: Props) {
                 ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                 : ""
             }`}
-            disabled={checkedInToday || checkInMutation.isPending}
-            onClick={() => checkInMutation.mutate({ memberId })}
+            disabled={checkedInToday}
+            onClick={() => {
+              if (!checkedInToday) setLocation(`/attendance/${memberId}?date=${todayStr}`);
+            }}
           >
             <CheckCircle className="h-4 w-4" />
-            {checkedInToday ? "오늘 출석 완료 ✓" : checkInMutation.isPending ? "체크 중..." : "오늘 출석 체크"}
+            {checkedInToday ? "오늘 출석 완료 ✓" : "오늘 출석 체크"}
           </Button>
 
           {/* 달력 카드 */}
@@ -1305,9 +1325,9 @@ export default function MemberDetail({ memberId }: Props) {
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label className="text-xs">PT 프로그램</Label>
-              <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="케어피티" className="h-9 text-sm" />
+              <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="피티" className="h-9 text-sm" />
               <div className="flex gap-1.5 flex-wrap">
-                {["케어피티", "웨이트피티", "이벤트피티", "필라테스"].map(preset => (
+                {["피티", "필라테스", "이벤트 세션"].map(preset => (
                   <button key={preset} type="button"
                     onClick={() => setEditPkgForm(p => ({ ...p, packageName: p.packageName === preset ? "" : preset }))}
                     className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${editPkgForm.packageName === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
@@ -1753,6 +1773,130 @@ export default function MemberDetail({ memberId }: Props) {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 트레이닝 기록 상세 모달 (체크박스) ── */}
+      <Dialog open={viewLogOpen} onOpenChange={setViewLogOpen}>
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto p-0">
+          {viewLogData && (
+            <>
+              <div className="sticky top-0 bg-card z-10 px-5 pt-5 pb-3 border-b border-border">
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <span className="text-primary text-lg">🏋️</span> 트레이닝 기록
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {fmtDate(viewLogData.log.sessionDate, "yyyy.MM.dd (EEE)")}
+                  {viewLogData.log.bodyPart && ` · ${viewLogData.log.bodyPart}`}
+                </p>
+              </div>
+
+              <div className="px-4 py-4 space-y-3">
+                {viewLogData.exs.map((ex, exIdx) => (
+                  <div key={exIdx} className="bg-muted/30 border border-border rounded-xl p-3 space-y-2">
+                    {/* 운동명 */}
+                    <div className="flex items-center justify-between gap-2">
+                      <input
+                        value={ex.name}
+                        onChange={e => updateViewExName(exIdx, e.target.value)}
+                        placeholder="운동명"
+                        className="font-bold text-sm text-primary bg-transparent border-none outline-none flex-1 min-w-0"
+                      />
+                      <button onClick={() => removeViewExercise(exIdx)} className="text-muted-foreground hover:text-red-400 transition-colors shrink-0">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {/* 세트 목록 */}
+                    <div className="space-y-1.5">
+                      <div className="grid grid-cols-[20px_28px_1fr_1fr_20px] gap-1.5 text-[10px] text-muted-foreground px-0.5">
+                        <span />
+                        <span className="text-center">#</span>
+                        <span>세트 횟수</span>
+                        <span>무게(kg)</span>
+                        <span />
+                      </div>
+                      {ex.sets.map((s, setIdx) => {
+                        const key = `${exIdx}-${setIdx}`;
+                        const checked = !!checkedSets[key];
+                        return (
+                          <div key={setIdx} className={`grid grid-cols-[20px_28px_1fr_1fr_20px] gap-1.5 items-center transition-opacity ${checked ? "opacity-40" : ""}`}>
+                            <button
+                              onClick={() => toggleSetCheck(exIdx, setIdx)}
+                              className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-colors ${checked ? "bg-primary border-primary" : "border-border"}`}
+                            >
+                              {checked && <span className="text-primary-foreground text-[9px] font-bold">✓</span>}
+                            </button>
+                            <span className="text-[11px] text-muted-foreground text-center">{setIdx + 1}</span>
+                            <input
+                              type="number"
+                              value={s.reps}
+                              onChange={e => updateViewSet(exIdx, setIdx, "reps", e.target.value)}
+                              placeholder="횟수"
+                              className={`bg-card border border-border rounded-lg px-2 py-1.5 text-sm text-center w-full outline-none focus:border-primary/50 ${checked ? "line-through text-muted-foreground" : ""}`}
+                            />
+                            <input
+                              type="number"
+                              value={s.weight}
+                              onChange={e => updateViewSet(exIdx, setIdx, "weight", e.target.value)}
+                              placeholder="kg"
+                              className="bg-card border border-border rounded-lg px-2 py-1.5 text-sm text-center w-full outline-none focus:border-primary/50 text-muted-foreground"
+                            />
+                            <button onClick={() => removeViewSet(exIdx, setIdx)} className="text-muted-foreground hover:text-red-400 transition-colors">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* 세트 추가 / 운동 삽입 */}
+                    <div className="flex gap-3 pt-1">
+                      <button onClick={() => addViewSet(exIdx)} className="text-xs text-primary hover:text-primary/80 transition-colors">+ 세트 추가</button>
+                      <span className="text-border">|</span>
+                      <button onClick={() => addViewExercise(exIdx)} className="text-xs text-primary hover:text-primary/80 transition-colors">+ 운동 삽입</button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* 운동 추가 */}
+                <button
+                  onClick={() => addViewExercise()}
+                  className="w-full py-2.5 rounded-xl border border-dashed border-primary/40 text-primary text-xs hover:bg-primary/5 transition-colors"
+                >
+                  + 운동 추가
+                </button>
+
+                {/* 저장 / 삭제 */}
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-1.5 text-xs"
+                    disabled={updateLogMutation.isPending}
+                    onClick={() => {
+                      updateLogMutation.mutate({
+                        id: viewLogData.log.id,
+                        exercisesJson: JSON.stringify(viewLogData.exs),
+                      }, { onSuccess: () => setViewLogOpen(false) });
+                    }}
+                  >
+                    {updateLogMutation.isPending ? "저장 중..." : "저장"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-red-400 hover:text-red-400 hover:bg-red-500/10 border-red-500/30"
+                    onClick={() => {
+                      deleteLogMutation.mutate({ id: viewLogData.log.id });
+                      setViewLogOpen(false);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

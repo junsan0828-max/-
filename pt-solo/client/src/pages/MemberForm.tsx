@@ -274,7 +274,7 @@ export default function MemberForm({ memberId }: Props) {
                   <Label className="text-sm text-muted-foreground">프로그램명</Label>
                   <Input value={form.ptProgram} onChange={(e) => setForm((p) => ({ ...p, ptProgram: e.target.value }))} placeholder="프로그램명 직접 입력" className="bg-input border-border" />
                   <div className="flex gap-1.5 flex-wrap">
-                    {["케어피티", "웨이트피티", "이벤트피티"].map((preset) => (
+                    {["피티", "필라테스", "이벤트 세션"].map((preset) => (
                       <button key={preset} type="button" onClick={() => setForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
                         className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${form.ptProgram === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
                         {preset}

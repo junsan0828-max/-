@@ -3,16 +3,34 @@ import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, X, Dumbbell } from "lucide-react";
+import { ArrowLeft, Dumbbell, Check, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Props {
   memberId: number;
 }
 
 type Status = "attended" | "noshow" | "cancelled";
+
+const DIET_OPTIONS = [
+  "인스턴트탄수화물", "건강식탄수화물",
+  "인스턴트단백질", "건강식단백질",
+  "인스턴트지방", "건강식지방",
+  "미섭취",
+];
+
+const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
+
+const BODY_PARTS = [
+  "목", "상부등",
+  "중부등", "어깨 전면",
+  "어깨 후면", "기립근",
+  "엉치", "고관절",
+  "무릎", "발목",
+  "발바닥", "팔꿈치",
+  "손목", "기타",
+];
 
 function nowTimeStr() {
   const d = new Date();
@@ -49,10 +67,10 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [conditionScore, setConditionScore] = useState("");
   const [sleepHours, setSleepHours] = useState("");
   const [energyLevel, setEnergyLevel] = useState("");
-  const [dietItems, setDietItems] = useState<string[]>([""]);
+  const [dietItems, setDietItems] = useState<string[]>([]);
   const [painLevel, setPainLevel] = useState("");
-  const [painArea, setPainArea] = useState("");
-  const [painSide, setPainSide] = useState("");
+  const [painAreas, setPainAreas] = useState<string[]>([]);
+  const [painAreaOpen, setPainAreaOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [deductSession, setDeductSession] = useState(false);
   const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
@@ -67,7 +85,6 @@ export default function AttendanceCheck({ memberId }: Props) {
     (p) => p.status === "active" && p.totalSessions > p.usedSessions
   ) ?? [];
 
-  // 이 날짜에 이미 세션 차감 기록이 있는지 확인
   const alreadyDeducted = sessionLogs?.some((l) => l.sessionDate === dateParam) ?? false;
 
   useEffect(() => {
@@ -76,8 +93,6 @@ export default function AttendanceCheck({ memberId }: Props) {
     }
   }, [activePkgs.length]);
 
-  // 활성 패키지 있고 기존 기록 없을 때 → 세션 차감 기본 ON
-  // 이미 차감된 날이면 → OFF (중복 방지)
   useEffect(() => {
     if (ptPackageList === undefined) return;
     if (alreadyDeducted) {
@@ -97,10 +112,9 @@ export default function AttendanceCheck({ memberId }: Props) {
     setConditionScore(existing.conditionScore != null ? String(existing.conditionScore) : "");
     setSleepHours(existing.sleepHours ?? "");
     setEnergyLevel(existing.energyLevel ?? "");
-    setDietItems(existing.diet ? JSON.parse(existing.diet) : [""]);
+    setDietItems(existing.diet ? JSON.parse(existing.diet) : []);
     setPainLevel(existing.painLevel != null ? String(existing.painLevel) : "");
-    setPainArea(existing.painArea ?? "");
-    setPainSide(existing.painSide ?? "");
+    try { setPainAreas(existing.painArea ? JSON.parse(existing.painArea) : []); } catch { setPainAreas(existing.painArea ? [existing.painArea] : []); }
     setNotes(existing.notes ?? "");
   }, [existing]);
 
@@ -137,7 +151,6 @@ export default function AttendanceCheck({ memberId }: Props) {
   });
 
   const handleSave = () => {
-    const filledDiet = dietItems.filter((d) => d.trim());
     upsertMutation.mutate({
       memberId,
       checkDate,
@@ -146,18 +159,25 @@ export default function AttendanceCheck({ memberId }: Props) {
       conditionScore: conditionScore ? parseInt(conditionScore) : undefined,
       sleepHours: sleepHours || undefined,
       energyLevel: energyLevel || undefined,
-      diet: filledDiet.length ? JSON.stringify(filledDiet) : undefined,
+      diet: dietItems.length ? JSON.stringify(dietItems) : undefined,
       painLevel: painLevel ? parseInt(painLevel) : undefined,
-      painArea: painArea || undefined,
-      painSide: painSide || undefined,
+      painArea: painAreas.length ? JSON.stringify(painAreas) : undefined,
+      painSide: undefined,
       notes: notes || undefined,
     });
   };
 
-  const addDietItem = () => setDietItems((p) => [...p, ""]);
-  const removeDietItem = (i: number) => setDietItems((p) => p.filter((_, idx) => idx !== i));
-  const updateDietItem = (i: number, val: string) =>
-    setDietItems((p) => p.map((d, idx) => (idx === i ? val : d)));
+  const toggleDiet = (option: string) => {
+    setDietItems((prev) =>
+      prev.includes(option) ? prev.filter((d) => d !== option) : [...prev, option]
+    );
+  };
+
+  const toggleBodyPart = (part: string) => {
+    setPainAreas((prev) =>
+      prev.includes(part) ? prev.filter((p) => p !== part) : [...prev, part]
+    );
+  };
 
   const isSaving = upsertMutation.isPending || useSessionMutation.isPending;
 
@@ -174,7 +194,6 @@ export default function AttendanceCheck({ memberId }: Props) {
         <h1 className="text-base font-bold flex-1">
           {member?.name ?? "..."} - 수업 전 컨디션 체크
         </h1>
-        {/* 노쇼 / 캔슬 / 출석취소 토글 */}
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setStatus((s) => s === "noshow" ? "attended" : "noshow")}
@@ -212,41 +231,61 @@ export default function AttendanceCheck({ memberId }: Props) {
 
         {/* 기본 정보 */}
         <Section title="기본 정보">
-          <Field label="체크 날짜">
-            <input
-              type="date"
-              value={checkDate}
-              onChange={(e) => setCheckDate(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
-            />
-          </Field>
-          <Field label="체크 시간">
-            <input
-              type="time"
-              value={checkTime}
-              onChange={(e) => setCheckTime(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
-            />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="날짜">
+              <input
+                type="date"
+                value={checkDate}
+                onChange={(e) => setCheckDate(e.target.value)}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              />
+            </Field>
+            <Field label="시간">
+              <input
+                type="time"
+                value={checkTime}
+                onChange={(e) => setCheckTime(e.target.value)}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              />
+            </Field>
+          </div>
         </Section>
 
         {/* 컨디션 평가 */}
         <Section title="컨디션 평가">
-          <Field label="전반적 컨디션 점수 (1-5)">
-            <Input
-              type="number" min="1" max="5"
-              value={conditionScore}
-              onChange={(e) => setConditionScore(e.target.value)}
-              placeholder="3"
-            />
+          <Field label="오늘 컨디션 (1 매우안좋음 → 5 최고)">
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setConditionScore(conditionScore === String(v) ? "" : String(v))}
+                  className={`flex-1 py-3 text-sm font-medium rounded-lg border transition-colors ${
+                    conditionScore === String(v)
+                      ? "bg-primary/20 border-primary/40 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
           </Field>
-          <Field label="수면시간 (시간)">
-            <Input
-              type="number" min="0" max="24" step="0.5"
-              value={sleepHours}
-              onChange={(e) => setSleepHours(e.target.value)}
-              placeholder="7"
-            />
+          <Field label="수면시간">
+            <div className="flex gap-1.5 flex-wrap">
+              {SLEEP_OPTIONS.map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setSleepHours(sleepHours === v ? "" : v)}
+                  className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                    sleepHours === v
+                      ? "bg-primary/20 border-primary/40 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
           </Field>
           <Field label="에너지 수준">
             <div className="flex gap-2">
@@ -269,56 +308,89 @@ export default function AttendanceCheck({ memberId }: Props) {
 
         {/* 식단 정보 */}
         <Section title="식단 정보">
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">오늘 먹은 식단</label>
-            {dietItems.map((item, i) => (
-              <div key={i} className="flex gap-2">
-                <Input
-                  value={item}
-                  onChange={(e) => updateDietItem(i, e.target.value)}
-                  placeholder="예: 아침 - 계란 2개, 토스트"
-                />
-                {dietItems.length > 1 && (
-                  <button onClick={() => removeDietItem(i)} className="text-muted-foreground hover:text-red-400">
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              onClick={addDietItem}
-              className="flex items-center gap-1 text-sm text-primary hover:text-primary/70"
-            >
-              <Plus className="h-4 w-4" />
-              식단 항목 추가
-            </button>
-          </div>
+          <Field label="오늘 섭취한 식단 유형 (중복 선택 가능)">
+            <div className="grid grid-cols-2 gap-2">
+              {DIET_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => toggleDiet(option)}
+                  className={`flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg border transition-colors text-left ${
+                    dietItems.includes(option)
+                      ? "bg-primary/20 border-primary/40 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                    dietItems.includes(option) ? "bg-primary border-primary" : "border-muted-foreground/50"
+                  }`}>
+                    {dietItems.includes(option) && <Check className="h-3 w-3 text-white" />}
+                  </div>
+                  {option}
+                </button>
+              ))}
+            </div>
+          </Field>
         </Section>
 
         {/* 통증 정보 */}
         <Section title="통증 정보">
-          <Field label="통증 수준 (0-10)">
-            <Input
-              type="number" min="0" max="10"
-              value={painLevel}
-              onChange={(e) => setPainLevel(e.target.value)}
-              placeholder="0"
-            />
-          </Field>
-          <Field label="통증 부위">
-            <Input
-              value={painArea}
-              onChange={(e) => setPainArea(e.target.value)}
-              placeholder="예: 허리, 어깨"
-            />
-          </Field>
-          <Field label="통증 위치">
-            <Input
-              value={painSide}
-              onChange={(e) => setPainSide(e.target.value)}
-              placeholder="예: 왼쪽/오른쪽/양쪽"
-            />
-          </Field>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>이상없음</span>
+              <span>통증심함</span>
+            </div>
+            <div className="flex gap-1">
+              {Array.from({ length: 11 }, (_, i) => String(i)).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setPainLevel(painLevel === v ? "" : v)}
+                  className={`flex-1 aspect-square flex items-center justify-center text-sm rounded-full border transition-colors ${
+                    painLevel === v
+                      ? "bg-primary/20 border-primary/40 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm text-muted-foreground">통증 부위</label>
+            <button
+              onClick={() => setPainAreaOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg border border-border text-muted-foreground hover:border-primary/30 transition-colors"
+            >
+              <span>{painAreas.length > 0 ? painAreas.join(", ") : "부위 선택"}</span>
+              {painAreaOpen ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+            </button>
+            {painAreaOpen && (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="grid grid-cols-2">
+                  {BODY_PARTS.map((part, idx) => (
+                    <button
+                      key={part}
+                      onClick={() => toggleBodyPart(part)}
+                      className={`flex items-center gap-2 px-3 py-2.5 text-sm transition-colors text-left border-b border-border last:border-b-0 ${
+                        idx % 2 === 0 ? "border-r border-border" : ""
+                      } ${
+                        painAreas.includes(part)
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-muted/30"
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        painAreas.includes(part) ? "bg-primary border-primary" : "border-muted-foreground/50"
+                      }`}>
+                        {painAreas.includes(part) && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                      {part}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </Section>
 
         {/* 추가 메모 */}

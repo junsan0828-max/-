@@ -4,40 +4,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User, Lock, BarChart2 } from "lucide-react";
+import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import TabBanner from "@/components/TabBanner";
 
-function StatItem({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="p-3 rounded-lg bg-accent/20 border border-border flex flex-col gap-1">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`text-lg font-bold ${color ?? ""}`}>{value}</p>
-    </div>
-  );
-}
+const TYPE_LABEL: Record<string, string> = {
+  admin_grant: "관리자 지급",
+  charge_request: "충전 신청",
+  daily_reset: "일일 초기화",
+  usage: "사용",
+};
 
 export default function Profile() {
   const { data: profile, refetch } = trpc.trainers.getMyProfile.useQuery();
-  const { data: stats } = trpc.trainers.getMyStats.useQuery();
-
-  const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - i);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  });
-  const [statsMonth, setStatsMonth] = useState(monthOptions[0]);
-  const trainerId = profile?.id;
-  const { data: monthlyStats } = trpc.trainers.getMonthlySettlement.useQuery(
-    { yearMonth: statsMonth },
-    { enabled: !!trainerId }
-  );
+  const utils = trpc.useUtils();
+  const { data: balanceData } = trpc.fitPoints.getBalance.useQuery();
+  const { data: history } = trpc.fitPoints.getHistory.useQuery();
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [infoMsg, setInfoMsg] = useState("");
   const [pwMsg, setPwMsg] = useState("");
+  const [chargeAmount, setChargeAmount] = useState("");
+  const [chargeMemo, setChargeMemo] = useState("");
+  const [showChargeForm, setShowChargeForm] = useState(false);
 
   useEffect(() => {
     if (profile) setInfo({ trainerName: profile.trainerName, phone: profile.phone ?? "", email: profile.email ?? "" });
@@ -51,6 +41,15 @@ export default function Profile() {
   const changePassword = trpc.trainers.changePassword.useMutation({
     onSuccess: () => { setPwMsg(""); setPw({ currentPassword: "", newPassword: "", confirmPassword: "" }); toast.success("비밀번호가 변경되었습니다."); },
     onError: (e) => setPwMsg(e.message),
+  });
+
+  const requestCharge = trpc.fitPoints.requestCharge.useMutation({
+    onSuccess: () => {
+      toast.success("충전 신청이 완료되었습니다.");
+      setChargeAmount(""); setChargeMemo(""); setShowChargeForm(false);
+      utils.fitPoints.getHistory.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   const handleInfoSubmit = (e: React.FormEvent) => {
@@ -67,96 +66,87 @@ export default function Profile() {
     changePassword.mutate({ currentPassword: pw.currentPassword, newPassword: pw.newPassword });
   };
 
+  const balance = balanceData?.balance ?? 0;
+
   return (
     <div className="space-y-6">
+      <TabBanner tabKey="profile" />
       <div>
         <h1 className="text-xl font-bold">내 프로필</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">정보 수정 및 비밀번호 변경</p>
+        <p className="text-sm text-muted-foreground mt-0.5">정보 수정 및 포인트 관리</p>
       </div>
 
-      {/* 정산 비율 */}
-      <Card className="bg-card border-border">
-        <CardContent className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">정산 비율</p>
-            <p className="text-2xl font-bold text-primary mt-1">{profile?.settlementRate ?? 50}%</p>
+      {/* FIT POINT */}
+      <Card className="bg-primary/10 border-primary/30">
+        <CardContent className="p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+            <Coins className="h-6 w-6 text-primary" />
           </div>
-          <p className="text-xs text-muted-foreground">수익의 정산 비율</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground mb-0.5">보유 FIT POINT</p>
+            <p className="text-2xl font-black text-primary tracking-tight">
+              {balance.toLocaleString()} <span className="text-sm font-semibold">P</span>
+            </p>
+          </div>
+          {!showChargeForm && (
+            <button onClick={() => setShowChargeForm(true)}
+              className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/20 px-2.5 py-1.5 rounded-lg hover:bg-primary/30 transition-colors shrink-0">
+              <Plus className="h-3.5 w-3.5" />충전 신청
+            </button>
+          )}
         </CardContent>
+
+        {showChargeForm && (
+          <CardContent className="pt-0 space-y-3">
+            <div className="flex gap-2">
+              <Input type="number" placeholder="충전 포인트" value={chargeAmount}
+                onChange={e => setChargeAmount(e.target.value)}
+                className="h-9 text-sm bg-background/50 border-primary/30" />
+              <Input placeholder="메모 (선택)" value={chargeMemo}
+                onChange={e => setChargeMemo(e.target.value)}
+                className="h-9 text-sm bg-background/50 border-primary/30 flex-1" />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowChargeForm(false)}>취소</Button>
+              <Button size="sm" className="flex-1"
+                disabled={!chargeAmount || requestCharge.isPending}
+                onClick={() => requestCharge.mutate({ amount: Number(chargeAmount), memo: chargeMemo || undefined })}>
+                {requestCharge.isPending ? "신청 중..." : "신청"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">관리자 승인 후 포인트가 지급됩니다.</p>
+          </CardContent>
+        )}
       </Card>
 
-      {/* 통계 */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BarChart2 className="h-4 w-4 text-primary" />내 활동 통계
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* 누적 */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">누적</p>
-            <div className="grid grid-cols-2 gap-2">
-              <StatItem label="회원 수" value={`${stats?.totalMembers ?? 0}명`} color="text-blue-400" />
-              <StatItem label="수업 수" value={`${stats?.totalSessions ?? 0}회`} color="text-green-400" />
-              <StatItem label="재등록 수" value={`${stats?.totalRereg ?? 0}회`} color="text-primary" />
-              <StatItem label="노쇼 수" value={`${stats?.totalNoShow ?? 0}회`} color="text-orange-400" />
-              <StatItem label="잔여 PT" value={`${stats?.remainingPt ?? 0}회`} color="text-purple-400" />
-            </div>
-          </div>
-
-          {/* 월평균 */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">월평균</p>
-            <div className="grid grid-cols-2 gap-2">
-              <StatItem label="신규배정" value={`${stats?.avgMonthlyNewMembers ?? 0}명`} />
-              <StatItem label="재등록" value={`${stats?.avgMonthlyRereg ?? 0}회`} />
-              <StatItem label="PT 수" value={`${stats?.avgMonthlyPt ?? 0}회`} />
-              <StatItem label="재등록률" value={`${stats?.reregRate ?? 0}%`} />
-            </div>
-          </div>
-
-          {/* 재등록률 */}
-          <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground">재등록률</p>
-              <p className="text-xs text-muted-foreground mt-0.5">전체 회원 중 재등록 비율</p>
-            </div>
-            <p className="text-2xl font-bold text-primary">{stats?.reregRate ?? 0}%</p>
-          </div>
-
-          {/* 월별 조회 */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">월별 조회</p>
-              <Select value={statsMonth} onValueChange={setStatsMonth}>
-                <SelectTrigger className="h-7 text-xs w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {monthOptions.map(ym => {
-                    const [y, mo] = ym.split("-");
-                    return <SelectItem key={ym} value={ym}>{y}년 {parseInt(mo)}월</SelectItem>;
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <StatItem label="수업 수" value={`${monthlyStats?.sessionCount ?? 0}회`} color="text-green-400" />
-              <StatItem label="노쇼" value={`${monthlyStats?.noShow ?? 0}회`} color="text-orange-400" />
-              <StatItem label="신규 배정" value={`${monthlyStats?.newMembers ?? 0}명`} color="text-blue-400" />
-              <StatItem label="재등록" value={`${monthlyStats?.rereg ?? 0}회`} color="text-primary" />
-            </div>
-            <div className="mt-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">이달 매출</p>
-                <p className="text-xs text-muted-foreground mt-0.5">등록 패키지 결제금액 합산</p>
+      {/* 포인트 내역 */}
+      {history && history.filter(l => l.type !== "daily_reset").length > 0 && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">FIT POINT 내역</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {history.filter(l => l.type !== "daily_reset").slice(0, 10).map((log, i) => (
+              <div key={log.id}
+                className={`flex items-center gap-3 px-4 py-3 ${i < Math.min(history.filter(l => l.type !== "daily_reset").length, 10) - 1 ? "border-b border-border/50" : ""}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {log.status === "completed" && <CheckCircle className="h-3.5 w-3.5 text-green-400 shrink-0" />}
+                    {log.status === "pending" && <Clock className="h-3.5 w-3.5 text-yellow-400 shrink-0" />}
+                    {log.status === "rejected" && <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
+                    <span className="text-sm font-medium">{TYPE_LABEL[log.type] ?? log.type}</span>
+                  </div>
+                  {log.memo && <p className="text-xs text-muted-foreground mt-0.5 truncate">{log.memo}</p>}
+                  <p className="text-xs text-muted-foreground mt-0.5">{log.createdAt.slice(0, 10)}</p>
+                </div>
+                <span className={`text-sm font-bold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
+                  {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()} P
+                </span>
               </div>
-              <p className="text-xl font-bold text-yellow-400">{(monthlyStats?.revenue ?? 0).toLocaleString()}원</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 프로필 수정 */}
       <Card className="bg-card border-border">

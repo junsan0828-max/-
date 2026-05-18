@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Clock, XCircle } from "lucide-react";
+import TabBanner from "@/components/TabBanner";
 
 function todayStr() {
   return new Date().toISOString().split("T")[0];
@@ -36,6 +37,7 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-4">
+      <TabBanner tabKey="attendance" />
       <h1 className="text-lg font-bold">출석 체크</h1>
 
       {/* 날짜 선택 */}
@@ -49,10 +51,10 @@ export default function AttendancePage() {
         />
       </div>
 
-      {/* 회원 카드 그리드 */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* 회원 리스트 */}
+      <div className="space-y-1.5">
         {!members?.length && (
-          <p className="col-span-2 text-center text-sm text-muted-foreground py-8">담당 활성 회원이 없습니다.</p>
+          <p className="text-center text-sm text-muted-foreground py-8">담당 활성 회원이 없습니다.</p>
         )}
         {members?.map((m) => {
           const check = m.check;
@@ -63,23 +65,28 @@ export default function AttendancePage() {
             <button
               key={m.id}
               onClick={() => setLocation(`/attendance/${m.id}?date=${selectedDate}`)}
-              className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border transition-colors text-center ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors text-left ${
                 isChecked
                   ? "bg-primary/10 border-primary/40"
                   : "bg-card border-border hover:border-primary/40"
               }`}
             >
-              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
+              <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
                 {m.name.charAt(0)}
               </div>
-              <p className="text-sm font-medium">{m.name}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{m.name}</p>
+                {m.remaining !== null && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">잔여 {m.remaining}회</p>
+                )}
+              </div>
               {isChecked && st ? (
-                <div className={`flex items-center gap-1 text-xs font-medium ${statusColor[st]}`}>
+                <div className={`flex items-center gap-1 text-xs font-semibold shrink-0 ${statusColor[st]}`}>
                   {statusIcon[st]}
                   {statusLabel[st]}
                 </div>
               ) : (
-                <p className="text-xs text-primary">출석하기</p>
+                <p className="text-xs text-primary shrink-0">출석하기 →</p>
               )}
             </button>
           );

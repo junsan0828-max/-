@@ -31,6 +31,9 @@ export const trainerSettings = pgTable("trainer_settings", {
   id: serial("id").primaryKey(),
   trainerId: integer("trainerId").notNull().unique(),
   settlementRate: integer("settlementRate").default(50).notNull(),
+  termsOfService: text("termsOfService"),
+  privacyPolicy: text("privacyPolicy"),
+  marketingConsent: text("marketingConsent"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -195,5 +198,107 @@ export const payments = pgTable("payments", {
   paymentDate: text("paymentDate"),
   paymentMethod: text("paymentMethod"),
   memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 유입 채널
+export const channels = pgTable("channels", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").default("online").notNull(),
+  description: text("description"),
+  isActive: integer("isActive").default(1).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 상담 리드 (CRM)
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  gender: text("gender"),
+  ageGroup: text("ageGroup"),
+  channelId: integer("channelId"),
+  status: text("status").default("pending").notNull(),
+  consultationDate: text("consultationDate"),
+  consultationType: text("consultationType"),
+  consultationSubTypes: text("consultationSubTypes"),
+  consultationNote: text("consultationNote"),
+  interestType: text("interestType"),
+  exercisePurpose: text("exercisePurpose"),
+  memo: text("memo"),
+  registeredMemberId: integer("registeredMemberId"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// FIT STEP+ 회원앱 (트레이너별 격리)
+export const fitStepPlusMembers = pgTable("fit_step_plus_members", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  username: text("username").notNull(),
+  password: text("password").notNull(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  memberId: integer("memberId"),
+  membershipType: text("membershipType").default("general").notNull(),
+  membershipStart: text("membershipStart"),
+  membershipEnd: text("membershipEnd"),
+  isActive: integer("isActive").default(1).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const fitStepPlusVideoCategories = pgTable("fit_step_plus_video_categories", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  name: text("name").notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const fitStepPlusVideos = pgTable("fit_step_plus_videos", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  categoryId: integer("categoryId"),
+  title: text("title").notNull(),
+  description: text("description"),
+  videoUrl: text("videoUrl").notNull(),
+  thumbnailUrl: text("thumbnailUrl"),
+  duration: integer("duration"),
+  level: text("level").default("beginner"),
+  bodyPart: text("bodyPart"),
+  isPublished: integer("isPublished").default(1).notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const fitStepPlusEvents = pgTable("fit_step_plus_events", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  imageUrl: text("imageUrl"),
+  eventType: text("eventType").default("notice"),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  isPublished: integer("isPublished").default(1).notNull(),
+  isPinned: integer("isPinned").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const fitStepPlusWorkoutLogs = pgTable("fit_step_plus_workout_logs", {
+  id: serial("id").primaryKey(),
+  fitStepPlusMemberId: integer("fitStepPlusMemberId").notNull(),
+  logDate: text("logDate").notNull(),
+  title: text("title").notNull(),
+  exercisesJson: text("exercisesJson"),
+  durationMinutes: integer("durationMinutes"),
+  caloriesBurned: integer("caloriesBurned"),
+  bodyWeight: text("bodyWeight"),
+  notes: text("notes"),
+  mood: text("mood"),
   createdAt: text("createdAt").default(now).notNull(),
 });

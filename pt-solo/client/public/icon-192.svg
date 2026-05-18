@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 512 512">
+  <!-- 파란 배경 -->
+  <rect width="512" height="512" fill="#1a00ff"/>
+  <!-- 로고: 440x180 → 512x512 중앙 배치 -->
+  <svg x="26" y="166" width="460" height="180" viewBox="0 0 440 180" preserveAspectRatio="xMidYMid meet">
+    <!-- 외곽 평행사변형 -->
+    <polygon points="36,8 428,8 404,172 12,172" stroke="white" stroke-width="10" fill="none"/>
+    <!-- 내곽 평행사변형 -->
+    <polygon points="50,24 414,24 390,156 26,156" stroke="white" stroke-width="5" fill="none"/>
+    <!-- F. -->
+    <text x="54" y="138" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="110" fill="white" font-style="italic">F.</text>
+    <!-- 삼각형 -->
+    <polygon points="200,32 280,148 120,148" fill="white"/>
+    <!-- E -->
+    <text x="292" y="138" font-family="'Arial Black', Arial, sans-serif" font-weight="900" font-size="110" fill="white" font-style="italic">E</text>
+  </svg>
+</svg>

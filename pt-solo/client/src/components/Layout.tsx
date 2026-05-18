@@ -3,8 +3,9 @@ import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, Users, Dumbbell, LogOut,
+  LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
+  UserPlus, TrendingUp, Wrench, Zap,
 } from "lucide-react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -48,13 +49,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/", label: "운영 현황", icon: LayoutDashboard },
     { path: "/admin/trainers", label: "트레이너 관리", icon: ShieldCheck },
     { path: "/admin/notices", label: "공지/배너", icon: Bell },
+    { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },
   ];
 
   const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
-    { path: "/members", label: "회원 관리", icon: Users },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
-    { path: "/pt", label: "PT 관리", icon: Dumbbell },
+    { path: "/pt", label: "회원관리", icon: Dumbbell },
+    { path: "/leads", label: "상담실", icon: UserPlus },
+    { path: "/settlement", label: "성장분석", icon: TrendingUp },
+    { path: "/workshop", label: "작업실", icon: Wrench },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
@@ -105,6 +109,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <LogOut className="h-4 w-4 shrink-0" />
             로그아웃
           </button>
+          {!isAdmin && (user as any)?.plan === "free" && (
+            <p className="text-center text-[10px] text-muted-foreground/50 pt-1">Powered by FIT STEP</p>
+          )}
         </div>
       </aside>
 
@@ -149,19 +156,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </main>
 
         {/* 모바일 하단 내비게이션 */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex">
-          {navItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => setLocation(item.path)}
-              className={`flex flex-col items-center justify-center flex-1 py-2.5 gap-1 text-xs transition-colors ${
-                isActive(item.path) ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="leading-none">{item.label}</span>
-            </button>
-          ))}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border">
+          <div className="flex overflow-x-auto scrollbar-none">
+            {navItems.map((item) => (
+              <button
+                key={item.path}
+                onClick={() => setLocation(item.path)}
+                className={`flex flex-col items-center justify-center shrink-0 py-2.5 gap-1 text-xs transition-colors px-3 min-w-[60px] ${
+                  isActive(item.path) ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="leading-none">{item.label}</span>
+              </button>
+            ))}
+          </div>
+          {!isAdmin && (user as any)?.plan === "free" && (
+            <p className="text-center text-[10px] text-muted-foreground/50 pb-1">Powered by FIT STEP</p>
+          )}
         </nav>
       </div>
     </div>

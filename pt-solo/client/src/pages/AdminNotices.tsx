@@ -1,12 +1,21 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bell, Plus, Pencil, Trash2, Pin, ExternalLink, X } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, Pin, ExternalLink, ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
 
 type Notice = { id: number; title: string; content: string; isPinned: boolean; isActive: boolean; createdAt: string };
+
+const TAB_OPTIONS = [
+  { key: "all",        label: "전체 (공통)" },
+  { key: "dashboard",  label: "대시보드" },
+  { key: "pt",         label: "PT 관리" },
+  { key: "attendance", label: "출석 체크" },
+  { key: "leads",      label: "상담관리" },
+  { key: "profile",    label: "내 프로필" },
+];
 
 function NoticeForm({ initial, onSave, onCancel }: {
   initial?: Notice;
@@ -40,41 +49,267 @@ function NoticeForm({ initial, onSave, onCancel }: {
       </div>
       <div className="flex gap-2">
         <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>취소</Button>
-        <Button size="sm" className="flex-1" onClick={() => { if (!title.trim() || !content.trim()) { toast.error("제목과 내용을 입력하세요."); return; } onSave({ title, content, isPinned, isActive }); }}>저장</Button>
+        <Button size="sm" className="flex-1" onClick={() => {
+          if (!title.trim() || !content.trim()) { toast.error("제목과 내용을 입력하세요."); return; }
+          onSave({ title, content, isPinned, isActive });
+        }}>저장</Button>
       </div>
     </div>
+  );
+}
+
+const HEIGHT_OPTIONS = [
+  { value: "small",  label: "소 (56px)" },
+  { value: "medium", label: "중 (96px)" },
+  { value: "large",  label: "대 (140px)" },
+];
+
+type FieldState = {
+  text: string; subText: string; link: string; bgColor: string;
+  isActive: boolean; imageUrl: string; bannerHeight: string;
+};
+
+function TabBannerManager() {
+  const utils = trpc.useUtils();
+  const { data: allBanners } = trpc.tabBanner.listAll.useQuery();
+  const upsertMutation = trpc.tabBanner.upsert.useMutation({
+    onSuccess: () => { toast.success("배너 저장 완료"); utils.tabBanner.listAll.invalidate(); utils.tabBanner.getByTab.invalidate(); },
+    onError: e => toast.error(e.message),
+  });
+
+  const [selectedTab, setSelectedTab] = useState("all");
+  const [fields, setFields] = useState<Record<string, FieldState>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const getField = (tabKey: string): FieldState => {
+    if (fields[tabKey]) return fields[tabKey];
+    const row = allBanners?.find(b => b.tabKey === tabKey);
+    return {
+      text: row?.text ?? "",
+      subText: row?.subText ?? "",
+      link: row?.link ?? "",
+      bgColor: row?.bgColor ?? "#6366f1",
+      isActive: row ? row.isActive === 1 : false,
+      imageUrl: (row as any)?.imageUrl ?? "",
+      bannerHeight: (row as any)?.bannerHeight ?? "medium",
+    };
+  };
+
+  const setField = (tabKey: string, patch: Partial<FieldState>) => {
+    setFields(f => ({ ...f, [tabKey]: { ...getField(tabKey), ...patch } }));
+  };
+
+  const current = getField(selectedTab);
+  const tabLabel = TAB_OPTIONS.find(t => t.key === selectedTab)?.label ?? "";
+
+  const heightPx: Record<string, string> = { small: "56px", medium: "96px", large: "140px" };
+
+  const handleImageFile = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) { toast.error("이미지는 5MB 이하로 업로드해주세요"); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setField(selectedTab, { imageUrl: e.target?.result as string });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = () => {
+    if (!current.text.trim() && !current.imageUrl) {
+      toast.error("배너 텍스트 또는 이미지를 입력해주세요"); return;
+    }
+    upsertMutation.mutate({
+      tabKey: selectedTab,
+      text: current.text,
+      subText: current.subText || undefined,
+      link: current.link || undefined,
+      bgColor: current.bgColor,
+      isActive: current.isActive,
+      imageUrl: current.imageUrl || undefined,
+      bannerHeight: current.bannerHeight,
+    });
+  };
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <ExternalLink className="h-4 w-4 text-primary" />탭별 광고 배너
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">탭마다 다른 배너를 설정하거나, "전체(공통)"으로 모든 탭에 같은 배너를 표시하세요</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* 탭 선택 */}
+        <div className="flex flex-wrap gap-1.5">
+          {TAB_OPTIONS.map(t => {
+            const row = allBanners?.find(b => b.tabKey === t.key);
+            const hasActive = row?.isActive === 1 && ((row as any)?.text || (row as any)?.imageUrl);
+            return (
+              <button
+                key={t.key}
+                onClick={() => setSelectedTab(t.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors relative ${
+                  selectedTab === t.key
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                {t.label}
+                {hasActive && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-400" />}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 미리보기 */}
+        <div className="rounded-xl overflow-hidden border border-border/40" style={{ height: heightPx[current.bannerHeight] ?? "96px" }}>
+          {current.imageUrl ? (
+            <img src={current.imageUrl} alt="미리보기" className="w-full h-full object-cover" />
+          ) : current.text ? (
+            <div className="w-full h-full flex items-center gap-3 px-4" style={{ backgroundColor: current.bgColor }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white truncate">{current.text}</p>
+                {current.subText && <p className="text-xs text-white/80 truncate">{current.subText}</p>}
+              </div>
+              {current.link && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
+            </div>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-muted/30 text-xs text-muted-foreground">
+              미리보기
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">{tabLabel} 배너 설정</p>
+
+          {/* 배너 크기 */}
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">배너 크기</label>
+            <div className="flex gap-2">
+              {HEIGHT_OPTIONS.map(h => (
+                <button
+                  key={h.value}
+                  onClick={() => setField(selectedTab, { bannerHeight: h.value })}
+                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
+                    current.bannerHeight === h.value
+                      ? "bg-primary/20 border-primary/40 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  {h.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 이미지 업로드 */}
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">배너 이미지 (선택)</label>
+            {current.imageUrl ? (
+              <div className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/20">
+                <img src={current.imageUrl} alt="이미지" className="h-10 w-16 object-cover rounded" />
+                <span className="text-xs text-muted-foreground flex-1">이미지 업로드됨</span>
+                <button
+                  onClick={() => setField(selectedTab, { imageUrl: "" })}
+                  className="text-muted-foreground hover:text-red-400"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-border text-muted-foreground hover:border-primary/40 text-sm transition-colors"
+              >
+                <ImageIcon className="h-4 w-4 shrink-0" />
+                이미지 파일 첨부 (JPG, PNG, GIF · 5MB 이하)
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
+            />
+          </div>
+
+          {/* 텍스트 (이미지 없을 때만) */}
+          {!current.imageUrl && (
+            <>
+              <Input
+                value={current.text}
+                onChange={e => setField(selectedTab, { text: e.target.value })}
+                placeholder="배너 텍스트 *"
+                className="bg-input border-border"
+              />
+              <Input
+                value={current.subText}
+                onChange={e => setField(selectedTab, { subText: e.target.value })}
+                placeholder="서브 텍스트 (선택)"
+                className="bg-input border-border"
+              />
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-muted-foreground shrink-0">배경색</label>
+                <input
+                  type="color"
+                  value={current.bgColor}
+                  onChange={e => setField(selectedTab, { bgColor: e.target.value })}
+                  className="h-8 w-12 rounded cursor-pointer border-0"
+                />
+                <span className="text-xs text-muted-foreground">{current.bgColor}</span>
+              </div>
+            </>
+          )}
+
+          <Input
+            value={current.link}
+            onChange={e => setField(selectedTab, { link: e.target.value })}
+            placeholder="링크 URL (선택)"
+            className="bg-input border-border"
+          />
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={current.isActive}
+              onChange={e => setField(selectedTab, { isActive: e.target.checked })}
+              className="accent-primary"
+            />
+            배너 활성화
+          </label>
+          <Button
+            className="w-full"
+            size="sm"
+            onClick={handleSave}
+            disabled={upsertMutation.isPending}
+          >
+            {upsertMutation.isPending ? "저장 중..." : `"${tabLabel}" 배너 저장`}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
 export default function AdminNotices() {
   const utils = trpc.useUtils();
   const { data: notices } = trpc.notices.listAll.useQuery();
-  const { data: banner } = trpc.banner.get.useQuery();
 
   const [creating, setCreating] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
 
-  // Banner state
-  const [bannerText, setBannerText] = useState("");
-  const [bannerSub, setBannerSub] = useState("");
-  const [bannerLink, setBannerLink] = useState("");
-  const [bannerColor, setBannerColor] = useState("#6366f1");
-  const [bannerActive, setBannerActive] = useState(false);
-  const [bannerLoaded, setBannerLoaded] = useState(false);
-
-  if (banner && !bannerLoaded) {
-    setBannerText(banner.text);
-    setBannerSub(banner.subText ?? "");
-    setBannerLink(banner.link ?? "");
-    setBannerColor(banner.bgColor);
-    setBannerActive(banner.isActive);
-    setBannerLoaded(true);
-  }
-
-  const createMutation = trpc.notices.create.useMutation({ onSuccess: () => { toast.success("공지 등록 완료"); setCreating(false); utils.notices.listAll.invalidate(); utils.notices.list.invalidate(); }, onError: e => toast.error(e.message) });
-  const updateMutation = trpc.notices.update.useMutation({ onSuccess: () => { toast.success("수정 완료"); setEditId(null); utils.notices.listAll.invalidate(); utils.notices.list.invalidate(); }, onError: e => toast.error(e.message) });
-  const deleteMutation = trpc.notices.delete.useMutation({ onSuccess: () => { toast.success("삭제 완료"); utils.notices.listAll.invalidate(); utils.notices.list.invalidate(); }, onError: e => toast.error(e.message) });
-  const bannerMutation = trpc.banner.upsert.useMutation({ onSuccess: () => { toast.success("배너 저장 완료"); utils.banner.get.invalidate(); }, onError: e => toast.error(e.message) });
+  const createMutation = trpc.notices.create.useMutation({
+    onSuccess: () => { toast.success("공지 등록 완료"); setCreating(false); utils.notices.listAll.invalidate(); utils.notices.list.invalidate(); },
+    onError: e => toast.error(e.message),
+  });
+  const updateMutation = trpc.notices.update.useMutation({
+    onSuccess: () => { toast.success("수정 완료"); setEditId(null); utils.notices.listAll.invalidate(); utils.notices.list.invalidate(); },
+    onError: e => toast.error(e.message),
+  });
+  const deleteMutation = trpc.notices.delete.useMutation({
+    onSuccess: () => { toast.success("삭제 완료"); utils.notices.listAll.invalidate(); utils.notices.list.invalidate(); },
+  });
 
   return (
     <div className="space-y-6">
@@ -83,41 +318,7 @@ export default function AdminNotices() {
         <p className="text-sm text-muted-foreground mt-0.5">트레이너 앱에 표시되는 공지와 배너</p>
       </div>
 
-      {/* 배너 관리 */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <ExternalLink className="h-4 w-4 text-primary" />광고 배너
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {/* 미리보기 */}
-          {bannerText && (
-            <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ backgroundColor: bannerColor }}>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">{bannerText}</p>
-                {bannerSub && <p className="text-xs text-white/80 truncate">{bannerSub}</p>}
-              </div>
-              {bannerLink && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
-            </div>
-          )}
-          <Input value={bannerText} onChange={e => setBannerText(e.target.value)} placeholder="배너 텍스트 *" className="bg-input border-border" />
-          <Input value={bannerSub} onChange={e => setBannerSub(e.target.value)} placeholder="서브 텍스트 (선택)" className="bg-input border-border" />
-          <Input value={bannerLink} onChange={e => setBannerLink(e.target.value)} placeholder="링크 URL (선택)" className="bg-input border-border" />
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-muted-foreground shrink-0">배경색</label>
-            <input type="color" value={bannerColor} onChange={e => setBannerColor(e.target.value)} className="h-8 w-12 rounded cursor-pointer border-0" />
-            <span className="text-xs text-muted-foreground">{bannerColor}</span>
-          </div>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={bannerActive} onChange={e => setBannerActive(e.target.checked)} className="accent-primary" />
-            배너 활성화
-          </label>
-          <Button className="w-full" size="sm" onClick={() => bannerMutation.mutate({ text: bannerText, subText: bannerSub || undefined, link: bannerLink || undefined, bgColor: bannerColor, isActive: bannerActive })} disabled={!bannerText || bannerMutation.isPending}>
-            {bannerMutation.isPending ? "저장 중..." : "배너 저장"}
-          </Button>
-        </CardContent>
-      </Card>
+      <TabBannerManager />
 
       {/* 공지사항 */}
       <Card className="bg-card border-border">
