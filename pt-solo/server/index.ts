@@ -436,6 +436,13 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE fit_step_plus_videos ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
   await pool.query(`ALTER TABLE fit_step_plus_events ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
 
+  // 트레이너 상세 프로필 컬럼 추가
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "employmentType" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "workplaceName" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "workYears" INTEGER`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "specialties" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileBonusGranted" INTEGER NOT NULL DEFAULT 0`);
+
   // 회원권 날짜 자동 보정
   try {
     const noStartMembers = await db.select({ id: members.id }).from(members).where(isNull(members.membershipStart));

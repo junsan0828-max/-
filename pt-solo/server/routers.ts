@@ -837,7 +837,12 @@ const trainersRouter = t.router({
       db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, ctx.user.trainerId!)).limit(1),
     ]);
     if (!trainer[0]) throw new TRPCError({ code: "NOT_FOUND" });
-    return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50 };
+    const row = await pool.query<{
+      employmentType: string | null; workplaceName: string | null;
+      workYears: number | null; specialties: string | null; profileBonusGranted: number;
+    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
+    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0 };
+    return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50, ...ext };
   }),
 
   updateMyProfile: protectedProcedure
@@ -847,6 +852,36 @@ const trainersRouter = t.router({
       if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       await db.update(trainers).set({ trainerName: input.trainerName, phone: input.phone, email: input.email || undefined }).where(eq(trainers.id, ctx.user.trainerId));
       return { success: true };
+    }),
+
+  updateExtendedProfile: protectedProcedure
+    .input(z.object({
+      employmentType: z.enum(["freelancer", "employed"]).optional(),
+      workplaceName: z.string().optional(),
+      workYears: z.number().int().min(0).max(50).optional(),
+      specialties: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `UPDATE trainers SET "employmentType"=$1,"workplaceName"=$2,"workYears"=$3,"specialties"=$4 WHERE id=$5`,
+        [input.employmentType ?? null, input.workplaceName ?? null, input.workYears ?? null, input.specialties ?? null, ctx.user.trainerId]
+      );
+      // 프로필 완성 보너스 자동 지급 (최초 1회)
+      const check = await pool.query<{ profileBonusGranted: number }>(
+        `SELECT "profileBonusGranted" FROM trainers WHERE id=$1`, [ctx.user.trainerId]
+      );
+      const bonusGranted = check.rows[0]?.profileBonusGranted ?? 0;
+      const isComplete = !!(input.employmentType && input.workplaceName && input.workYears !== undefined && input.specialties);
+      if (isComplete && bonusGranted === 0) {
+        await pool.query(
+          `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,200,'profile_bonus','트레이너 프로필 완성 보너스','completed')`,
+          [ctx.user.trainerId]
+        );
+        await pool.query(`UPDATE trainers SET "profileBonusGranted"=1 WHERE id=$1`, [ctx.user.trainerId]);
+        return { success: true, bonusGranted: true };
+      }
+      return { success: true, bonusGranted: false };
     }),
 
   changePassword: protectedProcedure
