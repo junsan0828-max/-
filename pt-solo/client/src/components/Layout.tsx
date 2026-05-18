@@ -7,6 +7,7 @@ import {
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
   UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog,
 } from "lucide-react";
+import ProfileSetupModal from "./ProfileSetupModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -156,6 +157,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
+        {!isAdmin && <ProfileSetupModal />}
 
         {/* 모바일 하단 내비게이션 */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border">
