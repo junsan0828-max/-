@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Users, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText } from "lucide-react";
+import { Wrench, ExternalLink, Users, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const MEMBERSHIP_LABELS: Record<string, string> = { general: "일반회원", premium: "프리미엄", vip: "VIP" };
@@ -360,6 +360,15 @@ function EventSection({ trainerId }: { trainerId: number }) {
 function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   const [, navigate] = useLocation();
   const [activeSection, setActiveSection] = useState<"members" | "videos" | "events" | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  function copyLink() {
+    const url = `${window.location.origin}/fit-step-plus/${trainerId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   const sections = [
     { key: "members" as const, label: "회원 계정", icon: Users, desc: "회원 앱 계정 생성 및 관리" },
@@ -380,10 +389,17 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">회원에게 이 링크를 공유하세요</p>
         </div>
-        <button onClick={() => navigate(`/fit-step-plus/${trainerId}`)}
-          className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary/20 transition-colors">
-          <ExternalLink className="h-3.5 w-3.5" />열기
-        </button>
+        <div className="flex gap-2">
+          <button onClick={copyLink}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors ${copied ? "text-green-400 bg-green-400/10" : "text-muted-foreground bg-accent/30 hover:text-primary hover:bg-primary/10"}`}>
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "복사됨" : "링크 복사"}
+          </button>
+          <button onClick={() => navigate(`/fit-step-plus/${trainerId}`)}
+            className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 px-3 py-1.5 rounded-lg hover:bg-primary/20 transition-colors">
+            <ExternalLink className="h-3.5 w-3.5" />열기
+          </button>
+        </div>
       </div>
 
       {/* 관리 섹션 */}
