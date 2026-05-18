@@ -2887,9 +2887,23 @@ const attendanceChecksRouter = t.router({
         .from(attendanceChecks)
         .where(and(eq(attendanceChecks.trainerId, trainerId), eq(attendanceChecks.checkDate, input.date)));
 
+      // 잔여 PT 횟수 조회
+      const memberIds = memberList.map(m => m.id);
+      const pkgs = memberIds.length > 0
+        ? await db.select({ memberId: ptPackages.memberId, totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions, status: ptPackages.status })
+            .from(ptPackages)
+            .where(and(inArray(ptPackages.memberId, memberIds), eq(ptPackages.status, "active")))
+        : [];
+
+      const remainMap = new Map<number, number>();
+      for (const p of pkgs) {
+        const remain = p.totalSessions - p.usedSessions;
+        if (remain > 0) remainMap.set(p.memberId, (remainMap.get(p.memberId) ?? 0) + remain);
+      }
+
       const checkMap = new Map(checks.map((c) => [c.memberId, c]));
 
-      return memberList.map((m) => ({ ...m, check: checkMap.get(m.id) ?? null }));
+      return memberList.map((m) => ({ ...m, check: checkMap.get(m.id) ?? null, remainingSessions: remainMap.get(m.id) ?? null }));
     }),
 
   recentSummary: protectedProcedure.query(async ({ ctx }) => {
