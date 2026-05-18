@@ -88,7 +88,7 @@ export function GymPlusMembersAdmin() {
 
       {/* 동기화 다이얼로그 */}
       <Dialog open={showSync} onOpenChange={(o) => { setShowSync(o); if (!o) setSelectedIds([]); }}>
-        <DialogContent className="max-w-sm max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-sm md:max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader><DialogTitle>회원 동기화</DialogTitle></DialogHeader>
           <p className="text-xs text-muted-foreground">동기화할 회원을 선택하세요. 이미 계정이 있는 회원은 회색으로 표시됩니다.</p>
           <div className="flex gap-1.5 mb-1">
@@ -153,7 +153,7 @@ export function GymPlusMembersAdmin() {
       )}
 
       <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-sm md:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? "회원 수정" : "짐+ 회원 추가"}</DialogTitle></DialogHeader>
           <div className="space-y-3 pb-2">
             {!editingId && (
@@ -284,7 +284,7 @@ export function GymPlusVideosAdmin() {
 
   const formDialog = (
     <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
-      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-sm md:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{editingId ? "영상 수정" : "영상 추가"}</DialogTitle></DialogHeader>
         <div className="space-y-3 pb-2">
           <div className="space-y-1">
@@ -549,7 +549,7 @@ export function GymPlusEventsAdmin() {
       </div>
 
       <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-sm md:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? "이벤트/공지 수정" : "이벤트/공지 등록"}</DialogTitle></DialogHeader>
           <div className="space-y-3 pb-2">
             <div className="space-y-1">
@@ -751,7 +751,7 @@ export function GymPlusWorkoutLogsAdmin() {
 
       {/* 운동영상 URL 입력 모달 */}
       <Dialog open={!!videoModal} onOpenChange={(o) => { if (!o) setVideoModal(null); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm md:max-w-xl">
           <DialogHeader><DialogTitle>운동영상 링크 등록</DialogTitle></DialogHeader>
           <p className="text-xs text-muted-foreground">YouTube 또는 영상 URL을 입력하세요. 회원이 해당 운동에서 영상을 확인할 수 있습니다.</p>
           <Input
