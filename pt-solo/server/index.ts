@@ -499,6 +499,33 @@ async function initDatabase() {
   }
 
   console.log("✨ DB 초기화 완료!");
+
+  // 잘못된 daily_reset으로 적립포인트가 깎인 트레이너 자동 보정 (1회성)
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const trainerRows = await pool.query<{ id: number }>(`SELECT id FROM trainers`);
+    for (const tr of trainerRows.rows) {
+      const totalRow = await pool.query<{ balance: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`, [tr.id]
+      );
+      const earnedRow = await pool.query<{ balance: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND type != 'daily_reset'`, [tr.id]
+      );
+      const total = Number(totalRow.rows[0]?.balance ?? 0);
+      const earned = Number(earnedRow.rows[0]?.balance ?? 0);
+      const freeHeld = total - earned;
+      // 무료포인트가 음수면 적립포인트가 잘못 차감된 것 → 복구
+      if (freeHeld < 0) {
+        await pool.query(
+          `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'admin_grant','일일초기화 오류 자동 보정','completed')`,
+          [tr.id, -freeHeld]
+        );
+        console.log(`🔧 포인트 보정: trainerId=${tr.id} +${-freeHeld}P`);
+      }
+    }
+  } catch (e) {
+    console.warn("⚠️ 포인트 보정 실패:", e);
+  }
 }
 
 const DAILY_POINT = 300;
@@ -518,10 +545,18 @@ async function runDailyPointReset() {
       `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
       [tr.id]
     );
+    // 적립포인트(daily_reset 제외)는 건드리지 않고 무료포인트만 300P로 복원
+    const earnedRow = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND type != 'daily_reset'`,
+      [tr.id]
+    );
     const currentBalance = Number(balRow.rows[0]?.balance ?? 0);
-    const delta = DAILY_POINT - currentBalance;
+    const earnedBalance = Number(earnedRow.rows[0]?.balance ?? 0);
+    const targetTotal = earnedBalance + DAILY_POINT; // 적립포인트 + 무료 300P
+    const delta = targetTotal - currentBalance;
+    if (delta === 0) continue; // 이미 충분하면 패스
     await pool.query(
-      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'daily_reset','일일 포인트 초기화','completed')`,
+      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'daily_reset','일일 무료포인트 충전','completed')`,
       [tr.id, delta]
     );
     count++;
