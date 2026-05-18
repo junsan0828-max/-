@@ -350,6 +350,13 @@ export const accessRouter = t.router({
       return updated;
     }),
 
+  // 지점 목록 (출입/락커 필터용)
+  getBranches: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(branches).orderBy(branches.id);
+  }),
+
   // 회원 목록 (락커 배정용)
   getMembersForLocker: protectedProcedure.query(async () => {
     const db = await getDb();

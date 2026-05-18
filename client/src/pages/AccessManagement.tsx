@@ -16,6 +16,8 @@ import {
   LogIn,
 } from "lucide-react";
 
+type Branch = { id: number; name: string };
+
 type Locker = {
   id: number;
   lockerNumber: string;
@@ -27,6 +29,7 @@ type Locker = {
   startDate: string | null;
   endDate: string | null;
   memo: string | null;
+  branchId: number | null;
 };
 
 type AccessLog = {
@@ -38,6 +41,7 @@ type AccessLog = {
   membershipEnd: string | null;
   lockerNumber: string | null;
   accessedAt: string;
+  branchId: number | null;
 };
 
 type Member = { id: number; name: string; phone: string | null };
@@ -57,18 +61,16 @@ function formatTime(iso: string) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
 
-function formatDate(iso: string) {
-  return iso.substring(0, 10);
-}
-
 export default function AccessManagement() {
   const [tab, setTab] = useState<"logs" | "lockers">("logs");
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
+  const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
 
   const utils = trpc.useUtils();
 
+  const branchesQuery = trpc.access.getBranches.useQuery();
   const todayStats = trpc.access.todayStats.useQuery();
   const accessLogs = trpc.access.getAccessLogs.useQuery({ date: logDate, limit: 200 });
   const lockersQuery = trpc.access.getLockers.useQuery();
@@ -81,11 +83,28 @@ export default function AccessManagement() {
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 삭제 완료"); },
   });
 
-  const lockers = (lockersQuery.data ?? []) as Locker[];
-  const logs = (accessLogs.data ?? []) as AccessLog[];
+  const branches = (branchesQuery.data ?? []) as Branch[];
+  const allLockers = (lockersQuery.data ?? []) as Locker[];
+  const allLogs = (accessLogs.data ?? []) as AccessLog[];
   const members = (membersQuery.data ?? []) as Member[];
 
+  const lockers = selectedBranch
+    ? allLockers.filter((l) => l.branchId === selectedBranch)
+    : allLockers;
+  const logs = selectedBranch
+    ? allLogs.filter((l) => l.branchId === selectedBranch)
+    : allLogs;
+
   const occupiedCount = lockers.filter((l) => l.isOccupied).length;
+
+  // 지점 필터가 걸린 경우 해당 지점 통계를 logs에서 계산
+  const stats = selectedBranch
+    ? {
+        total: logs.length,
+        allowed: logs.filter((l) => l.accessResult === "allowed").length,
+        denied: logs.filter((l) => l.accessResult !== "allowed").length,
+      }
+    : todayStats.data ?? { total: 0, allowed: 0, denied: 0 };
 
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-4">
@@ -105,23 +124,52 @@ export default function AccessManagement() {
         </a>
       </div>
 
+      {/* 지점 필터 */}
+      {branches.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setSelectedBranch(null)}
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              selectedBranch === null
+                ? "bg-primary text-white"
+                : "bg-muted text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            전체
+          </button>
+          {branches.map((b) => (
+            <button
+              key={b.id}
+              onClick={() => setSelectedBranch(b.id)}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                selectedBranch === b.id
+                  ? "bg-primary text-white"
+                  : "bg-muted text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {b.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 오늘 통계 */}
       <div className="grid grid-cols-3 gap-3">
         <StatCard
-          label="오늘 총 출입"
-          value={todayStats.data?.total ?? 0}
+          label={selectedBranch ? `${branches.find(b => b.id === selectedBranch)?.name} 출입` : "오늘 총 출입"}
+          value={stats.total}
           icon={<Users className="h-4 w-4" />}
           color="text-primary"
         />
         <StatCard
           label="입장 허가"
-          value={todayStats.data?.allowed ?? 0}
+          value={stats.allowed}
           icon={<CheckCircle2 className="h-4 w-4" />}
           color="text-green-400"
         />
         <StatCard
           label="입장 거부"
-          value={todayStats.data?.denied ?? 0}
+          value={stats.denied}
           icon={<XCircle className="h-4 w-4" />}
           color="text-red-400"
         />
@@ -177,16 +225,18 @@ export default function AccessManagement() {
                 <tr>
                   <th className="text-left px-3 py-2.5 text-muted-foreground font-medium">시간</th>
                   <th className="text-left px-3 py-2.5 text-muted-foreground font-medium">이름</th>
-                  <th className="text-left px-3 py-2.5 text-muted-foreground font-medium">전화번호</th>
+                  <th className="text-left px-3 py-2.5 text-muted-foreground font-medium hidden sm:table-cell">전화번호</th>
                   <th className="text-left px-3 py-2.5 text-muted-foreground font-medium">결과</th>
                   <th className="text-left px-3 py-2.5 text-muted-foreground font-medium hidden sm:table-cell">회원권</th>
-                  <th className="text-left px-3 py-2.5 text-muted-foreground font-medium hidden sm:table-cell">락커</th>
+                  {branches.length > 0 && (
+                    <th className="text-left px-3 py-2.5 text-muted-foreground font-medium hidden md:table-cell">지점</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {logs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                    <td colSpan={branches.length > 0 ? 6 : 5} className="text-center py-10 text-muted-foreground">
                       출입 기록이 없습니다.
                     </td>
                   </tr>
@@ -194,6 +244,7 @@ export default function AccessManagement() {
                   logs.map((log) => {
                     const res = resultLabel(log.accessResult);
                     const ResIcon = res.icon;
+                    const branchName = branches.find((b) => b.id === log.branchId)?.name;
                     return (
                       <tr key={log.id} className="border-t border-border hover:bg-accent/30 transition-colors">
                         <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">
@@ -202,7 +253,7 @@ export default function AccessManagement() {
                         <td className="px-3 py-2.5 font-medium">
                           {log.memberName ?? <span className="text-muted-foreground text-xs">미등록</span>}
                         </td>
-                        <td className="px-3 py-2.5 text-muted-foreground">{log.phone}</td>
+                        <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell">{log.phone}</td>
                         <td className="px-3 py-2.5">
                           <span className={`flex items-center gap-1 ${res.color}`}>
                             <ResIcon className="h-3.5 w-3.5" />
@@ -212,9 +263,15 @@ export default function AccessManagement() {
                         <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell">
                           {log.membershipType ?? "-"}
                         </td>
-                        <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell">
-                          {log.lockerNumber ?? "-"}
-                        </td>
+                        {branches.length > 0 && (
+                          <td className="px-3 py-2.5 text-muted-foreground hidden md:table-cell">
+                            {branchName ? (
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary font-medium">
+                                {branchName}
+                              </span>
+                            ) : "-"}
+                          </td>
+                        )}
                       </tr>
                     );
                   })
@@ -240,34 +297,73 @@ export default function AccessManagement() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {lockers.map((locker) => (
-              <LockerCard
-                key={locker.id}
-                locker={locker}
-                onAssign={() => setShowAssign(locker)}
-                onRelease={() => {
-                  if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
-                    releaseLocker.mutate({ lockerId: locker.id });
-                }}
-                onDelete={() => {
-                  if (!locker.isOccupied && confirm(`${locker.lockerNumber}번 락커를 삭제하시겠습니까?`))
-                    deleteLocker.mutate({ lockerId: locker.id });
-                }}
-              />
-            ))}
-            {lockers.length === 0 && (
-              <div className="col-span-4 text-center py-10 text-muted-foreground text-sm">
-                등록된 락커가 없습니다.
-              </div>
-            )}
-          </div>
+          {/* 지점별 그룹 표시 */}
+          {selectedBranch === null && branches.length > 0 ? (
+            branches.map((branch) => {
+              const branchLockers = allLockers.filter((l) => l.branchId === branch.id);
+              if (branchLockers.length === 0) return null;
+              const branchOccupied = branchLockers.filter((l) => l.isOccupied).length;
+              return (
+                <div key={branch.id} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-primary">{branch.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {branchOccupied}/{branchLockers.length}
+                    </span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {branchLockers.map((locker) => (
+                      <LockerCard
+                        key={locker.id}
+                        locker={locker}
+                        onAssign={() => setShowAssign(locker)}
+                        onRelease={() => {
+                          if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
+                            releaseLocker.mutate({ lockerId: locker.id });
+                        }}
+                        onDelete={() => {
+                          if (!locker.isOccupied && confirm(`${locker.lockerNumber}번 락커를 삭제하시겠습니까?`))
+                            deleteLocker.mutate({ lockerId: locker.id });
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {lockers.map((locker) => (
+                <LockerCard
+                  key={locker.id}
+                  locker={locker}
+                  onAssign={() => setShowAssign(locker)}
+                  onRelease={() => {
+                    if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
+                      releaseLocker.mutate({ lockerId: locker.id });
+                  }}
+                  onDelete={() => {
+                    if (!locker.isOccupied && confirm(`${locker.lockerNumber}번 락커를 삭제하시겠습니까?`))
+                      deleteLocker.mutate({ lockerId: locker.id });
+                  }}
+                />
+              ))}
+              {lockers.length === 0 && (
+                <div className="col-span-4 text-center py-10 text-muted-foreground text-sm">
+                  등록된 락커가 없습니다.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* 락커 추가 모달 */}
       {showAddLocker && (
         <AddLockerModal
+          branches={branches}
+          defaultBranchId={selectedBranch}
           onClose={() => setShowAddLocker(false)}
           onAdded={() => { utils.access.getLockers.invalidate(); setShowAddLocker(false); }}
         />
@@ -372,15 +468,20 @@ function LockerCard({
 }
 
 function AddLockerModal({
+  branches,
+  defaultBranchId,
   onClose,
   onAdded,
 }: {
+  branches: Branch[];
+  defaultBranchId: number | null;
   onClose: () => void;
   onAdded: () => void;
 }) {
   const [number, setNumber] = useState("");
   const [type, setType] = useState("personal");
   const [memo, setMemo] = useState("");
+  const [branchId, setBranchId] = useState<string>(defaultBranchId ? String(defaultBranchId) : "");
   const [bulk, setBulk] = useState(false);
   const [bulkFrom, setBulkFrom] = useState("1");
   const [bulkTo, setBulkTo] = useState("10");
@@ -391,6 +492,7 @@ function AddLockerModal({
   });
 
   const handleSubmit = async () => {
+    const bid = branchId ? parseInt(branchId) : undefined;
     if (bulk) {
       const from = parseInt(bulkFrom);
       const to = parseInt(bulkTo);
@@ -399,17 +501,33 @@ function AddLockerModal({
         return;
       }
       for (let i = from; i <= to; i++) {
-        await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo });
+        await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo, branchId: bid });
       }
     } else {
       if (!number.trim()) { toast.error("락커 번호를 입력하세요"); return; }
-      createLocker.mutate({ lockerNumber: number.trim(), lockerType: type, memo });
+      createLocker.mutate({ lockerNumber: number.trim(), lockerType: type, memo, branchId: bid });
     }
   };
 
   return (
     <Modal title="락커 추가" onClose={onClose}>
       <div className="space-y-3">
+        {branches.length > 0 && (
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">지점</label>
+            <select
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+            >
+              <option value="">지점 미지정</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={bulk} onChange={(e) => setBulk(e.target.checked)} />
           일괄 추가
