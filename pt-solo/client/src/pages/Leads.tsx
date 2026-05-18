@@ -26,7 +26,7 @@ const CONSULT_TYPES: Record<string, string[]> = {
   "방문상담": [], "예약상담": ["플레이스", "전화예약"], "소개상담": ["지인소개", "가족소개"],
 };
 const MAIN_TYPES = Object.keys(CONSULT_TYPES);
-const INTEREST_OPTIONS = ["PT", "헬스", "기타"];
+const INTEREST_OPTIONS = ["PT", "필라테스", "기타"];
 const AGE_OPTIONS = ["10대", "20대", "30대", "40대", "50대이상"];
 const EXERCISE_PURPOSES = [
   "다이어트 (체중 감량)", "체형교정 (자세 개선)", "통증 개선 (목/허리/무릎 등)",
@@ -790,7 +790,7 @@ export default function LeadsPage() {
               <div>
                 <label className="text-xs text-muted-foreground">항목 유형 (복수 선택)</label>
                 <div className="flex gap-2 mt-1">
-                  {["PT", "헬스", "기타"].map(t => (
+                  {["PT", "필라테스", "기타"].map(t => (
                     <button key={t} type="button"
                       onClick={() => setRegForm(f => ({ ...f, itemTypes: f.itemTypes.includes(t) ? f.itemTypes.filter(x => x !== t) : [...f.itemTypes, t] }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.itemTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
@@ -826,9 +826,9 @@ export default function LeadsPage() {
                   </div>
                 </div>
               )}
-              {regForm.itemTypes.includes("헬스") && (
+              {regForm.itemTypes.includes("필라테스") && (
                 <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">헬스 이용 기간</label>
+                  <label className="text-xs text-muted-foreground">필라테스 이용 기간</label>
                   <div className="flex gap-2 mt-1">
                     {DURATIONS.map(d => (
                       <button key={d} type="button" onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
