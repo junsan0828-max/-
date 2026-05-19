@@ -459,6 +459,9 @@ const membersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      // 관련 데이터 cascade 삭제 (세션 로그·패키지·출석 등)
+      await db.delete(ptSessionLogs).where(eq(ptSessionLogs.memberId, input.id));
+      await db.delete(ptPackages).where(eq(ptPackages.memberId, input.id));
       await db.delete(members).where(eq(members.id, input.id));
       return { success: true };
     }),
@@ -855,9 +858,14 @@ const ptRouter = t.router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 
+      // 회원명 스냅샷 (회원 삭제 후에도 정산 내역에 이름 표시)
+      const [memberRow] = await db.select({ name: members.name }).from(members).where(eq(members.id, input.memberId)).limit(1);
+      const memberNameSnapshot = memberRow?.name ?? null;
+
       const { overrideTrainerId: _, isDraft, ...logFields } = input;
       const [row] = await db.insert(ptSessionLogs).values({
         ...logFields,
+        memberName: memberNameSnapshot,
         trainerId: trainerId ?? 0,
         isDraft: isDraft ? 1 : 0,
       }).returning();
@@ -951,8 +959,10 @@ const ptRouter = t.router({
         .where(eq(ptPackages.id, resolvedPackageId!));
 
       const today = new Date().toISOString().split("T")[0];
+      const [useMemRow] = await db.select({ name: members.name }).from(members).where(eq(members.id, input.memberId)).limit(1);
       await db.insert(ptSessionLogs).values({
         memberId: input.memberId,
+        memberName: useMemRow?.name ?? null,
         trainerId,
         packageId: resolvedPackageId,
         sessionDate: input.sessionDate ?? today,
@@ -1591,13 +1601,14 @@ const trainersRouter = t.router({
         .select({
           id: ptSessionLogs.id,
           memberId: ptSessionLogs.memberId,
+          memberNameSnapshot: ptSessionLogs.memberName,
           sessionDate: ptSessionLogs.sessionDate,
           pricePerSession: ptPackages.pricePerSession,
           paymentAmount: ptPackages.paymentAmount,
           totalSessions: ptPackages.totalSessions,
           paymentMethod: ptPackages.paymentMethod,
           packageName: ptPackages.packageName,
-          memberName: members.name,
+          memberNameJoined: members.name,
         })
         .from(ptSessionLogs)
         .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
@@ -1670,6 +1681,8 @@ const trainersRouter = t.router({
         effectivePrice: calcPrice(l),
         // packageId 없는 세션은 회원의 활성 패키지명으로 폴백
         packageName: l.packageName ?? memberPkgMap[l.memberId]?.packageName ?? null,
+        // 스냅샷 우선, 없으면 JOIN, 없으면 "(탈퇴회원)"
+        memberName: l.memberNameSnapshot ?? l.memberNameJoined ?? "(탈퇴회원)",
       }));
       const sessionCount = logsWithPrice.length;
       const revenue = logsWithPrice.reduce((s, l) => s + l.effectivePrice, 0);

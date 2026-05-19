@@ -131,6 +131,7 @@ export const attendances = pgTable("attendances", {
 export const ptSessionLogs = pgTable("pt_session_logs", {
   id: serial("id").primaryKey(),
   memberId: integer("memberId").notNull(),
+  memberName: text("memberName"),
   trainerId: integer("trainerId").notNull(),
   packageId: integer("packageId"),
   sessionDate: text("sessionDate").notNull(),

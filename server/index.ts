@@ -394,6 +394,7 @@ async function initDatabase() {
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sharedToMember" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sharedAt" TEXT`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "isDraft" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "memberName" TEXT`,
     `CREATE TABLE IF NOT EXISTS branches (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
