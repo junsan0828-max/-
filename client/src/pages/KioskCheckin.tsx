@@ -286,6 +286,7 @@ export default function KioskCheckin() {
                 </div>
               ))
             )}
+          </div>
           {/* 헤더 */}
           <div className="flex flex-col items-center pt-4 pb-3 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
             <p style={{ fontFamily: "'Cinzel', serif", fontSize: 30, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.28em", textShadow: "0 0 18px rgba(42,95,196,0.45)" }}>ZIANTGYM</p>
