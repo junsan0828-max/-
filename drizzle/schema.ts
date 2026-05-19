@@ -414,10 +414,20 @@ export const noticeReads = pgTable("notice_reads", {
 });
 
 // 출입 관리
+export const lockerCategories = pgTable("locker_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  branchId: integer("branchId"),
+  color: text("color").default("#3b82f6").notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const lockers = pgTable("lockers", {
   id: serial("id").primaryKey(),
   lockerNumber: text("lockerNumber").notNull(),
   branchId: integer("branchId"),
+  categoryId: integer("categoryId"),
   memberId: integer("memberId"),
   memberName: text("memberName"),
   memberPhone: text("memberPhone"),

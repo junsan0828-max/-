@@ -22,6 +22,14 @@ import {
 
 type Branch = { id: number; name: string };
 
+type LockerCategory = {
+  id: number;
+  name: string;
+  color: string;
+  sortOrder: number;
+  branchId: number | null;
+};
+
 type Locker = {
   id: number;
   lockerNumber: string;
@@ -34,6 +42,7 @@ type Locker = {
   endDate: string | null;
   memo: string | null;
   branchId: number | null;
+  categoryId: number | null;
 };
 
 type AccessLog = {
@@ -85,6 +94,10 @@ export default function AccessManagement() {
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<LockerCategory | null>(null);
+  const [categoryForm, setCategoryForm] = useState({ name: "", color: "#3b82f6" });
+  const [movingLockerId, setMovingLockerId] = useState<number | null>(null);
   const [showBannerForm, setShowBannerForm] = useState(false);
   const [editingBanner, setEditingBanner] = useState<KioskBanner | null>(null);
   const [bannerForm, setBannerForm] = useState({
@@ -99,12 +112,27 @@ export default function AccessManagement() {
   const lockersQuery = trpc.access.getLockers.useQuery();
   const membersQuery = trpc.access.getMembersForLocker.useQuery();
   const bannersQuery = trpc.access.getAllBanners.useQuery();
+  const categoriesQuery = trpc.access.getLockerCategories.useQuery();
+
+  const categories = (categoriesQuery.data ?? []) as LockerCategory[];
 
   const releaseLocker = trpc.access.releaseLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 반납 완료"); },
   });
   const deleteLocker = trpc.access.deleteLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 삭제 완료"); },
+  });
+  const createCategory = trpc.access.createLockerCategory.useMutation({
+    onSuccess: () => { utils.access.getLockerCategories.invalidate(); setShowCategoryForm(false); setCategoryForm({ name: "", color: "#3b82f6" }); toast.success("카테고리 추가 완료"); },
+  });
+  const updateCategory = trpc.access.updateLockerCategory.useMutation({
+    onSuccess: () => { utils.access.getLockerCategories.invalidate(); setEditingCategory(null); setCategoryForm({ name: "", color: "#3b82f6" }); toast.success("카테고리 수정 완료"); },
+  });
+  const deleteCategory = trpc.access.deleteLockerCategory.useMutation({
+    onSuccess: () => { utils.access.getLockerCategories.invalidate(); utils.access.getLockers.invalidate(); toast.success("카테고리 삭제 완료"); },
+  });
+  const setLockerCategory = trpc.access.setLockerCategory.useMutation({
+    onSuccess: () => { utils.access.getLockers.invalidate(); setMovingLockerId(null); },
   });
   const createBanner = trpc.access.createBanner.useMutation({
     onSuccess: () => { utils.access.getAllBanners.invalidate(); setShowBannerForm(false); resetBannerForm(); toast.success("배너 추가 완료"); },
@@ -351,6 +379,99 @@ export default function AccessManagement() {
       {/* 락커 관리 */}
       {tab === "lockers" && (
         <div className="space-y-3">
+          {/* 카테고리 관리 바 */}
+          <div className="flex items-center gap-2 flex-wrap border border-border rounded-xl p-3 bg-card/50">
+            <span className="text-xs text-muted-foreground font-medium shrink-0">카테고리</span>
+            {categories.map((cat) => (
+              <div key={cat.id} className="flex items-center gap-1 group">
+                {editingCategory?.id === cat.id ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={categoryForm.color}
+                      onChange={(e) => setCategoryForm((f) => ({ ...f, color: e.target.value }))}
+                      className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                    />
+                    <input
+                      className="border border-border rounded px-2 py-0.5 text-xs bg-background w-20"
+                      value={categoryForm.name}
+                      onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") updateCategory.mutate({ id: cat.id, name: categoryForm.name, color: categoryForm.color });
+                        if (e.key === "Escape") setEditingCategory(null);
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => updateCategory.mutate({ id: cat.id, name: categoryForm.name, color: categoryForm.color })}
+                      className="text-xs text-primary"
+                    >저장</button>
+                    <button onClick={() => setEditingCategory(null)} className="text-xs text-muted-foreground">취소</button>
+                  </div>
+                ) : (
+                  <span
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium cursor-default"
+                    style={{ background: cat.color + "22", color: cat.color, border: `1px solid ${cat.color}44` }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ background: cat.color }}
+                    />
+                    {cat.name}
+                    <button
+                      onClick={() => { setEditingCategory(cat); setCategoryForm({ name: cat.name, color: cat.color }); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5"
+                    >
+                      <Pencil className="h-2.5 w-2.5" />
+                    </button>
+                    <button
+                      onClick={() => { if (confirm(`"${cat.name}" 카테고리를 삭제하시겠습니까?\n해당 카테고리의 락커는 미분류로 이동됩니다.`)) deleteCategory.mutate({ id: cat.id }); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <XCircle className="h-2.5 w-2.5" />
+                    </button>
+                  </span>
+                )}
+              </div>
+            ))}
+            {showCategoryForm ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="color"
+                  value={categoryForm.color}
+                  onChange={(e) => setCategoryForm((f) => ({ ...f, color: e.target.value }))}
+                  className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                />
+                <input
+                  className="border border-border rounded px-2 py-0.5 text-xs bg-background w-24"
+                  placeholder="카테고리명"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && categoryForm.name) createCategory.mutate({ name: categoryForm.name, color: categoryForm.color, branchId: selectedBranch ?? undefined });
+                    if (e.key === "Escape") { setShowCategoryForm(false); setCategoryForm({ name: "", color: "#3b82f6" }); }
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={() => categoryForm.name && createCategory.mutate({ name: categoryForm.name, color: categoryForm.color, branchId: selectedBranch ?? undefined })}
+                  className="text-xs text-primary"
+                >추가</button>
+                <button
+                  onClick={() => { setShowCategoryForm(false); setCategoryForm({ name: "", color: "#3b82f6" }); }}
+                  className="text-xs text-muted-foreground"
+                >취소</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowCategoryForm(true)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-full border border-dashed border-border"
+              >
+                <Plus className="h-3 w-3" /> 추가
+              </button>
+            )}
+          </div>
+
           <div className="flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
               사용 중 {occupiedCount}개 / 전체 {lockers.length}개
@@ -363,65 +484,64 @@ export default function AccessManagement() {
             </button>
           </div>
 
-          {/* 지점별 그룹 표시 */}
-          {selectedBranch === null && branches.length > 0 ? (
-            branches.map((branch) => {
-              const branchLockers = allLockers.filter((l) => l.branchId === branch.id);
-              if (branchLockers.length === 0) return null;
-              const branchOccupied = branchLockers.filter((l) => l.isOccupied).length;
-              return (
-                <div key={branch.id} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-primary">{branch.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {branchOccupied}/{branchLockers.length}
-                    </span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {branchLockers.map((locker) => (
-                      <LockerCard
-                        key={locker.id}
-                        locker={locker}
-                        onAssign={() => setShowAssign(locker)}
-                        onRelease={() => {
-                          if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
-                            releaseLocker.mutate({ lockerId: locker.id });
-                        }}
-                        onDelete={() => {
-                          if (!locker.isOccupied && confirm(`${locker.lockerNumber}번 락커를 삭제하시겠습니까?`))
-                            deleteLocker.mutate({ lockerId: locker.id });
-                        }}
-                      />
-                    ))}
-                  </div>
+          {/* 카테고리별 그룹 표시 */}
+          {(() => {
+            const displayLockers = lockers;
+            const grouped: { label: string; color?: string; catId: number | null; items: typeof displayLockers }[] = [
+              ...categories.map((cat) => ({
+                label: cat.name,
+                color: cat.color,
+                catId: cat.id,
+                items: displayLockers.filter((l) => l.categoryId === cat.id),
+              })),
+              {
+                label: "미분류",
+                color: undefined,
+                catId: null,
+                items: displayLockers.filter((l) => !l.categoryId || !categories.find((c) => c.id === l.categoryId)),
+              },
+            ].filter((g) => g.items.length > 0);
+
+            if (grouped.length === 0) return (
+              <div className="text-center py-10 text-muted-foreground text-sm">등록된 락커가 없습니다.</div>
+            );
+
+            return grouped.map((group) => (
+              <div key={group.catId ?? "uncat"} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {group.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: group.color }} />}
+                  <span className="text-sm font-semibold" style={{ color: group.color ?? undefined }}>
+                    {group.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {group.items.filter((l) => l.isOccupied).length}/{group.items.length}
+                  </span>
+                  <div className="flex-1 h-px bg-border" />
                 </div>
-              );
-            })
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {lockers.map((locker) => (
-                <LockerCard
-                  key={locker.id}
-                  locker={locker}
-                  onAssign={() => setShowAssign(locker)}
-                  onRelease={() => {
-                    if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
-                      releaseLocker.mutate({ lockerId: locker.id });
-                  }}
-                  onDelete={() => {
-                    if (!locker.isOccupied && confirm(`${locker.lockerNumber}번 락커를 삭제하시겠습니까?`))
-                      deleteLocker.mutate({ lockerId: locker.id });
-                  }}
-                />
-              ))}
-              {lockers.length === 0 && (
-                <div className="col-span-4 text-center py-10 text-muted-foreground text-sm">
-                  등록된 락커가 없습니다.
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {group.items.map((locker) => (
+                    <LockerCard
+                      key={locker.id}
+                      locker={locker}
+                      categories={categories}
+                      movingLockerId={movingLockerId}
+                      onAssign={() => setShowAssign(locker)}
+                      onRelease={() => {
+                        if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
+                          releaseLocker.mutate({ lockerId: locker.id });
+                      }}
+                      onDelete={() => {
+                        if (!locker.isOccupied && confirm(`${locker.lockerNumber}번 락커를 삭제하시겠습니까?`))
+                          deleteLocker.mutate({ lockerId: locker.id });
+                      }}
+                      onMoveCategory={(catId) => setLockerCategory.mutate({ lockerId: locker.id, categoryId: catId })}
+                      onToggleMove={() => setMovingLockerId((id) => id === locker.id ? null : locker.id)}
+                    />
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            ));
+          })()}
         </div>
       )}
 
@@ -656,59 +776,84 @@ function StatCard({
 
 function LockerCard({
   locker,
+  categories,
+  movingLockerId,
   onAssign,
   onRelease,
   onDelete,
+  onMoveCategory,
+  onToggleMove,
 }: {
   locker: Locker;
+  categories: LockerCategory[];
+  movingLockerId: number | null;
   onAssign: () => void;
   onRelease: () => void;
   onDelete: () => void;
+  onMoveCategory: (catId: number | null) => void;
+  onToggleMove: () => void;
 }) {
   const isOccupied = locker.isOccupied === 1;
+  const isMoving = movingLockerId === locker.id;
+  const currentCat = categories.find((c) => c.id === locker.categoryId);
+
   return (
-    <div
-      className={`border rounded-xl p-3 space-y-1.5 ${
-        isOccupied
-          ? "border-orange-500/50 bg-orange-500/5"
-          : "border-border bg-card"
-      }`}
-    >
+    <div className={`border rounded-xl p-3 space-y-1.5 relative ${isOccupied ? "border-orange-500/50 bg-orange-500/5" : "border-border bg-card"}`}>
       <div className="flex justify-between items-center">
         <span className="font-bold text-lg">{locker.lockerNumber}</span>
-        {isOccupied ? (
-          <Lock className="h-4 w-4 text-orange-500" />
-        ) : (
-          <Unlock className="h-4 w-4 text-gray-500" />
-        )}
+        <div className="flex items-center gap-1">
+          {currentCat && (
+            <span className="w-2 h-2 rounded-full" style={{ background: currentCat.color }} title={currentCat.name} />
+          )}
+          {isOccupied ? <Lock className="h-4 w-4 text-orange-500" /> : <Unlock className="h-4 w-4 text-gray-500" />}
+        </div>
       </div>
+
+      {/* 카테고리 이동 드롭다운 */}
+      {isMoving && (
+        <div className="absolute top-0 left-0 right-0 z-10 bg-card border border-primary rounded-xl p-2 shadow-lg space-y-1">
+          <p className="text-xs text-muted-foreground mb-1 font-medium">카테고리 이동</p>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => { onMoveCategory(cat.id); }}
+              className="w-full text-left text-xs px-2 py-1.5 rounded flex items-center gap-2 hover:bg-accent transition-colors"
+              style={{ color: cat.color }}
+            >
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cat.color }} />
+              {cat.name}
+            </button>
+          ))}
+          <button
+            onClick={() => onMoveCategory(null)}
+            className="w-full text-left text-xs px-2 py-1.5 rounded text-muted-foreground hover:bg-accent"
+          >미분류</button>
+          <button onClick={onToggleMove} className="w-full text-xs py-1 text-muted-foreground border-t border-border mt-1 pt-1">닫기</button>
+        </div>
+      )}
+
       {isOccupied ? (
         <>
           <p className="text-sm font-medium text-foreground truncate">{locker.memberName}</p>
           <p className="text-xs text-muted-foreground truncate">{locker.memberPhone ?? ""}</p>
-          {locker.endDate && (
-            <p className="text-xs text-muted-foreground">~ {locker.endDate}</p>
+          {locker.endDate && <p className="text-xs text-muted-foreground">~ {locker.endDate}</p>}
+          <button onClick={onRelease} className="w-full text-xs py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors mt-1">반납</button>
+          {categories.length > 0 && (
+            <button onClick={onToggleMove} className="w-full text-xs py-1 rounded-md bg-muted/50 text-muted-foreground hover:bg-muted transition-colors">
+              카테고리
+            </button>
           )}
-          <button
-            onClick={onRelease}
-            className="w-full text-xs py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors mt-1"
-          >
-            반납
-          </button>
         </>
       ) : (
         <>
           <p className="text-xs text-muted-foreground">비어있음</p>
-          <button
-            onClick={onAssign}
-            className="w-full text-xs py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors mt-1"
-          >
-            배정
-          </button>
-          <button
-            onClick={onDelete}
-            className="w-full text-xs py-1 rounded-md bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 transition-colors"
-          >
+          <button onClick={onAssign} className="w-full text-xs py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors mt-1">배정</button>
+          {categories.length > 0 && (
+            <button onClick={onToggleMove} className="w-full text-xs py-1 rounded-md bg-muted/50 text-muted-foreground hover:bg-muted transition-colors">
+              카테고리
+            </button>
+          )}
+          <button onClick={onDelete} className="w-full text-xs py-1 rounded-md bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 transition-colors">
             <Trash2 className="h-3 w-3 inline" /> 삭제
           </button>
         </>
@@ -732,9 +877,12 @@ function AddLockerModal({
   const [type, setType] = useState("personal");
   const [memo, setMemo] = useState("");
   const [branchId, setBranchId] = useState<string>(defaultBranchId ? String(defaultBranchId) : "");
+  const [categoryId, setCategoryId] = useState<string>("");
   const [bulk, setBulk] = useState(false);
   const [bulkFrom, setBulkFrom] = useState("1");
   const [bulkTo, setBulkTo] = useState("10");
+
+  const categoriesQuery = trpc.access.getLockerCategories.useQuery();
 
   const createLocker = trpc.access.createLocker.useMutation({
     onSuccess: onAdded,
@@ -755,7 +903,7 @@ function AddLockerModal({
       }
     } else {
       if (!number.trim()) { toast.error("락커 번호를 입력하세요"); return; }
-      createLocker.mutate({ lockerNumber: number.trim(), lockerType: type, memo, branchId: bid });
+      createLocker.mutate({ lockerNumber: number.trim(), lockerType: type, memo, branchId: bid, categoryId: categoryId ? Number(categoryId) : undefined });
     }
   };
 
@@ -773,6 +921,22 @@ function AddLockerModal({
               <option value="">지점 미지정</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {(categoriesQuery.data ?? []).length > 0 && (
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">카테고리</label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+            >
+              <option value="">미분류</option>
+              {(categoriesQuery.data as LockerCategory[]).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>

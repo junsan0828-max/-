@@ -473,10 +473,19 @@ async function initDatabase() {
 
   // ─── 출입 관리 테이블 ──────────────────────────────────────────────────────────
   const accessTables = [
+    `CREATE TABLE IF NOT EXISTS locker_categories (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      "branchId" INTEGER,
+      color TEXT NOT NULL DEFAULT '#3b82f6',
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS lockers (
       id SERIAL PRIMARY KEY,
       "lockerNumber" TEXT NOT NULL,
       "branchId" INTEGER,
+      "categoryId" INTEGER,
       "memberId" INTEGER,
       "memberName" TEXT,
       "memberPhone" TEXT,
@@ -488,6 +497,7 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `ALTER TABLE lockers ADD COLUMN IF NOT EXISTS "categoryId" INTEGER`,
     `CREATE TABLE IF NOT EXISTS access_logs (
       id SERIAL PRIMARY KEY,
       "memberId" INTEGER,

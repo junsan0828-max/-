@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc, and, like } from "drizzle-orm";
 import { getDb, pool } from "./db";
-import { members, lockers, accessLogs, ptPackages, branches, kioskBanners } from "../drizzle/schema";
+import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -250,6 +250,69 @@ export const accessRouter = t.router({
         .offset((input.page - 1) * input.limit);
     }),
 
+  // ── 락커 카테고리 ───────────────────────────────────────────────────────────
+
+  getLockerCategories: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(lockerCategories).orderBy(lockerCategories.sortOrder, lockerCategories.id);
+  }),
+
+  createLockerCategory: protectedProcedure
+    .input(z.object({
+      name: z.string(),
+      branchId: z.number().optional(),
+      color: z.string().default("#3b82f6"),
+      sortOrder: z.number().default(0),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [cat] = await db.insert(lockerCategories).values(input).returning();
+      return cat;
+    }),
+
+  updateLockerCategory: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      color: z.string().optional(),
+      sortOrder: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { id, ...rest } = input;
+      const [cat] = await db.update(lockerCategories).set(rest).where(eq(lockerCategories.id, id)).returning();
+      return cat;
+    }),
+
+  deleteLockerCategory: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 해당 카테고리 락커들은 미분류로 초기화
+      await db.update(lockers).set({ categoryId: null }).where(eq(lockers.categoryId, input.id));
+      await db.delete(lockerCategories).where(eq(lockerCategories.id, input.id));
+      return { ok: true };
+    }),
+
+  // 락커 카테고리 변경
+  setLockerCategory: protectedProcedure
+    .input(z.object({ lockerId: z.number(), categoryId: z.number().nullable() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [updated] = await db.update(lockers)
+        .set({ categoryId: input.categoryId, updatedAt: new Date().toISOString() })
+        .where(eq(lockers.id, input.lockerId))
+        .returning();
+      return updated;
+    }),
+
+  // ── 락커 목록 ────────────────────────────────────────────────────────────────
+
   // 락커 목록
   getLockers: protectedProcedure.query(async () => {
     const db = await getDb();
@@ -264,6 +327,7 @@ export const accessRouter = t.router({
         lockerNumber: z.string(),
         lockerType: z.string().default("personal"),
         branchId: z.number().optional(),
+        categoryId: z.number().optional(),
         memo: z.string().optional(),
       })
     )
@@ -276,6 +340,7 @@ export const accessRouter = t.router({
           lockerNumber: input.lockerNumber,
           lockerType: input.lockerType,
           branchId: input.branchId,
+          categoryId: input.categoryId,
           memo: input.memo,
           isOccupied: 0,
         })
