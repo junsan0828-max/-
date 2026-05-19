@@ -463,15 +463,17 @@ export default function Trainers() {
         </p>
       </div>
 
-      <div className="flex bg-card border border-border rounded-xl p-1 gap-1">
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}>
-            {t.label}
-          </button>
-        ))}
+      <div className="overflow-x-auto scrollbar-none -mx-4 px-4">
+        <div className="flex bg-card border border-border rounded-xl p-1 gap-1 w-max min-w-full">
+          {TABS.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex-1 min-w-[96px] py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                tab === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "trainers" ? <TrainerList /> : tab === "stats" ? <ActivityStatsTab /> : <SettlementTab />}
