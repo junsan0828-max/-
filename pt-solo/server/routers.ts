@@ -1823,11 +1823,14 @@ const adminRouter = t.router({
           if (alreadyGranted.rows.length === 0) {
             // 피초대자(새 트레이너)에게 500P
             await pool.query(`INSERT INTO fit_point_logs ("trainerId",amount,type,memo,status) VALUES($1,500,'referral_bonus','친구 초대 수락 보너스','completed')`, [newTrainerId]);
-            // 초대자에게 500P
+            // 초대자: 최대 3명까지만 지급
             const referrerRow = await pool.query<{ id: number }>(`SELECT t.id FROM trainers t JOIN users u ON u.id=t."userId" WHERE u."referralCode"=$1`, [referredBy]);
             const referrerId = referrerRow.rows[0]?.id;
             if (referrerId) {
-              await pool.query(`INSERT INTO fit_point_logs ("trainerId",amount,type,memo,status) VALUES($1,500,'referral_bonus','친구 초대 보너스','completed')`, [referrerId]);
+              const referrerGrantCount = await pool.query<{ count: string }>(`SELECT COUNT(*) FROM fit_point_logs WHERE "trainerId"=$1 AND type='referral_bonus' AND memo='친구 초대 보너스'`, [referrerId]);
+              if (Number(referrerGrantCount.rows[0]?.count ?? 0) < 3) {
+                await pool.query(`INSERT INTO fit_point_logs ("trainerId",amount,type,memo,status) VALUES($1,500,'referral_bonus','친구 초대 보너스','completed')`, [referrerId]);
+              }
             }
           }
         }

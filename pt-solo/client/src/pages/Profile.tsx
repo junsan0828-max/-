@@ -305,6 +305,7 @@ export default function Profile() {
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
               초대 링크를 공유하면 친구가 가입 승인 후 <span className="text-primary font-semibold">각각 500 FIT POINT</span>를 드립니다.
+              최대 <span className="text-primary font-semibold">3명</span>까지 혜택이 적용됩니다.
             </p>
             {/* 초대 링크 */}
             <div className="flex items-center gap-2 bg-accent/30 border border-border rounded-lg px-3 py-2.5">
@@ -336,9 +337,9 @@ export default function Profile() {
               <div className="flex-1 rounded-xl bg-primary/10 border border-primary/20 p-3 text-center">
                 <div className="flex items-center justify-center gap-1 mb-1">
                   <CheckCircle className="h-3.5 w-3.5 text-primary" />
-                  <p className="text-xs text-muted-foreground">승인 완료</p>
+                  <p className="text-xs text-muted-foreground">보너스 지급</p>
                 </div>
-                <p className="text-xl font-black text-primary">{referralInfo.approvedInvited}</p>
+                <p className="text-xl font-black text-primary">{Math.min(referralInfo.approvedInvited, 3)}<span className="text-sm font-medium text-muted-foreground"> / 3</span></p>
                 <p className="text-[10px] text-muted-foreground">명</p>
               </div>
             </div>
