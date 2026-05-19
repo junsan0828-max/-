@@ -1615,16 +1615,18 @@ const trainersRouter = t.router({
         )
         .orderBy(desc(ptSessionLogs.sessionDate));
 
-      // 단가 폴백 1: 회원의 모든 패키지에서 가격 조회
+      // 단가 폴백 1: 회원의 모든 패키지에서 가격/패키지명 조회
       const allLogMemberIds = [...new Set(logs.map(l => l.memberId))];
-      const memberPkgMap: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }> = {};
+      const memberPkgMap: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; packageName: string | null; paymentMethod: string | null }> = {};
       if (allLogMemberIds.length > 0) {
         const fallbackPkgs = await db.select({
           memberId: ptPackages.memberId,
           pricePerSession: ptPackages.pricePerSession,
           paymentAmount: ptPackages.paymentAmount,
           totalSessions: ptPackages.totalSessions,
-        }).from(ptPackages).where(inArray(ptPackages.memberId, allLogMemberIds)).orderBy(desc(ptPackages.createdAt));
+          packageName: ptPackages.packageName,
+          paymentMethod: ptPackages.paymentMethod,
+        }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), eq(ptPackages.status, "active"))).orderBy(desc(ptPackages.createdAt));
         for (const p of fallbackPkgs) {
           if (!memberPkgMap[p.memberId]) memberPkgMap[p.memberId] = p;
         }
@@ -1663,7 +1665,12 @@ const trainersRouter = t.router({
         return memberRevenueMap[l.memberId] ?? 0;
       };
 
-      const logsWithPrice = logs.map(l => ({ ...l, effectivePrice: calcPrice(l) }));
+      const logsWithPrice = logs.map(l => ({
+        ...l,
+        effectivePrice: calcPrice(l),
+        // packageId 없는 세션은 회원의 활성 패키지명으로 폴백
+        packageName: l.packageName ?? memberPkgMap[l.memberId]?.packageName ?? null,
+      }));
       const sessionCount = logsWithPrice.length;
       const revenue = logsWithPrice.reduce((s, l) => s + l.effectivePrice, 0);
       const settlementAmount = Math.round(revenue * settlementRate / 100);
