@@ -10,11 +10,8 @@ import Logo from "@/components/Logo";
 const ERROR_MESSAGES: Record<string, string> = {
   pending: "가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다.",
   rejected: "가입이 거절된 계정입니다. 관리자에게 문의하세요.",
-  google_not_configured: "Google 로그인이 설정되지 않았습니다.",
   kakao_not_configured: "카카오 로그인이 설정되지 않았습니다.",
-  google_failed: "Google 로그인 중 오류가 발생했습니다.",
   kakao_failed: "카카오 로그인 중 오류가 발생했습니다.",
-  google_cancelled: "Google 로그인이 취소되었습니다.",
   kakao_cancelled: "카카오 로그인이 취소되었습니다.",
 };
 
@@ -53,16 +50,6 @@ export default function Login() {
         <CardContent className="space-y-4">
           {/* 소셜 로그인 */}
           <div className="space-y-2">
-            <a href="/auth/google"
-              className="flex items-center justify-center gap-3 w-full h-11 rounded-lg border border-border bg-white hover:bg-gray-50 transition-colors">
-              <svg width="20" height="20" viewBox="0 0 48 48">
-                <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.4 30.3 0 24 0 14.7 0 6.7 5.4 2.7 13.3l7.8 6C12.4 13 17.8 9.5 24 9.5z"/>
-                <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17z"/>
-                <path fill="#FBBC05" d="M10.5 28.7A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.8-6A24 24 0 0 0 0 24c0 3.9.9 7.5 2.7 10.7l7.8-6z"/>
-                <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.2 1.5-5 2.3-8.4 2.3-6.2 0-11.6-4.2-13.5-10l-7.8 6C6.7 42.6 14.7 48 24 48z"/>
-              </svg>
-              <span className="text-sm font-medium text-gray-700">Google로 시작하기</span>
-            </a>
             <a href="/auth/kakao"
               className="flex items-center justify-center gap-3 w-full h-11 rounded-lg border border-border transition-colors"
               style={{ backgroundColor: "#FEE500" }}>

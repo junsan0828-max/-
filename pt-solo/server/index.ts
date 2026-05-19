@@ -74,48 +74,6 @@ app.use(
   })
 );
 
-// ── Google OAuth ──────────────────────────────────────────────────────────────
-app.get("/auth/google", (_req, res) => {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  if (!clientId) return res.redirect("/login?error=google_not_configured");
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: `${process.env.APP_URL || "http://localhost:5000"}/auth/google/callback`,
-    response_type: "code",
-    scope: "openid email profile",
-    prompt: "select_account",
-  });
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
-});
-
-app.get("/auth/google/callback", async (req, res) => {
-  const code = req.query.code as string;
-  if (!code) return res.redirect("/login?error=google_cancelled");
-  try {
-    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${process.env.APP_URL || "http://localhost:5000"}/auth/google/callback`,
-        grant_type: "authorization_code",
-      }),
-    });
-    const tokenData = await tokenRes.json() as any;
-    if (!tokenData.access_token) return res.redirect("/login?error=google_token_failed");
-    const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
-    const googleUser = await userRes.json() as any;
-    await handleOAuthLogin(req, res, "google", googleUser.id, googleUser.name || googleUser.email, googleUser.email);
-  } catch (e) {
-    console.error("Google OAuth error:", e);
-    res.redirect("/login?error=google_failed");
-  }
-});
-
 // ── Kakao OAuth ───────────────────────────────────────────────────────────────
 app.get("/auth/kakao", (_req, res) => {
   const clientId = process.env.KAKAO_CLIENT_ID;
