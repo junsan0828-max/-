@@ -1051,7 +1051,7 @@ const ptRouter = t.router({
       const { packageId, ...fields } = input;
 
       // usedSessions 변경 시 status 자동 조정
-      const pkg = fields.totalSessions !== undefined || fields.usedSessions !== undefined
+      const pkg = (fields.totalSessions !== undefined || fields.usedSessions !== undefined || fields.paymentAmount !== undefined || fields.paymentMethod !== undefined)
         ? (await db.select().from(ptPackages).where(eq(ptPackages.id, packageId)).limit(1))[0]
         : null;
 
@@ -1059,8 +1059,17 @@ const ptRouter = t.router({
       const used = fields.usedSessions ?? pkg?.usedSessions ?? 0;
       const autoStatus = used >= total ? "completed" : "active";
 
+      // paymentAmount 또는 totalSessions 변경 시 pricePerSession 재계산
+      const newPaymentAmount = fields.paymentAmount ?? pkg?.paymentAmount ?? undefined;
+      const newTotalSessions = fields.totalSessions ?? pkg?.totalSessions ?? undefined;
+      const newPaymentMethod = fields.paymentMethod ?? pkg?.paymentMethod ?? undefined;
+      const recalcPrice = (fields.paymentAmount !== undefined || fields.totalSessions !== undefined || fields.paymentMethod !== undefined)
+        ? calcPricePerSession(newPaymentAmount ?? undefined, newTotalSessions ?? undefined, newPaymentMethod ?? undefined)
+        : undefined;
+
       await db.update(ptPackages).set({
         ...fields,
+        ...(recalcPrice !== undefined ? { pricePerSession: recalcPrice } : {}),
         ...(pkg ? { status: autoStatus } : {}),
       }).where(eq(ptPackages.id, packageId));
       return { success: true };
@@ -1586,6 +1595,7 @@ const trainersRouter = t.router({
           pricePerSession: ptPackages.pricePerSession,
           paymentAmount: ptPackages.paymentAmount,
           totalSessions: ptPackages.totalSessions,
+          paymentMethod: ptPackages.paymentMethod,
           packageName: ptPackages.packageName,
           memberName: members.name,
         })
@@ -1642,12 +1652,14 @@ const trainersRouter = t.router({
         }
       }
 
-      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+        // paymentAmount 기준 계산 우선 (pricePerSession은 갱신 안 됐을 수 있음)
+        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
+          return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
         if (l.pricePerSession) return l.pricePerSession;
-        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
         const fb = memberPkgMap[l.memberId];
-        if (fb?.pricePerSession) return fb.pricePerSession;
         if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0) return Math.round(fb.paymentAmount / fb.totalSessions);
+        if (fb?.pricePerSession) return fb.pricePerSession;
         return memberRevenueMap[l.memberId] ?? 0;
       };
 
@@ -2346,12 +2358,13 @@ const adminRouter = t.router({
         }
       }
 
-      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
+          return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
         if (l.pricePerSession) return l.pricePerSession;
-        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
         const fb = memberPkgMap2[l.memberId];
-        if (fb?.pricePerSession) return fb.pricePerSession;
         if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0) return Math.round(fb.paymentAmount / fb.totalSessions);
+        if (fb?.pricePerSession) return fb.pricePerSession;
         return 0;
       };
       const sessionRevenue = monthLogs.reduce((s, l) => s + calcPrice(l), 0);
