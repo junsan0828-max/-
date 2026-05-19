@@ -2165,7 +2165,8 @@ const adminRouter = t.router({
       return { ...m, remainingPt };
     }));
 
-    return withPt;
+    // PT 계약(활성 패키지)이 있는 회원만 표시
+    return withPt.filter((m) => m.remainingPt > 0);
   }),
 
   // 트레이너 미배정 매출 건 목록 (revenue_entries.trainerId NULL)
