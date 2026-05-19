@@ -37,6 +37,66 @@ interface Context {
   res: Response;
 }
 
+const DEFAULT_TERMS_OF_SERVICE = `이용 약관
+
+제1조 (목적)
+본 약관은 퍼스널 트레이닝 서비스 이용에 관한 기본적인 사항을 규정함을 목적으로 합니다.
+
+제2조 (서비스 내용)
+트레이너는 회원에게 개인 맞춤형 운동 지도, 식이 상담, 체력 측정 및 평가 등의 서비스를 제공합니다.
+
+제3조 (계약 기간 및 횟수)
+본 계약은 회원권 등록일로부터 약정된 횟수 또는 기간 동안 유효합니다.
+
+제4조 (결제 및 환불)
+① 회원권 요금은 계약 체결 시 선납을 원칙으로 합니다.
+② 환불은 소비자보호법 및 체육시설법에 따라 처리됩니다.
+③ 이용 횟수에 따른 잔여 횟수는 일할 계산하여 환불합니다.
+
+제5조 (회원의 의무)
+① 회원은 정해진 시간에 성실히 참여하여야 합니다.
+② 무단 결석 시 사전 연락 없이 진행된 수업은 소진한 것으로 간주합니다.
+③ 건강 상태 변화 시 즉시 트레이너에게 고지하여야 합니다.
+
+제6조 (손해배상)
+회원의 부주의로 인한 부상 및 사고에 대해 트레이너는 책임을 지지 않습니다.`;
+
+const DEFAULT_PRIVACY_POLICY = `개인정보 수집·이용 동의서
+
+1. 수집하는 개인정보 항목
+   - 필수: 성명, 생년월일, 연락처
+   - 선택: 신체 정보(키, 몸무게, 체지방률), 건강 상태, 운동 목적
+
+2. 개인정보의 수집·이용 목적
+   - 퍼스널 트레이닝 서비스 제공
+   - 운동 프로그램 설계 및 건강 관리
+   - 회원 관리 및 상담
+
+3. 개인정보의 보유 및 이용 기간
+   - 서비스 이용 계약 종료 후 1년까지 보관
+   - 단, 관련 법령에 따라 일정 기간 보관이 필요한 경우 해당 기간 보관
+
+4. 동의 거부 권리
+   귀하는 개인정보 수집·이용에 동의를 거부할 권리가 있습니다.
+   단, 필수 항목 거부 시 서비스 이용이 제한될 수 있습니다.`;
+
+const DEFAULT_MARKETING_CONSENT = `광고성 정보 수신 동의서
+
+1. 전송자: 담당 트레이너
+2. 전송 매체: SMS, 카카오톡, 이메일 등
+
+3. 전송 내용
+   - 운동 관련 정보 및 건강 팁
+   - 이벤트, 프로모션, 할인 안내
+   - 신규 프로그램 및 서비스 안내
+
+4. 수신 동의 철회
+   수신을 원하지 않으실 경우 언제든지 트레이너에게 연락하여
+   수신 거부 의사를 전달하실 수 있습니다.
+
+※ 광고성 정보 수신 동의는 선택 사항이며, 동의하지 않으셔도
+   퍼스널 트레이닝 서비스 이용에는 제한이 없습니다.`;
+
 const t = initTRPC.context<Context>().create();
 
 const publicProcedure = t.procedure;
@@ -941,7 +1001,12 @@ const trainersRouter = t.router({
       privacyPolicy: sql<string>`"privacyPolicy"`,
       marketingConsent: sql<string>`"marketingConsent"`,
     }).from(trainerSettings).where(eq(trainerSettings.trainerId, ctx.user.trainerId)).limit(1);
-    return row[0] ?? { termsOfService: null, privacyPolicy: null, marketingConsent: null };
+    const data = row[0] ?? { termsOfService: null, privacyPolicy: null, marketingConsent: null };
+    return {
+      termsOfService: data.termsOfService ?? DEFAULT_TERMS_OF_SERVICE,
+      privacyPolicy: data.privacyPolicy ?? DEFAULT_PRIVACY_POLICY,
+      marketingConsent: data.marketingConsent ?? DEFAULT_MARKETING_CONSENT,
+    };
   }),
 
   updateContractTerms: protectedProcedure
