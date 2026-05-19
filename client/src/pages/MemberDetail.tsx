@@ -1828,7 +1828,7 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
+              <ExerciseEditor simpleMode exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">피드백</Label>
@@ -1894,7 +1894,7 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
+              <ExerciseEditor simpleMode exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">피드백</Label>
