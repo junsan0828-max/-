@@ -711,13 +711,15 @@ export default function MemberDetail({ memberId }: Props) {
 
       {/* 탭 */}
       <Tabs defaultValue="info">
-        <TabsList className="w-full grid grid-cols-5">
-          <TabsTrigger value="info" className="text-xs px-1">기본정보</TabsTrigger>
-          <TabsTrigger value="pt" className="text-xs px-1">PT정보</TabsTrigger>
-          <TabsTrigger value="stats" className="text-xs px-1">통계</TabsTrigger>
-          <TabsTrigger value="training" className="text-xs px-1">트레이닝</TabsTrigger>
-          <TabsTrigger value="attendance" className="text-xs px-1">출석</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto scrollbar-none -mx-4 px-4">
+          <TabsList className="flex w-max min-w-full">
+            <TabsTrigger value="info" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[72px]">기본정보</TabsTrigger>
+            <TabsTrigger value="pt" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[72px]">PT정보</TabsTrigger>
+            <TabsTrigger value="stats" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[60px]">통계</TabsTrigger>
+            <TabsTrigger value="training" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[80px]">트레이닝</TabsTrigger>
+            <TabsTrigger value="attendance" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[60px]">출석</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ── 기본 정보 탭 ── */}
         <TabsContent value="info" className="mt-4 space-y-3">
