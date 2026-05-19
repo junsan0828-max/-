@@ -210,20 +210,32 @@ export default function KioskCheckin() {
       {bottomNav === "home" && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* ── 배너 캐러셀 ── */}
-          {banners.length > 0 && (
-            <div
-              className="relative overflow-hidden shrink-0"
-              style={{ height: "40vh" }}
-              onTouchStart={(e) => { bannerTouchX.current = e.touches[0].clientX; }}
-              onTouchEnd={(e) => {
-                if (bannerTouchX.current === null) return;
-                const dx = e.changedTouches[0].clientX - bannerTouchX.current;
-                bannerTouchX.current = null;
-                if (Math.abs(dx) < 30) return;
-                setBannerIdx((i) => dx < 0 ? (i + 1) % banners.length : (i - 1 + banners.length) % banners.length);
-              }}
-            >
-              {banners.map((b, i) => (
+          <div
+            className="relative overflow-hidden shrink-0"
+            style={{ height: "38vh" }}
+            onTouchStart={(e) => { bannerTouchX.current = e.touches[0].clientX; }}
+            onTouchEnd={(e) => {
+              if (bannerTouchX.current === null || banners.length <= 1) return;
+              const dx = e.changedTouches[0].clientX - bannerTouchX.current;
+              bannerTouchX.current = null;
+              if (Math.abs(dx) < 30) return;
+              setBannerIdx((i) => dx < 0 ? (i + 1) % banners.length : (i - 1 + banners.length) % banners.length);
+            }}
+          >
+            {banners.length === 0 ? (
+              /* 배너 없을 때 기본 안내 화면 */
+              <div
+                className="absolute inset-0 flex flex-col justify-center items-center px-6"
+                style={{ background: "linear-gradient(160deg, #111827 0%, #1e293b 100%)" }}
+              >
+                <p style={{ fontSize: 12, color: "#4b5563", letterSpacing: "0.2em", marginBottom: 12 }}>NOTICE</p>
+                <p style={{ fontSize: 16, color: "#6b7280", textAlign: "center", lineHeight: 1.7 }}>
+                  공지사항이 없습니다
+                </p>
+                <p style={{ fontSize: 11, color: "#374151", marginTop: 10 }}>관리자 페이지 → 출입관리 → 배너 관리에서 등록</p>
+              </div>
+            ) : (
+              banners.map((b, i) => (
                 <div
                   key={b.id}
                   className="absolute inset-0 flex flex-col justify-end transition-opacity duration-700"
@@ -244,8 +256,8 @@ export default function KioskCheckin() {
                     </p>
                     {b.body && (
                       <p
-                        className="mt-1 leading-relaxed"
-                        style={{ fontSize: 13, color: b.textColor, opacity: 0.8, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
+                        className="mt-1 leading-relaxed whitespace-pre-line"
+                        style={{ fontSize: 13, color: b.textColor, opacity: 0.85, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
                       >
                         {b.body}
                       </p>
@@ -272,10 +284,8 @@ export default function KioskCheckin() {
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-
+              ))
+            )}
           {/* 헤더 */}
           <div className="flex flex-col items-center pt-4 pb-3 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
             <p style={{ fontFamily: "'Cinzel', serif", fontSize: 30, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.28em", textShadow: "0 0 18px rgba(42,95,196,0.45)" }}>ZIANTGYM</p>
