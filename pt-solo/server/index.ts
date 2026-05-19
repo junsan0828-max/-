@@ -74,6 +74,117 @@ app.use(
   })
 );
 
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+app.get("/auth/google", (_req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) return res.redirect("/login?error=google_not_configured");
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: `${process.env.APP_URL || "http://localhost:5000"}/auth/google/callback`,
+    response_type: "code",
+    scope: "openid email profile",
+    prompt: "select_account",
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+app.get("/auth/google/callback", async (req, res) => {
+  const code = req.query.code as string;
+  if (!code) return res.redirect("/login?error=google_cancelled");
+  try {
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirect_uri: `${process.env.APP_URL || "http://localhost:5000"}/auth/google/callback`,
+        grant_type: "authorization_code",
+      }),
+    });
+    const tokenData = await tokenRes.json() as any;
+    if (!tokenData.access_token) return res.redirect("/login?error=google_token_failed");
+    const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const googleUser = await userRes.json() as any;
+    await handleOAuthLogin(req, res, "google", googleUser.id, googleUser.name || googleUser.email, googleUser.email);
+  } catch (e) {
+    console.error("Google OAuth error:", e);
+    res.redirect("/login?error=google_failed");
+  }
+});
+
+// ── Kakao OAuth ───────────────────────────────────────────────────────────────
+app.get("/auth/kakao", (_req, res) => {
+  const clientId = process.env.KAKAO_CLIENT_ID;
+  if (!clientId) return res.redirect("/login?error=kakao_not_configured");
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: `${process.env.APP_URL || "http://localhost:5000"}/auth/kakao/callback`,
+    response_type: "code",
+  });
+  res.redirect(`https://kauth.kakao.com/oauth/authorize?${params}`);
+});
+
+app.get("/auth/kakao/callback", async (req, res) => {
+  const code = req.query.code as string;
+  if (!code) return res.redirect("/login?error=kakao_cancelled");
+  try {
+    const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: process.env.KAKAO_CLIENT_ID!,
+        redirect_uri: `${process.env.APP_URL || "http://localhost:5000"}/auth/kakao/callback`,
+        code,
+        ...(process.env.KAKAO_CLIENT_SECRET ? { client_secret: process.env.KAKAO_CLIENT_SECRET } : {}),
+      }),
+    });
+    const tokenData = await tokenRes.json() as any;
+    if (!tokenData.access_token) return res.redirect("/login?error=kakao_token_failed");
+    const userRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const kakaoUser = await userRes.json() as any;
+    const name = kakaoUser.kakao_account?.profile?.nickname || kakaoUser.properties?.nickname || "카카오사용자";
+    const email = kakaoUser.kakao_account?.email;
+    await handleOAuthLogin(req, res, "kakao", String(kakaoUser.id), name, email);
+  } catch (e) {
+    console.error("Kakao OAuth error:", e);
+    res.redirect("/login?error=kakao_failed");
+  }
+});
+
+async function handleOAuthLogin(req: any, res: any, provider: string, providerId: string, name: string, email?: string) {
+  const db2 = getDb();
+  // 기존 계정 찾기
+  const existing = await pool.query<{ id: number; role: string; position: string | null; trainerId: number | null }>(
+    `SELECT u.id, u.role, u.position, t.id AS "trainerId"
+     FROM users u LEFT JOIN trainers t ON t."userId"=u.id
+     WHERE u.provider=$1 AND u."providerId"=$2 LIMIT 1`,
+    [provider, providerId]
+  );
+  if (existing.rows[0]) {
+    const u = existing.rows[0];
+    if (u.position === "pending") return res.redirect("/login?error=pending");
+    if (u.position === "rejected") return res.redirect("/login?error=rejected");
+    (req.session as any).user = { id: u.id, username: name, role: u.role, trainerId: u.trainerId ?? undefined };
+    await new Promise<void>((resolve, reject) => req.session.save((err: any) => err ? reject(err) : resolve()));
+    return res.redirect("/");
+  }
+  // 신규 가입
+  const username = `${provider}_${providerId.slice(0, 8)}`;
+  const myCode = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const [userRow] = await db2.insert(users).values({ username, password: null as any, role: "trainer", position: "pending" }).returning({ id: users.id });
+  await pool.query(`UPDATE users SET provider=$1, "providerId"=$2, "referralCode"=$3 WHERE id=$4`, [provider, providerId, myCode, userRow.id]);
+  const [trainerRow] = await db2.insert(trainers).values({ userId: userRow.id, trainerName: name, email: email || undefined }).returning({ id: trainers.id });
+  await db2.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
+  return res.redirect("/login?error=pending");
+}
+
 app.get("/api/test-smtp", async (_req, res) => {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return res.json({ ok: false, reason: "RESEND_API_KEY missing" });
@@ -446,6 +557,10 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "careerRange" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "activityArea" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileImage" TEXT`);
+  // OAuth 소셜 로그인
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "provider" TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "providerId" TEXT`);
+  await pool.query(`ALTER TABLE users ALTER COLUMN password DROP NOT NULL`);
   // 친구 초대 referral
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "referralCode" TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "referredBy" TEXT`);
