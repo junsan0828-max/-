@@ -1676,14 +1676,14 @@ const trainersRouter = t.router({
         return memberRevenueMap[l.memberId] ?? 0;
       };
 
-      const logsWithPrice = logs.map(l => ({
-        ...l,
-        effectivePrice: calcPrice(l),
-        // packageId 없는 세션은 회원의 활성 패키지명으로 폴백
-        packageName: l.packageName ?? memberPkgMap[l.memberId]?.packageName ?? null,
-        // 스냅샷 우선, 없으면 JOIN, 없으면 "(탈퇴회원)"
-        memberName: l.memberNameSnapshot ?? l.memberNameJoined ?? "(탈퇴회원)",
-      }));
+      const logsWithPrice = logs
+        .filter(l => l.memberNameSnapshot != null || l.memberNameJoined != null)  // 탈퇴회원 제외
+        .map(l => ({
+          ...l,
+          effectivePrice: calcPrice(l),
+          packageName: l.packageName ?? memberPkgMap[l.memberId]?.packageName ?? null,
+          memberName: l.memberNameSnapshot ?? l.memberNameJoined ?? "",
+        }));
       const sessionCount = logsWithPrice.length;
       const revenue = logsWithPrice.reduce((s, l) => s + l.effectivePrice, 0);
       const settlementAmount = Math.round(revenue * settlementRate / 100);
