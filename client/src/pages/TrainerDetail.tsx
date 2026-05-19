@@ -562,7 +562,7 @@ export default function TrainerDetail({ trainerId }: Props) {
                     )}
                   </div>
                   <span className="font-medium text-primary shrink-0 ml-2">
-                    {log.pricePerSession ? `${log.pricePerSession.toLocaleString()}원` : "-"}
+                    {log.effectivePrice ? `${log.effectivePrice.toLocaleString()}원` : "-"}
                   </span>
                 </div>
               ))}
