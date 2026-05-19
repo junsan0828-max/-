@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle, Clock, Gift } from "lucide-react";
 
 const BEBAS = { fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" };
 
 export default function Register() {
+  const refCode = new URLSearchParams(window.location.search).get("ref") ?? "";
   const [form, setForm] = useState({ username: "", password: "", confirmPassword: "", trainerName: "", phone: "", email: "" });
   const [errorMsg, setErrorMsg] = useState("");
   const [done, setDone] = useState(false);
@@ -26,7 +27,7 @@ export default function Register() {
     if (!form.username || !form.password || !form.trainerName) { setErrorMsg("아이디, 비밀번호, 이름은 필수입니다."); return; }
     if (form.password !== form.confirmPassword) { setErrorMsg("비밀번호가 일치하지 않습니다."); return; }
     if (form.password.length < 6) { setErrorMsg("비밀번호는 6자 이상이어야 합니다."); return; }
-    registerMutation.mutate(form);
+    registerMutation.mutate({ ...form, referralCode: refCode || undefined });
   };
 
   return (
@@ -62,6 +63,12 @@ export default function Register() {
             </div>
           ) : (
           <>
+          {refCode && (
+            <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 mb-3">
+              <Gift className="h-4 w-4 text-primary shrink-0" />
+              <p className="text-xs text-primary font-medium">친구 초대 코드 적용됨 — 가입 승인 시 <span className="font-bold">+500P</span> 지급!</p>
+            </div>
+          )}
           {errorMsg && <p className="text-red-500 text-sm bg-red-500/10 rounded p-2 mb-3">{errorMsg}</p>}
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1">

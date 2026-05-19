@@ -446,6 +446,15 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "careerRange" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "activityArea" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileImage" TEXT`);
+  // 친구 초대 referral
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "referralCode" TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "referredBy" TEXT`);
+  // 기존 유저 중 referralCode 없는 경우 자동 생성
+  const noCodeUsers = await pool.query<{ id: number }>(`SELECT id FROM users WHERE "referralCode" IS NULL`);
+  for (const u of noCodeUsers.rows) {
+    const code = Math.random().toString(36).slice(2, 10).toUpperCase();
+    await pool.query(`UPDATE users SET "referralCode"=$1 WHERE id=$2`, [code, u.id]);
+  }
 
   // 포인트 자동 지급 규칙 테이블
   await pool.query(`CREATE TABLE IF NOT EXISTS point_auto_rules (

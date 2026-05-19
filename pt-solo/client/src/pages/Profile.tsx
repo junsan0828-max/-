@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown } from "lucide-react";
+import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users } from "lucide-react";
 import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
 
@@ -14,6 +14,7 @@ const TYPE_LABEL: Record<string, string> = {
   daily_reset: "일일 초기화",
   usage: "사용",
   profile_bonus: "프로필 완성 보너스",
+  referral_bonus: "친구 초대 보너스",
 };
 
 const JOB_TYPES = ["퍼스널트레이너", "필라테스강사", "트레이너 준비생", "센터 운영자", "프리랜서", "학생"];
@@ -68,6 +69,7 @@ function ProfileCompletionBanner({ profile }: { profile: { jobType?: string | nu
 
 export default function Profile() {
   const { data: profile, refetch } = trpc.trainers.getMyProfile.useQuery();
+  const { data: referralInfo } = trpc.trainers.getMyReferralInfo.useQuery();
   const utils = trpc.useUtils();
   const { data: balanceData } = trpc.fitPoints.getBalance.useQuery();
   const { data: history } = trpc.fitPoints.getHistory.useQuery();
@@ -82,6 +84,7 @@ export default function Profile() {
   const [chargeMemo, setChargeMemo] = useState("");
   const [showChargeForm, setShowChargeForm] = useState(false);
   const [showPointDetail, setShowPointDetail] = useState(false);
+  const [referralCopied, setReferralCopied] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -284,6 +287,64 @@ export default function Profile() {
                 </span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 친구 초대 */}
+      {referralInfo?.referralCode && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Share2 className="h-4 w-4 text-primary" />친구 초대하기
+              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-full">
+                각 +500P
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              초대 링크를 공유하면 친구가 가입 승인 후 <span className="text-primary font-semibold">각각 500 FIT POINT</span>를 드립니다.
+            </p>
+            {/* 초대 링크 */}
+            <div className="flex items-center gap-2 bg-accent/30 border border-border rounded-lg px-3 py-2.5">
+              <p className="flex-1 text-xs text-muted-foreground truncate">
+                {window.location.origin}/register?ref={referralInfo.referralCode}
+              </p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/register?ref=${referralInfo.referralCode}`);
+                  setReferralCopied(true);
+                  setTimeout(() => setReferralCopied(false), 2000);
+                }}
+                className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-md transition-colors shrink-0 ${referralCopied ? "text-green-400 bg-green-400/10" : "text-primary bg-primary/10 hover:bg-primary/20"}`}
+              >
+                {referralCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {referralCopied ? "복사됨" : "복사"}
+              </button>
+            </div>
+            {/* 초대 현황 */}
+            <div className="flex gap-3">
+              <div className="flex-1 rounded-xl bg-accent/20 border border-border p-3 text-center">
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">초대한 친구</p>
+                </div>
+                <p className="text-xl font-black text-foreground">{referralInfo.totalInvited}</p>
+                <p className="text-[10px] text-muted-foreground">명</p>
+              </div>
+              <div className="flex-1 rounded-xl bg-primary/10 border border-primary/20 p-3 text-center">
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <CheckCircle className="h-3.5 w-3.5 text-primary" />
+                  <p className="text-xs text-muted-foreground">승인 완료</p>
+                </div>
+                <p className="text-xl font-black text-primary">{referralInfo.approvedInvited}</p>
+                <p className="text-[10px] text-muted-foreground">명</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60 text-center">
+              내 초대 코드: <span className="font-mono font-bold">{referralInfo.referralCode}</span>
+            </p>
           </CardContent>
         </Card>
       )}

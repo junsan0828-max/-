@@ -221,6 +221,7 @@ const authRouter = t.router({
       trainerName: z.string().min(1),
       phone: z.string().optional(),
       email: z.string().email().optional().or(z.literal("")),
+      referralCode: z.string().optional(), // 초대 코드
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -228,9 +229,17 @@ const authRouter = t.router({
       const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1);
       if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
 
+      // 초대 코드 유효성 확인
+      let referredBy: string | undefined;
+      if (input.referralCode) {
+        const referrer = await pool.query(`SELECT id FROM users WHERE "referralCode"=$1`, [input.referralCode.toUpperCase()]);
+        if (referrer.rows.length > 0) referredBy = input.referralCode.toUpperCase();
+      }
+
       const hashed = await bcrypt.hash(input.password, 10);
-      // position: "pending" → 관리자 승인 전까지 로그인 불가
+      const myCode = Math.random().toString(36).slice(2, 10).toUpperCase();
       const [userRow] = await db.insert(users).values({ username: input.username, password: hashed, role: "trainer", position: "pending" }).returning({ id: users.id });
+      await pool.query(`UPDATE users SET "referralCode"=$1, "referredBy"=$2 WHERE id=$3`, [myCode, referredBy ?? null, userRow.id]);
       const [trainerRow] = await db.insert(trainers).values({ userId: userRow.id, trainerName: input.trainerName, phone: input.phone, email: input.email || undefined }).returning({ id: trainers.id });
       await db.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
 
@@ -963,6 +972,19 @@ const trainersRouter = t.router({
       }
       return { success: true, bonusGranted: false };
     }),
+
+  getMyReferralInfo: protectedProcedure.query(async ({ ctx }) => {
+    const codeRow = await pool.query<{ referralCode: string | null }>(`SELECT "referralCode" FROM users WHERE id=$1`, [ctx.user.id]);
+    const code = codeRow.rows[0]?.referralCode ?? null;
+    if (!code) return { referralCode: null, totalInvited: 0, approvedInvited: 0 };
+    const totalRow = await pool.query<{ count: string }>(`SELECT COUNT(*) FROM users WHERE "referredBy"=$1`, [code]);
+    const approvedRow = await pool.query<{ count: string }>(`SELECT COUNT(*) FROM users WHERE "referredBy"=$1 AND (position IS NULL OR position NOT IN ('pending','rejected'))`, [code]);
+    return {
+      referralCode: code,
+      totalInvited: Number(totalRow.rows[0]?.count ?? 0),
+      approvedInvited: Number(approvedRow.rows[0]?.count ?? 0),
+    };
+  }),
 
   changePassword: protectedProcedure
     .input(z.object({ currentPassword: z.string(), newPassword: z.string().min(6) }))
@@ -1788,6 +1810,31 @@ const adminRouter = t.router({
     .mutation(async ({ input }) => {
       const db = getDb();
       await db.update(users).set({ position: null }).where(eq(users.id, input.userId));
+
+      // 초대 보너스 지급 (승인 시 1회)
+      try {
+        const refRow = await pool.query<{ referredBy: string | null }>(`SELECT "referredBy" FROM users WHERE id=$1`, [input.userId]);
+        const referredBy = refRow.rows[0]?.referredBy;
+        const newTrainerRow = await pool.query<{ id: number }>(`SELECT id FROM trainers WHERE "userId"=$1`, [input.userId]);
+        const newTrainerId = newTrainerRow.rows[0]?.id;
+        if (referredBy && newTrainerId) {
+          // 이미 지급 여부 확인
+          const alreadyGranted = await pool.query(`SELECT id FROM fit_point_logs WHERE "trainerId"=$1 AND type='referral_bonus'`, [newTrainerId]);
+          if (alreadyGranted.rows.length === 0) {
+            // 피초대자(새 트레이너)에게 500P
+            await pool.query(`INSERT INTO fit_point_logs ("trainerId",amount,type,memo,status) VALUES($1,500,'referral_bonus','친구 초대 수락 보너스','completed')`, [newTrainerId]);
+            // 초대자에게 500P
+            const referrerRow = await pool.query<{ id: number }>(`SELECT t.id FROM trainers t JOIN users u ON u.id=t."userId" WHERE u."referralCode"=$1`, [referredBy]);
+            const referrerId = referrerRow.rows[0]?.id;
+            if (referrerId) {
+              await pool.query(`INSERT INTO fit_point_logs ("trainerId",amount,type,memo,status) VALUES($1,500,'referral_bonus','친구 초대 보너스','completed')`, [referrerId]);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("초대 보너스 지급 실패:", e);
+      }
+
       return { success: true };
     }),
 
