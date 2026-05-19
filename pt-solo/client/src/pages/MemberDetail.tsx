@@ -70,6 +70,7 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Send,
 } from "lucide-react";
 
 interface Props {
@@ -324,6 +325,14 @@ export default function MemberDetail({ memberId }: Props) {
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
+  const sendToMemberMutation = trpc.fitStepPlus.trainer_sendSessionToMember.useMutation({
+    onSuccess: () => toast.success("회원 FIT STEP+ 운동기록으로 전송되었습니다."),
+    onError: (err) => {
+      if (err.data?.code === "CONFLICT") toast.error("이미 전송된 일지입니다.");
+      else toast.error(err.message || "전송 실패");
+    },
   });
 
   // PT 세션 사용 (완료 후 메모 입력 유도)
@@ -1069,6 +1078,14 @@ export default function MemberDetail({ memberId }: Props) {
                               <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
                             )}
                             <div className="flex justify-end gap-3 pt-1">
+                              <button
+                                onClick={() => sendToMemberMutation.mutate({ sessionLogId: log.id })}
+                                disabled={sendToMemberMutation.isPending}
+                                className="text-muted-foreground hover:text-blue-400 transition-colors"
+                                title="회원 FIT STEP+으로 전송"
+                              >
+                                <Send className="h-3.5 w-3.5" />
+                              </button>
                               <button
                                 onClick={() => {
                                   setEditJournalForm({

@@ -2368,6 +2368,42 @@ const fitStepPlusRouter = t.router({
       return { success: true };
     }),
 
+  trainer_sendSessionToMember: protectedProcedure
+    .input(z.object({ sessionLogId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      // PT 일지 조회
+      const logRow = await getDb().select().from(ptSessionLogs)
+        .where(and(eq(ptSessionLogs.id, input.sessionLogId), eq(ptSessionLogs.trainerId, ctx.user.trainerId)))
+        .limit(1);
+      if (!logRow[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      const log = logRow[0];
+      // 해당 member의 FIT STEP+ 회원 ID 찾기 (members 테이블 id = fitStepPlusMembers id)
+      const fspMember = await pool.query<{ id: number }>(
+        `SELECT id FROM members WHERE id=$1 AND "trainerId"=$2 LIMIT 1`,
+        [log.memberId, ctx.user.trainerId]
+      );
+      if (!fspMember.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "회원을 찾을 수 없습니다." });
+      const fitStepPlusMemberId = fspMember.rows[0].id;
+      // 이미 전송된 기록인지 확인
+      const already = await pool.query(
+        `SELECT id FROM fit_step_plus_workout_logs WHERE "fitStepPlusMemberId"=$1 AND "logDate"=$2 AND notes LIKE '%[트레이너 전송]%' LIMIT 1`,
+        [fitStepPlusMemberId, log.sessionDate]
+      );
+      if (already.rows.length > 0) throw new TRPCError({ code: "CONFLICT", message: "이미 전송된 일지입니다." });
+      // 부위 태그 → 제목 생성
+      const bodyPartTitle = log.bodyPart ? `${log.bodyPart} 트레이닝` : "PT 트레이닝";
+      const notesWithTag = [log.notes, "[트레이너 전송]"].filter(Boolean).join("\n");
+      await getDb().insert(fitStepPlusWorkoutLogs).values({
+        fitStepPlusMemberId,
+        logDate: log.sessionDate,
+        title: bodyPartTitle,
+        exercisesJson: log.exercisesJson ?? undefined,
+        notes: notesWithTag,
+      });
+      return { success: true };
+    }),
+
   trainer_listWorkoutLogs: protectedProcedure
     .input(z.object({ memberId: z.number().optional(), month: z.string().optional() }).optional())
     .query(async ({ ctx, input }) => {
