@@ -2564,7 +2564,7 @@ const fitStepPlusRouter = t.router({
       bodyParts: z.array(z.string()).optional(),
       workoutTheme: z.array(z.string()).optional(),
       intensity: z.number().min(1).max(5).optional(),
-    }))
+    }).optional().default({}))
     .mutation(async ({ ctx, input }) => {
       const memberId = (ctx as any).fitStepPlusMemberId as number;
       const today = new Date().toISOString().slice(0, 10);
