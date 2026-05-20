@@ -52,40 +52,32 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
 
   return (
     <div className="p-4 space-y-5">
-      <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-2xl p-4 border border-primary/20">
-        <p className="text-muted-foreground text-xs mb-1">안녕하세요 👋</p>
-        <p className="font-bold text-lg text-foreground">{member?.name ?? "회원"}님</p>
-        {member?.membershipType && (
-          <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full border ${membershipTypeColor[member.membershipType] ?? ""}`}>
-            {membershipTypeLabel[member.membershipType] ?? member.membershipType}
-          </span>
-        )}
-      </div>
-
-      {/* 출석 체크인 */}
-      <div className={`rounded-xl p-4 border flex items-center justify-between ${
-        checkedInToday ? "bg-green-500/10 border-green-500/30" : "bg-primary/10 border-primary/30"
-      }`}>
+      {/* 인사 카드 + 출석하기 버튼 */}
+      <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-2xl p-4 border border-primary/20 flex items-center justify-between">
         <div>
-          <p className="text-xs text-muted-foreground">오늘 출석</p>
-          <p className="font-bold text-base mt-0.5">
-            {checkedInToday ? "✅ 출석 완료" : "아직 출석 전이에요"}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            이번 달 {attendance?.length ?? 0}일 출석
-          </p>
+          <p className="text-muted-foreground text-xs mb-1">안녕하세요 👋</p>
+          <p className="font-bold text-lg text-foreground">{member?.name ?? "회원"}님</p>
+          {member?.membershipType && (
+            <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full border ${membershipTypeColor[member.membershipType] ?? ""}`}>
+              {membershipTypeLabel[member.membershipType] ?? member.membershipType}
+            </span>
+          )}
         </div>
-        {!checkedInToday && (
+
+        {checkedInToday ? (
+          <div className="flex flex-col items-center gap-1 bg-green-500/20 border border-green-500/30 rounded-2xl px-4 py-3 min-w-[72px]">
+            <span className="text-2xl">✅</span>
+            <span className="text-[10px] text-green-400 font-semibold">출석완료</span>
+          </div>
+        ) : (
           <button
             onClick={() => checkInMutation.mutate()}
             disabled={checkInMutation.isPending}
-            className="bg-primary text-primary-foreground text-sm font-semibold px-4 py-2 rounded-xl active:scale-95 transition-transform"
+            className="flex flex-col items-center gap-1 bg-primary rounded-2xl px-4 py-3 min-w-[72px] active:scale-95 transition-transform"
           >
-            {checkInMutation.isPending ? "..." : "체크인"}
+            <span className="text-2xl">{checkInMutation.isPending ? "⏳" : "👋"}</span>
+            <span className="text-[10px] text-primary-foreground font-bold">출석하기</span>
           </button>
-        )}
-        {checkedInToday && (
-          <span className="text-3xl">🏆</span>
         )}
       </div>
 
