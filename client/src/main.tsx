@@ -7,13 +7,6 @@ import App from "./App";
 import { trpc } from "./lib/trpc";
 import "./index.css";
 
-// 홈 화면 바로가기(standalone)로 열었을 때 옛날 "/" 링크 → /gym-plus 자동 이동
-const isStandalone =
-  window.matchMedia("(display-mode: standalone)").matches ||
-  (window.navigator as any).standalone === true;
-if (isStandalone && window.location.pathname === "/") {
-  window.location.replace("/gym-plus");
-}
 
 function handleUnauthorized() {
   // 세션 만료 시 로그인 페이지로 이동
