@@ -6,7 +6,7 @@
   "start_url": "/gym-plus",
   "scope": "/gym-plus",
   "display": "standalone",
-  "background_color": "#09090b",
+  "background_color": "#ffffff",
   "theme_color": "#6366f1",
   "orientation": "portrait",
   "icons": [
