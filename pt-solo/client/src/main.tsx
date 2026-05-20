@@ -7,6 +7,12 @@ import App from "./App";
 import { trpc } from "./lib/trpc";
 import "./index.css";
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 function handleUnauthorized() {
   toast.error("세션이 만료되었습니다. 다시 로그인해주세요.");
   setTimeout(() => { window.location.href = "/"; }, 1200);

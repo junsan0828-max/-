@@ -143,6 +143,20 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
   return res.redirect("/login?error=pending");
 }
 
+app.get("/.well-known/assetlinks.json", (_req, res) => {
+  const sha256 = process.env.TWA_SHA256_CERT_FINGERPRINT || "";
+  res.json([
+    {
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: {
+        namespace: "android_app",
+        package_name: process.env.TWA_PACKAGE_NAME || "com.fitstep.app",
+        sha256_cert_fingerprints: sha256 ? [sha256] : [],
+      },
+    },
+  ]);
+});
+
 app.get("/api/test-smtp", async (_req, res) => {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return res.json({ ok: false, reason: "RESEND_API_KEY missing" });

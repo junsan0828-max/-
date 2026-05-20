@@ -1,0 +1,35 @@
+{
+  "packageId": "com.fitstep.app",
+  "host": "YOUR_RAILWAY_URL",
+  "name": "핏스텝",
+  "launcherName": "핏스텝",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#1a00ff",
+  "navigationColor": "#09090b",
+  "backgroundColor": "#09090b",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://YOUR_RAILWAY_URL/icons/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "fitstep"
+  },
+  "appVersionCode": 1,
+  "appVersionName": "1.0.0",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://YOUR_RAILWAY_URL/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://YOUR_RAILWAY_URL/",
+  "minSdkVersion": 21,
+  "fingerprints": []
+}
