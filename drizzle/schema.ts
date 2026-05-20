@@ -325,3 +325,34 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
+
+// ─── 출입 관리 시스템 ─────────────────────────────────────────────────────────
+
+export const lockers = pgTable("lockers", {
+  id: serial("id").primaryKey(),
+  lockerNumber: text("lockerNumber").notNull(),
+  branchId: integer("branchId"),
+  memberId: integer("memberId"),
+  memberName: text("memberName"),
+  memberPhone: text("memberPhone"),
+  lockerType: text("lockerType").default("personal").notNull(),
+  isOccupied: integer("isOccupied").default(0).notNull(),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const accessLogs = pgTable("access_logs", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId"),
+  memberName: text("memberName"),
+  phone: text("phone").notNull(),
+  branchId: integer("branchId"),
+  accessResult: text("accessResult").notNull(),
+  membershipType: text("membershipType"),
+  membershipEnd: text("membershipEnd"),
+  lockerNumber: text("lockerNumber"),
+  accessedAt: text("accessedAt").default(now).notNull(),
+});

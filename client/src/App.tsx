@@ -52,6 +52,7 @@ import GymPlusWorkout from "./pages/gym-plus/GymPlusWorkout";
 import GymPlusMembership from "./pages/gym-plus/GymPlusMembership";
 import GymPlusProfile from "./pages/gym-plus/GymPlusProfile";
 import GymPlusAdminPage from "./pages/GymPlusAdminPage";
+import AccessManagement from "./pages/AccessManagement";
 
 // 자이언트짐+ 회원앱 라우팅 (기존 시스템과 완전 분리)
 function GymPlusApp() {
@@ -159,6 +160,7 @@ function App() {
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
         <Route path="/admin">{() => <Admin />}</Route>
+        <Route path="/access">{() => <AccessManagement />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
         <Route path="/profile">{() => <Profile />}</Route>
