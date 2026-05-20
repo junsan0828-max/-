@@ -626,6 +626,65 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
+  shareLog: protectedProcedure
+    .input(z.object({ id: z.number(), share: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [log] = await db.select().from(ptSessionLogs).where(eq(ptSessionLogs.id, input.id)).limit(1);
+      if (!log) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (input.share) {
+        // gymPlusMembers에서 연결된 회원 찾기 (memberId 또는 phone 매칭)
+        const [member] = await db.select().from(members).where(eq(members.id, log.memberId)).limit(1);
+        let gymMember = null;
+        if (member) {
+          const results = await db.select().from(gymPlusMembers)
+            .where(eq(gymPlusMembers.memberId, log.memberId)).limit(1);
+          gymMember = results[0] ?? null;
+          // memberId로 못 찾으면 phone으로 시도
+          if (!gymMember && member.phone) {
+            const byPhone = await db.select().from(gymPlusMembers)
+              .where(eq(gymPlusMembers.phone, member.phone)).limit(1);
+            gymMember = byPhone[0] ?? null;
+          }
+        }
+
+        if (!gymMember) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "연결된 짐+ 회원이 없습니다. 회원의 짐+ 계정을 먼저 확인해주세요." });
+        }
+
+        // gymPlusWorkoutLogs에 기록 생성
+        const [newLog] = await db.insert(gymPlusWorkoutLogs).values({
+          gymPlusMemberId: gymMember.id,
+          logDate: log.sessionDate,
+          title: log.bodyPart ? `[PT] ${log.bodyPart}` : "[PT] 트레이닝",
+          exercisesJson: log.exercisesJson ?? null,
+          bodyPartsJson: log.bodyPart ? JSON.stringify([log.bodyPart]) : null,
+          notes: [log.goal ? `목표: ${log.goal}` : "", log.feedback ? `피드백: ${log.feedback}` : "", log.notes ?? ""].filter(Boolean).join("\n") || null,
+        }).returning();
+
+        await db.update(ptSessionLogs).set({
+          sharedToMember: 1,
+          sharedAt: new Date().toISOString(),
+          gymPlusWorkoutLogId: newLog.id,
+        }).where(eq(ptSessionLogs.id, input.id));
+      } else {
+        // 전송 취소 - gymPlusWorkoutLogs에서 삭제
+        if (log.gymPlusWorkoutLogId) {
+          await db.delete(gymPlusWorkoutLogs).where(eq(gymPlusWorkoutLogs.id, log.gymPlusWorkoutLogId));
+        }
+        await db.update(ptSessionLogs).set({
+          sharedToMember: 0,
+          sharedAt: null,
+          gymPlusWorkoutLogId: null,
+        }).where(eq(ptSessionLogs.id, input.id));
+      }
+
+      return { success: true };
+    }),
+
   // PT 세션 1회 사용 기록
   useSession: protectedProcedure
     .input(

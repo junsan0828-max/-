@@ -288,6 +288,14 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
+  const shareLogMutation = trpc.pt.shareLog.useMutation({
+    onSuccess: (_, vars) => {
+      toast.success(vars.share ? "짐+ 회원에게 전송되었습니다." : "전송이 취소되었습니다.");
+      utils.pt.sessionLogs.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "전송 실패"),
+  });
+
   // PT 세션 사용 (완료 후 메모 입력 유도)
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onSuccess: (data) => {
@@ -1058,30 +1066,43 @@ export default function MemberDetail({ memberId }: Props) {
                             {log.notes && (
                               <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
                             )}
-                            <div className="flex justify-end gap-3 pt-1">
+                            <div className="flex items-center justify-between pt-1">
                               <button
-                                onClick={() => {
-                                  setEditJournalForm({
-                                    id: log.id,
-                                    sessionDate: log.sessionDate,
-                                    goal: (log as any).goal ?? "",
-                                    bodyPart: (log as any).bodyPart ?? "",
-                                    exercises: exs,
-                                    feedback: (log as any).feedback ?? "",
-                                    notes: log.notes ?? "",
-                                  });
-                                  setEditJournalOpen(true);
-                                }}
-                                className="text-muted-foreground hover:text-primary transition-colors"
+                                onClick={() => shareLogMutation.mutate({ id: log.id, share: !(log as any).sharedToMember })}
+                                disabled={shareLogMutation.isPending}
+                                className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full transition-colors ${
+                                  (log as any).sharedToMember
+                                    ? "bg-green-500/20 text-green-400 hover:bg-red-500/20 hover:text-red-400"
+                                    : "bg-primary/10 text-primary hover:bg-primary/20"
+                                }`}
                               >
-                                <Edit className="h-3.5 w-3.5" />
+                                {(log as any).sharedToMember ? "✓ 전송됨" : "→ 짐+전송"}
                               </button>
-                              <button
-                                onClick={() => deleteLogMutation.mutate({ id: log.id })}
-                                className="text-muted-foreground hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              <div className="flex gap-3">
+                                <button
+                                  onClick={() => {
+                                    setEditJournalForm({
+                                      id: log.id,
+                                      sessionDate: log.sessionDate,
+                                      goal: (log as any).goal ?? "",
+                                      bodyPart: (log as any).bodyPart ?? "",
+                                      exercises: exs,
+                                      feedback: (log as any).feedback ?? "",
+                                      notes: log.notes ?? "",
+                                    });
+                                    setEditJournalOpen(true);
+                                  }}
+                                  className="text-muted-foreground hover:text-primary transition-colors"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => deleteLogMutation.mutate({ id: log.id })}
+                                  className="text-muted-foreground hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         )}

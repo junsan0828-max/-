@@ -135,6 +135,9 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   exercisesJson: text("exercisesJson"),
   goal: text("goal"),
   feedback: text("feedback"),
+  sharedToMember: integer("sharedToMember").default(0).notNull(),
+  sharedAt: text("sharedAt"),
+  gymPlusWorkoutLogId: integer("gymPlusWorkoutLogId"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 
