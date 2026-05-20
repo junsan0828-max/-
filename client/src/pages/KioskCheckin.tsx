@@ -109,14 +109,45 @@ export default function KioskCheckin() {
     return () => clearInterval(t);
   }, [banners.length]);
 
+  const playSound = (type: "success" | "fail") => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === "success") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.4);
+      } else {
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(220, ctx.currentTime);
+        osc.frequency.setValueAtTime(150, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+      }
+    } catch {}
+  };
+
   const checkIn = trpc.access.checkIn.useMutation({
     onSuccess: (data) => {
       setErrorMsg(null);
       setResult(data as CheckResult);
+      const r = (data as any).result;
+      if (r === "success") playSound("success");
+      else if (r === "not_found" || r === "expired") playSound("fail");
       // ambiguous(이름 선택)는 카운트다운 없이 대기
-      if ((data as any).result !== "ambiguous") setCountdown(10);
+      if (r !== "ambiguous") setCountdown(10);
     },
     onError: (err) => {
+      playSound("fail");
       setErrorMsg(err.message || "서버 오류가 발생했습니다.");
       setCountdown(5);
     },
