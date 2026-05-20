@@ -191,8 +191,8 @@ export default function KioskCheckin() {
   // 휴대폰번호 표시: 010 - XXXX - XXXX
   const a = digits.slice(0, 4);
   const b = digits.slice(4, 8);
-  const aDisplay = a.padEnd(4, "_").split("").join(" ");
-  const bDisplay = b.padEnd(4, "_").split("").join(" ");
+  const aDisplay = a.padEnd(4, "_");
+  const bDisplay = b.padEnd(4, "_");
 
   // 출석번호 표시: 4자리 + 선택적 5번째 자리
   const numBase = digits.padEnd(4, "_").slice(0, 4).split("").join(" ");
@@ -316,7 +316,7 @@ export default function KioskCheckin() {
           {/* 번호 표시 */}
           <div className="text-center py-5">
             {activeTab === "phone" ? (
-              <span className="font-mono font-bold tracking-widest whitespace-nowrap" style={{ fontSize: 26, color: "white", letterSpacing: "0.08em" }}>
+              <span className="font-mono font-bold whitespace-nowrap" style={{ fontSize: 28, color: "white", letterSpacing: "0.12em" }}>
                 010 - {aDisplay} - {bDisplay}
               </span>
             ) : (
