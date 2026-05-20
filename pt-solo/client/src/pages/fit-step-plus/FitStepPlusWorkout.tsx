@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,70 @@ function ExerciseForm({ exercises, setExercises }: { exercises: Exercise[]; setE
   );
 }
 
+function formatElapsed(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+interface WorkoutSessionProps {
+  onFinish: (data: { durationMinutes: number; exercises: Exercise[]; title: string; notes: string }) => void;
+  onCancel: () => void;
+}
+
+function WorkoutSession({ onFinish, onCancel }: WorkoutSessionProps) {
+  const [elapsed, setElapsed] = useState(0);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [title, setTitle] = useState("");
+  const [notes, setNotes] = useState("");
+  const startRef = useRef(Date.now());
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    }, 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 bg-background z-50 flex flex-col">
+      <div className="bg-primary/10 border-b border-border px-4 py-3 flex items-center justify-between">
+        <button onClick={onCancel} className="text-sm text-muted-foreground">취소</button>
+        <p className="font-semibold text-sm">운동 중 🏋️</p>
+        <div className="text-primary font-mono font-bold text-sm">{formatElapsed(elapsed)}</div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">운동 제목 (선택)</Label>
+          <Input placeholder="예: 가슴 데이, 하체 루틴..." value={title}
+            onChange={(e) => setTitle(e.target.value)} className="bg-input border-border text-sm h-9" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">운동 목록</Label>
+          <ExerciseForm exercises={exercises} setExercises={setExercises} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">메모</Label>
+          <textarea placeholder="오늘 운동 메모..." value={notes}
+            onChange={(e) => setNotes(e.target.value)} rows={3}
+            className="w-full bg-input border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+        </div>
+      </div>
+
+      <div className="p-4 border-t border-border">
+        <Button className="w-full h-12 text-base font-bold"
+          onClick={() => onFinish({ durationMinutes: Math.max(1, Math.round(elapsed / 60)), exercises, title, notes })}>
+          운동 완료 🎉
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface LogFormData {
   logDate: string; title: string; durationMinutes: string;
   caloriesBurned: string; bodyWeight: string; notes: string; mood: string;
@@ -78,6 +142,7 @@ export default function FitStepPlusWorkout() {
   const today = new Date().toISOString().slice(0, 10);
   const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7));
   const [showForm, setShowForm] = useState(false);
+  const [activeSession, setActiveSession] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<LogFormData>({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "", mood: "good" });
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -120,16 +185,49 @@ export default function FitStepPlusWorkout() {
     else { createMutation.mutate(data); }
   }
 
+  function handleSessionFinish({ durationMinutes, exercises: exs, title, notes }: { durationMinutes: number; exercises: Exercise[]; title: string; notes: string }) {
+    createMutation.mutate({
+      logDate: today,
+      title: title || "오늘의 운동",
+      durationMinutes,
+      notes,
+      mood: "good",
+      exercisesJson: exs.length > 0 ? JSON.stringify(exs) : undefined,
+    });
+    setActiveSession(false);
+  }
+
   const months = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(); d.setMonth(d.getMonth() - i);
     return d.toISOString().slice(0, 7);
   });
 
   return (
+    <>
+    {activeSession && (
+      <WorkoutSession
+        onFinish={handleSessionFinish}
+        onCancel={() => setActiveSession(false)}
+      />
+    )}
     <div className="p-4 space-y-4">
+      {/* 운동 시작 카드 */}
+      <div className="bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 rounded-2xl p-4 flex items-center justify-between">
+        <div>
+          <p className="font-bold text-base">지금 운동할까요?</p>
+          <p className="text-xs text-muted-foreground mt-0.5">시작하면 타이머가 자동 기록돼요</p>
+        </div>
+        <button
+          onClick={() => setActiveSession(true)}
+          className="bg-primary text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-xl active:scale-95 transition-transform"
+        >
+          운동 시작 ▶
+        </button>
+      </div>
+
       <div className="flex items-center justify-between">
-        <h1 className="font-bold text-lg">운동 기록</h1>
-        <Button size="sm" className="h-8 text-xs" onClick={openCreate}>+ 기록하기</Button>
+        <h1 className="font-bold text-base">운동 기록</h1>
+        <Button size="sm" className="h-8 text-xs" onClick={openCreate}>+ 직접 입력</Button>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
@@ -248,5 +346,6 @@ export default function FitStepPlusWorkout() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

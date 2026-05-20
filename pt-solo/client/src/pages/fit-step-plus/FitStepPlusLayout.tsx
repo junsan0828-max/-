@@ -27,9 +27,9 @@ export default function FitStepPlusLayout({ children, trainerId }: { children: R
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
       <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-1">
-          <span className="font-black text-base tracking-widest" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-          <span className="font-black text-base tracking-widest text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
-          <span className="font-black text-base text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>+</span>
+          <span className="text-xl" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+          <span className="text-xl text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
+          <span className="text-xl text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
         </div>
         <Button
           variant="ghost"

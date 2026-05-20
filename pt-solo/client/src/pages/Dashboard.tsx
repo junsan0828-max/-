@@ -98,13 +98,31 @@ function AdminDashboard() {
 function BannerAndNotices() {
   const { data: banner } = trpc.banner.get.useQuery();
   const { data: notices } = trpc.notices.list.useQuery();
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedNotice, setSelectedNotice] = useState<{ id: number; title: string; content: string; createdAt: string } | null>(null);
 
   const hasContent = (banner?.isActive) || (notices && notices.length > 0);
   if (!hasContent) return null;
 
+  if (selectedNotice) {
+    return (
+      <div className="space-y-3">
+        <button onClick={() => setSelectedNotice(null)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          ← 이벤트 목록
+        </button>
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <span className="inline-block text-[10px] font-semibold bg-primary/20 text-primary px-2 py-0.5 rounded-full">공지</span>
+          <h2 className="text-base font-bold leading-snug">{selectedNotice.title}</h2>
+          <p className="text-xs text-muted-foreground">{selectedNotice.createdAt.slice(0, 10)}</p>
+          <div className="rounded-xl bg-accent/20 border border-border px-4 py-3">
+            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{selectedNotice.content}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {banner?.isActive && (
         <a href={banner.link || undefined} target={banner.link ? "_blank" : undefined} rel="noreferrer"
           className={`flex items-center gap-3 px-4 py-3 rounded-xl ${banner.link ? "cursor-pointer" : "cursor-default"}`}
@@ -117,22 +135,28 @@ function BannerAndNotices() {
         </a>
       )}
       {notices && notices.length > 0 && (
-        <div className="space-y-1.5">
-          {notices.slice(0, 3).map(n => (
-            <div key={n.id} className="rounded-lg border border-border bg-accent/10 overflow-hidden">
-              <button className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
-                onClick={() => setExpandedId(expandedId === n.id ? null : n.id)}>
-                {n.isPinned && <span className="text-primary text-xs font-bold shrink-0">[필독]</span>}
-                <p className="text-xs font-medium flex-1 truncate">{n.title}</p>
-                <span className="text-xs text-muted-foreground shrink-0">{expandedId === n.id ? "▲" : "▼"}</span>
-              </button>
-              {expandedId === n.id && (
-                <div className="px-3 pb-3 text-xs text-muted-foreground whitespace-pre-wrap border-t border-border/50 pt-2">
-                  {n.content}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold">이벤트 &amp; 공지</p>
+            {notices.length > 3 && (
+              <button className="text-xs text-primary">전체보기 →</button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {notices.slice(0, 3).map(n => (
+              <button key={n.id} onClick={() => setSelectedNotice(n)}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-accent/20 border border-border hover:bg-accent/40 transition-colors text-left">
+                <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                  <span className="text-lg">📢</span>
                 </div>
-              )}
-            </div>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{n.isPinned && <span className="text-primary mr-1">[필독]</span>}{n.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{n.createdAt.slice(0, 10)}</p>
+                </div>
+                <span className="text-muted-foreground text-xs shrink-0">→</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

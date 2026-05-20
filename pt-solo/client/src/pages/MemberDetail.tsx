@@ -70,6 +70,7 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Send,
 } from "lucide-react";
 
 interface Props {
@@ -205,7 +206,11 @@ export default function MemberDetail({ memberId }: Props) {
   const [viewLogData, setViewLogData] = useState<{ log: any; exs: Exercise[] } | null>(null);
   const [checkedSets, setCheckedSets] = useState<Record<string, boolean>>({});
   const openViewLog = (log: any, exs: Exercise[]) => {
-    setViewLogData({ log, exs: JSON.parse(JSON.stringify(exs)) }); // deep copy for editing
+    const withSets = exs.map(ex => ({
+      ...ex,
+      sets: ex.sets.length > 0 ? ex.sets : [{ reps: "", weight: "" }],
+    }));
+    setViewLogData({ log, exs: JSON.parse(JSON.stringify(withSets)) });
     setCheckedSets({});
     setViewLogOpen(true);
   };
@@ -324,6 +329,14 @@ export default function MemberDetail({ memberId }: Props) {
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
+  const sendToMemberMutation = trpc.fitStepPlus.trainer_sendSessionToMember.useMutation({
+    onSuccess: () => toast.success("회원 FIT STEP+ 운동기록으로 전송되었습니다."),
+    onError: (err) => {
+      if (err.data?.code === "CONFLICT") toast.error("이미 전송된 일지입니다.");
+      else toast.error(err.message || "전송 실패");
+    },
   });
 
   // PT 세션 사용 (완료 후 메모 입력 유도)
@@ -1015,15 +1028,14 @@ export default function MemberDetail({ memberId }: Props) {
                 <div className="space-y-2">
                   {sessionLogs.map((log) => {
                     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
-                    const isExpanded = expandedLogIds.has(log.id);
                     return (
-                      <div key={log.id} className="rounded-lg bg-accent/20 border border-border overflow-hidden">
-                        {/* 접힌 헤더 - 항상 표시 */}
-                        <button
-                          className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-                          onClick={() => exs.length > 0 ? openViewLog(log, exs) : toggleLog(log.id)}
-                        >
-                          <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        key={log.id}
+                        className="w-full rounded-lg bg-accent/20 border border-border px-3 py-2.5 text-left hover:border-primary/40 transition-colors"
+                        onClick={() => openViewLog(log, exs)}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
                             <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
                             {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
                               <span key={bp} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{bp}</span>
@@ -1032,70 +1044,17 @@ export default function MemberDetail({ memberId }: Props) {
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
                             )}
                           </div>
-                          {isExpanded
-                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          }
-                        </button>
-
-                        {/* 펼쳐진 상세 내용 */}
-                        {isExpanded && (
-                          <div className="px-3 pb-3 space-y-2 border-t border-border/40">
-                            {(log as any).goal && (
-                              <div className="pt-2">
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">목표</span>
-                                <p className="text-xs text-foreground mt-0.5">{(log as any).goal}</p>
-                              </div>
-                            )}
-                            {exs.length > 0 && (
-                              <div className="space-y-1 pt-1">
-                                {exs.map((ex, i) => (
-                                  <div key={i} className="text-xs">
-                                    <span className="font-medium text-foreground/80">{ex.name}</span>
-                                    <span className="text-muted-foreground ml-2">
-                                      {ex.sets.map((s, j) => `${j + 1}세트${s.reps ? " " + s.reps + "회" : ""}${s.weight ? " " + s.weight + "kg" : ""}`).join(" · ")}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {(log as any).feedback && (
-                              <div>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">피드백</span>
-                                <p className="text-xs text-foreground mt-0.5 whitespace-pre-wrap">{(log as any).feedback}</p>
-                              </div>
-                            )}
-                            {log.notes && (
-                              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
-                            )}
-                            <div className="flex justify-end gap-3 pt-1">
-                              <button
-                                onClick={() => {
-                                  setEditJournalForm({
-                                    id: log.id,
-                                    sessionDate: log.sessionDate,
-                                    goal: (log as any).goal ?? "",
-                                    bodyPart: (log as any).bodyPart ?? "",
-                                    exercises: exs,
-                                    feedback: (log as any).feedback ?? "",
-                                    notes: log.notes ?? "",
-                                  });
-                                  setEditJournalOpen(true);
-                                }}
-                                className="text-muted-foreground hover:text-primary transition-colors"
-                              >
-                                <Edit className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => deleteLogMutation.mutate({ id: log.id })}
-                                className="text-muted-foreground hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </div>
+                        {(log as any).goal && (
+                          <p className="text-[11px] text-muted-foreground mt-1 truncate">{(log as any).goal}</p>
                         )}
-                      </div>
+                        {exs.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">
+                            {exs.map(e => e.name).filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </button>
                     );
                   })}
                 </div>
@@ -1550,7 +1509,29 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
+              <div className="space-y-1.5">
+                {journalForm.exercises.map((ex, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-muted/30 border border-border rounded-lg px-3 py-2">
+                    <span className="text-muted-foreground text-xs select-none">⠿⠿</span>
+                    <input
+                      value={ex.name}
+                      onChange={e => setJournalForm(p => ({ ...p, exercises: p.exercises.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }))}
+                      placeholder="운동명 (예: 스쿼트)"
+                      className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
+                    />
+                    <button onClick={() => setJournalForm(p => ({ ...p, exercises: p.exercises.filter((_, j) => j !== i) }))}
+                      className="text-muted-foreground hover:text-red-400 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setJournalForm(p => ({ ...p, exercises: [...p.exercises, { name: "", sets: [] }] }))}
+                  className="w-full py-2 border border-dashed border-primary/40 rounded-lg text-xs text-primary hover:bg-primary/5 transition-colors"
+                >
+                  + 운동 종목 추가
+                </button>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">피드백</Label>
@@ -1867,11 +1848,49 @@ export default function MemberDetail({ memberId }: Props) {
                   + 운동 추가
                 </button>
 
-                {/* 저장 / 삭제 */}
-                <div className="flex gap-2 pt-1">
+                {/* 하단 버튼 바 */}
+                <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs text-blue-400 hover:text-blue-400 hover:bg-blue-500/10 border-blue-500/30"
+                    disabled={sendToMemberMutation.isPending}
+                    onClick={() => sendToMemberMutation.mutate({ sessionLogId: viewLogData.log.id }, {
+                      onSuccess: () => toast.success("회원에게 전송되었습니다."),
+                      onError: (err) => toast.error(err.message || "전송 실패"),
+                    })}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    회원 전송
+                  </Button>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => {
+                      setEditJournalForm({
+                        id: viewLogData.log.id,
+                        sessionDate: viewLogData.log.sessionDate,
+                        goal: viewLogData.log.goal ?? "",
+                        bodyPart: viewLogData.log.bodyPart ?? "",
+                        exercises: viewLogData.exs,
+                        feedback: viewLogData.log.feedback ?? "",
+                        notes: viewLogData.log.notes ?? "",
+                      });
+                      setViewLogOpen(false);
+                      setEditJournalOpen(true);
+                    }}
+                    className="p-2 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteLogMutation.mutate({ id: viewLogData.log.id }); setViewLogOpen(false); } }}
+                    className="p-2 text-muted-foreground hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                   <Button
                     size="sm"
-                    className="flex-1 gap-1.5 text-xs"
+                    className="text-xs"
                     disabled={updateLogMutation.isPending}
                     onClick={() => {
                       updateLogMutation.mutate({
@@ -1881,17 +1900,6 @@ export default function MemberDetail({ memberId }: Props) {
                     }}
                   >
                     {updateLogMutation.isPending ? "저장 중..." : "저장"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs text-red-400 hover:text-red-400 hover:bg-red-500/10 border-red-500/30"
-                    onClick={() => {
-                      deleteLogMutation.mutate({ id: viewLogData.log.id });
-                      setViewLogOpen(false);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>

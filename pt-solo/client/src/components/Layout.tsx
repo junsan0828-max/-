@@ -5,8 +5,9 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog,
 } from "lucide-react";
+import ProfileSetupModal from "./ProfileSetupModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -47,7 +48,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const adminNavItems = [
     { path: "/", label: "운영 현황", icon: LayoutDashboard },
+    { path: "/admin/registrations", label: "가입 관리", icon: UserCog },
     { path: "/admin/trainers", label: "트레이너 관리", icon: ShieldCheck },
+    { path: "/admin/points", label: "포인트 관리", icon: Coins },
     { path: "/admin/notices", label: "공지/배너", icon: Bell },
     { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },
   ];
@@ -75,8 +78,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
         <div className="px-5 py-4 border-b border-border">
           <button onClick={() => setLocation("/")} className="flex items-center gap-1">
-            <span className="font-black text-lg tracking-widest" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-            <span className="font-black text-lg tracking-widest text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
+            <span className="text-2xl tracking-wider" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>FIT</span>
+            <span className="text-2xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
           </button>
         </div>
 
@@ -119,8 +122,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* 모바일 상단 바 */}
         <header className="md:hidden sticky top-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
           <button onClick={() => setLocation("/")} className="flex items-center gap-1">
-            <span className="font-black text-base tracking-widest" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-            <span className="font-black text-base tracking-widest text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
+            <span className="text-xl tracking-wider" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>FIT</span>
+            <span className="text-xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
           </button>
           <div className="flex items-center gap-1">
             <span className="text-xs text-muted-foreground mr-1">{user?.username}</span>
@@ -154,6 +157,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
+        {!isAdmin && <ProfileSetupModal />}
 
         {/* 모바일 하단 내비게이션 */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border">
