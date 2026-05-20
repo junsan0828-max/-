@@ -398,29 +398,7 @@ export default function KioskCheckin() {
         </div>
       )}
 
-      {/* ── 하단 네비게이션 ── */}
-      <div
-        className="flex"
-        style={{ background: "#111111", borderTop: "1px solid #222", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-      >
-        {([
-          ["home", "홈", HomeIcon],
-          ["locker", "락커현황", LockerIcon],
-          ["search", "회원검색", SearchIcon],
-          ["logs", "출입기록", LogIcon],
-          ["more", "더보기", MoreIcon],
-        ] as [BottomNav, string, (a:{active:boolean})=>JSX.Element][]).map(([id, label, Icon]) => (
-          <button
-            key={id}
-            onClick={() => setBottomNav(id)}
-            className="flex-1 flex flex-col items-center justify-center py-3 gap-1"
-            style={{ WebkitTapHighlightColor: "transparent" }}
-          >
-            <Icon active={bottomNav === id} />
-            <span style={{ fontSize: 10, color: bottomNav === id ? "white" : "#555", fontWeight: bottomNav === id ? 600 : 400 }}>{label}</span>
-          </button>
-        ))}
-      </div>
+      {/* 하단 네비게이션 숨김 (회원용 키오스크) */}
 
       {/* ── 결과 팝업 ── */}
       {showPopup && (
