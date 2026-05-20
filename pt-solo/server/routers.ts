@@ -2556,23 +2556,39 @@ const fitStepPlusRouter = t.router({
     }),
 
   // ── 회원 출석 체크인 ──
-  member_checkIn: fitStepPlusProtected.mutation(async ({ ctx }) => {
-    const memberId = (ctx as any).fitStepPlusMemberId as number;
-    const today = new Date().toISOString().slice(0, 10);
-    const member = await getDb().select({ trainerId: fitStepPlusMembers.trainerId })
-      .from(fitStepPlusMembers).where(eq(fitStepPlusMembers.id, memberId)).limit(1);
-    if (!member[0]) throw new TRPCError({ code: "NOT_FOUND" });
-    try {
-      await pool.query(
-        `INSERT INTO fit_step_plus_attendance ("fitStepPlusMemberId", "trainerId", "attendDate", "createdAt") VALUES ($1, $2, $3, now()::text)`,
-        [memberId, member[0].trainerId, today]
-      );
-    } catch (e: any) {
-      if (e.code === "23505") throw new TRPCError({ code: "CONFLICT", message: "오늘 이미 출석 체크했습니다." });
-      throw e;
-    }
-    return { success: true, date: today };
-  }),
+  member_checkIn: fitStepPlusProtected
+    .input(z.object({
+      conditionScore: z.number().min(1).max(5).optional(),
+      sleepHours: z.string().optional(),
+      energyLevel: z.string().optional(),
+      bodyParts: z.array(z.string()).optional(),
+      workoutTheme: z.array(z.string()).optional(),
+      intensity: z.number().min(1).max(5).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const memberId = (ctx as any).fitStepPlusMemberId as number;
+      const today = new Date().toISOString().slice(0, 10);
+      try {
+        const result = await pool.query(
+          `INSERT INTO fit_step_plus_attendance
+            ("fitStepPlusMemberId","trainerId","attendDate","conditionScore","sleepHours","energyLevel","bodyParts","workoutTheme","intensity","createdAt")
+           SELECT $1,"trainerId",$2,$3,$4,$5,$6,$7,$8,now()::text FROM fit_step_plus_members WHERE id=$1
+           RETURNING id`,
+          [
+            memberId, today,
+            input.conditionScore ?? null, input.sleepHours ?? null, input.energyLevel ?? null,
+            input.bodyParts?.length ? JSON.stringify(input.bodyParts) : null,
+            input.workoutTheme?.length ? JSON.stringify(input.workoutTheme) : null,
+            input.intensity ?? null,
+          ]
+        );
+        if (result.rows.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "회원 정보를 찾을 수 없습니다." });
+      } catch (e: any) {
+        if (e.code === "23505") throw new TRPCError({ code: "CONFLICT", message: "오늘 이미 출석 체크했습니다." });
+        throw e;
+      }
+      return { success: true, date: today };
+    }),
 
   member_getAttendance: fitStepPlusProtected
     .input(z.object({ month: z.string().optional() }))
