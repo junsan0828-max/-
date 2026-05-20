@@ -7,6 +7,13 @@ import App from "./App";
 import { trpc } from "./lib/trpc";
 import "./index.css";
 
+// 짐+ PWA가 홈화면에서 열릴 때 /gym-plus로 리다이렉트
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches ||
+  (window.navigator as any).standalone === true;
+if (isStandalone && window.location.pathname === "/") {
+  window.location.replace("/gym-plus");
+}
+
 function handleUnauthorized() {
   // gym-plus 경로에서는 통합관리 로그인으로 리다이렉트하지 않음
   if (window.location.pathname.startsWith("/gym-plus")) return;
