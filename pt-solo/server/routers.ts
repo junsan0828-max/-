@@ -26,6 +26,7 @@ import {
   fitStepPlusVideos,
   fitStepPlusEvents,
   fitStepPlusWorkoutLogs,
+  fitStepPlusAttendance,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
@@ -2552,6 +2553,51 @@ const fitStepPlusRouter = t.router({
       await getDb().delete(fitStepPlusEvents)
         .where(and(eq(fitStepPlusEvents.id, input.id), eq(fitStepPlusEvents.trainerId, trainerId)));
       return { success: true };
+    }),
+
+  // ── 회원 출석 체크인 ──
+  member_checkIn: fitStepPlusProtected.mutation(async ({ ctx }) => {
+    const memberId = (ctx as any).fitStepPlusMemberId as number;
+    const today = new Date().toISOString().slice(0, 10);
+    const member = await getDb().select({ trainerId: fitStepPlusMembers.trainerId })
+      .from(fitStepPlusMembers).where(eq(fitStepPlusMembers.id, memberId)).limit(1);
+    if (!member[0]) throw new TRPCError({ code: "NOT_FOUND" });
+    try {
+      await pool.query(
+        `INSERT INTO fit_step_plus_attendance ("fitStepPlusMemberId", "trainerId", "attendDate", "createdAt") VALUES ($1, $2, $3, now()::text)`,
+        [memberId, member[0].trainerId, today]
+      );
+    } catch (e: any) {
+      if (e.code === "23505") throw new TRPCError({ code: "CONFLICT", message: "오늘 이미 출석 체크했습니다." });
+      throw e;
+    }
+    return { success: true, date: today };
+  }),
+
+  member_getAttendance: fitStepPlusProtected
+    .input(z.object({ month: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const memberId = (ctx as any).fitStepPlusMemberId as number;
+      const month = input.month ?? new Date().toISOString().slice(0, 7);
+      const rows = await pool.query<{ attendDate: string }>(
+        `SELECT "attendDate" FROM fit_step_plus_attendance WHERE "fitStepPlusMemberId"=$1 AND "attendDate" LIKE $2 ORDER BY "attendDate" DESC`,
+        [memberId, `${month}%`]
+      );
+      return rows.rows.map((r) => r.attendDate);
+    }),
+
+  // ── 트레이너: 출석 현황 조회 ──
+  trainer_listAttendance: protectedProcedure
+    .input(z.object({ date: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const date = input.date ?? new Date().toISOString().slice(0, 10);
+      const rows = await pool.query<{ id: number; name: string; attendDate: string }>(
+        `SELECT a.id, m.name, a."attendDate" FROM fit_step_plus_attendance a JOIN fit_step_plus_members m ON a."fitStepPlusMemberId"=m.id WHERE a."trainerId"=$1 AND a."attendDate"=$2 ORDER BY a."createdAt" DESC`,
+        [trainerId, date]
+      );
+      return rows.rows;
     }),
 
   // ── 어드민 현황 조회 ──

@@ -302,3 +302,11 @@ export const fitStepPlusWorkoutLogs = pgTable("fit_step_plus_workout_logs", {
   mood: text("mood"),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+export const fitStepPlusAttendance = pgTable("fit_step_plus_attendance", {
+  id: serial("id").primaryKey(),
+  fitStepPlusMemberId: integer("fitStepPlusMemberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  attendDate: text("attendDate").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});

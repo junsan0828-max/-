@@ -504,6 +504,14 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE fit_step_plus_video_categories ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
   await pool.query(`ALTER TABLE fit_step_plus_videos ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
   await pool.query(`ALTER TABLE fit_step_plus_events ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS fit_step_plus_attendance (
+    id SERIAL PRIMARY KEY,
+    "fitStepPlusMemberId" INTEGER NOT NULL,
+    "trainerId" INTEGER NOT NULL,
+    "attendDate" TEXT NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS fsp_attendance_member_date ON fit_step_plus_attendance ("fitStepPlusMemberId", "attendDate")`);
 
   // 트레이너 상세 프로필 컬럼 추가
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "employmentType" TEXT`);

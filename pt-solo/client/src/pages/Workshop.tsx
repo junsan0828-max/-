@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
@@ -242,10 +242,222 @@ function EventSection({ trainerId }: { trainerId: number }) {
   );
 }
 
+// ── 회원 관리 섹션 ──────────────────────────────────────────────────────────
+const MEMBERSHIP_LABELS: Record<string, string> = { general: "일반회원", premium: "프리미엄", vip: "VIP" };
+
+function MemberSection() {
+  const utils = trpc.useUtils();
+  const { data: members } = trpc.fitStepPlus.trainer_listMembers.useQuery();
+  const [showForm, setShowForm] = useState(false);
+  const [editMember, setEditMember] = useState<any | null>(null);
+  const [form, setForm] = useState({ username: "", password: "", name: "", phone: "", membershipType: "general" as "general" | "premium" | "vip", membershipStart: "", membershipEnd: "" });
+
+  const createMutation = trpc.fitStepPlus.trainer_createMember.useMutation({
+    onSuccess: () => { utils.fitStepPlus.trainer_listMembers.invalidate(); setShowForm(false); resetForm(); toast.success("회원이 추가되었습니다"); },
+    onError: (err) => toast.error(err.message),
+  });
+  const updateMutation = trpc.fitStepPlus.trainer_updateMember.useMutation({
+    onSuccess: () => { utils.fitStepPlus.trainer_listMembers.invalidate(); setEditMember(null); toast.success("수정되었습니다"); },
+    onError: (err) => toast.error(err.message),
+  });
+  const deleteMutation = trpc.fitStepPlus.trainer_deleteMember.useMutation({
+    onSuccess: () => utils.fitStepPlus.trainer_listMembers.invalidate(),
+  });
+
+  function resetForm() { setForm({ username: "", password: "", name: "", phone: "", membershipType: "general", membershipStart: "", membershipEnd: "" }); }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">총 {members?.length ?? 0}명</p>
+        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => { resetForm(); setShowForm(true); }}>
+          <Plus className="h-3 w-3" />회원 추가
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="bg-muted/40 rounded-xl p-4 space-y-3 border border-border">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold">새 회원 추가</p>
+            <button onClick={() => setShowForm(false)}><X className="h-4 w-4 text-muted-foreground" /></button>
+          </div>
+          {[
+            { label: "이름 *", key: "name", placeholder: "홍길동" },
+            { label: "아이디 *", key: "username", placeholder: "hong123" },
+            { label: "비밀번호 *", key: "password", placeholder: "6자 이상", type: "password" },
+            { label: "연락처", key: "phone", placeholder: "010-0000-0000" },
+          ].map(({ label, key, placeholder, type }) => (
+            <div key={key} className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">{label}</Label>
+              <Input type={type} placeholder={placeholder} value={(form as any)[key]}
+                onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} className="bg-background border-border text-sm h-8" />
+            </div>
+          ))}
+          <div className="grid grid-cols-3 gap-1.5">
+            {(["general", "premium", "vip"] as const).map((t) => (
+              <button key={t} onClick={() => setForm((p) => ({ ...p, membershipType: t }))}
+                className={`py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.membershipType === t ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"}`}>
+                {MEMBERSHIP_LABELS[t]}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">시작일</Label>
+              <Input type="date" value={form.membershipStart} onChange={(e) => setForm((p) => ({ ...p, membershipStart: e.target.value }))} className="bg-background border-border text-xs h-8" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">만료일</Label>
+              <Input type="date" value={form.membershipEnd} onChange={(e) => setForm((p) => ({ ...p, membershipEnd: e.target.value }))} className="bg-background border-border text-xs h-8" />
+            </div>
+          </div>
+          <Button size="sm" className="w-full" disabled={createMutation.isPending}
+            onClick={() => createMutation.mutate({ ...form, phone: form.phone || undefined, membershipStart: form.membershipStart || undefined, membershipEnd: form.membershipEnd || undefined })}>
+            {createMutation.isPending ? "추가 중..." : "추가"}
+          </Button>
+        </div>
+      )}
+
+      {editMember && (
+        <div className="bg-muted/40 rounded-xl p-4 space-y-3 border border-border">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold">회원 수정</p>
+            <button onClick={() => setEditMember(null)}><X className="h-4 w-4 text-muted-foreground" /></button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">시작일</Label>
+              <Input type="date" value={editMember.membershipStart ?? ""}
+                onChange={(e) => setEditMember((p: any) => ({ ...p, membershipStart: e.target.value }))} className="bg-background border-border text-xs h-8" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">만료일</Label>
+              <Input type="date" value={editMember.membershipEnd ?? ""}
+                onChange={(e) => setEditMember((p: any) => ({ ...p, membershipEnd: e.target.value }))} className="bg-background border-border text-xs h-8" />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(["general", "premium", "vip"] as const).map((t) => (
+              <button key={t} onClick={() => setEditMember((p: any) => ({ ...p, membershipType: t }))}
+                className={`py-1.5 rounded-lg text-xs font-medium border transition-colors ${editMember.membershipType === t ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"}`}>
+                {MEMBERSHIP_LABELS[t]}
+              </button>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">새 비밀번호 (변경 시만 입력)</Label>
+            <Input type="password" placeholder="6자 이상" value={editMember.newPassword ?? ""}
+              onChange={(e) => setEditMember((p: any) => ({ ...p, newPassword: e.target.value }))} className="bg-background border-border text-sm h-8" />
+          </div>
+          <Button size="sm" className="w-full" disabled={updateMutation.isPending}
+            onClick={() => updateMutation.mutate({ id: editMember.id, membershipType: editMember.membershipType, membershipStart: editMember.membershipStart || undefined, membershipEnd: editMember.membershipEnd || undefined, password: editMember.newPassword || undefined })}>
+            {updateMutation.isPending ? "저장 중..." : "저장"}
+          </Button>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {!members || members.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-4">등록된 회원이 없습니다</p>
+        ) : (
+          members.map((m) => (
+            <div key={m.id} className="bg-background border border-border rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold">{m.name}</p>
+                <p className="text-[10px] text-muted-foreground">{MEMBERSHIP_LABELS[m.membershipType] ?? m.membershipType} · {m.phone ?? m.username}</p>
+                {m.membershipEnd && <p className="text-[10px] text-muted-foreground">만료: {m.membershipEnd}</p>}
+              </div>
+              <div className="flex gap-1.5">
+                <button onClick={() => setEditMember({ ...m, newPassword: "" })} className="text-muted-foreground hover:text-primary">
+                  <Edit2 className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => { if (confirm(`${m.name} 회원을 삭제하시겠습니까?`)) deleteMutation.mutate({ id: m.id }); }} className="text-muted-foreground hover:text-red-400">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── 출석 현황 섹션 ──────────────────────────────────────────────────────────
+function AttendanceSection() {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const { data: attendance } = trpc.fitStepPlus.trainer_listAttendance.useQuery({ date });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-input border-border text-sm h-8 flex-1" />
+        <button onClick={() => setDate(today)} className="text-xs text-primary bg-primary/10 px-3 py-1.5 rounded-lg">오늘</button>
+      </div>
+      <p className="text-xs text-muted-foreground">{date} · {attendance?.length ?? 0}명 출석</p>
+      {!attendance || attendance.length === 0 ? (
+        <p className="text-center text-sm text-muted-foreground py-4">출석 기록이 없습니다</p>
+      ) : (
+        <div className="space-y-2">
+          {attendance.map((a, i) => (
+            <div key={i} className="bg-background border border-border rounded-xl p-3 flex items-center gap-3">
+              <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center text-xs">✅</div>
+              <div>
+                <p className="text-sm font-semibold">{a.name}</p>
+                <p className="text-[10px] text-muted-foreground">{a.attendDate} 출석</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 운동기록 조회 섹션 ──────────────────────────────────────────────────────
+function WorkoutLogSection() {
+  const today = new Date().toISOString().slice(0, 10);
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const { data: logs } = trpc.fitStepPlus.trainer_listWorkoutLogs.useQuery({ month });
+  const months = Array.from({ length: 4 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - i); return d.toISOString().slice(0, 7); });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {months.map((m) => (
+          <button key={m} onClick={() => setMonth(m)}
+            className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors ${month === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+            {m.replace("-", "년 ")}월
+          </button>
+        ))}
+      </div>
+      {!logs || logs.length === 0 ? (
+        <p className="text-center text-sm text-muted-foreground py-4">운동 기록이 없습니다</p>
+      ) : (
+        <div className="space-y-2">
+          {logs.map((log) => (
+            <div key={log.id} className="bg-background border border-border rounded-xl p-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">{log.memberName} · {log.logDate}</p>
+                  <p className="text-sm font-semibold">{log.title || "운동 기록"}</p>
+                </div>
+                {log.durationMinutes && <span className="text-[10px] text-muted-foreground">⏱ {log.durationMinutes}분</span>}
+              </div>
+              {log.notes && <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{log.notes}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── FIT STEP+ 메인 관리 패널 ────────────────────────────────────────────────
 function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   const [, navigate] = useLocation();
-  const [activeSection, setActiveSection] = useState<"videos" | "events" | null>(null);
+  const [activeSection, setActiveSection] = useState<"members" | "attendance" | "workoutlogs" | "videos" | "events" | null>(null);
   const [copied, setCopied] = useState(false);
 
   function copyLink() {
@@ -257,6 +469,9 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   }
 
   const sections = [
+    { key: "members" as const, label: "회원 관리", icon: Users, desc: "FIT STEP+ 회원 등록 및 관리" },
+    { key: "attendance" as const, label: "출석 현황", icon: CalendarCheck, desc: "회원 출석 체크 현황" },
+    { key: "workoutlogs" as const, label: "운동기록 조회", icon: ClipboardList, desc: "회원 운동기록 확인" },
     { key: "videos" as const, label: "운동 영상", icon: Video, desc: "영상 등록 및 카테고리 관리" },
     { key: "events" as const, label: "공지/이벤트", icon: Bell, desc: "공지, 이벤트, 프로모션 관리" },
   ];
@@ -304,6 +519,9 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
           </button>
           {activeSection === key && (
             <CardContent className="pt-0 pb-4">
+              {key === "members" && <MemberSection />}
+              {key === "attendance" && <AttendanceSection />}
+              {key === "workoutlogs" && <WorkoutLogSection />}
               {key === "videos" && <VideoSection trainerId={trainerId} />}
               {key === "events" && <EventSection trainerId={trainerId} />}
             </CardContent>

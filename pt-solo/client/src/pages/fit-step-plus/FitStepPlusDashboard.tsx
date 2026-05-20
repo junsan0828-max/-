@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const membershipTypeLabel: Record<string, string> = {
   general: "일반회원",
@@ -21,12 +22,28 @@ function daysUntil(dateStr: string | null | undefined) {
 export default function FitStepPlusDashboard({ trainerId }: { trainerId: number }) {
   const [, navigate] = useLocation();
   const base = `/fit-step-plus/${trainerId}`;
+  const utils = trpc.useUtils();
   const { data: member } = trpc.fitStepPlus.memberMe.useQuery();
   const { data: events } = trpc.fitStepPlus.listEvents.useQuery({ trainerId });
   const { data: videos } = trpc.fitStepPlus.listVideos.useQuery({ trainerId });
   const { data: logs } = trpc.fitStepPlus.listWorkoutLogs.useQuery({});
 
   const today = new Date().toISOString().slice(0, 10);
+  const thisMonth = today.slice(0, 7);
+  const { data: attendance } = trpc.fitStepPlus.member_getAttendance.useQuery({ month: thisMonth });
+  const checkedInToday = attendance?.includes(today) ?? false;
+
+  const checkInMutation = trpc.fitStepPlus.member_checkIn.useMutation({
+    onSuccess: () => {
+      toast.success("출석 체크 완료! 오늘도 화이팅 💪");
+      utils.fitStepPlus.member_getAttendance.invalidate();
+    },
+    onError: (err) => {
+      if (err.data?.code === "CONFLICT") toast.info("오늘 이미 출석 체크했습니다.");
+      else toast.error(err.message || "출석 체크 실패");
+    },
+  });
+
   const todayLog = logs?.find((l) => l.logDate === today);
   const daysLeft = daysUntil(member?.membershipEnd);
   const pinnedEvents = events?.filter((e) => e.isPinned) ?? [];
@@ -42,6 +59,33 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
           <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full border ${membershipTypeColor[member.membershipType] ?? ""}`}>
             {membershipTypeLabel[member.membershipType] ?? member.membershipType}
           </span>
+        )}
+      </div>
+
+      {/* 출석 체크인 */}
+      <div className={`rounded-xl p-4 border flex items-center justify-between ${
+        checkedInToday ? "bg-green-500/10 border-green-500/30" : "bg-primary/10 border-primary/30"
+      }`}>
+        <div>
+          <p className="text-xs text-muted-foreground">오늘 출석</p>
+          <p className="font-bold text-base mt-0.5">
+            {checkedInToday ? "✅ 출석 완료" : "아직 출석 전이에요"}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            이번 달 {attendance?.length ?? 0}일 출석
+          </p>
+        </div>
+        {!checkedInToday && (
+          <button
+            onClick={() => checkInMutation.mutate()}
+            disabled={checkInMutation.isPending}
+            className="bg-primary text-primary-foreground text-sm font-semibold px-4 py-2 rounded-xl active:scale-95 transition-transform"
+          >
+            {checkInMutation.isPending ? "..." : "체크인"}
+          </button>
+        )}
+        {checkedInToday && (
+          <span className="text-3xl">🏆</span>
         )}
       </div>
 
