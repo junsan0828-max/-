@@ -391,21 +391,22 @@ export default function KioskCheckin() {
                 );
               })}
             </div>
+          </div>
 
-            {/* 출입하기 버튼 */}
+          {/* 출입하기 버튼 - 키패드 밖으로 분리해 항상 보이도록 */}
+          <div className="px-5 pb-3 pt-2 shrink-0">
             <button
               onClick={handleSubmit}
               disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 4) || checkIn.isPending}
               className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
               style={{
-                height: 58,
+                height: 54,
                 fontSize: 17,
                 background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
                 color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#333",
                 border: "none",
                 letterSpacing: "0.08em",
                 WebkitTapHighlightColor: "transparent",
-                marginBottom: 8,
               }}
             >
               {checkIn.isPending ? "확인 중..." : (
