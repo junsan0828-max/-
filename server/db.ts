@@ -50,13 +50,16 @@ export async function getDashboardStats(trainerId: number) {
     const todayAttendances = Number(todayAttendancesResult[0]?.count ?? 0);
     const settlementRate = Number(trainerSettingsResult[0]?.settlementRate ?? 50);
 
-    // 세션 로그 + 패키지 join으로 pricePerSession 가져와 JS에서 계산
+    const selectFields = {
+      pricePerSession: ptPackages.pricePerSession,
+      paymentAmount: ptPackages.paymentAmount,
+      totalSessions: ptPackages.totalSessions,
+      paymentMethod: ptPackages.paymentMethod,
+    };
+
+    // 세션 로그 + 패키지 join으로 단가 계산 (정산 페이지와 동일 로직)
     const [monthLogs, todayLogs] = await Promise.all([
-      db.select({
-        pricePerSession: ptPackages.pricePerSession,
-        paymentAmount: ptPackages.paymentAmount,
-        totalSessions: ptPackages.totalSessions,
-      })
+      db.select(selectFields)
         .from(ptSessionLogs)
         .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
         .where(and(
@@ -64,11 +67,7 @@ export async function getDashboardStats(trainerId: number) {
           sql`${ptSessionLogs.sessionDate} >= ${monthStart}`,
           sql`${ptSessionLogs.sessionDate} < ${monthEnd}`,
         )),
-      db.select({
-        pricePerSession: ptPackages.pricePerSession,
-        paymentAmount: ptPackages.paymentAmount,
-        totalSessions: ptPackages.totalSessions,
-      })
+      db.select(selectFields)
         .from(ptSessionLogs)
         .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
         .where(and(
@@ -77,9 +76,15 @@ export async function getDashboardStats(trainerId: number) {
         )),
     ]);
 
-    const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+    const calcPricePerSession = (paymentAmount: number, sessions: number, paymentMethod?: string | null) => {
+      const base = paymentMethod === "이체" ? paymentAmount : Math.round(paymentAmount / 1.1);
+      return Math.round(base / sessions);
+    };
+
+    const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+      if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
+        return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);
       if (l.pricePerSession) return l.pricePerSession;
-      if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
       return 0;
     };
 
