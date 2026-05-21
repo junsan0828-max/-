@@ -669,18 +669,16 @@ export function GymPlusWorkoutLogsAdmin() {
       </div>
 
       {/* 회원 선택 */}
-      <div className="flex gap-1.5 flex-wrap">
-        <button
-          className={`text-xs px-2 py-1 rounded-lg border ${selectedMemberId === null ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
-          onClick={() => setSelectedMemberId(null)}
-        >전체</button>
+      <select
+        value={selectedMemberId ?? ""}
+        onChange={(e) => setSelectedMemberId(e.target.value ? Number(e.target.value) : null)}
+        className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+      >
+        <option value="">전체 회원</option>
         {displayMembers.map((m: any) => (
-          <button key={m.id}
-            className={`text-xs px-2 py-1 rounded-lg border ${selectedMemberId === m.id ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}
-            onClick={() => setSelectedMemberId(m.id)}
-          >{m.name}</button>
+          <option key={m.id} value={m.id}>{m.name}</option>
         ))}
-      </div>
+      </select>
 
       {/* 기록 목록 */}
       <p className="text-xs text-muted-foreground">운동기록 {logs?.length ?? 0}건</p>
