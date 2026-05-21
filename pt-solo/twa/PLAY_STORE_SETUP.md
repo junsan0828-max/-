@@ -57,7 +57,7 @@ keytool -list -v -keystore android.keystore -alias fitstep
 
 ## 4단계: twa-manifest.json 수정
 
-`twa/twa-manifest.json` 파일에서 `YOUR_RAILWAY_URL` 을 실제 URL로 교체:
+`twa/twa-manifest.json` 파일에서 `joyful-analysis-production-018b.up.railway.app` 을 실제 URL로 교체:
 
 ```json
 "host": "your-app.up.railway.app",

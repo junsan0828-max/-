@@ -1,6 +1,6 @@
 {
   "packageId": "com.fitstep.app",
-  "host": "YOUR_RAILWAY_URL",
+  "host": "joyful-analysis-production-018b.up.railway.app",
   "name": "핏스텝",
   "launcherName": "핏스텝",
   "display": "standalone",
@@ -10,7 +10,7 @@
   "backgroundColor": "#09090b",
   "enableNotifications": false,
   "startUrl": "/",
-  "iconUrl": "https://YOUR_RAILWAY_URL/icons/icon-512.png",
+  "iconUrl": "https://joyful-analysis-production-018b.up.railway.app/icons/icon-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
@@ -20,7 +20,7 @@
   "appVersionName": "1.0.0",
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://YOUR_RAILWAY_URL/manifest.json",
+  "webManifestUrl": "https://joyful-analysis-production-018b.up.railway.app/manifest.json",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": {
@@ -29,7 +29,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://YOUR_RAILWAY_URL/",
+  "fullScopeUrl": "https://joyful-analysis-production-018b.up.railway.app/",
   "minSdkVersion": 21,
   "fingerprints": []
 }
