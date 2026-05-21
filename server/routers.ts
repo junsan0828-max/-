@@ -999,12 +999,52 @@ const ptRouter = t.router({
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 1) ptSessionLogs 플래그 업데이트
       await db.update(ptSessionLogs)
         .set({
           sharedToMember: input.share ? 1 : 0,
           sharedAt: input.share ? new Date().toISOString() : null,
         })
         .where(eq(ptSessionLogs.id, input.id));
+
+      // 2) ZIANTGYM+ gym_plus_workout_logs 동기화 (raw SQL - 공유 DB 사용)
+      try {
+        if (input.share) {
+          // 세션 정보 조회
+          const logRows = await db.execute(
+            sql`SELECT s.*, m.phone FROM pt_session_logs s LEFT JOIN members m ON s."memberId" = m.id WHERE s.id = ${input.id} LIMIT 1`
+          );
+          const log = (logRows as any).rows?.[0] ?? (logRows as any)[0];
+          if (log) {
+            // gymPlusMember 조회 (memberId 직접 링크 또는 전화번호 매칭)
+            const gmRows = await db.execute(
+              sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (phone IS NOT NULL AND phone = ${log.phone}) LIMIT 1`
+            );
+            const gm = (gmRows as any).rows?.[0] ?? (gmRows as any)[0];
+            if (gm) {
+              // 이미 전송된 기록 있으면 삭제 후 재삽입
+              await db.execute(
+                sql`DELETE FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = ${gm.id} AND notes LIKE ${'%__src:' + input.id + '%'}`
+              );
+              const title = log.bodyPart ? `[트레이닝] ${log.bodyPart}` : "트레이닝 기록";
+              const notes = [log.notes, log.goal, log.feedback].filter(Boolean).join("\n") + `\n__src:${input.id}`;
+              await db.execute(
+                sql`INSERT INTO gym_plus_workout_logs ("gymPlusMemberId", "logDate", title, "exercisesJson", notes, "createdAt") VALUES (${gm.id}, ${log.sessionDate}, ${title}, ${log.exercisesJson}, ${notes}, ${new Date().toISOString()})`
+              );
+            }
+          }
+        } else {
+          // 전송 취소: 해당 기록 삭제
+          await db.execute(
+            sql`DELETE FROM gym_plus_workout_logs WHERE notes LIKE ${'%__src:' + input.id + '%'}`
+          );
+        }
+      } catch (e) {
+        // gymPlus 테이블 없어도 메인 기능은 정상 동작
+        console.error("[shareLog] gymPlus sync error:", e);
+      }
+
       return { success: true };
     }),
 
