@@ -127,11 +127,7 @@ function App() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#1a00ff" }}>
-        <img src="/icons/icon-512.png" alt="핏스텝" className="w-40 h-40" />
-      </div>
-    );
+    return <div className="min-h-screen" style={{ backgroundColor: "#1a00ff" }} />;
   }
 
   if (!user) {
