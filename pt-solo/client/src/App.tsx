@@ -3,6 +3,7 @@ import { Component, type ReactNode } from "react";
 import { trpc } from "./lib/trpc";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
@@ -112,6 +113,10 @@ function App() {
 
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;
+  }
+
+  if (window.location.pathname === "/privacy") {
+    return <Privacy />;
   }
 
   // FIT STEP+ 회원앱 라우트 (트레이너 로그인 불필요)
