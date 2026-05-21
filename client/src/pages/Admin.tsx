@@ -40,6 +40,7 @@ const FIELD_OPTIONS = [
   { value: "paymentAmount", label: "결제 금액" },
   { value: "unpaidAmount", label: "미수금" },
   { value: "paymentMethod", label: "결제방법" },
+  { value: "membershipInfo", label: "보유 이용권 (헬스/PT 자동 파싱)" },
 ];
 
 const AUTO_GUESS: Record<string, string> = {
@@ -58,6 +59,7 @@ const AUTO_GUESS: Record<string, string> = {
   결제금액: "paymentAmount", 금액: "paymentAmount", "결제 금액": "paymentAmount",
   미수금: "unpaidAmount",
   결제방법: "paymentMethod", "결제 방법": "paymentMethod",
+  "보유이용권": "membershipInfo", "보유 이용권": "membershipInfo",
 };
 
 export default function Admin() {

@@ -467,6 +467,7 @@ async function initDatabase() {
       "isAI" INTEGER NOT NULL DEFAULT 0,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `ALTER TABLE sheet_pending_members ADD COLUMN IF NOT EXISTS "membershipType" TEXT`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

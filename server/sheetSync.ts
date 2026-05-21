@@ -66,6 +66,15 @@ export function parseCSV(text: string): string[][] {
     });
 }
 
+function parseMembershipInfo(raw: string): { membershipType?: string; membershipStart?: string; membershipEnd?: string } {
+  const typeMatch = raw.match(/^(헬스|PT|피티)/);
+  const dateMatch = raw.match(/(\d{4})[.\-/](\d{2})[.\-/](\d{2})\s*~\s*(\d{4})[.\-/](\d{2})[.\-/](\d{2})/);
+  const membershipType = typeMatch ? (typeMatch[1] === "피티" ? "PT" : typeMatch[1]) : undefined;
+  const membershipStart = dateMatch ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}` : undefined;
+  const membershipEnd = dateMatch ? `${dateMatch[4]}-${dateMatch[5]}-${dateMatch[6]}` : undefined;
+  return { membershipType, membershipStart, membershipEnd };
+}
+
 export async function syncSheetNow(): Promise<{ newMembers: number; message: string }> {
   const configs = await db.select().from(sheetSyncConfig).limit(1);
   const config = configs[0];
@@ -145,6 +154,11 @@ export async function syncSheetNow(): Promise<{ newMembers: number; message: str
     const unpaidRaw = getField(row, "unpaidAmount");
     const unpaidAmount = unpaidRaw ? parseInt(unpaidRaw.replace(/[^0-9]/g, "")) || null : null;
 
+    const membershipInfoRaw = getField(row, "membershipInfo");
+    const parsed = membershipInfoRaw ? parseMembershipInfo(membershipInfoRaw) : {};
+    const membershipStart = getField(row, "membershipStart") ?? parsed.membershipStart ?? null;
+    const membershipEnd = getField(row, "membershipEnd") ?? parsed.membershipEnd ?? null;
+
     await db.insert(sheetPendingMembers).values({
       name,
       phone: getField(row, "phone") ?? null,
@@ -152,14 +166,15 @@ export async function syncSheetNow(): Promise<{ newMembers: number; message: str
       birthDate: getField(row, "birthDate") ?? null,
       gender: getField(row, "gender") ?? null,
       grade: getField(row, "grade") ?? null,
-      membershipStart: getField(row, "membershipStart") ?? null,
-      membershipEnd: getField(row, "membershipEnd") ?? null,
+      membershipStart,
+      membershipEnd,
       profileNote: getField(row, "profileNote") ?? null,
       ptProgram: getField(row, "ptProgram") ?? null,
       ptSessions,
       paymentAmount,
       unpaidAmount,
       paymentMethod: getField(row, "paymentMethod") ?? null,
+      membershipType: parsed.membershipType ?? null,
       sheetRowIndex: config.lastSyncedCount + i + 1,
     });
     count++;

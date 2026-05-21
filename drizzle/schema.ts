@@ -370,6 +370,7 @@ export const sheetPendingMembers = pgTable("sheet_pending_members", {
   paymentAmount: integer("paymentAmount"),
   unpaidAmount: integer("unpaidAmount"),
   paymentMethod: text("paymentMethod"),
+  membershipType: text("membershipType"),
   sheetRowIndex: integer("sheetRowIndex"),
   importedAt: text("importedAt").default(now).notNull(),
 });

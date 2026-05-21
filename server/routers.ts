@@ -2194,6 +2194,28 @@ const adminRouter = t.router({
         });
       }
 
+      if ((p as any).membershipType === "헬스" && p.membershipStart) {
+        const today = new Date().toISOString().substring(0, 10);
+        await db.insert(revenueEntries).values({
+          type: "헬스",
+          subType: "이전",
+          memberId: newMember.id,
+          customerName: p.name,
+          phone: p.phone ?? null,
+          amount: p.paymentAmount ?? 0,
+          paidAmount: p.paymentAmount ?? 0,
+          unpaidAmount: p.unpaidAmount ?? 0,
+          discountAmount: 0,
+          refundAmount: 0,
+          paymentMethod: (p.paymentMethod as any) ?? null,
+          paymentDate: today,
+          startDate: p.membershipStart ?? null,
+          trainerId: input.trainerId,
+          createdBy: ctx.user!.id,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
       await db.delete(sheetPendingMembers).where(eq(sheetPendingMembers.id, input.pendingId));
       return { memberId: newMember.id };
     }),
