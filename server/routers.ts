@@ -3284,7 +3284,11 @@ const trainingManualRouter = t.router({
       exercises: z.array(z.object({
         title: z.string(),
         description: z.string().optional(),
-        exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
+        exercises: z.array(z.object({
+          name: z.string(),
+          videoUrl: z.string().optional(),
+          supplementary: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })).optional(),
+        })),
       })),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -3312,7 +3316,11 @@ const trainingManualRouter = t.router({
       exercises: z.array(z.object({
         title: z.string(),
         description: z.string().optional(),
-        exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
+        exercises: z.array(z.object({
+          name: z.string(),
+          videoUrl: z.string().optional(),
+          supplementary: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })).optional(),
+        })),
       })),
     }))
     .mutation(async ({ input }) => {
