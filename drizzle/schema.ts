@@ -494,3 +494,18 @@ export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals",
   status: text("status").default("pending").notNull(), // "pending","approved","rejected"
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+export const gymPlusDailyDiets = pgTable("gym_plus_daily_diets", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  planDate: text("planDate").notNull(), // "2026-05-22"
+  activityLevel: text("activityLevel").notNull().default("보통"),
+  targetCalories: integer("targetCalories").notNull(),
+  includeFoods: text("includeFoods").default("").notNull(),
+  excludeFoods: text("excludeFoods").default("").notNull(),
+  todayMeals: text("todayMeals").notNull(), // JSON
+  tomorrowMeals: text("tomorrowMeals").notNull(), // JSON
+  completedMeals: text("completedMeals").default("{}").notNull(), // JSON: {"today_breakfast": true, ...}
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});

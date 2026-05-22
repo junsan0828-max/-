@@ -35,6 +35,7 @@ import {
   gymPlusWorkoutLogs,
   gymPlusMemberHealth,
   gymPlusMembershipRenewals,
+  gymPlusDailyDiets,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -3165,6 +3166,192 @@ ${dataContext}
       .where(eq(gymPlusMembershipRenewals.gymPlusMemberId, ctx.gymPlusMemberId))
       .orderBy(desc(gymPlusMembershipRenewals.createdAt));
   }),
+
+  generateDietPlan: gymPlusProtected
+    .input(z.object({
+      activityLevel: z.string(),
+      targetCalories: z.number(),
+      includeFoods: z.string().default(""),
+      excludeFoods: z.string().default(""),
+      planDate: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const DIET_FOODS = [
+        // 아침
+        { category: "아침", name: "닭가슴살 + 계란", amount: "닭가슴살 100g + 계란 1개", calories: 220, carbs: 2, protein: 38, fat: 7 },
+        { category: "아침", name: "닭가슴살 샐러드", amount: "닭가슴살 100g + 야채 80g", calories: 250, carbs: 10, protein: 30, fat: 10 },
+        { category: "아침", name: "연어 샐러드", amount: "연어 120g + 야채 80g", calories: 320, carbs: 8, protein: 28, fat: 18 },
+        { category: "아침", name: "그릭요거트 + 견과류", amount: "요거트 120g + 견과 20g", calories: 280, carbs: 20, protein: 18, fat: 14 },
+        { category: "아침", name: "그릭요거트 + 베리믹스", amount: "요거트 120g + 베리 60g", calories: 230, carbs: 25, protein: 15, fat: 5 },
+        { category: "아침", name: "삶은 계란 2개", amount: "계란 2개", calories: 140, carbs: 2, protein: 12, fat: 10 },
+        { category: "아침", name: "스크램블 에그 + 토마토", amount: "계란 2개 + 토마토 80g", calories: 200, carbs: 6, protein: 14, fat: 12 },
+        { category: "아침", name: "에그마요 토스트 라이트", amount: "식빵 1개 + 에그마요 40g", calories: 270, carbs: 28, protein: 14, fat: 10 },
+        { category: "아침", name: "두부 샐러드", amount: "두부 120g + 야채 80g", calories: 210, carbs: 10, protein: 18, fat: 10 },
+        { category: "아침", name: "스모크 닭가슴살 + 야채", amount: "닭가슴살 100g + 야채 70g", calories: 180, carbs: 5, protein: 28, fat: 4 },
+        { category: "아침", name: "프로틴 쉐이크 + 아몬드", amount: "쉐이크 300ml + 아몬드 10g", calories: 290, carbs: 18, protein: 25, fat: 12 },
+        { category: "아침", name: "견과류 + 플레인 요거트", amount: "요거트 120g + 견과 20g", calories: 270, carbs: 17, protein: 13, fat: 15 },
+        { category: "아침", name: "참치샐러드 라이트", amount: "참치 70g + 야채 100g", calories: 210, carbs: 8, protein: 25, fat: 7 },
+        { category: "아침", name: "계란국 + 밥", amount: "국 200ml + 밥 100g", calories: 250, carbs: 34, protein: 12, fat: 6 },
+        { category: "아침", name: "두유 + 닭가슴살", amount: "두유 200ml + 닭가슴살 80g", calories: 250, carbs: 15, protein: 30, fat: 5 },
+        { category: "아침", name: "코티지치즈 + 블루베리", amount: "치즈 100g + 블루베리 50g", calories: 190, carbs: 20, protein: 14, fat: 5 },
+        { category: "아침", name: "에그 프리타타", amount: "프리타타 180g", calories: 240, carbs: 8, protein: 18, fat: 14 },
+        // 점심
+        { category: "점심", name: "단백질 파스타 + 닭가슴살", amount: "두부면 150g + 닭가슴살 100g", calories: 410, carbs: 28, protein: 40, fat: 7 },
+        { category: "점심", name: "현미밥 + 닭가슴살구이", amount: "현미밥 150g + 닭가슴살 120g", calories: 430, carbs: 45, protein: 42, fat: 5 },
+        { category: "점심", name: "대구 + 고구마", amount: "대구 120g + 고구마 150g", calories: 400, carbs: 40, protein: 36, fat: 5 },
+        { category: "점심", name: "두부면 + 닭가슴살", amount: "두부면 150g + 닭가슴살 120g", calories: 380, carbs: 18, protein: 40, fat: 7 },
+        { category: "점심", name: "닭다리살 에어프라이 + 현미밥", amount: "닭다리살 130g + 현미밥 150g", calories: 510, carbs: 48, protein: 42, fat: 12 },
+        { category: "점심", name: "참치스테이크 + 현미밥", amount: "참치스테이크 130g + 현미밥 150g", calories: 480, carbs: 52, protein: 40, fat: 8 },
+        { category: "점심", name: "연어구이 + 샐러드", amount: "연어 150g + 야채 100g", calories: 420, carbs: 10, protein: 38, fat: 22 },
+        { category: "점심", name: "닭안심 도시락", amount: "닭안심 150g + 잡곡밥 150g", calories: 450, carbs: 50, protein: 40, fat: 6 },
+        { category: "점심", name: "고등어조림 + 현미밥", amount: "고등어 100g + 현미밥 150g", calories: 470, carbs: 48, protein: 32, fat: 14 },
+        { category: "점심", name: "새우볶음 + 현미밥", amount: "새우 150g + 현미밥 150g", calories: 420, carbs: 46, protein: 36, fat: 5 },
+        { category: "점심", name: "콩나물국밥 라이트", amount: "국밥 1그릇 (절반)", calories: 390, carbs: 55, protein: 20, fat: 6 },
+        { category: "점심", name: "닭가슴살 + 현미밥", amount: "닭가슴살 130g + 현미밥 150g", calories: 440, carbs: 47, protein: 44, fat: 5 },
+        // 저녁
+        { category: "저녁", name: "토마토 + 계란 2개", amount: "토마토 1개 + 계란 2개", calories: 180, carbs: 8, protein: 14, fat: 10 },
+        { category: "저녁", name: "단백질쉐이크 + 고구마", amount: "쉐이크 300ml + 고구마 100g", calories: 310, carbs: 35, protein: 25, fat: 5 },
+        { category: "저녁", name: "두부면 야채볶음", amount: "두부면 200g + 야채 100g", calories: 280, carbs: 15, protein: 22, fat: 8 },
+        { category: "저녁", name: "닭안심찜 + 샐러드", amount: "닭안심 150g + 야채 100g", calories: 260, carbs: 8, protein: 40, fat: 5 },
+        { category: "저녁", name: "달걀국 + 계란", amount: "달걀국 300ml + 계란 2개", calories: 200, carbs: 5, protein: 18, fat: 12 },
+        { category: "저녁", name: "칠면조가슴살 + 샐러드", amount: "칠면조 130g + 야채 100g", calories: 240, carbs: 8, protein: 38, fat: 5 },
+        { category: "저녁", name: "요거트 + 견과류", amount: "요거트 200g + 견과 15g", calories: 250, carbs: 20, protein: 15, fat: 12 },
+        { category: "저녁", name: "두부구이 + 야채", amount: "두부 150g + 야채 100g", calories: 220, carbs: 10, protein: 20, fat: 10 },
+        { category: "저녁", name: "연어포케", amount: "연어 100g + 야채 100g", calories: 330, carbs: 14, protein: 28, fat: 18 },
+        { category: "저녁", name: "닭가슴살 야채볶음", amount: "닭가슴살 120g + 야채 120g", calories: 260, carbs: 12, protein: 36, fat: 6 },
+        { category: "저녁", name: "고등어구이 + 야채", amount: "고등어 100g + 야채 80g", calories: 290, carbs: 5, protein: 25, fat: 18 },
+        { category: "저녁", name: "닭다리살 + 샐러드", amount: "닭다리살 저지방 120g + 야채 100g", calories: 300, carbs: 8, protein: 40, fat: 10 },
+        // 간식
+        { category: "간식", name: "바나나 1개", amount: "바나나 120g", calories: 110, carbs: 28, protein: 1, fat: 0 },
+        { category: "간식", name: "사과 1개", amount: "사과 200g", calories: 100, carbs: 26, protein: 1, fat: 0 },
+        { category: "간식", name: "아몬드 한줌", amount: "아몬드 25g", calories: 150, carbs: 5, protein: 5, fat: 13 },
+        { category: "간식", name: "프로틴바", amount: "프로틴바 1개", calories: 200, carbs: 20, protein: 20, fat: 5 },
+        { category: "간식", name: "그릭요거트", amount: "그릭요거트 150g", calories: 130, carbs: 8, protein: 18, fat: 3 },
+        { category: "간식", name: "삶은 계란 1개", amount: "계란 1개", calories: 70, carbs: 1, protein: 6, fat: 5 },
+        { category: "간식", name: "고구마 1개", amount: "고구마 150g", calories: 140, carbs: 32, protein: 2, fat: 0 },
+        { category: "간식", name: "견과류 믹스", amount: "견과류 20g", calories: 120, carbs: 5, protein: 3, fat: 10 },
+        { category: "간식", name: "두유 1팩", amount: "두유 200ml", calories: 100, carbs: 10, protein: 7, fat: 3 },
+        { category: "간식", name: "방울토마토", amount: "방울토마토 200g", calories: 60, carbs: 13, protein: 2, fat: 0 },
+        { category: "간식", name: "오이 + 허무스", amount: "오이 100g + 허무스 30g", calories: 120, carbs: 10, protein: 5, fat: 6 },
+        { category: "간식", name: "단호박찜", amount: "단호박 150g", calories: 120, carbs: 28, protein: 2, fat: 0 },
+      ];
+
+      const includeList = input.includeFoods.split(",").map((s: string) => s.trim()).filter(Boolean);
+      const excludeList = input.excludeFoods.split(",").map((s: string) => s.trim()).filter(Boolean);
+      const parts = input.planDate.split("-");
+      const daySeed = (parseInt(parts[2] ?? "1") * 3 + parseInt(parts[1] ?? "1") * 7 + parseInt(parts[0] ?? "1")) % 47;
+
+      function pickMeal(category: string, budgetRatio: number, offset: number) {
+        const target = input.targetCalories * budgetRatio;
+        let pool = DIET_FOODS.filter(f =>
+          f.category === category &&
+          !excludeList.some((ex: string) => f.name.includes(ex))
+        );
+        if (pool.length === 0) pool = DIET_FOODS.filter(f => f.category === category);
+        const preferred = includeList.length > 0
+          ? pool.filter(f => includeList.some((inc: string) => f.name.includes(inc) || f.amount.includes(inc)))
+          : [];
+        const source = preferred.length > 0 ? preferred : pool;
+        const sorted = [...source].sort((a, b) => Math.abs(a.calories - target) - Math.abs(b.calories - target));
+        const idx = (daySeed * 7 + offset * 13) % Math.min(5, sorted.length);
+        return sorted[idx];
+      }
+
+      const todayMeals = {
+        breakfast: pickMeal("아침", 0.30, 0),
+        lunch: pickMeal("점심", 0.35, 1),
+        dinner: pickMeal("저녁", 0.25, 2),
+        snack: pickMeal("간식", 0.10, 3),
+      };
+      const tomorrowSeed = (daySeed + 11) % 47;
+      const pickTomorrow = (category: string, budgetRatio: number, offset: number) => {
+        const target = input.targetCalories * budgetRatio;
+        let pool = DIET_FOODS.filter(f =>
+          f.category === category &&
+          !excludeList.some((ex: string) => f.name.includes(ex))
+        );
+        if (pool.length === 0) pool = DIET_FOODS.filter(f => f.category === category);
+        const preferred = includeList.length > 0
+          ? pool.filter(f => includeList.some((inc: string) => f.name.includes(inc) || f.amount.includes(inc)))
+          : [];
+        const source = preferred.length > 0 ? preferred : pool;
+        const sorted = [...source].sort((a, b) => Math.abs(a.calories - target) - Math.abs(b.calories - target));
+        const idx = (tomorrowSeed * 7 + offset * 13) % Math.min(5, sorted.length);
+        return sorted[idx];
+      };
+      const tomorrowMeals = {
+        breakfast: pickTomorrow("아침", 0.30, 0),
+        lunch: pickTomorrow("점심", 0.35, 1),
+        dinner: pickTomorrow("저녁", 0.25, 2),
+        snack: pickTomorrow("간식", 0.10, 3),
+      };
+
+      // Replace existing plan for today
+      await db.delete(gymPlusDailyDiets).where(
+        and(
+          eq(gymPlusDailyDiets.gymPlusMemberId, ctx.gymPlusMemberId),
+          eq(gymPlusDailyDiets.planDate, input.planDate)
+        )
+      );
+      await db.insert(gymPlusDailyDiets).values({
+        gymPlusMemberId: ctx.gymPlusMemberId,
+        planDate: input.planDate,
+        activityLevel: input.activityLevel,
+        targetCalories: input.targetCalories,
+        includeFoods: input.includeFoods,
+        excludeFoods: input.excludeFoods,
+        todayMeals: JSON.stringify(todayMeals),
+        tomorrowMeals: JSON.stringify(tomorrowMeals),
+        completedMeals: "{}",
+      });
+      return { todayMeals, tomorrowMeals };
+    }),
+
+  getTodayDietPlan: gymPlusProtected
+    .input(z.object({ planDate: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [plan] = await db.select().from(gymPlusDailyDiets)
+        .where(and(
+          eq(gymPlusDailyDiets.gymPlusMemberId, ctx.gymPlusMemberId),
+          eq(gymPlusDailyDiets.planDate, input.planDate)
+        )).limit(1);
+      if (!plan) return null;
+      return {
+        ...plan,
+        todayMeals: JSON.parse(plan.todayMeals) as any,
+        tomorrowMeals: JSON.parse(plan.tomorrowMeals) as any,
+        completedMeals: JSON.parse(plan.completedMeals) as Record<string, boolean>,
+      };
+    }),
+
+  toggleDietCompletion: gymPlusProtected
+    .input(z.object({
+      planDate: z.string(),
+      mealKey: z.string(),
+      completed: z.boolean(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [plan] = await db.select({ id: gymPlusDailyDiets.id, completedMeals: gymPlusDailyDiets.completedMeals })
+        .from(gymPlusDailyDiets)
+        .where(and(
+          eq(gymPlusDailyDiets.gymPlusMemberId, ctx.gymPlusMemberId),
+          eq(gymPlusDailyDiets.planDate, input.planDate)
+        )).limit(1);
+      if (!plan) throw new TRPCError({ code: "NOT_FOUND" });
+      const completed = JSON.parse(plan.completedMeals) as Record<string, boolean>;
+      completed[input.mealKey] = input.completed;
+      await db.update(gymPlusDailyDiets)
+        .set({ completedMeals: JSON.stringify(completed), updatedAt: new Date().toISOString() })
+        .where(eq(gymPlusDailyDiets.id, plan.id));
+      return { success: true };
+    }),
 
   changePassword: gymPlusProtected
     .input(z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(6) }))
