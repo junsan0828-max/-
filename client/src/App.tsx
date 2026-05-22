@@ -51,7 +51,7 @@ import AiAnalysisPage from "./pages/AiAnalysis";
 import AdminMembers from "./pages/AdminMembers";
 import AccessManagement from "./pages/AccessManagement";
 import KioskCheckin from "./pages/KioskCheckin";
-import TrainingManual from "./pages/TrainingManual";
+import TrainingManual, { TrainingManualWrite, TrainingManualDetail } from "./pages/TrainingManual";
 import WorkManagementPage from "./pages/WorkManagement";
 import Layout from "./components/Layout";
 
@@ -119,6 +119,9 @@ function App() {
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
         <Route path="/access">{() => <AccessManagement />}</Route>
+        <Route path="/training-manual/new">{() => <TrainingManualWrite />}</Route>
+        <Route path="/training-manual/:id/edit">{(params) => <TrainingManualWrite id={parseInt(params.id!)} />}</Route>
+        <Route path="/training-manual/:id">{(params) => <TrainingManualDetail id={parseInt(params.id!)} />}</Route>
         <Route path="/training-manual">{() => <TrainingManual />}</Route>
         <Route path="/work-management">{() => <WorkManagementPage />}</Route>
         <Route path="/admin">{() => <Admin />}</Route>
