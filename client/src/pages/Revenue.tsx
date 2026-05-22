@@ -11,7 +11,7 @@ const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "분할결제"];
 const CATEGORIES = ["PT", "헬스", "기타"] as const;
 const SUB_TYPES = ["신규", "재등록", "이전"] as const;
 const DURATIONS = [1, 3, 6, 12];
-const OTHER_ITEMS = ["락커", "운동복"];
+const OTHER_ITEMS = ["락커", "운동복", "1일권", "밸런스체크", "체험"];
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 const PT_SESSIONS = [10, 20, 30, 40, 50];
 
@@ -471,10 +471,10 @@ function RevenueContent() {
                 <div className="space-y-2">
                   <div>
                     <label className="text-xs text-muted-foreground">항목</label>
-                    <div className="flex gap-2 mt-1">
+                    <div className="flex flex-wrap gap-2 mt-1">
                       {OTHER_ITEMS.map(item => (
                         <button key={item} type="button" onClick={() => setForm(f => ({ ...f, programDetail: item }))}
-                          className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.programDetail === item ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${form.programDetail === item ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                           {item}
                         </button>
                       ))}
