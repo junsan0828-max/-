@@ -25,6 +25,17 @@ import { CSS } from "@dnd-kit/utilities";
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
 
+// ── 유산소 MET 데이터 ─────────────────────────────────────────────────────────
+const CARDIO_INTENSITY_MAP: Record<string, { label: string; met: number }[]> = {
+  "걷기":    [{ label: "느리게 (3km/h)", met: 2.5 }, { label: "보통 (5km/h)", met: 3.5 }, { label: "빠르게 (6km/h)", met: 4.5 }],
+  "조깅":    [{ label: "천천히 (7km/h)", met: 7.0 }, { label: "보통 (8km/h)", met: 8.5 }, { label: "빠르게 (10km/h)", met: 10.5 }],
+  "러닝":    [{ label: "10 km/h", met: 11.0 }, { label: "12 km/h", met: 13.5 }, { label: "14km/h+", met: 16.0 }],
+  "자전거":  [{ label: "저강도", met: 4.0 }, { label: "중강도", met: 6.8 }, { label: "고강도", met: 10.0 }],
+  "로잉머신":[{ label: "저강도", met: 7.0 }, { label: "중강도", met: 8.5 }, { label: "고강도", met: 12.0 }],
+};
+const CARDIO_TYPES = Object.keys(CARDIO_INTENSITY_MAP);
+const CARDIO_EMOJI: Record<string, string> = { "걷기": "🚶", "조깅": "🏃", "러닝": "⚡", "자전거": "🚴", "로잉머신": "🚣" };
+
 const BODY_PARTS = [
   "전신", "상체", "하체",
   "등", "어깨", "가슴",
@@ -265,6 +276,97 @@ function BodyPartSelector({ selected, onChange }: { selected: string[]; onChange
         })}
       </div>
     </div>
+  );
+}
+
+// ── 유산소 설정 모달 ──────────────────────────────────────────────────────────
+function CardioSettingsModal({
+  defaultWeight,
+  onClose,
+  onStart,
+}: {
+  defaultWeight: string;
+  onClose: () => void;
+  onStart: (type: string, intensityLabel: string, met: number, weight: number) => void;
+}) {
+  const [type, setType] = useState("조깅");
+  const options = CARDIO_INTENSITY_MAP[type] ?? [];
+  const [intensity, setIntensity] = useState(options[0]?.label ?? "");
+  const [weight, setWeight] = useState(defaultWeight || "70");
+
+  useEffect(() => {
+    setIntensity(CARDIO_INTENSITY_MAP[type]?.[0]?.label ?? "");
+  }, [type]);
+
+  const selected = options.find(o => o.label === intensity);
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <h2 className="font-bold text-base">🏃 유산소운동 설정</h2>
+          <p className="text-xs text-muted-foreground">운동 종류와 속도를 선택하고 시작하세요</p>
+        </DialogHeader>
+        <div className="space-y-4 pt-1">
+          {/* 종류 */}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">운동 종류</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {CARDIO_TYPES.map(t => (
+                <button key={t} type="button"
+                  className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${type === t ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                  onClick={() => setType(t)}
+                >
+                  <span>{CARDIO_EMOJI[t]}</span> {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 속도/강도 */}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">속도 / 강도</p>
+            <div className="space-y-1.5">
+              {options.map(o => (
+                <button key={o.label} type="button"
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-colors ${intensity === o.label ? "bg-primary/15 border-primary text-primary" : "border-border text-foreground hover:border-primary/30"}`}
+                  onClick={() => setIntensity(o.label)}
+                >
+                  <span className="font-medium">{o.label}</span>
+                  <span className={`text-xs ${intensity === o.label ? "text-primary/70" : "text-muted-foreground"}`}>MET {o.met}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 체중 */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">체중 (칼로리 계산용)</p>
+            <div className="flex items-center gap-2">
+              <Input type="number" value={weight} onChange={e => setWeight(e.target.value)}
+                className="bg-input border-border h-9 text-sm flex-1" />
+              <span className="text-sm text-muted-foreground flex-shrink-0">kg</span>
+            </div>
+          </div>
+
+          {/* 예상 칼로리 미리보기 (30분 기준) */}
+          {selected && (
+            <div className="bg-primary/5 border border-primary/20 rounded-xl px-3 py-2 text-xs text-center">
+              30분 운동 시 예상 소모:
+              <span className="font-bold text-primary ml-1">
+                {Math.round(selected.met * (parseFloat(weight) || 70) * 0.5)} kcal
+              </span>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1 h-9" onClick={onClose}>취소</Button>
+            <Button className="flex-1 h-9" disabled={!intensity}
+              onClick={() => { if (selected) onStart(type, intensity, selected.met, parseFloat(weight) || 70); }}
+            >시작하기</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -575,7 +677,65 @@ export default function GymPlusWorkout() {
   const [bodyParts, setBodyParts] = useState<string[]>([]);
   const [activeLog, setActiveLog] = useState<any | null>(null);
 
+  // ── 준비운동 상태 ────────────────────────────────────────────────────────────
+  const [warmupStatus, setWarmupStatus] = useState<"idle" | "running" | "done">("idle");
+  const [warmupRemaining, setWarmupRemaining] = useState(600);
+  const warmupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function startWarmup() {
+    setWarmupStatus("running");
+    setWarmupRemaining(600);
+    warmupIntervalRef.current = setInterval(() => {
+      setWarmupRemaining(prev => {
+        if (prev <= 1) { clearInterval(warmupIntervalRef.current!); warmupIntervalRef.current = null; return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+  function completeWarmup() {
+    if (warmupIntervalRef.current) clearInterval(warmupIntervalRef.current);
+    setWarmupStatus("done");
+  }
+  function resetWarmup() {
+    if (warmupIntervalRef.current) clearInterval(warmupIntervalRef.current);
+    setWarmupStatus("idle");
+    setWarmupRemaining(600);
+  }
+
+  // ── 유산소운동 상태 ───────────────────────────────────────────────────────────
+  const [cardioStatus, setCardioStatus] = useState<"idle" | "settings" | "running" | "done">("idle");
+  const [cardioInfo, setCardioInfo] = useState({ type: "", intensityLabel: "", met: 0, weight: 70 });
+  const [cardioElapsed, setCardioElapsed] = useState(0);
+  const cardioStartRef = useRef(0);
+  const cardioIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [cardioReport, setCardioReport] = useState<{ calories: number; duration: number; type: string; intensityLabel: string } | null>(null);
+
+  function startCardio(type: string, intensityLabel: string, met: number, weight: number) {
+    setCardioInfo({ type, intensityLabel, met, weight });
+    setCardioElapsed(0);
+    cardioStartRef.current = Date.now();
+    setCardioStatus("running");
+    cardioIntervalRef.current = setInterval(() => {
+      setCardioElapsed(Math.floor((Date.now() - cardioStartRef.current) / 1000));
+    }, 1000);
+  }
+  function finishCardio() {
+    if (cardioIntervalRef.current) clearInterval(cardioIntervalRef.current);
+    const durationMin = Math.max(1, Math.round(cardioElapsed / 60));
+    const calories = Math.round(cardioInfo.met * cardioInfo.weight * (durationMin / 60));
+    setCardioReport({ calories, duration: durationMin, type: cardioInfo.type, intensityLabel: cardioInfo.intensityLabel });
+    setCardioStatus("done");
+  }
+  function resetCardio() {
+    if (cardioIntervalRef.current) clearInterval(cardioIntervalRef.current);
+    setCardioStatus("idle");
+    setCardioElapsed(0);
+    setCardioReport(null);
+  }
+
   const utils = trpc.useUtils();
+  const { data: health } = trpc.gymPlus.getHealth.useQuery();
+  const defaultWeight = health?.weight ?? "70";
   const { data: logs, isLoading } = trpc.gymPlus.listWorkoutLogs.useQuery({ month: selectedMonth });
   const { data: patternData, isFetching: patternLoading, refetch: refetchPattern } =
     trpc.gymPlus.analyzeWorkoutPattern.useQuery(undefined, { enabled: false });
@@ -750,30 +910,206 @@ export default function GymPlusWorkout() {
 
       {/* ── 오늘 운동 탭 ── */}
       {tab === "workout" && (
-        <div className="p-4 space-y-4">
-          {/* 오늘 운동 추가 CTA */}
-          <button
-            onClick={openCreate}
-            className="w-full py-4 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 flex flex-col items-center gap-1 hover:bg-primary/10 transition-colors"
-          >
-            <span className="text-2xl">➕</span>
-            <span className="text-sm font-semibold text-primary">오늘 운동 계획 추가</span>
-            <span className="text-xs text-muted-foreground">종목을 입력하고 운동을 시작하세요</span>
-          </button>
+        <div className="p-4 space-y-3">
 
-          {/* 오늘 운동 목록 */}
-          {todayLogs.length > 0 ? (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground font-medium">오늘 등록된 운동</p>
-              {todayLogs.map(log => renderLogCard(log))}
+          {/* ── 1. 준비운동 카드 ── */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🔥</span>
+                <div>
+                  <p className="font-semibold text-sm">준비운동</p>
+                  <p className="text-[10px] text-muted-foreground">10분 스트레칭 · 부상 예방</p>
+                </div>
+              </div>
+              <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium ${
+                warmupStatus === "done" ? "bg-green-500/20 text-green-400" :
+                warmupStatus === "running" ? "bg-primary/20 text-primary" :
+                "bg-muted text-muted-foreground"
+              }`}>
+                {warmupStatus === "done" ? "완료 ✓" : warmupStatus === "running" ? "진행 중" : "대기"}
+              </span>
             </div>
-          ) : (
-            <div className="text-center py-6">
-              <p className="text-muted-foreground text-sm">오늘 등록된 운동이 없어요</p>
-              <p className="text-xs text-muted-foreground mt-1">위 버튼으로 오늘 운동을 추가해보세요</p>
+
+            <div className="px-4 py-4">
+              {warmupStatus === "idle" && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">준비운동으로 부상을 예방하세요</p>
+                  <button
+                    onClick={startWarmup}
+                    className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+                  >▶ 시작</button>
+                </div>
+              )}
+
+              {warmupStatus === "running" && (
+                <div className="space-y-3">
+                  <div className="text-center">
+                    <p className={`text-4xl font-mono font-bold ${warmupRemaining === 0 ? "text-green-400" : "text-foreground"}`}>
+                      {formatTime(warmupRemaining)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{warmupRemaining === 0 ? "완료! 아래 버튼을 눌러주세요" : "남은 시간"}</p>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${warmupRemaining === 0 ? "bg-green-500" : "bg-primary"}`}
+                      style={{ width: `${((600 - warmupRemaining) / 600) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={resetWarmup} className="flex-1 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:border-red-500/50 hover:text-red-400 transition-colors">
+                      중단
+                    </button>
+                    <button
+                      onClick={completeWarmup}
+                      disabled={warmupRemaining > 0}
+                      className={`flex-2 flex-grow py-2 rounded-xl text-sm font-semibold transition-colors ${
+                        warmupRemaining === 0
+                          ? "bg-green-500 text-white hover:bg-green-400 animate-pulse"
+                          : "bg-muted text-muted-foreground cursor-not-allowed opacity-40"
+                      }`}
+                    >
+                      ✓ 완료
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {warmupStatus === "done" && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">✅</span>
+                    <div>
+                      <p className="text-sm font-semibold text-green-400">준비운동 완료!</p>
+                      <p className="text-[10px] text-muted-foreground">근력·유산소 운동을 시작하세요</p>
+                    </div>
+                  </div>
+                  <button onClick={resetWarmup} className="text-xs text-muted-foreground px-3 py-1.5 bg-muted rounded-lg">다시하기</button>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* ── 2. 근력운동 카드 ── */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">💪</span>
+                <div>
+                  <p className="font-semibold text-sm">근력운동</p>
+                  <p className="text-[10px] text-muted-foreground">운동 계획 · 세트 기록</p>
+                </div>
+              </div>
+              {todayLogs.length > 0 && (
+                <span className="text-[10px] bg-primary/20 text-primary px-2.5 py-1 rounded-full font-medium">{todayLogs.length}개 등록</span>
+              )}
+            </div>
+            <div className="px-4 py-3 space-y-3">
+              <button
+                onClick={openCreate}
+                className="w-full py-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 flex items-center justify-center gap-2 hover:bg-primary/10 transition-colors"
+              >
+                <span className="text-primary font-bold text-lg leading-none">+</span>
+                <span className="text-sm font-semibold text-primary">오늘 운동 계획 추가</span>
+              </button>
+              {todayLogs.length > 0 && (
+                <div className="space-y-2">
+                  {todayLogs.map(log => renderLogCard(log))}
+                </div>
+              )}
+              {todayLogs.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-1">종목을 입력하고 운동을 시작하세요</p>
+              )}
+            </div>
+          </div>
+
+          {/* ── 3. 유산소운동 카드 ── */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🏃</span>
+                <div>
+                  <p className="font-semibold text-sm">유산소운동</p>
+                  <p className="text-[10px] text-muted-foreground">걷기 · 조깅 · 러닝 · 자전거 · 로잉</p>
+                </div>
+              </div>
+              <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium ${
+                cardioStatus === "done" ? "bg-green-500/20 text-green-400" :
+                cardioStatus === "running" ? "bg-orange-500/20 text-orange-400" :
+                "bg-muted text-muted-foreground"
+              }`}>
+                {cardioStatus === "done" ? "완료 ✓" : cardioStatus === "running" ? "진행 중" : "대기"}
+              </span>
+            </div>
+
+            <div className="px-4 py-4">
+              {cardioStatus === "idle" && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">유산소 운동으로 심폐 능력을 키우세요</p>
+                  <button
+                    onClick={() => setCardioStatus("settings")}
+                    className="px-5 py-2 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-400 transition-colors"
+                  >▶ 시작</button>
+                </div>
+              )}
+
+              {cardioStatus === "running" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{CARDIO_EMOJI[cardioInfo.type]} {cardioInfo.type}</span>
+                    <span>{cardioInfo.intensityLabel}</span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-4xl font-mono font-bold text-orange-400">{formatTime(cardioElapsed)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      예상 소모: <span className="font-bold text-foreground">{Math.round(cardioInfo.met * cardioInfo.weight * (Math.max(1, cardioElapsed) / 3600))} kcal</span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={finishCardio}
+                    className="w-full py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold hover:bg-green-400 transition-colors"
+                  >✓ 완료</button>
+                </div>
+              )}
+
+              {cardioStatus === "done" && cardioReport && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground">소모 칼로리</p>
+                      <p className="text-lg font-bold text-orange-400">{cardioReport.calories}</p>
+                      <p className="text-[9px] text-muted-foreground">kcal</p>
+                    </div>
+                    <div className="bg-muted/30 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground">운동 시간</p>
+                      <p className="text-lg font-bold">{cardioReport.duration}</p>
+                      <p className="text-[9px] text-muted-foreground">분</p>
+                    </div>
+                    <div className="bg-muted/30 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground">종류</p>
+                      <p className="text-base font-bold">{CARDIO_EMOJI[cardioReport.type]}</p>
+                      <p className="text-[9px] text-muted-foreground">{cardioReport.type}</p>
+                    </div>
+                  </div>
+                  <div className="bg-muted/20 rounded-xl px-3 py-2 text-xs text-center text-muted-foreground">
+                    {cardioReport.intensityLabel}
+                  </div>
+                  <button onClick={resetCardio} className="w-full py-2 rounded-xl border border-border text-xs text-muted-foreground hover:border-primary/50 transition-colors">다시하기</button>
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
+      )}
+
+      {/* 유산소 설정 모달 */}
+      {cardioStatus === "settings" && (
+        <CardioSettingsModal
+          defaultWeight={defaultWeight}
+          onClose={() => setCardioStatus("idle")}
+          onStart={(type, intensityLabel, met, weight) => startCardio(type, intensityLabel, met, weight)}
+        />
       )}
 
       {/* ── 기록 탭 ── */}
