@@ -285,6 +285,36 @@ function BpRow({ systolic, diastolic, onSystolic, onDiastolic }: {
   );
 }
 
+// ─── 만나이 계산 ──────────────────────────────────────────────────────────────
+function calcKoreanAge(birthDate: string | null | undefined): string {
+  if (!birthDate) return "-";
+  try {
+    const b = new Date(birthDate);
+    const t = new Date();
+    let age = t.getFullYear() - b.getFullYear();
+    if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--;
+    return `${age}세`;
+  } catch { return "-"; }
+}
+
+function formatBirthDate(s: string | null | undefined): string {
+  if (!s) return "-";
+  try { return new Date(s).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }); }
+  catch { return s; }
+}
+
+// ─── 자동 연동 읽기 전용 행 ───────────────────────────────────────────────────
+function AutoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="h-9 flex items-center px-3 bg-muted/30 border border-border/50 rounded-lg text-sm text-foreground">
+        {value || <span className="text-muted-foreground/60">미입력</span>}
+      </div>
+    </div>
+  );
+}
+
 // ─── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export default function ParQ({ memberId }: Props) {
   const [, setLocation] = useLocation();
@@ -352,24 +382,48 @@ export default function ParQ({ memberId }: Props) {
 
       <div className="space-y-6">
 
-        {/* ① 기본 건강 정보 */}
-        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
-          <Section title="기본 건강 정보">
-            <div className="grid grid-cols-2 gap-3">
-              <Dropdown label="키 (cm)" value={form.height} options={HEIGHT_OPTS} onChange={set("height")} placeholder="선택" />
-              <Dropdown label="체중 (kg)" value={form.weight} options={WEIGHT_OPTS} onChange={set("weight")} placeholder="선택" />
+        {/* ① 기본 정보 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-5">
+          <Section title="기본 정보">
+
+            {/* 체성분 검사 / 근골격분석 검사 */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide border-b border-border/40 pb-1.5">
+                체성분 검사 / 근골격분석 검사
+              </p>
+              {/* 자동 연동 (회원 정보) */}
+              <div className="grid grid-cols-2 gap-3">
+                <AutoRow label="생년월일 (자동)" value={formatBirthDate(member?.birthDate)} />
+                <AutoRow label="만나이 (자동)" value={calcKoreanAge(member?.birthDate)} />
+              </div>
+              <AutoRow label="휴대폰 번호 (자동)" value={member?.phone ?? ""} />
+              <p className="text-[10px] text-muted-foreground/60 -mt-1">
+                위 항목은 회원 정보에서 자동으로 불러옵니다. 수정이 필요하면 회원 정보에서 변경하세요.
+              </p>
+              {/* 직접 입력 */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <Dropdown label="키 (cm)" value={form.height} options={HEIGHT_OPTS} onChange={set("height")} placeholder="선택" />
+                <Dropdown label="체중 (kg)" value={form.weight} options={WEIGHT_OPTS} onChange={set("weight")} placeholder="선택" />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">직업</label>
-              <Input value={form.occupation} onChange={e => set("occupation")(e.target.value)} placeholder="예: 사무직" className="text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">근무 환경</label>
-              <Input value={form.workEnvironment} onChange={e => set("workEnvironment")(e.target.value)} placeholder="예: 장시간 앉아서 근무" className="text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">운동 경험</label>
-              <Input value={form.exerciseExperience} onChange={e => set("exerciseExperience")(e.target.value)} placeholder="예: 헬스 1년, 수영 6개월" className="text-sm" />
+
+            {/* 생활 정보 */}
+            <div className="space-y-3 border-t border-border/40 pt-4">
+              <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide pb-1">
+                생활 정보
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">직업</label>
+                <Input value={form.occupation} onChange={e => set("occupation")(e.target.value)} placeholder="예: 사무직" className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">근무 환경</label>
+                <Input value={form.workEnvironment} onChange={e => set("workEnvironment")(e.target.value)} placeholder="예: 장시간 앉아서 근무" className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">운동 경험</label>
+                <Input value={form.exerciseExperience} onChange={e => set("exerciseExperience")(e.target.value)} placeholder="예: 헬스 1년, 수영 6개월" className="text-sm" />
+              </div>
             </div>
           </Section>
         </div>
