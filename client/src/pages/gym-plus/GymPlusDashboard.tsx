@@ -38,6 +38,14 @@ function daysUntil(dateStr: string | null | undefined) {
   return diff;
 }
 
+function getRenewalBonus(days: number | null) {
+  if (days === null) return null;
+  if (days >= 30) return { days: 14, label: "2주 서비스 혜택", desc: "만료 1개월 전 등록 시", color: "text-green-400" };
+  if (days >= 5) return { days: 7, label: "7일 서비스 혜택", desc: "만료 1개월 이내 등록 시", color: "text-blue-400" };
+  if (days >= 0) return { days: 3, label: "3일 서비스 혜택", desc: "만료 5일 전 등록 시", color: "text-yellow-400" };
+  return null;
+}
+
 function getYoutubeEmbedUrl(url: string): string | null {
   const m = url.match(/(?:(?:www\.|m\.)?youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([^&\n?#]+)/);
   return m ? `https://www.youtube.com/embed/${m[1]}?rel=0` : null;
@@ -325,9 +333,19 @@ export default function GymPlusDashboard() {
         <p className="text-muted-foreground text-xs mb-0.5">안녕하세요 👋</p>
         <p className="font-bold text-lg text-foreground">{member?.name ?? "회원"}님</p>
         {daysLeft !== null && (
-          <p className={`text-xs mt-1 ${daysLeft <= 7 ? "text-red-400" : "text-muted-foreground"}`}>
-            회원권 {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className={`text-xs ${daysLeft <= 7 ? "text-red-400" : "text-muted-foreground"}`}>
+              회원권 {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
+            </p>
+            {(() => {
+              const bonus = getRenewalBonus(daysLeft);
+              return bonus ? (
+                <p className={`text-[11px] font-medium ${bonus.color}`}>
+                  🎁 지금 재등록하면 {bonus.label}!
+                </p>
+              ) : null;
+            })()}
+          </div>
         )}
       </div>
 
