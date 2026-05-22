@@ -491,6 +491,7 @@ export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals",
   agreedMarketing: integer("agreedMarketing").default(0).notNull(),
   trainerName: text("trainerName"),
   contractDate: text("contractDate"),
+  signatureData: text("signatureData"), // base64 canvas PNG
   status: text("status").default("pending").notNull(), // "pending","approved","rejected"
   createdAt: text("createdAt").default(now).notNull(),
 });

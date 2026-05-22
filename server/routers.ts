@@ -3146,6 +3146,7 @@ ${dataContext}
       agreedMarketing: z.number().default(0),
       trainerName: z.string().optional(),
       contractDate: z.string().optional(),
+      signatureData: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,106 @@ function MissionCard({
   );
 }
 
+function SignaturePad({ onSign, signatureData }: { onSign: (data: string) => void; signatureData: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#1a1a2e";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+  }, []);
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      const t = e.touches[0];
+      return { x: (t.clientX - rect.left) * scaleX, y: (t.clientY - rect.top) * scaleY };
+    }
+    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY };
+  };
+
+  const startDraw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    isDrawingRef.current = true;
+    const ctx = canvas.getContext("2d")!;
+    const { x, y } = getPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }, []);
+
+  const draw = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    if (!isDrawingRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    const { x, y } = getPos(e, canvas);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }, []);
+
+  const endDraw = useCallback(() => {
+    if (!isDrawingRef.current) return;
+    isDrawingRef.current = false;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    onSign(canvas.toDataURL("image/png"));
+  }, [onSign]);
+
+  const clearPad = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    onSign("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="relative border-2 border-dashed border-border rounded-xl overflow-hidden bg-white">
+        <canvas
+          ref={canvasRef}
+          width={600}
+          height={200}
+          className="w-full touch-none cursor-crosshair"
+          style={{ display: "block" }}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+        {!signatureData && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <p className="text-gray-300 text-sm">여기에 서명하세요</p>
+          </div>
+        )}
+      </div>
+      <div className="flex justify-between items-center">
+        <p className="text-[10px] text-muted-foreground">손가락 또는 마우스로 서명해 주세요</p>
+        <button type="button" onClick={clearPad} className="text-xs text-muted-foreground border border-border rounded-lg px-3 py-1 hover:border-red-500/50 hover:text-red-400 transition-colors">
+          지우기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function GymPlusProfile() {
   const utils = trpc.useUtils();
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
@@ -90,7 +190,8 @@ export default function GymPlusProfile() {
 
   // 재등록 신청 모달
   const [showRenewal, setShowRenewal] = useState(false);
-  const [renewalStep, setRenewalStep] = useState<1 | 2 | 3>(1);
+  const [renewalStep, setRenewalStep] = useState<1 | 2 | 3 | 4>(1);
+  const [signatureData, setSignatureData] = useState<string>("");
   const [renewalForm, setRenewalForm] = useState({
     requestedPeriod: "1개월",
     memberName: "",
@@ -112,7 +213,7 @@ export default function GymPlusProfile() {
 
   const requestRenewal = trpc.gymPlus.requestRenewal.useMutation({
     onSuccess: () => {
-      setRenewalStep(3);
+      setRenewalStep(4);
     },
     onError: (e) => toast.error(e.message || "신청 실패"),
   });
@@ -178,6 +279,7 @@ export default function GymPlusProfile() {
       agreedMarketing: false,
     }));
     setContractDate(new Date().toLocaleDateString("ko-KR"));
+    setSignatureData("");
     setRenewalStep(1);
     setShowRenewal(true);
   };
@@ -185,11 +287,12 @@ export default function GymPlusProfile() {
   const closeRenewal = () => {
     setShowRenewal(false);
     setRenewalStep(1);
+    setSignatureData("");
   };
 
   const submitRenewal = () => {
-    if (!renewalForm.agreedToTerms || !renewalForm.agreedPrivacy) {
-      toast.error("필수 약관에 모두 동의해 주세요.");
+    if (!signatureData) {
+      toast.error("서명을 완료해 주세요.");
       return;
     }
     const bonus = getRenewalBonus(daysLeft);
@@ -204,6 +307,7 @@ export default function GymPlusProfile() {
       agreedMarketing: renewalForm.agreedMarketing ? 1 : 0,
       trainerName: "본인계약",
       contractDate,
+      signatureData,
     });
   };
 
@@ -540,7 +644,7 @@ export default function GymPlusProfile() {
         </Dialog>
       )}
 
-      {/* 회원권 재등록 신청 모달 (3단계) */}
+      {/* 회원권 재등록 신청 모달 (4단계) */}
       {showRenewal && (() => {
         const bonus = getRenewalBonus(daysLeft);
         const allRequired = renewalForm.agreedToTerms && renewalForm.agreedPrivacy;
@@ -678,8 +782,31 @@ export default function GymPlusProfile() {
                       <Button variant="outline" className="flex-1 h-9" onClick={() => setRenewalStep(1)}>← 이전</Button>
                       <Button
                         className="flex-1 h-9"
+                        disabled={!allRequired}
+                        onClick={() => { if (allRequired) setRenewalStep(3); }}
+                      >
+                        다음 →
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* 단계 3: 서명 */}
+              {renewalStep === 3 && (
+                <>
+                  <DialogHeader>
+                    <h2 className="font-bold text-base">✍️ 본인 서명</h2>
+                    <p className="text-xs text-muted-foreground">아래 서명란에 손가락으로 서명해 주세요</p>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-1">
+                    <SignaturePad onSign={setSignatureData} signatureData={signatureData} />
+                    <div className="flex gap-2 pt-1">
+                      <Button variant="outline" className="flex-1 h-9" onClick={() => { setSignatureData(""); setRenewalStep(2); }}>← 이전</Button>
+                      <Button
+                        className="flex-1 h-9"
                         onClick={submitRenewal}
-                        disabled={requestRenewal.isPending || !allRequired}
+                        disabled={requestRenewal.isPending || !signatureData}
                       >
                         {requestRenewal.isPending ? "신청 중..." : "재등록 신청"}
                       </Button>
@@ -688,8 +815,8 @@ export default function GymPlusProfile() {
                 </>
               )}
 
-              {/* 단계 3: 완료 */}
-              {renewalStep === 3 && (
+              {/* 단계 4: 완료 */}
+              {renewalStep === 4 && (
                 <>
                   <DialogHeader>
                     <h2 className="font-bold text-base">✅ 재등록 신청 완료</h2>
@@ -708,6 +835,16 @@ export default function GymPlusProfile() {
                       <div className="flex justify-between"><span className="text-muted-foreground">담당자</span><span className="font-medium">본인계약</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">마케팅 수신</span><span className={renewalForm.agreedMarketing ? "text-green-400 font-medium" : "text-muted-foreground"}>{renewalForm.agreedMarketing ? "동의" : "미동의"}</span></div>
                     </div>
+
+                    {/* 서명 미리보기 */}
+                    {signatureData && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-muted-foreground">서명</p>
+                        <div className="border border-border rounded-xl p-2 bg-white">
+                          <img src={signatureData} alt="서명" className="w-full h-16 object-contain" />
+                        </div>
+                      </div>
+                    )}
 
                     {/* 계약서 공유 버튼 */}
                     <div className="space-y-2">
