@@ -737,7 +737,7 @@ export default function MemberDetail({ memberId }: Props) {
         <TabsContent value="info" className="mt-4 space-y-3">
           {/* PAR-Q 사전건강검사 인라인 표시 */}
           <Card className="bg-card border-border">
-            <CardHeader className="pb-2 px-4 pt-4 flex flex-row items-center justify-between">
+            <CardHeader className={`px-4 pt-4 flex flex-row items-center justify-between ${parQData ? "pb-2" : "pb-4"}`}>
               <CardTitle className="text-sm font-semibold text-foreground">PAR-Q 사전건강검사</CardTitle>
               <Button
                 size="sm"
@@ -748,10 +748,8 @@ export default function MemberDetail({ memberId }: Props) {
                 {parQData ? "수정" : "입력하기"}
               </Button>
             </CardHeader>
-            <CardContent className="px-4 pb-4">
-              {!parQData ? (
-                <p className="text-sm text-muted-foreground">미입력</p>
-              ) : (
+            {parQData && <CardContent className="px-4 pb-4">
+              {true && (
                 <div className="space-y-3 text-sm">
                   {/* 신체 측정 */}
                   {[parQData.height, parQData.weight, parQData.muscleMass, parQData.bodyFatPercent, parQData.bodyFatKg, parQData.waistCircumference].some(Boolean) && (
@@ -862,7 +860,7 @@ export default function MemberDetail({ memberId }: Props) {
                   )}
                 </div>
               )}
-            </CardContent>
+            </CardContent>}
           </Card>
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">

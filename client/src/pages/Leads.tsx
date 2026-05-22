@@ -605,7 +605,7 @@ export default function LeadsPage() {
                 {row.lead.status === "registered" && (
                   <ContractPdfButton lead={row.lead} />
                 )}
-                {row.lead.status === "registered" && (
+                {row.lead.status === "registered" && row.lead.interestType === "PT" && (
                   <ParQButton lead={row.lead} />
                 )}
               </div>

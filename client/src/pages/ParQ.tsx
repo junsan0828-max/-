@@ -385,7 +385,10 @@ export default function ParQ({ memberId }: Props) {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h1 className="text-base font-bold">{member?.name ?? "..."}</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-base font-bold">{member?.name ?? "..."}</h1>
+            {member?.phone && <span className="text-xs text-muted-foreground">{member.phone}</span>}
+          </div>
           <p className="text-xs text-muted-foreground">사전건강검사 (PAR-Q)</p>
         </div>
       </div>
@@ -400,11 +403,6 @@ export default function ParQ({ memberId }: Props) {
             <div className="space-y-3">
               <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide border-b border-border/40 pb-1.5">
                 체성분 검사 / 근골격분석 검사
-              </p>
-              {/* 자동 연동 (회원 정보) */}
-              <AutoRow label="휴대폰 번호 (자동)" value={member?.phone ?? ""} />
-              <p className="text-[10px] text-muted-foreground/60 -mt-1">
-                휴대폰 번호는 회원 정보에서 자동으로 불러옵니다.
               </p>
               {/* 직접 입력 */}
               <div className="grid grid-cols-2 gap-3 pt-1">
