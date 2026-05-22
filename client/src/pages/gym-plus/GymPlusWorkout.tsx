@@ -931,13 +931,6 @@ export default function GymPlusWorkout() {
                 onChange={(e) => setForm((p) => ({ ...p, logDate: e.target.value }))}
                 className="bg-input border-border text-sm h-9" />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">제목 (선택)</Label>
-              <Input placeholder="예: 가슴 운동, 하체 데이..." value={form.title}
-                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                className="bg-input border-border text-sm h-9" />
-            </div>
-
             {/* 컨디션 */}
             <div className="space-y-3">
               <p className="text-sm font-semibold text-primary">컨디션 평가</p>
