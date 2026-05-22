@@ -452,38 +452,6 @@ export default function GymPlusDashboard() {
         )}
       </div>
 
-      {/* 센터 기구 운동 안내 */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="font-semibold text-sm">센터 기구 운동 안내</p>
-          <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/videos")}>전체보기 →</button>
-        </div>
-        {equipmentVideos.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-4">등록된 영상이 없습니다</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {equipmentVideos.map((v) => (
-              <div key={v.id}
-                className="bg-card border border-border rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => navigate(`/gym-plus/videos/${v.id}`)}
-              >
-                {v.thumbnailUrl ? (
-                  <img src={v.thumbnailUrl} alt={v.title} className="w-full aspect-video object-cover" />
-                ) : (
-                  <div className="w-full aspect-video bg-muted flex items-center justify-center">
-                    <span className="text-2xl">▶</span>
-                  </div>
-                )}
-                <div className="p-2">
-                  <p className="text-xs font-medium line-clamp-2">{v.title}</p>
-                  {v.duration && <p className="text-[10px] text-muted-foreground mt-0.5">{v.duration}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* 출석 체크인 모달 */}
       {showCheckIn && <CheckInModal onClose={() => { setShowCheckIn(false); refetchLogs(); refetchRec(); }} />}
     </div>
