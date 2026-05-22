@@ -52,6 +52,7 @@ import AdminMembers from "./pages/AdminMembers";
 import AccessManagement from "./pages/AccessManagement";
 import KioskCheckin from "./pages/KioskCheckin";
 import TrainingManual, { TrainingManualWrite, TrainingManualDetail } from "./pages/TrainingManual";
+import MemberReRegister from "./pages/MemberReRegister";
 import WorkManagementPage from "./pages/WorkManagement";
 import Layout from "./components/Layout";
 
@@ -97,6 +98,7 @@ function App() {
         <Route path="/ai-analysis">{() => <AiAnalysisPage />}</Route>
         <Route path="/members">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <AdminMembers /> : <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
+        <Route path="/members/re-register">{() => <MemberReRegister />}</Route>
         <Route path="/trainers/:id/members/new">
           {(params) => <MemberForm defaultTrainerId={parseInt(params.id!)} />}
         </Route>

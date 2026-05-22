@@ -169,7 +169,7 @@ export default function Members() {
                 <CheckSquare className="h-4 w-4" />
                 선택
               </Button>
-              <Button size="sm" onClick={() => setLocation("/members/new")} className="gap-1.5">
+              <Button size="sm" onClick={() => setLocation("/members/re-register")} className="gap-1.5">
                 <UserPlus className="h-4 w-4" />
                 재등록
               </Button>
