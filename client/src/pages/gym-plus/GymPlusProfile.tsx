@@ -213,6 +213,7 @@ export default function GymPlusProfile() {
 
   const requestRenewal = trpc.gymPlus.requestRenewal.useMutation({
     onSuccess: () => {
+      utils.gymPlus.memberMe.invalidate();
       setRenewalStep(4);
     },
     onError: (e) => toast.error(e.message || "신청 실패"),

@@ -3151,14 +3151,43 @@ ${dataContext}
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const [member] = await db.select({ membershipEnd: gymPlusMembers.membershipEnd })
+
+      // 현재 회원 정보 조회 (gymPlus + main memberId)
+      const [gymMember] = await db
+        .select({ membershipEnd: gymPlusMembers.membershipEnd, memberId: gymPlusMembers.memberId })
         .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+
+      // 새 만료일 계산
+      const periodMonths: Record<string, number> = { "1개월": 1, "3개월": 3, "6개월": 6, "12개월": 12 };
+      const addMonths = periodMonths[input.requestedPeriod] ?? 1;
+      const base = gymMember?.membershipEnd && new Date(gymMember.membershipEnd) > new Date()
+        ? new Date(gymMember.membershipEnd)
+        : new Date();
+      base.setMonth(base.getMonth() + addMonths);
+      base.setDate(base.getDate() + (input.bonusDays ?? 0));
+      const newEnd = base.toISOString().slice(0, 10);
+
+      // 재등록 신청 기록
       await db.insert(gymPlusMembershipRenewals).values({
         gymPlusMemberId: ctx.gymPlusMemberId,
-        currentMembershipEnd: member?.membershipEnd ?? null,
+        currentMembershipEnd: gymMember?.membershipEnd ?? null,
         ...input,
+        status: "approved",
       });
-      return { success: true };
+
+      // gymPlusMembers 만료일 업데이트
+      await db.update(gymPlusMembers)
+        .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
+        .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
+
+      // 연동된 메인 members 테이블도 업데이트
+      if (gymMember?.memberId) {
+        await db.update(members)
+          .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
+          .where(eq(members.id, gymMember.memberId));
+      }
+
+      return { success: true, newMembershipEnd: newEnd };
     }),
 
   listMyRenewals: gymPlusProtected.query(async ({ ctx }) => {
