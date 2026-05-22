@@ -328,26 +328,49 @@ export default function GymPlusDashboard() {
         </div>
       )}
 
-      {/* 인사 카드 (출석 버튼 제거) */}
-      <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-2xl p-4 border border-primary/20">
+      {/* 인사 카드 */}
+      <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-2xl px-4 py-3 border border-primary/20">
         <p className="text-muted-foreground text-xs mb-0.5">안녕하세요 👋</p>
         <p className="font-bold text-lg text-foreground">{member?.name ?? "회원"}님</p>
-        {daysLeft !== null && (
-          <div className="flex items-center justify-between mt-1">
-            <p className={`text-xs ${daysLeft <= 7 ? "text-red-400" : "text-muted-foreground"}`}>
-              회원권 {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
-            </p>
-            {(() => {
-              const bonus = getRenewalBonus(daysLeft);
-              return bonus ? (
-                <p className={`text-[11px] font-medium ${bonus.color}`}>
-                  🎁 지금 재등록하면 {bonus.label}!
-                </p>
-              ) : null;
-            })()}
-          </div>
-        )}
       </div>
+
+      {/* 회원권 D-day + 재등록 혜택 카드 */}
+      {daysLeft !== null && (() => {
+        const bonus = getRenewalBonus(daysLeft);
+        const bgColor =
+          daysLeft <= 0 ? "bg-red-500/20 border-red-500/30" :
+          daysLeft <= 7 ? "bg-orange-500/20 border-orange-500/30" :
+          "bg-green-500/10 border-green-500/20";
+        const dayColor =
+          daysLeft <= 0 ? "text-red-400" :
+          daysLeft <= 7 ? "text-orange-400" :
+          "text-green-400";
+        return (
+          <button
+            onClick={() => navigate("/gym-plus/profile")}
+            className={`w-full rounded-2xl border p-4 text-center transition-opacity hover:opacity-80 ${bgColor}`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-left">
+                <p className="text-[10px] text-muted-foreground">회원권 남은 기간</p>
+                <p className={`font-black text-3xl mt-0.5 leading-none ${dayColor}`}>
+                  {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
+                </p>
+              </div>
+              {bonus && bonus.days > 0 && (
+                <div className="text-right">
+                  <p className={`text-xs font-bold ${bonus.color}`}>🎁 {bonus.label}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc}</p>
+                  <p className="text-[10px] text-muted-foreground">탭하여 재등록 신청 →</p>
+                </div>
+              )}
+              {(!bonus || bonus.days === 0) && (
+                <p className="text-xs text-muted-foreground">탭하여 재등록 신청 →</p>
+              )}
+            </div>
+          </button>
+        );
+      })()}
 
       {/* 오늘의 운동 — 프리미엄 카드 */}
       <div>
