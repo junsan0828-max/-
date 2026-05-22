@@ -678,13 +678,26 @@ export default function GymPlusWorkout() {
   const [activeLog, setActiveLog] = useState<any | null>(null);
 
   // ── 준비운동 상태 ────────────────────────────────────────────────────────────
-  const [warmupStatus, setWarmupStatus] = useState<"idle" | "running" | "done">("idle");
+  const [warmupStatus, setWarmupStatus] = useState<"idle" | "running" | "paused" | "done">("idle");
   const [warmupRemaining, setWarmupRemaining] = useState(600);
   const warmupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function startWarmup() {
     setWarmupStatus("running");
     setWarmupRemaining(600);
+    warmupIntervalRef.current = setInterval(() => {
+      setWarmupRemaining(prev => {
+        if (prev <= 1) { clearInterval(warmupIntervalRef.current!); warmupIntervalRef.current = null; return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+  function pauseWarmup() {
+    if (warmupIntervalRef.current) { clearInterval(warmupIntervalRef.current); warmupIntervalRef.current = null; }
+    setWarmupStatus("paused");
+  }
+  function resumeWarmup() {
+    setWarmupStatus("running");
     warmupIntervalRef.current = setInterval(() => {
       setWarmupRemaining(prev => {
         if (prev <= 1) { clearInterval(warmupIntervalRef.current!); warmupIntervalRef.current = null; return 0; }
@@ -925,9 +938,10 @@ export default function GymPlusWorkout() {
               <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium ${
                 warmupStatus === "done" ? "bg-green-500/20 text-green-400" :
                 warmupStatus === "running" ? "bg-primary/20 text-primary" :
+                warmupStatus === "paused" ? "bg-yellow-500/20 text-yellow-400" :
                 "bg-muted text-muted-foreground"
               }`}>
-                {warmupStatus === "done" ? "완료 ✓" : warmupStatus === "running" ? "진행 중" : "대기"}
+                {warmupStatus === "done" ? "완료 ✓" : warmupStatus === "running" ? "진행 중" : warmupStatus === "paused" ? "일시정지" : "대기"}
               </span>
             </div>
 
@@ -942,28 +956,39 @@ export default function GymPlusWorkout() {
                 </div>
               )}
 
-              {warmupStatus === "running" && (
+              {(warmupStatus === "running" || warmupStatus === "paused") && (
                 <div className="space-y-3">
                   <div className="text-center">
-                    <p className={`text-4xl font-mono font-bold ${warmupRemaining === 0 ? "text-green-400" : "text-foreground"}`}>
+                    <p className={`text-4xl font-mono font-bold ${warmupRemaining === 0 ? "text-green-400" : warmupStatus === "paused" ? "text-yellow-400" : "text-foreground"}`}>
                       {formatTime(warmupRemaining)}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">{warmupRemaining === 0 ? "완료! 아래 버튼을 눌러주세요" : "남은 시간"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {warmupRemaining === 0 ? "완료! 아래 버튼을 눌러주세요" : warmupStatus === "paused" ? "일시정지됨" : "남은 시간"}
+                    </p>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full transition-all ${warmupRemaining === 0 ? "bg-green-500" : "bg-primary"}`}
+                      className={`h-2 rounded-full transition-all ${warmupRemaining === 0 ? "bg-green-500" : warmupStatus === "paused" ? "bg-yellow-500" : "bg-primary"}`}
                       style={{ width: `${((600 - warmupRemaining) / 600) * 100}%` }}
                     />
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={resetWarmup} className="flex-1 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:border-red-500/50 hover:text-red-400 transition-colors">
+                    <button onClick={resetWarmup} className="py-2 px-3 rounded-xl border border-border text-xs text-muted-foreground hover:border-red-500/50 hover:text-red-400 transition-colors">
                       중단
                     </button>
+                    {warmupStatus === "running" ? (
+                      <button onClick={pauseWarmup} className="py-2 px-3 rounded-xl border border-yellow-500/40 text-xs text-yellow-400 hover:bg-yellow-500/10 transition-colors">
+                        ⏸ 일시정지
+                      </button>
+                    ) : (
+                      <button onClick={resumeWarmup} className="py-2 px-3 rounded-xl border border-primary/40 text-xs text-primary hover:bg-primary/10 transition-colors">
+                        ▶ 재시작
+                      </button>
+                    )}
                     <button
                       onClick={completeWarmup}
                       disabled={warmupRemaining > 0}
-                      className={`flex-2 flex-grow py-2 rounded-xl text-sm font-semibold transition-colors ${
+                      className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
                         warmupRemaining === 0
                           ? "bg-green-500 text-white hover:bg-green-400 animate-pulse"
                           : "bg-muted text-muted-foreground cursor-not-allowed opacity-40"
