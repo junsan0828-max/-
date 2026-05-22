@@ -3265,7 +3265,7 @@ const trainingManualRouter = t.router({
     const db = await getDb();
     if (!db) return [];
     const rows = await db.select().from(trainingManuals).orderBy(desc(trainingManuals.createdAt));
-    return rows.map(r => ({ ...r, exercises: JSON.parse(r.exercises) as { name: string; videoUrl?: string }[] }));
+    return rows.map(r => ({ ...r, exercises: JSON.parse(r.exercises) as unknown[] }));
   }),
 
   get: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
@@ -3273,14 +3273,17 @@ const trainingManualRouter = t.router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const [row] = await db.select().from(trainingManuals).where(eq(trainingManuals.id, input.id)).limit(1);
     if (!row) throw new TRPCError({ code: "NOT_FOUND" });
-    return { ...row, exercises: JSON.parse(row.exercises) as { name: string; videoUrl?: string }[] };
+    return { ...row, exercises: JSON.parse(row.exercises) as unknown[] };
   }),
 
   create: protectedProcedure
     .input(z.object({
       title: z.string().min(1),
       manualDate: z.string(),
-      exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
+      exercises: z.array(z.object({
+        title: z.string(),
+        exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
+      })),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -3302,7 +3305,10 @@ const trainingManualRouter = t.router({
       id: z.number(),
       title: z.string().min(1),
       manualDate: z.string(),
-      exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
+      exercises: z.array(z.object({
+        title: z.string(),
+        exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
+      })),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();

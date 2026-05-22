@@ -4,9 +4,22 @@ import { toast } from "sonner";
 import { BookOpen, Plus, Trash2, GripVertical, Video, ChevronLeft, Pencil, Search, Calendar, X } from "lucide-react";
 
 type Exercise = { name: string; videoUrl?: string };
+type SubTopic = { title: string; exercises: Exercise[] };
 type ViewMode = "list" | "write" | "detail";
 
 const today = () => new Date().toISOString().substring(0, 10);
+
+function ordinal(n: number) {
+  return `${n}번째`;
+}
+
+function normalizeExercises(raw: unknown): SubTopic[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  if (typeof (raw[0] as any)?.name === "string") {
+    return [{ title: "", exercises: raw as Exercise[] }];
+  }
+  return raw as SubTopic[];
+}
 
 // ── 운동영상 URL 모달 ────────────────────────────────────────────────────────
 function VideoUrlModal({
@@ -60,7 +73,7 @@ function VideoUrlModal({
   );
 }
 
-// ── 운동 종목 행 ─────────────────────────────────────────────────────────────
+// ── 운동 동작 행 ─────────────────────────────────────────────────────────────
 function ExerciseRow({
   ex,
   idx,
@@ -75,29 +88,32 @@ function ExerciseRow({
   const [showModal, setShowModal] = useState(false);
   return (
     <>
-      <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-3 w-full min-w-0">
-        <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
-        <input
-          value={ex.name}
-          onChange={e => onChange(idx, { ...ex, name: e.target.value })}
-          placeholder="운동명 (예: 스쿼트)"
-          className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
-        />
-        <button
-          type="button"
-          title="운동 영상 추가"
-          onClick={() => setShowModal(true)}
-          className={`shrink-0 p-1.5 rounded-lg transition-colors ${ex.videoUrl ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-        >
-          <Video className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(idx)}
-          className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+      <div className="space-y-1">
+        <span className="text-xs text-muted-foreground pl-1">{ordinal(idx + 1)} 운동 동작</span>
+        <div className="flex items-center gap-2 bg-background border border-border rounded-xl px-3 py-3 w-full min-w-0">
+          <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+          <input
+            value={ex.name}
+            onChange={e => onChange(idx, { ...ex, name: e.target.value })}
+            placeholder="운동명 (예: 스쿼트)"
+            className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+          />
+          <button
+            type="button"
+            title="운동 영상 추가"
+            onClick={() => setShowModal(true)}
+            className={`shrink-0 p-1.5 rounded-lg transition-colors ${ex.videoUrl ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+          >
+            <Video className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(idx)}
+            className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
       {showModal && (
         <VideoUrlModal
@@ -110,44 +126,108 @@ function ExerciseRow({
   );
 }
 
+// ── 소주제 카드 ──────────────────────────────────────────────────────────────
+function SubTopicCard({
+  sub,
+  subIdx,
+  onChange,
+  onDelete,
+  canDelete,
+}: {
+  sub: SubTopic;
+  subIdx: number;
+  onChange: (subIdx: number, val: SubTopic) => void;
+  onDelete: (subIdx: number) => void;
+  canDelete: boolean;
+}) {
+  const changeEx = (exIdx: number, val: Exercise) =>
+    onChange(subIdx, { ...sub, exercises: sub.exercises.map((e, i) => (i === exIdx ? val : e)) });
+  const deleteEx = (exIdx: number) =>
+    onChange(subIdx, { ...sub, exercises: sub.exercises.filter((_, i) => i !== exIdx) });
+  const addEx = () =>
+    onChange(subIdx, { ...sub, exercises: [...sub.exercises, { name: "" }] });
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <input
+          value={sub.title}
+          onChange={e => onChange(subIdx, { ...sub, title: e.target.value })}
+          placeholder="소주제를 입력하세요 (예: 하체 운동)"
+          className="flex-1 min-w-0 bg-background border border-border rounded-lg px-3 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
+        />
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(subIdx)}
+            className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {sub.exercises.map((ex, exIdx) => (
+          <ExerciseRow key={exIdx} ex={ex} idx={exIdx} onChange={changeEx} onDelete={deleteEx} />
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={addEx}
+        className="w-full py-2.5 rounded-xl border border-dashed border-border text-muted-foreground text-sm hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1.5"
+      >
+        <Plus className="w-4 h-4" />
+        운동 동작 추가
+      </button>
+    </div>
+  );
+}
+
 function ManualForm({
   initial,
   onSave,
   onCancel,
   isLoading,
 }: {
-  initial?: { title: string; manualDate: string; exercises: Exercise[] };
-  onSave: (data: { title: string; manualDate: string; exercises: Exercise[] }) => void;
+  initial?: { title: string; manualDate: string; exercises: SubTopic[] };
+  onSave: (data: { title: string; manualDate: string; exercises: SubTopic[] }) => void;
   onCancel: () => void;
   isLoading: boolean;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [manualDate, setManualDate] = useState(initial?.manualDate ?? today());
-  const [exercises, setExercises] = useState<Exercise[]>(initial?.exercises ?? [{ name: "" }]);
+  const [subTopics, setSubTopics] = useState<SubTopic[]>(
+    initial?.exercises ?? [{ title: "", exercises: [{ name: "" }] }]
+  );
 
-  const changeEx = (idx: number, val: Exercise) =>
-    setExercises(prev => prev.map((e, i) => (i === idx ? val : e)));
-  const deleteEx = (idx: number) =>
-    setExercises(prev => prev.filter((_, i) => i !== idx));
-  const addEx = () =>
-    setExercises(prev => [...prev, { name: "" }]);
+  const changeSub = (subIdx: number, val: SubTopic) =>
+    setSubTopics(prev => prev.map((s, i) => (i === subIdx ? val : s)));
+  const deleteSub = (subIdx: number) =>
+    setSubTopics(prev => prev.filter((_, i) => i !== subIdx));
+  const addSub = () =>
+    setSubTopics(prev => [...prev, { title: "", exercises: [{ name: "" }] }]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) { toast.error("제목을 입력해주세요"); return; }
-    onSave({ title: title.trim(), manualDate, exercises: exercises.filter(e => e.name.trim()) });
+    if (!title.trim()) { toast.error("주제를 입력해주세요"); return; }
+    const cleaned = subTopics
+      .map(s => ({ ...s, exercises: s.exercises.filter(ex => ex.name.trim()) }))
+      .filter(s => s.title.trim() || s.exercises.length > 0);
+    onSave({ title: title.trim(), manualDate, exercises: cleaned });
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* 제목 + 날짜 */}
+      {/* 주제 + 날짜 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div>
-          <label className="text-xs text-muted-foreground">제목 *</label>
+          <label className="text-xs text-muted-foreground">주제 *</label>
           <input
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="매뉴얼 제목을 입력하세요"
+            placeholder="매뉴얼 주제를 입력하세요"
             className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -162,23 +242,27 @@ function ManualForm({
         </div>
       </div>
 
-      {/* 운동 종목 */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <p className="text-sm font-semibold text-foreground">운동 종목</p>
-        <div className="space-y-2">
-          {exercises.map((ex, idx) => (
-            <ExerciseRow key={idx} ex={ex} idx={idx} onChange={changeEx} onDelete={deleteEx} />
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={addEx}
-          className="w-full py-3 rounded-xl border border-dashed border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" />
-          운동 종목 추가
-        </button>
-      </div>
+      {/* 소주제 카드들 */}
+      {subTopics.map((sub, subIdx) => (
+        <SubTopicCard
+          key={subIdx}
+          sub={sub}
+          subIdx={subIdx}
+          onChange={changeSub}
+          onDelete={deleteSub}
+          canDelete={subTopics.length > 1}
+        />
+      ))}
+
+      {/* 소주제 추가 */}
+      <button
+        type="button"
+        onClick={addSub}
+        className="w-full py-3 rounded-xl border border-dashed border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5"
+      >
+        <Plus className="w-4 h-4" />
+        소주제 추가
+      </button>
 
       {/* 액션 버튼 */}
       <div className="flex gap-2">
@@ -220,6 +304,8 @@ function ManualDetail({
   if (isLoading) return <div className="text-center py-20 text-muted-foreground text-sm">불러오는 중...</div>;
   if (!data) return null;
 
+  const subTopics = normalizeExercises(data.exercises);
+
   const handleDelete = () => {
     if (!window.confirm("삭제하시겠습니까?")) return;
     deleteMutation.mutate({ id });
@@ -228,7 +314,6 @@ function ManualDetail({
 
   return (
     <div className="space-y-4">
-      {/* 헤더 */}
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ChevronLeft className="w-4 h-4" />
@@ -249,7 +334,7 @@ function ManualDetail({
         </div>
       </div>
 
-      {/* 제목/날짜 */}
+      {/* 주제/날짜 */}
       <div className="bg-card border border-border rounded-xl p-4">
         <h2 className="text-lg font-bold text-foreground">{data.title}</h2>
         <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
@@ -258,19 +343,24 @@ function ManualDetail({
         </div>
       </div>
 
-      {/* 운동 종목 */}
-      {data.exercises.length > 0 && (
-        <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-          <p className="text-sm font-semibold text-foreground mb-3">운동 종목</p>
-          {data.exercises.map((ex, i) => (
-            <div key={i} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2.5">
-              <span className="text-sm text-foreground">{ex.name}</span>
+      {/* 소주제별 운동 동작 */}
+      {subTopics.map((sub, subIdx) => (
+        <div key={subIdx} className="bg-card border border-border rounded-xl p-4 space-y-2">
+          {sub.title && (
+            <p className="text-sm font-semibold text-foreground mb-3">{sub.title}</p>
+          )}
+          {sub.exercises.map((ex, exIdx) => (
+            <div key={exIdx} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2.5 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs text-muted-foreground shrink-0">{ordinal(exIdx + 1)}</span>
+                <span className="text-sm text-foreground truncate">{ex.name}</span>
+              </div>
               {ex.videoUrl && (
                 <a
                   href={ex.videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-primary hover:opacity-80"
+                  className="flex items-center gap-1 text-xs text-primary hover:opacity-80 shrink-0"
                 >
                   <Video className="w-3.5 h-3.5" />
                   영상 보기
@@ -279,7 +369,7 @@ function ManualDetail({
             </div>
           ))}
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -337,7 +427,11 @@ export default function TrainingManual() {
           </h1>
         </div>
         <ManualForm
-          initial={editData ? { title: editData.title, manualDate: editData.manualDate, exercises: editData.exercises } : undefined}
+          initial={editData ? {
+            title: editData.title,
+            manualDate: editData.manualDate,
+            exercises: normalizeExercises(editData.exercises),
+          } : undefined}
           onSave={data => {
             if (editId) {
               updateMutation.mutate({ id: editId, ...data });
@@ -371,7 +465,6 @@ export default function TrainingManual() {
   // ─── 목록 ────────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-4">
-      {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-primary" />
@@ -389,7 +482,6 @@ export default function TrainingManual() {
         </button>
       </div>
 
-      {/* 검색 */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
@@ -400,7 +492,6 @@ export default function TrainingManual() {
         />
       </div>
 
-      {/* 목록 */}
       {isLoading ? (
         <div className="text-center py-20 text-muted-foreground text-sm">불러오는 중...</div>
       ) : filtered.length === 0 ? (
@@ -420,37 +511,45 @@ export default function TrainingManual() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((m, i) => (
-            <button
-              key={m.id}
-              onClick={() => { setSelectedId(m.id); setView("detail"); }}
-              className="w-full text-left bg-card border border-border rounded-xl p-4 hover:border-primary/50 hover:bg-primary/5 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs text-muted-foreground">{filtered.length - i}</span>
-                    <h3 className="text-sm font-semibold text-foreground truncate">{m.title}</h3>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {m.manualDate}
-                    </span>
-                    {m.exercises.length > 0 && (
-                      <span>{m.exercises.length}개 종목</span>
-                    )}
-                    {m.exercises.some(e => e.videoUrl) && (
-                      <span className="flex items-center gap-0.5 text-primary">
-                        <Video className="w-3 h-3" />
-                        영상
+          {filtered.map((m, i) => {
+            const subTopics = normalizeExercises(m.exercises);
+            const totalExercises = subTopics.reduce((sum, s) => sum + s.exercises.length, 0);
+            const hasVideo = subTopics.some(s => s.exercises.some(e => e.videoUrl));
+            return (
+              <button
+                key={m.id}
+                onClick={() => { setSelectedId(m.id); setView("detail"); }}
+                className="w-full text-left bg-card border border-border rounded-xl p-4 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs text-muted-foreground">{filtered.length - i}</span>
+                      <h3 className="text-sm font-semibold text-foreground truncate">{m.title}</h3>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {m.manualDate}
                       </span>
-                    )}
+                      {subTopics.length > 0 && (
+                        <span>{subTopics.length}개 소주제</span>
+                      )}
+                      {totalExercises > 0 && (
+                        <span>{totalExercises}개 동작</span>
+                      )}
+                      {hasVideo && (
+                        <span className="flex items-center gap-0.5 text-primary">
+                          <Video className="w-3 h-3" />
+                          영상
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
