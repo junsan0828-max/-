@@ -264,10 +264,9 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
 export default function GymPlusDashboard() {
   const [, navigate] = useLocation();
   const [showCheckIn, setShowCheckIn] = useState(false);
+  const [showWorkoutChoice, setShowWorkoutChoice] = useState(false);
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
   const { data: events } = trpc.gymPlus.listEvents.useQuery({});
-  const { data: categories } = trpc.gymPlus.listCategories.useQuery();
-  const { data: allVideos } = trpc.gymPlus.listVideos.useQuery({});
   const { data: logs, refetch: refetchLogs } = trpc.gymPlus.listWorkoutLogs.useQuery({});
   const { data: todayRec, refetch: refetchRec } = trpc.gymPlus.getTodayRecommendations.useQuery();
 
@@ -277,10 +276,9 @@ export default function GymPlusDashboard() {
   const daysLeft = daysUntil(member?.membershipEnd);
   const latestEvents = events?.slice(0, 3) ?? [];
 
-  const equipmentCategory = categories?.find(c => c.name.includes("기구"));
-  const equipmentVideos = equipmentCategory
-    ? (allVideos ?? []).filter(v => v.categoryId === equipmentCategory.id).slice(0, 4)
-    : (allVideos ?? []).slice(0, 4);
+  const workoutLogs = (logs ?? []).filter(l => l.title !== "출석체크");
+  const hasRec = todayCheckedIn && todayRec && todayRec.recommendedVideos.length > 0;
+  const canRepeat = workoutLogs.length >= 10;
 
   return (
     <div className="p-4 space-y-4">
@@ -350,7 +348,7 @@ export default function GymPlusDashboard() {
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="font-semibold text-sm">오늘의 운동</p>
-          {todayLog && <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/workout")}>기록하기 →</button>}
+          {todayLog && <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/workout")}>기록 보기 →</button>}
         </div>
         {todayLog ? (
           <div
@@ -366,14 +364,81 @@ export default function GymPlusDashboard() {
         ) : (
           <button
             className="w-full bg-card border-2 border-dashed border-border rounded-2xl py-8 flex flex-col items-center gap-2 hover:border-primary/50 transition-colors cursor-pointer"
-            onClick={() => navigate("/gym-plus/workout")}
+            onClick={() => setShowWorkoutChoice(true)}
           >
             <span className="text-3xl font-light text-primary">+</span>
-            <p className="text-sm font-medium text-foreground">오늘 운동 계획 추가</p>
-            <p className="text-xs text-muted-foreground">종목을 입력하고 운동을 시작하세요</p>
+            <p className="text-sm font-medium text-foreground">오늘 운동 시작하기</p>
+            <p className="text-xs text-muted-foreground">탭하여 운동 유형을 선택하세요</p>
           </button>
         )}
       </div>
+
+      {/* 운동 선택 모달 */}
+      {showWorkoutChoice && (
+        <Dialog open onOpenChange={(o) => { if (!o) setShowWorkoutChoice(false); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <h2 className="font-bold text-base">어떤 운동을 할까요?</h2>
+              <p className="text-xs text-muted-foreground">운동 유형을 선택하세요</p>
+            </DialogHeader>
+            <div className="space-y-3 pt-1">
+
+              {/* 새로운 운동 — 항상 활성 */}
+              <button
+                className="w-full flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors text-left"
+                onClick={() => { setShowWorkoutChoice(false); navigate("/gym-plus/workout"); }}
+              >
+                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0 text-xl">🆕</div>
+                <div>
+                  <p className="font-semibold text-sm">새로운 운동</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">직접 종목을 입력하고 운동 계획 작성</p>
+                </div>
+              </button>
+
+              {/* 추천 운동 — 출석체크 후 추천이 있을 때 활성 */}
+              <button
+                disabled={!hasRec}
+                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left ${
+                  hasRec
+                    ? "border-border bg-card hover:border-primary/50 cursor-pointer"
+                    : "border-border/40 bg-muted/20 cursor-not-allowed opacity-50"
+                }`}
+                onClick={() => { if (hasRec) { setShowWorkoutChoice(false); navigate("/gym-plus/videos"); } }}
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${hasRec ? "bg-yellow-500/20" : "bg-muted"}`}>⭐</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">추천 운동</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {hasRec ? "오늘 맞춤 추천 운동 영상이 준비됐어요" : "출석체크 완료 후 활성화됩니다"}
+                  </p>
+                </div>
+                {!hasRec && <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full flex-shrink-0">잠금</span>}
+              </button>
+
+              {/* 이전 운동 — 운동 기록 10개 이상일 때 활성 */}
+              <button
+                disabled={!canRepeat}
+                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left ${
+                  canRepeat
+                    ? "border-border bg-card hover:border-primary/50 cursor-pointer"
+                    : "border-border/40 bg-muted/20 cursor-not-allowed opacity-50"
+                }`}
+                onClick={() => { if (canRepeat) { setShowWorkoutChoice(false); navigate("/gym-plus/workout?tab=history"); } }}
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${canRepeat ? "bg-blue-500/20" : "bg-muted"}`}>🔄</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">이전 운동</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {canRepeat ? "이전에 했던 운동을 다시 시작" : `운동 기록 ${workoutLogs.length}/10개 이상이면 활성화`}
+                  </p>
+                </div>
+                {!canRepeat && <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full flex-shrink-0">{workoutLogs.length}/10</span>}
+              </button>
+
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* 오늘의 추천 운동 */}
       <div>
