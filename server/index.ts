@@ -472,12 +472,14 @@ async function initDatabase() {
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
       "manualDate" TEXT NOT NULL,
+      description TEXT DEFAULT '',
       exercises TEXT NOT NULL DEFAULT '[]',
       "branchId" INTEGER,
       "createdBy" INTEGER NOT NULL,
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `ALTER TABLE training_manuals ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

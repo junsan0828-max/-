@@ -381,7 +381,8 @@ export const trainingManuals = pgTable("training_manuals", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   manualDate: text("manualDate").notNull(),
-  exercises: text("exercises").notNull().default("[]"), // JSON: [{name, videoUrl}]
+  description: text("description").default(""),
+  exercises: text("exercises").notNull().default("[]"),
   branchId: integer("branchId"),
   createdBy: integer("createdBy").notNull(),
   createdAt: text("createdAt").default(now).notNull(),

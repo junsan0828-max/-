@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { BookOpen, Plus, Trash2, GripVertical, Video, ChevronLeft, Pencil, Search, Calendar, X } from "lucide-react";
 
 type Exercise = { name: string; videoUrl?: string };
-type SubTopic = { title: string; exercises: Exercise[] };
+type SubTopic = { title: string; description?: string; exercises: Exercise[] };
 type ViewMode = "list" | "write" | "detail";
 
 const today = () => new Date().toISOString().substring(0, 10);
@@ -42,7 +42,7 @@ function VideoUrlModal({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-xs text-muted-foreground">YouTube 또는 영상 URL을 입력하세요. 회원이 해당 운동에서 영상을 확인할 수 있습니다.</p>
+        <p className="text-xs text-muted-foreground">YouTube 또는 영상 URL을 입력하세요.</p>
         <input
           type="url"
           value={url}
@@ -95,7 +95,7 @@ function ExerciseRow({
           <input
             value={ex.name}
             onChange={e => onChange(idx, { ...ex, name: e.target.value })}
-            placeholder="운동명 (예: 스쿼트)"
+            placeholder="운동명"
             className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
           />
           <button
@@ -149,11 +149,12 @@ function SubTopicCard({
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+      {/* 소주제 제목 */}
       <div className="flex items-center gap-2">
         <input
           value={sub.title}
           onChange={e => onChange(subIdx, { ...sub, title: e.target.value })}
-          placeholder="소주제를 입력하세요 (예: 하체 운동)"
+          placeholder="소주제를 입력하세요"
           className="flex-1 min-w-0 bg-background border border-border rounded-lg px-3 py-2 text-sm font-medium text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
         />
         {canDelete && (
@@ -167,6 +168,16 @@ function SubTopicCard({
         )}
       </div>
 
+      {/* 소주제 설명 */}
+      <textarea
+        value={sub.description ?? ""}
+        onChange={e => onChange(subIdx, { ...sub, description: e.target.value })}
+        placeholder="소주제에 대한 설명이나 개념을 입력하세요"
+        rows={3}
+        className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary resize-none"
+      />
+
+      {/* 운동 동작 목록 */}
       <div className="space-y-2">
         {sub.exercises.map((ex, exIdx) => (
           <ExerciseRow key={exIdx} ex={ex} idx={exIdx} onChange={changeEx} onDelete={deleteEx} />
@@ -191,15 +202,16 @@ function ManualForm({
   onCancel,
   isLoading,
 }: {
-  initial?: { title: string; manualDate: string; exercises: SubTopic[] };
-  onSave: (data: { title: string; manualDate: string; exercises: SubTopic[] }) => void;
+  initial?: { title: string; manualDate: string; description?: string; exercises: SubTopic[] };
+  onSave: (data: { title: string; manualDate: string; description: string; exercises: SubTopic[] }) => void;
   onCancel: () => void;
   isLoading: boolean;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [manualDate, setManualDate] = useState(initial?.manualDate ?? today());
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [subTopics, setSubTopics] = useState<SubTopic[]>(
-    initial?.exercises ?? [{ title: "", exercises: [{ name: "" }] }]
+    initial?.exercises ?? [{ title: "", description: "", exercises: [{ name: "" }] }]
   );
 
   const changeSub = (subIdx: number, val: SubTopic) =>
@@ -207,20 +219,20 @@ function ManualForm({
   const deleteSub = (subIdx: number) =>
     setSubTopics(prev => prev.filter((_, i) => i !== subIdx));
   const addSub = () =>
-    setSubTopics(prev => [...prev, { title: "", exercises: [{ name: "" }] }]);
+    setSubTopics(prev => [...prev, { title: "", description: "", exercises: [{ name: "" }] }]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) { toast.error("주제를 입력해주세요"); return; }
     const cleaned = subTopics
       .map(s => ({ ...s, exercises: s.exercises.filter(ex => ex.name.trim()) }))
-      .filter(s => s.title.trim() || s.exercises.length > 0);
-    onSave({ title: title.trim(), manualDate, exercises: cleaned });
+      .filter(s => s.title.trim() || (s.description ?? "").trim() || s.exercises.length > 0);
+    onSave({ title: title.trim(), manualDate, description, exercises: cleaned });
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* 주제 + 날짜 */}
+      {/* 주제 + 날짜 + 설명 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div>
           <label className="text-xs text-muted-foreground">주제 *</label>
@@ -238,6 +250,16 @@ function ManualForm({
             value={manualDate}
             onChange={e => setManualDate(e.target.value)}
             className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">설명</label>
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="주제에 대한 설명이나 개념을 입력하세요"
+            rows={4}
+            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary resize-none"
           />
         </div>
       </div>
@@ -334,40 +356,50 @@ function ManualDetail({
         </div>
       </div>
 
-      {/* 주제/날짜 */}
-      <div className="bg-card border border-border rounded-xl p-4">
+      {/* 주제/날짜/설명 */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-2">
         <h2 className="text-lg font-bold text-foreground">{data.title}</h2>
-        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Calendar className="w-3.5 h-3.5" />
           {data.manualDate}
         </div>
+        {data.description && (
+          <p className="text-sm text-foreground whitespace-pre-wrap pt-1">{data.description}</p>
+        )}
       </div>
 
       {/* 소주제별 운동 동작 */}
       {subTopics.map((sub, subIdx) => (
-        <div key={subIdx} className="bg-card border border-border rounded-xl p-4 space-y-2">
+        <div key={subIdx} className="bg-card border border-border rounded-xl p-4 space-y-3">
           {sub.title && (
-            <p className="text-sm font-semibold text-foreground mb-3">{sub.title}</p>
+            <p className="text-sm font-semibold text-foreground">{sub.title}</p>
           )}
-          {sub.exercises.map((ex, exIdx) => (
-            <div key={exIdx} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2.5 gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs text-muted-foreground shrink-0">{ordinal(exIdx + 1)}</span>
-                <span className="text-sm text-foreground truncate">{ex.name}</span>
-              </div>
-              {ex.videoUrl && (
-                <a
-                  href={ex.videoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-primary hover:opacity-80 shrink-0"
-                >
-                  <Video className="w-3.5 h-3.5" />
-                  영상 보기
-                </a>
-              )}
+          {sub.description && (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{sub.description}</p>
+          )}
+          {sub.exercises.length > 0 && (
+            <div className="space-y-2">
+              {sub.exercises.map((ex, exIdx) => (
+                <div key={exIdx} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2.5 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-muted-foreground shrink-0">{ordinal(exIdx + 1)}</span>
+                    <span className="text-sm text-foreground truncate">{ex.name}</span>
+                  </div>
+                  {ex.videoUrl && (
+                    <a
+                      href={ex.videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-primary hover:opacity-80 shrink-0"
+                    >
+                      <Video className="w-3.5 h-3.5" />
+                      영상 보기
+                    </a>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       ))}
     </div>
@@ -430,6 +462,7 @@ export default function TrainingManual() {
           initial={editData ? {
             title: editData.title,
             manualDate: editData.manualDate,
+            description: editData.description ?? "",
             exercises: normalizeExercises(editData.exercises),
           } : undefined}
           onSave={data => {

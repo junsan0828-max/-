@@ -3280,8 +3280,10 @@ const trainingManualRouter = t.router({
     .input(z.object({
       title: z.string().min(1),
       manualDate: z.string(),
+      description: z.string().optional(),
       exercises: z.array(z.object({
         title: z.string(),
+        description: z.string().optional(),
         exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
       })),
     }))
@@ -3292,6 +3294,7 @@ const trainingManualRouter = t.router({
       const [row] = await db.insert(trainingManuals).values({
         title: input.title,
         manualDate: input.manualDate,
+        description: input.description ?? "",
         exercises: JSON.stringify(input.exercises),
         createdBy: ctx.user!.id,
         createdAt: now,
@@ -3305,8 +3308,10 @@ const trainingManualRouter = t.router({
       id: z.number(),
       title: z.string().min(1),
       manualDate: z.string(),
+      description: z.string().optional(),
       exercises: z.array(z.object({
         title: z.string(),
+        description: z.string().optional(),
         exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
       })),
     }))
@@ -3316,6 +3321,7 @@ const trainingManualRouter = t.router({
       await db.update(trainingManuals).set({
         title: input.title,
         manualDate: input.manualDate,
+        description: input.description ?? "",
         exercises: JSON.stringify(input.exercises),
         updatedAt: new Date().toISOString(),
       }).where(eq(trainingManuals.id, input.id));
