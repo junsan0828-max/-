@@ -320,33 +320,18 @@ export default function GymPlusDashboard() {
         </div>
       )}
 
-      {/* 인사 + 출석 + D-day */}
+      {/* 인사 카드 (출석 버튼 제거) */}
       <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-2xl p-4 border border-primary/20">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-muted-foreground text-xs mb-0.5">안녕하세요 👋</p>
-            <p className="font-bold text-lg text-foreground">{member?.name ?? "회원"}님</p>
-            {daysLeft !== null && (
-              <p className={`text-xs mt-1 ${daysLeft <= 7 ? "text-red-400" : "text-muted-foreground"}`}>
-                회원권 {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={() => setShowCheckIn(true)}
-            className={`flex flex-col items-center justify-center px-4 py-3 rounded-xl border text-xs font-medium transition-colors flex-shrink-0 ${
-              todayCheckedIn
-                ? "bg-green-500/20 border-green-500/40 text-green-400"
-                : "bg-primary text-primary-foreground border-primary"
-            }`}
-          >
-            <span className="text-xl mb-0.5">{todayCheckedIn ? "✅" : "👋"}</span>
-            <span>{todayCheckedIn ? "출석완료" : "출석하기"}</span>
-          </button>
-        </div>
+        <p className="text-muted-foreground text-xs mb-0.5">안녕하세요 👋</p>
+        <p className="font-bold text-lg text-foreground">{member?.name ?? "회원"}님</p>
+        {daysLeft !== null && (
+          <p className={`text-xs mt-1 ${daysLeft <= 7 ? "text-red-400" : "text-muted-foreground"}`}>
+            회원권 {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "오늘 만료" : "만료됨"}
+          </p>
+        )}
       </div>
 
-      {/* 오늘의 운동 — 메인 카드 */}
+      {/* 오늘의 운동 — 프리미엄 카드 */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="font-semibold text-sm">오늘의 운동</p>
@@ -354,23 +339,42 @@ export default function GymPlusDashboard() {
         </div>
         {todayLog ? (
           <div
-            className="bg-card rounded-2xl border border-primary/30 p-5 cursor-pointer hover:border-primary/60 transition-colors"
+            className="relative overflow-hidden bg-gradient-to-br from-primary/25 via-primary/10 to-transparent rounded-2xl border border-primary/30 p-5 cursor-pointer hover:border-primary/60 transition-colors"
             onClick={() => navigate("/gym-plus/workout")}
           >
-            <p className="font-semibold text-base text-foreground mb-1">{todayLog.title || "오늘 운동 완료 💪"}</p>
-            <div className="flex gap-3 text-sm text-muted-foreground">
-              {todayLog.durationMinutes ? <span>⏱ {todayLog.durationMinutes}분</span> : null}
-              {todayLog.caloriesBurned ? <span>🔥 {todayLog.caloriesBurned}kcal</span> : null}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -translate-y-8 translate-x-8" />
+            <p className="text-[10px] text-primary/80 font-semibold tracking-widest uppercase mb-1">Today's Workout</p>
+            <p className="font-bold text-xl text-foreground mb-3">{todayLog.title || "오늘 운동 완료 💪"}</p>
+            <div className="flex gap-4">
+              {todayLog.durationMinutes ? (
+                <div>
+                  <p className="text-[10px] text-muted-foreground">운동 시간</p>
+                  <p className="text-base font-bold text-primary">⏱ {todayLog.durationMinutes}분</p>
+                </div>
+              ) : null}
+              {todayLog.caloriesBurned ? (
+                <div>
+                  <p className="text-[10px] text-muted-foreground">소모 칼로리</p>
+                  <p className="text-base font-bold text-orange-400">🔥 {todayLog.caloriesBurned}kcal</p>
+                </div>
+              ) : null}
+              {!todayLog.durationMinutes && !todayLog.caloriesBurned && (
+                <p className="text-xs text-muted-foreground">운동 시작 버튼을 눌러 운동을 기록하세요</p>
+              )}
             </div>
           </div>
         ) : (
           <button
-            className="w-full bg-card border-2 border-dashed border-border rounded-2xl py-8 flex flex-col items-center gap-2 hover:border-primary/50 transition-colors cursor-pointer"
+            className="w-full relative overflow-hidden bg-gradient-to-br from-primary/15 via-primary/5 to-transparent border-2 border-dashed border-primary/30 rounded-2xl py-10 flex flex-col items-center gap-3 hover:border-primary/60 hover:from-primary/20 transition-all cursor-pointer"
             onClick={() => setShowWorkoutChoice(true)}
           >
-            <span className="text-3xl font-light text-primary">+</span>
-            <p className="text-sm font-medium text-foreground">오늘 운동 시작하기</p>
-            <p className="text-xs text-muted-foreground">탭하여 운동 유형을 선택하세요</p>
+            <div className="w-14 h-14 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center">
+              <span className="text-2xl font-light text-primary">+</span>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-foreground">오늘 운동 시작하기</p>
+              <p className="text-xs text-muted-foreground mt-0.5">탭하여 운동 유형을 선택하세요</p>
+            </div>
           </button>
         )}
       </div>
@@ -442,15 +446,25 @@ export default function GymPlusDashboard() {
         </Dialog>
       )}
 
-      {/* 오늘의 추천 운동 */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="font-semibold text-sm">오늘의 추천 운동</p>
-          {todayRec && todayRec.recommendedVideos.length > 0 && (
+      {/* 출석하기 / 추천운동 카드 */}
+      {!todayCheckedIn ? (
+        <button
+          className="w-full bg-gradient-to-r from-primary to-primary/70 rounded-2xl p-5 flex items-center gap-4 text-left hover:opacity-90 transition-opacity"
+          onClick={() => setShowCheckIn(true)}
+        >
+          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 text-2xl">👋</div>
+          <div className="flex-1">
+            <p className="font-bold text-base text-white">출석하기</p>
+            <p className="text-xs text-white/70 mt-0.5">오늘의 컨디션을 체크하고 맞춤 운동을 받아보세요</p>
+          </div>
+          <span className="text-white/60 text-lg">→</span>
+        </button>
+      ) : todayRec && todayRec.recommendedVideos.length > 0 ? (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-sm">오늘의 추천 운동</p>
             <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/videos")}>전체보기 →</button>
-          )}
-        </div>
-        {todayRec && todayRec.recommendedVideos.length > 0 ? (
+          </div>
           <div className="space-y-2">
             {todayRec.recommendedVideos.map((v: any) => (
               <div key={v.id}
@@ -476,21 +490,16 @@ export default function GymPlusDashboard() {
               </div>
             ))}
           </div>
-        ) : (
-          <div
-            className="bg-card border border-dashed border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => !todayCheckedIn && setShowCheckIn(true)}
-          >
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <span className="text-xl">🎯</span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">출석체크 후 추천 운동을 확인하세요</p>
-              <p className="text-xs text-muted-foreground mt-0.5">컨디션과 운동 부위를 입력하면 맞춤 영상 3개를 추천해 드려요</p>
-            </div>
+        </div>
+      ) : (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0 text-2xl">✅</div>
+          <div>
+            <p className="font-bold text-base text-green-400">출석 완료!</p>
+            <p className="text-xs text-muted-foreground mt-0.5">오늘 출석이 완료되었습니다</p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 출석 체크인 모달 */}
       {showCheckIn && <CheckInModal onClose={() => { setShowCheckIn(false); refetchLogs(); refetchRec(); }} />}
