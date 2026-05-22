@@ -21,13 +21,11 @@ const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 const ENERGY_OPTIONS = ["낮음", "보통", "높음"];
 const CONDITION_LABELS = ["", "매우 피곤", "피곤", "보통", "좋음", "최고"];
 
-const BODY_PARTS = [
-  "전신", "상체", "하체",
-  "등", "어깨", "가슴",
-  "복부", "허리", "코어",
-  "엉덩이", "대퇴 후면", "대퇴 전면",
-  "하퇴", "이두", "삼두",
-  "기타",
+const BODY_PART_GROUPS = [
+  { key: "전신", label: "전신", sub: [] },
+  { key: "상체", label: "상체", sub: ["등", "어깨", "가슴", "팔"] },
+  { key: "하체", label: "하체", sub: ["엉덩이", "대퇴 후면", "대퇴 전면", "하퇴"] },
+  { key: "코어", label: "코어", sub: [] },
 ];
 const WORKOUT_THEMES = ["유산소 위주", "스트레칭 위주", "근력운동"];
 const INTENSITY_OPTIONS = ["1", "2", "3", "4", "5"];
@@ -159,14 +157,43 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
             {/* 운동 부위 */}
             <div className="space-y-2">
               <p className="text-sm font-medium">오늘의 운동 부위 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
-              <div className="flex flex-wrap gap-1.5">
-                {BODY_PARTS.map((part) => (
-                  <button key={part}
-                    className={`px-3 py-1.5 rounded-full border text-xs transition-colors ${selectedBodyParts.includes(part) ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
-                    onClick={() => toggleBodyPart(part)}
-                  >{part}</button>
+              {/* 대분류 */}
+              <div className="grid grid-cols-4 gap-1.5">
+                {BODY_PART_GROUPS.map((g) => (
+                  <button key={g.key}
+                    className={`py-2 rounded-xl border text-xs font-medium transition-colors ${selectedBodyParts.includes(g.key) ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                    onClick={() => toggleBodyPart(g.key)}
+                  >{g.label}</button>
                 ))}
               </div>
+              {/* 상체 소분류 */}
+              {selectedBodyParts.includes("상체") && (
+                <div className="pl-2 border-l-2 border-primary/30 space-y-1">
+                  <p className="text-[10px] text-muted-foreground">상체 세부 부위</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {BODY_PART_GROUPS[1].sub.map((s) => (
+                      <button key={s}
+                        className={`px-3 py-1.5 rounded-full border text-xs transition-colors ${selectedBodyParts.includes(s) ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                        onClick={() => toggleBodyPart(s)}
+                      >{s}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* 하체 소분류 */}
+              {selectedBodyParts.includes("하체") && (
+                <div className="pl-2 border-l-2 border-primary/30 space-y-1">
+                  <p className="text-[10px] text-muted-foreground">하체 세부 부위</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {BODY_PART_GROUPS[2].sub.map((s) => (
+                      <button key={s}
+                        className={`px-3 py-1.5 rounded-full border text-xs transition-colors ${selectedBodyParts.includes(s) ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                        onClick={() => toggleBodyPart(s)}
+                      >{s}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 운동 주제 */}
