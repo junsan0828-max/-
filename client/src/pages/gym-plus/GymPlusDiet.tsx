@@ -408,7 +408,7 @@ export default function GymPlusDiet() {
       {/* 식단이 없을 때 빈 상태 */}
       {!plan && !generatePlan.isPending && (
         <div className="bg-card border border-dashed border-border rounded-2xl p-8 text-center space-y-2">
-          <p className="text-3xl">🥗</p>
+          <p className="text-3xl text-muted-foreground">⊙</p>
           <p className="text-sm font-medium">아직 오늘의 식단이 없어요</p>
           <p className="text-xs text-muted-foreground">위에서 활동수준을 설정하고 식단 생성 버튼을 눌러주세요</p>
         </div>
