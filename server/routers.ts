@@ -3152,9 +3152,9 @@ ${dataContext}
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 현재 회원 정보 조회 (gymPlus + main memberId)
+      // 현재 회원 정보 조회 (gymPlus + main memberId + phone)
       const [gymMember] = await db
-        .select({ membershipEnd: gymPlusMembers.membershipEnd, memberId: gymPlusMembers.memberId })
+        .select({ membershipEnd: gymPlusMembers.membershipEnd, memberId: gymPlusMembers.memberId, phone: gymPlusMembers.phone, username: gymPlusMembers.username })
         .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
 
       // 새 만료일 계산
@@ -3180,11 +3180,16 @@ ${dataContext}
         .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
         .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
 
-      // 연동된 메인 members 테이블도 업데이트
+      // 메인 members 테이블 업데이트 — memberId 우선, 없으면 전화번호(=username)로 매칭
+      const phone = gymMember?.phone || gymMember?.username;
       if (gymMember?.memberId) {
         await db.update(members)
           .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
           .where(eq(members.id, gymMember.memberId));
+      } else if (phone) {
+        await db.update(members)
+          .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
+          .where(eq(members.phone, phone));
       }
 
       return { success: true, newMembershipEnd: newEnd };
