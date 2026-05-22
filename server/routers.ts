@@ -29,6 +29,7 @@ import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheet
 import {
   sheetSyncConfig,
   sheetPendingMembers,
+  trainingManuals,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -3258,6 +3259,73 @@ const reportsRouter = t.router({
     }),
 });
 
+// ─── 교육 매뉴얼 라우터 ───────────────────────────────────────────────────────
+const trainingManualRouter = t.router({
+  list: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    const rows = await db.select().from(trainingManuals).orderBy(desc(trainingManuals.createdAt));
+    return rows.map(r => ({ ...r, exercises: JSON.parse(r.exercises) as { name: string; videoUrl?: string }[] }));
+  }),
+
+  get: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const [row] = await db.select().from(trainingManuals).where(eq(trainingManuals.id, input.id)).limit(1);
+    if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+    return { ...row, exercises: JSON.parse(row.exercises) as { name: string; videoUrl?: string }[] };
+  }),
+
+  create: protectedProcedure
+    .input(z.object({
+      title: z.string().min(1),
+      manualDate: z.string(),
+      exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const now = new Date().toISOString();
+      const [row] = await db.insert(trainingManuals).values({
+        title: input.title,
+        manualDate: input.manualDate,
+        exercises: JSON.stringify(input.exercises),
+        createdBy: ctx.user!.id,
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: trainingManuals.id });
+      return { id: row.id };
+    }),
+
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      title: z.string().min(1),
+      manualDate: z.string(),
+      exercises: z.array(z.object({ name: z.string(), videoUrl: z.string().optional() })),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(trainingManuals).set({
+        title: input.title,
+        manualDate: input.manualDate,
+        exercises: JSON.stringify(input.exercises),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(trainingManuals.id, input.id));
+      return { success: true };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(trainingManuals).where(eq(trainingManuals.id, input.id));
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({
   auth: authRouter,
@@ -3274,6 +3342,7 @@ export const appRouter = t.router({
   schedules: schedulesRouter,
   gym: gymRouter,
   access: accessRouter,
+  trainingManual: trainingManualRouter,
 });
 
 export type AppRouter = typeof appRouter;

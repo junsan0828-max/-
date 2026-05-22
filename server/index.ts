@@ -468,6 +468,16 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE sheet_pending_members ADD COLUMN IF NOT EXISTS "membershipType" TEXT`,
+    `CREATE TABLE IF NOT EXISTS training_manuals (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      "manualDate" TEXT NOT NULL,
+      exercises TEXT NOT NULL DEFAULT '[]',
+      "branchId" INTEGER,
+      "createdBy" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

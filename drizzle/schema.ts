@@ -375,6 +375,19 @@ export const sheetPendingMembers = pgTable("sheet_pending_members", {
   importedAt: text("importedAt").default(now).notNull(),
 });
 
+// ─── 교육 매뉴얼 ──────────────────────────────────────────────────────────────
+
+export const trainingManuals = pgTable("training_manuals", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  manualDate: text("manualDate").notNull(),
+  exercises: text("exercises").notNull().default("[]"), // JSON: [{name, videoUrl}]
+  branchId: integer("branchId"),
+  createdBy: integer("createdBy").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
 // ─── 나의 업무 ────────────────────────────────────────────────────────────────
 
 export const tasks = pgTable("tasks", {
