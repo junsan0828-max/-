@@ -375,7 +375,7 @@ function ManualForm({ initial, onSave, onCancel, isLoading }: {
   );
 }
 
-function ManualDetail({ id, onBack, onEdit }: { id: number; onBack: () => void; onEdit: () => void; }) {
+function ManualDetail({ id, onBack, onEdit, isAdmin }: { id: number; onBack: () => void; onEdit: () => void; isAdmin: boolean; }) {
   const { data, isLoading } = trpc.trainingManual.get.useQuery({ id });
   const deleteMutation = trpc.trainingManual.delete.useMutation({
     onSuccess: onBack,
@@ -401,16 +401,18 @@ function ManualDetail({ id, onBack, onEdit }: { id: number; onBack: () => void; 
           <ChevronLeft className="w-4 h-4" />
           목록
         </button>
-        <div className="flex gap-2">
-          <button onClick={onEdit} className="flex items-center gap-1 text-sm text-primary hover:opacity-80">
-            <Pencil className="w-3.5 h-3.5" />
-            수정
-          </button>
-          <button onClick={handleDelete} className="flex items-center gap-1 text-sm text-destructive hover:opacity-80">
-            <Trash2 className="w-3.5 h-3.5" />
-            삭제
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button onClick={onEdit} className="flex items-center gap-1 text-sm text-primary hover:opacity-80">
+              <Pencil className="w-3.5 h-3.5" />
+              수정
+            </button>
+            <button onClick={handleDelete} className="flex items-center gap-1 text-sm text-destructive hover:opacity-80">
+              <Trash2 className="w-3.5 h-3.5" />
+              삭제
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-card border border-border rounded-xl p-4 space-y-2">
@@ -494,6 +496,9 @@ export default function TrainingManual() {
   const [editId, setEditId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
 
+  const { data: user } = trpc.auth.me.useQuery();
+  const isAdmin = user?.role === "admin" || user?.role === "sub_admin";
+
   const { data: manuals = [], isLoading } = trpc.trainingManual.list.useQuery();
   const utils = trpc.useUtils();
 
@@ -521,7 +526,7 @@ export default function TrainingManual() {
   const editData = manuals.find(m => m.id === editId);
   const filtered = manuals.filter(m => m.title.toLowerCase().includes(search.toLowerCase()));
 
-  if (view === "write") {
+  if (view === "write" && isAdmin) {
     return (
       <div className="max-w-2xl mx-auto p-4 space-y-4">
         <div className="flex items-center gap-3">
@@ -559,6 +564,7 @@ export default function TrainingManual() {
           id={selectedId}
           onBack={() => { setView("list"); setSelectedId(null); }}
           onEdit={() => { setEditId(selectedId); setView("write"); }}
+          isAdmin={isAdmin}
         />
       </div>
     );
@@ -572,13 +578,15 @@ export default function TrainingManual() {
           <h1 className="text-lg font-bold text-foreground">교육 매뉴얼</h1>
           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{manuals.length}건</span>
         </div>
-        <button
-          onClick={() => { setEditId(null); setView("write"); }}
-          className="flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-medium px-3 py-2 rounded-lg hover:opacity-90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          글쓰기
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => { setEditId(null); setView("write"); }}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-medium px-3 py-2 rounded-lg hover:opacity-90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            글쓰기
+          </button>
+        )}
       </div>
 
       <div className="relative">
