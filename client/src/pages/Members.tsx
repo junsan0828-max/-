@@ -77,7 +77,7 @@ export default function Members() {
     unpaid: members?.filter((m) => unpaidSet.has(m.id)).length ?? 0,
     lowSessions: members?.filter((m) => {
       const r = remainingMap[m.id];
-      return r !== undefined && r <= 3;
+      return r !== undefined && r <= 6;
     }).length ?? 0,
     expiring: members?.filter((m) => {
       const d = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
@@ -103,7 +103,7 @@ export default function Members() {
     let matchSpecial = true;
     if (specialFilter === "unpaid") matchSpecial = unpaidSet.has(m.id);
     else if (specialFilter === "low_sessions")
-      matchSpecial = remaining !== undefined && remaining <= 3;
+      matchSpecial = remaining !== undefined && remaining <= 6;
     else if (specialFilter === "expiring")
       matchSpecial = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
     else if (specialFilter === "expired")
@@ -202,7 +202,7 @@ export default function Members() {
           },
           {
             key: "low_sessions" as SpecialFilter,
-            label: "PT 3회 이하",
+            label: "PT 6회 이하",
             count: counts.lowSessions,
             icon: <Dumbbell className="h-3.5 w-3.5" />,
             activeClass: "bg-primary/20 text-primary border-primary/40",
@@ -318,7 +318,7 @@ export default function Members() {
             const isExpired = daysLeft !== null && daysLeft < 0;
             const hasUnpaid = unpaidSet.has(member.id);
             const remainingSessions = remainingMap[member.id];
-            const isLowSessions = remainingSessions !== undefined && remainingSessions <= 3;
+            const isLowSessions = remainingSessions !== undefined && remainingSessions <= 6;
             const isSelected = selectedIds.has(member.id);
 
             return (
