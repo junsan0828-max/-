@@ -485,9 +485,6 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
-        <Button size="sm" onClick={() => setRegisterModalOpen(true)} className="gap-1.5">
-          <UserPlus className="h-4 w-4" />회원 등록
-        </Button>
       </div>
 
       {/* 알림 뱃지 */}
