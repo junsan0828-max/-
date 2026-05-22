@@ -52,6 +52,7 @@ import AdminMembers from "./pages/AdminMembers";
 import AccessManagement from "./pages/AccessManagement";
 import KioskCheckin from "./pages/KioskCheckin";
 import TrainingManual from "./pages/TrainingManual";
+import WorkManagementPage from "./pages/WorkManagement";
 import Layout from "./components/Layout";
 
 function App() {
@@ -119,6 +120,7 @@ function App() {
         </Route>
         <Route path="/access">{() => <AccessManagement />}</Route>
         <Route path="/training-manual">{() => <TrainingManual />}</Route>
+        <Route path="/work-management">{() => <WorkManagementPage />}</Route>
         <Route path="/admin">{() => <Admin />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
