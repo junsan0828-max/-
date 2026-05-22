@@ -5,9 +5,12 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   UserCog, Settings, User, ClipboardCheck, Download, X,
-  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, DoorOpen, BookOpen, Menu,
+  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, DoorOpen, BookOpen, Menu, ExternalLink,
 } from "lucide-react";
 import Logo from "./Logo";
+
+const GYMPLUS_URL_KEY = "ziantgym_gymplus_url";
+const GYMPLUS_URL_DEFAULT = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -95,6 +98,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const roleLabel = user?.role === "admin" ? "관리자" : user?.role === "sub_admin" ? "부관리자" : user?.role === "consultant" ? "컨설턴트" : "트레이너";
 
+  const gymplusUrl = localStorage.getItem(GYMPLUS_URL_KEY) ?? GYMPLUS_URL_DEFAULT;
+
   // ── 사이드바 내용 (데스크탑 + 어드민 모바일 드로어 공용) ──────────────────
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -130,12 +135,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      {/* 유저 정보 + 로그아웃 */}
+      {/* 유저 정보 + ZIANTGYM+ + 로그아웃 */}
       <div className="px-3 py-4 border-t border-border space-y-1">
         <div className="px-3 py-2">
           <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
           <p className="text-xs text-muted-foreground">{roleLabel}</p>
         </div>
+        {isAdmin && (
+          <a
+            href={gymplusUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4 shrink-0" />
+            ZIANTGYM+
+          </a>
+        )}
         <button
           onClick={() => logoutMutation.mutate()}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
