@@ -33,6 +33,7 @@ import {
   gymPlusVideos,
   gymPlusEvents,
   gymPlusWorkoutLogs,
+  gymPlusMemberHealth,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -3085,6 +3086,48 @@ ${dataContext}
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.update(gymPlusMembers).set({ ...input, updatedAt: new Date().toISOString() })
         .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
+      return { success: true };
+    }),
+
+  getHealth: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    const [row] = await db.select().from(gymPlusMemberHealth)
+      .where(eq(gymPlusMemberHealth.gymPlusMemberId, ctx.gymPlusMemberId)).limit(1);
+    return row ?? null;
+  }),
+
+  upsertHealth: gymPlusProtected
+    .input(z.object({
+      height: z.string().optional(),
+      weight: z.string().optional(),
+      birthYear: z.string().optional(),
+      gender: z.string().optional(),
+      parq1: z.string().optional(),
+      parq2: z.string().optional(),
+      parq3: z.string().optional(),
+      parq4: z.string().optional(),
+      parq5: z.string().optional(),
+      parq6: z.string().optional(),
+      parq7: z.string().optional(),
+      parqSubmittedAt: z.string().optional(),
+      bodyAnalysisRequested: z.number().optional(),
+      bodyAnalysisRequestedAt: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const existing = await db.select({ id: gymPlusMemberHealth.id })
+        .from(gymPlusMemberHealth)
+        .where(eq(gymPlusMemberHealth.gymPlusMemberId, ctx.gymPlusMemberId)).limit(1);
+      if (existing[0]) {
+        await db.update(gymPlusMemberHealth)
+          .set({ ...input, updatedAt: new Date().toISOString() })
+          .where(eq(gymPlusMemberHealth.gymPlusMemberId, ctx.gymPlusMemberId));
+      } else {
+        await db.insert(gymPlusMemberHealth)
+          .values({ gymPlusMemberId: ctx.gymPlusMemberId, ...input });
+      }
       return { success: true };
     }),
 

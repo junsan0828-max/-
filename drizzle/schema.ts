@@ -452,3 +452,27 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   mood: text("mood"),                     // legacy
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+export const gymPlusMemberHealth = pgTable("gym_plus_member_health", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull().unique(),
+  // 신체정보
+  height: text("height"),
+  weight: text("weight"),
+  birthYear: text("birthYear"),
+  gender: text("gender"),
+  // PAR-Q (7 yes/no)
+  parq1: text("parq1"),
+  parq2: text("parq2"),
+  parq3: text("parq3"),
+  parq4: text("parq4"),
+  parq5: text("parq5"),
+  parq6: text("parq6"),
+  parq7: text("parq7"),
+  parqSubmittedAt: text("parqSubmittedAt"),
+  // 체형분석 신청
+  bodyAnalysisRequested: integer("bodyAnalysisRequested").default(0).notNull(),
+  bodyAnalysisRequestedAt: text("bodyAnalysisRequestedAt"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});

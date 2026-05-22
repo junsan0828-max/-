@@ -269,6 +269,7 @@ export default function GymPlusDashboard() {
   const { data: events } = trpc.gymPlus.listEvents.useQuery({});
   const { data: logs, refetch: refetchLogs } = trpc.gymPlus.listWorkoutLogs.useQuery({});
   const { data: todayRec, refetch: refetchRec } = trpc.gymPlus.getTodayRecommendations.useQuery();
+  const { data: health } = trpc.gymPlus.getHealth.useQuery();
 
   const today = new Date().toISOString().slice(0, 10);
   const todayLog = logs?.find((l) => l.logDate === today && l.title !== "출석체크");
@@ -277,7 +278,8 @@ export default function GymPlusDashboard() {
   const latestEvents = events?.slice(0, 3) ?? [];
 
   const workoutLogs = (logs ?? []).filter(l => l.title !== "출석체크");
-  const hasRec = todayCheckedIn && todayRec && todayRec.recommendedVideos.length > 0;
+  const allMissionsDone = !!(health?.height && health?.weight && health?.parqSubmittedAt && health?.bodyAnalysisRequested);
+  const hasRec = allMissionsDone && todayCheckedIn && todayRec && todayRec.recommendedVideos.length > 0;
   const canRepeat = workoutLogs.length >= 10;
 
   return (
@@ -409,7 +411,7 @@ export default function GymPlusDashboard() {
                 <div className="flex-1">
                   <p className="font-semibold text-sm">추천 운동</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {hasRec ? "오늘 맞춤 추천 운동 영상이 준비됐어요" : "출석체크 완료 후 활성화됩니다"}
+                    {hasRec ? "오늘 맞춤 추천 운동 영상이 준비됐어요" : !allMissionsDone ? "내 정보 탭에서 미션 3가지를 완료하세요" : "출석체크 완료 후 활성화됩니다"}
                   </p>
                 </div>
                 {!hasRec && <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full flex-shrink-0">잠금</span>}
