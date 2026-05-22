@@ -292,6 +292,8 @@ export default function MemberDetail({ memberId }: Props) {
   const [liveExercises, setLiveExercises] = useState<Exercise[]>([]);
   // "exIdx-setIdx" 형식으로 완료된 세트 추적
   const [checkedSets, setCheckedSets] = useState<Set<string>>(new Set());
+  const [memberMemoEdit, setMemberMemoEdit] = useState(false);
+  const [memberMemoText, setMemberMemoText] = useState("");
 
   function openLiveTraining(log: any) {
     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
@@ -449,6 +451,15 @@ export default function MemberDetail({ memberId }: Props) {
       utils.members.getById.invalidate({ id: memberId });
     },
     onError: (err) => toast.error(err.message || "변경 실패"),
+  });
+
+  const saveNoteMutation = trpc.members.update.useMutation({
+    onSuccess: () => {
+      toast.success("메모가 저장되었습니다.");
+      setMemberMemoEdit(false);
+      utils.members.getById.invalidate({ id: memberId });
+    },
+    onError: (err) => toast.error(err.message || "저장 실패"),
   });
 
   // 미수금 업데이트
@@ -922,12 +933,6 @@ export default function MemberDetail({ memberId }: Props) {
                   <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={(member as any).visitRoute} />
                 )}
               </div>
-              {member.profileNote && (
-                <div className="mt-4 p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
-                  <p className="text-xs text-muted-foreground mb-1">특이사항</p>
-                  <p className="text-sm text-foreground whitespace-pre-wrap">{member.profileNote}</p>
-                </div>
-              )}
               {(leadInfo?.consultationNote || leadInfo?.memo) && (
                 <div className="mt-4 space-y-3">
                   {leadInfo.consultationNote && (
@@ -943,6 +948,48 @@ export default function MemberDetail({ memberId }: Props) {
                     </div>
                   )}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 메모 — 기본정보 하단 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-2 px-4 pt-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-foreground">메모</CardTitle>
+              {!memberMemoEdit ? (
+                <Button
+                  size="sm" variant="ghost"
+                  className="text-xs text-primary hover:bg-primary/10 h-7 px-2"
+                  onClick={() => { setMemberMemoText(member.profileNote ?? ""); setMemberMemoEdit(true); }}
+                >
+                  수정
+                </Button>
+              ) : (
+                <div className="flex gap-1.5">
+                  <Button size="sm" variant="ghost" className="text-xs h-7 px-2 text-muted-foreground" onClick={() => setMemberMemoEdit(false)}>취소</Button>
+                  <Button
+                    size="sm" className="text-xs h-7 px-2"
+                    disabled={saveNoteMutation.isPending}
+                    onClick={() => saveNoteMutation.mutate({ id: memberId, name: member.name, profileNote: memberMemoText })}
+                  >
+                    저장
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {memberMemoEdit ? (
+                <Textarea
+                  value={memberMemoText}
+                  onChange={e => setMemberMemoText(e.target.value)}
+                  placeholder="회원 관련 메모를 입력하세요..."
+                  rows={4}
+                  className="text-sm resize-none"
+                />
+              ) : (
+                <p className="text-sm text-foreground whitespace-pre-wrap">
+                  {member.profileNote || <span className="text-muted-foreground">없음</span>}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -1941,24 +1988,12 @@ export default function MemberDetail({ memberId }: Props) {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">오늘의 목표</Label>
-              <Input value={journalForm.goal} onChange={e => setJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-xs">운동 부위 (최대 3개)</Label>
               <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
               <ExerciseEditor simpleMode exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">피드백</Label>
-              <Textarea value={journalForm.feedback} onChange={e => setJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">메모 (선택)</Label>
-              <Textarea value={journalForm.notes} onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항..." rows={2} className="text-sm resize-none" />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
@@ -2007,24 +2042,12 @@ export default function MemberDetail({ memberId }: Props) {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">오늘의 목표</Label>
-              <Input value={editJournalForm.goal} onChange={e => setEditJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-xs">운동 부위 (최대 3개)</Label>
               <BodyPartPicker value={editJournalForm.bodyPart} onChange={v => setEditJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
               <ExerciseEditor simpleMode exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">피드백</Label>
-              <Textarea value={editJournalForm.feedback} onChange={e => setEditJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">메모 (선택)</Label>
-              <Textarea value={editJournalForm.notes} onChange={e => setEditJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항..." rows={2} className="text-sm resize-none" />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setEditJournalOpen(false)}>취소</Button>
@@ -2156,18 +2179,6 @@ export default function MemberDetail({ memberId }: Props) {
                 onChange={exs => setSessionForm(p => ({ ...p, exercises: exs }))}
                 suggestions={exerciseSuggestions}
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">오늘의 목표</label>
-              <Input value={sessionForm.goal} onChange={e => setSessionForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">피드백</label>
-              <Textarea value={sessionForm.feedback} onChange={e => setSessionForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={2} className="text-sm resize-none" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">메모 (선택)</label>
-              <Textarea value={sessionForm.notes} onChange={e => setSessionForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항, 컨디션 등..." rows={2} className="text-sm resize-none" />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setSessionDialogOpen(false)}>취소</Button>
