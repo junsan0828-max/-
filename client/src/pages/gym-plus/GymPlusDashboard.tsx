@@ -18,7 +18,7 @@ const membershipTypeColor: Record<string, string> = {
 };
 
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
-const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
+const ENERGY_OPTIONS = ["낮음", "보통", "높음"];
 const CONDITION_LABELS = ["", "매우 피곤", "피곤", "보통", "좋음", "최고"];
 
 const BODY_PARTS = [
@@ -125,19 +125,19 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
             {/* 수면 시간 */}
             <div className="space-y-2">
               <p className="text-sm font-medium">수면 시간</p>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="flex gap-1.5">
                 {SLEEP_OPTIONS.map((s) => (
                   <button key={s}
-                    className={`py-2 rounded-xl border text-sm transition-colors ${sleepHours === s ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                    className={`flex-1 py-2 rounded-xl border text-sm transition-colors ${sleepHours === s ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
                     onClick={() => setSleepHours(s)}
                   >{s}</button>
                 ))}
               </div>
             </div>
 
-            {/* 에너지 레벨 */}
+            {/* 에너지 상태 */}
             <div className="space-y-2">
-              <p className="text-sm font-medium">에너지 레벨</p>
+              <p className="text-sm font-medium">에너지 상태</p>
               <div className="grid grid-cols-3 gap-1.5">
                 {ENERGY_OPTIONS.map((e) => (
                   <button key={e}
@@ -170,19 +170,6 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
                     className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${selectedThemes.includes(theme) ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
                     onClick={() => toggleTheme(theme)}
                   >{theme}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* 강도 */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">운동 강도</p>
-              <div className="grid grid-cols-5 gap-1.5">
-                {INTENSITY_OPTIONS.map((opt) => (
-                  <button key={opt}
-                    className={`py-2 rounded-xl border text-sm font-medium transition-colors ${intensity === opt ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
-                    onClick={() => setIntensity(opt)}
-                  >{opt}</button>
                 ))}
               </div>
             </div>
