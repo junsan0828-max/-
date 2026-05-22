@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { path: "/gym-plus", label: "홈", icon: "⊞" },
   { path: "/gym-plus/videos", label: "운동영상", icon: "▶" },
-  { path: "/gym-plus/events", label: "이벤트", icon: "★" },
   { path: "/gym-plus/workout", label: "운동기록", icon: "◎" },
+  { path: "/gym-plus/diet", label: "맞춤식단", icon: "🥗" },
+  { path: "/gym-plus/events", label: "이벤트", icon: "★" },
   { path: "/gym-plus/profile", label: "내정보", icon: "◈" },
 ];
 
@@ -53,12 +54,12 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`flex-1 flex flex-col items-center py-2 gap-0.5 text-xs transition-colors ${
+                className={`flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors ${
                   isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                <span className="text-base leading-none">{item.icon}</span>
-                <span className="text-[10px] leading-none">{item.label}</span>
+                <span className="text-sm leading-none">{item.icon}</span>
+                <span className="text-[9px] leading-none">{item.label}</span>
               </button>
             );
           })}
