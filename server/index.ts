@@ -480,6 +480,7 @@ async function initDatabase() {
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE training_manuals ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "registeredMemberId" INTEGER`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

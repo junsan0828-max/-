@@ -605,8 +605,8 @@ export default function LeadsPage() {
                 {row.lead.status === "registered" && (
                   <ContractPdfButton lead={row.lead} />
                 )}
-                {row.lead.status === "registered" && row.lead.registeredMemberId && (
-                  <ParQButton memberId={row.lead.registeredMemberId} />
+                {row.lead.status === "registered" && (
+                  <ParQButton lead={row.lead} />
                 )}
               </div>
             );
@@ -1869,11 +1869,25 @@ function SignedContractModal({
 }
 
 // ─── 등록완료 카드 내 PAR-Q 버튼 ─────────────────────────────────────────────
-function ParQButton({ memberId }: { memberId: number }) {
+function ParQButton({ lead }: { lead: any }) {
   const [, setLocation] = useLocation();
+  const { data: members = [] } = trpc.members.list.useQuery();
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    let memberId = lead.registeredMemberId;
+    if (!memberId) {
+      const found = members.find((m: any) => m.name === lead.name);
+      memberId = found?.id;
+    }
+    if (memberId) {
+      setLocation(`/members/${memberId}/parq`);
+    }
+  }
+
   return (
     <button
-      onClick={(e) => { e.stopPropagation(); setLocation(`/members/${memberId}/parq`); }}
+      onClick={handleClick}
       className="mt-1 w-full flex items-center justify-center gap-1.5 border border-blue-500/30 text-blue-400 rounded-lg py-2 text-xs font-medium hover:bg-blue-500/10 transition-colors"
     >
       <ClipboardList className="w-3.5 h-3.5" />
