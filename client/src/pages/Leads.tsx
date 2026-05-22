@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   Plus, Search, Phone, MessageSquare, CheckCircle2,
   Bell, UserCheck, ChevronLeft, ChevronRight, X,
-  PenLine, RotateCcw, Printer, Check, FileText,
+  PenLine, RotateCcw, Printer, Check, FileText, ClipboardList,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -603,6 +604,9 @@ export default function LeadsPage() {
                 )}
                 {row.lead.status === "registered" && (
                   <ContractPdfButton lead={row.lead} />
+                )}
+                {row.lead.status === "registered" && row.lead.registeredMemberId && (
+                  <ParQButton memberId={row.lead.registeredMemberId} />
                 )}
               </div>
             );
@@ -1861,6 +1865,20 @@ function SignedContractModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── 등록완료 카드 내 PAR-Q 버튼 ─────────────────────────────────────────────
+function ParQButton({ memberId }: { memberId: number }) {
+  const [, setLocation] = useLocation();
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); setLocation(`/members/${memberId}/parq`); }}
+      className="mt-1 w-full flex items-center justify-center gap-1.5 border border-blue-500/30 text-blue-400 rounded-lg py-2 text-xs font-medium hover:bg-blue-500/10 transition-colors"
+    >
+      <ClipboardList className="w-3.5 h-3.5" />
+      PAR-Q 사전건강검사
+    </button>
   );
 }
 

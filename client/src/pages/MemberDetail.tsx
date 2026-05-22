@@ -343,6 +343,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: stats } = trpc.members.getStats.useQuery({ memberId });
   const { data: pauses, refetch: refetchPauses } = trpc.pt.listPauses.useQuery({ memberId });
   const { data: leadInfo } = trpc.gym.leads.getByMemberId.useQuery({ memberId });
+  const { data: parQData } = trpc.parQ.get.useQuery({ memberId });
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -723,14 +724,135 @@ export default function MemberDetail({ memberId }: Props) {
 
         {/* ── 기본 정보 탭 ── */}
         <TabsContent value="info" className="mt-4 space-y-3">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 w-full border-primary/40 text-primary hover:bg-primary/10"
-            onClick={() => setLocation(`/members/${memberId}/parq`)}
-          >
-            PAR-Q 사전건강검사
-          </Button>
+          {/* PAR-Q 사전건강검사 인라인 표시 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-2 px-4 pt-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-foreground">PAR-Q 사전건강검사</CardTitle>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-primary hover:bg-primary/10 h-7 px-2"
+                onClick={() => setLocation(`/members/${memberId}/parq`)}
+              >
+                {parQData ? "수정" : "입력하기"}
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {!parQData ? (
+                <p className="text-sm text-muted-foreground">미입력</p>
+              ) : (
+                <div className="space-y-3 text-sm">
+                  {/* 신체 측정 */}
+                  {[parQData.height, parQData.weight, parQData.muscleMass, parQData.bodyFatPercent, parQData.bodyFatKg, parQData.waistCircumference].some(Boolean) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">신체 측정</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { label: "신장", value: parQData.height, unit: "cm" },
+                          { label: "체중", value: parQData.weight, unit: "kg" },
+                          { label: "근육량", value: parQData.muscleMass, unit: "kg" },
+                          { label: "체지방률", value: parQData.bodyFatPercent, unit: "%" },
+                          { label: "체지방량", value: parQData.bodyFatKg, unit: "kg" },
+                          { label: "허리둘레", value: parQData.waistCircumference, unit: "cm" },
+                        ].map(({ label, value, unit }) => (
+                          <div key={label} className="bg-accent/30 rounded-md px-2 py-1.5">
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                            <p className="text-xs font-medium text-foreground">{value ? `${value}${unit}` : "미입력"}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 혈압 */}
+                  {(parQData.systolicBp || parQData.diastolicBp) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">혈압</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { label: "수축기혈압", value: parQData.systolicBp, unit: "mmHg" },
+                          { label: "이완기혈압", value: parQData.diastolicBp, unit: "mmHg" },
+                        ].map(({ label, value, unit }) => (
+                          <div key={label} className="bg-accent/30 rounded-md px-2 py-1.5">
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                            <p className="text-xs font-medium text-foreground">{value ? `${value}${unit}` : "미입력"}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 혈액 검사 */}
+                  {[parQData.totalCholesterol, parQData.hdlCholesterol, parQData.ldlCholesterol, parQData.triglycerides, parQData.fastingBloodSugar, parQData.postMealBloodSugar, parQData.hba1c, parQData.boneDensity].some(Boolean) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">혈액 검사</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { label: "총콜레스테롤", value: parQData.totalCholesterol, unit: "" },
+                          { label: "HDL 콜레스테롤", value: parQData.hdlCholesterol, unit: "" },
+                          { label: "LDL 콜레스테롤", value: parQData.ldlCholesterol, unit: "" },
+                          { label: "중성지방", value: parQData.triglycerides, unit: "" },
+                          { label: "공복혈당", value: parQData.fastingBloodSugar, unit: "" },
+                          { label: "식후혈당", value: parQData.postMealBloodSugar, unit: "" },
+                          { label: "당화혈색소", value: parQData.hba1c, unit: "%" },
+                          { label: "골밀도", value: parQData.boneDensity, unit: "" },
+                        ].filter(i => i.value).map(({ label, value, unit }) => (
+                          <div key={label} className="bg-accent/30 rounded-md px-2 py-1.5">
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                            <p className="text-xs font-medium text-foreground">{value}{unit}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 생활 정보 */}
+                  {(parQData.occupation || parQData.workEnvironment || parQData.exerciseExperience || parQData.visitRoute) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">생활 정보</p>
+                      <div className="space-y-1">
+                        {parQData.occupation && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">직업</span><span className="text-xs text-foreground">{parQData.occupation}</span></div>}
+                        {parQData.workEnvironment && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">근무환경</span><span className="text-xs text-foreground">{parQData.workEnvironment}</span></div>}
+                        {parQData.exerciseExperience && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">운동경험</span><span className="text-xs text-foreground">{parQData.exerciseExperience}</span></div>}
+                        {parQData.visitRoute && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">방문경로</span><span className="text-xs text-foreground">{parQData.visitRoute}</span></div>}
+                      </div>
+                    </div>
+                  )}
+                  {/* 목표 */}
+                  {(parQData.goal1 || parQData.goal2 || parQData.goal3) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">운동 목표</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[parQData.goal1, parQData.goal2, parQData.goal3].filter(Boolean).map((g, i) => (
+                          <span key={i} className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs">{g}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 이슈 */}
+                  {(parQData.dietIssues || parQData.alcoholIssues || parQData.sleepIssues || parQData.activityIssues) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">생활 이슈</p>
+                      <div className="space-y-1">
+                        {parQData.dietIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">식이</span><span className="text-xs text-foreground">{parQData.dietIssues}</span></div>}
+                        {parQData.alcoholIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">음주</span><span className="text-xs text-foreground">{parQData.alcoholIssues}</span></div>}
+                        {parQData.sleepIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">수면</span><span className="text-xs text-foreground">{parQData.sleepIssues}</span></div>}
+                        {parQData.activityIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">활동</span><span className="text-xs text-foreground">{parQData.activityIssues}</span></div>}
+                      </div>
+                    </div>
+                  )}
+                  {/* 병력 */}
+                  {(parQData.chronicDiseases || parQData.musculoskeletalIssues || parQData.posturalIssues) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">건강 병력</p>
+                      <div className="space-y-1">
+                        {parQData.chronicDiseases && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">만성질환</span><span className="text-xs text-foreground">{parQData.chronicDiseases}</span></div>}
+                        {parQData.musculoskeletalIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">근골격계</span><span className="text-xs text-foreground">{parQData.musculoskeletalIssues}</span></div>}
+                        {parQData.posturalIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">자세문제</span><span className="text-xs text-foreground">{parQData.posturalIssues}</span></div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
