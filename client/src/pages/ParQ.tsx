@@ -323,6 +323,16 @@ export default function ParQ({ memberId }: Props) {
   const { data: member } = trpc.members.getById.useQuery({ id: memberId });
   const { data: existing } = trpc.parQ.get.useQuery({ memberId });
 
+  const [birthDateInput, setBirthDateInput] = useState("");
+
+  // member 로드 시 birthDate 초기화
+  useEffect(() => {
+    if (member?.birthDate && !birthDateInput) {
+      const d = member.birthDate.substring(0, 10);
+      setBirthDateInput(d);
+    }
+  }, [member]);
+
   useEffect(() => {
     if (existing) {
       setForm({
@@ -392,16 +402,29 @@ export default function ParQ({ memberId }: Props) {
                 체성분 검사 / 근골격분석 검사
               </p>
               {/* 자동 연동 (회원 정보) */}
-              <div className="grid grid-cols-2 gap-3">
-                <AutoRow label="생년월일 (자동)" value={formatBirthDate(member?.birthDate)} />
-                <AutoRow label="만나이 (자동)" value={calcKoreanAge(member?.birthDate)} />
-              </div>
               <AutoRow label="휴대폰 번호 (자동)" value={member?.phone ?? ""} />
               <p className="text-[10px] text-muted-foreground/60 -mt-1">
-                위 항목은 회원 정보에서 자동으로 불러옵니다. 수정이 필요하면 회원 정보에서 변경하세요.
+                휴대폰 번호는 회원 정보에서 자동으로 불러옵니다.
               </p>
               {/* 직접 입력 */}
               <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">생년월일</label>
+                  <Input
+                    type="date"
+                    value={birthDateInput}
+                    onChange={e => setBirthDateInput(e.target.value)}
+                    className="text-sm h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">만나이 (자동)</label>
+                  <div className="h-9 flex items-center px-3 bg-muted/30 border border-border/50 rounded-lg text-sm text-foreground">
+                    {birthDateInput ? calcKoreanAge(birthDateInput) : <span className="text-muted-foreground/60">생년월일 입력 후 계산</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <Dropdown label="키 (cm)" value={form.height} options={HEIGHT_OPTS} onChange={set("height")} placeholder="선택" />
                 <Dropdown label="체중 (kg)" value={form.weight} options={WEIGHT_OPTS} onChange={set("weight")} placeholder="선택" />
               </div>
