@@ -476,3 +476,17 @@ export const gymPlusMemberHealth = pgTable("gym_plus_member_health", {
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
+
+export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  currentMembershipEnd: text("currentMembershipEnd"),
+  requestedPeriod: text("requestedPeriod").notNull(), // "1개월","3개월","6개월","12개월"
+  bonusDays: integer("bonusDays").default(0).notNull(),
+  memberName: text("memberName"),
+  memberPhone: text("memberPhone"),
+  notes: text("notes"),
+  agreedToTerms: integer("agreedToTerms").default(0).notNull(),
+  status: text("status").default("pending").notNull(), // "pending","approved","rejected"
+  createdAt: text("createdAt").default(now).notNull(),
+});

@@ -34,6 +34,7 @@ import {
   gymPlusEvents,
   gymPlusWorkoutLogs,
   gymPlusMemberHealth,
+  gymPlusMembershipRenewals,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -3130,6 +3131,36 @@ ${dataContext}
       }
       return { success: true };
     }),
+
+  requestRenewal: gymPlusProtected
+    .input(z.object({
+      requestedPeriod: z.string(),
+      bonusDays: z.number().default(0),
+      memberName: z.string().optional(),
+      memberPhone: z.string().optional(),
+      notes: z.string().optional(),
+      agreedToTerms: z.number().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db.select({ membershipEnd: gymPlusMembers.membershipEnd })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+      await db.insert(gymPlusMembershipRenewals).values({
+        gymPlusMemberId: ctx.gymPlusMemberId,
+        currentMembershipEnd: member?.membershipEnd ?? null,
+        ...input,
+      });
+      return { success: true };
+    }),
+
+  listMyRenewals: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(gymPlusMembershipRenewals)
+      .where(eq(gymPlusMembershipRenewals.gymPlusMemberId, ctx.gymPlusMemberId))
+      .orderBy(desc(gymPlusMembershipRenewals.createdAt));
+  }),
 
   changePassword: gymPlusProtected
     .input(z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(6) }))
