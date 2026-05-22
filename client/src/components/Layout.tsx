@@ -83,7 +83,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
     { path: "/members", label: "회원 관리", icon: Users },
     { path: "/leads", label: "상담관리", icon: UserPlus },
-    { path: "/training-manual", label: "교육매뉴얼", icon: BookOpen },
+    { path: "/training-manual", label: "교육 매뉴얼", icon: BookOpen },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
@@ -97,19 +97,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return location.startsWith(path);
   };
 
-  const roleLabel = user?.role === "admin" ? "관리자" : user?.role === "sub_admin" ? "부관리자" : user?.role === "consultant" ? "컨설턴트" : "트레이너";
+  const roleLabel = user?.role === "admin" ? "관리자"
+    : user?.role === "sub_admin" ? "부관리자"
+    : user?.role === "consultant" ? "컨설턴트"
+    : "트레이너";
 
   const gymplusUrl = localStorage.getItem(GYMPLUS_URL_KEY) ?? GYMPLUS_URL_DEFAULT;
 
-  // ── 사이드바 내용 (데스크탑 + 어드민 모바일 드로어 공용) ──────────────────
+  // ── 사이드바 공용 내용 ────────────────────────────────────────────────────
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* 로고 */}
+      {/* 로고 + 닫기 */}
       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <button onClick={() => setLocation("/")} className="text-primary">
           <Logo className="h-9" textSize="text-sm" />
         </button>
-        {/* 모바일 드로어에서만 닫기 버튼 */}
         <button
           onClick={() => setDrawerOpen(false)}
           className="md:hidden p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -136,7 +138,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      {/* 유저 정보 + ZIANTGYM+ + 로그아웃 */}
+      {/* 유저 정보 + (어드민만) ZIANTGYM+ + 로그아웃 */}
       <div className="px-3 py-4 border-t border-border space-y-1">
         <div className="px-3 py-2">
           <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
@@ -167,73 +169,51 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
 
-      {/* ── 어드민: 모바일 드로어 오버레이 ── */}
-      {isAdmin && drawerOpen && (
+      {/* 모바일 드로어 오버레이 (전체 계정) */}
+      {drawerOpen && (
         <div
           className="md:hidden fixed inset-0 z-40 bg-black/50"
           onClick={() => setDrawerOpen(false)}
         />
       )}
 
-      {/* ── 어드민: 모바일 드로어 패널 ── */}
-      {isAdmin && (
-        <aside
-          className={`md:hidden fixed top-0 left-0 h-full w-64 z-50 bg-card border-r border-border transform transition-transform duration-300 ease-in-out ${
-            drawerOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <SidebarContent />
-        </aside>
-      )}
+      {/* 모바일 드로어 패널 (전체 계정) */}
+      <aside
+        className={`md:hidden fixed top-0 left-0 h-full w-64 z-50 bg-card border-r border-border transform transition-transform duration-300 ease-in-out ${
+          drawerOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <SidebarContent />
+      </aside>
 
-      {/* ── 데스크탑 사이드바 (항상 표시) ── */}
+      {/* 데스크탑 사이드바 */}
       <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
         <SidebarContent />
       </aside>
 
-      {/* ── 메인 영역 ── */}
+      {/* 메인 영역 */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* 모바일 상단 헤더 */}
+
+        {/* 모바일 상단 헤더 (전체 계정 동일) */}
         <header className="md:hidden sticky top-0 z-30 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-          {isAdmin ? (
-            // 어드민: 햄버거 + 로고
-            <>
-              <button
-                onClick={() => setDrawerOpen(true)}
-                className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <button onClick={() => setLocation("/")} className="text-primary absolute left-1/2 -translate-x-1/2">
-                <Logo className="h-7" textSize="text-sm" />
-              </button>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">{user?.username}</span>
-                <button
-                  onClick={() => logoutMutation.mutate()}
-                  className="text-muted-foreground hover:text-foreground p-2 rounded-md hover:bg-accent transition-colors"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </div>
-            </>
-          ) : (
-            // 트레이너/컨설턴트: 기존 헤더
-            <>
-              <button onClick={() => setLocation("/")} className="text-primary">
-                <Logo className="h-7" textSize="text-sm" />
-              </button>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground mr-1">{user?.username}</span>
-                <button
-                  onClick={() => logoutMutation.mutate()}
-                  className="text-muted-foreground hover:text-foreground p-2 rounded-md hover:bg-accent transition-colors"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </div>
-            </>
-          )}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <button onClick={() => setLocation("/")} className="text-primary absolute left-1/2 -translate-x-1/2">
+            <Logo className="h-7" textSize="text-sm" />
+          </button>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">{user?.username}</span>
+            <button
+              onClick={() => logoutMutation.mutate()}
+              className="text-muted-foreground hover:text-foreground p-2 rounded-md hover:bg-accent transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
         </header>
 
         {/* PWA 설치 배너 */}
@@ -254,29 +234,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* 콘텐츠 */}
-        <main className={`flex-1 overflow-y-auto ${isAdmin ? "pb-0" : "pb-20"} md:pb-0`}>
+        <main className="flex-1 overflow-y-auto pb-0">
           <div className="container mx-auto px-4 py-6 max-w-3xl">
             {children}
           </div>
         </main>
 
-        {/* ── 트레이너/컨설턴트 전용: 모바일 하단 탭 ── */}
-        {!isAdmin && (
-          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex">
-            {navItems.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => setLocation(item.path)}
-                className={`flex flex-col items-center justify-center flex-1 py-2.5 gap-1 text-xs transition-colors ${
-                  isActive(item.path) ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                <item.icon className="h-5 w-5" />
-                <span className="leading-none">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        )}
       </div>
     </div>
   );
