@@ -1,13 +1,66 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { BookOpen, Plus, Trash2, GripVertical, Video, ChevronLeft, Pencil, Search, Calendar } from "lucide-react";
+import { BookOpen, Plus, Trash2, GripVertical, Video, ChevronLeft, Pencil, Search, Calendar, X } from "lucide-react";
 
 type Exercise = { name: string; videoUrl?: string };
 type ViewMode = "list" | "write" | "detail";
 
 const today = () => new Date().toISOString().substring(0, 10);
 
+// ── 운동영상 URL 모달 ────────────────────────────────────────────────────────
+function VideoUrlModal({
+  initial,
+  onSave,
+  onClose,
+}: {
+  initial: string;
+  onSave: (url: string) => void;
+  onClose: () => void;
+}) {
+  const [url, setUrl] = useState(initial);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl p-5 shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-foreground">운동영상 링크 등록</h3>
+          <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">YouTube 또는 영상 URL을 입력하세요. 회원이 해당 운동에서 영상을 확인할 수 있습니다.</p>
+        <input
+          type="url"
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+          placeholder="https://youtube.com/watch?v=..."
+          autoFocus
+          onKeyDown={e => { if (e.key === "Enter") { onSave(url); onClose(); } if (e.key === "Escape") onClose(); }}
+          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary"
+        />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-accent transition-colors"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => { onSave(url); onClose(); }}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-colors"
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 운동 종목 행 ─────────────────────────────────────────────────────────────
 function ExerciseRow({
   ex,
   idx,
@@ -19,34 +72,41 @@ function ExerciseRow({
   onChange: (idx: number, val: Exercise) => void;
   onDelete: (idx: number) => void;
 }) {
+  const [showModal, setShowModal] = useState(false);
   return (
-    <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-3">
-      <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
-      <input
-        value={ex.name}
-        onChange={e => onChange(idx, { ...ex, name: e.target.value })}
-        placeholder="운동명 (예: 스쿼트)"
-        className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
-      />
-      <button
-        type="button"
-        title="운동 영상 추가"
-        onClick={() => {
-          const url = window.prompt("영상 URL을 입력하세요 (YouTube 등)", ex.videoUrl ?? "");
-          if (url !== null) onChange(idx, { ...ex, videoUrl: url });
-        }}
-        className={`shrink-0 p-1.5 rounded-lg transition-colors ${ex.videoUrl ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-      >
-        <Video className="w-4 h-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => onDelete(idx)}
-        className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </div>
+    <>
+      <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-3 w-full min-w-0">
+        <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+        <input
+          value={ex.name}
+          onChange={e => onChange(idx, { ...ex, name: e.target.value })}
+          placeholder="운동명 (예: 스쿼트)"
+          className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+        />
+        <button
+          type="button"
+          title="운동 영상 추가"
+          onClick={() => setShowModal(true)}
+          className={`shrink-0 p-1.5 rounded-lg transition-colors ${ex.videoUrl ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+        >
+          <Video className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(idx)}
+          className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      {showModal && (
+        <VideoUrlModal
+          initial={ex.videoUrl ?? ""}
+          onSave={url => onChange(idx, { ...ex, videoUrl: url })}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+    </>
   );
 }
 
