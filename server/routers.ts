@@ -36,6 +36,7 @@ import {
   gymPlusMemberHealth,
   gymPlusMembershipRenewals,
   gymPlusDailyDiets,
+  gymPlusDietFoods,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -3179,7 +3180,10 @@ ${dataContext}
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const DIET_FOODS = [
+      // Load food DB from database
+      const ALL_FOODS = await db.select().from(gymPlusDietFoods);
+      // Fallback to a minimal set if DB is empty (before seed)
+      const DIET_FOODS = ALL_FOODS.length > 0 ? ALL_FOODS : [
         // 아침
         { category: "아침", name: "닭가슴살 + 계란", amount: "닭가슴살 100g + 계란 1개", calories: 220, carbs: 2, protein: 38, fat: 7 },
         { category: "아침", name: "닭가슴살 샐러드", amount: "닭가슴살 100g + 야채 80g", calories: 250, carbs: 10, protein: 30, fat: 10 },
@@ -3264,7 +3268,7 @@ ${dataContext}
         breakfast: pickMeal("아침", 0.30, 0),
         lunch: pickMeal("점심", 0.35, 1),
         dinner: pickMeal("저녁", 0.25, 2),
-        snack: pickMeal("간식", 0.10, 3),
+        snack: pickMeal("건강 간식", 0.10, 3),
       };
       const tomorrowSeed = (daySeed + 11) % 47;
       const pickTomorrow = (category: string, budgetRatio: number, offset: number) => {
@@ -3286,7 +3290,7 @@ ${dataContext}
         breakfast: pickTomorrow("아침", 0.30, 0),
         lunch: pickTomorrow("점심", 0.35, 1),
         dinner: pickTomorrow("저녁", 0.25, 2),
-        snack: pickTomorrow("간식", 0.10, 3),
+        snack: pickTomorrow("건강 간식", 0.10, 3),
       };
 
       // Replace existing plan for today

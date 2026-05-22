@@ -495,6 +495,18 @@ export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals",
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+export const gymPlusDietFoods = pgTable("gym_plus_diet_foods", {
+  id: serial("id").primaryKey(),
+  category: text("category").notNull(), // 아침/점심/저녁/건강 간식
+  name: text("name").notNull(),
+  amount: text("amount").notNull(),
+  calories: integer("calories").notNull(),
+  carbs: integer("carbs").notNull().default(0),
+  protein: integer("protein").notNull().default(0),
+  fat: integer("fat").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const gymPlusDailyDiets = pgTable("gym_plus_daily_diets", {
   id: serial("id").primaryKey(),
   gymPlusMemberId: integer("gymPlusMemberId").notNull(),
