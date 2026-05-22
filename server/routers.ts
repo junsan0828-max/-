@@ -3152,47 +3152,20 @@ ${dataContext}
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 현재 회원 정보 조회 (gymPlus + main memberId + phone)
+      // 현재 회원 정보 조회
       const [gymMember] = await db
-        .select({ membershipEnd: gymPlusMembers.membershipEnd, memberId: gymPlusMembers.memberId, phone: gymPlusMembers.phone, username: gymPlusMembers.username })
+        .select({ membershipEnd: gymPlusMembers.membershipEnd })
         .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
 
-      // 새 만료일 계산
-      const periodMonths: Record<string, number> = { "1개월": 1, "3개월": 3, "6개월": 6, "12개월": 12 };
-      const addMonths = periodMonths[input.requestedPeriod] ?? 1;
-      const base = gymMember?.membershipEnd && new Date(gymMember.membershipEnd) > new Date()
-        ? new Date(gymMember.membershipEnd)
-        : new Date();
-      base.setMonth(base.getMonth() + addMonths);
-      base.setDate(base.getDate() + (input.bonusDays ?? 0));
-      const newEnd = base.toISOString().slice(0, 10);
-
-      // 재등록 신청 기록
+      // 신청 기록만 저장 (status=pending, 날짜 변경 없음 — 관리자 승인 후 반영)
       await db.insert(gymPlusMembershipRenewals).values({
         gymPlusMemberId: ctx.gymPlusMemberId,
         currentMembershipEnd: gymMember?.membershipEnd ?? null,
         ...input,
-        status: "approved",
+        status: "pending",
       });
 
-      // gymPlusMembers 만료일 업데이트
-      await db.update(gymPlusMembers)
-        .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
-        .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
-
-      // 메인 members 테이블 업데이트 — memberId 우선, 없으면 전화번호(=username)로 매칭
-      const phone = gymMember?.phone || gymMember?.username;
-      if (gymMember?.memberId) {
-        await db.update(members)
-          .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
-          .where(eq(members.id, gymMember.memberId));
-      } else if (phone) {
-        await db.update(members)
-          .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
-          .where(eq(members.phone, phone));
-      }
-
-      return { success: true, newMembershipEnd: newEnd };
+      return { success: true };
     }),
 
   listMyRenewals: gymPlusProtected.query(async ({ ctx }) => {
@@ -3202,6 +3175,88 @@ ${dataContext}
       .where(eq(gymPlusMembershipRenewals.gymPlusMemberId, ctx.gymPlusMemberId))
       .orderBy(desc(gymPlusMembershipRenewals.createdAt));
   }),
+
+  // 관리자: 재등록 신청 목록 조회
+  adminListRenewals: protectedProcedure
+    .input(z.object({ status: z.string().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db
+        .select({
+          id: gymPlusMembershipRenewals.id,
+          gymPlusMemberId: gymPlusMembershipRenewals.gymPlusMemberId,
+          memberName: gymPlusMembershipRenewals.memberName,
+          memberPhone: gymPlusMembershipRenewals.memberPhone,
+          requestedPeriod: gymPlusMembershipRenewals.requestedPeriod,
+          bonusDays: gymPlusMembershipRenewals.bonusDays,
+          currentMembershipEnd: gymPlusMembershipRenewals.currentMembershipEnd,
+          agreedMarketing: gymPlusMembershipRenewals.agreedMarketing,
+          contractDate: gymPlusMembershipRenewals.contractDate,
+          signatureData: gymPlusMembershipRenewals.signatureData,
+          status: gymPlusMembershipRenewals.status,
+          createdAt: gymPlusMembershipRenewals.createdAt,
+        })
+        .from(gymPlusMembershipRenewals)
+        .orderBy(desc(gymPlusMembershipRenewals.createdAt));
+      return input.status ? rows.filter(r => r.status === input.status) : rows;
+    }),
+
+  // 관리자: 재등록 신청 승인/거절
+  adminApproveRenewal: protectedProcedure
+    .input(z.object({
+      renewalId: z.number(),
+      action: z.enum(["approved", "rejected"]),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [renewal] = await db.select().from(gymPlusMembershipRenewals)
+        .where(eq(gymPlusMembershipRenewals.id, input.renewalId)).limit(1);
+      if (!renewal) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
+      if (renewal.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 처리된 신청입니다." });
+
+      // 상태 업데이트
+      await db.update(gymPlusMembershipRenewals)
+        .set({ status: input.action })
+        .where(eq(gymPlusMembershipRenewals.id, input.renewalId));
+
+      if (input.action === "approved") {
+        // 새 만료일 계산
+        const periodMonths: Record<string, number> = { "1개월": 1, "3개월": 3, "6개월": 6, "12개월": 12 };
+        const addMonths = periodMonths[renewal.requestedPeriod] ?? 1;
+        const [gymMember] = await db.select({ membershipEnd: gymPlusMembers.membershipEnd, memberId: gymPlusMembers.memberId, phone: gymPlusMembers.phone, username: gymPlusMembers.username })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, renewal.gymPlusMemberId)).limit(1);
+        const base = gymMember?.membershipEnd && new Date(gymMember.membershipEnd) > new Date()
+          ? new Date(gymMember.membershipEnd)
+          : new Date();
+        base.setMonth(base.getMonth() + addMonths);
+        base.setDate(base.getDate() + (renewal.bonusDays ?? 0));
+        const newEnd = base.toISOString().slice(0, 10);
+
+        // gymPlusMembers 업데이트
+        await db.update(gymPlusMembers)
+          .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
+          .where(eq(gymPlusMembers.id, renewal.gymPlusMemberId));
+
+        // 메인 members 업데이트 (memberId 우선, 없으면 전화번호 매칭)
+        const phone = gymMember?.phone || gymMember?.username;
+        if (gymMember?.memberId) {
+          await db.update(members)
+            .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
+            .where(eq(members.id, gymMember.memberId));
+        } else if (phone) {
+          await db.update(members)
+            .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
+            .where(eq(members.phone, phone));
+        }
+
+        return { success: true, newMembershipEnd: newEnd };
+      }
+
+      return { success: true };
+    }),
 
   generateDietPlan: gymPlusProtected
     .input(z.object({
