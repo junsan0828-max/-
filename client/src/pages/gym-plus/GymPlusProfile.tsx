@@ -88,15 +88,19 @@ export default function GymPlusProfile() {
   const [showParq, setShowParq] = useState(false);
   const [showBodyAnalysis, setShowBodyAnalysis] = useState(false);
 
-  // 갱신 신청 모달
+  // 재등록 신청 모달
   const [showRenewal, setShowRenewal] = useState(false);
+  const [renewalStep, setRenewalStep] = useState<1 | 2 | 3>(1);
   const [renewalForm, setRenewalForm] = useState({
     requestedPeriod: "1개월",
     memberName: "",
     memberPhone: "",
     notes: "",
     agreedToTerms: false,
+    agreedPrivacy: false,
+    agreedMarketing: false,
   });
+  const [contractDate, setContractDate] = useState("");
 
   // 신체정보 폼
   const [bodyForm, setBodyForm] = useState({ height: "", weight: "", birthYear: "", gender: "" });
@@ -108,9 +112,7 @@ export default function GymPlusProfile() {
 
   const requestRenewal = trpc.gymPlus.requestRenewal.useMutation({
     onSuccess: () => {
-      setShowRenewal(false);
-      setRenewalForm({ requestedPeriod: "1개월", memberName: "", memberPhone: "", notes: "", agreedToTerms: false });
-      toast.success("갱신 신청이 완료되었습니다. 트레이너가 확인 후 연락드립니다.");
+      setRenewalStep(3);
     },
     onError: (e) => toast.error(e.message || "신청 실패"),
   });
@@ -167,12 +169,29 @@ export default function GymPlusProfile() {
   }
 
   const openRenewal = () => {
-    setRenewalForm(p => ({ ...p, memberName: member?.name ?? "", memberPhone: member?.phone ?? "" }));
+    setRenewalForm(p => ({
+      ...p,
+      memberName: member?.name ?? "",
+      memberPhone: member?.phone ?? "",
+      agreedToTerms: false,
+      agreedPrivacy: false,
+      agreedMarketing: false,
+    }));
+    setContractDate(new Date().toLocaleDateString("ko-KR"));
+    setRenewalStep(1);
     setShowRenewal(true);
   };
 
+  const closeRenewal = () => {
+    setShowRenewal(false);
+    setRenewalStep(1);
+  };
+
   const submitRenewal = () => {
-    if (!renewalForm.agreedToTerms) { toast.error("계약 내용에 동의해 주세요."); return; }
+    if (!renewalForm.agreedToTerms || !renewalForm.agreedPrivacy) {
+      toast.error("필수 약관에 모두 동의해 주세요.");
+      return;
+    }
     const bonus = getRenewalBonus(daysLeft);
     requestRenewal.mutate({
       requestedPeriod: renewalForm.requestedPeriod,
@@ -181,7 +200,36 @@ export default function GymPlusProfile() {
       memberPhone: renewalForm.memberPhone || undefined,
       notes: renewalForm.notes || undefined,
       agreedToTerms: 1,
+      agreedPrivacy: 1,
+      agreedMarketing: renewalForm.agreedMarketing ? 1 : 0,
+      trainerName: "본인계약",
+      contractDate,
     });
+  };
+
+  const openContractPrint = () => {
+    const p = new URLSearchParams({
+      name: renewalForm.memberName,
+      phone: renewalForm.memberPhone,
+      date: contractDate,
+      marketing: renewalForm.agreedMarketing ? "1" : "0",
+    });
+    window.open(`/contract-print?${p.toString()}`, "_blank");
+  };
+
+  const shareViaKakao = () => {
+    const p = new URLSearchParams({
+      name: renewalForm.memberName,
+      phone: renewalForm.memberPhone,
+      date: contractDate,
+      marketing: renewalForm.agreedMarketing ? "1" : "0",
+    });
+    const url = `${window.location.origin}/contract-print?${p.toString()}`;
+    if (navigator.share) {
+      navigator.share({ title: `${renewalForm.memberName} 님 자이언트짐 재등록 계약서`, url }).catch(() => {});
+    } else {
+      window.open(url, "_blank");
+    }
   };
 
   // 신체정보 모달 열기
@@ -284,12 +332,12 @@ export default function GymPlusProfile() {
               </p>
               {bonus.days > 0 && (
                 <div className="mt-2 pt-2 border-t border-white/10">
-                  <p className={`text-xs font-semibold ${bonus.color}`}>🎁 지금 갱신하면 {bonus.label}!</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc} · 탭하여 갱신 신청</p>
+                  <p className={`text-xs font-semibold ${bonus.color}`}>🎁 지금 재등록하면 {bonus.label}!</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc} · 탭하여 재등록 신청</p>
                 </div>
               )}
               {bonus.days === 0 && daysLeft <= 0 && (
-                <p className="text-xs text-muted-foreground mt-1.5">탭하여 갱신 신청</p>
+                <p className="text-xs text-muted-foreground mt-1.5">탭하여 재등록 신청</p>
               )}
             </button>
           );
@@ -492,91 +540,198 @@ export default function GymPlusProfile() {
         </Dialog>
       )}
 
-      {/* 회원권 갱신 신청 모달 */}
+      {/* 회원권 재등록 신청 모달 (3단계) */}
       {showRenewal && (() => {
         const bonus = getRenewalBonus(daysLeft);
+        const allRequired = renewalForm.agreedToTerms && renewalForm.agreedPrivacy;
         return (
-          <Dialog open onOpenChange={(o) => { if (!o) setShowRenewal(false); }}>
+          <Dialog open onOpenChange={(o) => { if (!o) closeRenewal(); }}>
             <DialogContent className="max-w-sm max-h-[92vh] overflow-y-auto">
-              <DialogHeader>
-                <h2 className="font-bold text-base">📋 회원권 갱신 신청</h2>
-                <p className="text-xs text-muted-foreground">아래 내용을 확인하고 갱신을 신청하세요</p>
-              </DialogHeader>
-              <div className="space-y-4 pt-1">
 
-                {/* 현재 회원권 정보 */}
-                <div className="bg-muted/30 rounded-xl p-3 space-y-1.5 text-xs">
-                  <div className="flex justify-between"><span className="text-muted-foreground">회원명</span><span className="font-medium">{member?.name}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">현재 만료일</span><span className="font-medium">{formatDate(member?.membershipEnd)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">남은 기간</span><span className={`font-bold ${daysLeft !== null && daysLeft <= 7 ? "text-orange-400" : "text-foreground"}`}>{daysLeft !== null ? (daysLeft > 0 ? `D-${daysLeft}` : "만료") : "-"}</span></div>
-                </div>
+              {/* 단계 1: 기본 정보 */}
+              {renewalStep === 1 && (
+                <>
+                  <DialogHeader>
+                    <h2 className="font-bold text-base">📋 재등록 신청</h2>
+                    <p className="text-xs text-muted-foreground">아래 내용을 확인하고 재등록을 신청하세요</p>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-1">
+                    {/* 현재 회원권 정보 */}
+                    <div className="bg-muted/30 rounded-xl p-3 space-y-1.5 text-xs">
+                      <div className="flex justify-between"><span className="text-muted-foreground">회원명</span><span className="font-medium">{member?.name}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">현재 만료일</span><span className="font-medium">{formatDate(member?.membershipEnd)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">남은 기간</span><span className={`font-bold ${daysLeft !== null && daysLeft <= 7 ? "text-orange-400" : "text-foreground"}`}>{daysLeft !== null ? (daysLeft > 0 ? `D-${daysLeft}` : "만료") : "-"}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">담당자</span><span className="font-medium">본인계약</span></div>
+                    </div>
 
-                {/* 혜택 안내 */}
-                {bonus.days > 0 && (
-                  <div className={`rounded-xl p-3 border ${bonus.color === "text-green-400" ? "bg-green-500/10 border-green-500/30" : bonus.color === "text-blue-400" ? "bg-blue-500/10 border-blue-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
-                    <p className={`text-xs font-semibold ${bonus.color}`}>🎁 {bonus.label} 적용!</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc} — 갱신 기간에 {bonus.days}일이 추가됩니다</p>
+                    {/* 혜택 안내 */}
+                    {bonus.days > 0 && (
+                      <div className={`rounded-xl p-3 border ${bonus.color === "text-green-400" ? "bg-green-500/10 border-green-500/30" : bonus.color === "text-blue-400" ? "bg-blue-500/10 border-blue-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
+                        <p className={`text-xs font-semibold ${bonus.color}`}>🎁 {bonus.label} 적용!</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc} — 재등록 기간에 {bonus.days}일이 추가됩니다</p>
+                      </div>
+                    )}
+
+                    {/* 재등록 기간 선택 */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">재등록 기간 선택</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {["1개월", "3개월", "6개월", "12개월"].map(p => (
+                          <button key={p} type="button"
+                            className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${renewalForm.requestedPeriod === p ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                            onClick={() => setRenewalForm(f => ({ ...f, requestedPeriod: p }))}
+                          >{p}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 신청자 정보 */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">이름</Label>
+                      <Input value={renewalForm.memberName} onChange={(e) => setRenewalForm(f => ({ ...f, memberName: e.target.value }))} placeholder="이름" className="bg-input border-border h-9 text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">연락처</Label>
+                      <Input value={renewalForm.memberPhone} onChange={(e) => setRenewalForm(f => ({ ...f, memberPhone: e.target.value }))} placeholder="010-0000-0000" className="bg-input border-border h-9 text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">특이사항 (선택)</Label>
+                      <textarea
+                        value={renewalForm.notes}
+                        onChange={(e) => setRenewalForm(f => ({ ...f, notes: e.target.value }))}
+                        placeholder="요청사항이나 특이사항을 입력하세요"
+                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm resize-none h-16"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button variant="outline" className="flex-1 h-9" onClick={closeRenewal}>취소</Button>
+                      <Button className="flex-1 h-9" onClick={() => setRenewalStep(2)}>다음 →</Button>
+                    </div>
                   </div>
-                )}
+                </>
+              )}
 
-                {/* 갱신 기간 선택 */}
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">갱신 기간 선택</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {["1개월", "3개월", "6개월", "12개월"].map(p => (
-                      <button key={p} type="button"
-                        className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${renewalForm.requestedPeriod === p ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
-                        onClick={() => setRenewalForm(f => ({ ...f, requestedPeriod: p }))}
-                      >{p}</button>
-                    ))}
+              {/* 단계 2: 약관 동의 */}
+              {renewalStep === 2 && (
+                <>
+                  <DialogHeader>
+                    <h2 className="font-bold text-base">📄 약관 동의</h2>
+                    <p className="text-xs text-muted-foreground">아래 약관을 읽고 동의해 주세요</p>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-1">
+
+                    {/* 전체 동의 */}
+                    <button
+                      type="button"
+                      className={`w-full flex items-center gap-2 p-3 rounded-xl border transition-colors ${allRequired && renewalForm.agreedMarketing ? "border-primary/50 bg-primary/5" : "border-border"}`}
+                      onClick={() => {
+                        const next = !(allRequired && renewalForm.agreedMarketing);
+                        setRenewalForm(f => ({ ...f, agreedToTerms: next, agreedPrivacy: next, agreedMarketing: next }));
+                      }}
+                    >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${allRequired && renewalForm.agreedMarketing ? "bg-primary border-primary" : "border-border"}`}>
+                        {allRequired && renewalForm.agreedMarketing && <span className="text-[10px] text-primary-foreground font-bold">✓</span>}
+                      </div>
+                      <span className="text-sm font-semibold">전체 동의</span>
+                    </button>
+
+                    {/* 약관 1: 센터 이용약관 */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold">센터 이용약관 <span className="text-red-400">(필수)</span></span>
+                      </div>
+                      <div className="bg-muted/20 border border-border rounded-lg p-3 h-28 overflow-y-auto text-[10px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{`제1조 (목적)\n본 약관은 자이언트짐(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.\n\n제2조 (회원의 의무)\n① 회원은 센터의 시설 및 기구를 타인에게 피해가 가지 않도록 올바르게 사용하여야 합니다.\n② 회원은 센터 내에서 타인을 방해하거나 불쾌감을 주는 행위를 하여서는 안 됩니다.\n③ 운동 후 사용한 기구는 반드시 제자리에 정리하여야 합니다.\n④ 센터 내 음식물 반입은 허용되지 않으며, 음료는 개인 물병만 허용합니다.\n\n제3조 (이용 시간 및 시설)\n① 센터의 운영 시간은 별도 공지에 따릅니다.\n② 회원은 운영 시간 내에만 센터를 이용할 수 있습니다.\n\n제4조 (이용권 및 환불)\n① PT 이용권은 계약 시작일로부터 효력이 발생합니다.\n② 이용권의 환불은 관련 법령 및 센터 환불 규정에 따릅니다.\n③ 회원 개인 사정으로 인한 중도 해지 시 잔여 횟수에 따라 환불이 이루어집니다.\n④ 부상·질병 등 불가피한 사유가 있을 경우 이용 정지 신청이 가능합니다.\n\n제5조 (면책 조항)\n① 센터는 회원이 센터 내에서 발생한 사고에 대해 센터의 과실이 없는 경우 책임을 지지 않습니다.\n② 개인 소지품 분실에 대해 센터는 책임을 지지 않습니다.`}</div>
+                      <button type="button" className="flex items-center gap-2 text-sm" onClick={() => setRenewalForm(f => ({ ...f, agreedToTerms: !f.agreedToTerms }))}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${renewalForm.agreedToTerms ? "bg-primary border-primary" : "border-border"}`}>
+                          {renewalForm.agreedToTerms && <span className="text-[10px] text-primary-foreground font-bold">✓</span>}
+                        </div>
+                        <span className={`text-xs ${renewalForm.agreedToTerms ? "text-foreground" : "text-muted-foreground"}`}>위 이용약관에 동의합니다 (필수)</span>
+                      </button>
+                    </div>
+
+                    {/* 약관 2: 개인정보수집이용 */}
+                    <div className="space-y-2">
+                      <span className="text-xs font-semibold">개인정보 수집·이용 동의 <span className="text-red-400">(필수)</span></span>
+                      <div className="bg-muted/20 border border-border rounded-lg p-3 h-28 overflow-y-auto text-[10px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{`수집하는 개인정보 항목\n- 필수항목: 성명, 연락처, 성별, 생년월일\n- 선택항목: 이메일 주소, 건강 정보(운동 목적, 부상 이력 등)\n\n개인정보의 수집 및 이용 목적\n① 피트니스 서비스 제공 및 회원 관리\n② PT 프로그램 안내 및 일정 관리\n③ 결제 및 환불 처리\n④ 고객 상담 및 민원 처리\n⑤ 서비스 개선을 위한 통계 분석\n\n개인정보의 보유 및 이용 기간\n- 회원 탈퇴 시 또는 이용 목적 달성 후 즉시 파기\n- 단, 관련 법령에 따라 보존 의무가 있는 경우 해당 기간 보관\n\n개인정보의 제3자 제공\n- 원칙적으로 외부에 제공하지 않으며, 법령의 규정에 의한 경우 또는 이용자가 사전에 동의한 경우에 한해 제공합니다.\n\n귀하는 개인정보 제공에 동의하지 않을 권리가 있습니다.`}</div>
+                      <button type="button" className="flex items-center gap-2 text-sm" onClick={() => setRenewalForm(f => ({ ...f, agreedPrivacy: !f.agreedPrivacy }))}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${renewalForm.agreedPrivacy ? "bg-primary border-primary" : "border-border"}`}>
+                          {renewalForm.agreedPrivacy && <span className="text-[10px] text-primary-foreground font-bold">✓</span>}
+                        </div>
+                        <span className={`text-xs ${renewalForm.agreedPrivacy ? "text-foreground" : "text-muted-foreground"}`}>개인정보 수집·이용에 동의합니다 (필수)</span>
+                      </button>
+                    </div>
+
+                    {/* 약관 3: 광고성 정보 수신 (선택) */}
+                    <div className="space-y-2">
+                      <span className="text-xs font-semibold">광고성 정보 수신 동의 <span className="text-muted-foreground">(선택)</span></span>
+                      <div className="bg-muted/20 border border-border rounded-lg p-3 h-20 overflow-y-auto text-[10px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{`이용 목적: 신규 프로그램 및 이벤트 안내, 할인 혜택 및 프로모션 정보 제공\n광고성 정보 발송 채널: 문자메시지(SMS/MMS), 카카오 알림톡, 이메일\n보유 및 이용 기간: 동의일로부터 회원 탈퇴 또는 수신 거부 시까지\n수신 거부 안내: 언제든지 센터에 수신 거부 의사를 표시할 수 있으며, 수신 거부 후에도 서비스 이용에는 제한이 없습니다.`}</div>
+                      <button type="button" className="flex items-center gap-2 text-sm" onClick={() => setRenewalForm(f => ({ ...f, agreedMarketing: !f.agreedMarketing }))}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${renewalForm.agreedMarketing ? "bg-primary border-primary" : "border-border"}`}>
+                          {renewalForm.agreedMarketing && <span className="text-[10px] text-primary-foreground font-bold">✓</span>}
+                        </div>
+                        <span className={`text-xs ${renewalForm.agreedMarketing ? "text-foreground" : "text-muted-foreground"}`}>광고성 정보 수신에 동의합니다 (선택)</span>
+                      </button>
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button variant="outline" className="flex-1 h-9" onClick={() => setRenewalStep(1)}>← 이전</Button>
+                      <Button
+                        className="flex-1 h-9"
+                        onClick={submitRenewal}
+                        disabled={requestRenewal.isPending || !allRequired}
+                      >
+                        {requestRenewal.isPending ? "신청 중..." : "재등록 신청"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                </>
+              )}
 
-                {/* 신청자 정보 */}
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">이름</Label>
-                  <Input value={renewalForm.memberName} onChange={(e) => setRenewalForm(f => ({ ...f, memberName: e.target.value }))} placeholder="이름" className="bg-input border-border h-9 text-sm" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">연락처</Label>
-                  <Input value={renewalForm.memberPhone} onChange={(e) => setRenewalForm(f => ({ ...f, memberPhone: e.target.value }))} placeholder="010-0000-0000" className="bg-input border-border h-9 text-sm" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">특이사항 (선택)</Label>
-                  <textarea
-                    value={renewalForm.notes}
-                    onChange={(e) => setRenewalForm(f => ({ ...f, notes: e.target.value }))}
-                    placeholder="요청사항이나 특이사항을 입력하세요"
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm resize-none h-16"
-                  />
-                </div>
+              {/* 단계 3: 완료 */}
+              {renewalStep === 3 && (
+                <>
+                  <DialogHeader>
+                    <h2 className="font-bold text-base">✅ 재등록 신청 완료</h2>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-1">
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 space-y-2 text-xs">
+                      <p className="font-semibold text-green-400 text-sm">신청이 접수되었습니다</p>
+                      <p className="text-muted-foreground">트레이너가 확인 후 최종 처리해 드립니다.</p>
+                    </div>
 
-                {/* 계약 동의 */}
-                <div className="bg-muted/30 rounded-xl p-3 text-xs text-muted-foreground space-y-1.5 leading-relaxed">
-                  <p className="font-semibold text-foreground">계약 내용 확인</p>
-                  <p>• 선택한 기간({renewalForm.requestedPeriod})으로 회원권이 갱신됩니다.</p>
-                  {bonus.days > 0 && <p>• 조기 갱신 혜택으로 {bonus.days}일이 추가 제공됩니다.</p>}
-                  <p>• 갱신 신청 후 트레이너 확인을 거쳐 최종 처리됩니다.</p>
-                  <p>• 결제는 센터에서 별도로 진행됩니다.</p>
-                </div>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 text-sm"
-                  onClick={() => setRenewalForm(f => ({ ...f, agreedToTerms: !f.agreedToTerms }))}
-                >
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${renewalForm.agreedToTerms ? "bg-primary border-primary" : "border-border"}`}>
-                    {renewalForm.agreedToTerms && <span className="text-xs text-primary-foreground font-bold">✓</span>}
+                    {/* 계약 요약 */}
+                    <div className="bg-muted/30 rounded-xl p-3 space-y-1.5 text-xs">
+                      <div className="flex justify-between"><span className="text-muted-foreground">회원명</span><span className="font-medium">{renewalForm.memberName}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">재등록 기간</span><span className="font-medium">{renewalForm.requestedPeriod}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">계약일</span><span className="font-medium">{contractDate}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">담당자</span><span className="font-medium">본인계약</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">마케팅 수신</span><span className={renewalForm.agreedMarketing ? "text-green-400 font-medium" : "text-muted-foreground"}>{renewalForm.agreedMarketing ? "동의" : "미동의"}</span></div>
+                    </div>
+
+                    {/* 계약서 공유 버튼 */}
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        className="w-full py-3 rounded-xl border border-border bg-card text-sm font-medium flex items-center justify-center gap-2 hover:border-primary/50 transition-colors"
+                        onClick={openContractPrint}
+                      >
+                        🖨️ 계약서 PDF 보기 / 인쇄
+                      </button>
+                      <button
+                        type="button"
+                        className="w-full py-3 rounded-xl bg-yellow-400 text-yellow-900 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-yellow-300 transition-colors"
+                        onClick={shareViaKakao}
+                      >
+                        💬 카카오톡으로 계약서 공유
+                      </button>
+                    </div>
+
+                    <Button className="w-full h-9" onClick={closeRenewal}>확인</Button>
                   </div>
-                  <span className={renewalForm.agreedToTerms ? "text-foreground" : "text-muted-foreground"}>위 계약 내용을 확인하고 동의합니다</span>
-                </button>
+                </>
+              )}
 
-                <div className="flex gap-2 pt-1">
-                  <Button variant="outline" className="flex-1 h-9" onClick={() => setShowRenewal(false)}>취소</Button>
-                  <Button className="flex-1 h-9" onClick={submitRenewal} disabled={requestRenewal.isPending || !renewalForm.agreedToTerms}>
-                    {requestRenewal.isPending ? "신청 중..." : "갱신 신청"}
-                  </Button>
-                </div>
-              </div>
             </DialogContent>
           </Dialog>
         );

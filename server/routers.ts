@@ -3140,6 +3140,10 @@ ${dataContext}
       memberPhone: z.string().optional(),
       notes: z.string().optional(),
       agreedToTerms: z.number().default(0),
+      agreedPrivacy: z.number().default(0),
+      agreedMarketing: z.number().default(0),
+      trainerName: z.string().optional(),
+      contractDate: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();

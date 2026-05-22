@@ -487,6 +487,10 @@ export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals",
   memberPhone: text("memberPhone"),
   notes: text("notes"),
   agreedToTerms: integer("agreedToTerms").default(0).notNull(),
+  agreedPrivacy: integer("agreedPrivacy").default(0).notNull(),
+  agreedMarketing: integer("agreedMarketing").default(0).notNull(),
+  trainerName: text("trainerName"),
+  contractDate: text("contractDate"),
   status: text("status").default("pending").notNull(), // "pending","approved","rejected"
   createdAt: text("createdAt").default(now).notNull(),
 });
