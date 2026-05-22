@@ -285,6 +285,41 @@ export default function GymPlusDashboard() {
   return (
     <div className="p-4 space-y-4">
 
+      {/* 이벤트/공지 */}
+      {latestEvents.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-sm">이벤트 & 공지</p>
+            <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/events")}>전체보기 →</button>
+          </div>
+          <div className="space-y-2">
+            {latestEvents.map((e) => (
+              <div key={e.id}
+                className="rounded-xl overflow-hidden cursor-pointer border border-border hover:border-primary/50 transition-colors"
+                onClick={() => navigate(`/gym-plus/events/${e.id}`)}
+              >
+                {e.imageUrl && <img src={e.imageUrl} alt={e.title} className="w-full object-cover max-h-40" />}
+                <div className={`p-3 flex items-center gap-3 ${e.isPinned ? "bg-yellow-500/10" : "bg-card"}`}>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-sm ${
+                    e.eventType === "event" ? "bg-green-500/20" :
+                    e.eventType === "promotion" ? "bg-orange-500/20" : "bg-blue-500/20"
+                  }`}>
+                    {e.eventType === "event" ? "🎉" : e.eventType === "promotion" ? "🎁" : "📢"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {e.isPinned ? <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1 rounded">고정</span> : null}
+                      <p className="text-sm font-medium line-clamp-1">{e.title}</p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{e.createdAt?.slice(0, 10)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 인사 + 출석 + D-day */}
       <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-2xl p-4 border border-primary/20">
         <div className="flex items-center justify-between">
@@ -389,41 +424,6 @@ export default function GymPlusDashboard() {
           </div>
         )}
       </div>
-
-      {/* 이벤트/공지 */}
-      {latestEvents.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="font-semibold text-sm">이벤트 & 공지</p>
-            <button className="text-xs text-primary" onClick={() => navigate("/gym-plus/events")}>전체보기 →</button>
-          </div>
-          <div className="space-y-2">
-            {latestEvents.map((e) => (
-              <div key={e.id}
-                className="rounded-xl overflow-hidden cursor-pointer border border-border hover:border-primary/50 transition-colors"
-                onClick={() => navigate(`/gym-plus/events/${e.id}`)}
-              >
-                {e.imageUrl && <img src={e.imageUrl} alt={e.title} className="w-full object-cover max-h-40" />}
-                <div className={`p-3 flex items-center gap-3 ${e.isPinned ? "bg-yellow-500/10" : "bg-card"}`}>
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-sm ${
-                    e.eventType === "event" ? "bg-green-500/20" :
-                    e.eventType === "promotion" ? "bg-orange-500/20" : "bg-blue-500/20"
-                  }`}>
-                    {e.eventType === "event" ? "🎉" : e.eventType === "promotion" ? "🎁" : "📢"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {e.isPinned ? <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1 rounded">고정</span> : null}
-                      <p className="text-sm font-medium line-clamp-1">{e.title}</p>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">{e.createdAt?.slice(0, 10)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 출석 체크인 모달 */}
       {showCheckIn && <CheckInModal onClose={() => { setShowCheckIn(false); refetchLogs(); refetchRec(); }} />}
