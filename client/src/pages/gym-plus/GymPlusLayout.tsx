@@ -7,7 +7,7 @@ const navItems = [
   { path: "/gym-plus", label: "홈", icon: "⊞" },
   { path: "/gym-plus/videos", label: "운동영상", icon: "▶" },
   { path: "/gym-plus/workout", label: "운동기록", icon: "◎" },
-  { path: "/gym-plus/diet", label: "맞춤식단", icon: "🥗" },
+  { path: "/gym-plus/diet", label: "맞춤식단", icon: "◍" },
   { path: "/gym-plus/events", label: "이벤트", icon: "★" },
   { path: "/gym-plus/profile", label: "내정보", icon: "◈" },
 ];
