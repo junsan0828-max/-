@@ -136,7 +136,7 @@ export function GymPlusMembersAdmin() {
         <p className="text-sm text-muted-foreground text-center py-4">등록된 회원이 없습니다</p>
       ) : (
         <div className="space-y-2">
-          {members?.map((m) => (
+          {[...(members ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'ko')).map((m) => (
             <div key={m.id} className="flex items-center justify-between bg-background/50 rounded-xl px-3 py-2.5">
               <div>
                 <p className="text-sm font-medium">{m.name}</p>
@@ -625,7 +625,7 @@ export function GymPlusWorkoutLogsAdmin() {
 
   const { data: ptMembers } = trpc.gymPlus.admin_listPtMembers.useQuery();
   const { data: allMembers } = trpc.gymPlus.admin_listMembers.useQuery();
-  const displayMembers = filterPt ? (ptMembers ?? []) : (allMembers ?? []);
+  const displayMembers = [...(filterPt ? (ptMembers ?? []) : (allMembers ?? []))].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
   const { data: logs, isLoading } = trpc.gymPlus.admin_listWorkoutLogs.useQuery(
     selectedMemberId ? { gymPlusMemberId: selectedMemberId } : {},
