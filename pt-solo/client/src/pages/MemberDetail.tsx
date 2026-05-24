@@ -1500,10 +1500,6 @@ export default function MemberDetail({ memberId }: Props) {
               <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">오늘의 목표</Label>
-              <Input value={journalForm.goal} onChange={e => setJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-xs">운동 부위 (최대 3개)</Label>
               <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
@@ -1532,10 +1528,6 @@ export default function MemberDetail({ memberId }: Props) {
                   + 운동 종목 추가
                 </button>
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">피드백</Label>
-              <Textarea value={journalForm.feedback} onChange={e => setJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">메모 (선택)</Label>
@@ -1573,10 +1565,6 @@ export default function MemberDetail({ memberId }: Props) {
               <Input type="date" value={editJournalForm.sessionDate} onChange={e => setEditJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">오늘의 목표</Label>
-              <Input value={editJournalForm.goal} onChange={e => setEditJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-xs">운동 부위 (최대 3개)</Label>
               <BodyPartPicker value={editJournalForm.bodyPart} onChange={v => setEditJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
@@ -1584,9 +1572,6 @@ export default function MemberDetail({ memberId }: Props) {
               <Label className="text-xs">운동 종목</Label>
               <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">피드백</Label>
-              <Textarea value={editJournalForm.feedback} onChange={e => setEditJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">메모 (선택)</Label>
