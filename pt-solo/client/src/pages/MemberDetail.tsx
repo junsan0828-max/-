@@ -1572,7 +1572,6 @@ export default function MemberDetail({ memberId }: Props) {
               <Label className="text-xs">운동 종목</Label>
               <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} />
             </div>
-            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">메모 (선택)</Label>
               <Textarea value={editJournalForm.notes} onChange={e => setEditJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항..." rows={2} className="text-sm resize-none" />

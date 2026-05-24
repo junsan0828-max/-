@@ -269,6 +269,7 @@ export default function LeadsPage() {
       consultationSubTypes: row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [],
       consultationNote: row.lead.consultationNote ?? "",
       interestType: row.lead.interestType ?? "",
+      interestCustom: "",
       exercisePurposes: row.lead.exercisePurpose ? row.lead.exercisePurpose.split(",").filter(Boolean) : [],
       memo: row.lead.memo ?? "",
     });
