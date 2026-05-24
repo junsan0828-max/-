@@ -116,6 +116,7 @@ type LeadForm = {
   consultationSubTypes: string[];
   consultationNote: string;
   interestType: string;
+  interestCustom: string;
   exercisePurposes: string[];
   memo: string;
 };
@@ -133,7 +134,7 @@ const defaultForm: LeadForm = {
   name: "", phone: "", gender: "", ageGroup: "",
   consultationDate: new Date().toISOString().substring(0, 10),
   consultationTypes: [], consultationSubTypes: [],
-  consultationNote: "", interestType: "", exercisePurposes: [], memo: "",
+  consultationNote: "", interestType: "", interestCustom: "", exercisePurposes: [], memo: "",
 };
 
 const defaultReg: RegForm = {
@@ -294,7 +295,7 @@ export default function LeadsPage() {
       consultationType: form.consultationTypes.length > 0 ? form.consultationTypes.join(",") : undefined,
       consultationSubTypes: form.consultationSubTypes.length > 0 ? form.consultationSubTypes.join(",") : undefined,
       consultationNote: form.consultationNote || undefined,
-      interestType: form.interestType || undefined,
+      interestType: form.interestType === "기타" && form.interestCustom ? `기타(${form.interestCustom})` : form.interestType || undefined,
       exercisePurpose: form.exercisePurposes.length > 0 ? form.exercisePurposes.join(",") : undefined,
       memo: form.memo || undefined,
       status,
@@ -998,6 +999,15 @@ export default function LeadsPage() {
                       </button>
                     ))}
                   </div>
+                )}
+                {form.interestType === "기타" && (
+                  <input
+                    type="text"
+                    value={form.interestCustom}
+                    onChange={e => setForm(f => ({ ...f, interestCustom: e.target.value }))}
+                    placeholder="관심 프로그램 직접 입력..."
+                    className="mt-2 w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+                  />
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
