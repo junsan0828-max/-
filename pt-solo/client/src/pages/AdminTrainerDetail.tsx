@@ -16,9 +16,9 @@ const STATUS_OPTIONS = [
 ];
 
 const PLAN_OPTIONS = [
-  { value: "free", label: "FREE", desc: "회원 20명 · 계약서 월 5회" },
-  { value: "light", label: "LIGHT", desc: "개인 트레이너용" },
-  { value: "pro", label: "PRO", desc: "팀장/센터/고급" },
+  { value: "free", label: "FREE", desc: "유효회원 7명" },
+  { value: "pro", label: "PRO", desc: "유효회원 15명" },
+  { value: "elite", label: "ELITE", desc: "유효회원 35명" },
 ];
 
 function StatusBadge({ status, lastLoginAt }: { status: string; lastLoginAt?: string | null }) {

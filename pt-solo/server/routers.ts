@@ -347,10 +347,10 @@ const membersRouter = t.router({
       const { ptProgram, ptSessions, paymentAmount, unpaidAmount, paymentMethod, paymentDate, paymentMemo, ...memberData } = input;
 
       const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
-      if ((planRow?.plan ?? "free") === "free") {
-        const [cnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
-        if (Number(cnt?.count ?? 0) >= 20) throw new TRPCError({ code: "FORBIDDEN", message: "FREE 플랜은 회원을 최대 20명까지 등록할 수 있습니다." });
-      }
+      const memberPlan = planRow?.plan ?? "free";
+      const memberLimit = memberPlan === "elite" ? 35 : memberPlan === "pro" ? 15 : 7;
+      const [cnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
+      if (Number(cnt?.count ?? 0) >= memberLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${memberPlan.toUpperCase()} 플랜은 유효회원을 최대 ${memberLimit}명까지 등록할 수 있습니다.` });
 
       const [insertResult] = await db.insert(members).values({ ...memberData, trainerId }).returning({ id: members.id });
       const memberId = insertResult.id;
@@ -1728,7 +1728,7 @@ const adminRouter = t.router({
       subscriptionStatus: z.enum(["trial", "active", "expired", "suspended"]).optional(),
       subscriptionEndDate: z.string().optional().nullable(),
       adminMemo: z.string().optional().nullable(),
-      plan: z.enum(["free", "light", "pro"]).optional(),
+      plan: z.enum(["free", "pro", "elite"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -2040,15 +2040,9 @@ const leadsRouter = t.router({
 
       const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
       const plan = planRow?.plan ?? "free";
-      if (plan === "free") {
-        const [totalCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
-        if (Number(totalCnt?.count ?? 0) >= 20) throw new TRPCError({ code: "FORBIDDEN", message: "FREE 플랜은 회원을 최대 20명까지 등록할 수 있습니다." });
-        const now = new Date();
-        const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        const [monthlyCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members)
-          .where(and(eq(members.trainerId, trainerId), gte(members.createdAt, monthPrefix + "-01"), lte(members.createdAt, monthPrefix + "-31T23:59:59")));
-        if (Number(monthlyCnt?.count ?? 0) >= 5) throw new TRPCError({ code: "FORBIDDEN", message: "FREE 플랜은 온라인 계약서를 월 5회까지 작성할 수 있습니다." });
-      }
+      const contractLimit = plan === "elite" ? 35 : plan === "pro" ? 15 : 7;
+      const [totalCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
+      if (Number(totalCnt?.count ?? 0) >= contractLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${plan.toUpperCase()} 플랜은 유효회원을 최대 ${contractLimit}명까지 등록할 수 있습니다.` });
 
       const [member] = await db.insert(members).values({
         trainerId, name: input.name, phone: input.phone, gender: input.gender,
