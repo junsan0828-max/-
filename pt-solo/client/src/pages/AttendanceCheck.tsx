@@ -289,7 +289,7 @@ export default function AttendanceCheck({ memberId }: Props) {
           </Field>
           <Field label="에너지 수준">
             <div className="flex gap-2">
-              {["높음", "보통", "낮음"].map((v) => (
+              {["낮음", "보통", "높음"].map((v) => (
                 <button
                   key={v}
                   onClick={() => setEnergyLevel(energyLevel === v ? "" : v)}
@@ -314,7 +314,7 @@ export default function AttendanceCheck({ memberId }: Props) {
                 <button
                   key={option}
                   onClick={() => toggleDiet(option)}
-                  className={`flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg border transition-colors text-left ${
+                  className={`flex items-center gap-2 px-2 py-2.5 text-xs rounded-lg border transition-colors text-left ${
                     dietItems.includes(option)
                       ? "bg-primary/20 border-primary/40 text-primary"
                       : "border-border text-muted-foreground hover:border-primary/30"
