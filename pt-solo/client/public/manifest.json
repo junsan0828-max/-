@@ -4,7 +4,7 @@
   "description": "성장하는 운동전문가 플랫폼",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09090b",
+  "background_color": "#1a00ff",
   "theme_color": "#1a00ff",
   "orientation": "portrait",
   "scope": "/",
