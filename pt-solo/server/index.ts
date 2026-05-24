@@ -501,9 +501,23 @@ async function initDatabase() {
   const existingChannels = await pool.query(`SELECT id FROM channels LIMIT 1`);
   if (existingChannels.rows.length === 0) {
     await pool.query(`INSERT INTO channels (name, type) VALUES
-      ('인스타그램', 'sns'), ('네이버 블로그', 'online'), ('카카오 플레이스', 'online'),
-      ('지인소개', 'referral'), ('현수막/전단지', 'offline'), ('직접방문', 'offline'), ('기타', 'other')`);
+      ('네이버 플레이스', 'online'), ('당근마켓 광고', 'online'), ('워크인', 'offline'),
+      ('인스타그램', 'sns'), ('전화예약', 'offline'), ('지인 소개', 'referral'), ('기타', 'other')`);
     console.log("✅ 기본 채널 시드 완료");
+  } else {
+    // 채널 목록을 ZIANTGYM 기준으로 업데이트
+    await pool.query(`DELETE FROM channels WHERE name IN ('네이버 블로그', '카카오 플레이스', '지인소개', '현수막/전단지', '직접방문')`);
+    const newChannels = [
+      { name: '네이버 플레이스', type: 'online' },
+      { name: '당근마켓 광고', type: 'online' },
+      { name: '워크인', type: 'offline' },
+      { name: '전화예약', type: 'offline' },
+      { name: '지인 소개', type: 'referral' },
+    ];
+    for (const ch of newChannels) {
+      await pool.query(`INSERT INTO channels (name, type) SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM channels WHERE name = $1)`, [ch.name, ch.type]);
+    }
+    console.log("✅ 채널 목록 업데이트 완료");
   }
 
   // trainer_settings 컬럼 추가 (없으면)
