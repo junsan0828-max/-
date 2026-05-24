@@ -2107,6 +2107,12 @@ const fitPointsRouter = t.router({
   getBalance: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const planRow = await pool.query<{ plan: string }>(
+      `SELECT COALESCE(u."plan",'free') AS plan FROM users u WHERE u.id=$1`,
+      [ctx.user.id]
+    );
+    const plan = planRow.rows[0]?.plan ?? "free";
+    const dailyPoint = plan === "elite" ? 1000 : plan === "pro" ? 500 : 300;
     const totalResult = await pool.query<{ balance: string }>(
       `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
       [trainerId]
@@ -2117,8 +2123,8 @@ const fitPointsRouter = t.router({
     );
     const total = Number(totalResult.rows[0]?.balance ?? 0);
     const earned = Number(earnedResult.rows[0]?.balance ?? 0);
-    const free = Math.min(300, Math.max(0, total - earned));
-    return { balance: total, earnedBalance: Math.max(0, earned), freeBalance: free };
+    const free = Math.min(dailyPoint, Math.max(0, total - earned));
+    return { balance: total, earnedBalance: Math.max(0, earned), freeBalance: free, dailyPoint };
   }),
 
   getHistory: protectedProcedure.query(async ({ ctx }) => {

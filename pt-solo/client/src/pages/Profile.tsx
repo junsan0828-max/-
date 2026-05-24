@@ -170,6 +170,7 @@ export default function Profile() {
   const balance = balanceData?.balance ?? 0;
   const freeBalance = balanceData?.freeBalance ?? 0;
   const earnedBalance = balanceData?.earnedBalance ?? 0;
+  const dailyPoint = balanceData?.dailyPoint ?? 300;
 
   return (
     <div className="space-y-6">
@@ -219,7 +220,7 @@ export default function Profile() {
                 </div>
                 <div className="text-right">
                   <span className="font-bold text-blue-400">{freeBalance.toLocaleString()} P</span>
-                  <span className="text-muted-foreground/60 ml-1.5">/ 300 P</span>
+                  <span className="text-muted-foreground/60 ml-1.5">/ {dailyPoint.toLocaleString()} P</span>
                 </div>
               </div>
               <div className="flex items-center justify-between px-3 py-2.5">
@@ -231,7 +232,7 @@ export default function Profile() {
               </div>
               <div className="px-3 py-2 bg-blue-500/5 rounded-b-xl">
                 <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                  💡 무료포인트는 매일 <span className="text-blue-400 font-medium">300P</span>로 제공되며 <span className="text-blue-400 font-medium">00시에 초기화</span>됩니다.
+                  💡 무료포인트는 매일 <span className="text-blue-400 font-medium">{dailyPoint.toLocaleString()}P</span>로 제공되며 <span className="text-blue-400 font-medium">00시에 초기화</span>됩니다.
                   적립포인트는 보너스·관리자 지급 포인트로 초기화되지 않습니다.
                 </p>
               </div>

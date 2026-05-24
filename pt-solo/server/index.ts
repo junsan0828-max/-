@@ -652,11 +652,13 @@ async function initDatabase() {
   }
 }
 
-const DAILY_POINT = 300;
+const DAILY_POINTS: Record<string, number> = { free: 300, pro: 500, elite: 1000 };
 
 async function runDailyPointReset() {
   const today = new Date().toISOString().slice(0, 10);
-  const trainerRows = await pool.query<{ id: number }>(`SELECT id FROM trainers`);
+  const trainerRows = await pool.query<{ id: number; plan: string }>(
+    `SELECT t.id, COALESCE(u."plan", 'free') AS plan FROM trainers t LEFT JOIN users u ON u.id = t."userId"`
+  );
   let count = 0;
   for (const tr of trainerRows.rows) {
     const alreadyDone = await pool.query(
@@ -665,27 +667,27 @@ async function runDailyPointReset() {
     );
     if (alreadyDone.rows.length > 0) continue;
 
+    const dailyPoint = DAILY_POINTS[tr.plan] ?? 300;
     const balRow = await pool.query<{ balance: string }>(
       `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
       [tr.id]
     );
-    // 적립포인트(daily_reset 제외)는 건드리지 않고 무료포인트만 300P로 복원
     const earnedRow = await pool.query<{ balance: string }>(
       `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND type != 'daily_reset'`,
       [tr.id]
     );
     const currentBalance = Number(balRow.rows[0]?.balance ?? 0);
     const earnedBalance = Number(earnedRow.rows[0]?.balance ?? 0);
-    const targetTotal = earnedBalance + DAILY_POINT; // 적립포인트 + 무료 300P
+    const targetTotal = earnedBalance + dailyPoint;
     const delta = targetTotal - currentBalance;
-    if (delta === 0) continue; // 이미 충분하면 패스
+    if (delta === 0) continue;
     await pool.query(
       `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'daily_reset','일일 무료포인트 충전','completed')`,
       [tr.id, delta]
     );
     count++;
   }
-  if (count > 0) console.log(`✅ 일일 FIT POINT 초기화 완료: ${count}명 → ${DAILY_POINT}P`);
+  if (count > 0) console.log(`✅ 일일 FIT POINT 초기화 완료: ${count}명`);
 }
 
 async function start() {
