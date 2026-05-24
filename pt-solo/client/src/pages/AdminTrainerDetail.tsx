@@ -21,13 +21,10 @@ const PLAN_OPTIONS = [
   { value: "elite", label: "ELITE", desc: "유효회원 35명" },
 ];
 
-function StatusBadge({ status, lastLoginAt }: { status: string; lastLoginAt?: string | null }) {
-  if (status === "suspended") return <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-500/20 text-gray-400 border-gray-500/30">비활성</span>;
-  if (status === "expired") return <span className="text-xs px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/30">만료</span>;
-  if (status === "trial") return <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/20 text-blue-400 border-blue-500/30">체험판</span>;
-  const days = lastLoginAt ? (Date.now() - new Date(lastLoginAt).getTime()) / (1000 * 60 * 60 * 24) : 999;
-  if (days >= 14) return <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-500/20 text-gray-400 border-gray-500/30">휴면</span>;
-  return <span className="text-xs px-2 py-0.5 rounded-full border bg-green-500/20 text-green-400 border-green-500/30">활성</span>;
+function PlanBadge({ plan }: { plan?: string }) {
+  if (plan === "elite") return <span className="text-xs px-2 py-0.5 rounded-full border bg-purple-500/20 text-purple-500 border-purple-500/30">ELITE</span>;
+  if (plan === "pro") return <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/20 text-blue-500 border-blue-500/30">PRO</span>;
+  return <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-500/20 text-gray-500 border-gray-500/30">FREE</span>;
 }
 
 interface Props { trainerId: number; }
@@ -83,7 +80,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           <h1 className="text-xl font-bold">{t.trainerName}</h1>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-xs text-muted-foreground">@{t.username}</span>
-            <StatusBadge status={t.subscriptionStatus} lastLoginAt={t.lastLoginAt} />
+            <PlanBadge plan={(t as any).plan} />
           </div>
         </div>
       </div>

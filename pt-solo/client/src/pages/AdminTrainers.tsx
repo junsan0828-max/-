@@ -5,27 +5,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Search, ChevronRight, AlertTriangle } from "lucide-react";
 
-type SubStatus = "trial" | "active" | "expired" | "suspended";
-
-function getDisplayStatus(t: { subscriptionStatus: string; lastLoginAt?: string | null }): { label: string; color: string; key: string } {
-  const sub = t.subscriptionStatus as SubStatus;
-  if (sub === "suspended") return { label: "비활성", color: "bg-gray-500/20 text-gray-400 border-gray-500/30", key: "suspended" };
-  if (sub === "expired") return { label: "만료", color: "bg-red-500/20 text-red-400 border-red-500/30", key: "expired" };
-  if (sub === "trial") return { label: "체험판", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", key: "trial" };
-
-  if (!t.lastLoginAt) return { label: "체험판", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", key: "trial" };
-  const days = (Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24);
-  if (days >= 14) return { label: "휴면", color: "bg-gray-500/20 text-gray-400 border-gray-500/30", key: "dormant" };
-  return { label: "활성", color: "bg-green-500/20 text-green-400 border-green-500/30", key: "active" };
+function getPlanBadge(plan?: string): { label: string; color: string; key: string } {
+  if (plan === "elite") return { label: "ELITE", color: "bg-purple-500/20 text-purple-500 border-purple-500/30", key: "elite" };
+  if (plan === "pro") return { label: "PRO", color: "bg-blue-500/20 text-blue-500 border-blue-500/30", key: "pro" };
+  return { label: "FREE", color: "bg-gray-500/20 text-gray-500 border-gray-500/30", key: "free" };
 }
 
 const FILTERS = [
   { key: "all", label: "전체" },
-  { key: "active", label: "활성" },
-  { key: "dormant", label: "휴면" },
-  { key: "trial", label: "체험판" },
-  { key: "expired", label: "만료" },
-  { key: "suspended", label: "비활성" },
+  { key: "free", label: "FREE" },
+  { key: "pro", label: "PRO" },
+  { key: "elite", label: "ELITE" },
 ];
 
 export default function AdminTrainers() {
@@ -45,8 +35,8 @@ export default function AdminTrainers() {
   const filtered = useMemo(() => {
     if (!trainerList) return [];
     return trainerList.filter(t => {
-      const status = getDisplayStatus(t);
-      const matchFilter = filter === "all" || status.key === filter;
+      const planKey = getPlanBadge((t as any).plan).key;
+      const matchFilter = filter === "all" || planKey === filter;
       const q = search.toLowerCase();
       const matchSearch = !q || t.trainerName.toLowerCase().includes(q) || (t.username ?? "").toLowerCase().includes(q) || (t.phone ?? "").includes(q);
       return matchFilter && matchSearch;
@@ -118,7 +108,7 @@ export default function AdminTrainers() {
           <p className="text-sm text-muted-foreground text-center py-8">트레이너가 없습니다.</p>
         )}
         {filtered.map(t => {
-          const status = getDisplayStatus(t);
+          const plan = getPlanBadge((t as any).plan);
           const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
           return (
             <button key={t.id} onClick={() => setLocation(`/admin/trainers/${t.id}`)}
@@ -131,7 +121,7 @@ export default function AdminTrainers() {
                       <p className="text-xs text-muted-foreground">@{t.username}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${status.color}`}>{status.label}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${plan.color}`}>{plan.label}</span>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
