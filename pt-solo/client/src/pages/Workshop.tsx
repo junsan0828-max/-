@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
@@ -768,7 +768,7 @@ function SurveyBuilder() {
 }
 
 // ── 브랜드 페이지 에디터 ─────────────────────────────────────────────────────
-function BrandPageEditor() {
+function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const { data: brand, isLoading } = trpc.brand.getMyBrand.useQuery();
@@ -807,6 +807,63 @@ function BrandPageEditor() {
   const brandUrl = `${window.location.origin}/p/${username}`;
 
   if (isLoading) return <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>;
+
+  if (bookingOnly) {
+    return (
+      <div className="space-y-5">
+        <div className="space-y-3 p-3 bg-accent/20 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <p className="text-sm font-medium">상담 예약 받기</p>
+            </div>
+            <button
+              onClick={() => setForm(p => ({ ...p, bookingEnabled: p.bookingEnabled ? 0 : 1 }))}
+              className={`w-12 h-6 rounded-full transition-colors relative ${form.bookingEnabled ? "bg-primary" : "bg-muted"}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.bookingEnabled ? "left-6" : "left-0.5"}`} />
+            </button>
+          </div>
+          {form.bookingEnabled ? (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">예약 안내 메시지</Label>
+              <textarea value={form.bookingMessage} onChange={e => setForm(p => ({ ...p, bookingMessage: e.target.value }))}
+                rows={2} placeholder="상담 가능 시간이나 안내 문구를 입력하세요..."
+                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+          ) : null}
+        </div>
+        <Button size="sm" className="w-full" disabled={updateMutation.isPending}
+          onClick={() => updateMutation.mutate(form as any)}>
+          {updateMutation.isPending ? "저장 중..." : "저장"}
+        </Button>
+        {bookings && bookings.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">들어온 예약 ({bookings.length})</p>
+            {bookings.map((b: any) => (
+              <div key={b.id} className="bg-background border border-border rounded-xl p-3 space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{b.name} · {b.phone}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${b.status === "confirmed" ? "bg-green-500/20 text-green-600" : b.status === "cancelled" ? "bg-red-500/20 text-red-500" : "bg-blue-500/20 text-blue-500"}`}>
+                    {b.status === "confirmed" ? "확인" : b.status === "cancelled" ? "취소" : "대기"}
+                  </span>
+                </div>
+                {b.message && <p className="text-xs text-muted-foreground">{b.message}</p>}
+                {b.status === "pending" && (
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => statusMutation.mutate({ bookingId: b.id, status: "confirmed" })}
+                      className="flex-1 text-xs py-1.5 rounded-lg bg-green-500/10 text-green-600 font-medium">확인</button>
+                    <button onClick={() => statusMutation.mutate({ bookingId: b.id, status: "cancelled" })}
+                      className="flex-1 text-xs py-1.5 rounded-lg bg-red-500/10 text-red-500 font-medium">취소</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -937,13 +994,171 @@ function BrandPageEditor() {
   );
 }
 
+// ── 회원 보고서 브랜딩 에디터 ──────────────────────────────────────────────────
+function ReportBrandingEditor() {
+  const utils = trpc.useUtils();
+  const { data: brand } = trpc.brand.getMyBrand.useQuery();
+  const updateMutation = trpc.brand.updateMyBrand.useMutation({
+    onSuccess: () => { utils.brand.getMyBrand.invalidate(); toast.success("저장되었습니다"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const brandingEnabled = !!(brand as any)?.brandColor || !!(brand as any)?.brandBio;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-muted/40 border border-border rounded-xl p-3 space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground">미리보기 · 공유 보고서 상단</p>
+        <div className="rounded-lg overflow-hidden border border-border">
+          <div className="h-2" style={{ background: (brand as any)?.brandColor || "#1a80ff" }} />
+          <div className="flex items-center gap-3 p-3 bg-background">
+            <div className="w-10 h-10 rounded-full bg-muted border border-border overflow-hidden flex items-center justify-center">
+              {(brand as any)?.profileImage ? (
+                <img src={(brand as any).profileImage} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs text-muted-foreground">사진</span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-bold">{(brand as any)?.trainerName ?? "트레이너 이름"}</p>
+              <p className="text-xs text-muted-foreground">트레이너 · Powered by FIT STEP</p>
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">공유 보고서에 위 형태로 내 정보가 표시됩니다.</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs">브랜드 컬러</Label>
+        <div className="flex items-center gap-3">
+          <input
+            type="color"
+            value={(brand as any)?.brandColor || "#1a80ff"}
+            onChange={(e) => updateMutation.mutate({ brandColor: e.target.value } as any)}
+            className="w-10 h-10 rounded-lg border border-border cursor-pointer bg-transparent"
+          />
+          <span className="text-sm text-muted-foreground">{(brand as any)?.brandColor || "#1a80ff"}</span>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">브랜드 컬러를 설정하면 공유 보고서에 자동으로 적용됩니다. 프로필 사진·이름은 프로필 페이지에서 변경할 수 있습니다.</p>
+    </div>
+  );
+}
+
+// ── 잠금 게이트 ────────────────────────────────────────────────────────────────
+function FeatureCard({
+  icon,
+  title,
+  desc,
+  featureKey,
+  pointCost,
+  isUnlocked,
+  isOpen,
+  onToggle,
+  onUnlock,
+  unlocking,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  featureKey: string;
+  pointCost: number;
+  isUnlocked: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
+  onUnlock: () => void;
+  unlocking: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className={`border-border ${!isUnlocked ? "opacity-90" : ""}`}>
+      <button
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        onClick={isUnlocked ? onToggle : undefined}
+      >
+        <div className="flex items-center gap-2.5">
+          <span className={isUnlocked ? "text-primary" : "text-muted-foreground"}>{icon}</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-sm">{title}</span>
+              {!isUnlocked && (
+                <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
+                  <Lock className="h-3 w-3" />{pointCost.toLocaleString()}P
+                </span>
+              )}
+              {isUnlocked && (
+                <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">잠금해제</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+          </div>
+        </div>
+        {isUnlocked ? (
+          isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <Lock className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+
+      {!isUnlocked && (
+        <CardContent className="pt-0 pb-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col items-center gap-3">
+            <Lock className="h-8 w-8 text-amber-500" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-amber-800">핏포인트로 잠금해제</p>
+              <p className="text-xs text-amber-600 mt-0.5">{pointCost.toLocaleString()} 포인트를 사용하여 기능을 영구 활성화합니다</p>
+            </div>
+            <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5" onClick={onUnlock} disabled={unlocking}>
+              <Coins className="h-3.5 w-3.5" />
+              {unlocking ? "처리 중..." : `${pointCost.toLocaleString()}P 사용하여 열기`}
+            </Button>
+          </div>
+        </CardContent>
+      )}
+
+      {isUnlocked && isOpen && (
+        <CardContent className="pt-0 pb-4">{children}</CardContent>
+      )}
+    </Card>
+  );
+}
+
 export default function Workshop() {
   const { data: user } = trpc.auth.me.useQuery();
-  const [openSection, setOpenSection] = useState<"fitstep" | "terms" | "brand" | "templates" | "survey" | null>(null);
+  const utils = trpc.useUtils();
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
   const trainerId = (user as any)?.trainerId as number | undefined;
 
-  function toggle(key: "fitstep" | "terms" | "brand" | "templates" | "survey") {
+  const { data: unlocks } = trpc.workshop.listUnlocks.useQuery();
+  const unlockMutation = trpc.workshop.unlock.useMutation({
+    onSuccess: (_data, vars) => {
+      utils.workshop.listUnlocks.invalidate();
+      utils.fitPoints.getBalance.invalidate();
+      toast.success("기능이 잠금해제되었습니다!");
+      setUnlockingKey(null);
+      setOpenSection(vars.feature);
+    },
+    onError: (e) => { toast.error(e.message); setUnlockingKey(null); },
+  });
+
+  function toggle(key: string) {
     setOpenSection(v => v === key ? null : key);
+  }
+
+  function handleUnlock(feature: string) {
+    setUnlockingKey(feature);
+    unlockMutation.mutate({ feature });
+  }
+
+  function isUnlocked(feature: string) {
+    return unlocks?.find((u: any) => u.feature === feature)?.unlocked ?? false;
+  }
+
+  function pointCost(feature: string) {
+    return unlocks?.find((u: any) => u.feature === feature)?.points ?? 0;
   }
 
   return (
@@ -951,11 +1166,11 @@ export default function Workshop() {
       <TabBanner tabKey="workshop" />
       <div>
         <h1 className="text-xl font-bold">작업실</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">스테퍼 전용 작업 공간</p>
+        <p className="text-sm text-muted-foreground mt-0.5">핏포인트로 기능을 잠금해제하고 나만의 브랜딩을 완성하세요</p>
       </div>
 
       <div className="space-y-3">
-        {/* FIT STEP+ */}
+        {/* FIT STEP+ — 무료 기능 */}
         <Card className="bg-card border-border">
           <button
             className="w-full flex items-center justify-between px-4 py-3 text-left"
@@ -984,63 +1199,87 @@ export default function Workshop() {
           )}
         </Card>
 
+        {/* 내 브랜드 페이지 */}
+        <FeatureCard
+          icon={<Globe className="h-4 w-4" />}
+          title="내 브랜드 페이지"
+          desc="공개 소개 페이지 · 예약 링크 공유"
+          featureKey="brand_page"
+          pointCost={pointCost("brand_page")}
+          isUnlocked={isUnlocked("brand_page")}
+          isOpen={openSection === "brand_page"}
+          onToggle={() => toggle("brand_page")}
+          onUnlock={() => handleUnlock("brand_page")}
+          unlocking={unlockingKey === "brand_page"}
+        >
+          <BrandPageEditor />
+        </FeatureCard>
+
+        {/* 상담 예약 링크 */}
+        <FeatureCard
+          icon={<Calendar className="h-4 w-4" />}
+          title="상담 예약 링크"
+          desc="고객이 직접 상담 신청 · 리드 자동 등록"
+          featureKey="booking"
+          pointCost={pointCost("booking")}
+          isUnlocked={isUnlocked("booking")}
+          isOpen={openSection === "booking"}
+          onToggle={() => toggle("booking")}
+          onUnlock={() => handleUnlock("booking")}
+          unlocking={unlockingKey === "booking"}
+        >
+          <BrandPageEditor bookingOnly />
+        </FeatureCard>
+
+        {/* 회원 보고서 브랜딩 */}
+        <FeatureCard
+          icon={<BookMarked className="h-4 w-4" />}
+          title="회원 보고서 브랜딩"
+          desc="공유 보고서에 내 프로필 · 브랜드 색상 표시"
+          featureKey="report_branding"
+          pointCost={pointCost("report_branding")}
+          isUnlocked={isUnlocked("report_branding")}
+          isOpen={openSection === "report_branding"}
+          onToggle={() => toggle("report_branding")}
+          onUnlock={() => handleUnlock("report_branding")}
+          unlocking={unlockingKey === "report_branding"}
+        >
+          <ReportBrandingEditor />
+        </FeatureCard>
+
         {/* 운동 프로그램 템플릿 */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("templates")}>
-            <div className="flex items-center gap-2.5">
-              <Dumbbell className="h-4 w-4 text-primary" />
-              <div>
-                <span className="font-semibold text-sm">운동 프로그램 템플릿</span>
-                <p className="text-xs text-muted-foreground mt-0.5">루틴 저장 · 일지 작성 시 불러오기</p>
-              </div>
-            </div>
-            {openSection === "templates" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "templates" && (
-            <CardContent className="pt-0 pb-4"><WorkoutTemplateEditor /></CardContent>
-          )}
-        </Card>
+        <FeatureCard
+          icon={<Dumbbell className="h-4 w-4" />}
+          title="운동 프로그램 템플릿"
+          desc="루틴 저장 · 일지 작성 시 불러오기"
+          featureKey="templates"
+          pointCost={pointCost("templates")}
+          isUnlocked={isUnlocked("templates")}
+          isOpen={openSection === "templates"}
+          onToggle={() => toggle("templates")}
+          onUnlock={() => handleUnlock("templates")}
+          unlocking={unlockingKey === "templates"}
+        >
+          <WorkoutTemplateEditor />
+        </FeatureCard>
 
-        {/* 맞춤 상담 설문 */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("survey")}>
-            <div className="flex items-center gap-2.5">
-              <ClipboardList className="h-4 w-4 text-primary" />
-              <div>
-                <span className="font-semibold text-sm">맞춤 상담 설문 빌더</span>
-                <p className="text-xs text-muted-foreground mt-0.5">상담 전 고객 설문 · 링크 공유</p>
-              </div>
-            </div>
-            {openSection === "survey" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "survey" && (
-            <CardContent className="pt-0 pb-4"><SurveyBuilder /></CardContent>
-          )}
-        </Card>
+        {/* 맞춤 상담 설문 빌더 */}
+        <FeatureCard
+          icon={<ClipboardList className="h-4 w-4" />}
+          title="맞춤 상담 설문 빌더"
+          desc="상담 전 고객 설문 · 링크 공유"
+          featureKey="survey"
+          pointCost={pointCost("survey")}
+          isUnlocked={isUnlocked("survey")}
+          isOpen={openSection === "survey"}
+          onToggle={() => toggle("survey")}
+          onUnlock={() => handleUnlock("survey")}
+          unlocking={unlockingKey === "survey"}
+        >
+          <SurveyBuilder />
+        </FeatureCard>
 
-        {/* 브랜드 페이지 */}
-        <Card className="bg-card border-border">
-          <button
-            className="w-full flex items-center justify-between px-4 py-3 text-left"
-            onClick={() => toggle("brand")}
-          >
-            <div className="flex items-center gap-2.5">
-              <Globe className="h-4 w-4 text-primary" />
-              <div>
-                <span className="font-semibold text-sm">내 브랜드 페이지</span>
-                <p className="text-xs text-muted-foreground mt-0.5">공개 소개 페이지 · 상담 예약 링크</p>
-              </div>
-            </div>
-            {openSection === "brand" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "brand" && (
-            <CardContent className="pt-0 pb-4">
-              <BrandPageEditor />
-            </CardContent>
-          )}
-        </Card>
-
-        {/* 회원 계약서 약관 수정 */}
+        {/* 회원 계약서 약관 수정 — 무료 기능 */}
         <Card className="bg-card border-border">
           <button
             className="w-full flex items-center justify-between px-4 py-3 text-left"
