@@ -21,110 +21,108 @@ const DIET_OPTIONS = [
 
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 
-type Zone = { xMin: number; xMax: number; yMin: number; yMax: number; candidates: string[] };
+type BodyRow = { left: string; right: string };
 
-const ZONES: Zone[] = [
-  // ── 전면 (왼쪽 절반) ──
-  { xMin: 8,  xMax: 42, yMin: 0,  yMax: 17, candidates: ["턱관절", "목", "두통"] },
-  { xMin: 0,  xMax: 20, yMin: 17, yMax: 55, candidates: ["좌 어깨", "좌 팔꿈치", "좌 손목"] },
-  { xMin: 32, xMax: 50, yMin: 17, yMax: 55, candidates: ["우 어깨", "우 팔꿈치", "우 손목"] },
-  { xMin: 13, xMax: 37, yMin: 17, yMax: 35, candidates: ["가슴", "어깨", "목"] },
-  { xMin: 13, xMax: 37, yMin: 33, yMax: 55, candidates: ["가슴", "복부", "갈비뼈"] },
-  { xMin: 8,  xMax: 42, yMin: 53, yMax: 68, candidates: ["좌 고관절", "우 고관절", "골반"] },
-  { xMin: 5,  xMax: 24, yMin: 66, yMax: 87, candidates: ["좌 허벅지", "좌 무릎", "좌 종아리"] },
-  { xMin: 22, xMax: 47, yMin: 66, yMax: 87, candidates: ["우 허벅지", "우 무릎", "우 종아리"] },
-  { xMin: 5,  xMax: 24, yMin: 86, yMax: 100, candidates: ["좌 발목", "좌 발"] },
-  { xMin: 22, xMax: 47, yMin: 86, yMax: 100, candidates: ["우 발목", "우 발"] },
-  // ── 후면 (오른쪽 절반) ──
-  { xMin: 60, xMax: 88, yMin: 0,  yMax: 17, candidates: ["목", "경추", "두통"] },
-  { xMin: 50, xMax: 68, yMin: 17, yMax: 55, candidates: ["좌 어깨(후)", "좌 팔", "등"] },
-  { xMin: 82, xMax: 100, yMin: 17, yMax: 55, candidates: ["우 어깨(후)", "우 팔", "등"] },
-  { xMin: 62, xMax: 86, yMin: 17, yMax: 35, candidates: ["등(승모근)", "어깨", "목"] },
-  { xMin: 62, xMax: 86, yMin: 33, yMax: 53, candidates: ["등(승모근)", "허리", "척추"] },
-  { xMin: 53, xMax: 97, yMin: 51, yMax: 68, candidates: ["허리", "좌 엉덩이", "우 엉덩이", "골반"] },
-  { xMin: 50, xMax: 74, yMin: 66, yMax: 87, candidates: ["좌 허벅지", "좌 무릎", "좌 종아리"] },
-  { xMin: 72, xMax: 100, yMin: 66, yMax: 87, candidates: ["우 허벅지", "우 무릎", "우 종아리"] },
-  { xMin: 53, xMax: 97, yMin: 86, yMax: 100, candidates: ["좌 발목", "우 발목", "발(족저근막)"] },
+const FRONT_ROWS: BodyRow[] = [
+  { left: "목",         right: "목" },
+  { left: "좌 어깨",    right: "우 어깨" },
+  { left: "좌 팔",      right: "우 팔" },
+  { left: "복부",       right: "복부" },
+  { left: "좌 고관절",  right: "우 고관절" },
+  { left: "좌 무릎",    right: "우 무릎" },
+  { left: "좌 발목/발", right: "우 발목/발" },
+];
+
+const BACK_ROWS: BodyRow[] = [
+  { left: "좌 목/등",    right: "우 목/등" },
+  { left: "좌 어깨/등",  right: "우 어깨/등" },
+  { left: "좌 등/허리",  right: "우 등/허리" },
+  { left: "좌 허리",     right: "우 허리" },
+  { left: "좌 엉덩이",   right: "우 엉덩이" },
+  { left: "좌 허벅지",   right: "우 허벅지" },
+  { left: "좌 종아리/발", right: "우 종아리/발" },
 ];
 
 function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
-  const [candidates, setCandidates] = useState<string[]>([]);
-  const [tapDot, setTapDot] = useState<{ x: number; y: number } | null>(null);
+  const [view, setView] = useState<"front" | "back">("front");
+  const rows = view === "front" ? FRONT_ROWS : BACK_ROWS;
 
-  function handleTap(e: React.MouseEvent<HTMLImageElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
-    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
-    const zone = ZONES.find(z => xPct >= z.xMin && xPct <= z.xMax && yPct >= z.yMin && yPct <= z.yMax);
-    if (zone) {
-      setCandidates(zone.candidates);
-      setTapDot({ x: xPct, y: yPct });
-    } else {
-      setCandidates([]);
-      setTapDot(null);
-    }
-  }
-
-  function dismiss() {
-    setCandidates([]);
-    setTapDot(null);
-  }
-
-  function pick(part: string) {
+  function toggle(part: string) {
     onChange(selected.includes(part) ? selected.filter(p => p !== part) : [...selected, part]);
   }
 
   return (
     <div className="space-y-3">
-      <div className="relative">
-        <img
-          src="/body-map.png"
-          className="w-full block rounded-xl border border-border cursor-pointer touch-manipulation"
-          draggable={false}
-          alt="신체 부위 선택 — 해당 부위를 탭하세요"
-          onClick={handleTap}
-        />
-        {tapDot && (
-          <div
-            className="absolute w-5 h-5 rounded-full border-2 border-primary bg-primary/40 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ left: `${tapDot.x}%`, top: `${tapDot.y}%` }}
-          />
-        )}
+      {/* 전면 / 후면 탭 */}
+      <div className="grid grid-cols-2 rounded-lg border border-border overflow-hidden text-sm">
+        {(["front", "back"] as const).map(v => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`py-1.5 font-medium transition-colors touch-manipulation ${
+              view === v ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {v === "front" ? "전면" : "후면"}
+          </button>
+        ))}
       </div>
 
-      {candidates.length > 0 && (
-        <div className="bg-muted/40 border border-border rounded-xl p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground">이 주변 부위를 선택하세요</p>
-            <button onClick={dismiss} className="text-muted-foreground hover:text-foreground p-0.5">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {candidates.map(part => {
-              const on = selected.includes(part);
-              return (
+      {/* 이미지 + 그리드 오버레이 */}
+      <div className="relative rounded-xl border border-border overflow-hidden">
+        {/* 이미지를 절반씩 잘라서 표시 (body-map.png: 좌=전면, 우=후면) */}
+        <div className="overflow-hidden">
+          <img
+            src="/body-map.png"
+            className="block w-[200%]"
+            style={{ marginLeft: view === "front" ? "0" : "-100%" }}
+            draggable={false}
+            alt="신체 부위"
+          />
+        </div>
+
+        {/* 투명 그리드 — 각 행을 좌/우 버튼으로 분할 */}
+        <div className="absolute inset-0 flex flex-col">
+          {rows.map((row, i) => {
+            const leftOn = selected.includes(row.left);
+            const rightOn = selected.includes(row.right);
+            return (
+              <div key={i} className="flex flex-1 border-b border-white/10 last:border-0">
                 <button
-                  key={part}
-                  onClick={() => pick(part)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors touch-manipulation ${
-                    on
-                      ? "bg-primary text-white border-primary"
-                      : "bg-background text-foreground border-border hover:border-primary/50"
+                  onClick={() => toggle(row.left)}
+                  className={`w-1/2 flex items-center px-2 transition-colors touch-manipulation ${
+                    leftOn ? "bg-primary/50" : "active:bg-white/15"
                   }`}
                 >
-                  {on && <Check className="inline h-3 w-3 mr-1" />}{part}
+                  <span className="text-[10px] text-white/40 mr-0.5 shrink-0 tabular-nums">{i * 2 + 1}</span>
+                  <span className={`text-xs leading-tight text-left ${leftOn ? "text-white font-bold" : "text-white/70"}`}>
+                    {row.left}
+                  </span>
                 </button>
-              );
-            })}
-          </div>
-          <p className="text-[11px] text-muted-foreground">선택 후 이미지의 다른 부위를 탭하거나 × 로 닫으세요</p>
+                <button
+                  onClick={() => toggle(row.right)}
+                  className={`w-1/2 flex items-center justify-end px-2 transition-colors touch-manipulation ${
+                    rightOn ? "bg-primary/50" : "active:bg-white/15"
+                  }`}
+                >
+                  <span className={`text-xs leading-tight text-right ${rightOn ? "text-white font-bold" : "text-white/70"}`}>
+                    {row.right}
+                  </span>
+                  <span className="text-[10px] text-white/40 ml-0.5 shrink-0 tabular-nums">{i * 2 + 2}</span>
+                </button>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
 
+      {/* 선택된 부위 칩 */}
       {selected.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold text-muted-foreground">선택된 부위</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground">선택된 부위</p>
+            <button onClick={() => onChange([])} className="text-[11px] text-muted-foreground underline">전체 삭제</button>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {selected.map(part => (
               <button
@@ -460,7 +458,7 @@ export default function AttendanceCheck({ memberId }: Props) {
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm text-muted-foreground">통증 부위 <span className="text-xs">(신체를 직접 탭하세요)</span></label>
+            <label className="text-sm text-muted-foreground">통증 부위 <span className="text-xs">(해당 부위를 탭하세요)</span></label>
             <BodyPainMap selected={painAreas} onChange={setPainAreas} />
           </div>
         </Section>
