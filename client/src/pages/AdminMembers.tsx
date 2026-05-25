@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { Search, ChevronRight, MapPin } from "lucide-react";
@@ -94,17 +94,32 @@ export default function AdminMembers() {
     return MONTH_ORDER.filter((k) => map.has(k)).map((k) => ({ label: k, count: map.get(k)!, total }));
   })();
 
-  const filtered = allMembers?.filter((m) => {
+  // 동일 이름+전화 회원 그룹핑 (합산 표시)
+  type MemberRow = NonNullable<typeof allMembers>[0];
+  const groupedMembers = useMemo(() => {
+    if (!allMembers) return [];
+    const map = new Map<string, MemberRow[]>();
+    for (const m of allMembers) {
+      const key = m.phone?.trim()
+        ? `${m.name.trim()}||${m.phone.trim()}`
+        : `__solo_${m.id}`;
+      const arr = map.get(key) ?? [];
+      arr.push(m);
+      map.set(key, arr);
+    }
+    return Array.from(map.values());
+  }, [allMembers]);
+
+  const filtered = groupedMembers?.filter((group) => {
+    const m = group[0];
     const q = search.trim().toLowerCase();
     const matchSearch =
       !q ||
       m.name.toLowerCase().includes(q) ||
-      (m.trainerName ?? "").toLowerCase().includes(q) ||
-      (m.profileNote ?? "").toLowerCase().includes(q);
-
-    const mType = memberType(m.packages, m.status, m.hasPtRevenue);
-    const matchType = typeFilter === "all" || mType === typeFilter;
-
+      group.some(g => (g.trainerName ?? "").toLowerCase().includes(q)) ||
+      group.some(g => (g.profileNote ?? "").toLowerCase().includes(q));
+    const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue));
+    const matchType = typeFilter === "all" || mTypes.includes(typeFilter as any);
     return matchSearch && matchType;
   });
 
@@ -202,42 +217,42 @@ export default function AdminMembers() {
         {!isLoading && (!filtered || filtered.length === 0) && (
           <p className="text-center text-muted-foreground py-8 text-sm">검색 결과가 없습니다</p>
         )}
-        {filtered?.map((m) => {
-          const mType = memberType(m.packages, m.status, m.hasPtRevenue);
-          const pkgLabel = m.packages.map((p) => p.packageName).filter(Boolean).join(", ");
+        {filtered?.map((group) => {
+          const primary = group.find(g => memberType(g.packages, g.status, g.hasPtRevenue) === "PT") ?? group[0];
+          const types = Array.from(new Set(group.map(g => memberType(g.packages, g.status, g.hasPtRevenue))));
+          const pkgLabel = group
+            .flatMap(g => g.packages.map(p => p.packageName).filter(Boolean))
+            .filter((v, i, a) => a.indexOf(v) === i)
+            .join(", ");
+          const trainerNames = Array.from(new Set(group.map(g => g.trainerName).filter(Boolean)));
+          const isDuplicate = group.length > 1;
+          const typeStyle = (t: string) =>
+            t === "PT" ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+            : t === "헬스" ? "bg-green-500/20 text-green-400 border-green-500/30"
+            : "bg-muted text-muted-foreground border-border";
           return (
             <button
-              key={m.id}
-              onClick={() => setLocation(`/members/${m.id}`)}
+              key={primary.id}
+              onClick={() => setLocation(`/members/${primary.id}`)}
               className="w-full text-left bg-card border border-border rounded-xl px-4 py-3 hover:bg-accent transition-colors"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium border ${
-                      mType === "PT"
-                        ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-                        : mType === "헬스"
-                        ? "bg-green-500/20 text-green-400 border-green-500/30"
-                        : "bg-muted text-muted-foreground border-border"
-                    }`}>
-                      {mType}
-                    </span>
-                    <span className="font-medium text-sm">{m.name}</span>
-                    {pkgLabel && (
-                      <span className="text-xs text-muted-foreground truncate">{pkgLabel}</span>
+                    {types.map(t => (
+                      <span key={t} className={`text-xs px-1.5 py-0.5 rounded font-medium border ${typeStyle(t)}`}>{t}</span>
+                    ))}
+                    <span className="font-medium text-sm">{primary.name}</span>
+                    {pkgLabel && <span className="text-xs text-muted-foreground truncate">{pkgLabel}</span>}
+                    {isDuplicate && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/30">통합</span>
                     )}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {m.trainerName && <span>{m.trainerName}</span>}
-                    {m.trainerName && m.membershipStart && <span>·</span>}
-                    {m.membershipStart && <span>{m.membershipStart}</span>}
-                    {m.profileNote && (
-                      <>
-                        <span>·</span>
-                        <span className="truncate max-w-[120px]">{m.profileNote}</span>
-                      </>
-                    )}
+                    {trainerNames.length > 0 && <span>{trainerNames.join(", ")}</span>}
+                    {trainerNames.length > 0 && primary.membershipStart && <span>·</span>}
+                    {primary.membershipStart && <span>{primary.membershipStart}</span>}
+                    {primary.profileNote && <><span>·</span><span className="truncate max-w-[120px]">{primary.profileNote}</span></>}
                   </div>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />

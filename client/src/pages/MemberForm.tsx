@@ -59,6 +59,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: trainerList } = trpc.trainers.list.useQuery();
+  const { data: allMembers = [] } = trpc.members.list.useQuery();
   const { data: existingMember } = trpc.members.getById.useQuery(
     { id: memberId! },
     { enabled: isEdit }
@@ -103,6 +104,12 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
     if (currentUser?.role === "admin" && !isEdit && !form.adminTrainerId) newErrors.adminTrainerId = "담당 트레이너를 선택해주세요.";
+    if (!isEdit && form.name.trim() && form.phone.trim()) {
+      const dup = allMembers.find(
+        m => m.name.trim() === form.name.trim() && m.phone?.trim() === form.phone.trim()
+      );
+      if (dup) newErrors.name = "동일한 이름, 연락처가 중복되었습니다.";
+    }
     return newErrors;
   };
 
