@@ -14,7 +14,7 @@ import {
   XCircle,
   AlertCircle,
   LogIn,
-  Image as ImageIcon,
+  Image,
   Eye,
   EyeOff,
   Pencil,
@@ -604,57 +604,14 @@ export default function AccessManagement() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">배너 이미지 (선택)</label>
-                  {/* 파일 직접 업로드 */}
-                  <label className="flex items-center gap-2 cursor-pointer w-full border border-dashed border-border rounded-lg px-3 py-2.5 text-sm hover:bg-accent transition-colors mb-2">
-                    <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="text-muted-foreground truncate">
-                      {bannerForm.imageUrl?.startsWith("data:") ? "이미지 업로드됨 ✓" : "파일 선택 (JPG · PNG · WEBP)"}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (ev) => {
-                          const img = new Image();
-                          img.onload = () => {
-                            // 최대 800×450px로 축소 (배너 표시 크기 기준), JPEG 75% 품질
-                            const MAX_W = 800, MAX_H = 450;
-                            let w = img.width, h = img.height;
-                            if (w > MAX_W || h > MAX_H) {
-                              const r = Math.min(MAX_W / w, MAX_H / h);
-                              w = Math.round(w * r); h = Math.round(h * r);
-                            }
-                            const canvas = document.createElement("canvas");
-                            canvas.width = w; canvas.height = h;
-                            canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
-                            const compressed = canvas.toDataURL("image/jpeg", 0.75);
-                            setBannerForm((f) => ({ ...f, imageUrl: compressed }));
-                          };
-                          img.src = ev.target?.result as string;
-                        };
-                        reader.readAsDataURL(file);
-                      }}
-                    />
-                  </label>
-                  {/* 또는 URL 직접 입력 */}
+                  <label className="text-xs text-muted-foreground mb-1 block">이미지 URL (선택)</label>
                   <input
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    placeholder="또는 직접 이미지 주소 입력 (https://i.ibb.co/xxx.jpg)"
-                    value={bannerForm.imageUrl?.startsWith("data:") ? "" : (bannerForm.imageUrl ?? "")}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, imageUrl: e.target.value || undefined as any }))}
+                    placeholder="https://i.ibb.co/xxx/image.jpg  (직접 이미지 주소)"
+                    value={bannerForm.imageUrl}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, imageUrl: e.target.value }))}
                   />
-                  {bannerForm.imageUrl && (
-                    <button
-                      type="button"
-                      className="text-xs text-red-400 mt-1 hover:underline"
-                      onClick={() => setBannerForm((f) => ({ ...f, imageUrl: "" }))}
-                    >✕ 이미지 제거</button>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-1">imgbb.com 업로드 후 <b>Direct link</b> 복사해서 붙여넣기</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">배경색 (이미지 없을 때)</label>
