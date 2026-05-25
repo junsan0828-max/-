@@ -607,11 +607,20 @@ export default function AccessManagement() {
                   <label className="text-xs text-muted-foreground mb-1 block">이미지 URL (선택)</label>
                   <input
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    placeholder="https://i.ibb.co/xxx/image.jpg  (직접 이미지 주소)"
+                    placeholder="이미지 URL 또는 HTML/BBCode 코드 붙여넣기"
                     value={bannerForm.imageUrl}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, imageUrl: e.target.value }))}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      // HTML <img src="..."> 에서 URL 추출
+                      const htmlMatch = val.match(/src=["']([^"']+)["']/);
+                      if (htmlMatch) val = htmlMatch[1];
+                      // BBCode [img]...[/img] 에서 URL 추출
+                      const bbMatch = val.match(/\[img\](https?:\/\/[^\[]+)\[\/img\]/i);
+                      if (bbMatch) val = bbMatch[1];
+                      setBannerForm((f) => ({ ...f, imageUrl: val }));
+                    }}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">imgbb.com 업로드 후 <b>Direct link</b> 복사해서 붙여넣기</p>
+                  <p className="text-xs text-muted-foreground mt-1">imgbb.com → "HTML 원본 이미지 링크" 또는 "BBCode" 코드 그대로 붙여넣어도 됩니다</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">배경색 (이미지 없을 때)</label>
