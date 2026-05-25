@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog, Menu,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog, Menu, GraduationCap,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 
@@ -63,6 +63,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/leads", label: "상담실", icon: UserPlus },
     { path: "/settlement", label: "성장분석", icon: TrendingUp },
     { path: "/workshop", label: "작업실", icon: Wrench },
+    { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 

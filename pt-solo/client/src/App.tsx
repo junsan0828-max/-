@@ -24,6 +24,7 @@ import AdminPoints from "./pages/AdminPoints";
 import AdminRegistrations from "./pages/AdminRegistrations";
 import Leads from "./pages/Leads";
 import Workshop from "./pages/Workshop";
+import Academy from "./pages/Academy";
 import TrainerBrandPage from "./pages/TrainerBrandPage";
 import SurveyPage from "./pages/SurveyPage";
 import Layout from "./components/Layout";
@@ -166,6 +167,7 @@ function App() {
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
           <Route path="/workshop">{() => <Workshop />}</Route>
+          <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" />}</Route>
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
