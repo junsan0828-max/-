@@ -14,7 +14,7 @@ import {
   XCircle,
   AlertCircle,
   LogIn,
-  Image,
+  Image as ImageIcon,
   Eye,
   EyeOff,
   Pencil,
@@ -604,17 +604,41 @@ export default function AccessManagement() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">이미지 URL (선택)</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">배너 이미지 (선택)</label>
+                  {/* 파일 직접 업로드 */}
+                  <label className="flex items-center gap-2 cursor-pointer w-full border border-dashed border-border rounded-lg px-3 py-2.5 text-sm hover:bg-accent transition-colors mb-2">
+                    <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground truncate">
+                      {bannerForm.imageUrl?.startsWith("data:") ? "이미지 업로드됨 ✓" : "파일 선택 (JPG · PNG · WEBP)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          setBannerForm((f) => ({ ...f, imageUrl: ev.target?.result as string }));
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                  {/* 또는 URL 직접 입력 */}
                   <input
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    placeholder="https://i.imgur.com/xxx.jpg  ← 직접 이미지 주소(.jpg/.png)만 가능"
-                    value={bannerForm.imageUrl}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, imageUrl: e.target.value }))}
+                    placeholder="또는 직접 이미지 주소 입력 (https://i.ibb.co/xxx.jpg)"
+                    value={bannerForm.imageUrl?.startsWith("data:") ? "" : (bannerForm.imageUrl ?? "")}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, imageUrl: e.target.value || undefined as any }))}
                   />
-                  {bannerForm.imageUrl && !/\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(bannerForm.imageUrl) && (
-                    <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
-                      ⚠ 이미지 파일 URL이 아닌 것 같습니다. imgbb.com 또는 imgur.com에 업로드 후 직접 링크를 사용하세요.
-                    </p>
+                  {bannerForm.imageUrl && (
+                    <button
+                      type="button"
+                      className="text-xs text-red-400 mt-1 hover:underline"
+                      onClick={() => setBannerForm((f) => ({ ...f, imageUrl: "" }))}
+                    >✕ 이미지 제거</button>
                   )}
                 </div>
                 <div>
