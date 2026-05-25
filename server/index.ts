@@ -485,6 +485,7 @@ async function initDatabase() {
     `ALTER TABLE sheet_pending_members ADD COLUMN IF NOT EXISTS "membershipType" TEXT`,
     `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "textAlign" TEXT DEFAULT 'center'`,
     `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "textVAlign" TEXT DEFAULT 'center'`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
     `CREATE TABLE IF NOT EXISTS training_manuals (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,

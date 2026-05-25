@@ -450,15 +450,22 @@ export const accessRouter = t.router({
   // ── 키오스크 배너 ──────────────────────────────────────────────────────────
 
   // 배너 목록 조회 (키오스크 — 인증 불필요)
-  getBanners: publicProcedure.query(async () => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db
-      .select()
-      .from(kioskBanners)
-      .where(eq(kioskBanners.isActive, 1))
-      .orderBy(kioskBanners.sortOrder, kioskBanners.id);
-  }),
+  getBanners: publicProcedure
+    .input(z.object({ branchId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db
+        .select()
+        .from(kioskBanners)
+        .where(eq(kioskBanners.isActive, 1))
+        .orderBy(kioskBanners.sortOrder, kioskBanners.id);
+      // 지점 필터: branchId 없는 배너(전체)는 항상 포함, 지점 지정 배너는 일치할 때만
+      if (input.branchId) {
+        return rows.filter((b) => b.branchId == null || b.branchId === input.branchId);
+      }
+      return rows;
+    }),
 
   // 배너 전체 목록 (관리자용)
   getAllBanners: protectedProcedure.query(async () => {
@@ -480,6 +487,7 @@ export const accessRouter = t.router({
       endDate: z.string().optional(),
       textAlign: z.string().default("center"),
       textVAlign: z.string().default("center"),
+      branchId: z.number().nullable().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -496,6 +504,7 @@ export const accessRouter = t.router({
         endDate: input.endDate,
         textAlign: input.textAlign,
         textVAlign: input.textVAlign,
+        branchId: input.branchId ?? null,
       }).returning();
       return banner;
     }),
@@ -515,6 +524,7 @@ export const accessRouter = t.router({
       endDate: z.string().optional(),
       textAlign: z.string().optional(),
       textVAlign: z.string().optional(),
+      branchId: z.number().nullable().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();

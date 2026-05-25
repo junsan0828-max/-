@@ -482,5 +482,6 @@ export const kioskBanners = pgTable("kiosk_banners", {
   endDate: text("endDate"),
   textAlign: text("textAlign").default("center"),
   textVAlign: text("textVAlign").default("center"),
+  branchId: integer("branchId"),
   createdAt: text("createdAt").default(now).notNull(),
 });

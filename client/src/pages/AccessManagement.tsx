@@ -101,7 +101,7 @@ export default function AccessManagement() {
   const [showBannerForm, setShowBannerForm] = useState(false);
   const [editingBanner, setEditingBanner] = useState<KioskBanner | null>(null);
   const [bannerForm, setBannerForm] = useState({
-    title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center",
+    title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", branchId: null as number | null,
   });
 
   const utils = trpc.useUtils();
@@ -145,7 +145,7 @@ export default function AccessManagement() {
   });
 
   function resetBannerForm() {
-    setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center" });
+    setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", branchId: null });
   }
   function openEditBanner(b: KioskBanner) {
     setEditingBanner(b);
@@ -155,6 +155,7 @@ export default function AccessManagement() {
       startDate: b.startDate ?? "", endDate: b.endDate ?? "",
       textAlign: (b as any).textAlign ?? "center",
       textVAlign: (b as any).textVAlign ?? "center",
+      branchId: (b as any).branchId ?? null,
     });
   }
   function saveBanner() {
@@ -169,6 +170,7 @@ export default function AccessManagement() {
       endDate: bannerForm.endDate || undefined,
       textAlign: bannerForm.textAlign,
       textVAlign: bannerForm.textVAlign,
+      branchId: bannerForm.branchId,
     };
     if (editingBanner) {
       updateBanner.mutate({ id: editingBanner.id, ...payload });
@@ -578,6 +580,19 @@ export default function AccessManagement() {
                     onChange={(e) => setBannerForm((f) => ({ ...f, title: e.target.value }))}
                   />
                 </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">노출 지점</label>
+                  <select
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                    value={bannerForm.branchId ?? ""}
+                    onChange={(e) => setBannerForm((f) => ({ ...f, branchId: e.target.value === "" ? null : Number(e.target.value) }))}
+                  >
+                    <option value="">전체 (모든 지점)</option>
+                    {branches.map((br) => (
+                      <option key={br.id} value={br.id}>{br.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="col-span-2">
                   <label className="text-xs text-muted-foreground mb-1 block">내용 (선택)</label>
                   <textarea
@@ -734,9 +749,14 @@ export default function AccessManagement() {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{b.title}</p>
                     {b.body && <p className="text-xs text-muted-foreground truncate">{b.body}</p>}
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {b.startDate && `${b.startDate} ~`} {b.endDate && b.endDate}
-                      {!b.startDate && !b.endDate && "항상 표시"}
+                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                      <span>{b.startDate && `${b.startDate} ~`} {b.endDate && b.endDate}{!b.startDate && !b.endDate && "항상 표시"}</span>
+                      {(b as any).branchId
+                        ? <span className="px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8" }}>
+                            {branches.find((br) => br.id === (b as any).branchId)?.name ?? `지점 ${(b as any).branchId}`}
+                          </span>
+                        : <span className="px-1.5 py-0.5 rounded text-xs text-muted-foreground/60" style={{ background: "rgba(255,255,255,0.05)" }}>전체</span>
+                      }
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

@@ -103,6 +103,11 @@ type KioskTab = "phone" | "number";
 type BottomNav = "home" | "locker" | "search" | "logs" | "more";
 
 export default function KioskCheckin() {
+  const branchId = (() => {
+    const p = new URLSearchParams(window.location.search).get("b");
+    return p ? parseInt(p) : undefined;
+  })();
+
   const [digits, setDigits] = useState("");
   const [result, setResult] = useState<CheckResult>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -128,7 +133,7 @@ export default function KioskCheckin() {
     };
   }, []);
 
-  const bannersQuery = trpc.access.getBanners.useQuery(undefined, {
+  const bannersQuery = trpc.access.getBanners.useQuery({ branchId }, {
     refetchInterval: 10000,
     staleTime: 0,
     gcTime: 0,
@@ -338,21 +343,17 @@ export default function KioskCheckin() {
                       </p>
                     )}
                   </div>
-                  {/* 점 인디케이터 */}
+                  {/* 하단 인디케이터 바 */}
                   {banners.length > 1 && (
-                    <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                    <div className="absolute bottom-0 left-0 right-0 flex gap-1 px-3 pb-2">
                       {banners.map((_, di) => (
                         <button
                           key={di}
                           onClick={() => setBannerIdx(di)}
                           style={{
-                            width: di === bannerIdx ? 16 : 6,
-                            height: 6,
-                            borderRadius: 3,
-                            background: di === bannerIdx ? b.textColor : "rgba(255,255,255,0.35)",
-                            transition: "width 0.3s",
-                            border: "none",
-                            padding: 0,
+                            flex: 1, height: 3, borderRadius: 2, border: "none", padding: 0,
+                            background: di === bannerIdx ? b.textColor : "rgba(255,255,255,0.25)",
+                            transition: "background 0.3s",
                           }}
                         />
                       ))}
