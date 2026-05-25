@@ -620,7 +620,22 @@ export default function AccessManagement() {
                         if (!file) return;
                         const reader = new FileReader();
                         reader.onload = (ev) => {
-                          setBannerForm((f) => ({ ...f, imageUrl: ev.target?.result as string }));
+                          const img = new Image();
+                          img.onload = () => {
+                            // 최대 800×450px로 축소 (배너 표시 크기 기준), JPEG 75% 품질
+                            const MAX_W = 800, MAX_H = 450;
+                            let w = img.width, h = img.height;
+                            if (w > MAX_W || h > MAX_H) {
+                              const r = Math.min(MAX_W / w, MAX_H / h);
+                              w = Math.round(w * r); h = Math.round(h * r);
+                            }
+                            const canvas = document.createElement("canvas");
+                            canvas.width = w; canvas.height = h;
+                            canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+                            const compressed = canvas.toDataURL("image/jpeg", 0.75);
+                            setBannerForm((f) => ({ ...f, imageUrl: compressed }));
+                          };
+                          img.src = ev.target?.result as string;
                         };
                         reader.readAsDataURL(file);
                       }}
