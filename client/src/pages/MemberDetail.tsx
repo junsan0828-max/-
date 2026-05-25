@@ -325,6 +325,7 @@ export default function MemberDetail({ memberId }: Props) {
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
+  const { data: allMembers } = trpc.members.list.useQuery(undefined, { enabled: true });
   const { data: ptPackages, refetch: refetchPt } = trpc.pt.listByMember.useQuery({ memberId });
   const { data: payments } = trpc.members.getPayments.useQuery({ memberId });
   const { data: attendanceList, refetch: refetchAttendance } =
@@ -2496,7 +2497,7 @@ export default function MemberDetail({ memberId }: Props) {
       {transferOpen && member && (
         <TransferModal
           member={{ id: member.id, name: member.name, phone: member.phone ?? null }}
-          allMembers={[]}
+          allMembers={(allMembers ?? []).map((m) => ({ id: m.id, name: m.name, phone: m.phone ?? null }))}
           ptPackages={
             (ptPackages ?? []).map((p) => ({
               id: p.id,
