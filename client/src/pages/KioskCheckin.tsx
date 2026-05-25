@@ -100,6 +100,21 @@ export default function KioskCheckin() {
   const bannerTouchX = useRef<number | null>(null);
   const now = useClock();
 
+  // 키오스크 전용 manifest로 교체 → 홈 화면 추가 시 /kiosk로 열림
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    const prev = link?.href ?? "";
+    if (link) link.href = "/manifest-kiosk.json";
+    // iOS apple-mobile-web-app-title 도 변경
+    const appleMeta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    const prevTitle = appleMeta?.content ?? "";
+    if (appleMeta) appleMeta.content = "키오스크";
+    return () => {
+      if (link) link.href = prev;
+      if (appleMeta) appleMeta.content = prevTitle;
+    };
+  }, []);
+
   const bannersQuery = trpc.access.getBanners.useQuery(undefined, { refetchInterval: 60000 });
   const banners = (bannersQuery.data ?? []) as Banner[];
 
