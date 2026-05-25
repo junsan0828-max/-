@@ -58,38 +58,54 @@ const BACK_SPOTS: BodySpot[] = [
 ];
 
 function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  const ALL_SPOTS = [...FRONT_SPOTS, ...BACK_SPOTS];
+
   function toggle(part: string) {
     onChange(selected.includes(part) ? selected.filter(p => p !== part) : [...selected, part]);
   }
 
-  function renderSpots(spots: BodySpot[]) {
-    return spots.map(s => {
-      const on = selected.includes(s.part);
-      return (
-        <button
-          key={s.part}
-          onClick={() => toggle(s.part)}
-          title={s.part}
-          style={{ left: `${s.x}%`, top: `${s.y}%` }}
-          className="absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center touch-manipulation"
-        >
-          <div className={`rounded-full transition-all pointer-events-none ${
-            on
-              ? "w-4 h-4 bg-primary ring-2 ring-white shadow-md shadow-primary/60"
-              : "w-3 h-3 bg-white/80 ring-2 ring-primary/80"
-          }`} />
-        </button>
-      );
-    });
+  function handleTap(e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    let clientX: number, clientY: number;
+    if ("touches" in e) {
+      if (e.changedTouches.length === 0) return;
+      clientX = e.changedTouches[0].clientX;
+      clientY = e.changedTouches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+
+    let nearest = ALL_SPOTS[0];
+    let minDist = Infinity;
+    for (const spot of ALL_SPOTS) {
+      const dist = Math.hypot(spot.x - x, spot.y - y);
+      if (dist < minDist) { minDist = dist; nearest = spot; }
+    }
+    if (minDist <= 10) toggle(nearest.part);
   }
 
   return (
     <div className="space-y-3">
-      <div className="relative select-none rounded-xl overflow-hidden border border-border">
+      <p className="text-[11px] text-muted-foreground text-center">이미지를 직접 탭하면 가까운 부위가 선택됩니다</p>
+      <div
+        className="relative select-none rounded-xl overflow-hidden border border-border cursor-pointer"
+        onClick={handleTap}
+        onTouchEnd={handleTap}
+      >
         <img src="/body-map.png" className="w-full block pointer-events-none" draggable={false} alt="신체 부위 지도" />
-        <div className="absolute inset-0">
-          {renderSpots(FRONT_SPOTS)}
-          {renderSpots(BACK_SPOTS)}
+        {/* 선택된 부위만 표시 */}
+        <div className="absolute inset-0 pointer-events-none">
+          {ALL_SPOTS.filter(s => selected.includes(s.part)).map(s => (
+            <div
+              key={s.part}
+              style={{ left: `${s.x}%`, top: `${s.y}%` }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-primary ring-2 ring-white shadow-lg"
+            />
+          ))}
         </div>
       </div>
 
@@ -98,7 +114,7 @@ function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v:
           {selected.map(p => (
             <span key={p} className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
               {p}
-              <button onClick={() => toggle(p)} className="text-primary/60 hover:text-primary leading-none">×</button>
+              <button onClick={e => { e.stopPropagation(); toggle(p); }} className="text-primary/60 hover:text-primary leading-none">×</button>
             </span>
           ))}
           <button onClick={() => onChange([])} className="text-[10px] text-muted-foreground underline ml-1">전체 해제</button>
