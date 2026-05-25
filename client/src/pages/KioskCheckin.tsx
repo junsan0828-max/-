@@ -290,11 +290,11 @@ export default function KioskCheckin() {
                 className="absolute inset-0 flex flex-col justify-center items-center px-8"
                 style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 100%)" }}
               >
-                <p style={{ fontSize: 11, color: "#334155", letterSpacing: "0.35em", marginBottom: 20, textTransform: "uppercase" }}>Notice</p>
-                <p style={{ fontSize: 26, fontWeight: 700, color: "#e2e8f0", textAlign: "center", lineHeight: 1.5, marginBottom: 12 }}>
+                <p style={{ fontSize: 13, color: "#334155", letterSpacing: "0.5em", marginBottom: 18, textTransform: "uppercase", fontWeight: 600 }}>NOTICE</p>
+                <p style={{ fontSize: 34, fontWeight: 800, color: "#e2e8f0", textAlign: "center", lineHeight: 1.4, marginBottom: 14 }}>
                   공지사항이 없습니다
                 </p>
-                <p style={{ fontSize: 13, color: "#475569", textAlign: "center", lineHeight: 1.8 }}>출입관리 → 배너 관리에서 공지를 등록하세요</p>
+                <p style={{ fontSize: 15, color: "#475569", textAlign: "center", lineHeight: 1.8 }}>출입관리 → 배너 관리에서 공지를 등록하세요</p>
               </div>
             ) : (
               banners.map((b, i) => (
@@ -350,10 +350,9 @@ export default function KioskCheckin() {
             )}
           </div>
           {/* 헤더 */}
-          <div className="flex flex-col items-center pt-3 pb-2 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
-            <p style={{ fontSize: 11, color: "#4b5563", letterSpacing: "0.2em", marginBottom: 2 }}>맞춤운동센터</p>
-            <p style={{ fontFamily: "'Cinzel', serif", fontSize: 28, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.22em", textShadow: "0 0 18px rgba(42,95,196,0.45)" }}>ZIANTGYM</p>
-            <p style={{ fontSize: 10, color: "#374151", letterSpacing: "0.12em", marginTop: 1 }}>ACCESS SYSTEM</p>
+          <div className="flex flex-col items-center pt-3 pb-3 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
+            <p style={{ fontSize: 22, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.05em", textShadow: "0 0 18px rgba(42,95,196,0.45)", lineHeight: 1.2 }}>맞춤운동센터 자이언트짐</p>
+            <p style={{ fontSize: 10, color: "#374151", letterSpacing: "0.15em", marginTop: 3 }}>ACCESS SYSTEM</p>
           </div>
 
           {/* 탭 */}
