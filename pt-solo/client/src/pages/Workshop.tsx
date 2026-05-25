@@ -1125,21 +1125,60 @@ function FeatureCard({
   );
 }
 
+const PREVIEW_FEATURES = [
+  {
+    key: "brand_page",
+    icon: <Globe className="h-5 w-5" />,
+    title: "내 브랜드 페이지",
+    desc: "나만의 트레이너 소개 페이지를 만들고 링크 하나로 고객에게 공유하세요. 전문 분야, 소개글, 소셜 미디어를 한 곳에 담을 수 있습니다.",
+  },
+  {
+    key: "booking",
+    icon: <Calendar className="h-5 w-5" />,
+    title: "상담 예약 링크",
+    desc: "고객이 직접 상담을 신청할 수 있는 예약 폼을 제공합니다. 신청이 들어오면 리드로 자동 등록되어 관리가 편해집니다.",
+  },
+  {
+    key: "report_branding",
+    icon: <BookMarked className="h-5 w-5" />,
+    title: "회원 보고서 브랜딩",
+    desc: "회원에게 공유하는 운동 보고서에 내 프로필과 브랜드 컬러를 표시합니다. 전문적인 인상을 남기고 신뢰를 높이세요.",
+  },
+  {
+    key: "templates",
+    icon: <Dumbbell className="h-5 w-5" />,
+    title: "운동 프로그램 템플릿",
+    desc: "자주 쓰는 루틴을 템플릿으로 저장하고 일지 작성 시 불러와 빠르게 입력하세요. 반복 작업을 대폭 줄여줍니다.",
+  },
+  {
+    key: "survey",
+    icon: <ClipboardList className="h-5 w-5" />,
+    title: "맞춤 상담 설문 빌더",
+    desc: "상담 전에 고객 정보를 미리 수집하는 설문을 직접 만들어 링크로 공유하세요. 주관식·객관식·척도 문항을 자유롭게 구성할 수 있습니다.",
+  },
+];
+
 export default function Workshop() {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
+  const [showOpenModal, setShowOpenModal] = useState(false);
   const trainerId = (user as any)?.trainerId as number | undefined;
 
-  const { data: unlocks } = trpc.workshop.listUnlocks.useQuery();
+  const { data: unlocks, isLoading: unlocksLoading } = trpc.workshop.listUnlocks.useQuery();
   const unlockMutation = trpc.workshop.unlock.useMutation({
     onSuccess: (_data, vars) => {
       utils.workshop.listUnlocks.invalidate();
       utils.fitPoints.getBalance.invalidate();
-      toast.success("기능이 잠금해제되었습니다!");
+      if (vars.feature === "workshop_access") {
+        toast.success("작업실이 오픈되었습니다!");
+        setShowOpenModal(false);
+      } else {
+        toast.success("기능이 잠금해제되었습니다!");
+        setOpenSection(vars.feature);
+      }
       setUnlockingKey(null);
-      setOpenSection(vars.feature);
     },
     onError: (e) => { toast.error(e.message); setUnlockingKey(null); },
   });
@@ -1161,6 +1200,113 @@ export default function Workshop() {
     return unlocks?.find((u: any) => u.feature === feature)?.points ?? 0;
   }
 
+  const workshopOpen = isUnlocked("workshop_access");
+
+  if (unlocksLoading) {
+    return (
+      <div className="space-y-4">
+        <TabBanner tabKey="workshop" />
+        <div className="flex items-center justify-center py-20">
+          <p className="text-sm text-muted-foreground">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 잠긴 상태: 프리뷰 + 오픈 모달 ──────────────────────────────────────────
+  if (!workshopOpen) {
+    return (
+      <div className="space-y-4">
+        <TabBanner tabKey="workshop" />
+        <div>
+          <h1 className="text-xl font-bold">작업실</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">핏포인트로 작업실을 오픈하고 브랜딩 기능을 사용하세요</p>
+        </div>
+
+        {/* 오픈 CTA 배너 */}
+        <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-5 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Lock className="h-5 w-5 text-primary" />
+            <p className="font-bold text-base">작업실이 잠겨 있습니다</p>
+          </div>
+          <p className="text-sm text-muted-foreground">아래 기능들은 작업실을 오픈한 트레이너만 사용할 수 있습니다. 핏포인트 50,000P를 사용하면 모든 기능에 접근할 수 있습니다.</p>
+          <Button className="w-full gap-2 mt-1" onClick={() => setShowOpenModal(true)}>
+            <Coins className="h-4 w-4" />
+            작업실 오픈하기 · 50,000P
+          </Button>
+        </div>
+
+        {/* 기능 프리뷰 카드들 */}
+        <div className="space-y-3">
+          {PREVIEW_FEATURES.map(f => (
+            <Card key={f.key} className="bg-card border-border opacity-80">
+              <div className="flex items-start gap-3 px-4 py-4">
+                <span className="text-muted-foreground mt-0.5 shrink-0">{f.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-semibold text-sm">{f.title}</p>
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* 오픈 확인 모달 */}
+        {showOpenModal && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setShowOpenModal(false)} />
+            <div className="relative bg-card rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6 space-y-5 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <p className="text-lg font-bold">작업실 오픈</p>
+                <button onClick={() => setShowOpenModal(false)} className="p-1 rounded-lg hover:bg-muted">
+                  <X className="h-5 w-5 text-muted-foreground" />
+                </button>
+              </div>
+
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-primary">포함 기능</p>
+                <ul className="space-y-2">
+                  {PREVIEW_FEATURES.map(f => (
+                    <li key={f.key} className="flex items-center gap-2 text-sm">
+                      <span className="text-primary shrink-0">{f.icon}</span>
+                      <span>{f.title}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <Coins className="h-5 w-5 text-amber-600" />
+                  <span className="text-sm font-semibold text-amber-800">사용 포인트</span>
+                </div>
+                <span className="text-lg font-bold text-amber-700">50,000 P</span>
+              </div>
+
+              <p className="text-xs text-muted-foreground">작업실 오픈은 영구 적용되며 환불되지 않습니다. 핏포인트 잔액이 충분한지 확인하세요.</p>
+
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowOpenModal(false)}>취소</Button>
+                <Button
+                  className="flex-1 gap-2"
+                  disabled={unlockingKey === "workshop_access"}
+                  onClick={() => handleUnlock("workshop_access")}
+                >
+                  <Coins className="h-4 w-4" />
+                  {unlockingKey === "workshop_access" ? "처리 중..." : "50,000P 결제"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── 오픈 상태: 개별 기능 잠금 게이트 ─────────────────────────────────────
   return (
     <div className="space-y-4">
       <TabBanner tabKey="workshop" />

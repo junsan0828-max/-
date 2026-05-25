@@ -2686,6 +2686,7 @@ const expensesRouter = t.router({
 // ── 운동 프로그램 템플릿 ───────────────────────────────────────────────────
 // ── 작업실 잠금해제 ────────────────────────────────────────────────────────
 const WORKSHOP_FEATURES: Record<string, { label: string; points: number }> = {
+  workshop_access:  { label: "작업실 오픈",             points: 50000 },
   brand_page:       { label: "내 브랜드 페이지",       points: 1000 },
   booking:          { label: "상담 예약 링크",          points: 500  },
   report_branding:  { label: "회원 보고서 브랜딩",      points: 500  },
