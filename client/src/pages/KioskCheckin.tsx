@@ -307,7 +307,7 @@ export default function KioskCheckin() {
               banners.map((b, i) => (
                 <div
                   key={b.id}
-                  className="absolute inset-0 flex flex-col justify-end transition-opacity duration-700"
+                  className="absolute inset-0 flex flex-col justify-center items-center transition-opacity duration-700"
                   style={{
                     opacity: i === bannerIdx ? 1 : 0,
                     pointerEvents: i === bannerIdx ? "auto" : "none",
@@ -316,17 +316,17 @@ export default function KioskCheckin() {
                       : b.bgColor,
                   }}
                 >
-                  <div className="px-5 pb-4 pt-8">
+                  <div className="px-6 text-center w-full">
                     <p
                       className="font-bold leading-snug"
-                      style={{ fontSize: 20, color: b.textColor, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
+                      style={{ fontSize: 22, color: b.textColor, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
                     >
                       {b.title}
                     </p>
                     {b.body && (
                       <p
-                        className="mt-1 leading-relaxed whitespace-pre-line"
-                        style={{ fontSize: 13, color: b.textColor, opacity: 0.85, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
+                        className="mt-2 leading-relaxed whitespace-pre-line"
+                        style={{ fontSize: 15, color: b.textColor, opacity: 0.9, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
                       >
                         {b.body}
                       </p>
@@ -334,7 +334,7 @@ export default function KioskCheckin() {
                   </div>
                   {/* 점 인디케이터 */}
                   {banners.length > 1 && (
-                    <div className="flex justify-center gap-1.5 pb-3">
+                    <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
                       {banners.map((_, di) => (
                         <button
                           key={di}
