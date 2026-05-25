@@ -453,17 +453,11 @@ export const accessRouter = t.router({
   getBanners: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    const today = new Date().toISOString().substring(0, 10);
-    const rows = await db
+    return db
       .select()
       .from(kioskBanners)
       .where(eq(kioskBanners.isActive, 1))
       .orderBy(kioskBanners.sortOrder, kioskBanners.id);
-    return rows.filter((b) => {
-      if (b.startDate && b.startDate > today) return false;
-      if (b.endDate && b.endDate < today) return false;
-      return true;
-    });
   }),
 
   // 배너 전체 목록 (관리자용)

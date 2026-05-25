@@ -126,8 +126,20 @@ export default function KioskCheckin() {
     };
   }, []);
 
-  const bannersQuery = trpc.access.getBanners.useQuery(undefined, { refetchInterval: 10000, staleTime: 0 });
-  const banners = (bannersQuery.data ?? []) as Banner[];
+  const bannersQuery = trpc.access.getBanners.useQuery(undefined, {
+    refetchInterval: 10000,
+    staleTime: 0,
+    gcTime: 0,
+    retry: 3,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+  });
+  const today = new Date().toISOString().substring(0, 10);
+  const banners = ((bannersQuery.data ?? []) as Banner[]).filter((b: any) => {
+    if (b.startDate && b.startDate > today) return false;
+    if (b.endDate && b.endDate < today) return false;
+    return true;
+  });
 
   useEffect(() => {
     if (banners.length <= 1) return;
@@ -431,7 +443,7 @@ export default function KioskCheckin() {
               disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 4) || checkIn.isPending}
               className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
               style={{
-                height: 72,
+                height: 83,
                 fontSize: 22,
                 background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
                 color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#444",
