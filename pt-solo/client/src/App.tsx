@@ -24,6 +24,7 @@ import AdminPoints from "./pages/AdminPoints";
 import AdminRegistrations from "./pages/AdminRegistrations";
 import Leads from "./pages/Leads";
 import Workshop from "./pages/Workshop";
+import TrainerBrandPage from "./pages/TrainerBrandPage";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
 import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
@@ -107,8 +108,14 @@ function App() {
   const [fitStepRootMatch, fitStepRootParams] = useRoute("/fit-step-plus/:trainerId");
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
+  const [brandMatch, brandParams] = useRoute("/p/:username");
+
   if (reportMatch && reportParams) {
     return <MemberReport token={reportParams.token} />;
+  }
+
+  if (brandMatch && brandParams) {
+    return <TrainerBrandPage username={brandParams.username} />;
   }
 
   if (window.location.pathname === "/contract-print") {

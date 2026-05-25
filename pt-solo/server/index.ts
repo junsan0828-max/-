@@ -564,6 +564,29 @@ async function initDatabase() {
   // 친구 초대 referral
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "referralCode" TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "referredBy" TEXT`);
+
+  // 브랜드 페이지 컬럼
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandBio" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandSpecialties" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandColor" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandInstagram" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandKakao" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandYoutube" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandIsPublic" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "bookingEnabled" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "bookingMessage" TEXT`);
+
+  // 상담 예약 테이블
+  await pool.query(`CREATE TABLE IF NOT EXISTS consultation_bookings (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    "interestType" TEXT,
+    message TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
   // 기존 유저 중 referralCode 없는 경우 자동 생성
   const noCodeUsers = await pool.query<{ id: number }>(`SELECT id FROM users WHERE "referralCode" IS NULL`);
   for (const u of noCodeUsers.rows) {

@@ -1486,6 +1486,7 @@ const reportsRouter = t.router({
       if (!tokenRows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "유효하지 않은 링크입니다." });
 
       const memberId = tokenRows[0].memberId;
+      const reportTrainerId = tokenRows[0].trainerId;
       const [memberRows, checks, memos, packages, attendanceList, sessionLogs] = await Promise.all([
         db.select().from(members).where(eq(members.id, memberId)).limit(1),
         db.select().from(attendanceChecks).where(eq(attendanceChecks.memberId, memberId)).orderBy(desc(attendanceChecks.checkDate)),
@@ -1497,6 +1498,12 @@ const reportsRouter = t.router({
 
       if (!memberRows[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
+      const trainerRow = await pool.query<any>(
+        `SELECT "trainerName","profileImage","brandColor","activityArea","jobType" FROM trainers WHERE id=$1`,
+        [reportTrainerId]
+      );
+      const trainerInfo = trainerRow.rows[0] ?? null;
+
       return {
         member: memberRows[0],
         conditionChecks: checks,
@@ -1504,6 +1511,7 @@ const reportsRouter = t.router({
         ptPackages: packages,
         attendances: attendanceList,
         sessionLogs,
+        trainerInfo,
         generatedAt: new Date().toISOString(),
       };
     }),
@@ -2675,6 +2683,104 @@ const expensesRouter = t.router({
 
 // ─── App Router ───────────────────────────────────────────────────────────────
 
+// ── 브랜드 페이지 ──────────────────────────────────────────────────────────
+const brandRouter = t.router({
+  // 내 브랜드 설정 조회
+  getMyBrand: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const row = await pool.query<any>(
+      `SELECT "brandBio","brandSpecialties","brandColor","brandInstagram","brandKakao","brandYoutube","brandIsPublic","bookingEnabled","bookingMessage","trainerName","profileImage","activityArea","jobType","careerRange"
+       FROM trainers WHERE id=$1`,
+      [trainerId]
+    );
+    return row.rows[0] ?? {};
+  }),
+
+  // 브랜드 설정 저장
+  updateMyBrand: protectedProcedure.input(z.object({
+    brandBio: z.string().optional(),
+    brandSpecialties: z.string().optional(),
+    brandColor: z.string().optional(),
+    brandInstagram: z.string().optional(),
+    brandKakao: z.string().optional(),
+    brandYoutube: z.string().optional(),
+    brandIsPublic: z.number().optional(),
+    bookingEnabled: z.number().optional(),
+    bookingMessage: z.string().optional(),
+  })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const fields = Object.entries(input).filter(([, v]) => v !== undefined);
+    if (fields.length === 0) return;
+    const sets = fields.map(([k], i) => `"${k}"=$${i + 1}`).join(", ");
+    const vals = fields.map(([, v]) => v);
+    await pool.query(`UPDATE trainers SET ${sets} WHERE id=$${vals.length + 1}`, [...vals, trainerId]);
+    return { success: true };
+  }),
+
+  // 공개 브랜드 페이지 조회 (username 기준, 로그인 불필요)
+  getPublicProfile: t.procedure.input(z.object({ username: z.string() })).query(async ({ input }) => {
+    const userRow = await pool.query<{ id: number }>(`SELECT id FROM users WHERE username=$1`, [input.username]);
+    if (!userRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+    const userId = userRow.rows[0].id;
+    const row = await pool.query<any>(
+      `SELECT t.id AS "trainerId", t."trainerName", t."profileImage", t."activityArea", t."jobType", t."careerRange",
+              t."brandBio", t."brandSpecialties", t."brandColor", t."brandInstagram", t."brandKakao", t."brandYoutube",
+              t."brandIsPublic", t."bookingEnabled", t."bookingMessage"
+       FROM trainers t WHERE t."userId"=$1`,
+      [userId]
+    );
+    const trainer = row.rows[0];
+    if (!trainer || !trainer.brandIsPublic) throw new TRPCError({ code: "NOT_FOUND", message: "공개된 페이지가 없습니다." });
+    return trainer;
+  }),
+
+  // 공개 상담 예약 제출
+  submitBooking: t.procedure.input(z.object({
+    trainerId: z.number(),
+    name: z.string().min(1),
+    phone: z.string().min(1),
+    interestType: z.string().optional(),
+    message: z.string().optional(),
+  })).mutation(async ({ input }) => {
+    await pool.query(
+      `INSERT INTO consultation_bookings ("trainerId", name, phone, "interestType", message) VALUES ($1,$2,$3,$4,$5)`,
+      [input.trainerId, input.name, input.phone, input.interestType ?? null, input.message ?? null]
+    );
+    // 리드에도 자동 등록
+    const today = new Date().toISOString().slice(0, 10);
+    await pool.query(
+      `INSERT INTO leads ("trainerId", name, phone, status, "consultationDate", "interestType", "consultationNote")
+       VALUES ($1,$2,$3,'pending',$4,$5,'브랜드 페이지 예약 신청')`,
+      [input.trainerId, input.name, input.phone, today, input.interestType ?? null]
+    );
+    return { success: true };
+  }),
+
+  // 내 예약 목록 조회
+  listBookings: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const rows = await pool.query<any>(
+      `SELECT * FROM consultation_bookings WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 50`,
+      [trainerId]
+    );
+    return rows.rows;
+  }),
+
+  // 예약 상태 변경
+  updateBookingStatus: protectedProcedure.input(z.object({
+    bookingId: z.number(),
+    status: z.enum(["pending", "confirmed", "cancelled"]),
+  })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await pool.query(`UPDATE consultation_bookings SET status=$1 WHERE id=$2 AND "trainerId"=$3`, [input.status, input.bookingId, trainerId]);
+    return { success: true };
+  }),
+});
+
 export const appRouter = t.router({
   auth: authRouter,
   members: membersRouter,
@@ -2697,6 +2803,7 @@ export const appRouter = t.router({
   fitPoints: fitPointsRouter,
   expenses: expensesRouter,
   fitStepPlus: fitStepPlusRouter,
+  brand: brandRouter,
 });
 
 export type AppRouter = typeof appRouter;

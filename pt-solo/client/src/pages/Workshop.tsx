@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
@@ -583,12 +583,182 @@ function ContractTermsEditor() {
   );
 }
 
+// ── 브랜드 페이지 에디터 ─────────────────────────────────────────────────────
+function BrandPageEditor() {
+  const { data: user } = trpc.auth.me.useQuery();
+  const utils = trpc.useUtils();
+  const { data: brand, isLoading } = trpc.brand.getMyBrand.useQuery();
+  const { data: bookings } = trpc.brand.listBookings.useQuery();
+  const updateMutation = trpc.brand.updateMyBrand.useMutation({
+    onSuccess: () => { toast.success("저장되었습니다."); utils.brand.getMyBrand.invalidate(); },
+    onError: e => toast.error(e.message),
+  });
+  const statusMutation = trpc.brand.updateBookingStatus.useMutation({
+    onSuccess: () => utils.brand.listBookings.invalidate(),
+  });
+
+  const [form, setForm] = useState({
+    brandBio: "", brandSpecialties: "", brandColor: "#1a00ff",
+    brandInstagram: "", brandKakao: "", brandYoutube: "",
+    brandIsPublic: 0, bookingEnabled: 0, bookingMessage: "",
+  });
+  const [initialized, setInitialized] = useState(false);
+
+  if (!initialized && brand) {
+    setForm({
+      brandBio: brand.brandBio ?? "",
+      brandSpecialties: brand.brandSpecialties ?? "",
+      brandColor: brand.brandColor ?? "#1a00ff",
+      brandInstagram: brand.brandInstagram ?? "",
+      brandKakao: brand.brandKakao ?? "",
+      brandYoutube: brand.brandYoutube ?? "",
+      brandIsPublic: brand.brandIsPublic ?? 0,
+      bookingEnabled: brand.bookingEnabled ?? 0,
+      bookingMessage: brand.bookingMessage ?? "",
+    });
+    setInitialized(true);
+  }
+
+  const username = (user as any)?.username;
+  const brandUrl = `${window.location.origin}/p/${username}`;
+
+  if (isLoading) return <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>;
+
+  return (
+    <div className="space-y-5">
+      {/* 공개 여부 + 링크 */}
+      <div className="flex items-center justify-between p-3 bg-accent/20 rounded-xl">
+        <div>
+          <p className="text-sm font-medium">브랜드 페이지 공개</p>
+          <p className="text-xs text-muted-foreground mt-0.5">/p/{username}</p>
+        </div>
+        <button
+          onClick={() => setForm(p => ({ ...p, brandIsPublic: p.brandIsPublic ? 0 : 1 }))}
+          className={`w-12 h-6 rounded-full transition-colors relative ${form.brandIsPublic ? "bg-primary" : "bg-muted"}`}
+        >
+          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.brandIsPublic ? "left-6" : "left-0.5"}`} />
+        </button>
+      </div>
+
+      {form.brandIsPublic ? (
+        <button onClick={() => { navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); }}
+          className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/30 rounded-xl text-xs text-primary">
+          <Globe className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{brandUrl}</span>
+          <Copy className="h-3.5 w-3.5 shrink-0 ml-auto" />
+        </button>
+      ) : null}
+
+      {/* 브랜드 컬러 */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">브랜드 컬러</Label>
+        <div className="flex items-center gap-3">
+          <input type="color" value={form.brandColor} onChange={e => setForm(p => ({ ...p, brandColor: e.target.value }))}
+            className="w-12 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
+          <span className="text-sm text-muted-foreground font-mono">{form.brandColor}</span>
+        </div>
+      </div>
+
+      {/* 소개글 */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">소개글</Label>
+        <textarea value={form.brandBio} onChange={e => setForm(p => ({ ...p, brandBio: e.target.value }))}
+          rows={4} placeholder="트레이너 소개를 입력하세요..."
+          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+
+      {/* 전문 분야 */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">전문 분야 (쉼표로 구분)</Label>
+        <Input value={form.brandSpecialties} onChange={e => setForm(p => ({ ...p, brandSpecialties: e.target.value }))}
+          placeholder="다이어트, 근력 강화, 재활, 체형 교정" className="text-sm" />
+      </div>
+
+      {/* 소셜 링크 */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">소셜 링크</Label>
+        <div className="flex items-center gap-2">
+          <Instagram className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Input value={form.brandInstagram} onChange={e => setForm(p => ({ ...p, brandInstagram: e.target.value }))}
+            placeholder="https://instagram.com/..." className="text-sm h-8" />
+        </div>
+        <div className="flex items-center gap-2">
+          <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Input value={form.brandKakao} onChange={e => setForm(p => ({ ...p, brandKakao: e.target.value }))}
+            placeholder="카카오 채널 링크" className="text-sm h-8" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Youtube className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Input value={form.brandYoutube} onChange={e => setForm(p => ({ ...p, brandYoutube: e.target.value }))}
+            placeholder="https://youtube.com/..." className="text-sm h-8" />
+        </div>
+      </div>
+
+      {/* 상담 예약 */}
+      <div className="space-y-3 p-3 bg-accent/20 rounded-xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium">상담 예약 받기</p>
+          </div>
+          <button
+            onClick={() => setForm(p => ({ ...p, bookingEnabled: p.bookingEnabled ? 0 : 1 }))}
+            className={`w-12 h-6 rounded-full transition-colors relative ${form.bookingEnabled ? "bg-primary" : "bg-muted"}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.bookingEnabled ? "left-6" : "left-0.5"}`} />
+          </button>
+        </div>
+        {form.bookingEnabled ? (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">예약 안내 메시지</Label>
+            <textarea value={form.bookingMessage} onChange={e => setForm(p => ({ ...p, bookingMessage: e.target.value }))}
+              rows={2} placeholder="상담 가능 시간이나 안내 문구를 입력하세요..."
+              className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+        ) : null}
+      </div>
+
+      <Button size="sm" className="w-full" disabled={updateMutation.isPending}
+        onClick={() => updateMutation.mutate(form as any)}>
+        {updateMutation.isPending ? "저장 중..." : "저장"}
+      </Button>
+
+      {/* 예약 목록 */}
+      {bookings && bookings.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">들어온 예약 ({bookings.length})</p>
+          {bookings.map((b: any) => (
+            <div key={b.id} className="bg-background border border-border rounded-xl p-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{b.name} · {b.phone}</p>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${b.status === "confirmed" ? "bg-green-500/20 text-green-600" : b.status === "cancelled" ? "bg-red-500/20 text-red-500" : "bg-blue-500/20 text-blue-500"}`}>
+                  {b.status === "confirmed" ? "확인" : b.status === "cancelled" ? "취소" : "대기"}
+                </span>
+              </div>
+              {b.interestType && <p className="text-xs text-muted-foreground">{b.interestType}</p>}
+              {b.message && <p className="text-xs text-muted-foreground">{b.message}</p>}
+              {b.status === "pending" && (
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => statusMutation.mutate({ bookingId: b.id, status: "confirmed" })}
+                    className="flex-1 text-xs py-1.5 rounded-lg bg-green-500/10 text-green-600 font-medium">확인</button>
+                  <button onClick={() => statusMutation.mutate({ bookingId: b.id, status: "cancelled" })}
+                    className="flex-1 text-xs py-1.5 rounded-lg bg-red-500/10 text-red-500 font-medium">취소</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Workshop() {
   const { data: user } = trpc.auth.me.useQuery();
-  const [openSection, setOpenSection] = useState<"fitstep" | "terms" | null>(null);
+  const [openSection, setOpenSection] = useState<"fitstep" | "terms" | "brand" | null>(null);
   const trainerId = (user as any)?.trainerId as number | undefined;
 
-  function toggle(key: "fitstep" | "terms") {
+  function toggle(key: "fitstep" | "terms" | "brand") {
     setOpenSection(v => v === key ? null : key);
   }
 
@@ -626,6 +796,28 @@ export default function Workshop() {
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>
               )}
+            </CardContent>
+          )}
+        </Card>
+
+        {/* 브랜드 페이지 */}
+        <Card className="bg-card border-border">
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+            onClick={() => toggle("brand")}
+          >
+            <div className="flex items-center gap-2.5">
+              <Globe className="h-4 w-4 text-primary" />
+              <div>
+                <span className="font-semibold text-sm">내 브랜드 페이지</span>
+                <p className="text-xs text-muted-foreground mt-0.5">공개 소개 페이지 · 상담 예약 링크</p>
+              </div>
+            </div>
+            {openSection === "brand" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "brand" && (
+            <CardContent className="pt-0 pb-4">
+              <BrandPageEditor />
             </CardContent>
           )}
         </Card>
