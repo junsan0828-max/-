@@ -435,27 +435,27 @@ export default function KioskCheckin() {
             </div>
           </div>
 
-          {/* 출입하기 버튼 - 키패드 밖으로 분리해 항상 보이도록 */}
-          <div className="px-5 pb-3 pt-2 shrink-0">
+          {/* 출입하기 버튼 */}
+          <div className="px-4 pb-4 pt-2 shrink-0">
             <button
               onClick={handleSubmit}
               disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 4) || checkIn.isPending}
               className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
               style={{
-                height: 54,
-                fontSize: 17,
+                height: 72,
+                fontSize: 22,
                 background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
-                color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#333",
+                color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#444",
                 border: "none",
-                letterSpacing: "0.08em",
+                letterSpacing: "0.1em",
                 WebkitTapHighlightColor: "transparent",
               }}
             >
               {checkIn.isPending ? "확인 중..." : (
                 <>
                   출입하기
-                  <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-                    {(() => { const active = activeTab === "phone" ? digits.length === 8 : digits.length >= 4; return (<><line x1="0" y1="7" x2="16" y2="7" stroke={active ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round"/><polyline points="10,1 16,7 10,13" stroke={active ? "#0d0d0d" : "#333"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>); })()}
+                  <svg width="22" height="17" viewBox="0 0 22 17" fill="none">
+                    {(() => { const active = activeTab === "phone" ? digits.length === 8 : digits.length >= 4; return (<><line x1="0" y1="8.5" x2="19" y2="8.5" stroke={active ? "#0d0d0d" : "#444"} strokeWidth="2.5" strokeLinecap="round"/><polyline points="12,1 20,8.5 12,16" stroke={active ? "#0d0d0d" : "#444"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>); })()}
                   </svg>
                 </>
               )}
