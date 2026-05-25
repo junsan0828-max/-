@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Dumbbell, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Dumbbell, Check } from "lucide-react";
 
 interface Props {
   memberId: number;
@@ -22,14 +22,172 @@ const DIET_OPTIONS = [
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 
 const BODY_PARTS = [
-  "목", "상부등",
-  "중부등", "어깨 전면",
-  "어깨 후면", "기립근",
-  "엉치", "고관절",
-  "무릎", "발목",
-  "발바닥", "팔꿈치",
-  "손목", "기타",
+  "목", "상부등", "중부등", "어깨 전면", "어깨 후면", "기립근",
+  "엉치", "고관절", "무릎", "발목", "발바닥", "팔꿈치", "손목", "기타",
 ];
+
+// 신체 부위별 좌표 (viewBox: 0 0 100 245)
+type Spot = { part: string; x: number; y: number; label: string };
+const FRONT_SPOTS: Spot[] = [
+  { part: "목",      x: 50, y: 36,  label: "목" },
+  { part: "어깨 전면", x: 22, y: 48,  label: "어깨" },
+  { part: "어깨 전면", x: 78, y: 48,  label: "" },
+  { part: "팔꿈치",  x: 11, y: 93,  label: "팔꿈치" },
+  { part: "팔꿈치",  x: 89, y: 93,  label: "" },
+  { part: "손목",    x: 7,  y: 125, label: "손목" },
+  { part: "손목",    x: 93, y: 125, label: "" },
+  { part: "고관절",  x: 36, y: 126, label: "고관절" },
+  { part: "고관절",  x: 64, y: 126, label: "" },
+  { part: "무릎",    x: 35, y: 175, label: "무릎" },
+  { part: "무릎",    x: 65, y: 175, label: "" },
+  { part: "발목",    x: 34, y: 218, label: "발목" },
+  { part: "발목",    x: 66, y: 218, label: "" },
+];
+const BACK_SPOTS: Spot[] = [
+  { part: "목",      x: 50, y: 36,  label: "목" },
+  { part: "어깨 후면", x: 22, y: 48,  label: "어깨" },
+  { part: "어깨 후면", x: 78, y: 48,  label: "" },
+  { part: "상부등",  x: 50, y: 60,  label: "상부등" },
+  { part: "중부등",  x: 50, y: 80,  label: "중부등" },
+  { part: "기립근",  x: 43, y: 100, label: "기립근" },
+  { part: "기립근",  x: 57, y: 100, label: "" },
+  { part: "엉치",    x: 50, y: 118, label: "엉치" },
+  { part: "발바닥",  x: 34, y: 228, label: "발바닥" },
+  { part: "발바닥",  x: 66, y: 228, label: "" },
+];
+
+function BodyOutline({ view }: { view: "front" | "back" }) {
+  const s = "#94a3b8"; const w = 1.2;
+  return (
+    <g stroke={s} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round">
+      {/* Head */}
+      <ellipse cx="50" cy="16" rx="10" ry="12" />
+      {/* Neck */}
+      <path d="M46,27 L46,34 M54,27 L54,34" />
+      {/* Shoulders & torso */}
+      <path d="M46,34 Q32,34 24,40 Q18,60 20,100 L80,100 Q82,60 76,40 Q68,34 54,34" />
+      {/* Left upper arm */}
+      <path d="M24,40 Q14,54 10,82" />
+      {/* Left forearm */}
+      <path d="M10,82 Q7,106 7,128" />
+      {/* Left hand */}
+      <ellipse cx="7" cy="132" rx="4" ry="5" />
+      {/* Right upper arm */}
+      <path d="M76,40 Q86,54 90,82" />
+      {/* Right forearm */}
+      <path d="M90,82 Q93,106 93,128" />
+      {/* Right hand */}
+      <ellipse cx="93" cy="132" rx="4" ry="5" />
+      {/* Hip line */}
+      <path d="M22,100 Q50,110 78,100" />
+      {/* Left thigh */}
+      <path d="M36,108 Q34,145 34,175" />
+      {/* Left shin */}
+      <path d="M34,175 Q33,200 34,218" />
+      {/* Left foot */}
+      <path d="M31,218 Q28,228 36,230 Q42,230 44,224 L34,218" />
+      {/* Right thigh */}
+      <path d="M64,108 Q66,145 66,175" />
+      {/* Right shin */}
+      <path d="M66,175 Q67,200 66,218" />
+      {/* Right foot */}
+      <path d="M69,218 Q72,228 64,230 Q58,230 56,224 L66,218" />
+      {view === "back" && (
+        <>
+          {/* Back spine line */}
+          <path d="M50,34 L50,100" strokeDasharray="2,2" strokeWidth={0.8} />
+        </>
+      )}
+    </g>
+  );
+}
+
+function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  function toggle(part: string) {
+    onChange(selected.includes(part) ? selected.filter(p => p !== part) : [...selected, part]);
+  }
+
+  function renderSpots(spots: Spot[]) {
+    return spots.map((s, i) => {
+      const on = selected.includes(s.part);
+      const showLabel = s.label !== "";
+      return (
+        <g key={i} onClick={() => toggle(s.part)} style={{ cursor: "pointer" }}>
+          <circle
+            cx={s.x} cy={s.y} r={5.5}
+            fill={on ? "#1a80ff" : "#f1f5f9"}
+            stroke={on ? "#1a80ff" : "#94a3b8"}
+            strokeWidth={1.2}
+          />
+          {on && (
+            <text x={s.x} y={s.y + 0.5} textAnchor="middle" dominantBaseline="middle"
+              fontSize="5" fill="white" fontWeight="bold">✓</text>
+          )}
+          {showLabel && (
+            <text
+              x={s.x < 50 ? s.x - 7 : s.x > 50 ? s.x + 7 : s.x}
+              y={s.y}
+              textAnchor={s.x < 50 ? "end" : s.x > 50 ? "start" : "middle"}
+              dominantBaseline="middle"
+              fontSize="5.5"
+              fill={on ? "#1a80ff" : "#64748b"}
+              fontWeight={on ? "600" : "400"}
+            >
+              {s.label}
+            </text>
+          )}
+          {/* Larger invisible tap target */}
+          <circle cx={s.x} cy={s.y} r={10} fill="transparent" />
+        </g>
+      );
+    });
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        {/* 전면 */}
+        <div className="space-y-1">
+          <p className="text-xs text-center text-muted-foreground font-medium">전면</p>
+          <div className="bg-muted/30 rounded-xl border border-border overflow-hidden">
+            <svg viewBox="0 0 100 245" className="w-full">
+              <BodyOutline view="front" />
+              {renderSpots(FRONT_SPOTS)}
+            </svg>
+          </div>
+        </div>
+        {/* 후면 */}
+        <div className="space-y-1">
+          <p className="text-xs text-center text-muted-foreground font-medium">후면</p>
+          <div className="bg-muted/30 rounded-xl border border-border overflow-hidden">
+            <svg viewBox="0 0 100 245" className="w-full">
+              <BodyOutline view="back" />
+              {renderSpots(BACK_SPOTS)}
+            </svg>
+          </div>
+        </div>
+      </div>
+      {/* 기타 + 선택된 부위 표시 */}
+      <div className="flex flex-wrap gap-1.5 items-center">
+        <button
+          onClick={() => toggle("기타")}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+            selected.includes("기타")
+              ? "bg-primary/20 border-primary text-primary"
+              : "border-border text-muted-foreground hover:border-primary/40"
+          }`}
+        >
+          기타
+        </button>
+        {selected.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            선택됨: {selected.join(" · ")}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function nowTimeStr() {
   const d = new Date();
@@ -69,7 +227,6 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [dietItems, setDietItems] = useState<string[]>([]);
   const [painLevel, setPainLevel] = useState("");
   const [painAreas, setPainAreas] = useState<string[]>([]);
-  const [painAreaOpen, setPainAreaOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [deductSession, setDeductSession] = useState(false);
   const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
@@ -355,40 +512,8 @@ export default function AttendanceCheck({ memberId }: Props) {
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm text-muted-foreground">통증 부위</label>
-            <button
-              onClick={() => setPainAreaOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg border border-border text-muted-foreground hover:border-primary/30 transition-colors"
-            >
-              <span>{painAreas.length > 0 ? painAreas.join(", ") : "부위 선택"}</span>
-              {painAreaOpen ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-            </button>
-            {painAreaOpen && (
-              <div className="border border-border rounded-lg overflow-hidden">
-                <div className="grid grid-cols-2">
-                  {BODY_PARTS.map((part, idx) => (
-                    <button
-                      key={part}
-                      onClick={() => toggleBodyPart(part)}
-                      className={`flex items-center gap-2 px-3 py-2.5 text-sm transition-colors text-left border-b border-border last:border-b-0 ${
-                        idx % 2 === 0 ? "border-r border-border" : ""
-                      } ${
-                        painAreas.includes(part)
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-muted/30"
-                      }`}
-                    >
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                        painAreas.includes(part) ? "bg-primary border-primary" : "border-muted-foreground/50"
-                      }`}>
-                        {painAreas.includes(part) && <Check className="h-3 w-3 text-white" />}
-                      </div>
-                      {part}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <label className="text-sm text-muted-foreground">통증 부위 <span className="text-xs">(신체를 직접 탭하세요)</span></label>
+            <BodyPainMap selected={painAreas} onChange={setPainAreas} />
           </div>
         </Section>
 
