@@ -630,6 +630,28 @@ async function initDatabase() {
     answers TEXT NOT NULL,
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+  // 성장 아카데미
+  await pool.query(`CREATE TABLE IF NOT EXISTS academy_courses (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    "videoUrl" TEXT,
+    "thumbnailUrl" TEXT,
+    duration TEXT,
+    "pointReward" INTEGER NOT NULL DEFAULT 0,
+    "isPublished" INTEGER NOT NULL DEFAULT 0,
+    "createdBy" INTEGER NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS academy_completions (
+    id SERIAL PRIMARY KEY,
+    "courseId" INTEGER NOT NULL,
+    "trainerId" INTEGER NOT NULL,
+    "completedAt" TEXT NOT NULL DEFAULT now()::text,
+    UNIQUE("courseId", "trainerId")
+  )`);
+
   // 기존 유저 중 referralCode 없는 경우 자동 생성
   const noCodeUsers = await pool.query<{ id: number }>(`SELECT id FROM users WHERE "referralCode" IS NULL`);
   for (const u of noCodeUsers.rows) {

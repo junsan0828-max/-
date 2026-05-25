@@ -2948,6 +2948,117 @@ const brandRouter = t.router({
   }),
 });
 
+// ── 성장 아카데미 ──────────────────────────────────────────────────────────────
+const academyRouter = t.router({
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const isAdmin = ctx.user.role === "admin";
+    const trainerId = ctx.user.trainerId;
+    const whereClause = isAdmin ? `` : `WHERE "isPublished"=1`;
+    const courses = await pool.query<any>(
+      `SELECT * FROM academy_courses ${whereClause} ORDER BY id DESC`
+    );
+    if (isAdmin) return courses.rows.map((c: any) => ({ ...c, completed: false }));
+    // 완료 여부 포함
+    const completions = trainerId
+      ? await pool.query<{ courseId: number }>(
+          `SELECT "courseId" FROM academy_completions WHERE "trainerId"=$1`, [trainerId]
+        )
+      : { rows: [] as { courseId: number }[] };
+    const completedSet = new Set(completions.rows.map(r => r.courseId));
+    return courses.rows.map((c: any) => ({ ...c, completed: completedSet.has(c.id) }));
+  }),
+
+  create: adminProcedure
+    .input(z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      videoUrl: z.string().optional(),
+      thumbnailUrl: z.string().optional(),
+      duration: z.string().optional(),
+      pointReward: z.number().int().min(0).default(0),
+      isPublished: z.number().int().min(0).max(1).default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await pool.query<any>(
+        `INSERT INTO academy_courses (title, description, "videoUrl", "thumbnailUrl", duration, "pointReward", "isPublished", "createdBy")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [input.title, input.description ?? null, input.videoUrl ?? null, input.thumbnailUrl ?? null,
+         input.duration ?? null, input.pointReward, input.isPublished, ctx.user.id]
+      );
+      return row.rows[0];
+    }),
+
+  update: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      title: z.string().min(1).optional(),
+      description: z.string().optional(),
+      videoUrl: z.string().optional(),
+      thumbnailUrl: z.string().optional(),
+      duration: z.string().optional(),
+      pointReward: z.number().int().min(0).optional(),
+      isPublished: z.number().int().min(0).max(1).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, ...fields } = input;
+      const sets: string[] = [`"updatedAt"=now()::text`];
+      const vals: any[] = [];
+      let i = 1;
+      if (fields.title !== undefined) { sets.push(`title=$${i++}`); vals.push(fields.title); }
+      if (fields.description !== undefined) { sets.push(`description=$${i++}`); vals.push(fields.description); }
+      if (fields.videoUrl !== undefined) { sets.push(`"videoUrl"=$${i++}`); vals.push(fields.videoUrl); }
+      if (fields.thumbnailUrl !== undefined) { sets.push(`"thumbnailUrl"=$${i++}`); vals.push(fields.thumbnailUrl); }
+      if (fields.duration !== undefined) { sets.push(`duration=$${i++}`); vals.push(fields.duration); }
+      if (fields.pointReward !== undefined) { sets.push(`"pointReward"=$${i++}`); vals.push(fields.pointReward); }
+      if (fields.isPublished !== undefined) { sets.push(`"isPublished"=$${i++}`); vals.push(fields.isPublished); }
+      vals.push(id);
+      const row = await pool.query<any>(
+        `UPDATE academy_courses SET ${sets.join(",")} WHERE id=$${i} RETURNING *`, vals
+      );
+      return row.rows[0];
+    }),
+
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`DELETE FROM academy_completions WHERE "courseId"=$1`, [input.id]);
+      await pool.query(`DELETE FROM academy_courses WHERE id=$1`, [input.id]);
+      return { ok: true };
+    }),
+
+  complete: protectedProcedure
+    .input(z.object({ courseId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      // 이미 완료했는지 확인
+      const existing = await pool.query<{ id: number }>(
+        `SELECT id FROM academy_completions WHERE "courseId"=$1 AND "trainerId"=$2 LIMIT 1`,
+        [input.courseId, trainerId]
+      );
+      if (existing.rows.length > 0) throw new TRPCError({ code: "CONFLICT", message: "이미 완료한 강의입니다." });
+      // 포인트 확인
+      const course = await pool.query<{ pointReward: number; isPublished: number }>(
+        `SELECT "pointReward", "isPublished" FROM academy_courses WHERE id=$1 LIMIT 1`, [input.courseId]
+      );
+      if (!course.rows[0] || !course.rows[0].isPublished) throw new TRPCError({ code: "NOT_FOUND" });
+      const reward = course.rows[0].pointReward;
+      // 완료 기록
+      await pool.query(
+        `INSERT INTO academy_completions ("courseId","trainerId") VALUES ($1,$2)`,
+        [input.courseId, trainerId]
+      );
+      // 포인트 지급
+      if (reward > 0) {
+        await pool.query(
+          `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'academy_complete',$3,'completed')`,
+          [trainerId, reward, `아카데미 강의 완료 보상`]
+        );
+      }
+      return { ok: true, pointReward: reward };
+    }),
+});
+
 export const appRouter = t.router({
   auth: authRouter,
   members: membersRouter,
@@ -2974,6 +3085,7 @@ export const appRouter = t.router({
   workoutTemplates: workoutTemplatesRouter,
   survey: surveyRouter,
   workshop: workshopRouter,
+  academy: academyRouter,
 });
 
 export type AppRouter = typeof appRouter;
