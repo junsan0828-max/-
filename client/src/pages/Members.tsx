@@ -8,9 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   UserPlus, ChevronRight, Search, AlertCircle, Dumbbell, Clock, XCircle,
-  CheckSquare, Square, CalendarPlus, X, ArrowRightLeft,
+  CheckSquare, Square, CalendarPlus, X,
 } from "lucide-react";
-import { TransferModal } from "./TransferModal";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
 
@@ -41,9 +40,6 @@ export default function Members() {
   // 다중 선택 모드
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-
-  // 양도 모달
-  const [transferMember, setTransferMember] = useState<{ id: number; name: string; phone: string | null } | null>(null);
 
   // 만료일 연장 다이얼로그
   const [extendOpen, setExtendOpen] = useState(false);
@@ -412,13 +408,7 @@ export default function Members() {
                     </div>
                   </div>
                   {!selectMode && (
-                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setTransferMember({ id: member.id, name: member.name, phone: member.phone ?? null }); }}
-                        className="text-xs px-2 py-1 rounded-md border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
-                      >
-                        양도
-                      </button>
+                    <div className="flex items-center shrink-0 ml-2">
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   )}
@@ -505,17 +495,6 @@ export default function Members() {
         </DialogContent>
       </Dialog>
 
-      {/* 양도 모달 */}
-      {transferMember && (
-        <TransferModal
-          member={transferMember}
-          allMembers={(members ?? []).map((m) => ({ id: m.id, name: m.name, phone: m.phone ?? null }))}
-          ptPackages={(ptPackages ?? []).filter((p) => p.memberId === transferMember.id && p.status === "active")}
-          onClose={() => setTransferMember(null)}
-        />
-      )}
     </div>
   );
 }
-
-// (TransferModal moved to TransferModal.tsx)

@@ -75,7 +75,9 @@ import {
   ChevronUp,
   Send,
   CheckCheck,
+  ArrowRightLeft,
 } from "lucide-react";
+import { TransferModal, type MemberBasic } from "./TransferModal";
 
 interface Props {
   memberId: number;
@@ -238,6 +240,7 @@ export default function MemberDetail({ memberId }: Props) {
     current: 0,
     value: "",
   });
+  const [transferOpen, setTransferOpen] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseForm, setPauseForm] = useState({ packageId: 0, pauseStart: "", pauseEnd: "", reason: "" });
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
@@ -441,6 +444,15 @@ export default function MemberDetail({ memberId }: Props) {
       setSessionMemoOpen(true);
     },
     onError: (err) => toast.error(err.message || "세션 사용 실패"),
+  });
+
+  // 회원 상태 변경 (활성 ↔ 정지)
+  const toggleStatusMutation = trpc.members.update.useMutation({
+    onSuccess: () => {
+      toast.success("상태가 변경되었습니다.");
+      utils.members.getById.invalidate({ id: memberId });
+    },
+    onError: (err) => toast.error(err.message || "변경 실패"),
   });
 
   // 담당 트레이너 변경
@@ -865,7 +877,29 @@ export default function MemberDetail({ memberId }: Props) {
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <InfoRow icon={<Activity className="h-4 w-4" />} label="상태" value={statusLabels[member.status] ?? "-"} />
+                <div className="flex items-start gap-3">
+                  <div className="text-muted-foreground mt-0.5"><Activity className="h-4 w-4" /></div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground">상태</p>
+                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                      <p className="text-sm font-medium text-foreground">{statusLabels[member.status] ?? "-"}</p>
+                      <button
+                        onClick={() => toggleStatusMutation.mutate({ id: memberId, status: member.status === "active" ? "paused" : "active" })}
+                        disabled={toggleStatusMutation.isPending}
+                        className="text-xs px-2 py-0.5 rounded border border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/10 transition-colors disabled:opacity-50"
+                      >
+                        {member.status === "active" ? "정지" : "활성화"}
+                      </button>
+                      <button
+                        onClick={() => setTransferOpen(true)}
+                        className="text-xs px-2 py-0.5 rounded border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors flex items-center gap-1"
+                      >
+                        <ArrowRightLeft className="h-3 w-3" />
+                        양도
+                      </button>
+                    </div>
+                  </div>
+                </div>
                 <InfoRow icon={<Crown className="h-4 w-4" />} label="등급" value={membershipLabels[member.grade] ?? "-"} />
                 <div className="flex items-start gap-3">
                   <div className="text-muted-foreground mt-0.5"><Phone className="h-4 w-4" /></div>
@@ -2458,6 +2492,22 @@ export default function MemberDetail({ memberId }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {transferOpen && member && (
+        <TransferModal
+          member={{ id: member.id, name: member.name, phone: member.phone ?? null }}
+          allMembers={[]}
+          ptPackages={
+            (ptPackages ?? []).map((p) => ({
+              id: p.id,
+              packageName: p.packageName,
+              totalSessions: p.totalSessions,
+              usedSessions: p.usedSessions,
+            }))
+          }
+          onClose={() => setTransferOpen(false)}
+        />
+      )}
     </div>
   );
 }
