@@ -59,6 +59,22 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((end.getTime() - today.getTime()) / 86400000);
 }
 
+// 전화번호 세그먼트: 입력된 숫자 + 남은 자리는 얇은 밑줄
+function PhoneSegment({ value, maxLen }: { value: string; maxLen: number }) {
+  const digits = value.split("");
+  const empty = maxLen - digits.length;
+  return (
+    <div className="flex items-end gap-1.5">
+      {digits.map((d, i) => (
+        <span key={i} className="font-mono font-bold" style={{ fontSize: 28, color: "white", lineHeight: 1 }}>{d}</span>
+      ))}
+      {Array.from({ length: empty }).map((_, i) => (
+        <span key={i} style={{ display: "inline-block", width: 16, height: 2, background: "#333", borderRadius: 1, marginBottom: 5 }} />
+      ))}
+    </div>
+  );
+}
+
 // ZIANTGYM 로고 SVG — 바벨 + Z 구조 (|H-Z-H|)
 function ZiantLogo({ size = 36, color = "white" }: { size?: number; color?: string }) {
   const w = Math.round(size * 2.75); // 220:80 비율
@@ -234,14 +250,14 @@ export default function KioskCheckin() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handleKey, handleSubmit, handleClose, result, errorMsg]);
 
-  // 휴대폰번호 표시: 010 - XXXX - XXXX
+  // 휴대폰번호 표시: 010 - XXXX - XXXX (미입력 자리는 빈칸)
   const a = digits.slice(0, 4);
   const b = digits.slice(4, 8);
-  const aDisplay = a.padEnd(4, "_");
-  const bDisplay = b.padEnd(4, "_");
+  const aDisplay = a.length > 0 ? a.padEnd(4, " ") : "    ";
+  const bDisplay = b.length > 0 ? b.padEnd(4, " ") : "    ";
 
-  // 출석번호 표시: 4자리 + 선택적 5번째 자리
-  const numBase = digits.padEnd(4, "_").slice(0, 4).split("").join(" ");
+  // 출석번호 표시
+  const numBase = digits.slice(0, 4).padEnd(4, " ").split("").join(" ");
   const numSuffix = digits.length > 4 ? ` - ${digits[4]}` : "";
   const numDisplay = numBase + numSuffix;
 
@@ -258,7 +274,7 @@ export default function KioskCheckin() {
           {/* ── 배너 캐러셀 ── */}
           <div
             className="relative overflow-hidden shrink-0"
-            style={{ height: "38vh" }}
+            style={{ height: "42vh" }}
             onTouchStart={(e) => { bannerTouchX.current = e.touches[0].clientX; }}
             onTouchEnd={(e) => {
               if (bannerTouchX.current === null || banners.length <= 1) return;
@@ -271,14 +287,14 @@ export default function KioskCheckin() {
             {banners.length === 0 ? (
               /* 배너 없을 때 기본 안내 화면 */
               <div
-                className="absolute inset-0 flex flex-col justify-center items-center px-6"
-                style={{ background: "linear-gradient(160deg, #111827 0%, #1e293b 100%)" }}
+                className="absolute inset-0 flex flex-col justify-center items-center px-8"
+                style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 100%)" }}
               >
-                <p style={{ fontSize: 12, color: "#4b5563", letterSpacing: "0.2em", marginBottom: 12 }}>NOTICE</p>
-                <p style={{ fontSize: 16, color: "#6b7280", textAlign: "center", lineHeight: 1.7 }}>
+                <p style={{ fontSize: 11, color: "#334155", letterSpacing: "0.35em", marginBottom: 20, textTransform: "uppercase" }}>Notice</p>
+                <p style={{ fontSize: 26, fontWeight: 700, color: "#e2e8f0", textAlign: "center", lineHeight: 1.5, marginBottom: 12 }}>
                   공지사항이 없습니다
                 </p>
-                <p style={{ fontSize: 11, color: "#374151", marginTop: 10 }}>관리자 페이지 → 출입관리 → 배너 관리에서 등록</p>
+                <p style={{ fontSize: 13, color: "#475569", textAlign: "center", lineHeight: 1.8 }}>출입관리 → 배너 관리에서 공지를 등록하세요</p>
               </div>
             ) : (
               banners.map((b, i) => (
@@ -334,9 +350,10 @@ export default function KioskCheckin() {
             )}
           </div>
           {/* 헤더 */}
-          <div className="flex flex-col items-center pt-4 pb-3 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
-            <p style={{ fontFamily: "'Cinzel', serif", fontSize: 30, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.28em", textShadow: "0 0 18px rgba(42,95,196,0.45)" }}>ZIANTGYM</p>
-            <p className="mt-1 tracking-[0.15em] text-gray-500" style={{ fontSize: 10 }}>ACCESS SYSTEM</p>
+          <div className="flex flex-col items-center pt-3 pb-2 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
+            <p style={{ fontSize: 11, color: "#4b5563", letterSpacing: "0.2em", marginBottom: 2 }}>맞춤운동센터</p>
+            <p style={{ fontFamily: "'Cinzel', serif", fontSize: 28, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.22em", textShadow: "0 0 18px rgba(42,95,196,0.45)" }}>ZIANTGYM</p>
+            <p style={{ fontSize: 10, color: "#374151", letterSpacing: "0.12em", marginTop: 1 }}>ACCESS SYSTEM</p>
           </div>
 
           {/* 탭 */}
@@ -360,15 +377,25 @@ export default function KioskCheckin() {
           </div>
 
           {/* 번호 표시 */}
-          <div className="text-center py-5">
+          <div className="text-center py-4">
             {activeTab === "phone" ? (
-              <span className="font-mono font-bold whitespace-nowrap" style={{ fontSize: 28, color: "white", letterSpacing: "0.12em" }}>
-                010 - {aDisplay} - {bDisplay}
-              </span>
+              <div className="flex items-center justify-center gap-2">
+                <span className="font-mono font-bold" style={{ fontSize: 28, color: "white", letterSpacing: "0.08em" }}>010</span>
+                <span style={{ color: "#444", fontSize: 22 }}>-</span>
+                <PhoneSegment value={a} maxLen={4} />
+                <span style={{ color: "#444", fontSize: 22 }}>-</span>
+                <PhoneSegment value={b} maxLen={4} />
+              </div>
             ) : (
-              <span className="font-mono font-bold whitespace-nowrap" style={{ fontSize: 30, color: "white", letterSpacing: "0.18em" }}>
-                {numDisplay}
-              </span>
+              <div className="flex items-end justify-center gap-3">
+                <PhoneSegment value={digits.slice(0, 4)} maxLen={4} />
+                {digits.length > 4 && (
+                  <>
+                    <span style={{ color: "#444", fontSize: 22 }}>-</span>
+                    <span className="font-mono font-bold" style={{ fontSize: 28, color: "white" }}>{digits[4]}</span>
+                  </>
+                )}
+              </div>
             )}
           </div>
 
