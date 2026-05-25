@@ -152,7 +152,8 @@ export default function AccessManagement() {
   const uploadBannerImage = trpc.access.uploadBannerImage.useMutation({
     onSuccess: (data, vars) => {
       utils.access.getAllBanners.invalidate();
-      setBannerForm((f) => ({ ...f, imageUrl: data.imageUrl }));
+      // 타임스탬프 붙여 브라우저 캐시 즉시 무효화
+      setBannerForm((f) => ({ ...f, imageUrl: `${data.imageUrl}?t=${Date.now()}` }));
       setUploadedBannerId(vars.id);
       setUploadingImage(false);
       toast.success("이미지 업로드 완료");

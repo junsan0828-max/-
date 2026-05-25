@@ -55,17 +55,20 @@ app.use(
   })
 );
 
-// 배너 이미지 서빙 (업로드된 이미지, 브라우저 캐시 1일)
+// 배너 이미지 서빙 (ETag 기반 캐시 — 이미지 바뀌면 즉시 반영)
 app.get("/api/banner-image/:id", async (req, res) => {
   try {
     const result = await pool.query('SELECT "imageData" FROM kiosk_banners WHERE id = $1', [req.params.id]);
     const imageData: string | null = result.rows[0]?.imageData ?? null;
     if (!imageData) return res.status(404).send("Not found");
+    const etag = `"${imageData.length}"`;
+    if (req.headers["if-none-match"] === etag) return res.status(304).end();
     const typeMatch = imageData.match(/^data:(image\/[\w+]+);base64,/);
     const mimeType = typeMatch?.[1] ?? "image/jpeg";
     const base64 = imageData.replace(/^data:image\/[\w+]+;base64,/, "");
     res.setHeader("Content-Type", mimeType);
-    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("ETag", etag);
     res.send(Buffer.from(base64, "base64"));
   } catch (e) {
     console.error("banner-image error:", e);
