@@ -100,8 +100,9 @@ export default function AdminMembers() {
     if (!allMembers) return [];
     const map = new Map<string, MemberRow[]>();
     for (const m of allMembers) {
-      const key = m.phone?.trim()
-        ? `${m.name.trim()}||${m.phone.trim()}`
+      const digits = m.phone?.replace(/\D/g, "") ?? "";
+      const key = digits.length >= 7
+        ? `${m.name.trim()}||${digits}`
         : `__solo_${m.id}`;
       const arr = map.get(key) ?? [];
       arr.push(m);

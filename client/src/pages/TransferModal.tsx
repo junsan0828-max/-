@@ -46,10 +46,25 @@ export function TransferModal({
     onError: (e) => toast.error(e.message),
   });
 
-  const filteredMembers = allMembers.filter((m) =>
-    m.id !== member.id &&
-    (m.name.includes(search) || (m.phone && m.phone.includes(search)))
-  );
+  // 전화번호 정규화 후 중복 제거 (같은 이름+전화번호는 하나만 표시)
+  const deduped = allMembers.reduce<MemberBasic[]>((acc, m) => {
+    if (m.id === member.id) return acc;
+    const digits = m.phone?.replace(/\D/g, "") ?? "";
+    const key = digits.length >= 7 ? `${m.name}||${digits}` : `__${m.id}`;
+    if (!acc.some((a) => {
+      const ad = a.phone?.replace(/\D/g, "") ?? "";
+      const ak = ad.length >= 7 ? `${a.name}||${ad}` : `__${a.id}`;
+      return ak === key;
+    })) acc.push(m);
+    return acc;
+  }, []);
+
+  const filteredMembers = deduped.filter((m) => {
+    const q = search.trim();
+    if (!q) return true;
+    const digits = m.phone?.replace(/\D/g, "") ?? "";
+    return m.name.includes(q) || digits.includes(q.replace(/\D/g, ""));
+  });
 
   function toggleType(key: string) {
     setSelectedTypes((prev) =>
