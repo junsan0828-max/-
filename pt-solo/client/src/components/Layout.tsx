@@ -8,10 +8,12 @@ import {
   UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog, Menu, GraduationCap,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
+import OnboardingSurveyModal from "./OnboardingSurveyModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
+  const { data: profile } = trpc.trainers.getMyProfile.useQuery(undefined, { enabled: user?.role === "trainer" });
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => window.location.reload(),
     onError: () => toast.error("로그아웃 실패"),
@@ -20,6 +22,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [surveyDismissed, setSurveyDismissed] = useState(false);
+
+  const showSurvey = user?.role === "trainer" && profile !== undefined && !(profile as any).onboardingSurveyDone && !surveyDismissed;
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -210,6 +215,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
         {!isAdmin && <ProfileSetupModal />}
+        {showSurvey && <OnboardingSurveyModal onClose={() => setSurveyDismissed(true)} />}
       </div>
     </div>
   );

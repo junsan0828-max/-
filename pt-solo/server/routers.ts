@@ -923,8 +923,8 @@ const trainersRouter = t.router({
       employmentType: string | null; workplaceName: string | null;
       workYears: number | null; specialties: string | null; profileBonusGranted: number;
       jobType: string | null; careerRange: string | null; activityArea: string | null; profileImage: string | null;
-    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage","educationNeeds" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
-    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null, educationNeeds: null };
+    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage","educationNeeds","onboardingSurveyDone" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
+    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null, educationNeeds: null, onboardingSurveyDone: 0 };
     return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50, ...ext };
   }),
 
@@ -1185,6 +1185,17 @@ const trainersRouter = t.router({
       const rereg = totalNewPkgs - newMembers;
 
       return { sessionCount, revenue, settlementAmount, afterTax, settlementRate, logs: logsWithPrice, noShow, newMembers, rereg };
+    }),
+
+  submitOnboardingSurvey: protectedProcedure
+    .input(z.object({ answers: z.record(z.string(), z.array(z.string())) }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `UPDATE trainers SET "onboardingSurveyData"=$1, "onboardingSurveyDone"=1 WHERE id=$2`,
+        [JSON.stringify(input.answers), ctx.user.trainerId]
+      );
+      return { ok: true };
     }),
 });
 
