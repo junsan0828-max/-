@@ -66,7 +66,7 @@ function PhoneSegment({ value }: { value: string }) {
   return (
     <div className="flex items-end gap-1" style={{ minWidth: 4 }}>
       {value.split("").map((d, i) => (
-        <span key={i} className="font-mono font-bold" style={{ fontSize: 52, color: "white", lineHeight: 1 }}>{d}</span>
+        <span key={i} className="font-mono font-bold" style={{ fontSize: 40, color: "white", lineHeight: 1 }}>{d}</span>
       ))}
     </div>
   );
@@ -381,7 +381,7 @@ export default function KioskCheckin() {
                   borderBottom: activeTab === id ? "2px solid white" : "2px solid transparent",
                   marginBottom: -1,
                   fontWeight: activeTab === id ? 600 : 400,
-                  fontSize: 13,
+                  fontSize: 16,
                 }}
               >
                 {label}
@@ -393,7 +393,7 @@ export default function KioskCheckin() {
           <div className="flex items-center justify-center py-3 gap-4">
             {activeTab === "phone" ? (
               <>
-                <span className="font-mono font-bold" style={{ fontSize: 52, color: "white" }}>010</span>
+                <span className="font-mono font-bold" style={{ fontSize: 40, color: "white" }}>010</span>
                 <PhoneSegment value={a} />
                 <PhoneSegment value={b} />
               </>
@@ -401,7 +401,7 @@ export default function KioskCheckin() {
               <div className="flex items-end justify-center gap-2">
                 <PhoneSegment value={digits.slice(0, 4)} />
                 {digits.length > 4 && (
-                  <span className="font-mono font-bold" style={{ fontSize: 52, color: "white" }}>{digits[4]}</span>
+                  <span className="font-mono font-bold" style={{ fontSize: 40, color: "white" }}>{digits[4]}</span>
                 )}
               </div>
             )}
@@ -424,7 +424,7 @@ export default function KioskCheckin() {
                       background: isAction ? "#181818" : "#1c1c1c",
                       border: "1px solid #2a2a2a",
                       color: isAction ? "#666" : "white",
-                      fontSize: k === "취소" ? 15 : 30,
+                      fontSize: k === "취소" ? 17 : 32,
                       WebkitTapHighlightColor: "transparent",
                     }}
                     onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#303030"; }}
@@ -450,8 +450,8 @@ export default function KioskCheckin() {
               disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 4) || checkIn.isPending}
               className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
               style={{
-                height: 83,
-                fontSize: 22,
+                height: 100,
+                fontSize: 28,
                 background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
                 color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#444",
                 border: "none",
@@ -583,8 +583,8 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <p style={{ fontSize: 20, fontWeight: 700, color: "white" }}>
-                {m.name}<span style={{ color: "#888", fontWeight: 400, fontSize: 16 }}>님</span>
+              <p style={{ fontSize: 24, fontWeight: 700, color: "white" }}>
+                {m.name}<span style={{ color: "#888", fontWeight: 400, fontSize: 18 }}>님</span>
               </p>
               {result.branchName && (
                 <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: "rgba(255,255,255,0.1)", color: "#aaa", fontWeight: 500 }}>
@@ -592,13 +592,13 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
                 </span>
               )}
             </div>
-            <p style={{ color: "#555", fontSize: 12, marginTop: 2 }}>{fmtDate(now)} {fmtTime(now)}</p>
+            <p style={{ color: "#555", fontSize: 14, marginTop: 2 }}>{fmtDate(now)} {fmtTime(now)}</p>
           </div>
           <div className="ml-auto text-right">
             {expired ? (
-              <span style={{ fontSize: 13, color: "#ff4444", fontWeight: 600, background: "rgba(180,0,0,0.15)", padding: "4px 10px", borderRadius: 6 }}>만료</span>
+              <span style={{ fontSize: 16, color: "#ff4444", fontWeight: 700, background: "rgba(180,0,0,0.2)", padding: "6px 16px", borderRadius: 8 }}>만료</span>
             ) : (
-              <span style={{ fontSize: 13, color: "white", fontWeight: 600, background: "rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: 6 }}>입장</span>
+              <span style={{ fontSize: 16, color: "#0d0d0d", fontWeight: 700, background: "#ffffff", padding: "6px 16px", borderRadius: 8 }}>입장</span>
             )}
           </div>
         </div>
@@ -608,7 +608,7 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
 
       {/* 회원권 */}
       <div className="px-5 py-4">
-        <p style={{ fontSize: 11, color: "#555", letterSpacing: "0.1em", marginBottom: 12 }}>이용권</p>
+        <p style={{ fontSize: 13, color: "#555", letterSpacing: "0.1em", marginBottom: 12 }}>이용권</p>
         <div className="space-y-2">
           <Row label="현재 회원권" value={m.membershipType ?? "-"} />
           {m.membershipEnd && (
@@ -633,7 +633,7 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
 
       {/* 락커 */}
       <div className="px-5 py-4">
-        <p style={{ fontSize: 11, color: "#555", letterSpacing: "0.1em", marginBottom: 12 }}>락커</p>
+        <p style={{ fontSize: 13, color: "#555", letterSpacing: "0.1em", marginBottom: 12 }}>락커</p>
         <div className="space-y-2">
           <Row
             label="개인 락커"
@@ -653,10 +653,10 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
 function Row({ label, value, tag, tagColor }: { label: string; value: string; tag?: string; tagColor?: string }) {
   return (
     <div className="flex justify-between items-center">
-      <span style={{ color: "#666", fontSize: 13 }}>{label}</span>
+      <span style={{ color: "#666", fontSize: 15 }}>{label}</span>
       <div className="flex items-center gap-2">
-        <span style={{ color: "white", fontSize: 13, fontWeight: 500 }}>{value}</span>
-        {tag && <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: tagColor ?? "#333", color: "white" }}>{tag}</span>}
+        <span style={{ color: "white", fontSize: 15, fontWeight: 500 }}>{value}</span>
+        {tag && <span style={{ fontSize: 13, padding: "2px 10px", borderRadius: 4, background: tagColor ?? "#333", color: "white" }}>{tag}</span>}
       </div>
     </div>
   );
