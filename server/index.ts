@@ -88,92 +88,6 @@ app.get("/api/pt-report/:token", async (req, res) => {
   }
 });
 
-// 트레이닝 일지 공개 페이지 (토큰 기반, 인증 불필요)
-app.get("/api/training-log/:token", async (req, res) => {
-  try {
-    const dbConn = await import("./db").then(m => m.db);
-    if (!dbConn) return res.status(503).send("서버 준비 중");
-    const rows = await dbConn.execute(
-      sql`SELECT s.*, m.name AS "memberName", m.phone AS "memberPhone"
-          FROM pt_session_logs s LEFT JOIN members m ON s."memberId" = m.id
-          WHERE s."shareToken" = ${req.params.token} AND s."sharedToMember" = 1
-          LIMIT 1`
-    );
-    const log = (rows as any).rows?.[0] ?? (rows as any)[0];
-    if (!log) return res.status(404).send("<html><body style='font-family:sans-serif;text-align:center;padding:40px'><h2>트레이닝 일지를 찾을 수 없습니다</h2><p style='color:#888'>링크가 만료되었거나 잘못된 주소입니다.</p></body></html>");
-
-    let exercises: any[] = [];
-    try { exercises = JSON.parse(log.exercisesJson || "[]"); } catch {}
-
-    const exercisesHtml = exercises.length === 0 ? "" : `
-      <div class="section">
-        <h3>운동 목록</h3>
-        ${exercises.map((ex: any) => `
-          <div class="exercise-card">
-            <div class="exercise-name">${ex.name ?? ""}</div>
-            ${(ex.sets ?? []).map((s: any, i: number) => `
-              <div class="set-row">
-                <span class="set-num">${i + 1}세트</span>
-                ${s.weight ? `<span>${s.weight}kg</span>` : ""}
-                ${s.reps ? `<span>${s.reps}회</span>` : ""}
-                ${s.duration ? `<span>${s.duration}</span>` : ""}
-              </div>
-            `).join("")}
-          </div>
-        `).join("")}
-      </div>`;
-
-    const html = `<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>트레이닝 일지 · ZIANTGYM</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#0d0d0d;color:#e2e8f0;font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;min-height:100vh;padding-bottom:40px}
-    .header{background:linear-gradient(135deg,#1e3a6e,#0f172a);padding:28px 20px 24px;text-align:center}
-    .gym-name{font-size:13px;color:#60a5fa;letter-spacing:0.2em;margin-bottom:8px}
-    .page-title{font-size:20px;font-weight:700;color:white}
-    .member-info{background:#141414;margin:16px;border-radius:16px;padding:18px 20px;border:1px solid rgba(255,255,255,0.06)}
-    .member-name{font-size:22px;font-weight:700;margin-bottom:4px}
-    .session-date{font-size:14px;color:#64748b}
-    .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-top:8px;background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.3)}
-    .section{background:#141414;margin:10px 16px;border-radius:16px;padding:18px 20px;border:1px solid rgba(255,255,255,0.06)}
-    .section h3{font-size:11px;color:#475569;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px}
-    .text-content{font-size:14px;color:#cbd5e1;line-height:1.8;white-space:pre-wrap}
-    .exercise-card{background:#1a1a1a;border-radius:12px;padding:14px 16px;margin-bottom:10px}
-    .exercise-name{font-size:15px;font-weight:600;color:white;margin-bottom:8px}
-    .set-row{display:flex;gap:12px;font-size:13px;color:#94a3b8;padding:3px 0;border-top:1px solid rgba(255,255,255,0.04)}
-    .set-num{color:#64748b;min-width:40px}
-    .footer{text-align:center;margin-top:28px;font-size:12px;color:#334155}
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="gym-name">맞춤운동센터 자이언트짐</div>
-    <div class="page-title">트레이닝 일지</div>
-  </div>
-  <div class="member-info">
-    <div class="member-name">${log.memberName ?? log.memberId}님</div>
-    <div class="session-date">${log.sessionDate ?? ""}</div>
-    ${log.bodyPart ? `<div class="badge">${log.bodyPart}</div>` : ""}
-  </div>
-  ${log.goal ? `<div class="section"><h3>오늘의 목표</h3><div class="text-content">${log.goal}</div></div>` : ""}
-  ${exercisesHtml}
-  ${log.notes ? `<div class="section"><h3>트레이너 메모</h3><div class="text-content">${log.notes}</div></div>` : ""}
-  ${log.feedback ? `<div class="section"><h3>트레이너 피드백</h3><div class="text-content">${log.feedback}</div></div>` : ""}
-  <div class="footer">ZIANTGYM · 트레이너 관리 시스템</div>
-</body>
-</html>`;
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.send(html);
-  } catch (e) {
-    console.error(e);
-    res.status(500).send("오류가 발생했습니다");
-  }
-});
-
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
@@ -569,7 +483,6 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE sheet_pending_members ADD COLUMN IF NOT EXISTS "membershipType" TEXT`,
-    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "shareToken" TEXT`,
     `CREATE TABLE IF NOT EXISTS training_manuals (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
