@@ -390,6 +390,13 @@ export default function Admin() {
       {/* 계정 설정 */}
       {(<>
 
+      {/* ════ 데이터 관리 ════ */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">데이터 관리</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
       {/* ── 구글시트 자동 동기화 설정 ── */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
@@ -938,6 +945,13 @@ export default function Admin() {
           <p className="text-xs text-muted-foreground">⚠ DB 복원 시 현재 모든 데이터가 업로드한 파일로 교체됩니다.</p>
         </CardContent>
       </Card>
+
+      {/* ════ 인원 / 계정 관리 ════ */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">인원 · 계정 관리</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
 
       {/* 지점 관리 */}
       <Card className="bg-card border-border">
