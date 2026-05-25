@@ -1079,6 +1079,7 @@ function AddLockerModal({
 
   const handleSubmit = async () => {
     const bid = branchId ? parseInt(branchId) : undefined;
+    const cid = categoryId ? Number(categoryId) : undefined;
     if (bulk) {
       const from = parseInt(bulkFrom);
       const to = parseInt(bulkTo);
@@ -1086,12 +1087,21 @@ function AddLockerModal({
         toast.error("올바른 범위를 입력하세요");
         return;
       }
+      let created = 0, skipped = 0;
       for (let i = from; i <= to; i++) {
-        await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo, branchId: bid, categoryId: categoryId ? Number(categoryId) : undefined });
+        try {
+          await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo, branchId: bid, categoryId: cid });
+          created++;
+        } catch {
+          skipped++; // 이미 존재하는 번호는 건너뜀
+        }
       }
+      toast.success(`${created}개 추가 완료${skipped > 0 ? ` (${skipped}개 이미 존재해 건너뜀)` : ""}`);
+      onAdded();
+      onClose();
     } else {
       if (!number.trim()) { toast.error("락커 번호를 입력하세요"); return; }
-      createLocker.mutate({ lockerNumber: number.trim(), lockerType: type, memo, branchId: bid, categoryId: categoryId ? Number(categoryId) : undefined });
+      createLocker.mutate({ lockerNumber: number.trim(), lockerType: type, memo, branchId: bid, categoryId: cid });
     }
   };
 
