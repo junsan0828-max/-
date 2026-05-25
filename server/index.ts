@@ -110,6 +110,25 @@ app.get("/api/pt-report/:token", async (req, res) => {
   }
 });
 
+// 양도양수 계약서 공개 조회 (토큰 기반, 인증 불필요)
+app.get("/api/transfer/:token", async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM transfer_contracts WHERE token = $1', [req.params.token]);
+    const contract = result.rows[0];
+    if (!contract) return res.status(404).json({ error: "계약서를 찾을 수 없습니다" });
+    // Remove signatures from response for security (return only metadata)
+    const { transferorSignature, transfereeSignature, ...safe } = contract;
+    return res.json({
+      ...safe,
+      transferorSigned: !!transferorSignature,
+      transfereeSigned: !!transfereeSignature,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "오류" });
+  }
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
@@ -578,6 +597,33 @@ async function initDatabase() {
       "startDate" TEXT,
       "endDate" TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS transfer_contracts (
+      id SERIAL PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending_transferor',
+      "transferorMemberId" INTEGER NOT NULL,
+      "transferorName" TEXT NOT NULL,
+      "transferorPhone" TEXT,
+      "transferorSignature" TEXT,
+      "transferorSignedAt" TEXT,
+      "transfereeMemberId" INTEGER,
+      "transfereeName" TEXT,
+      "transfereePhone" TEXT,
+      "transfereeBirthDate" TEXT,
+      "transfereeSignature" TEXT,
+      "transfereeSignedAt" TEXT,
+      "itemType" TEXT NOT NULL,
+      "itemId" INTEGER,
+      "itemDescription" TEXT NOT NULL,
+      "termsSnapshot" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "completedAt" TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS transfer_terms (
+      id SERIAL PRIMARY KEY,
+      content TEXT NOT NULL,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
   ];
   for (const stmt of accessTables) {

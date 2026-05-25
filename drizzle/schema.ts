@@ -486,3 +486,35 @@ export const kioskBanners = pgTable("kiosk_banners", {
   imageData: text("imageData"),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+// 양도양수 계약서
+export const transferContracts = pgTable("transfer_contracts", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  status: text("status").default("pending_transferor").notNull(),
+  // pending_transferor → pending_transferee → completed / cancelled
+  transferorMemberId: integer("transferorMemberId").notNull(),
+  transferorName: text("transferorName").notNull(),
+  transferorPhone: text("transferorPhone"),
+  transferorSignature: text("transferorSignature"),
+  transferorSignedAt: text("transferorSignedAt"),
+  transfereeMemberId: integer("transfereeMemberId"),
+  transfereeName: text("transfereeName"),
+  transfereePhone: text("transfereePhone"),
+  transfereeBirthDate: text("transfereeBirthDate"),
+  transfereeSignature: text("transfereeSignature"),
+  transfereeSignedAt: text("transfereeSignedAt"),
+  itemType: text("itemType").notNull(), // pt_package | membership | uniform | locker
+  itemId: integer("itemId"),
+  itemDescription: text("itemDescription").notNull(),
+  termsSnapshot: text("termsSnapshot"),
+  createdAt: text("createdAt").default(now).notNull(),
+  completedAt: text("completedAt"),
+});
+
+// 양도약관 (편집 가능)
+export const transferTerms = pgTable("transfer_terms", {
+  id: serial("id").primaryKey(),
+  content: text("content").notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
