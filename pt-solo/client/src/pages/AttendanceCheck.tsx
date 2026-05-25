@@ -57,67 +57,58 @@ const BACK_SPOTS: BodySpot[] = [
   { part: "발(족저근막)", x: 73,  y: 94 },
 ];
 
-function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
-  const ALL_SPOTS = [...FRONT_SPOTS, ...BACK_SPOTS];
+const PART_GROUPS = [
+  {
+    label: "관절",
+    parts: ["턱관절", "좌 어깨관절", "우 어깨관절", "좌 팔꿈치", "우 팔꿈치", "좌 손목", "우 손목", "좌 고관절", "우 고관절", "좌 무릎", "우 무릎", "좌 발목", "우 발목"],
+  },
+  {
+    label: "근육",
+    parts: ["목", "좌 어깨(후)", "우 어깨(후)", "등(승모근)", "우 팔", "허리", "좌 엉덩이", "우 엉덩이", "우 허벅지", "좌 종아리", "우 종아리", "발(족저근막)"],
+  },
+];
 
+function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
   function toggle(part: string) {
     onChange(selected.includes(part) ? selected.filter(p => p !== part) : [...selected, part]);
   }
 
-  function handleTap(e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) {
-    const el = e.currentTarget;
-    const rect = el.getBoundingClientRect();
-    let clientX: number, clientY: number;
-    if ("touches" in e) {
-      if (e.changedTouches.length === 0) return;
-      clientX = e.changedTouches[0].clientX;
-      clientY = e.changedTouches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    const x = ((clientX - rect.left) / rect.width) * 100;
-    const y = ((clientY - rect.top) / rect.height) * 100;
-
-    let nearest = ALL_SPOTS[0];
-    let minDist = Infinity;
-    for (const spot of ALL_SPOTS) {
-      const dist = Math.hypot(spot.x - x, spot.y - y);
-      if (dist < minDist) { minDist = dist; nearest = spot; }
-    }
-    if (minDist <= 10) toggle(nearest.part);
-  }
-
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-muted-foreground text-center">이미지를 직접 탭하면 가까운 부위가 선택됩니다</p>
-      <div
-        className="relative select-none rounded-xl overflow-hidden border border-border cursor-pointer"
-        onClick={handleTap}
-        onTouchEnd={handleTap}
-      >
-        <img src="/body-map.png" className="w-full block pointer-events-none" draggable={false} alt="신체 부위 지도" />
-        {/* 선택된 부위만 표시 */}
-        <div className="absolute inset-0 pointer-events-none">
-          {ALL_SPOTS.filter(s => selected.includes(s.part)).map(s => (
-            <div
-              key={s.part}
-              style={{ left: `${s.x}%`, top: `${s.y}%` }}
-              className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-primary ring-2 ring-white shadow-lg"
-            />
-          ))}
+      {/* 참고 이미지 */}
+      <img src="/body-map.png" className="w-full block rounded-xl border border-border" draggable={false} alt="신체 부위 참고 이미지" />
+
+      {/* 부위 선택 버튼 */}
+      {PART_GROUPS.map(group => (
+        <div key={group.label} className="space-y-1.5">
+          <p className="text-xs font-semibold text-muted-foreground">{group.label}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {group.parts.map(part => {
+              const on = selected.includes(part);
+              return (
+                <button
+                  key={part}
+                  onClick={() => toggle(part)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors touch-manipulation ${
+                    on
+                      ? "bg-primary text-white border-primary"
+                      : "bg-background text-foreground border-border hover:border-primary/50"
+                  }`}
+                >
+                  {part}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      ))}
 
       {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 items-center">
-          {selected.map(p => (
-            <span key={p} className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-              {p}
-              <button onClick={e => { e.stopPropagation(); toggle(p); }} className="text-primary/60 hover:text-primary leading-none">×</button>
-            </span>
-          ))}
-          <button onClick={() => onChange([])} className="text-[10px] text-muted-foreground underline ml-1">전체 해제</button>
+        <div className="flex items-center justify-between pt-1">
+          <p className="text-xs text-muted-foreground">
+            선택: <span className="text-foreground font-medium">{selected.join(" · ")}</span>
+          </p>
+          <button onClick={() => onChange([])} className="text-[11px] text-muted-foreground underline shrink-0 ml-2">전체 해제</button>
         </div>
       )}
     </div>
