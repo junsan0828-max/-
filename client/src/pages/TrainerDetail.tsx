@@ -20,6 +20,7 @@ import {
 import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, ChevronLeft, UserPlus, Edit, KeyRound, BarChart3, AtSign } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { trpc as trpcHook } from "@/lib/trpc";
+import { TransferModal, type MemberBasic } from "./TransferModal";
 
 interface Props {
   trainerId: number;
@@ -60,6 +61,8 @@ export default function TrainerDetail({ trainerId }: Props) {
   const { data: settlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
   const { data: trainerStats } = trpc.trainers.getMyStats.useQuery({ trainerId });
   const { data: expiringMembers, refetch: refetchExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 8, trainerId });
+  const [transferMember, setTransferMember] = useState<MemberBasic | null>(null);
+  const { data: ptPackages } = trpc.pt.list.useQuery();
   const [expiringOpen, setExpiringOpen] = useState(false);
   const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
     onSuccess: () => refetchExpiring(),
@@ -644,10 +647,13 @@ export default function TrainerDetail({ trainerId }: Props) {
               const daysLeft = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
               const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
               return (
-                <button
+                <div
                   key={m.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setLocation(`/members/${m.id}`)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left"
+                  onKeyDown={(e) => e.key === "Enter" && setLocation(`/members/${m.id}`)}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
@@ -682,13 +688,34 @@ export default function TrainerDetail({ trainerId }: Props) {
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
-                </button>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setTransferMember({ id: m.id, name: m.name, phone: m.phone ?? null }); }}
+                      className="text-xs px-2 py-1 rounded-md border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                    >
+                      양도
+                    </button>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </div>
+                </div>
               );
             })
           )}
         </CardContent>
       </Card>
+
+      {transferMember && (
+        <TransferModal
+          member={transferMember}
+          allMembers={(memberList ?? []).map((m) => ({ id: m.id, name: m.name, phone: m.phone ?? null }))}
+          ptPackages={
+            (ptPackages ?? [])
+              .filter((p) => p.memberId === transferMember.id)
+              .map((p) => ({ id: p.id, packageName: p.packageName, totalSessions: p.totalSessions, usedSessions: p.usedSessions }))
+          }
+          onClose={() => setTransferMember(null)}
+        />
+      )}
     </div>
   );
 }

@@ -848,35 +848,39 @@ const ptRouter = t.router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const { role, trainerId } = ctx.user;
 
-    return db
-      .select({
-        id: ptPackages.id,
-        memberId: ptPackages.memberId,
-        memberName: members.name,
-        memberPhone: members.phone,
-        trainerId: ptPackages.trainerId,
-        totalSessions: ptPackages.totalSessions,
-        usedSessions: ptPackages.usedSessions,
-        packageName: ptPackages.packageName,
-        startDate: ptPackages.startDate,
-        expiryDate: ptPackages.expiryDate,
-        status: ptPackages.status,
-        price: ptPackages.price,
-        pricePerSession: ptPackages.pricePerSession,
-        paymentAmount: ptPackages.paymentAmount,
-        unpaidAmount: ptPackages.unpaidAmount,
-        paymentMethod: ptPackages.paymentMethod,
-        paymentMemo: ptPackages.paymentMemo,
-        createdAt: ptPackages.createdAt,
-        updatedAt: ptPackages.updatedAt,
-      })
-      .from(ptPackages)
-      .innerJoin(members, eq(ptPackages.memberId, members.id))
-      .where(eq(ptPackages.trainerId, trainerId))
-      .orderBy(desc(ptPackages.createdAt));
+    const baseSelect = {
+      id: ptPackages.id,
+      memberId: ptPackages.memberId,
+      memberName: members.name,
+      memberPhone: members.phone,
+      trainerId: ptPackages.trainerId,
+      totalSessions: ptPackages.totalSessions,
+      usedSessions: ptPackages.usedSessions,
+      packageName: ptPackages.packageName,
+      startDate: ptPackages.startDate,
+      expiryDate: ptPackages.expiryDate,
+      status: ptPackages.status,
+      price: ptPackages.price,
+      pricePerSession: ptPackages.pricePerSession,
+      paymentAmount: ptPackages.paymentAmount,
+      unpaidAmount: ptPackages.unpaidAmount,
+      paymentMethod: ptPackages.paymentMethod,
+      paymentMemo: ptPackages.paymentMemo,
+      createdAt: ptPackages.createdAt,
+      updatedAt: ptPackages.updatedAt,
+    };
+
+    const q = db.select(baseSelect).from(ptPackages).innerJoin(members, eq(ptPackages.memberId, members.id));
+
+    if (role === "trainer") {
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      return q.where(eq(ptPackages.trainerId, trainerId)).orderBy(desc(ptPackages.createdAt));
+    }
+
+    // admin, sub_admin, consultant: 전체 패키지 반환
+    return q.orderBy(desc(ptPackages.createdAt));
   }),
 
   // 기존 회원에게 PT 패키지 추가
