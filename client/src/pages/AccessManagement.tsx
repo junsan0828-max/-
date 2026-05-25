@@ -103,6 +103,8 @@ export default function AccessManagement() {
   const [bannerForm, setBannerForm] = useState({
     title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", branchId: null as number | null,
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadedBannerId, setUploadedBannerId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -143,9 +145,23 @@ export default function AccessManagement() {
   const deleteBanner = trpc.access.deleteBanner.useMutation({
     onSuccess: () => { utils.access.getAllBanners.invalidate(); toast.success("배너 삭제 완료"); },
   });
+  const uploadBannerImage = trpc.access.uploadBannerImage.useMutation({
+    onSuccess: (data, vars) => {
+      utils.access.getAllBanners.invalidate();
+      setBannerForm((f) => ({ ...f, imageUrl: data.imageUrl }));
+      setUploadedBannerId(vars.id);
+      setUploadingImage(false);
+      toast.success("이미지 업로드 완료");
+    },
+    onError: () => { setUploadingImage(false); toast.error("이미지 업로드 실패"); },
+  });
+  const clearBannerImage = trpc.access.clearBannerImage.useMutation({
+    onSuccess: () => { utils.access.getAllBanners.invalidate(); setBannerForm((f) => ({ ...f, imageUrl: "" })); toast.success("이미지 삭제 완료"); },
+  });
 
   function resetBannerForm() {
     setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", branchId: null });
+    setUploadedBannerId(null);
   }
   function openEditBanner(b: KioskBanner) {
     setEditingBanner(b);
@@ -604,17 +620,63 @@ export default function AccessManagement() {
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">이미지 URL (선택)</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">이미지</label>
+                  {/* 파일 직접 업로드 (수정 모드에서만) */}
+                  {editingBanner ? (
+                    <div className="flex items-center gap-2 mb-2">
+                      <label className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background cursor-pointer hover:bg-muted transition-colors">
+                        <Image className="h-4 w-4" />
+                        {uploadingImage ? "업로드 중..." : "파일 업로드"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImage}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file || !editingBanner) return;
+                            setUploadingImage(true);
+                            const canvas = document.createElement("canvas");
+                            const img = new window.Image();
+                            img.onload = () => {
+                              const maxW = 1080, maxH = 600;
+                              let w = img.naturalWidth, h = img.naturalHeight;
+                              if (w > maxW || h > maxH) {
+                                const ratio = Math.min(maxW / w, maxH / h);
+                                w = Math.round(w * ratio); h = Math.round(h * ratio);
+                              }
+                              canvas.width = w; canvas.height = h;
+                              canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+                              const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+                              uploadBannerImage.mutate({ id: editingBanner.id, imageData: dataUrl });
+                            };
+                            img.src = URL.createObjectURL(file);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                      {(bannerForm.imageUrl?.startsWith("/api/banner-image/") || uploadedBannerId === editingBanner.id) && (
+                        <button
+                          type="button"
+                          className="px-3 py-2 text-xs rounded-lg border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
+                          onClick={() => clearBannerImage.mutate({ id: editingBanner.id })}
+                        >
+                          이미지 삭제
+                        </button>
+                      )}
+                      <span className="text-xs text-muted-foreground">또는 URL 직접 입력 ↓</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-500 mb-2">파일 업로드는 배너 저장 후 수정 화면에서 가능합니다</p>
+                  )}
                   <input
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
                     placeholder="이미지 URL 또는 HTML/BBCode 코드 붙여넣기"
                     value={bannerForm.imageUrl}
                     onChange={(e) => {
                       let val = e.target.value;
-                      // HTML <img src="..."> 에서 URL 추출
                       const htmlMatch = val.match(/src=["']([^"']+)["']/);
                       if (htmlMatch) val = htmlMatch[1];
-                      // BBCode [img]...[/img] 에서 URL 추출
                       const bbMatch = val.match(/\[img\](https?:\/\/[^\[]+)\[\/img\]/i);
                       if (bbMatch) val = bbMatch[1];
                       setBannerForm((f) => ({ ...f, imageUrl: val }));

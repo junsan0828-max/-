@@ -483,5 +483,6 @@ export const kioskBanners = pgTable("kiosk_banners", {
   textAlign: text("textAlign").default("center"),
   textVAlign: text("textVAlign").default("center"),
   branchId: integer("branchId"),
+  imageData: text("imageData"),
   createdAt: text("createdAt").default(now).notNull(),
 });

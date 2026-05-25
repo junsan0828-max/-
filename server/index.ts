@@ -55,6 +55,24 @@ app.use(
   })
 );
 
+// 배너 이미지 서빙 (업로드된 이미지, 브라우저 캐시 1일)
+app.get("/api/banner-image/:id", async (req, res) => {
+  try {
+    const result = await pool.query('SELECT "imageData" FROM kiosk_banners WHERE id = $1', [req.params.id]);
+    const imageData: string | null = result.rows[0]?.imageData ?? null;
+    if (!imageData) return res.status(404).send("Not found");
+    const typeMatch = imageData.match(/^data:(image\/[\w+]+);base64,/);
+    const mimeType = typeMatch?.[1] ?? "image/jpeg";
+    const base64 = imageData.replace(/^data:image\/[\w+]+;base64,/, "");
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(Buffer.from(base64, "base64"));
+  } catch (e) {
+    console.error("banner-image error:", e);
+    res.status(500).send("오류");
+  }
+});
+
 // 건강보고서 공개 페이지 (토큰 기반, 인증 불필요)
 app.get("/api/health-report/:token", async (req, res) => {
   try {
@@ -487,6 +505,7 @@ async function initDatabase() {
     `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "textAlign" TEXT DEFAULT 'center'`,
     `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "textVAlign" TEXT DEFAULT 'center'`,
     `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "imageData" TEXT`,
     `CREATE TABLE IF NOT EXISTS training_manuals (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,

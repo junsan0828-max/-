@@ -460,11 +460,14 @@ export const accessRouter = t.router({
         .from(kioskBanners)
         .where(eq(kioskBanners.isActive, 1))
         .orderBy(kioskBanners.sortOrder, kioskBanners.id);
-      // 지점 필터: branchId 없는 배너(전체)는 항상 포함, 지점 지정 배너는 일치할 때만
-      if (input.branchId) {
-        return rows.filter((b) => b.branchId == null || b.branchId === input.branchId);
-      }
-      return rows;
+      const filtered = input.branchId
+        ? rows.filter((b) => b.branchId == null || b.branchId === input.branchId)
+        : rows;
+      // imageData가 있으면 서버 이미지 URL을 imageUrl로 반환 (imageData 자체는 제외)
+      return filtered.map(({ imageData, ...b }) => ({
+        ...b,
+        imageUrl: imageData ? `/api/banner-image/${b.id}` : b.imageUrl,
+      }));
     }),
 
   // 배너 전체 목록 (관리자용)
@@ -509,13 +512,33 @@ export const accessRouter = t.router({
       return banner;
     }),
 
+  // 배너 이미지 업로드 (base64, 관리자용)
+  uploadBannerImage: protectedProcedure
+    .input(z.object({ id: z.number(), imageData: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(kioskBanners).set({ imageData: input.imageData }).where(eq(kioskBanners.id, input.id));
+      return { ok: true, imageUrl: `/api/banner-image/${input.id}` };
+    }),
+
+  // 배너 이미지 삭제 (imageData 제거, 관리자용)
+  clearBannerImage: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(kioskBanners).set({ imageData: null }).where(eq(kioskBanners.id, input.id));
+      return { ok: true };
+    }),
+
   // 배너 수정
   updateBanner: protectedProcedure
     .input(z.object({
       id: z.number(),
       title: z.string().optional(),
       body: z.string().optional(),
-      imageUrl: z.string().optional(),
+      imageUrl: z.string().optional().nullable(),
       bgColor: z.string().optional(),
       textColor: z.string().optional(),
       isActive: z.boolean().optional(),
