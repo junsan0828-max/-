@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, desc, and, like } from "drizzle-orm";
+import { eq, desc, and, like, sql } from "drizzle-orm";
 import { getDb, pool } from "./db";
 import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
@@ -409,6 +409,22 @@ export const accessRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(lockers).where(eq(lockers.id, input.lockerId));
       return { ok: true };
+    }),
+
+  // 락커 범위 삭제 (빈 락커만, 번호 기준)
+  deleteLockerRange: protectedProcedure
+    .input(z.object({ from: z.number(), to: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const result = await pool.query(
+        `DELETE FROM lockers WHERE "isOccupied" = 0
+         AND "lockerNumber" ~ '^[0-9]+$'
+         AND "lockerNumber"::int BETWEEN $1 AND $2
+         RETURNING id`,
+        [input.from, input.to]
+      );
+      return { deleted: result.rowCount ?? 0 };
     }),
 
   // 락커 메모 수정

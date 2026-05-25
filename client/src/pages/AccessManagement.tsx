@@ -102,6 +102,9 @@ export default function AccessManagement() {
   const [editingCategory, setEditingCategory] = useState<LockerCategory | null>(null);
   const [categoryForm, setCategoryForm] = useState({ name: "", color: "#3b82f6" });
   const [movingLockerId, setMovingLockerId] = useState<number | null>(null);
+  const [showDeleteRange, setShowDeleteRange] = useState(false);
+  const [deleteRangeFrom, setDeleteRangeFrom] = useState("");
+  const [deleteRangeTo, setDeleteRangeTo] = useState("");
   const [showBannerForm, setShowBannerForm] = useState(false);
   const [editingBanner, setEditingBanner] = useState<KioskBanner | null>(null);
   const [bannerForm, setBannerForm] = useState({
@@ -127,6 +130,15 @@ export default function AccessManagement() {
   });
   const deleteLocker = trpc.access.deleteLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 삭제 완료"); },
+  });
+  const deleteLockerRange = trpc.access.deleteLockerRange.useMutation({
+    onSuccess: (data) => {
+      utils.access.getLockers.invalidate();
+      setShowDeleteRange(false);
+      setDeleteRangeFrom(""); setDeleteRangeTo("");
+      toast.success(`${data.deleted}개 락커 삭제 완료`);
+    },
+    onError: () => toast.error("삭제 실패"),
   });
   const createCategory = trpc.access.createLockerCategory.useMutation({
     onSuccess: () => { utils.access.getLockerCategories.invalidate(); setShowCategoryForm(false); setCategoryForm({ name: "", color: "#3b82f6" }); toast.success("카테고리 추가 완료"); },
@@ -503,13 +515,50 @@ export default function AccessManagement() {
             <p className="text-sm text-muted-foreground">
               사용 중 {occupiedCount}개 / 전체 {lockers.length}개
             </p>
-            <button
-              onClick={() => setShowAddLocker(true)}
-              className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="h-4 w-4" /> 락커 추가
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowDeleteRange((v) => !v)}
+                className="flex items-center gap-1.5 text-sm border border-red-400 text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-400/10 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" /> 범위 삭제
+              </button>
+              <button
+                onClick={() => setShowAddLocker(true)}
+                className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> 락커 추가
+              </button>
+            </div>
           </div>
+
+          {/* 범위 삭제 패널 */}
+          {showDeleteRange && (
+            <div className="border border-red-400/40 rounded-xl p-4 bg-red-500/5 flex items-end gap-3 flex-wrap">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">시작 번호</label>
+                <input type="number" value={deleteRangeFrom} onChange={(e) => setDeleteRangeFrom(e.target.value)}
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-background w-24" placeholder="예: 100" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">끝 번호</label>
+                <input type="number" value={deleteRangeTo} onChange={(e) => setDeleteRangeTo(e.target.value)}
+                  className="border border-border rounded-lg px-3 py-2 text-sm bg-background w-24" placeholder="예: 210" />
+              </div>
+              <button
+                disabled={deleteLockerRange.isPending}
+                onClick={() => {
+                  const f = parseInt(deleteRangeFrom), t = parseInt(deleteRangeTo);
+                  if (isNaN(f) || isNaN(t) || f > t) { toast.error("올바른 범위를 입력하세요"); return; }
+                  if (!confirm(`${f}~${t}번 빈 락커를 모두 삭제합니까? (배정된 락커는 제외됩니다)`)) return;
+                  deleteLockerRange.mutate({ from: f, to: t });
+                }}
+                className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+              >
+                {deleteLockerRange.isPending ? "삭제 중..." : "삭제"}
+              </button>
+              <p className="text-xs text-muted-foreground w-full">배정된(사용 중) 락커는 삭제되지 않습니다.</p>
+            </div>
+          )}
 
           {/* 카테고리별 그룹 표시 */}
           {(() => {
@@ -1038,7 +1087,7 @@ function AddLockerModal({
         return;
       }
       for (let i = from; i <= to; i++) {
-        await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo, branchId: bid });
+        await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo, branchId: bid, categoryId: categoryId ? Number(categoryId) : undefined });
       }
     } else {
       if (!number.trim()) { toast.error("락커 번호를 입력하세요"); return; }
