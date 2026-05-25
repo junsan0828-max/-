@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,134 @@ const AUTO_GUESS: Record<string, string> = {
   "보유이용권": "membershipInfo", "보유 이용권": "membershipInfo",
 };
 
+// ── 엑셀 파싱 헬퍼 ──────────────────────────────────────────────────────────
+
+function dotDateToISO(s: string): string {
+  return s.replace(/\./g, "-").replace(/-$/, "");
+}
+
+function normalizeBirthDate(s: string): string | undefined {
+  if (!s) return undefined;
+  const d = dotDateToISO(s.trim());
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  return undefined;
+}
+
+function parseKoreanDate(s: string): string | undefined {
+  if (!s) return undefined;
+  const d = dotDateToISO(s.trim());
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  return undefined;
+}
+
+type BulkPkg = { packageName?: string; totalSessions: number; startDate?: string; expiryDate?: string };
+
+function parseMembershipCell(cell: string): { healthStart?: string; healthEnd?: string; ptPkgs: BulkPkg[] } {
+  const items = cell.split(/\s*\/\s*/);
+  let healthStart: string | undefined;
+  let healthEnd: string | undefined;
+  const ptPkgs: BulkPkg[] = [];
+
+  for (const item of items) {
+    const m = item.match(/^(.+?)\(([^)]+)\)\s*(\d{4}[.\-]\d{2}[.\-]\d{2})\s*~\s*(\d{4}[.\-]\d{2}[.\-]\d{2})/);
+    if (!m) continue;
+    const [, name, , startRaw, endRaw] = m;
+    const start = parseKoreanDate(startRaw);
+    const end = parseKoreanDate(endRaw);
+    const nameTrimmed = name.trim();
+
+    const sessionMatch = nameTrimmed.match(/(\d+)회/);
+    const hasPT = nameTrimmed.includes("PT") || (sessionMatch && !nameTrimmed.includes("헬스"));
+    if (hasPT && sessionMatch) {
+      ptPkgs.push({ packageName: nameTrimmed, totalSessions: parseInt(sessionMatch[1]), startDate: start, expiryDate: end });
+    } else if (nameTrimmed.includes("헬스")) {
+      if (!healthStart || (start && start < healthStart)) healthStart = start;
+      if (!healthEnd || (end && end > healthEnd)) healthEnd = end;
+    }
+  }
+
+  return { healthStart, healthEnd, ptPkgs };
+}
+
+function parseExcelToRows(file: File): Promise<ParsedRow[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target!.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const jsonRows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" });
+        resolve(jsonRows.map(parseSingleRow).filter((r): r is ParsedRow => r !== null));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+type ParsedRow = {
+  name: string; phone?: string; gender?: "male" | "female" | "other";
+  birthDate?: string; status: "active" | "paused";
+  membershipStart?: string; membershipEnd?: string; profileNote?: string;
+  ptPackages?: BulkPkg[]; _preview: string;
+};
+
+function parseSingleRow(row: Record<string, string>): ParsedRow | null {
+  const get = (...keys: string[]) => {
+    for (const k of keys) {
+      const found = Object.entries(row).find(([key]) => key.replace(/\s/g, "").includes(k.replace(/\s/g, "")));
+      if (found && found[1].trim()) return found[1].trim();
+    }
+    return "";
+  };
+
+  const name = get("이름", "성명");
+  if (!name) return null;
+
+  const phone = get("연락처", "전화번호", "휴대폰");
+  const genderRaw = get("성별");
+  const gender: "male" | "female" | "other" | undefined =
+    genderRaw === "남" ? "male" : genderRaw === "여" ? "female" : undefined;
+  const birthDate = normalizeBirthDate(get("생년월일", "생일"));
+  const statusRaw = get("상태");
+  const status: "active" | "paused" = statusRaw === "활성" ? "active" : "paused";
+
+  const membershipInfoRaw = get("보유이용권", "보유 이용권");
+  const rentalRaw = get("보유대여권", "보유 대여권");
+  const lockerRaw = get("락커룸", "락커");
+  const firstReg = parseKoreanDate(get("최초등록일", "최초 등록일", "등록일"));
+  const lastExpiry = parseKoreanDate(get("최종만료일", "최종 만료일", "만료일"));
+
+  let healthStart: string | undefined = firstReg;
+  let healthEnd: string | undefined = lastExpiry;
+  let ptPkgs: BulkPkg[] = [];
+
+  if (membershipInfoRaw) {
+    const parsed = parseMembershipCell(membershipInfoRaw);
+    if (parsed.healthStart) healthStart = parsed.healthStart;
+    if (parsed.healthEnd) healthEnd = parsed.healthEnd;
+    ptPkgs = parsed.ptPkgs;
+  }
+
+  const noteParts: string[] = [];
+  if (rentalRaw) noteParts.push(rentalRaw);
+  if (lockerRaw) noteParts.push(`락커: ${lockerRaw}`);
+  const profileNote = noteParts.length > 0 ? noteParts.join(" / ") : undefined;
+
+  return {
+    name, phone: phone || undefined, gender, birthDate, status,
+    membershipStart: healthStart, membershipEnd: healthEnd,
+    profileNote,
+    ptPackages: ptPkgs.length > 0 ? ptPkgs : undefined,
+    _preview: membershipInfoRaw || "-",
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function Admin() {
   const [, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
@@ -86,6 +215,19 @@ export default function Admin() {
   const [trainerBranchFilter, setTrainerBranchFilter] = useState<number | undefined>(undefined);
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none" });
+
+  // 엑셀 일괄 업로드
+  const [xlsxOpen, setXlsxOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState<ParsedRow[]>([]);
+  const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number } | null>(null);
+  const bulkCreateMutation = trpc.members.bulkCreate.useMutation({
+    onSuccess: (data) => {
+      setBulkResult(data);
+      toast.success(`${data.created}명 등록 완료, ${data.skipped}명 중복 건너뜀`);
+      setBulkRows([]);
+    },
+    onError: (err) => toast.error(err.message || "업로드 실패"),
+  });
 
   const createMutation = trpc.admin.createTrainer.useMutation({
     onSuccess: () => {
@@ -616,6 +758,126 @@ export default function Admin() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── 엑셀 일괄 업로드 ── */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <button className="flex items-center justify-between w-full" onClick={() => { setXlsxOpen(v => !v); setBulkResult(null); }}>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+              엑셀 일괄 회원 업로드
+            </CardTitle>
+            {xlsxOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+        </CardHeader>
+        {xlsxOpen && (
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              엑셀 파일에서 회원을 일괄 등록합니다. 동일한 이름+연락처가 이미 존재하면 건너뜁니다.<br />
+              지원 컬럼: 이름, 연락처, 성별, 생년월일, 상태, 보유 이용권, 보유 대여권, 락커룸/락커번호, 최초 등록일, 최종 만료일
+            </p>
+
+            <label className="cursor-pointer block">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setBulkResult(null);
+                  try {
+                    const rows = await parseExcelToRows(file);
+                    setBulkRows(rows);
+                    if (rows.length === 0) toast.error("인식된 회원 데이터가 없습니다. 컬럼명을 확인해주세요.");
+                    else toast.info(`${rows.length}명 인식됨. 아래에서 확인 후 업로드하세요.`);
+                  } catch {
+                    toast.error("파일 파싱 실패. 엑셀 형식을 확인해주세요.");
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <div className="flex items-center justify-center gap-2 py-3 border-2 border-dashed border-emerald-500/40 rounded-xl text-sm text-emerald-400 hover:bg-emerald-500/5 transition-colors">
+                <Upload className="h-4 w-4" />
+                엑셀 파일 선택 (.xlsx / .xls)
+              </div>
+            </label>
+
+            {bulkRows.length > 0 && (
+              <>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-foreground">미리보기 ({bulkRows.length}명)</p>
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      <span>헬스: {bulkRows.filter(r => !r.ptPackages?.length).length}명</span>
+                      <span>PT: {bulkRows.filter(r => r.ptPackages?.length).length}명</span>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-border max-h-64 overflow-y-auto">
+                    <table className="w-full text-xs min-w-[500px]">
+                      <thead className="sticky top-0 bg-card z-10">
+                        <tr className="bg-accent/30">
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">이름</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">연락처</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">상태</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">시작일</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">종료일</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">PT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkRows.map((r, i) => (
+                          <tr key={i} className="border-t border-border hover:bg-accent/10">
+                            <td className="px-2 py-1.5 font-medium text-foreground whitespace-nowrap">{r.name}</td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.phone ?? "-"}</td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${r.status === "active" ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                                {r.status === "active" ? "활성" : "만료"}
+                              </span>
+                            </td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.membershipStart ?? "-"}</td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.membershipEnd ?? "-"}</td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">
+                              {r.ptPackages?.map(p => `${p.packageName ?? "PT"} ${p.totalSessions}회`).join(", ") ?? "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setBulkRows([]); setBulkResult(null); }}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    disabled={bulkCreateMutation.isPending}
+                    onClick={() => bulkCreateMutation.mutate({ rows: bulkRows })}
+                  >
+                    <Upload className="h-4 w-4" />
+                    {bulkCreateMutation.isPending ? "업로드 중..." : `${bulkRows.length}명 업로드`}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {bulkResult && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                <p className="text-sm font-medium text-emerald-400">업로드 완료</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  신규 등록: {bulkResult.created}명 · 중복 건너뜀: {bulkResult.skipped}명
+                </p>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
 
       {/* DB 백업 / 복원 */}
       <Card className="bg-card border-border">

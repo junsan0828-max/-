@@ -710,6 +710,92 @@ const membersRouter = t.router({
       await db.update(members).set({ branchId: input.branchId }).where(eq(members.id, input.memberId));
       return { ok: true };
     }),
+
+  bulkCreate: protectedProcedure
+    .input(z.object({
+      rows: z.array(z.object({
+        name: z.string().min(1),
+        phone: z.string().optional(),
+        gender: z.enum(["male", "female", "other"]).optional(),
+        birthDate: z.string().optional(),
+        status: z.enum(["active", "paused"]).default("active"),
+        membershipStart: z.string().optional(),
+        membershipEnd: z.string().optional(),
+        profileNote: z.string().optional(),
+        branchId: z.number().optional(),
+        ptPackages: z.array(z.object({
+          packageName: z.string().optional(),
+          totalSessions: z.number().int().min(1),
+          startDate: z.string().optional(),
+          expiryDate: z.string().optional(),
+        })).optional(),
+      })),
+      branchId: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      let created = 0;
+      let skipped = 0;
+      const now = new Date().toISOString();
+
+      const existing = await db.select({ id: members.id, name: members.name, phone: members.phone })
+        .from(members);
+      const existingMap = new Map<string, number>();
+      for (const m of existing) {
+        if (m.phone?.trim()) {
+          existingMap.set(`${m.name.trim()}||${m.phone.trim()}`, m.id);
+        }
+      }
+
+      for (const row of input.rows) {
+        const key = row.phone?.trim() ? `${row.name.trim()}||${row.phone.trim()}` : null;
+        let memberId: number | null = null;
+
+        if (key && existingMap.has(key)) {
+          skipped++;
+          memberId = existingMap.get(key)!;
+        } else {
+          const [ins] = await db.insert(members).values({
+            name: row.name.trim(),
+            phone: row.phone?.trim() || undefined,
+            gender: row.gender,
+            birthDate: row.birthDate,
+            status: row.status ?? "active",
+            grade: "basic",
+            membershipStart: row.membershipStart,
+            membershipEnd: row.membershipEnd,
+            profileNote: row.profileNote,
+            branchId: input.branchId ?? row.branchId ?? null,
+            createdAt: now,
+            updatedAt: now,
+          }).returning({ id: members.id });
+          memberId = ins.id;
+          created++;
+          if (key) existingMap.set(key, memberId);
+        }
+
+        if (memberId && row.ptPackages?.length) {
+          for (const pkg of row.ptPackages) {
+            await db.insert(ptPackages).values({
+              memberId,
+              trainerId: null,
+              totalSessions: pkg.totalSessions,
+              serviceSessions: 0,
+              usedSessions: 0,
+              packageName: pkg.packageName,
+              startDate: pkg.startDate,
+              expiryDate: pkg.expiryDate,
+            });
+          }
+        }
+      }
+
+      return { created, skipped };
+    }),
 });
 
 // ─── PT Packages ─────────────────────────────────────────────────────────────
