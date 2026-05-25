@@ -59,17 +59,12 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((end.getTime() - today.getTime()) / 86400000);
 }
 
-// 전화번호 세그먼트: 입력된 숫자 + 남은 자리는 얇은 밑줄
-function PhoneSegment({ value, maxLen }: { value: string; maxLen: number }) {
-  const digits = value.split("");
-  const empty = maxLen - digits.length;
+// 전화번호 세그먼트: 입력된 숫자만 표시, 빈 자리 기호 없음
+function PhoneSegment({ value }: { value: string }) {
   return (
-    <div className="flex items-end gap-2">
-      {digits.map((d, i) => (
-        <span key={i} className="font-mono font-bold" style={{ fontSize: 42, color: "white", lineHeight: 1 }}>{d}</span>
-      ))}
-      {Array.from({ length: empty }).map((_, i) => (
-        <span key={i} style={{ display: "inline-block", width: 22, height: 3, background: "#333", borderRadius: 2, marginBottom: 8 }} />
+    <div className="flex items-end gap-1" style={{ minWidth: 4 }}>
+      {value.split("").map((d, i) => (
+        <span key={i} className="font-mono font-bold" style={{ fontSize: 52, color: "white", lineHeight: 1 }}>{d}</span>
       ))}
     </div>
   );
@@ -131,7 +126,7 @@ export default function KioskCheckin() {
     };
   }, []);
 
-  const bannersQuery = trpc.access.getBanners.useQuery(undefined, { refetchInterval: 60000 });
+  const bannersQuery = trpc.access.getBanners.useQuery(undefined, { refetchInterval: 10000, staleTime: 0 });
   const banners = (bannersQuery.data ?? []) as Banner[];
 
   useEffect(() => {
@@ -351,8 +346,8 @@ export default function KioskCheckin() {
           </div>
           {/* 헤더 */}
           <div className="flex flex-col items-center pt-3 pb-3 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
-            <p style={{ fontSize: 22, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.05em", textShadow: "0 0 18px rgba(42,95,196,0.45)", lineHeight: 1.2 }}>맞춤운동센터 자이언트짐</p>
-            <p style={{ fontSize: 10, color: "#374151", letterSpacing: "0.15em", marginTop: 3 }}>ACCESS SYSTEM</p>
+            <p style={{ fontSize: 30, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.04em", textShadow: "0 0 18px rgba(42,95,196,0.45)", lineHeight: 1.2 }}>맞춤운동센터 자이언트짐</p>
+            <p style={{ fontSize: 11, color: "#374151", letterSpacing: "0.15em", marginTop: 4 }}>ACCESS SYSTEM</p>
           </div>
 
           {/* 탭 */}
@@ -375,24 +370,19 @@ export default function KioskCheckin() {
             ))}
           </div>
 
-          {/* 번호 표시 */}
-          <div className="flex items-center justify-center py-3 gap-3">
+          {/* 번호 표시 — 숫자만, 구분자 없음 */}
+          <div className="flex items-center justify-center py-3 gap-4">
             {activeTab === "phone" ? (
               <>
-                <span className="font-mono font-bold" style={{ fontSize: 42, color: "white", letterSpacing: "0.06em" }}>010</span>
-                <span style={{ color: "#444", fontSize: 32 }}>-</span>
-                <PhoneSegment value={a} maxLen={4} />
-                <span style={{ color: "#444", fontSize: 32 }}>-</span>
-                <PhoneSegment value={b} maxLen={4} />
+                <span className="font-mono font-bold" style={{ fontSize: 52, color: "white" }}>010</span>
+                <PhoneSegment value={a} />
+                <PhoneSegment value={b} />
               </>
             ) : (
-              <div className="flex items-end justify-center gap-3">
-                <PhoneSegment value={digits.slice(0, 4)} maxLen={4} />
+              <div className="flex items-end justify-center gap-2">
+                <PhoneSegment value={digits.slice(0, 4)} />
                 {digits.length > 4 && (
-                  <>
-                    <span style={{ color: "#444", fontSize: 32 }}>-</span>
-                    <span className="font-mono font-bold" style={{ fontSize: 42, color: "white" }}>{digits[4]}</span>
-                  </>
+                  <span className="font-mono font-bold" style={{ fontSize: 52, color: "white" }}>{digits[4]}</span>
                 )}
               </div>
             )}
