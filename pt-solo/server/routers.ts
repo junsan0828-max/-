@@ -169,7 +169,15 @@ const authRouter = t.router({
     if (!ctx.user) return null;
     const db = getDb();
     const row = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
-    return { ...ctx.user, plan: row[0]?.plan ?? "free" };
+    // jobType은 트레이너 사이드바 표시에 사용
+    let jobType: string | null = null;
+    if (ctx.user.trainerId) {
+      const tRow = await pool.query<{ jobType: string | null }>(
+        `SELECT "jobType" FROM trainers WHERE id=$1 LIMIT 1`, [ctx.user.trainerId]
+      );
+      jobType = tRow.rows[0]?.jobType ?? null;
+    }
+    return { ...ctx.user, plan: row[0]?.plan ?? "free", jobType };
   }),
 
   sendVerificationCode: publicProcedure
@@ -915,8 +923,8 @@ const trainersRouter = t.router({
       employmentType: string | null; workplaceName: string | null;
       workYears: number | null; specialties: string | null; profileBonusGranted: number;
       jobType: string | null; careerRange: string | null; activityArea: string | null; profileImage: string | null;
-    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
-    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null };
+    }>(`SELECT "employmentType","workplaceName","workYears","specialties","profileBonusGranted","jobType","careerRange","activityArea","profileImage","educationNeeds" FROM trainers WHERE id=$1`, [ctx.user.trainerId]);
+    const ext = row.rows[0] ?? { employmentType: null, workplaceName: null, workYears: null, specialties: null, profileBonusGranted: 0, jobType: null, careerRange: null, activityArea: null, profileImage: null, educationNeeds: null };
     return { ...trainer[0], settlementRate: settings[0]?.settlementRate ?? 50, ...ext };
   }),
 
@@ -935,6 +943,7 @@ const trainersRouter = t.router({
       careerRange: z.string().optional(),
       activityArea: z.string().optional(),
       profileImage: z.string().optional(),
+      educationNeeds: z.string().optional(),
       // legacy fields kept for backward compat
       employmentType: z.enum(["freelancer", "employed"]).optional(),
       workplaceName: z.string().optional(),
@@ -944,10 +953,11 @@ const trainersRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       await pool.query(
-        `UPDATE trainers SET "jobType"=$1,"careerRange"=$2,"activityArea"=$3,"profileImage"=$4,"employmentType"=$5,"workplaceName"=$6,"workYears"=$7,"specialties"=$8 WHERE id=$9`,
+        `UPDATE trainers SET "jobType"=$1,"careerRange"=$2,"activityArea"=$3,"profileImage"=$4,"employmentType"=$5,"workplaceName"=$6,"workYears"=$7,"specialties"=$8,"educationNeeds"=$9 WHERE id=$10`,
         [
           input.jobType ?? null, input.careerRange ?? null, input.activityArea ?? null, input.profileImage ?? null,
           input.employmentType ?? null, input.workplaceName ?? null, input.workYears ?? null, input.specialties ?? null,
+          input.educationNeeds ?? null,
           ctx.user.trainerId,
         ]
       );

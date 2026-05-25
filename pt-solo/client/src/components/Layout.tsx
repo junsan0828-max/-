@@ -47,6 +47,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const isAdmin = user?.role === "admin";
 
+  const JOB_LABELS: Record<string, string> = {
+    "퍼스널트레이너": "퍼스널트레이너",
+    "필라테스강사": "필라테스강사",
+    "트레이너 준비생": "트레이너 준비생",
+    "센터 운영자": "센터 운영자",
+    "프리랜서": "프리랜서",
+    "학생": "학생",
+  };
+  const jobLabel = isAdmin ? "운영자" : (JOB_LABELS[(user as any)?.jobType ?? ""] ?? "트레이너");
+
   const adminNavItems = [
     { path: "/", label: "운영 현황", icon: LayoutDashboard },
     { path: "/admin/registrations", label: "가입 관리", icon: UserCog },
@@ -105,7 +115,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="px-3 py-4 border-t border-border space-y-1">
           <div className="px-3 py-2">
             <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
-            <p className="text-xs text-muted-foreground">{isAdmin ? "운영자" : "트레이너"}</p>
+            <p className="text-xs text-muted-foreground">{jobLabel}</p>
           </div>
           <button
             onClick={() => logoutMutation.mutate()}
@@ -155,7 +165,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="px-3 py-4 border-t border-border space-y-1">
               <div className="px-3 py-2">
                 <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
-                <p className="text-xs text-muted-foreground">{isAdmin ? "운영자" : "트레이너"}</p>
+                <p className="text-xs text-muted-foreground">{jobLabel}</p>
               </div>
               <button
                 onClick={() => logoutMutation.mutate()}

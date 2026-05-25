@@ -557,6 +557,7 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "careerRange" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "activityArea" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileImage" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "educationNeeds" TEXT`);
   // OAuth 소셜 로그인
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "provider" TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "providerId" TEXT`);

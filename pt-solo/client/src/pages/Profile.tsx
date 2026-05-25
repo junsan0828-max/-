@@ -19,6 +19,23 @@ const TYPE_LABEL: Record<string, string> = {
 
 const JOB_TYPES = ["퍼스널트레이너", "필라테스강사", "트레이너 준비생", "센터 운영자", "프리랜서", "학생"];
 const CAREER_RANGES = ["준비 중", "1년 미만", "1~3년", "3~5년", "5년 이상"];
+const EARLY_CAREER_RANGES = new Set(["준비 중", "1년 미만", "1~3년"]);
+const EDUCATION_NEEDS = [
+  "웨이트 트레이닝 (저항 운동)",
+  "필라테스 (매트·기구)",
+  "요가 (하타·플로우)",
+  "크로스핏 / 기능성 훈련",
+  "수영 / 아쿠아 운동",
+  "사이클 / 스피닝",
+  "복싱 / 격투 피트니스",
+  "재활 운동 / 물리치료 연계",
+  "체형 교정 / 자세 분석",
+  "영양·식이 코칭",
+  "노인·시니어 피트니스",
+  "산전·산후 운동",
+  "스포츠 경기력 향상",
+  "온라인 PT 운영 방법",
+];
 
 async function resizeImageToBase64(file: File, maxSize = 300): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -76,7 +93,7 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
-  const [ext, setExt] = useState({ jobType: "", careerRange: "", activityArea: "", profileImage: "" });
+  const [ext, setExt] = useState({ jobType: "", careerRange: "", activityArea: "", profileImage: "", educationNeeds: "" });
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [infoMsg, setInfoMsg] = useState("");
   const [pwMsg, setPwMsg] = useState("");
@@ -94,6 +111,7 @@ export default function Profile() {
         careerRange: (profile as any).careerRange ?? "",
         activityArea: (profile as any).activityArea ?? "",
         profileImage: (profile as any).profileImage ?? "",
+        educationNeeds: (profile as any).educationNeeds ?? "",
       });
     }
   }, [profile]);
@@ -144,6 +162,7 @@ export default function Profile() {
       careerRange: ext.careerRange || undefined,
       activityArea: ext.activityArea || undefined,
       profileImage: ext.profileImage || undefined,
+      educationNeeds: ext.educationNeeds || undefined,
     });
   };
 
@@ -412,13 +431,37 @@ export default function Profile() {
               <div className="grid grid-cols-5 gap-1.5">
                 {CAREER_RANGES.map(cr => (
                   <button key={cr} type="button"
-                    onClick={() => setExt(p => ({ ...p, careerRange: cr }))}
+                    onClick={() => setExt(p => ({ ...p, careerRange: cr, educationNeeds: EARLY_CAREER_RANGES.has(cr) ? p.educationNeeds : "" }))}
                     className={`py-2 rounded-lg border text-xs font-medium transition-colors ${ext.careerRange === cr ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
                     {cr}
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* 교육 희망 운동 종류 (준비중·1년미만·1~3년) */}
+            {EARLY_CAREER_RANGES.has(ext.careerRange) && (
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">어떤 운동 분야 교육이 필요하신가요? <span className="text-primary font-medium">(복수 선택 가능)</span></Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {EDUCATION_NEEDS.map(item => {
+                    const selected = ext.educationNeeds.split(",").map(s => s.trim()).filter(Boolean);
+                    const isOn = selected.includes(item);
+                    return (
+                      <button key={item} type="button"
+                        onClick={() => {
+                          const arr = ext.educationNeeds.split(",").map(s => s.trim()).filter(Boolean);
+                          const next = isOn ? arr.filter(x => x !== item) : [...arr, item];
+                          setExt(p => ({ ...p, educationNeeds: next.join(", ") }));
+                        }}
+                        className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-colors ${isOn ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
+                        {item}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* 활동지역 */}
             <div className="space-y-1">
