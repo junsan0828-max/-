@@ -221,18 +221,20 @@ const membersRouter = t.router({
         .where(whereClause)
         .orderBy(desc(members.createdAt)),
       db.select({
+        id: ptPackages.id,
         memberId: ptPackages.memberId,
         packageName: ptPackages.packageName,
         totalSessions: ptPackages.totalSessions,
+        usedSessions: ptPackages.usedSessions,
       }).from(ptPackages),
       db.select({ memberId: revenueEntries.memberId }).from(revenueEntries)
         .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`)),
     ]);
 
-    const pkgMap = new Map<number, { packageName: string; totalSessions: number }[]>();
+    const pkgMap = new Map<number, { id: number; packageName: string; totalSessions: number; usedSessions: number }[]>();
     for (const p of pkgs) {
       if (!pkgMap.has(p.memberId)) pkgMap.set(p.memberId, []);
-      pkgMap.get(p.memberId)!.push({ packageName: p.packageName ?? "", totalSessions: p.totalSessions });
+      pkgMap.get(p.memberId)!.push({ id: p.id, packageName: p.packageName ?? "", totalSessions: p.totalSessions, usedSessions: p.usedSessions });
     }
     const ptRevSet = new Set(ptRevs.map((r) => r.memberId).filter(Boolean) as number[]);
 

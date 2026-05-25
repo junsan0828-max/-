@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { Search, ChevronRight, MapPin } from "lucide-react";
+import { TransferModal, type MemberBasic } from "./TransferModal";
 
 type TypeFilter = "all" | "PT" | "헬스" | "기타";
 
@@ -51,6 +52,7 @@ export default function AdminMembers() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
+  const [transferMember, setTransferMember] = useState<MemberBasic | null>(null);
 
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: allMembers, isLoading } = trpc.members.listAll.useQuery(
@@ -231,10 +233,13 @@ export default function AdminMembers() {
             : t === "헬스" ? "bg-green-500/20 text-green-400 border-green-500/30"
             : "bg-muted text-muted-foreground border-border";
           return (
-            <button
+            <div
               key={primary.id}
+              role="button"
+              tabIndex={0}
               onClick={() => setLocation(`/members/${primary.id}`)}
-              className="w-full text-left bg-card border border-border rounded-xl px-4 py-3 hover:bg-accent transition-colors"
+              onKeyDown={(e) => e.key === "Enter" && setLocation(`/members/${primary.id}`)}
+              className="w-full text-left bg-card border border-border rounded-xl px-4 py-3 hover:bg-accent transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
@@ -255,9 +260,17 @@ export default function AdminMembers() {
                     {primary.profileNote && <><span>·</span><span className="truncate max-w-[120px]">{primary.profileNote}</span></>}
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setTransferMember({ id: primary.id, name: primary.name, phone: primary.phone ?? null }); }}
+                    className="text-xs px-2 py-1 rounded-md border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                  >
+                    양도
+                  </button>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -266,6 +279,18 @@ export default function AdminMembers() {
         <p className="text-sm text-muted-foreground text-center py-2">
           합계 ({filtered.length}건)
         </p>
+      )}
+
+      {transferMember && (
+        <TransferModal
+          member={transferMember}
+          allMembers={(allMembers ?? []).map((m) => ({ id: m.id, name: m.name, phone: m.phone ?? null }))}
+          ptPackages={
+            (allMembers?.find((m) => m.id === transferMember.id)?.packages ?? [])
+              .map((p) => ({ id: p.id, packageName: p.packageName, totalSessions: p.totalSessions, usedSessions: p.usedSessions }))
+          }
+          onClose={() => setTransferMember(null)}
+        />
       )}
     </div>
   );
