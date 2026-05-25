@@ -92,6 +92,21 @@ app.get("/api/pt-report/:token", async (req, res) => {
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
+
+  // 키오스크: manifest-kiosk.json 참조하는 별도 HTML 서빙
+  app.get("/kiosk", (_req, res) => {
+    try {
+      let html = fs.readFileSync(path.join(clientDistPath, "index.html"), "utf8");
+      html = html
+        .replace('href="/manifest.json"', 'href="/manifest-kiosk.json"')
+        .replace('content="ZIANTGYM"', 'content="키오스크"')
+        .replace('<title>ZIANTGYM</title>', '<title>ZIANTGYM 키오스크</title>');
+      res.type("html").send(html);
+    } catch {
+      res.sendFile(path.join(clientDistPath, "index.html"));
+    }
+  });
+
   app.get("*", (_req, res) => {
     res.sendFile(path.join(clientDistPath, "index.html"));
   });
