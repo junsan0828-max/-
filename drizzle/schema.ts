@@ -53,7 +53,7 @@ export const trainerSettings = pgTable("trainer_settings", {
 // 회원
 export const members = pgTable("members", {
   id: serial("id").primaryKey(),
-  trainerId: integer("trainerId").notNull(),
+  trainerId: integer("trainerId"),
   branchId: integer("branchId"),
   name: text("name").notNull(),
   phone: text("phone"),
@@ -66,6 +66,7 @@ export const members = pgTable("members", {
   membershipEnd: text("membershipEnd"),
   profileNote: text("profileNote"),
   visitRoute: text("visitRoute"),
+  renewalIntent: text("renewalIntent"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -76,6 +77,7 @@ export const ptPackages = pgTable("pt_packages", {
   memberId: integer("memberId").notNull(),
   trainerId: integer("trainerId"),
   totalSessions: integer("totalSessions").notNull(),
+  serviceSessions: integer("serviceSessions").default(0),
   usedSessions: integer("usedSessions").default(0).notNull(),
   packageName: text("packageName"),
   startDate: text("startDate"),
@@ -129,6 +131,7 @@ export const attendances = pgTable("attendances", {
 export const ptSessionLogs = pgTable("pt_session_logs", {
   id: serial("id").primaryKey(),
   memberId: integer("memberId").notNull(),
+  memberName: text("memberName"),
   trainerId: integer("trainerId").notNull(),
   packageId: integer("packageId"),
   sessionDate: text("sessionDate").notNull(),
@@ -137,6 +140,9 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   exercisesJson: text("exercisesJson"),
   goal: text("goal"),
   feedback: text("feedback"),
+  isDraft: integer("isDraft").default(0).notNull(),
+  sharedToMember: integer("sharedToMember").default(0).notNull(),
+  sharedAt: text("sharedAt"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 
@@ -202,6 +208,32 @@ export const reportTokens = pgTable("report_tokens", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+export const healthReports = pgTable("health_reports", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  memberId: integer("memberId").notNull(),
+  generatedBy: integer("generatedBy").notNull(),
+  reportData: text("reportData").notNull(),
+  aiText: text("aiText").notNull(),
+  isAI: integer("isAI").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const ptReports = pgTable("pt_reports", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  packageId: integer("packageId").notNull(),
+  memberId: integer("memberId").notNull(),
+  generatedBy: integer("generatedBy").notNull(),
+  reportIndex: integer("reportIndex").notNull(),
+  milestoneSession: integer("milestoneSession").notNull(),
+  fromSession: integer("fromSession").notNull(),
+  reportData: text("reportData").notNull(),
+  aiText: text("aiText").notNull(),
+  isAI: integer("isAI").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
   memberId: integer("memberId").notNull(),
@@ -246,6 +278,7 @@ export const leads = pgTable("leads", {
   interestType: text("interestType"), // PT / 헬스 / 기타
   exercisePurpose: text("exercisePurpose"), // 운동 목적 (comma-separated)
   memo: text("memo"),
+  signatureDataUrl: text("signatureDataUrl"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -264,6 +297,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   phone: text("phone"),               // 연락처
   programDetail: text("programDetail"), // PT 프로그램명 / 기타 항목(락커·운동복)
   sessions: integer("sessions"),      // PT 횟수 (10/20/30/40/50회)
+  serviceSessions: integer("serviceSessions").default(0), // 서비스 횟수 (무상 제공)
   duration: integer("duration"),      // 이용 기간(개월) - 헬스/기타
   type: text("type").notNull(), // PT / 헬스 / 기타
   subType: text("subType").notNull(), // 신규 / 재등록
@@ -336,8 +370,23 @@ export const sheetPendingMembers = pgTable("sheet_pending_members", {
   paymentAmount: integer("paymentAmount"),
   unpaidAmount: integer("unpaidAmount"),
   paymentMethod: text("paymentMethod"),
+  membershipType: text("membershipType"),
   sheetRowIndex: integer("sheetRowIndex"),
   importedAt: text("importedAt").default(now).notNull(),
+});
+
+// ─── 교육 매뉴얼 ──────────────────────────────────────────────────────────────
+
+export const trainingManuals = pgTable("training_manuals", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  manualDate: text("manualDate").notNull(),
+  description: text("description").default(""),
+  exercises: text("exercises").notNull().default("[]"),
+  branchId: integer("branchId"),
+  createdBy: integer("createdBy").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
 });
 
 // ─── 나의 업무 ────────────────────────────────────────────────────────────────
@@ -380,69 +429,60 @@ export const noticeReads = pgTable("notice_reads", {
   readAt: text("readAt").default(now).notNull(),
 });
 
-// ─── ZIANTGYM+ 회원앱 ─────────────────────────────────────────────────────────
-
-export const gymPlusMembers = pgTable("gym_plus_members", {
+// 출입 관리
+export const lockerCategories = pgTable("locker_categories", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
   name: text("name").notNull(),
-  phone: text("phone"),
-  email: text("email"),
-  memberId: integer("memberId"), // 기존 members 테이블 연결 (선택)
-  membershipType: text("membershipType").default("general").notNull(),
-  membershipStart: text("membershipStart"),
-  membershipEnd: text("membershipEnd"),
-  isActive: integer("isActive").default(1).notNull(),
+  branchId: integer("branchId"),
+  color: text("color").default("#3b82f6").notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const lockers = pgTable("lockers", {
+  id: serial("id").primaryKey(),
+  lockerNumber: text("lockerNumber").notNull(),
+  branchId: integer("branchId"),
+  categoryId: integer("categoryId"),
+  memberId: integer("memberId"),
+  memberName: text("memberName"),
+  memberPhone: text("memberPhone"),
+  lockerType: text("lockerType").default("personal").notNull(),
+  isOccupied: integer("isOccupied").default(0).notNull(),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  memo: text("memo"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
 
-export const gymPlusVideoCategories = pgTable("gym_plus_video_categories", {
+export const accessLogs = pgTable("access_logs", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  sortOrder: integer("sortOrder").default(0).notNull(),
-  createdAt: text("createdAt").default(now).notNull(),
+  memberId: integer("memberId"),
+  memberName: text("memberName"),
+  phone: text("phone").notNull(),
+  branchId: integer("branchId"),
+  accessResult: text("accessResult").notNull(),
+  membershipType: text("membershipType"),
+  membershipEnd: text("membershipEnd"),
+  lockerNumber: text("lockerNumber"),
+  accessedAt: text("accessedAt").default(now).notNull(),
 });
 
-export const gymPlusVideos = pgTable("gym_plus_videos", {
-  id: serial("id").primaryKey(),
-  categoryId: integer("categoryId"),
-  title: text("title").notNull(),
-  description: text("description"),
-  videoUrl: text("videoUrl").notNull(),
-  thumbnailUrl: text("thumbnailUrl"),
-  duration: integer("duration"),
-  level: text("level").default("beginner"),
-  bodyPart: text("bodyPart"),
-  isPublished: integer("isPublished").default(1).notNull(),
-  sortOrder: integer("sortOrder").default(0).notNull(),
-  createdAt: text("createdAt").default(now).notNull(),
-});
-
-export const gymPlusEvents = pgTable("gym_plus_events", {
+export const kioskBanners = pgTable("kiosk_banners", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
-  content: text("content").notNull(),
+  body: text("body"),
   imageUrl: text("imageUrl"),
-  eventType: text("eventType").default("notice"),
+  bgColor: text("bgColor").default("#1a3a6e").notNull(),
+  textColor: text("textColor").default("#ffffff").notNull(),
+  isActive: integer("isActive").default(1).notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
   startDate: text("startDate"),
   endDate: text("endDate"),
-  isPublished: integer("isPublished").default(1).notNull(),
-  isPinned: integer("isPinned").default(0).notNull(),
-  createdAt: text("createdAt").default(now).notNull(),
-});
-
-export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
-  id: serial("id").primaryKey(),
-  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
-  logDate: text("logDate").notNull(),
-  title: text("title").notNull(),
-  exercisesJson: text("exercisesJson"),
-  durationMinutes: integer("durationMinutes"),
-  caloriesBurned: integer("caloriesBurned"),
-  bodyWeight: text("bodyWeight"),
-  notes: text("notes"),
-  mood: text("mood"),
+  textAlign: text("textAlign").default("center"),
+  textVAlign: text("textVAlign").default("center"),
+  branchId: integer("branchId"),
+  imageData: text("imageData"),
   createdAt: text("createdAt").default(now).notNull(),
 });

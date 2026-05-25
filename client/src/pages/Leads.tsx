@@ -1,16 +1,17 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   Plus, Search, Phone, MessageSquare, CheckCircle2,
-  Clock, XCircle, UserCheck, ChevronLeft, ChevronRight,
+  Bell, UserCheck, ChevronLeft, ChevronRight, X,
+  PenLine, RotateCcw, Printer, Check, FileText, ClipboardList,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
-  { value: "pending",    label: "상담대기", color: "text-amber-400",  bg: "bg-amber-400/10",  icon: Clock },
-  { value: "consulted",  label: "상담완료", color: "text-blue-400",   bg: "bg-blue-400/10",   icon: MessageSquare },
-  { value: "registered", label: "등록완료", color: "text-emerald-400",bg: "bg-emerald-400/10",icon: CheckCircle2 },
-  { value: "dropped",    label: "등록보류", color: "text-red-400",    bg: "bg-red-400/10",    icon: XCircle },
+  { value: "consulted",  label: "상담완료", color: "text-blue-400",    bg: "bg-blue-400/10",    icon: MessageSquare },
+  { value: "followup",   label: "관리상담", color: "text-purple-400",  bg: "bg-purple-400/10",  icon: Bell },
+  { value: "registered", label: "등록완료", color: "text-emerald-400", bg: "bg-emerald-400/10", icon: CheckCircle2 },
 ];
 
 const CONSULT_TYPES: Record<string, string[]> = {
@@ -45,6 +46,7 @@ type RegForm = {
   programKey: string;
   programCustom: string;
   sessions?: number;
+  serviceSessions?: number;
   // 헬스
   duration?: number;
   // 기타
@@ -58,6 +60,7 @@ type RegForm = {
   paymentDate: string;
   startDate: string;
   memo: string;
+  branchId?: number;
 };
 
 const defaultRegForm: RegForm = {
@@ -66,6 +69,7 @@ const defaultRegForm: RegForm = {
   programKey: "",
   programCustom: "",
   sessions: undefined,
+  serviceSessions: undefined,
   duration: undefined,
   otherItem: "",
   amount: "",
@@ -76,6 +80,7 @@ const defaultRegForm: RegForm = {
   paymentDate: new Date().toISOString().substring(0, 10),
   startDate: new Date().toISOString().substring(0, 10),
   memo: "",
+  branchId: undefined,
 };
 
 type LeadForm = {
@@ -97,6 +102,15 @@ const defaultForm: LeadForm = {
   consultationNote: "", interestType: "", exercisePurposes: [], memo: "",
   assignedTrainerId: undefined, assignedConsultantId: undefined,
 };
+
+function calcEndDate(start: string, sessions: string): string {
+  if (!start || !sessions) return "";
+  const n = parseInt(sessions);
+  if (!n) return "";
+  const d = new Date(start);
+  d.setDate(d.getDate() + Math.round(n / 2) * 7);
+  return d.toISOString().substring(0, 10);
+}
 
 const CONTRACT_TERMS = `제1조 (목적)
 본 약관은 자이언트짐(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.
@@ -182,6 +196,7 @@ export default function LeadsPage() {
   const utils = trpc.useUtils();
   const { data: me } = trpc.auth.me.useQuery();
   const isSubAdmin = me?.role === "sub_admin";
+  const isTrainer = me?.role === "trainer";
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -189,20 +204,54 @@ export default function LeadsPage() {
   const [filterStatus, setFilterStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [editStatus, setEditStatus] = useState<string>("");
+  const [editHasSig, setEditHasSig] = useState(false); // 수정 중인 리드에 서명이 있는지
   const [form, setForm] = useState<LeadForm>(defaultForm);
   const [showContract, setShowContract] = useState(false);
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [agreedMarketing, setAgreedMarketing] = useState(false);
+  const [showSignature, setShowSignature] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [showSignedContract, setShowSignedContract] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
   const [regForm, setRegForm] = useState<RegForm>(defaultRegForm);
   const regPendingRef = useRef<RegForm | null>(null);
   const pendingEditIdRef = useRef<number | null>(null);
 
+  // 바로등록 모달
+  const [showDirectReg, setShowDirectReg] = useState(false);
+  const defaultDirectForm = {
+    name: "", phone: "", birthDate: "", gender: "" as "" | "male" | "female" | "other",
+    grade: "basic" as "basic" | "vip", status: "active" as "active" | "paused",
+    visitRoute: "", profileNote: "", trainerId: "",
+    membershipStart: "", membershipEnd: "",
+    programTypes: [] as string[],  // ["PT", "헬스", "기타"]
+    ptProgram: "",                  // 케어피티, 웨이트피티, 이벤트피티, 직접입력
+    ptSessions: "", serviceSessions: "",
+    healthDuration: "" as string,
+    otherItem: "",
+    paymentAmount: "", unpaidAmount: "",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentDate: "", paymentMemo: "",
+    branchId: "" as string,
+  };
+  const [directForm, setDirectForm] = useState(defaultDirectForm);
+
   const { data: leadsData, isLoading } = trpc.gym.leads.list.useQuery({ year, month });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+
+  const directRegMutation = trpc.members.create.useMutation({
+    onSuccess: (data) => {
+      toast.success("회원이 등록되었습니다.");
+      setShowDirectReg(false);
+      setDirectForm(defaultDirectForm);
+    },
+    onError: (e) => toast.error(e.message || "등록 실패"),
+  });
 
   const createRevenueMutation = trpc.gym.revenue.create.useMutation({
     onSuccess: () => { toast.success("등록 완료 및 매출 저장"); utils.gym.leads.invalidate(); utils.gym.revenue.invalidate(); resetForm(); },
@@ -238,8 +287,9 @@ export default function LeadsPage() {
   });
 
   function resetForm() {
-    setShowForm(false); setEditId(null); setForm(defaultForm);
+    setShowForm(false); setEditId(null); setEditStatus(""); setEditHasSig(false); setForm(defaultForm);
     setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
+    setShowSignature(false); setSignatureDataUrl(null); setShowSignedContract(false);
     setShowRegistration(false); setRegForm(defaultRegForm);
     regPendingRef.current = null; pendingEditIdRef.current = null;
   }
@@ -263,6 +313,27 @@ export default function LeadsPage() {
       startDate: new Date().toISOString().substring(0, 10),
     });
     setShowRegistration(true);
+  }
+
+  function requestSignature() {
+    const reg = regForm;
+    if (!reg.paymentDate) return toast.error("결제일을 입력해주세요");
+    const amount = Number(reg.amount);
+    if (!amount) return toast.error("금액을 입력해주세요");
+    setShowRegistration(false);
+    setShowSignature(true);
+  }
+
+  function proceedAfterSignature(sigDataUrl: string) {
+    setSignatureDataUrl(sigDataUrl);
+    setShowSignature(false);
+    setShowSignedContract(true);
+  }
+
+  function proceedToSave() {
+    setShowSignedContract(false);
+    regPendingRef.current = regForm;
+    handleSave("registered");
   }
 
   function fireRevenueSave(reg: RegForm, leadId: number) {
@@ -290,6 +361,7 @@ export default function LeadsPage() {
       subType: reg.subType,
       programDetail: parts.length > 0 ? parts.join(" + ") : undefined,
       sessions: reg.itemTypes.includes("PT") ? reg.sessions : undefined,
+      serviceSessions: reg.itemTypes.includes("PT") ? (reg.serviceSessions ?? 0) : undefined,
       duration: reg.itemTypes.includes("헬스") ? reg.duration : undefined,
       amount: Number(reg.amount) || 0,
       discountAmount: Number(reg.discountAmount) || 0,
@@ -299,20 +371,18 @@ export default function LeadsPage() {
       paymentDate: reg.paymentDate,
       startDate: reg.startDate || undefined,
       memo: reg.memo || undefined,
+      branchId: reg.branchId ?? undefined,
     });
   }
 
   function saveRegistration() {
-    const reg = regForm;
-    if (!reg.paymentDate) return toast.error("결제일을 입력해주세요");
-    const amount = Number(reg.amount);
-    if (!amount) return toast.error("금액을 입력해주세요");
-    regPendingRef.current = reg;
-    handleSave("registered");
+    requestSignature();
   }
 
   function openEdit(row: any) {
     setEditId(row.lead.id);
+    setEditStatus(row.lead.status ?? "");
+    setEditHasSig(!!row.lead.signatureDataUrl);
     setForm({
       name: row.lead.name,
       phone: row.lead.phone ?? "",
@@ -366,6 +436,7 @@ export default function LeadsPage() {
       interestType: form.interestType || undefined,
       exercisePurpose: form.exercisePurposes.length > 0 ? form.exercisePurposes.join(",") : undefined,
       memo: form.memo || undefined,
+      signatureDataUrl: signatureDataUrl || undefined,
       status,
     };
     if (editId) updateMutation.mutate({ id: editId, ...payload });
@@ -405,13 +476,30 @@ export default function LeadsPage() {
           <h1 className="text-xl font-bold text-foreground">상담 CRM</h1>
           <p className="text-xs text-muted-foreground">월별 상담 및 전환 관리</p>
         </div>
-        <button
-          onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, consultationDate: new Date().toISOString().substring(0, 10) }); }}
-          className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          상담 추가
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowDirectReg(true); setDirectForm(defaultDirectForm); }}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium"
+          >
+            <UserCheck className="h-4 w-4" />
+            바로등록
+          </button>
+          <button
+            onClick={() => {
+              setShowForm(true); setEditId(null);
+              setForm({
+                ...defaultForm,
+                consultationDate: new Date().toISOString().substring(0, 10),
+                // 트레이너: 본인 자동 배정
+                assignedTrainerId: isTrainer ? me?.trainerId ?? undefined : undefined,
+              });
+            }}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            상담 추가
+          </button>
+        </div>
       </div>
 
       {/* 월 선택 */}
@@ -426,7 +514,7 @@ export default function LeadsPage() {
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {statCounts.map(s => (
           <button key={s.value} onClick={() => setFilterStatus(filterStatus === s.value ? "" : s.value)}
             className={`rounded-xl p-3 border transition-all text-center ${filterStatus === s.value ? `${s.bg} border-current ${s.color}` : "bg-card border-border"}`}>
@@ -514,6 +602,12 @@ export default function LeadsPage() {
                 {row.lead.consultationNote && (
                   <p className="text-xs text-muted-foreground line-clamp-2">{row.lead.consultationNote}</p>
                 )}
+                {row.lead.status === "registered" && (
+                  <ContractPdfButton lead={row.lead} />
+                )}
+                {row.lead.status === "registered" && row.lead.interestType === "PT" && (
+                  <ParQButton lead={row.lead} />
+                )}
               </div>
             );
           })}
@@ -591,15 +685,6 @@ export default function LeadsPage() {
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 완료
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const p = new URLSearchParams({ name: form.name, phone: form.phone || "", date: new Date().toLocaleDateString("ko-KR"), marketing: agreedMarketing ? "1" : "0" });
-                  window.open(`/contract-print?${p.toString()}`, "_blank");
-                }}
-                className="w-full border border-emerald-500/40 text-emerald-400 rounded-xl py-2.5 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
-                계약서 PDF 출력
-              </button>
               <button type="button" onClick={() => setShowContract(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
@@ -607,6 +692,53 @@ export default function LeadsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 전자서명 모달 */}
+      {showSignature && (
+        <SignatureModal
+          memberName={form.name}
+          onConfirm={proceedAfterSignature}
+          onBack={() => { setShowSignature(false); setShowRegistration(true); }}
+        />
+      )}
+
+      {/* 서명된 계약서 확인 모달 */}
+      {showSignedContract && signatureDataUrl && (
+        <SignedContractModal
+          memberName={form.name}
+          memberPhone={form.phone || ""}
+          marketing={agreedMarketing}
+          signatureDataUrl={signatureDataUrl}
+          regForm={regForm}
+          onPrint={() => {
+            const sigKey = `contract_sig_${Date.now()}`;
+            localStorage.setItem(sigKey, signatureDataUrl);
+            const p = new URLSearchParams({
+              name: form.name,
+              phone: form.phone || "",
+              date: new Date().toLocaleDateString("ko-KR"),
+              marketing: agreedMarketing ? "1" : "0",
+              sigKey,
+              subType: regForm.subType,
+              itemTypes: regForm.itemTypes.join(","),
+              programKey: regForm.programKey,
+              programCustom: regForm.programCustom,
+              sessions: regForm.sessions?.toString() ?? "",
+              duration: regForm.duration?.toString() ?? "",
+              otherItem: regForm.otherItem,
+              amount: regForm.amount,
+              discountAmount: regForm.discountAmount,
+              paidAmount: regForm.paidAmount,
+              unpaidAmount: regForm.unpaidAmount,
+              paymentMethod: regForm.paymentMethod,
+              paymentDate: regForm.paymentDate,
+              startDate: regForm.startDate,
+            });
+            window.open(`/contract-print?${p.toString()}`, "_blank");
+          }}
+          onConfirm={proceedToSave}
+        />
       )}
 
       {/* 등록 상세 모달 */}
@@ -637,85 +769,122 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 항목 유형 — 복수 선택 */}
-              <div>
+              {/* 항목 유형 — 복수 선택 + 인라인 상세 */}
+              <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">항목 유형 (복수 선택 가능)</label>
-                <div className="flex gap-2 mt-1">
-                  {["PT", "헬스", "기타"].map(t => (
-                    <button key={t} type="button"
-                      onClick={() => setRegForm(f => {
-                        const has = f.itemTypes.includes(t);
-                        return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== t) : [...f.itemTypes, t] };
-                      })}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.itemTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {t}
-                    </button>
-                  ))}
+
+                {/* PT */}
+                <div className={`rounded-xl border transition-colors ${regForm.itemTypes.includes("PT") ? "border-primary/60 bg-primary/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setRegForm(f => {
+                    const has = f.itemTypes.includes("PT");
+                    return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== "PT") : [...f.itemTypes, "PT"] };
+                  })} className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={regForm.itemTypes.includes("PT") ? "text-primary" : "text-muted-foreground"}>PT</span>
+                    {regForm.itemTypes.includes("PT") && <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {regForm.itemTypes.includes("PT") && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-primary/20">
+                      <div className="pt-3">
+                        <label className="text-xs text-muted-foreground">PT 프로그램</label>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          {PT_PROGRAMS.map(p => (
+                            <button key={p} type="button"
+                              onClick={() => setRegForm(f => ({ ...f, programKey: p, programCustom: "" }))}
+                              className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programKey === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                        {regForm.programKey === "기타" && (
+                          <input value={regForm.programCustom}
+                            onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))}
+                            placeholder="프로그램명 입력"
+                            className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">PT 횟수</label>
+                        <div className="flex gap-2 mt-1">
+                          {PT_SESSIONS.map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setRegForm(f => ({ ...f, sessions: f.sessions === n ? undefined : n }))}
+                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.sessions === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                              {n}회
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">서비스 횟수 <span className="text-muted-foreground/60">(무상 제공)</span></label>
+                        <div className="flex gap-2 mt-1 flex-wrap">
+                          {[0, 1, 2, 3, 5].map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setRegForm(f => ({ ...f, serviceSessions: f.serviceSessions === n ? undefined : n }))}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${regForm.serviceSessions === n ? "bg-amber-500 text-white border-amber-500" : "bg-background border-border text-muted-foreground"}`}>
+                              {n === 0 ? "없음" : `+${n}회`}
+                            </button>
+                          ))}
+                          <input type="number" min="0" placeholder="직접"
+                            value={regForm.serviceSessions !== undefined && ![0,1,2,3,5].includes(regForm.serviceSessions) ? regForm.serviceSessions : ""}
+                            onChange={e => setRegForm(f => ({ ...f, serviceSessions: e.target.value ? Number(e.target.value) : undefined }))}
+                            className="w-16 bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                        </div>
+                        {(regForm.sessions || regForm.serviceSessions) && (
+                          <p className="text-xs text-primary mt-1 font-medium">
+                            총 {(regForm.sessions ?? 0) + (regForm.serviceSessions ?? 0)}회
+                            {regForm.serviceSessions ? <span className="text-muted-foreground"> (결제 {regForm.sessions ?? 0}회 + 서비스 {regForm.serviceSessions}회)</span> : ""}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 헬스 */}
+                <div className={`rounded-xl border transition-colors ${regForm.itemTypes.includes("헬스") ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setRegForm(f => {
+                    const has = f.itemTypes.includes("헬스");
+                    return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== "헬스") : [...f.itemTypes, "헬스"] };
+                  })} className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={regForm.itemTypes.includes("헬스") ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                    {regForm.itemTypes.includes("헬스") && <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {regForm.itemTypes.includes("헬스") && (
+                    <div className="px-4 pb-4 border-t border-emerald-500/20">
+                      <label className="text-xs text-muted-foreground block pt-3">이용 기간</label>
+                      <div className="flex gap-2 mt-1">
+                        {DURATIONS.map(d => (
+                          <button key={d} type="button"
+                            onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                            {d}개월
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 기타 */}
+                <div className={`rounded-xl border transition-colors ${regForm.itemTypes.includes("기타") ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setRegForm(f => {
+                    const has = f.itemTypes.includes("기타");
+                    return { ...f, itemTypes: has ? f.itemTypes.filter(x => x !== "기타") : [...f.itemTypes, "기타"] };
+                  })} className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={regForm.itemTypes.includes("기타") ? "text-amber-400" : "text-muted-foreground"}>기타 <span className="font-normal text-xs">(운동복, 락커 등)</span></span>
+                    {regForm.itemTypes.includes("기타") && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {regForm.itemTypes.includes("기타") && (
+                    <div className="px-4 pb-4 border-t border-amber-500/20">
+                      <label className="text-xs text-muted-foreground block pt-3">항목명</label>
+                      <input value={regForm.otherItem}
+                        onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))}
+                        placeholder="예: 락커 1개월, 운동복 등"
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* PT 프로그램 + 횟수 */}
-              {regForm.itemTypes.includes("PT") && (
-                <div className="space-y-3 pl-3 border-l-2 border-primary/40">
-                  <div>
-                    <label className="text-xs text-muted-foreground">PT 프로그램</label>
-                    <div className="grid grid-cols-2 gap-2 mt-1">
-                      {PT_PROGRAMS.map(p => (
-                        <button key={p} type="button"
-                          onClick={() => setRegForm(f => ({ ...f, programKey: p, programCustom: "" }))}
-                          className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programKey === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                    {regForm.programKey === "기타" && (
-                      <input value={regForm.programCustom}
-                        onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))}
-                        placeholder="프로그램명 입력"
-                        className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">PT 횟수</label>
-                    <div className="flex gap-2 mt-1">
-                      {PT_SESSIONS.map(n => (
-                        <button key={n} type="button"
-                          onClick={() => setRegForm(f => ({ ...f, sessions: f.sessions === n ? undefined : n }))}
-                          className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.sessions === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                          {n}회
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 헬스 기간 */}
-              {regForm.itemTypes.includes("헬스") && (
-                <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">헬스 이용 기간</label>
-                  <div className="flex gap-2 mt-1">
-                    {DURATIONS.map(d => (
-                      <button key={d} type="button"
-                        onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                        {d}개월
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 기타 항목명 */}
-              {regForm.itemTypes.includes("기타") && (
-                <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">기타 항목명</label>
-                  <input value={regForm.otherItem}
-                    onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))}
-                    placeholder="예: 락커, 운동복 등"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                </div>
-              )}
 
               {/* 금액 */}
               <div className="grid grid-cols-2 gap-3">
@@ -794,11 +963,30 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 메모 */}
+              {/* 지점 선택 */}
+              {branchList && branchList.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted-foreground">지점</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    <button type="button" onClick={() => setRegForm(f => ({ ...f, branchId: undefined }))}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!regForm.branchId ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      미지정
+                    </button>
+                    {branchList.map((b: any) => (
+                      <button key={b.id} type="button" onClick={() => setRegForm(f => ({ ...f, branchId: b.id }))}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 등록 진행 내용 */}
               <div>
-                <label className="text-xs text-muted-foreground">메모</label>
+                <label className="text-xs text-muted-foreground">등록 진행 내용</label>
                 <textarea value={regForm.memo} onChange={e => setRegForm(f => ({ ...f, memo: e.target.value }))} rows={2}
-                  placeholder="추가 메모..."
+                  placeholder="운동 가능 시간, 날짜, 특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
             </div>
@@ -806,11 +994,358 @@ export default function LeadsPage() {
             <div className="p-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={saveRegistration}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors">
-                등록 완료 및 매출 저장
+                등록 완료
               </button>
               <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 바로등록 모달 */}
+      {showDirectReg && (
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" onClick={() => setShowDirectReg(false)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
+              <h2 className="font-semibold text-foreground">회원 바로등록</h2>
+              <button onClick={() => setShowDirectReg(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+              {/* 이름 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">이름 <span className="text-primary">*</span></label>
+                <input value={directForm.name} onChange={e => setDirectForm(f => ({ ...f, name: e.target.value }))} placeholder="홍길동"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 연락처 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">연락처</label>
+                <input value={directForm.phone} onChange={e => setDirectForm(f => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 생년월일 + 만나이 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">생년월일</label>
+                <input type="date" value={directForm.birthDate} onChange={e => setDirectForm(f => ({ ...f, birthDate: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                {directForm.birthDate && (() => {
+                  const b = new Date(directForm.birthDate), t = new Date();
+                  let age = t.getFullYear() - b.getFullYear();
+                  const mo = t.getMonth() - b.getMonth();
+                  if (mo < 0 || (mo === 0 && t.getDate() < b.getDate())) age--;
+                  return <p className="text-xs text-primary">만 {age}세</p>;
+                })()}
+              </div>
+              {/* 성별 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">성별</label>
+                <div className="flex gap-2">
+                  {[["male","남성"],["female","여성"]].map(([v,l]) => (
+                    <button key={v} type="button" onClick={() => setDirectForm(f => ({ ...f, gender: f.gender === v ? "" : v as any }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${directForm.gender === v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>{l}</button>
+                  ))}
+                </div>
+              </div>
+              {/* 등급 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">등급</label>
+                <div className="flex gap-2">
+                  {[["basic","기본"],["vip","VIP"]].map(([v,l]) => (
+                    <button key={v} type="button" onClick={() => setDirectForm(f => ({ ...f, grade: v as any }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${directForm.grade === v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>{l}</button>
+                  ))}
+                </div>
+              </div>
+              {/* 담당 트레이너 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">담당 트레이너</label>
+                <select value={directForm.trainerId} onChange={e => setDirectForm(f => ({ ...f, trainerId: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">미배정</option>
+                  {(trainers ?? []).map(t => <option key={t.id} value={t.id}>{t.trainerName}</option>)}
+                </select>
+              </div>
+              {/* 유입경로 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">유입경로</label>
+                <select value={directForm.visitRoute} onChange={e => setDirectForm(f => ({ ...f, visitRoute: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">선택 안함</option>
+                  <option value="지인 소개">지인 소개</option>
+                  <option value="가족 소개">가족 소개</option>
+                  <option value="네이버 검색">네이버 검색</option>
+                  <option value="네이버플레이스">네이버플레이스</option>
+                  <option value="카카오맵">카카오맵</option>
+                  <option value="인스타그램">인스타그램</option>
+                  <option value="유튜브">유튜브</option>
+                  <option value="블로그">블로그</option>
+                  <option value="현수막/전단지">현수막/전단지</option>
+                  <option value="재등록">재등록</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+              {/* 특이사항 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">특이사항</label>
+                <textarea value={directForm.profileNote} onChange={e => setDirectForm(f => ({ ...f, profileNote: e.target.value }))} rows={2} placeholder="특이사항 입력"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+              </div>
+
+              {/* 구분선 */}
+              <div className="border-t border-border pt-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">운동 기간</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">운동 시작일</label>
+                  <input type="date" value={directForm.membershipStart}
+                    onChange={e => {
+                      const start = e.target.value;
+                      const end = calcEndDate(start, directForm.ptSessions);
+                      setDirectForm(f => ({ ...f, membershipStart: start, membershipEnd: end }));
+                    }}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">운동 만료일 <span className="text-primary text-xs">(자동계산)</span></label>
+                  <input type="date" value={directForm.membershipEnd} readOnly
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground opacity-60 cursor-not-allowed" />
+                </div>
+              </div>
+
+              {/* 구분선 */}
+              <div className="border-t border-border pt-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">프로그램 / 결제</p>
+              </div>
+
+              {/* 프로그램 선택 — PT / 헬스 / 기타 accordion */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">프로그램 (복수 선택 가능)</label>
+
+                {/* PT */}
+                <div className={`rounded-xl border transition-colors ${directForm.programTypes.includes("PT") ? "border-primary/60 bg-primary/5" : "border-border"}`}>
+                  <button type="button"
+                    onClick={() => setDirectForm(f => {
+                      const has = f.programTypes.includes("PT");
+                      return { ...f, programTypes: has ? f.programTypes.filter(x => x !== "PT") : [...f.programTypes, "PT"],
+                        ptProgram: has ? "" : f.ptProgram, ptSessions: has ? "" : f.ptSessions, serviceSessions: has ? "" : f.serviceSessions };
+                    })}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={directForm.programTypes.includes("PT") ? "text-primary" : "text-muted-foreground"}>PT</span>
+                    {directForm.programTypes.includes("PT") && <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {directForm.programTypes.includes("PT") && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-primary/20 pt-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">PT 프로그램</label>
+                        <div className="flex gap-1.5 flex-wrap mt-1">
+                          {["케어피티", "웨이트피티", "이벤트피티"].map(p => (
+                            <button key={p} type="button"
+                              onClick={() => setDirectForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p }))}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${directForm.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{p}</button>
+                          ))}
+                        </div>
+                        <input value={!["케어피티","웨이트피티","이벤트피티"].includes(directForm.ptProgram) ? directForm.ptProgram : ""}
+                          onChange={e => setDirectForm(f => ({ ...f, ptProgram: e.target.value }))}
+                          placeholder="직접 입력"
+                          className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">PT 횟수</label>
+                        <div className="flex gap-1.5 flex-wrap mt-1">
+                          {[10, 20, 30, 40, 50].map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setDirectForm(f => {
+                                const next = f.ptSessions === String(n) ? "" : String(n);
+                                return { ...f, ptSessions: next, membershipEnd: calcEndDate(f.membershipStart, next) };
+                              })}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${directForm.ptSessions === String(n) ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{n}회</button>
+                          ))}
+                        </div>
+                        <input value={directForm.ptSessions} onChange={e => setDirectForm(f => ({ ...f, ptSessions: e.target.value, membershipEnd: calcEndDate(f.membershipStart, e.target.value) }))}
+                          placeholder="직접 입력" type="number" min="1"
+                          className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">서비스 횟수</label>
+                        <div className="flex gap-1.5 flex-wrap mt-1 items-center">
+                          {[0,1,2,3,5].map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setDirectForm(f => ({ ...f, serviceSessions: f.serviceSessions === String(n) ? "" : String(n) }))}
+                              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
+                              {n === 0 ? "없음" : `+${n}회`}
+                            </button>
+                          ))}
+                          <input type="number" min="0" placeholder="직접"
+                            value={directForm.serviceSessions && !["0","1","2","3","5"].includes(directForm.serviceSessions) ? directForm.serviceSessions : ""}
+                            onChange={e => setDirectForm(f => ({ ...f, serviceSessions: e.target.value }))}
+                            className="w-14 bg-background border border-border rounded-lg px-2 py-1 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                        </div>
+                        {directForm.ptSessions && Number(directForm.serviceSessions) > 0 && (
+                          <p className="text-xs text-primary mt-1 font-medium">
+                            총 {Number(directForm.ptSessions) + Number(directForm.serviceSessions || 0)}회
+                            <span className="text-muted-foreground"> (결제 {directForm.ptSessions}회 + 서비스 {directForm.serviceSessions}회)</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 헬스 */}
+                <div className={`rounded-xl border transition-colors ${directForm.programTypes.includes("헬스") ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                  <button type="button"
+                    onClick={() => setDirectForm(f => {
+                      const has = f.programTypes.includes("헬스");
+                      return { ...f, programTypes: has ? f.programTypes.filter(x => x !== "헬스") : [...f.programTypes, "헬스"],
+                        healthDuration: has ? "" : f.healthDuration, membershipEnd: has ? "" : f.membershipEnd };
+                    })}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={directForm.programTypes.includes("헬스") ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                    {directForm.programTypes.includes("헬스") && <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {directForm.programTypes.includes("헬스") && (
+                    <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3">
+                      <label className="text-xs text-muted-foreground">이용 기간</label>
+                      <div className="flex gap-2 mt-1">
+                        {[1, 3, 6, 12].map(d => (
+                          <button key={d} type="button"
+                            onClick={() => setDirectForm(f => {
+                              const dur = String(d);
+                              const end = f.membershipStart
+                                ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + d); return e.toISOString().substring(0, 10); })()
+                                : "";
+                              return { ...f, healthDuration: f.healthDuration === dur ? "" : dur, membershipEnd: f.healthDuration === dur ? "" : end };
+                            })}
+                            className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${directForm.healthDuration === String(d) ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                            {d}개월
+                          </button>
+                        ))}
+                      </div>
+                      {directForm.membershipEnd && directForm.programTypes.includes("헬스") && (
+                        <p className="text-xs text-emerald-400 font-medium mt-1">만료일: {directForm.membershipEnd}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 기타 */}
+                <div className={`rounded-xl border transition-colors ${directForm.programTypes.includes("기타") ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                  <button type="button"
+                    onClick={() => setDirectForm(f => {
+                      const has = f.programTypes.includes("기타");
+                      return { ...f, programTypes: has ? f.programTypes.filter(x => x !== "기타") : [...f.programTypes, "기타"],
+                        otherItem: has ? "" : f.otherItem };
+                    })}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={directForm.programTypes.includes("기타") ? "text-amber-400" : "text-muted-foreground"}>기타 <span className="font-normal text-xs">(운동복, 락커 등)</span></span>
+                    {directForm.programTypes.includes("기타") && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {directForm.programTypes.includes("기타") && (
+                    <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
+                      <label className="text-xs text-muted-foreground">항목명</label>
+                      <input value={directForm.otherItem} onChange={e => setDirectForm(f => ({ ...f, otherItem: e.target.value }))}
+                        placeholder="예: 락커 1개월, 운동복 등"
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* 결제 금액 / 미수금 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">결제 금액</label>
+                  <input type="number" min="0" value={directForm.paymentAmount} onChange={e => setDirectForm(f => ({ ...f, paymentAmount: e.target.value }))} placeholder="0"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">미수금 금액</label>
+                  <input type="number" min="0" value={directForm.unpaidAmount} onChange={e => setDirectForm(f => ({ ...f, unpaidAmount: e.target.value }))} placeholder="0"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </div>
+              {/* 결제방법 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">결제방법</label>
+                <select value={directForm.paymentMethod} onChange={e => setDirectForm(f => ({ ...f, paymentMethod: e.target.value as any }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">결제방법 선택</option>
+                  {["현금영수증", "이체", "지역화폐", "카드"].map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              {/* 결제일자 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">결제일자</label>
+                <input type="date" value={directForm.paymentDate} onChange={e => setDirectForm(f => ({ ...f, paymentDate: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 결제 메모 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">결제 메모</label>
+                <input value={directForm.paymentMemo} onChange={e => setDirectForm(f => ({ ...f, paymentMemo: e.target.value }))} placeholder="분납 등 메모"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 지점 선택 */}
+              {branchList && branchList.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">지점</label>
+                  <div className="flex gap-2 flex-wrap">
+                    <button type="button" onClick={() => setDirectForm(f => ({ ...f, branchId: "" }))}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!directForm.branchId ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      미지정
+                    </button>
+                    {branchList.map((b: any) => (
+                      <button key={b.id} type="button" onClick={() => setDirectForm(f => ({ ...f, branchId: String(b.id) }))}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${directForm.branchId === String(b.id) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-border shrink-0">
+              <button type="button" disabled={directRegMutation.isPending}
+                onClick={() => {
+                  if (!directForm.name.trim()) return toast.error("이름을 입력해주세요.");
+                  const isPT = directForm.programTypes.includes("PT");
+                  const isHealth = directForm.programTypes.includes("헬스");
+                  const isOther = directForm.programTypes.includes("기타");
+                  // programDetail 조합
+                  const parts: string[] = [];
+                  if (isPT && directForm.ptProgram) parts.push(directForm.ptProgram);
+                  if (isHealth && directForm.healthDuration) parts.push(`헬스 ${directForm.healthDuration}개월`);
+                  if (isOther && directForm.otherItem) parts.push(directForm.otherItem);
+                  directRegMutation.mutate({
+                    name: directForm.name.trim(),
+                    phone: directForm.phone || undefined,
+                    birthDate: directForm.birthDate || undefined,
+                    gender: directForm.gender || undefined,
+                    grade: directForm.grade,
+                    status: directForm.status,
+                    visitRoute: directForm.visitRoute || undefined,
+                    profileNote: directForm.profileNote || undefined,
+                    membershipStart: directForm.membershipStart || undefined,
+                    membershipEnd: directForm.membershipEnd || undefined,
+                    ptProgram: parts.length > 0 ? parts.join(" + ") : undefined,
+                    ptSessions: isPT ? (directForm.ptSessions || undefined) : undefined,
+                    serviceSessions: isPT && directForm.serviceSessions ? parseInt(directForm.serviceSessions) : undefined,
+                    paymentAmount: directForm.paymentAmount ? parseInt(directForm.paymentAmount) : undefined,
+                    unpaidAmount: directForm.unpaidAmount ? parseInt(directForm.unpaidAmount) : undefined,
+                    paymentMethod: directForm.paymentMethod || undefined,
+                    paymentDate: directForm.paymentDate || undefined,
+                    paymentMemo: directForm.paymentMemo || undefined,
+                    adminTrainerId: directForm.trainerId ? parseInt(directForm.trainerId) : undefined,
+                    branchId: directForm.branchId ? parseInt(directForm.branchId) : undefined,
+                    subType: "신규" as const,
+                    primaryType: isPT ? "PT" : isHealth ? "헬스" : isOther ? "기타" : undefined,
+                  });
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
+                {directRegMutation.isPending ? "등록 중..." : "회원 등록"}
               </button>
             </div>
           </div>
@@ -878,21 +1413,6 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 소분류 — 선택된 대분류의 소분류 전부 표시 */}
-              {form.consultationTypes.some(t => CONSULT_TYPES[t]?.length > 0) && (
-                <div>
-                  <label className="text-xs text-muted-foreground">소분류 (복수 선택 가능)</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {form.consultationTypes.flatMap(t => CONSULT_TYPES[t] ?? []).map(sub => (
-                      <button key={sub} type="button" onClick={() => toggleSubType(sub)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${form.consultationSubTypes.includes(sub) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                        {sub}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* 관심 프로그램 */}
               <div className="space-y-2">
                 <div>
@@ -945,31 +1465,40 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-              {/* 상담 담당자 */}
-              <div>
-                <label className="text-xs text-muted-foreground">상담 담당자</label>
-                <select
-                  value={form.assignedConsultantId ? `c:${form.assignedConsultantId}` : form.assignedTrainerId ? `t:${form.assignedTrainerId}` : ""}
-                  onChange={e => {
-                    const v = e.target.value;
-                    if (!v) setForm(f => ({ ...f, assignedTrainerId: undefined, assignedConsultantId: undefined }));
-                    else if (v.startsWith("t:")) setForm(f => ({ ...f, assignedTrainerId: Number(v.slice(2)), assignedConsultantId: undefined }));
-                    else setForm(f => ({ ...f, assignedConsultantId: Number(v.slice(2)), assignedTrainerId: undefined }));
-                  }}
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
-                  <option value="">선택</option>
-                  {(consultants ?? []).length > 0 && (
-                    <optgroup label="프론트 컨설턴트">
-                      {(consultants ?? []).map((c: any) => <option key={c.id} value={`c:${c.id}`}>{c.username}</option>)}
-                    </optgroup>
-                  )}
-                  {(trainers ?? []).length > 0 && (
-                    <optgroup label="트레이너">
-                      {(trainers ?? []).map((t: any) => <option key={t.id} value={`t:${t.id}`}>{t.trainerName}</option>)}
-                    </optgroup>
-                  )}
-                </select>
-              </div>
+              {/* 상담 담당자 - 트레이너 계정은 본인 고정 */}
+              {isTrainer ? (
+                <div>
+                  <label className="text-xs text-muted-foreground">상담 담당자</label>
+                  <div className="w-full mt-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-muted-foreground">
+                    {trainers?.find(t => t.id === me?.trainerId)?.trainerName ?? me?.username ?? "본인"} (본인)
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs text-muted-foreground">상담 담당자</label>
+                  <select
+                    value={form.assignedConsultantId ? `c:${form.assignedConsultantId}` : form.assignedTrainerId ? `t:${form.assignedTrainerId}` : ""}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (!v) setForm(f => ({ ...f, assignedTrainerId: undefined, assignedConsultantId: undefined }));
+                      else if (v.startsWith("t:")) setForm(f => ({ ...f, assignedTrainerId: Number(v.slice(2)), assignedConsultantId: undefined }));
+                      else setForm(f => ({ ...f, assignedConsultantId: Number(v.slice(2)), assignedTrainerId: undefined }));
+                    }}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    <option value="">선택</option>
+                    {(consultants ?? []).length > 0 && (
+                      <optgroup label="프론트 컨설턴트">
+                        {(consultants ?? []).map((c: any) => <option key={c.id} value={`c:${c.id}`}>{c.username}</option>)}
+                      </optgroup>
+                    )}
+                    {(trainers ?? []).length > 0 && (
+                      <optgroup label="트레이너">
+                        {(trainers ?? []).map((t: any) => <option key={t.id} value={`t:${t.id}`}>{t.trainerName}</option>)}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              )}
 
               {/* 상담 내용 */}
               <div>
@@ -979,10 +1508,11 @@ export default function LeadsPage() {
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
 
-              {/* 메모 */}
+              {/* 등록 진행 내용 */}
               <div>
-                <label className="text-xs text-muted-foreground">메모</label>
+                <label className="text-xs text-muted-foreground">등록 진행 내용</label>
                 <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
+                  placeholder="운동 가능 시간, 날짜, 특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
 
@@ -992,17 +1522,13 @@ export default function LeadsPage() {
             <div className="p-4 border-t border-border shrink-0 space-y-2">
               <p className="text-xs text-muted-foreground text-center">아래 버튼을 누르면 상담 일지가 저장됩니다</p>
               <div className="flex gap-2">
-                <button type="button" onClick={() => handleSave("consulted")}
+                <button type="button" onClick={() => handleSave("followup")}
                   className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
                   상담완료
                 </button>
-                <button type="button" onClick={openContract}
+                <button type="button" onClick={editId && editHasSig ? () => handleSave("registered") : openContract}
                   className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
                   등록완료
-                </button>
-                <button type="button" onClick={() => handleSave("dropped")}
-                  className="flex-1 bg-red-500/80 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-red-600 transition-colors">
-                  등록보류
                 </button>
               </div>
               {editId && !isSubAdmin && (
@@ -1018,3 +1544,413 @@ export default function LeadsPage() {
     </div>
   );
 }
+
+// ─── 전자서명 모달 ───────────────────────────────────────────────────────────
+function SignatureModal({
+  memberName,
+  onConfirm,
+  onBack,
+}: {
+  memberName: string;
+  onConfirm: (dataUrl: string) => void;
+  onBack: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawing = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  const getPos = (e: React.TouchEvent | React.MouseEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      const touch = e.touches[0];
+      return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+    }
+    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY };
+  };
+
+  const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    isDrawing.current = true;
+    lastPos.current = getPos(e, canvas);
+  };
+
+  const draw = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    if (!isDrawing.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(e, canvas);
+    if (lastPos.current) {
+      ctx.beginPath();
+      ctx.moveTo(lastPos.current.x, lastPos.current.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.strokeStyle = "#1a1a2e";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke();
+      setHasDrawn(true);
+    }
+    lastPos.current = pos;
+  };
+
+  const endDraw = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    isDrawing.current = false;
+    lastPos.current = null;
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasDrawn(false);
+  };
+
+  const confirmSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    onConfirm(canvas.toDataURL("image/png"));
+  };
+
+  return (
+    <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col gap-4 p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PenLine className="w-5 h-5 text-emerald-400" />
+            <h2 className="font-bold text-foreground">전자 서명</h2>
+          </div>
+          <button onClick={onBack} className="text-muted-foreground hover:text-foreground">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <p className="text-sm text-muted-foreground text-center">
+          <span className="text-foreground font-semibold">{memberName}</span> 고객님,<br />
+          아래 서명란에 직접 서명해 주세요.
+        </p>
+
+        {/* 서명 캔버스 */}
+        <div className="border-2 border-dashed border-emerald-500/50 rounded-xl bg-white relative overflow-hidden"
+          style={{ touchAction: "none" }}>
+          <canvas
+            ref={canvasRef}
+            width={640}
+            height={240}
+            className="w-full"
+            style={{ display: "block", cursor: "crosshair" }}
+            onMouseDown={startDraw}
+            onMouseMove={draw}
+            onMouseUp={endDraw}
+            onMouseLeave={endDraw}
+            onTouchStart={startDraw}
+            onTouchMove={draw}
+            onTouchEnd={endDraw}
+          />
+          {!hasDrawn && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <p className="text-gray-400 text-sm select-none">여기에 서명하세요</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={clearCanvas}
+            className="flex items-center gap-1.5 px-4 py-2.5 border border-border rounded-xl text-sm text-muted-foreground hover:bg-muted/30 transition-colors">
+            <RotateCcw className="w-4 h-4" />
+            다시 쓰기
+          </button>
+          <button
+            type="button"
+            onClick={confirmSignature}
+            disabled={!hasDrawn}
+            className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            <Check className="w-4 h-4" />
+            서명 완료
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 서명된 계약서 확인 모달 ─────────────────────────────────────────────────
+function SignedContractModal({
+  memberName,
+  memberPhone,
+  marketing,
+  signatureDataUrl,
+  regForm,
+  onPrint,
+  onConfirm,
+}: {
+  memberName: string;
+  memberPhone: string;
+  marketing: boolean;
+  signatureDataUrl: string;
+  regForm: RegForm;
+  onPrint: () => void;
+  onConfirm: () => void;
+}) {
+  const today = new Date().toLocaleDateString("ko-KR");
+
+  const programLabel = (() => {
+    const parts: string[] = [];
+    if (regForm.itemTypes.includes("PT")) {
+      const prog = regForm.programKey === "기타" ? (regForm.programCustom || "기타PT") : regForm.programKey;
+      parts.push(`PT${prog ? ` (${prog})` : ""}${regForm.sessions ? ` ${regForm.sessions}회` : ""}`);
+    }
+    if (regForm.itemTypes.includes("헬스")) parts.push(`헬스 ${regForm.duration ? regForm.duration + "개월" : ""}`);
+    if (regForm.itemTypes.includes("기타")) parts.push(regForm.otherItem || "기타");
+    return parts.join(" + ") || "—";
+  })();
+
+  const fmt = (v: string | number) => v ? Number(v).toLocaleString() + "원" : "0원";
+
+  return (
+    <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
+        {/* 헤더 */}
+        <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center gap-2 shrink-0 rounded-t-2xl">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          <h2 className="font-bold text-foreground flex-1">서명 완료</h2>
+          <span className="text-xs text-muted-foreground">계약서를 확인하세요</span>
+        </div>
+
+        {/* 계약서 미리보기 */}
+        <div className="overflow-y-auto flex-1 p-4">
+          <div className="bg-white text-gray-800 rounded-xl p-5 text-xs leading-relaxed shadow-sm"
+            style={{ fontFamily: "'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif" }}>
+
+            {/* 계약서 헤더 */}
+            <div className="text-center border-b border-gray-300 pb-4 mb-4">
+              <p className="text-base font-bold tracking-widest">자이언트짐</p>
+              <p className="text-xs text-gray-500">GIANT GYM</p>
+              <p className="text-sm font-bold mt-2 tracking-wider">회 원 계 약 서</p>
+            </div>
+
+            {/* 회원 정보 */}
+            <div className="border border-gray-200 rounded p-3 mb-4 grid grid-cols-2 gap-y-2">
+              <div><span className="text-gray-500">성명</span> <span className="font-semibold ml-2">{memberName}</span></div>
+              <div><span className="text-gray-500">연락처</span> <span className="font-semibold ml-2">{memberPhone || "—"}</span></div>
+              <div className="col-span-2"><span className="text-gray-500">계약일</span> <span className="font-semibold ml-2">{today}</span></div>
+            </div>
+
+            {/* 등록 내역 */}
+            <div className="border border-gray-200 rounded p-3 mb-4">
+              <p className="text-gray-500 font-semibold text-xs mb-2">등록 내역</p>
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">구분</span>
+                  <span className="font-semibold">{regForm.subType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">프로그램</span>
+                  <span className="font-semibold text-right max-w-[60%]">{programLabel}</span>
+                </div>
+                <div className="border-t border-gray-100 pt-1.5 mt-1.5 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">정가</span>
+                    <span>{fmt(regForm.amount)}</span>
+                  </div>
+                  {Number(regForm.discountAmount) > 0 && (
+                    <div className="flex justify-between text-red-500">
+                      <span>할인</span>
+                      <span>- {fmt(regForm.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-semibold border-t border-gray-100 pt-1">
+                    <span className="text-gray-700">실결제</span>
+                    <span className="text-gray-900">{fmt(regForm.paidAmount || regForm.amount)}</span>
+                  </div>
+                  {Number(regForm.unpaidAmount) > 0 && (
+                    <div className="flex justify-between text-orange-500">
+                      <span>미수금</span>
+                      <span>{fmt(regForm.unpaidAmount)}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-between pt-1">
+                  <span className="text-gray-500">결제방법</span>
+                  <span className="font-semibold">{regForm.paymentMethod || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">결제일</span>
+                  <span>{regForm.paymentDate}</span>
+                </div>
+                {regForm.startDate && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">시작일</span>
+                    <span>{regForm.startDate}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 동의 항목 요약 */}
+            <div className="space-y-1.5 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-600 font-bold">✓</span>
+                <span className="font-medium">(필수) 센터 이용 약관 동의</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-600 font-bold">✓</span>
+                <span className="font-medium">(필수) 개인정보 수집·이용 동의</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={marketing ? "text-blue-600 font-bold" : "text-gray-300 font-bold"}>
+                  {marketing ? "✓" : "✗"}
+                </span>
+                <span className={marketing ? "font-medium" : "text-gray-400"}>
+                  (선택) 광고성 정보 수신 동의 {marketing ? "— 동의" : "— 미동의"}
+                </span>
+              </div>
+            </div>
+
+            {/* 서명 */}
+            <div className="border-t border-gray-300 pt-3">
+              <p className="text-gray-600 mb-2 text-center text-xs">
+                본인은 위 약관의 내용을 충분히 읽고 이해하였으며, 이에 동의하여 서명합니다.
+              </p>
+              <div className="flex justify-between items-end gap-4">
+                <div>
+                  <p className="text-gray-500 text-xs mb-1">계약일</p>
+                  <p className="text-xs font-medium border-b border-gray-300 pb-1">{today}</p>
+                </div>
+                <div className="flex-1">
+                  <p className="text-gray-500 text-xs mb-1">회원 서명</p>
+                  <div className="border border-gray-200 rounded bg-gray-50 flex items-center justify-center"
+                    style={{ height: "64px" }}>
+                    <img src={signatureDataUrl} alt="서명" className="max-h-full max-w-full object-contain" />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <p className="text-xs font-semibold text-gray-700">ZIANT GYM</p>
+                <div className="mt-1 inline-block border-b border-gray-400 w-32 pb-5"></div>
+                <span className="text-xs text-gray-400 ml-1">(서명/인)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 하단 버튼 */}
+        <div className="p-4 border-t border-border shrink-0 space-y-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="w-full flex items-center justify-center gap-2 bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors">
+            <Check className="w-4 h-4" />
+            확인 후 등록 진행
+          </button>
+          <button
+            type="button"
+            onClick={onPrint}
+            className="w-full flex items-center justify-center gap-2 border border-emerald-500/40 text-emerald-400 rounded-xl py-2.5 text-sm font-medium hover:bg-emerald-500/10 transition-colors">
+            <Printer className="w-4 h-4" />
+            계약서 인쇄 / PDF 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 등록완료 카드 내 PAR-Q 버튼 ─────────────────────────────────────────────
+function ParQButton({ lead }: { lead: any }) {
+  const [, setLocation] = useLocation();
+  const { data: members = [] } = trpc.members.list.useQuery();
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    let memberId = lead.registeredMemberId;
+    if (!memberId) {
+      const found = members.find((m: any) => m.name === lead.name);
+      memberId = found?.id;
+    }
+    if (memberId) {
+      setLocation(`/members/${memberId}/parq`);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      className="mt-1 w-full flex items-center justify-center gap-1.5 border border-blue-500/30 text-blue-400 rounded-lg py-2 text-xs font-medium hover:bg-blue-500/10 transition-colors"
+    >
+      <ClipboardList className="w-3.5 h-3.5" />
+      PAR-Q 사전건강검사
+    </button>
+  );
+}
+
+// ─── 등록완료 카드 내 계약서 PDF 버튼 ────────────────────────────────────────
+function ContractPdfButton({ lead }: { lead: any }) {
+  const { data: entry, isLoading } = trpc.gym.revenue.byLead.useQuery({ leadId: lead.id });
+
+  function openPdf(e: React.MouseEvent) {
+    e.stopPropagation();
+    const date = lead.consultationDate
+      ? new Date(lead.consultationDate).toLocaleDateString("ko-KR")
+      : new Date().toLocaleDateString("ko-KR");
+
+    const p = new URLSearchParams({
+      name: lead.name ?? "",
+      phone: lead.phone ?? "",
+      date,
+      marketing: "0",
+    });
+
+    if (entry) {
+      const programParts: string[] = [];
+      if (entry.type === "PT") programParts.push(`PT${entry.programDetail ? ` (${entry.programDetail})` : ""}${entry.sessions ? ` ${entry.sessions}회` : ""}`);
+      else if (entry.type === "헬스") programParts.push(`헬스${entry.duration ? ` ${entry.duration}개월` : ""}`);
+      else if (entry.type === "기타" && entry.programDetail) programParts.push(entry.programDetail);
+
+      p.set("subType", entry.subType ?? "신규");
+      p.set("itemTypes", entry.type ?? "");
+      p.set("programKey", entry.programDetail ?? "");
+      p.set("sessions", entry.sessions?.toString() ?? "");
+      p.set("duration", entry.duration?.toString() ?? "");
+      p.set("amount", entry.amount?.toString() ?? "");
+      p.set("discountAmount", entry.discountAmount?.toString() ?? "0");
+      p.set("paidAmount", entry.paidAmount?.toString() ?? "");
+      p.set("unpaidAmount", entry.unpaidAmount?.toString() ?? "0");
+      p.set("paymentMethod", entry.paymentMethod ?? "");
+      p.set("paymentDate", entry.paymentDate ?? "");
+      p.set("startDate", entry.startDate ?? "");
+    }
+
+    if (lead.signatureDataUrl) {
+      const sigKey = `contract_sig_${Date.now()}`;
+      localStorage.setItem(sigKey, lead.signatureDataUrl);
+      p.set("sigKey", sigKey);
+    }
+
+    window.open(`/contract-print?${p.toString()}`, "_blank");
+  }
+
+  return (
+    <button
+      onClick={openPdf}
+      disabled={isLoading}
+      className="mt-1 w-full flex items-center justify-center gap-1.5 border border-emerald-500/30 text-emerald-400 rounded-lg py-2 text-xs font-medium hover:bg-emerald-500/10 transition-colors disabled:opacity-40"
+    >
+      <FileText className="w-3.5 h-3.5" />
+      계약서 PDF 출력
+    </button>
+  );
+}
+

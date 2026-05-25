@@ -48,6 +48,9 @@ import {
   ArrowLeft,
   Crown,
   Activity,
+  FileHeart,
+  Sparkles,
+  Loader2,
   Calendar,
   User,
   Phone,
@@ -70,6 +73,8 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Send,
+  CheckCheck,
 } from "lucide-react";
 
 interface Props {
@@ -94,6 +99,85 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
       <div>
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="text-sm font-medium text-foreground">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function getMilestones(total: number): number[] {
+  if (total <= 10) return [7];
+  const ms: number[] = [];
+  for (let m = 15; m < total; m += 10) ms.push(m);
+  return ms;
+}
+
+function PTReportButtons({ packageId, memberId, totalSessions, usedSessions }: {
+  packageId: number;
+  memberId: number;
+  totalSessions: number;
+  usedSessions: number;
+}) {
+  const { data: existingReports = [], refetch } = trpc.gym.ai.getPTReports.useQuery({ packageId });
+  const genMutation = trpc.gym.ai.generatePTProgressReport.useMutation({
+    onSuccess: (data) => {
+      refetch();
+      toast.success("PT 변화 리포트가 생성되었습니다!");
+      window.open(data.reportUrl, "_blank");
+    },
+    onError: (err: any) => toast.error(err.message || "리포트 생성 실패"),
+  });
+
+  const milestones = getMilestones(totalSessions);
+  if (milestones.length === 0) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/50">
+      <p className="text-xs text-muted-foreground font-semibold mb-2">📊 PT 변화 리포트</p>
+      <div className="flex flex-wrap gap-1.5">
+        {milestones.map((milestoneSession, idx) => {
+          const reportIndex = idx + 1;
+          const fromSession = idx === 0 ? 1 : milestones[idx - 1] + 1;
+          const existing = existingReports.find((r: any) => r.reportIndex === reportIndex);
+          const reached = usedSessions >= milestoneSession;
+          const isPending = genMutation.isPending && (genMutation.variables as any)?.reportIndex === reportIndex;
+
+          if (existing) {
+            return (
+              <button
+                key={reportIndex}
+                onClick={() => window.open(`/api/pt-report/${existing.token}`, "_blank")}
+                className="px-3 py-1 text-xs rounded-full border border-green-500/40 text-green-400 bg-green-500/10 hover:bg-green-500/20 transition-colors flex items-center gap-1"
+              >
+                <Check className="h-3 w-3" />보고서 {reportIndex}
+              </button>
+            );
+          }
+
+          if (!reached) {
+            return (
+              <button
+                key={reportIndex}
+                disabled
+                className="px-3 py-1 text-xs rounded-full border border-border text-muted-foreground opacity-50 cursor-not-allowed"
+                title={`${milestoneSession}회 달성 후 생성 가능`}
+              >
+                보고서 {reportIndex} ({milestoneSession}회)
+              </button>
+            );
+          }
+
+          return (
+            <button
+              key={reportIndex}
+              disabled={isPending}
+              onClick={() => genMutation.mutate({ packageId, memberId, milestoneSession, fromSession, reportIndex })}
+              className="px-3 py-1 text-xs rounded-full border border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 transition-colors flex items-center gap-1"
+            >
+              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+              보고서 {reportIndex}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -178,6 +262,7 @@ export default function MemberDetail({ memberId }: Props) {
     exercises: [] as Exercise[],
     feedback: "",
     notes: "",
+    isDraft: false,
   });
   const [editJournalOpen, setEditJournalOpen] = useState(false);
   const [editJournalForm, setEditJournalForm] = useState({
@@ -188,19 +273,52 @@ export default function MemberDetail({ memberId }: Props) {
     exercises: [] as Exercise[],
     feedback: "",
     notes: "",
+    isDraft: false,
+  });
+
+  // 건강보고서
+  const [healthReport, setHealthReport] = useState<{ report: string; isAI: boolean; stats: any; reportUrl?: string } | null>(null);
+  const healthReportMutation = trpc.gym.ai.generateMemberReport.useMutation({
+    onSuccess: (data) => setHealthReport(data),
+    onError: (err: any) => toast.error(err.message || "보고서 생성 실패"),
   });
 
   // 메모 검색
   const [memoSearch, setMemoSearch] = useState("");
 
-  // 트레이닝 일지 펼치기
-  const [expandedLogIds, setExpandedLogIds] = useState<Set<number>>(new Set());
-  const toggleLog = (id: number) =>
-    setExpandedLogIds((prev) => {
+  // 라이브 트레이닝 모달
+  const [liveTrainingOpen, setLiveTrainingOpen] = useState(false);
+  const [liveLog, setLiveLog] = useState<any>(null);
+  const [liveExercises, setLiveExercises] = useState<Exercise[]>([]);
+  // "exIdx-setIdx" 형식으로 완료된 세트 추적
+  const [checkedSets, setCheckedSets] = useState<Set<string>>(new Set());
+  const [memberMemoEdit, setMemberMemoEdit] = useState(false);
+  const [memberMemoText, setMemberMemoText] = useState("");
+
+  function openLiveTraining(log: any) {
+    const exs = parseExercisesJson((log as any).exercisesJson as string | null);
+    setLiveLog(log);
+    setLiveExercises(exs);
+    setCheckedSets(new Set());
+    setLiveTrainingOpen(true);
+  }
+
+  function toggleSetCheck(exIdx: number, setIdx: number) {
+    const key = `${exIdx}-${setIdx}`;
+    setCheckedSets((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
+  }
+
+  function insertExerciseAfter(afterIdx: number) {
+    setLiveExercises((prev) => {
+      const next = [...prev];
+      next.splice(afterIdx + 1, 0, { name: "", sets: [{ reps: "", weight: "" }] });
+      return next;
+    });
+  }
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: member, isLoading } = trpc.members.getById.useQuery({ id: memberId });
@@ -212,8 +330,22 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: memoList, refetch: refetchMemos } = trpc.workoutMemos.listByMember.useQuery({ memberId });
   const { data: sessionLogs } = trpc.pt.sessionLogs.useQuery({ memberId });
   const { data: conditionChecks } = trpc.attendanceChecks.listByMember.useQuery({ memberId });
+
+  // 이 회원의 과거 운동명 목록 (자동완성용)
+  const exerciseSuggestions = useMemo(() => {
+    if (!sessionLogs) return [];
+    const names = new Set<string>();
+    sessionLogs.forEach((log: any) => {
+      parseExercisesJson(log.exercisesJson).forEach((ex) => {
+        if (ex.name.trim()) names.add(ex.name.trim());
+      });
+    });
+    return Array.from(names);
+  }, [sessionLogs]);
   const { data: stats } = trpc.members.getStats.useQuery({ memberId });
   const { data: pauses, refetch: refetchPauses } = trpc.pt.listPauses.useQuery({ memberId });
+  const { data: leadInfo } = trpc.gym.leads.getByMemberId.useQuery({ memberId });
+  const { data: parQData } = trpc.parQ.get.useQuery({ memberId });
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -265,7 +397,7 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: () => {
       toast.success("트레이닝 일지가 저장되었습니다.");
       setJournalOpen(false);
-      setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "" });
+      setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "", isDraft: false });
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "저장 실패"),
@@ -275,6 +407,7 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: () => {
       toast.success("일지가 수정되었습니다.");
       setEditJournalOpen(false);
+      setLiveTrainingOpen(false);
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "수정 실패"),
@@ -286,6 +419,15 @@ export default function MemberDetail({ memberId }: Props) {
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
+  const shareLogMutation = trpc.pt.shareLog.useMutation({
+    onSuccess: (_, vars) => {
+      toast.success(vars.share ? "회원에게 전송되었습니다." : "전송이 취소되었습니다.");
+      utils.pt.sessionLogs.invalidate({ memberId });
+      setLiveLog((prev: any) => prev ? { ...prev, sharedToMember: vars.share ? 1 : 0 } : prev);
+    },
+    onError: (err) => toast.error(err.message || "전송 실패"),
   });
 
   // PT 세션 사용 (완료 후 메모 입력 유도)
@@ -309,6 +451,15 @@ export default function MemberDetail({ memberId }: Props) {
       utils.members.getById.invalidate({ id: memberId });
     },
     onError: (err) => toast.error(err.message || "변경 실패"),
+  });
+
+  const saveNoteMutation = trpc.members.update.useMutation({
+    onSuccess: () => {
+      toast.success("메모가 저장되었습니다.");
+      setMemberMemoEdit(false);
+      utils.members.getById.invalidate({ id: memberId });
+    },
+    onError: (err) => toast.error(err.message || "저장 실패"),
   });
 
   // 미수금 업데이트
@@ -418,6 +569,36 @@ export default function MemberDetail({ memberId }: Props) {
     });
   };
 
+  // 만나이 계산
+  const koreanAge = useMemo(() => {
+    if (!member?.birthDate) return "";
+    const birth = new Date(member.birthDate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return `만 ${age}세`;
+  }, [member?.birthDate]);
+
+  // 최초 등록일: createdAt → 없으면 가장 이른 PT 패키지 startDate
+  const firstRegistrationDate = useMemo(() => {
+    if (member?.createdAt) return fmtDate(member.createdAt, "yyyy.MM.dd");
+    const dates = (ptPackages ?? []).map(p => p.startDate).filter(Boolean).sort() as string[];
+    return dates[0] ? fmtDate(dates[0], "yyyy.MM.dd") : "-";
+  }, [member?.createdAt, ptPackages]);
+
+  // 운동 만료일: 운동시작일 + (totalSessions / 2)주
+  const exerciseEndDate = useMemo(() => {
+    const startStr = member?.membershipStart;
+    if (!startStr) return "-";
+    const totalSessions = (ptPackages ?? []).reduce((sum, p) => sum + (p.totalSessions ?? 0), 0);
+    if (!totalSessions) return "-";
+    const weeks = Math.round(totalSessions / 2);
+    const d = new Date(startStr);
+    d.setDate(d.getDate() + weeks * 7);
+    return fmtDate(d.toISOString(), "yyyy.MM.dd");
+  }, [member?.membershipStart, ptPackages]);
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -476,7 +657,7 @@ export default function MemberDetail({ memberId }: Props) {
               if (shareToken) { setShareOpen(true); }
               else { generateReportMutation.mutate({ memberId }); }
             }}
-            disabled={generateReportMutation.isPending}
+            disabled={healthReportMutation.isPending}
             className="gap-1.5"
           >
             <Share2 className="h-3.5 w-3.5" />
@@ -542,59 +723,188 @@ export default function MemberDetail({ memberId }: Props) {
 
       {/* 탭 */}
       <Tabs defaultValue="info">
-        <TabsList className="w-full grid grid-cols-5">
-          <TabsTrigger value="info" className="text-xs px-1">기본정보</TabsTrigger>
-          <TabsTrigger value="pt" className="text-xs px-1">PT정보</TabsTrigger>
-          <TabsTrigger value="stats" className="text-xs px-1">통계</TabsTrigger>
-          <TabsTrigger value="training" className="text-xs px-1">트레이닝</TabsTrigger>
-          <TabsTrigger value="attendance" className="text-xs px-1">출석</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto scrollbar-none -mx-4 px-4">
+          <TabsList className="flex w-max min-w-full">
+            <TabsTrigger value="info" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[72px]">기본정보</TabsTrigger>
+            <TabsTrigger value="pt" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[72px]">PT정보</TabsTrigger>
+            <TabsTrigger value="stats" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[60px]">통계</TabsTrigger>
+            <TabsTrigger value="training" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[80px]">트레이닝</TabsTrigger>
+            <TabsTrigger value="attendance" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[60px]">출석</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ── 기본 정보 탭 ── */}
         <TabsContent value="info" className="mt-4 space-y-3">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 w-full border-primary/40 text-primary hover:bg-primary/10"
-            onClick={() => setLocation(`/members/${memberId}/parq`)}
-          >
-            PAR-Q 사전건강검사
-          </Button>
+          {/* PAR-Q 사전건강검사 인라인 표시 */}
+          <Card className="bg-card border-border">
+            <CardHeader className={`px-4 pt-4 flex flex-row items-center justify-between ${parQData ? "pb-2" : "pb-4"}`}>
+              <CardTitle className="text-sm font-semibold text-foreground">PAR-Q 사전건강검사</CardTitle>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-primary hover:bg-primary/10 h-7 px-2"
+                onClick={() => setLocation(`/members/${memberId}/parq`)}
+              >
+                {parQData ? "수정" : "입력하기"}
+              </Button>
+            </CardHeader>
+            {parQData && <CardContent className="px-4 pb-4">
+              {true && (
+                <div className="space-y-3 text-sm">
+                  {/* 신체 측정 */}
+                  {[parQData.height, parQData.weight, parQData.muscleMass, parQData.bodyFatPercent, parQData.bodyFatKg, parQData.waistCircumference].some(Boolean) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">신체 측정</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { label: "신장", value: parQData.height, unit: "cm" },
+                          { label: "체중", value: parQData.weight, unit: "kg" },
+                          { label: "근육량", value: parQData.muscleMass, unit: "kg" },
+                          { label: "체지방률", value: parQData.bodyFatPercent, unit: "%" },
+                          { label: "체지방량", value: parQData.bodyFatKg, unit: "kg" },
+                          { label: "허리둘레", value: parQData.waistCircumference, unit: "cm" },
+                        ].map(({ label, value, unit }) => (
+                          <div key={label} className="bg-accent/30 rounded-md px-2 py-1.5">
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                            <p className="text-xs font-medium text-foreground">{value ? `${value}${unit}` : "미입력"}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 혈압 */}
+                  {(parQData.systolicBp || parQData.diastolicBp) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">혈압</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { label: "수축기혈압", value: parQData.systolicBp, unit: "mmHg" },
+                          { label: "이완기혈압", value: parQData.diastolicBp, unit: "mmHg" },
+                        ].map(({ label, value, unit }) => (
+                          <div key={label} className="bg-accent/30 rounded-md px-2 py-1.5">
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                            <p className="text-xs font-medium text-foreground">{value ? `${value}${unit}` : "미입력"}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 혈액 검사 */}
+                  {[parQData.totalCholesterol, parQData.hdlCholesterol, parQData.ldlCholesterol, parQData.triglycerides, parQData.fastingBloodSugar, parQData.postMealBloodSugar, parQData.hba1c, parQData.boneDensity].some(Boolean) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">혈액 검사</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { label: "총콜레스테롤", value: parQData.totalCholesterol, unit: "" },
+                          { label: "HDL 콜레스테롤", value: parQData.hdlCholesterol, unit: "" },
+                          { label: "LDL 콜레스테롤", value: parQData.ldlCholesterol, unit: "" },
+                          { label: "중성지방", value: parQData.triglycerides, unit: "" },
+                          { label: "공복혈당", value: parQData.fastingBloodSugar, unit: "" },
+                          { label: "식후혈당", value: parQData.postMealBloodSugar, unit: "" },
+                          { label: "당화혈색소", value: parQData.hba1c, unit: "%" },
+                          { label: "골밀도", value: parQData.boneDensity, unit: "" },
+                        ].filter(i => i.value).map(({ label, value, unit }) => (
+                          <div key={label} className="bg-accent/30 rounded-md px-2 py-1.5">
+                            <p className="text-xs text-muted-foreground">{label}</p>
+                            <p className="text-xs font-medium text-foreground">{value}{unit}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 생활 정보 */}
+                  {(parQData.occupation || parQData.workEnvironment || parQData.exerciseExperience || parQData.visitRoute) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">생활 정보</p>
+                      <div className="space-y-1">
+                        {parQData.occupation && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">직업</span><span className="text-xs text-foreground">{parQData.occupation}</span></div>}
+                        {parQData.workEnvironment && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">근무환경</span><span className="text-xs text-foreground">{parQData.workEnvironment}</span></div>}
+                        {parQData.exerciseExperience && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">운동경험</span><span className="text-xs text-foreground">{parQData.exerciseExperience}</span></div>}
+                        {parQData.visitRoute && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">방문경로</span><span className="text-xs text-foreground">{parQData.visitRoute}</span></div>}
+                      </div>
+                    </div>
+                  )}
+                  {/* 목표 */}
+                  {(parQData.goal1 || parQData.goal2 || parQData.goal3) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">운동 목표</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[parQData.goal1, parQData.goal2, parQData.goal3].filter(Boolean).map((g, i) => (
+                          <span key={i} className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs">{g}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* 이슈 */}
+                  {(parQData.dietIssues || parQData.alcoholIssues || parQData.sleepIssues || parQData.activityIssues) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">생활 이슈</p>
+                      <div className="space-y-1">
+                        {parQData.dietIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">식이</span><span className="text-xs text-foreground">{parQData.dietIssues}</span></div>}
+                        {parQData.alcoholIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">음주</span><span className="text-xs text-foreground">{parQData.alcoholIssues}</span></div>}
+                        {parQData.sleepIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">수면</span><span className="text-xs text-foreground">{parQData.sleepIssues}</span></div>}
+                        {parQData.activityIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">활동</span><span className="text-xs text-foreground">{parQData.activityIssues}</span></div>}
+                      </div>
+                    </div>
+                  )}
+                  {/* 병력 */}
+                  {(parQData.chronicDiseases || parQData.musculoskeletalIssues || parQData.posturalIssues) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">건강 병력</p>
+                      <div className="space-y-1">
+                        {parQData.chronicDiseases && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">만성질환</span><span className="text-xs text-foreground">{parQData.chronicDiseases}</span></div>}
+                        {parQData.musculoskeletalIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">근골격계</span><span className="text-xs text-foreground">{parQData.musculoskeletalIssues}</span></div>}
+                        {parQData.posturalIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">자세문제</span><span className="text-xs text-foreground">{parQData.posturalIssues}</span></div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>}
+          </Card>
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <InfoRow icon={<Crown className="h-4 w-4" />} label="등급" value={membershipLabels[member.grade] ?? "-"} />
                 <InfoRow icon={<Activity className="h-4 w-4" />} label="상태" value={statusLabels[member.status] ?? "-"} />
+                <InfoRow icon={<Crown className="h-4 w-4" />} label="등급" value={membershipLabels[member.grade] ?? "-"} />
+                <div className="flex items-start gap-3">
+                  <div className="text-muted-foreground mt-0.5"><Phone className="h-4 w-4" /></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">연락처</p>
+                    {member.phone ? (
+                      <a href={`tel:${member.phone}`} className="text-sm font-medium text-primary underline underline-offset-2">
+                        {member.phone}
+                      </a>
+                    ) : (
+                      <p className="text-sm font-medium text-foreground">-</p>
+                    )}
+                  </div>
+                </div>
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
                   label="생년월일"
-                  value={fmtDate(member.birthDate, "yyyy년 MM월 dd일")}
+                  value={member.birthDate ? `${fmtDate(member.birthDate, "yyyy.MM.dd")}${koreanAge ? ` (${koreanAge})` : ""}` : "-"}
                 />
                 <InfoRow
                   icon={<User className="h-4 w-4" />}
                   label="성별"
                   value={member.gender === "male" ? "남성" : member.gender === "female" ? "여성" : "-"}
                 />
-                <InfoRow icon={<Phone className="h-4 w-4" />} label="연락처" value={member.phone ?? "-"} />
-                <InfoRow icon={<Mail className="h-4 w-4" />} label="이메일" value={member.email ?? "-"} />
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
-                  label="회원권 시작"
+                  label="최초 등록일"
+                  value={firstRegistrationDate}
+                />
+                <InfoRow
+                  icon={<Calendar className="h-4 w-4" />}
+                  label="운동 시작일"
                   value={fmtDate(member.membershipStart, "yyyy.MM.dd")}
                 />
                 <InfoRow
                   icon={<Calendar className="h-4 w-4" />}
-                  label="회원권 만료"
-                  value={fmtDate(member.membershipEnd, "yyyy.MM.dd")}
+                  label="운동 만료일"
+                  value={exerciseEndDate}
                 />
-                <InfoRow
-                  icon={<Calendar className="h-4 w-4" />}
-                  label="최초 등록일"
-                  value={fmtDate(member.createdAt, "yyyy.MM.dd")}
-                />
-                {member.visitRoute && (
-                  <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
-                )}
                 <div className="flex items-start gap-3">
                   <div className="text-muted-foreground mt-0.5"><User className="h-4 w-4" /></div>
                   <div className="flex-1">
@@ -617,12 +927,67 @@ export default function MemberDetail({ memberId }: Props) {
                   label="총 결제 금액"
                   value={ptPackages ? `${ptPackages.reduce((sum, p) => sum + (p.paymentAmount ?? 0), 0).toLocaleString()}원` : "-"}
                 />
+                {(member as any).visitRoute && (
+                  <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={(member as any).visitRoute} />
+                )}
               </div>
-              {member.profileNote && (
-                <div className="mt-4 p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
-                  <p className="text-xs text-muted-foreground mb-1">특이사항</p>
-                  <p className="text-sm text-foreground whitespace-pre-wrap">{member.profileNote}</p>
+              {(leadInfo?.consultationNote || leadInfo?.memo) && (
+                <div className="mt-4 space-y-3">
+                  {leadInfo.consultationNote && (
+                    <div className="p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
+                      <p className="text-xs text-muted-foreground mb-1">상담 내용</p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{leadInfo.consultationNote}</p>
+                    </div>
+                  )}
+                  {leadInfo.memo && (
+                    <div className="p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
+                      <p className="text-xs text-muted-foreground mb-1">등록 진행 내용</p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{leadInfo.memo}</p>
+                    </div>
+                  )}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 메모 — 기본정보 하단 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-2 px-4 pt-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-foreground">메모</CardTitle>
+              {!memberMemoEdit ? (
+                <Button
+                  size="sm" variant="ghost"
+                  className="text-xs text-primary hover:bg-primary/10 h-7 px-2"
+                  onClick={() => { setMemberMemoText(member.profileNote ?? ""); setMemberMemoEdit(true); }}
+                >
+                  수정
+                </Button>
+              ) : (
+                <div className="flex gap-1.5">
+                  <Button size="sm" variant="ghost" className="text-xs h-7 px-2 text-muted-foreground" onClick={() => setMemberMemoEdit(false)}>취소</Button>
+                  <Button
+                    size="sm" className="text-xs h-7 px-2"
+                    disabled={saveNoteMutation.isPending}
+                    onClick={() => saveNoteMutation.mutate({ id: memberId, name: member.name, profileNote: memberMemoText })}
+                  >
+                    저장
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {memberMemoEdit ? (
+                <Textarea
+                  value={memberMemoText}
+                  onChange={e => setMemberMemoText(e.target.value)}
+                  placeholder="회원 관련 메모를 입력하세요..."
+                  rows={4}
+                  className="text-sm resize-none"
+                />
+              ) : (
+                <p className="text-sm text-foreground whitespace-pre-wrap">
+                  {member.profileNote || <span className="text-muted-foreground">없음</span>}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -656,7 +1021,7 @@ export default function MemberDetail({ memberId }: Props) {
                         className="h-9 text-sm"
                       />
                       <div className="flex gap-1.5 flex-wrap">
-                        {["케어피티", "웨이트피티", "이벤트피티", "필라테스"].map((preset) => (
+                        {["케어피티", "웨이트피티", "이벤트피티", "이벤트세션"].map((preset) => (
                           <button
                             key={preset}
                             type="button"
@@ -851,6 +1216,14 @@ export default function MemberDetail({ memberId }: Props) {
                           </button>
                         </div>
 
+                        {/* PT 변화 리포트 마일스톤 버튼 */}
+                        <PTReportButtons
+                          packageId={pkg.id}
+                          memberId={memberId}
+                          totalSessions={pkg.totalSessions}
+                          usedSessions={pkg.usedSessions}
+                        />
+
                         {/* 프로그램 완료 → 보고서 버튼 */}
                         {(pkg.status === "completed" || pkg.usedSessions >= pkg.totalSessions) && (
                           <div className="mt-3 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
@@ -858,7 +1231,7 @@ export default function MemberDetail({ memberId }: Props) {
                             <Button
                               size="sm"
                               className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white"
-                              disabled={generateReportMutation.isPending}
+                              disabled={healthReportMutation.isPending}
                               onClick={() => {
                                 if (shareToken) { setShareOpen(true); }
                                 else { generateReportMutation.mutate({ memberId }); }
@@ -964,6 +1337,100 @@ export default function MemberDetail({ memberId }: Props) {
             </CardContent>
           </Card>
 
+          {/* 건강 보고서 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 pb-2 pt-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FileHeart className="h-4 w-4 text-primary" />건강 보고서
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 text-xs"
+                  disabled={healthReportMutation.isPending}
+                  onClick={() => healthReportMutation.mutate({ memberId })}
+                >
+                  {healthReportMutation.isPending
+                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />생성 중...</>
+                    : <><Sparkles className="h-3.5 w-3.5 text-primary" />AI 보고서 생성</>}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {!healthReport && !healthReportMutation.isPending && (
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  AI 보고서 생성 버튼을 눌러 건강·트레이닝 분석 보고서를 만들어보세요.
+                </p>
+              )}
+              {healthReportMutation.isPending && (
+                <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />AI가 보고서를 작성하고 있습니다...
+                </div>
+              )}
+              {healthReport && !healthReportMutation.isPending && (
+                <div className="space-y-4">
+                  {/* 공유 버튼 */}
+                  {healthReport.reportUrl && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs"
+                        onClick={() => {
+                          const url = `${window.location.origin}${healthReport.reportUrl}`;
+                          navigator.clipboard.writeText(url).then(() => toast.success("링크가 복사되었습니다")).catch(() => toast.error("복사 실패"));
+                        }}>
+                        <Copy className="h-3.5 w-3.5" />링크 복사
+                      </Button>
+                      <Button variant="outline" size="sm" className="flex-1 gap-1.5 text-xs"
+                        onClick={() => window.open(healthReport.reportUrl!, "_blank")}>
+                        <FileHeart className="h-3.5 w-3.5" />보고서 보기
+                      </Button>
+                    </div>
+                  )}
+                  {/* 트레이닝 통계 요약 */}
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    {[
+                      { label: "총 수업", value: `${healthReport.stats.totalSessions}회` },
+                      { label: "컨디션 평균", value: healthReport.stats.avgCondition != null ? `${healthReport.stats.avgCondition}/10` : "-" },
+                      { label: "통증 평균", value: healthReport.stats.avgPain != null ? `${healthReport.stats.avgPain}/10` : "-" },
+                    ].map(item => (
+                      <div key={item.label} className="p-2 rounded-lg bg-accent/20 border border-border text-center">
+                        <p className="text-muted-foreground mb-0.5">{item.label}</p>
+                        <p className="font-bold text-sm">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {healthReport.stats.topBodyParts.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">주요 운동 부위</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {healthReport.stats.topBodyParts.map((p: string) => (
+                          <span key={p} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">{p}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* AI 리포트 텍스트 미리보기 */}
+                  <div className="space-y-3 pt-2 border-t border-border/50">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-semibold text-primary">{healthReport.isAI ? "AI 분석 결과 (미리보기)" : "자동 생성 보고서 (미리보기)"}</span>
+                    </div>
+                    <div className="text-sm text-foreground leading-relaxed whitespace-pre-wrap line-clamp-6">
+                      {healthReport.report.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
+                        part.startsWith("**") && part.endsWith("**")
+                          ? <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>
+                          : <span key={i}>{part}</span>
+                      )}
+                    </div>
+                    {healthReport.reportUrl && (
+                      <p className="text-xs text-muted-foreground text-center">전체 보고서는 링크에서 확인하세요</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
         </TabsContent>
 
         {/* ── 트레이닝 탭 ── */}
@@ -991,7 +1458,7 @@ export default function MemberDetail({ memberId }: Props) {
                 size="sm"
                 className="w-full gap-1.5 text-xs"
                 onClick={() => {
-                  setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "" });
+                  setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "", isDraft: false });
                   setJournalOpen(true);
                 }}
               >
@@ -1004,88 +1471,63 @@ export default function MemberDetail({ memberId }: Props) {
               ) : (
                 <div className="space-y-2">
                   {sessionLogs.map((log) => {
-                    const exs = parseExercisesJson((log as any).exercisesJson as string | null);
-                    const isExpanded = expandedLogIds.has(log.id);
+                    const isDraft = !!(log as any).isDraft;
                     return (
-                      <div key={log.id} className="rounded-lg bg-accent/20 border border-border overflow-hidden">
-                        {/* 접힌 헤더 - 항상 표시 */}
-                        <button
-                          className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-                          onClick={() => toggleLog(log.id)}
-                        >
+                      <button
+                        key={log.id}
+                        className={`w-full rounded-lg overflow-hidden transition-colors text-left border ${
+                          isDraft
+                            ? "bg-yellow-500/5 border-yellow-500/30 hover:border-yellow-500/60 hover:bg-yellow-500/10"
+                            : "bg-accent/20 border-border hover:border-primary/40 hover:bg-accent/30"
+                        }`}
+                        onClick={() => {
+                          if (isDraft) {
+                            const exs = parseExercisesJson((log as any).exercisesJson as string | null);
+                            setEditJournalForm({
+                              id: log.id,
+                              sessionDate: log.sessionDate,
+                              goal: (log as any).goal ?? "",
+                              bodyPart: (log as any).bodyPart ?? "",
+                              exercises: exs,
+                              feedback: (log as any).feedback ?? "",
+                              notes: log.notes ?? "",
+                              isDraft: true,
+                            });
+                            setEditJournalOpen(true);
+                          } else {
+                            openLiveTraining(log);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between px-3 py-2.5">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
+                            {isDraft ? (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 font-medium">📝 날짜 미정</span>
+                            ) : (
+                              <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
+                            )}
                             {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
                               <span key={bp} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{bp}</span>
                             ))}
                             {log.packageId && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
                             )}
+                            {!isDraft && (log as any).sharedToMember ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center gap-0.5">
+                                <CheckCheck className="h-2.5 w-2.5" />전송됨
+                              </span>
+                            ) : null}
                           </div>
-                          {isExpanded
-                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          }
-                        </button>
-
-                        {/* 펼쳐진 상세 내용 */}
-                        {isExpanded && (
-                          <div className="px-3 pb-3 space-y-2 border-t border-border/40">
-                            {(log as any).goal && (
-                              <div className="pt-2">
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">목표</span>
-                                <p className="text-xs text-foreground mt-0.5">{(log as any).goal}</p>
-                              </div>
-                            )}
-                            {exs.length > 0 && (
-                              <div className="space-y-1 pt-1">
-                                {exs.map((ex, i) => (
-                                  <div key={i} className="text-xs">
-                                    <span className="font-medium text-foreground/80">{ex.name}</span>
-                                    <span className="text-muted-foreground ml-2">
-                                      {ex.sets.map((s, j) => `${j + 1}세트${s.reps ? " " + s.reps + "회" : ""}${s.weight ? " " + s.weight + "kg" : ""}`).join(" · ")}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {(log as any).feedback && (
-                              <div>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">피드백</span>
-                                <p className="text-xs text-foreground mt-0.5 whitespace-pre-wrap">{(log as any).feedback}</p>
-                              </div>
-                            )}
-                            {log.notes && (
-                              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
-                            )}
-                            <div className="flex justify-end gap-3 pt-1">
-                              <button
-                                onClick={() => {
-                                  setEditJournalForm({
-                                    id: log.id,
-                                    sessionDate: log.sessionDate,
-                                    goal: (log as any).goal ?? "",
-                                    bodyPart: (log as any).bodyPart ?? "",
-                                    exercises: exs,
-                                    feedback: (log as any).feedback ?? "",
-                                    notes: log.notes ?? "",
-                                  });
-                                  setEditJournalOpen(true);
-                                }}
-                                className="text-muted-foreground hover:text-primary transition-colors"
-                              >
-                                <Edit className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => deleteLogMutation.mutate({ id: log.id })}
-                                className="text-muted-foreground hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
+                          {isDraft ? (
+                            <span className="text-[10px] text-yellow-400 shrink-0">날짜 확정 →</span>
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          )}
+                        </div>
+                        {isDraft && (log as any).goal && (
+                          <div className="px-3 pb-2 text-[10px] text-muted-foreground truncate">{(log as any).goal}</div>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -1179,11 +1621,10 @@ export default function MemberDetail({ memberId }: Props) {
                 ? "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
                 : ""
             }`}
-            disabled={checkedInToday || checkInMutation.isPending}
-            onClick={() => checkInMutation.mutate({ memberId })}
+            onClick={() => setLocation(`/attendance/${memberId}?date=${todayStr}`)}
           >
             <CheckCircle className="h-4 w-4" />
-            {checkedInToday ? "오늘 출석 완료 ✓" : checkInMutation.isPending ? "체크 중..." : "오늘 출석 체크"}
+            {checkedInToday ? "오늘 출석 완료 ✓" : "오늘 출석 체크"}
           </Button>
 
           {/* 달력 카드 */}
@@ -1216,9 +1657,10 @@ export default function MemberDetail({ memberId }: Props) {
                   const status = attendanceMap[dateStr];
                   const isToday = dateStr === todayStr;
                   return (
-                    <div
+                    <button
                       key={i}
-                      className={`aspect-square flex items-center justify-center rounded-full text-xs font-medium transition-colors ${
+                      onClick={() => setLocation(`/attendance/${memberId}?date=${dateStr}`)}
+                      className={`aspect-square flex items-center justify-center rounded-full text-xs font-medium transition-colors hover:ring-2 hover:ring-primary/50 ${
                         status === "attended"
                           ? "bg-green-500 text-white"
                           : status === "noshow"
@@ -1231,7 +1673,7 @@ export default function MemberDetail({ memberId }: Props) {
                       }`}
                     >
                       {day}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -1289,9 +1731,10 @@ export default function MemberDetail({ memberId }: Props) {
                           {check.sleepHours && <span>수면 {check.sleepHours}h</span>}
                           {check.painLevel != null && check.painLevel > 0 && (
                             <span className="text-orange-400">
-                              통증 {check.painLevel}/10{check.painArea ? ` (${check.painArea})` : ""}
+                              통증 {check.painLevel}/10{check.painArea ? ` (${check.painArea}${check.painSide ? ` · ${check.painSide}` : ""})` : ""}
                             </span>
                           )}
+                          {check.diet && (() => { try { const d = JSON.parse(check.diet); return d.length > 0 ? <span>식단: {d.join(" · ")}</span> : null; } catch { return null; } })()}
                         </div>
                       </div>
                     </div>
@@ -1315,7 +1758,7 @@ export default function MemberDetail({ memberId }: Props) {
               <Label className="text-xs">PT 프로그램</Label>
               <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="케어피티" className="h-9 text-sm" />
               <div className="flex gap-1.5 flex-wrap">
-                {["케어피티", "웨이트피티", "이벤트피티", "필라테스"].map(preset => (
+                {["케어피티", "웨이트피티", "이벤트피티", "이벤트세션"].map(preset => (
                   <button key={preset} type="button"
                     onClick={() => setEditPkgForm(p => ({ ...p, packageName: p.packageName === preset ? "" : preset }))}
                     className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${editPkgForm.packageName === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
@@ -1524,13 +1967,23 @@ export default function MemberDetail({ memberId }: Props) {
             <DialogDescription>{member?.name}님의 트레이닝 기록을 작성합니다.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* 날짜 미정 토글 */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={journalForm.isDraft}
+                onChange={e => setJournalForm(p => ({ ...p, isDraft: e.target.checked }))}
+                className="rounded"
+              />
+              <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
+            </label>
             <div className="space-y-1.5">
               <Label className="text-xs">날짜</Label>
-              <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">오늘의 목표</Label>
-              <Input value={journalForm.goal} onChange={e => setJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
+              {journalForm.isDraft ? (
+                <div className="h-9 flex items-center px-3 text-sm text-muted-foreground border border-border rounded-md bg-muted/30 italic">미정</div>
+              ) : (
+                <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 부위 (최대 3개)</Label>
@@ -1538,29 +1991,22 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">피드백</Label>
-              <Textarea value={journalForm.feedback} onChange={e => setJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">메모 (선택)</Label>
-              <Textarea value={journalForm.notes} onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항..." rows={2} className="text-sm resize-none" />
+              <ExerciseEditor simpleMode exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
               <Button className="flex-1" disabled={createLogMutation.isPending}
                 onClick={() => createLogMutation.mutate({
                   memberId,
-                  sessionDate: journalForm.sessionDate,
+                  sessionDate: journalForm.isDraft ? new Date().toISOString().split("T")[0] : journalForm.sessionDate,
                   goal: journalForm.goal || undefined,
                   bodyPart: journalForm.bodyPart || undefined,
                   exercisesJson: journalForm.exercises.length > 0 ? JSON.stringify(journalForm.exercises) : undefined,
                   feedback: journalForm.feedback || undefined,
                   notes: journalForm.notes || undefined,
+                  isDraft: journalForm.isDraft,
                 })}>
-                {createLogMutation.isPending ? "저장 중..." : "저장"}
+                {createLogMutation.isPending ? "저장 중..." : journalForm.isDraft ? "임시 저장" : "저장"}
               </Button>
             </div>
           </div>
@@ -1575,13 +2021,23 @@ export default function MemberDetail({ memberId }: Props) {
             <DialogDescription>{editJournalForm.sessionDate ? fmtDate(editJournalForm.sessionDate, "yyyy.MM.dd (EEE)") : ""}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* 날짜 미정 토글 */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={editJournalForm.isDraft}
+                onChange={e => setEditJournalForm(p => ({ ...p, isDraft: e.target.checked }))}
+                className="rounded"
+              />
+              <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
+            </label>
             <div className="space-y-1.5">
               <Label className="text-xs">날짜</Label>
-              <Input type="date" value={editJournalForm.sessionDate} onChange={e => setEditJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">오늘의 목표</Label>
-              <Input value={editJournalForm.goal} onChange={e => setEditJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
+              {editJournalForm.isDraft ? (
+                <div className="h-9 flex items-center px-3 text-sm text-muted-foreground border border-border rounded-md bg-muted/30 italic">미정</div>
+              ) : (
+                <Input type="date" value={editJournalForm.sessionDate} onChange={e => setEditJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 부위 (최대 3개)</Label>
@@ -1589,29 +2045,24 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">피드백</Label>
-              <Textarea value={editJournalForm.feedback} onChange={e => setEditJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">메모 (선택)</Label>
-              <Textarea value={editJournalForm.notes} onChange={e => setEditJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항..." rows={2} className="text-sm resize-none" />
+              <ExerciseEditor simpleMode exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} suggestions={exerciseSuggestions} />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setEditJournalOpen(false)}>취소</Button>
               <Button className="flex-1" disabled={updateLogMutation.isPending}
                 onClick={() => updateLogMutation.mutate({
                   id: editJournalForm.id,
-                  sessionDate: editJournalForm.sessionDate || undefined,
+                  sessionDate: editJournalForm.isDraft
+                    ? (editJournalForm.sessionDate || new Date().toISOString().split("T")[0])
+                    : editJournalForm.sessionDate || undefined,
                   goal: editJournalForm.goal || undefined,
                   bodyPart: editJournalForm.bodyPart || undefined,
                   exercisesJson: editJournalForm.exercises.length > 0 ? JSON.stringify(editJournalForm.exercises) : undefined,
                   feedback: editJournalForm.feedback || undefined,
                   notes: editJournalForm.notes || undefined,
+                  isDraft: editJournalForm.isDraft,
                 })}>
-                {updateLogMutation.isPending ? "저장 중..." : "저장"}
+                {updateLogMutation.isPending ? "저장 중..." : editJournalForm.isDraft ? "임시 저장" : "저장"}
               </Button>
             </div>
           </div>
@@ -1724,19 +2175,8 @@ export default function MemberDetail({ memberId }: Props) {
               <ExerciseEditor
                 exercises={sessionForm.exercises}
                 onChange={exs => setSessionForm(p => ({ ...p, exercises: exs }))}
+                suggestions={exerciseSuggestions}
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">오늘의 목표</label>
-              <Input value={sessionForm.goal} onChange={e => setSessionForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">피드백</label>
-              <Textarea value={sessionForm.feedback} onChange={e => setSessionForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={2} className="text-sm resize-none" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">메모 (선택)</label>
-              <Textarea value={sessionForm.notes} onChange={e => setSessionForm(p => ({ ...p, notes: e.target.value }))} placeholder="특이사항, 컨디션 등..." rows={2} className="text-sm resize-none" />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setSessionDialogOpen(false)}>취소</Button>
@@ -1790,6 +2230,229 @@ export default function MemberDetail({ memberId }: Props) {
                 onClick={() => updateMemberMutation.mutate({ id: memberId, trainerId: parseInt(selectedTrainerId) })}
               >
                 {updateMemberMutation.isPending ? "변경 중..." : "변경"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 라이브 트레이닝 모달 ── */}
+      <Dialog open={liveTrainingOpen} onOpenChange={setLiveTrainingOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Dumbbell className="h-4 w-4 text-primary" />
+              트레이닝 기록
+            </DialogTitle>
+            {liveLog && (
+              <DialogDescription>
+                {fmtDate(liveLog.sessionDate, "yyyy.MM.dd (EEE)")}
+                {liveLog.goal ? ` · ${liveLog.goal}` : ""}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {liveExercises.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">운동 종목이 없습니다.</p>
+            )}
+            {liveExercises.map((ex, i) => {
+              const allDone = ex.sets.length > 0 && ex.sets.every((_, j) => checkedSets.has(`${i}-${j}`));
+              return (
+                <div
+                  key={i}
+                  className={`border rounded-lg p-3 space-y-2 transition-colors ${allDone ? "border-green-500/40 bg-green-500/5" : "border-border bg-accent/10"}`}
+                >
+                  {/* 운동명 헤더 */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="flex-1 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 text-foreground"
+                      value={ex.name}
+                      placeholder="운동명"
+                      onChange={(e) => setLiveExercises((prev) =>
+                        prev.map((ex2, idx) => idx === i ? { ...ex2, name: e.target.value } : ex2)
+                      )}
+                    />
+                    <button
+                      onClick={() => setLiveExercises((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  {/* 세트 헤더 */}
+                  {ex.sets.length > 0 && (
+                    <div className="grid grid-cols-[20px_20px_1fr_1fr_28px] gap-1 px-0.5">
+                      <span />
+                      <span className="text-[10px] text-muted-foreground text-center">세트</span>
+                      <span className="text-[10px] text-muted-foreground">횟수</span>
+                      <span className="text-[10px] text-muted-foreground">무게(kg)</span>
+                      <span />
+                    </div>
+                  )}
+
+                  {/* 세트 목록 - 세트별 체크박스 */}
+                  <div className="space-y-1">
+                    {ex.sets.map((s, j) => {
+                      const setKey = `${i}-${j}`;
+                      const isSetDone = checkedSets.has(setKey);
+                      return (
+                        <div key={j} className="grid grid-cols-[20px_20px_1fr_1fr_28px] gap-1 items-center">
+                          <button
+                            onClick={() => toggleSetCheck(i, j)}
+                            className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${isSetDone ? "border-green-500 bg-green-500" : "border-muted-foreground hover:border-primary"}`}
+                          >
+                            {isSetDone && <Check className="h-2.5 w-2.5 text-white" />}
+                          </button>
+                          <span className={`text-xs text-muted-foreground text-center ${isSetDone ? "opacity-40" : ""}`}>{j + 1}</span>
+                          <Input
+                            placeholder="횟수"
+                            value={s.reps}
+                            onChange={(e) => setLiveExercises((prev) =>
+                              prev.map((ex2, idx) => {
+                                if (idx !== i) return ex2;
+                                return { ...ex2, sets: ex2.sets.map((s2, k) => k === j ? { ...s2, reps: e.target.value } : s2) };
+                              })
+                            )}
+                            className={`h-7 text-xs ${isSetDone ? "opacity-40" : ""}`}
+                            type="number"
+                            min="0"
+                          />
+                          <Input
+                            placeholder="kg"
+                            value={s.weight}
+                            onChange={(e) => setLiveExercises((prev) =>
+                              prev.map((ex2, idx) => {
+                                if (idx !== i) return ex2;
+                                return { ...ex2, sets: ex2.sets.map((s2, k) => k === j ? { ...s2, weight: e.target.value } : s2) };
+                              })
+                            )}
+                            className={`h-7 text-xs ${isSetDone ? "opacity-40" : ""}`}
+                            type="number"
+                            min="0"
+                            step="0.5"
+                          />
+                          <button
+                            onClick={() => setLiveExercises((prev) =>
+                              prev.map((ex2, idx) => {
+                                if (idx !== i) return ex2;
+                                return { ...ex2, sets: ex2.sets.filter((_, k) => k !== j) };
+                              })
+                            )}
+                            className="text-muted-foreground hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 세트 추가 | 여기에 운동 삽입 */}
+                  <div className="flex items-center gap-3 pt-0.5">
+                    <button
+                      onClick={() => setLiveExercises((prev) =>
+                        prev.map((ex2, idx) => {
+                          if (idx !== i) return ex2;
+                          const last = ex2.sets[ex2.sets.length - 1];
+                          return { ...ex2, sets: [...ex2.sets, last ? { ...last } : { reps: "", weight: "" }] };
+                        })
+                      )}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/70 transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      세트 추가
+                    </button>
+                    <span className="text-muted-foreground/30 text-xs">|</span>
+                    <button
+                      onClick={() => insertExerciseAfter(i)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      운동 삽입
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* 맨 끝에 운동 추가 */}
+            <button
+              onClick={() => setLiveExercises((prev) => [...prev, { name: "", sets: [{ reps: "", weight: "" }] }])}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-primary/40 rounded-lg text-sm text-primary hover:bg-primary/5 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              운동 추가
+            </button>
+          </div>
+
+          {/* 하단 액션 */}
+          <div className="flex items-center justify-between pt-3 border-t border-border/40">
+            {/* 회원 전송 */}
+            {liveLog && (
+              <button
+                onClick={() => shareLogMutation.mutate({ id: liveLog.id, share: !(liveLog as any).sharedToMember })}
+                disabled={shareLogMutation.isPending}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  (liveLog as any).sharedToMember
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10"
+                    : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+                }`}
+              >
+                {(liveLog as any).sharedToMember
+                  ? <><CheckCheck className="h-3.5 w-3.5" />전송됨</>
+                  : <><Send className="h-3.5 w-3.5" />회원 전송</>
+                }
+              </button>
+            )}
+            {/* 수정/삭제/저장 */}
+            <div className="flex items-center gap-2 ml-auto">
+              {liveLog && (
+                <>
+                  <button
+                    onClick={() => {
+                      if (!liveLog) return;
+                      const exs = parseExercisesJson((liveLog as any).exercisesJson as string | null);
+                      setEditJournalForm({
+                        id: liveLog.id,
+                        sessionDate: liveLog.sessionDate,
+                        goal: (liveLog as any).goal ?? "",
+                        bodyPart: (liveLog as any).bodyPart ?? "",
+                        exercises: exs,
+                        feedback: (liveLog as any).feedback ?? "",
+                        notes: liveLog.notes ?? "",
+                        isDraft: !!((liveLog as any).isDraft),
+                      });
+                      setLiveTrainingOpen(false);
+                      setEditJournalOpen(true);
+                    }}
+                    className="text-muted-foreground hover:text-primary transition-colors p-1"
+                    title="상세 수정"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => { deleteLogMutation.mutate({ id: liveLog.id }); setLiveTrainingOpen(false); }}
+                    className="text-muted-foreground hover:text-red-400 transition-colors p-1"
+                    title="삭제"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+              <Button
+                size="sm"
+                disabled={updateLogMutation.isPending}
+                onClick={() => {
+                  if (!liveLog) return;
+                  updateLogMutation.mutate({
+                    id: liveLog.id,
+                    exercisesJson: liveExercises.length > 0 ? JSON.stringify(liveExercises) : undefined,
+                  });
+                }}
+              >
+                {updateLogMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "저장"}
               </Button>
             </div>
           </div>

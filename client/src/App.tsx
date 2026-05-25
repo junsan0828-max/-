@@ -49,6 +49,11 @@ import ExpensesPage from "./pages/Expenses";
 import MarketingPage from "./pages/Marketing";
 import AiAnalysisPage from "./pages/AiAnalysis";
 import AdminMembers from "./pages/AdminMembers";
+import AccessManagement from "./pages/AccessManagement";
+import KioskCheckin from "./pages/KioskCheckin";
+import TrainingManual, { TrainingManualWrite, TrainingManualDetail } from "./pages/TrainingManual";
+import MemberReRegister from "./pages/MemberReRegister";
+import WorkManagementPage from "./pages/WorkManagement";
 import Layout from "./components/Layout";
 import GymPlusLogin from "./pages/gym-plus/GymPlusLogin";
 import GymPlusLayout from "./pages/gym-plus/GymPlusLayout";
@@ -124,6 +129,9 @@ function App() {
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;
   }
+  if (window.location.pathname === "/kiosk") {
+    return <KioskCheckin />;
+  }
 
   if (isLoading) {
     return (
@@ -152,6 +160,7 @@ function App() {
         <Route path="/ai-analysis">{() => <AiAnalysisPage />}</Route>
         <Route path="/members">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <AdminMembers /> : <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
+        <Route path="/members/re-register">{() => <MemberReRegister />}</Route>
         <Route path="/trainers/:id/members/new">
           {(params) => <MemberForm defaultTrainerId={parseInt(params.id!)} />}
         </Route>
@@ -164,15 +173,21 @@ function App() {
         <Route path="/members/:id">
           {(params) => <MemberDetail memberId={parseInt(params.id!)} />}
         </Route>
-        <Route path="/attendance">{() => <AttendancePage />}</Route>
         <Route path="/attendance/:id">
           {(params) => <AttendanceCheck memberId={parseInt(params.id!)} />}
         </Route>
+        <Route path="/attendance">{() => <AttendancePage />}</Route>
         <Route path="/pt">{() => <PT />}</Route>
         <Route path="/trainers">{() => <Trainers />}</Route>
         <Route path="/trainers/:id">
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
+        <Route path="/access">{() => <AccessManagement />}</Route>
+        <Route path="/training-manual/new">{() => <TrainingManualWrite />}</Route>
+        <Route path="/training-manual/:id/edit">{(params) => <TrainingManualWrite id={parseInt(params.id!)} />}</Route>
+        <Route path="/training-manual/:id">{(params) => <TrainingManualDetail id={parseInt(params.id!)} />}</Route>
+        <Route path="/training-manual">{() => <TrainingManual />}</Route>
+        <Route path="/work-management">{() => <WorkManagementPage />}</Route>
         <Route path="/admin">{() => <Admin />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>

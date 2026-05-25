@@ -20,6 +20,15 @@ interface Props {
   defaultTrainerId?: number;
 }
 
+function calcEndDate(start: string, sessions: string): string {
+  if (!start || !sessions) return "";
+  const n = parseInt(sessions);
+  if (!n) return "";
+  const d = new Date(start);
+  d.setDate(d.getDate() + Math.round(n / 2) * 7);
+  return d.toISOString().substring(0, 10);
+}
+
 export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!memberId;
@@ -50,6 +59,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: trainerList } = trpc.trainers.list.useQuery();
+  const { data: allMembers = [] } = trpc.members.list.useQuery();
   const { data: existingMember } = trpc.members.getById.useQuery(
     { id: memberId! },
     { enabled: isEdit }
@@ -94,6 +104,12 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
     if (currentUser?.role === "admin" && !isEdit && !form.adminTrainerId) newErrors.adminTrainerId = "담당 트레이너를 선택해주세요.";
+    if (!isEdit && form.name.trim() && form.phone.trim()) {
+      const dup = allMembers.find(
+        m => m.name.trim() === form.name.trim() && m.phone?.trim() === form.phone.trim()
+      );
+      if (dup) newErrors.name = "동일한 이름, 연락처가 중복되었습니다.";
+    }
     return newErrors;
   };
 
@@ -125,6 +141,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       paymentDate: form.paymentDate || undefined,
       paymentMemo: form.paymentMemo || undefined,
       adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
+      subType: "재등록" as const,
     };
 
     if (isEdit) {
@@ -218,6 +235,14 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   onChange={(e) => setForm((p) => ({ ...p, birthDate: e.target.value }))}
                   className="bg-input border-border"
                 />
+                {form.birthDate && (() => {
+                  const birth = new Date(form.birthDate);
+                  const today = new Date();
+                  let age = today.getFullYear() - birth.getFullYear();
+                  const mo = today.getMonth() - birth.getMonth();
+                  if (mo < 0 || (mo === 0 && today.getDate() < birth.getDate())) age--;
+                  return <p className="text-xs text-primary mt-1">만 {age}세</p>;
+                })()}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">성별</Label>
@@ -231,7 +256,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   <SelectContent>
                     <SelectItem value="male">남성</SelectItem>
                     <SelectItem value="female">여성</SelectItem>
-                    <SelectItem value="other">기타</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -249,7 +273,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="basic">기본</SelectItem>
-                    <SelectItem value="premium">프리미엄</SelectItem>
                     <SelectItem value="vip">VIP</SelectItem>
                   </SelectContent>
                 </Select>
@@ -272,22 +295,22 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm text-muted-foreground">
-                이메일
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                placeholder="example@email.com"
-                className="bg-input border-border"
-              />
-            </div>
-
-            <div className="space-y-1.5">
               <Label htmlFor="visitRoute" className="text-sm text-muted-foreground">유입경로</Label>
-              <Input id="visitRoute" value={form.visitRoute} onChange={(e) => setForm((p) => ({ ...p, visitRoute: e.target.value }))} placeholder="지인 소개, SNS, 검색 등" className="bg-input border-border"/>
+              <select id="visitRoute" value={form.visitRoute} onChange={(e) => setForm((p) => ({ ...p, visitRoute: e.target.value }))}
+                className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="">선택 안함</option>
+                <option value="지인 소개">지인 소개</option>
+                <option value="가족 소개">가족 소개</option>
+                <option value="네이버 검색">네이버 검색</option>
+                <option value="네이버플레이스">네이버플레이스</option>
+                <option value="카카오맵">카카오맵</option>
+                <option value="인스타그램">인스타그램</option>
+                <option value="유튜브">유튜브</option>
+                <option value="블로그">블로그</option>
+                <option value="현수막/전단지">현수막/전단지</option>
+                <option value="재등록">재등록</option>
+                <option value="기타">기타</option>
+              </select>
             </div>
 
             <div className="space-y-1.5">
@@ -297,35 +320,39 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           </CardContent>
         </Card>
 
-        {/* 회원권 정보 */}
+        {/* 운동 기간 정보 */}
         <Card className="bg-card border-border">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">회원권 정보</CardTitle>
+            <CardTitle className="text-base font-semibold">운동 기간</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="membershipStart" className="text-sm text-muted-foreground">
-                  시작일
+                  운동 시작일
                 </Label>
                 <Input
                   id="membershipStart"
                   type="date"
                   value={form.membershipStart}
-                  onChange={(e) => setForm((p) => ({ ...p, membershipStart: e.target.value }))}
+                  onChange={(e) => {
+                    const start = e.target.value;
+                    const end = calcEndDate(start, form.ptSessions);
+                    setForm((p) => ({ ...p, membershipStart: start, membershipEnd: end }));
+                  }}
                   className="bg-input border-border"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">
-                  만료일
+                  운동 만료일 <span className="text-primary text-xs">(자동계산)</span>
                 </Label>
                 <Input
                   id="membershipEnd"
                   type="date"
                   value={form.membershipEnd}
-                  onChange={(e) => setForm((p) => ({ ...p, membershipEnd: e.target.value }))}
-                  className="bg-input border-border"
+                  readOnly
+                  className="bg-input border-border opacity-60 cursor-not-allowed"
                 />
               </div>
             </div>
@@ -364,7 +391,10 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     type="number"
                     min="1"
                     value={form.ptSessions}
-                    onChange={(e) => setForm((p) => ({ ...p, ptSessions: e.target.value }))}
+                    onChange={(e) => {
+                      const s = e.target.value;
+                      setForm((p) => ({ ...p, ptSessions: s, membershipEnd: calcEndDate(p.membershipStart, s) }));
+                    }}
                     placeholder="횟수 직접 입력"
                     className="bg-input border-border"
                   />
@@ -373,7 +403,10 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                       <button
                         key={preset}
                         type="button"
-                        onClick={() => setForm((p) => ({ ...p, ptSessions: p.ptSessions === preset ? "" : preset }))}
+                        onClick={() => setForm((p) => {
+                          const next = p.ptSessions === preset ? "" : preset;
+                          return { ...p, ptSessions: next, membershipEnd: calcEndDate(p.membershipStart, next) };
+                        })}
                         className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
                           form.ptSessions === preset
                             ? "bg-primary text-primary-foreground border-primary"
