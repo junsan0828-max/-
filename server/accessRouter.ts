@@ -317,7 +317,10 @@ export const accessRouter = t.router({
   getLockers: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select().from(lockers).orderBy(lockers.lockerNumber);
+    return db.select().from(lockers).orderBy(
+      sql`CASE WHEN "lockerNumber" ~ '^[0-9]+$' THEN "lockerNumber"::int ELSE NULL END`,
+      lockers.lockerNumber
+    );
   }),
 
   // 락커 생성
