@@ -25,9 +25,9 @@ export function TransferModal({
   onClose: () => void;
 }) {
   const [step, setStep] = useState<"item" | "transferee" | "done">("item");
-  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set(["pt_package"]));
-  const [selectedPkgIds, setSelectedPkgIds] = useState<Set<number>>(
-    new Set(ptPackages[0] ? [ptPackages[0].id] : [])
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(["pt_package"]);
+  const [selectedPkgIds, setSelectedPkgIds] = useState<number[]>(
+    ptPackages[0] ? [ptPackages[0].id] : []
   );
   const [transfereeType, setTransfeeType] = useState<"existing" | "new">("existing");
   const [search, setSearch] = useState("");
@@ -52,27 +52,23 @@ export function TransferModal({
   );
 
   function toggleType(key: string) {
-    setSelectedTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) { next.delete(key); } else { next.add(key); }
-      return next;
-    });
+    setSelectedTypes((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
   }
 
   function togglePkg(id: number) {
-    setSelectedPkgIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); } else { next.add(id); }
-      return next;
-    });
+    setSelectedPkgIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
   }
 
   function buildItemDescription() {
     const parts: string[] = [];
     for (const t of ITEM_TYPES) {
-      if (!selectedTypes.has(t.key)) continue;
+      if (!selectedTypes.includes(t.key)) continue;
       if (t.key === "pt_package") {
-        const selected = ptPackages.filter((p) => selectedPkgIds.has(p.id));
+        const selected = ptPackages.filter((p) => selectedPkgIds.includes(p.id));
         if (selected.length > 0) {
           selected.forEach((p) => {
             parts.push(`PT권 - ${p.packageName ?? "패키지"} (잔여 ${p.totalSessions - p.usedSessions}회)`);
@@ -88,18 +84,18 @@ export function TransferModal({
   }
 
   function handleCreate() {
-    if (selectedTypes.size === 0) { toast.error("양도 항목을 선택해주세요"); return; }
+    if (selectedTypes.length === 0) { toast.error("양도 항목을 선택해주세요"); return; }
     const isExisting = transfereeType === "existing";
     if (isExisting && !selectedTransferee) { toast.error("양수인을 선택해주세요"); return; }
     if (!isExisting && !newName.trim()) { toast.error("양수인 이름을 입력해주세요"); return; }
 
-    const primaryType = selectedTypes.has("pt_package") ? "pt_package"
-      : selectedTypes.has("membership") ? "membership"
-      : selectedTypes.has("uniform") ? "uniform"
+    const primaryType = selectedTypes.includes("pt_package") ? "pt_package"
+      : selectedTypes.includes("membership") ? "membership"
+      : selectedTypes.includes("uniform") ? "uniform"
       : "locker";
 
     const primaryPkgId = primaryType === "pt_package"
-      ? [...selectedPkgIds][0] ?? undefined
+      ? selectedPkgIds[0] ?? undefined
       : undefined;
 
     createTransfer.mutate({
@@ -163,7 +159,7 @@ export function TransferModal({
                       key={key}
                       onClick={() => toggleType(key)}
                       className={`py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                        selectedTypes.has(key)
+                        selectedTypes.includes(key)
                           ? "border-orange-400 bg-orange-400/10 text-orange-400"
                           : "border-border text-muted-foreground hover:border-orange-400/40"
                       }`}
@@ -174,7 +170,7 @@ export function TransferModal({
                 </div>
               </div>
 
-              {selectedTypes.has("pt_package") && ptPackages.length > 0 && (
+              {selectedTypes.includes("pt_package") && ptPackages.length > 0 && (
                 <div>
                   <label className="text-xs text-muted-foreground mb-2 block">PT 패키지 선택 (복수 가능)</label>
                   <div className="space-y-2">
@@ -183,7 +179,7 @@ export function TransferModal({
                         key={p.id}
                         onClick={() => togglePkg(p.id)}
                         className={`w-full text-left p-3 rounded-xl border text-sm transition-colors ${
-                          selectedPkgIds.has(p.id)
+                          selectedPkgIds.includes(p.id)
                             ? "border-orange-400 bg-orange-400/10"
                             : "border-border hover:border-orange-400/40"
                         }`}
@@ -196,7 +192,7 @@ export function TransferModal({
                 </div>
               )}
 
-              {selectedTypes.size > 0 && (
+              {selectedTypes.length > 0 && (
                 <div className="bg-muted/30 rounded-xl px-3 py-2 text-xs text-muted-foreground">
                   양도 항목: <span className="text-foreground font-medium">{buildItemDescription()}</span>
                 </div>
@@ -204,7 +200,7 @@ export function TransferModal({
 
               <button
                 onClick={() => {
-                  if (selectedTypes.size === 0) { toast.error("양도 항목을 선택해주세요"); return; }
+                  if (selectedTypes.length === 0) { toast.error("양도 항목을 선택해주세요"); return; }
                   setStep("transferee");
                 }}
                 className="w-full py-3 rounded-xl bg-orange-500 text-white font-medium text-sm hover:bg-orange-600"
