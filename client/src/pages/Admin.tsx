@@ -136,6 +136,8 @@ type ParsedRow = {
   birthDate?: string; status: "active" | "paused";
   membershipStart?: string; membershipEnd?: string; profileNote?: string;
   ptPackages?: BulkPkg[]; _preview: string;
+  branchHint: number; // 이름 끝 숫자 (1 = 기본/1호점, 2 = 2호점, ...)
+  branchId?: number;  // branchList 매칭 후 채움
 };
 
 function parseSingleRow(row: Record<string, string>): ParsedRow | null {
@@ -147,8 +149,13 @@ function parseSingleRow(row: Record<string, string>): ParsedRow | null {
     return "";
   };
 
-  const name = get("이름", "성명");
-  if (!name) return null;
+  const rawName = get("이름", "성명");
+  if (!rawName) return null;
+
+  // 이름 끝 숫자 감지 → 지점 힌트 추출, 이름 정제
+  const branchMatch = rawName.match(/^(.+?)(\d+)$/);
+  const name = branchMatch ? branchMatch[1].trim() : rawName.trim();
+  const branchHint = branchMatch ? parseInt(branchMatch[2]) : 1;
 
   const phone = get("연락처", "전화번호", "휴대폰");
   const genderRaw = get("성별");
@@ -186,6 +193,7 @@ function parseSingleRow(row: Record<string, string>): ParsedRow | null {
     profileNote,
     ptPackages: ptPkgs.length > 0 ? ptPkgs : undefined,
     _preview: membershipInfoRaw || "-",
+    branchHint,
   };
 }
 
@@ -795,9 +803,15 @@ export default function Admin() {
                   setBulkResult(null);
                   try {
                     const rows = await parseExcelToRows(file);
-                    setBulkRows(rows);
-                    if (rows.length === 0) toast.error("인식된 회원 데이터가 없습니다. 컬럼명을 확인해주세요.");
-                    else toast.info(`${rows.length}명 인식됨. 아래에서 확인 후 업로드하세요.`);
+                    // branchHint 숫자 → 지점 이름 매칭 (예: 1 → "1호점", 2 → "2호점")
+                    const resolved = rows.map(r => {
+                      const branchName = `${r.branchHint}호점`;
+                      const matched = branchList?.find(b => b.name === branchName);
+                      return { ...r, branchId: matched?.id };
+                    });
+                    setBulkRows(resolved);
+                    if (resolved.length === 0) toast.error("인식된 회원 데이터가 없습니다. 컬럼명을 확인해주세요.");
+                    else toast.info(`${resolved.length}명 인식됨. 아래에서 확인 후 업로드하세요.`);
                   } catch {
                     toast.error("파일 파싱 실패. 엑셀 형식을 확인해주세요.");
                   }
@@ -826,6 +840,7 @@ export default function Admin() {
                         <tr className="bg-accent/30">
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">이름</th>
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">연락처</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">지점</th>
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">상태</th>
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">시작일</th>
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">종료일</th>
@@ -837,6 +852,11 @@ export default function Admin() {
                           <tr key={i} className="border-t border-border hover:bg-accent/10">
                             <td className="px-2 py-1.5 font-medium text-foreground whitespace-nowrap">{r.name}</td>
                             <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.phone ?? "-"}</td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              {r.branchId
+                                ? <span className="text-xs text-blue-400">{branchList?.find(b => b.id === r.branchId)?.name ?? `${r.branchHint}호점`}</span>
+                                : <span className="text-xs text-amber-400">미매칭</span>}
+                            </td>
                             <td className="px-2 py-1.5 whitespace-nowrap">
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${r.status === "active" ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
                                 {r.status === "active" ? "활성" : "만료"}
