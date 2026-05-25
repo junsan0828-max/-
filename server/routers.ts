@@ -1126,10 +1126,10 @@ const ptRouter = t.router({
           );
           const log = (logRows as any).rows?.[0] ?? (logRows as any)[0];
           if (log) {
-            // gymPlusMember 조회 (memberId 직접 링크 또는 전화번호 매칭 - 하이픈 제거 후 비교)
+            // gymPlusMember 조회: memberId 직접 링크 > 전화번호 매칭 (모든 구분자 제거 후 비교) > username 매칭
             const normalizedPhone = log.phone ? String(log.phone).replace(/\D/g, '') : null;
             const gmRows = await db.execute(
-              sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (phone IS NOT NULL AND REPLACE(phone, '-', '') = ${normalizedPhone}) LIMIT 1`
+              sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (${normalizedPhone} IS NOT NULL AND (REGEXP_REPLACE(phone, '[^0-9]', '', 'g') = ${normalizedPhone} OR username = ${normalizedPhone})) LIMIT 1`
             );
             const gm = (gmRows as any).rows?.[0] ?? (gmRows as any)[0];
             if (gm) {
