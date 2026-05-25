@@ -1109,13 +1109,19 @@ const ptRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 1) ptSessionLogs 플래그 업데이트
-      await db.update(ptSessionLogs)
-        .set({
-          sharedToMember: input.share ? 1 : 0,
-          sharedAt: input.share ? new Date().toISOString() : null,
-        })
-        .where(eq(ptSessionLogs.id, input.id));
+      // 1) ptSessionLogs 플래그 업데이트 + 토큰 생성
+      let shareToken: string | null = null;
+      if (input.share) {
+        // 기존 토큰이 있으면 재사용
+        const existingToken = await db.execute(
+          sql`SELECT "shareToken" FROM pt_session_logs WHERE id = ${input.id} LIMIT 1`
+        );
+        const row = (existingToken as any).rows?.[0] ?? (existingToken as any)[0];
+        shareToken = row?.shareToken ?? randomUUID().replace(/-/g, "");
+      }
+      await db.execute(
+        sql`UPDATE pt_session_logs SET "sharedToMember" = ${input.share ? 1 : 0}, "sharedAt" = ${input.share ? new Date().toISOString() : null}, "shareToken" = ${input.share ? shareToken : null} WHERE id = ${input.id}`
+      );
 
       // 2) ZIANTGYM+ gym_plus_workout_logs 동기화 (raw SQL - 공유 DB 사용)
       try {
@@ -1154,7 +1160,7 @@ const ptRouter = t.router({
         console.error("[shareLog] gymPlus sync error:", e);
       }
 
-      return { success: true };
+      return { success: true, shareToken };
     }),
 
   // 미수금 업데이트 (결제 완료 처리)

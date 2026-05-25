@@ -231,6 +231,8 @@ export default function MemberDetail({ memberId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [trainingShareUrl, setTrainingShareUrl] = useState<string | null>(null);
+  const [trainingShareCopied, setTrainingShareCopied] = useState(false);
   const [editMemoOpen, setEditMemoOpen] = useState(false);
   const [editMemoForm, setEditMemoForm] = useState({ id: 0, memoDate: "", content: "" });
   const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
@@ -422,10 +424,17 @@ export default function MemberDetail({ memberId }: Props) {
   });
 
   const shareLogMutation = trpc.pt.shareLog.useMutation({
-    onSuccess: (_, vars) => {
-      toast.success(vars.share ? "회원에게 전송되었습니다." : "전송이 취소되었습니다.");
+    onSuccess: (data, vars) => {
       utils.pt.sessionLogs.invalidate({ memberId });
       setLiveLog((prev: any) => prev ? { ...prev, sharedToMember: vars.share ? 1 : 0 } : prev);
+      if (vars.share && data.shareToken) {
+        const url = `${window.location.origin}/api/training-log/${data.shareToken}`;
+        setTrainingShareUrl(url);
+        setTrainingShareCopied(false);
+      } else if (!vars.share) {
+        setTrainingShareUrl(null);
+        toast.success("전송이 취소되었습니다.");
+      }
     },
     onError: (err) => toast.error(err.message || "전송 실패"),
   });
@@ -2066,6 +2075,42 @@ export default function MemberDetail({ memberId }: Props) {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 트레이닝 일지 공유 링크 다이얼로그 */}
+      <Dialog open={!!trainingShareUrl} onOpenChange={(o) => { if (!o) setTrainingShareUrl(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              트레이닝 일지 공유 링크
+            </DialogTitle>
+            <DialogDescription>
+              아래 링크를 {member?.name}님께 카카오톡/문자로 보내세요. 로그인 없이 열람 가능합니다.
+            </DialogDescription>
+          </DialogHeader>
+          {trainingShareUrl && (
+            <div className="space-y-3">
+              <div className="p-3 bg-accent/30 rounded-lg border border-border">
+                <p className="text-xs text-foreground break-all">{trainingShareUrl}</p>
+              </div>
+              <Button
+                className="w-full gap-2"
+                variant={trainingShareCopied ? "outline" : "default"}
+                onClick={() => {
+                  navigator.clipboard.writeText(trainingShareUrl).then(() => {
+                    setTrainingShareCopied(true);
+                    setTimeout(() => setTrainingShareCopied(false), 2000);
+                  });
+                }}
+              >
+                {trainingShareCopied
+                  ? <><Check className="h-4 w-4 text-green-400" />복사 완료</>
+                  : <><Copy className="h-4 w-4" />링크 복사</>}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
