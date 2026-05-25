@@ -170,12 +170,12 @@ export default function KioskCheckin() {
       if (r === "success") playSound("success");
       else if (r === "not_found" || r === "expired") playSound("fail");
       // ambiguous(이름 선택)는 카운트다운 없이 대기
-      if (r !== "ambiguous") setCountdown(10);
+      if (r !== "ambiguous") setCountdown(20);
     },
     onError: (err) => {
       playSound("fail");
       setErrorMsg(err.message || "서버 오류가 발생했습니다.");
-      setCountdown(5);
+      setCountdown(10);
     },
   });
 
@@ -463,51 +463,58 @@ export default function KioskCheckin() {
 
       {/* 하단 네비게이션 숨김 (회원용 키오스크) */}
 
-      {/* ── 결과 팝업 ── */}
+      {/* ── 결과 팝업 — 중앙 70% 네모 ── */}
       {showPopup && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
-          style={{ background: "rgba(0,0,0,0.9)" }}
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.85)" }}
           onClick={handleClose}
         >
           <div
-            className="w-full rounded-t-3xl relative overflow-hidden"
-            style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.06)", maxHeight: "85vh", overflowY: "auto" }}
+            className="relative flex flex-col overflow-hidden"
+            style={{
+              width: "88%",
+              height: "70vh",
+              background: "#141414",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 28,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-center pt-3 pb-1">
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2a2a2a" }} />
-            </div>
+            {/* 닫기 버튼 */}
             <button
               onClick={handleClose}
               className="absolute top-4 right-4 z-10 flex items-center justify-center rounded-full"
-              style={{ width: 28, height: 28, background: "rgba(255,255,255,0.08)" }}
+              style={{ width: 36, height: 36, background: "rgba(255,255,255,0.08)" }}
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <line x1="1" y1="1" x2="9" y2="9" stroke="#aaa" strokeWidth="1.5" strokeLinecap="round"/>
-                <line x1="9" y1="1" x2="1" y2="9" stroke="#aaa" strokeWidth="1.5" strokeLinecap="round"/>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <line x1="1" y1="1" x2="11" y2="11" stroke="#aaa" strokeWidth="1.8" strokeLinecap="round"/>
+                <line x1="11" y1="1" x2="1" y2="11" stroke="#aaa" strokeWidth="1.8" strokeLinecap="round"/>
               </svg>
             </button>
 
-            {errorMsg ? <ErrorCard msg={errorMsg} />
-              : result?.result === "ambiguous" ? (
-                <AmbiguousCard
-                  candidates={result.candidates ?? []}
-                  onSelect={(id) => {
-                    setResult(null);
-                    checkIn.mutate({ memberId: id });
-                  }}
-                  onCancel={handleClose}
-                />
-              )
-              : result?.result === "not_found" ? <NotFoundCard />
-              : result?.result === "blocked" ? <BlockedCard name={result.member!.name} now={now} branchName={result.branchName} />
-              : result ? <MemberCard result={result} now={now} expired={result.result === "expired"} />
-              : null}
+            {/* 내용 (스크롤 가능) */}
+            <div className="flex-1 overflow-y-auto">
+              {errorMsg ? <ErrorCard msg={errorMsg} />
+                : result?.result === "ambiguous" ? (
+                  <AmbiguousCard
+                    candidates={result.candidates ?? []}
+                    onSelect={(id) => {
+                      setResult(null);
+                      checkIn.mutate({ memberId: id });
+                    }}
+                    onCancel={handleClose}
+                  />
+                )
+                : result?.result === "not_found" ? <NotFoundCard />
+                : result?.result === "blocked" ? <BlockedCard name={result.member!.name} now={now} branchName={result.branchName} />
+                : result ? <MemberCard result={result} now={now} expired={result.result === "expired"} />
+                : null}
+            </div>
 
-            {/* 카운트다운 바 */}
-            <div style={{ height: 3, background: "#1e1e1e" }}>
-              <div style={{ height: "100%", width: `${(countdown / 10) * 100}%`, background: "white", transition: "width 1s linear" }} />
+            {/* 카운트다운 바 (하단 고정) */}
+            <div style={{ height: 4, background: "#1e1e1e", borderRadius: "0 0 28px 28px", flexShrink: 0 }}>
+              <div style={{ height: "100%", width: `${(countdown / 20) * 100}%`, background: "white", transition: "width 1s linear", borderRadius: "0 0 0 28px" }} />
             </div>
           </div>
         </div>
