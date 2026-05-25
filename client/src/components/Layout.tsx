@@ -74,6 +74,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/members", label: "회원관리", icon: Users },
     { path: "/revenue", label: "매출입력", icon: TrendingUp },
+    { path: "/access", label: "출입관리", icon: DoorOpen },
   ];
 
   const trainerNavItems = [
