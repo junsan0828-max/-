@@ -607,10 +607,15 @@ export default function AccessManagement() {
                   <label className="text-xs text-muted-foreground mb-1 block">이미지 URL (선택)</label>
                   <input
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    placeholder="https://..."
+                    placeholder="https://i.imgur.com/xxx.jpg  ← 직접 이미지 주소(.jpg/.png)만 가능"
                     value={bannerForm.imageUrl}
                     onChange={(e) => setBannerForm((f) => ({ ...f, imageUrl: e.target.value }))}
                   />
+                  {bannerForm.imageUrl && !/\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(bannerForm.imageUrl) && (
+                    <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                      ⚠ 이미지 파일 URL이 아닌 것 같습니다. imgbb.com 또는 imgur.com에 업로드 후 직접 링크를 사용하세요.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">배경색 (이미지 없을 때)</label>
