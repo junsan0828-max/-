@@ -739,15 +739,17 @@ const membersRouter = t.router({
         throw new TRPCError({ code: "FORBIDDEN" });
 
       let created = 0;
-      let skipped = 0;
+      let updated = 0;
       const now = new Date().toISOString();
 
-      const existing = await db.select({ id: members.id, name: members.name, phone: members.phone })
-        .from(members);
-      const existingMap = new Map<string, number>();
+      const existing = await db.select({
+        id: members.id, name: members.name, phone: members.phone,
+        membershipEnd: members.membershipEnd,
+      }).from(members);
+      const existingMap = new Map<string, { id: number; membershipEnd: string | null }>();
       for (const m of existing) {
         if (m.phone?.trim()) {
-          existingMap.set(`${m.name.trim()}||${m.phone.trim()}`, m.id);
+          existingMap.set(`${m.name.trim()}||${m.phone.trim()}`, { id: m.id, membershipEnd: m.membershipEnd ?? null });
         }
       }
 
@@ -756,8 +758,20 @@ const membersRouter = t.router({
         let memberId: number | null = null;
 
         if (key && existingMap.has(key)) {
-          skipped++;
-          memberId = existingMap.get(key)!;
+          // 기존 회원: 날짜·특이사항 업데이트 (더 늦은 종료일 우선)
+          const ex = existingMap.get(key)!;
+          memberId = ex.id;
+          const updateFields: Record<string, any> = { updatedAt: now };
+          if (row.membershipEnd && (!ex.membershipEnd || row.membershipEnd > ex.membershipEnd)) {
+            updateFields.membershipEnd = row.membershipEnd;
+          }
+          if (row.membershipStart) updateFields.membershipStart = row.membershipStart;
+          if (row.profileNote) updateFields.profileNote = row.profileNote;
+          if (row.branchId) updateFields.branchId = row.branchId;
+          if (row.gender) updateFields.gender = row.gender;
+          if (row.birthDate) updateFields.birthDate = row.birthDate;
+          await db.update(members).set(updateFields).where(eq(members.id, memberId));
+          updated++;
         } else {
           const [ins] = await db.insert(members).values({
             name: row.name.trim(),
@@ -775,26 +789,34 @@ const membersRouter = t.router({
           }).returning({ id: members.id });
           memberId = ins.id;
           created++;
-          if (key) existingMap.set(key, memberId);
+          if (key) existingMap.set(key, { id: memberId, membershipEnd: row.membershipEnd ?? null });
         }
 
         if (memberId && row.ptPackages?.length) {
+          // 동일한 패키지명+횟수 중복 방지
+          const existingPkgs = await db.select({ packageName: ptPackages.packageName, totalSessions: ptPackages.totalSessions })
+            .from(ptPackages).where(eq(ptPackages.memberId, memberId));
           for (const pkg of row.ptPackages) {
-            await db.insert(ptPackages).values({
-              memberId,
-              trainerId: null,
-              totalSessions: pkg.totalSessions,
-              serviceSessions: 0,
-              usedSessions: 0,
-              packageName: pkg.packageName,
-              startDate: pkg.startDate,
-              expiryDate: pkg.expiryDate,
-            });
+            const isDup = existingPkgs.some(
+              ep => ep.packageName === (pkg.packageName ?? null) && ep.totalSessions === pkg.totalSessions
+            );
+            if (!isDup) {
+              await db.insert(ptPackages).values({
+                memberId,
+                trainerId: null,
+                totalSessions: pkg.totalSessions,
+                serviceSessions: 0,
+                usedSessions: 0,
+                packageName: pkg.packageName,
+                startDate: pkg.startDate,
+                expiryDate: pkg.expiryDate,
+              });
+            }
           }
         }
       }
 
-      return { created, skipped };
+      return { created, updated };
     }),
 });
 

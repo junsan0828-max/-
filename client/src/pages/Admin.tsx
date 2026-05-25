@@ -182,9 +182,23 @@ function parseSingleRow(row: Record<string, string>): ParsedRow | null {
     ptPkgs = parsed.ptPkgs;
   }
 
+  // 보유 대여권 파싱 (이름 + 종료일 추출)
   const noteParts: string[] = [];
-  if (rentalRaw) noteParts.push(rentalRaw);
-  if (lockerRaw) noteParts.push(`락커: ${lockerRaw}`);
+  if (rentalRaw) {
+    const rentalItems = rentalRaw.split(/\s*\/\s*/);
+    for (const item of rentalItems) {
+      const m = item.match(/^(.+?)\(([^)]+)\)\s*\d{4}[.\-]\d{2}[.\-]\d{2}\s*~\s*(\d{4}[.\-]\d{2}[.\-]\d{2})/);
+      if (m) {
+        const [, name, status, endRaw] = m;
+        const end = parseKoreanDate(endRaw);
+        const label = name.trim().replace(/대여권$/, "").trim();
+        noteParts.push(`${label}(${status === "활성" ? "~" + end : status})`);
+      } else if (item.trim()) {
+        noteParts.push(item.trim());
+      }
+    }
+  }
+  if (lockerRaw) noteParts.push(`락커번호: ${lockerRaw}`);
   const profileNote = noteParts.length > 0 ? noteParts.join(" / ") : undefined;
 
   return {
@@ -227,11 +241,11 @@ export default function Admin() {
   // 엑셀 일괄 업로드
   const [xlsxOpen, setXlsxOpen] = useState(false);
   const [bulkRows, setBulkRows] = useState<ParsedRow[]>([]);
-  const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ created: number; updated: number } | null>(null);
   const bulkCreateMutation = trpc.members.bulkCreate.useMutation({
     onSuccess: (data) => {
       setBulkResult(data);
-      toast.success(`${data.created}명 등록 완료, ${data.skipped}명 중복 건너뜀`);
+      toast.success(`신규 ${data.created}명 등록, 기존 ${data.updated}명 정보 업데이트`);
       setBulkRows([]);
     },
     onError: (err) => toast.error(err.message || "업로드 실패"),
@@ -858,6 +872,7 @@ export default function Admin() {
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">시작일</th>
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">종료일</th>
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">PT</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">대여</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -879,6 +894,9 @@ export default function Admin() {
                             <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.membershipEnd ?? "-"}</td>
                             <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">
                               {r.ptPackages?.map(p => `${p.packageName ?? "PT"} ${p.totalSessions}회`).join(", ") ?? "-"}
+                            </td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap max-w-[120px] truncate" title={r.profileNote ?? ""}>
+                              {r.profileNote ?? "-"}
                             </td>
                           </tr>
                         ))}
@@ -911,7 +929,7 @@ export default function Admin() {
               <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
                 <p className="text-sm font-medium text-emerald-400">업로드 완료</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  신규 등록: {bulkResult.created}명 · 중복 건너뜀: {bulkResult.skipped}명
+                  신규 등록: {bulkResult.created}명 · 기존 업데이트: {bulkResult.updated}명
                 </p>
               </div>
             )}
