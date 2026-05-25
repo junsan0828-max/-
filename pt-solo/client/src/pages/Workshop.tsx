@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
@@ -583,6 +583,190 @@ function ContractTermsEditor() {
   );
 }
 
+// ── 운동 프로그램 템플릿 관리 ─────────────────────────────────────────────────
+function WorkoutTemplateEditor() {
+  const utils = trpc.useUtils();
+  const { data: templates } = trpc.workoutTemplates.list.useQuery();
+  const createMutation = trpc.workoutTemplates.create.useMutation({
+    onSuccess: () => { utils.workoutTemplates.list.invalidate(); setShowForm(false); setForm({ name: "", description: "", bodyPart: "", exercises: "" }); toast.success("템플릿이 저장되었습니다."); },
+    onError: e => toast.error(e.message),
+  });
+  const deleteMutation = trpc.workoutTemplates.delete.useMutation({
+    onSuccess: () => utils.workoutTemplates.list.invalidate(),
+  });
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", bodyPart: "", exercises: "" });
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">자주 사용하는 운동 루틴을 저장해두고 트레이닝 일지 작성 시 불러올 수 있습니다.</p>
+      <button onClick={() => setShowForm(v => !v)} className="flex items-center gap-1.5 text-xs text-primary font-medium">
+        <Plus className="h-3.5 w-3.5" />{showForm ? "취소" : "새 템플릿 추가"}
+      </button>
+      {showForm && (
+        <div className="bg-accent/20 border border-border rounded-xl p-4 space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">템플릿 이름 *</Label>
+            <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="예: 하체 기본 루틴" className="text-sm h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">운동 부위</Label>
+            <Input value={form.bodyPart} onChange={e => setForm(p => ({ ...p, bodyPart: e.target.value }))} placeholder="예: 하체, 코어" className="text-sm h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">운동 종목 (줄바꿈으로 구분)</Label>
+            <textarea value={form.exercises} onChange={e => setForm(p => ({ ...p, exercises: e.target.value }))}
+              rows={5} placeholder={"스쿼트\n레그프레스\n레그컬\n카프레이즈"}
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">메모 (선택)</Label>
+            <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="루틴 설명" className="text-sm h-8" />
+          </div>
+          <Button size="sm" className="w-full" disabled={!form.name || createMutation.isPending}
+            onClick={() => {
+              const exercises = form.exercises.split("\n").map(n => n.trim()).filter(Boolean).map(name => ({ name, sets: [] }));
+              createMutation.mutate({ name: form.name, description: form.description || undefined, bodyPart: form.bodyPart || undefined, exercisesJson: exercises.length > 0 ? JSON.stringify(exercises) : undefined });
+            }}>
+            {createMutation.isPending ? "저장 중..." : "저장"}
+          </Button>
+        </div>
+      )}
+      <div className="space-y-2">
+        {(templates ?? []).length === 0 && <p className="text-xs text-muted-foreground text-center py-4">저장된 템플릿이 없습니다.</p>}
+        {(templates ?? []).map((t: any) => (
+          <div key={t.id} className="flex items-start justify-between gap-2 bg-accent/10 border border-border rounded-xl p-3">
+            <div>
+              <p className="text-sm font-medium">{t.name}</p>
+              {t.bodyPart && <p className="text-xs text-muted-foreground mt-0.5">{t.bodyPart}</p>}
+              {t.exercisesJson && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {JSON.parse(t.exercisesJson).map((e: any) => e.name).join(" · ")}
+                </p>
+              )}
+            </div>
+            <button onClick={() => deleteMutation.mutate({ id: t.id })} className="text-muted-foreground hover:text-red-400 shrink-0">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── 맞춤 상담 설문 빌더 ───────────────────────────────────────────────────────
+function SurveyBuilder() {
+  const { data: user } = trpc.auth.me.useQuery();
+  const utils = trpc.useUtils();
+  const { data: questions } = trpc.survey.listQuestions.useQuery();
+  const { data: responses } = trpc.survey.listResponses.useQuery();
+  const createMutation = trpc.survey.createQuestion.useMutation({
+    onSuccess: () => { utils.survey.listQuestions.invalidate(); setShowForm(false); setForm({ question: "", type: "text", options: "", isRequired: 0 }); toast.success("문항이 추가되었습니다."); },
+  });
+  const deleteMutation = trpc.survey.deleteQuestion.useMutation({
+    onSuccess: () => utils.survey.listQuestions.invalidate(),
+  });
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ question: "", type: "text" as "text" | "choice" | "scale", options: "", isRequired: 0 });
+  const [showResponses, setShowResponses] = useState(false);
+
+  const username = (user as any)?.username;
+  const surveyUrl = `${window.location.origin}/survey/${username}`;
+
+  const TYPE_LABELS = { text: "주관식", choice: "객관식", scale: "1~5점 척도" };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">상담 전 고객에게 보낼 맞춤 설문을 만드세요.</p>
+      <button onClick={() => { navigator.clipboard.writeText(surveyUrl); toast.success("설문 링크 복사됨!"); }}
+        className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/30 rounded-xl text-xs text-primary">
+        <Copy className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{surveyUrl}</span>
+      </button>
+      <button onClick={() => setShowForm(v => !v)} className="flex items-center gap-1.5 text-xs text-primary font-medium">
+        <Plus className="h-3.5 w-3.5" />{showForm ? "취소" : "문항 추가"}
+      </button>
+      {showForm && (
+        <div className="bg-accent/20 border border-border rounded-xl p-4 space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">유형</Label>
+            <div className="flex gap-2">
+              {(["text", "choice", "scale"] as const).map(t => (
+                <button key={t} onClick={() => setForm(p => ({ ...p, type: t }))}
+                  className={`flex-1 py-1.5 rounded-lg text-xs border transition-colors ${form.type === t ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}>
+                  {TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">질문 *</Label>
+            <Input value={form.question} onChange={e => setForm(p => ({ ...p, question: e.target.value }))} placeholder="예: 운동 목적이 무엇인가요?" className="text-sm h-8" />
+          </div>
+          {form.type === "choice" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">선택지 (쉼표로 구분)</Label>
+              <Input value={form.options} onChange={e => setForm(p => ({ ...p, options: e.target.value }))} placeholder="다이어트, 근력강화, 재활, 체형교정" className="text-sm h-8" />
+            </div>
+          )}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.isRequired === 1} onChange={e => setForm(p => ({ ...p, isRequired: e.target.checked ? 1 : 0 }))} className="rounded" />
+            <span className="text-xs text-muted-foreground">필수 응답</span>
+          </label>
+          <Button size="sm" className="w-full" disabled={!form.question || createMutation.isPending}
+            onClick={() => createMutation.mutate({ ...form, sortOrder: (questions?.length ?? 0) })}>
+            {createMutation.isPending ? "추가 중..." : "추가"}
+          </Button>
+        </div>
+      )}
+      <div className="space-y-2">
+        {(questions ?? []).length === 0 && <p className="text-xs text-muted-foreground text-center py-4">등록된 문항이 없습니다.</p>}
+        {(questions ?? []).map((q: any, i: number) => (
+          <div key={q.id} className="flex items-start justify-between gap-2 bg-accent/10 border border-border rounded-xl p-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded font-medium">{TYPE_LABELS[q.type as "text" | "choice" | "scale"] ?? q.type}</span>
+                {q.isRequired ? <span className="text-xs text-red-400">필수</span> : null}
+              </div>
+              <p className="text-sm mt-1">{i + 1}. {q.question}</p>
+              {q.options && <p className="text-xs text-muted-foreground mt-0.5">{q.options}</p>}
+            </div>
+            <button onClick={() => deleteMutation.mutate({ id: q.id })} className="text-muted-foreground hover:text-red-400 shrink-0">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+      {responses && responses.length > 0 && (
+        <div className="space-y-2">
+          <button onClick={() => setShowResponses(v => !v)} className="text-xs text-primary font-medium flex items-center gap-1">
+            응답 목록 ({responses.length}건) {showResponses ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {showResponses && responses.map((r: any) => (
+            <div key={r.id} className="bg-background border border-border rounded-xl p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{r.respondentName}</p>
+                <p className="text-xs text-muted-foreground">{r.createdAt?.slice(0, 10)}</p>
+              </div>
+              {r.respondentPhone && <p className="text-xs text-muted-foreground">{r.respondentPhone}</p>}
+              {Object.entries(JSON.parse(r.answers ?? "{}")).map(([qId, ans]) => {
+                const q = (questions ?? []).find((q: any) => String(q.id) === qId);
+                return q ? (
+                  <div key={qId} className="text-xs">
+                    <span className="text-muted-foreground">{q.question}: </span>
+                    <span className="text-foreground">{String(ans)}</span>
+                  </div>
+                ) : null;
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 브랜드 페이지 에디터 ─────────────────────────────────────────────────────
 function BrandPageEditor() {
   const { data: user } = trpc.auth.me.useQuery();
@@ -755,10 +939,10 @@ function BrandPageEditor() {
 
 export default function Workshop() {
   const { data: user } = trpc.auth.me.useQuery();
-  const [openSection, setOpenSection] = useState<"fitstep" | "terms" | "brand" | null>(null);
+  const [openSection, setOpenSection] = useState<"fitstep" | "terms" | "brand" | "templates" | "survey" | null>(null);
   const trainerId = (user as any)?.trainerId as number | undefined;
 
-  function toggle(key: "fitstep" | "terms" | "brand") {
+  function toggle(key: "fitstep" | "terms" | "brand" | "templates" | "survey") {
     setOpenSection(v => v === key ? null : key);
   }
 
@@ -797,6 +981,40 @@ export default function Workshop() {
                 <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>
               )}
             </CardContent>
+          )}
+        </Card>
+
+        {/* 운동 프로그램 템플릿 */}
+        <Card className="bg-card border-border">
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("templates")}>
+            <div className="flex items-center gap-2.5">
+              <Dumbbell className="h-4 w-4 text-primary" />
+              <div>
+                <span className="font-semibold text-sm">운동 프로그램 템플릿</span>
+                <p className="text-xs text-muted-foreground mt-0.5">루틴 저장 · 일지 작성 시 불러오기</p>
+              </div>
+            </div>
+            {openSection === "templates" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "templates" && (
+            <CardContent className="pt-0 pb-4"><WorkoutTemplateEditor /></CardContent>
+          )}
+        </Card>
+
+        {/* 맞춤 상담 설문 */}
+        <Card className="bg-card border-border">
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("survey")}>
+            <div className="flex items-center gap-2.5">
+              <ClipboardList className="h-4 w-4 text-primary" />
+              <div>
+                <span className="font-semibold text-sm">맞춤 상담 설문 빌더</span>
+                <p className="text-xs text-muted-foreground mt-0.5">상담 전 고객 설문 · 링크 공유</p>
+              </div>
+            </div>
+            {openSection === "survey" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "survey" && (
+            <CardContent className="pt-0 pb-4"><SurveyBuilder /></CardContent>
           )}
         </Card>
 

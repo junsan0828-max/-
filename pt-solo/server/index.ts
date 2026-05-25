@@ -587,6 +587,39 @@ async function initDatabase() {
     status TEXT NOT NULL DEFAULT 'pending',
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+
+  // 운동 프로그램 템플릿
+  await pool.query(`CREATE TABLE IF NOT EXISTS workout_templates (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    "bodyPart" TEXT,
+    "exercisesJson" TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
+  // 맞춤 상담 설문 문항
+  await pool.query(`CREATE TABLE IF NOT EXISTS custom_survey_questions (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    question TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'text',
+    options TEXT,
+    "sortOrder" INTEGER DEFAULT 0,
+    "isRequired" INTEGER DEFAULT 0,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
+  // 맞춤 상담 설문 응답
+  await pool.query(`CREATE TABLE IF NOT EXISTS custom_survey_responses (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    "respondentName" TEXT NOT NULL,
+    "respondentPhone" TEXT,
+    answers TEXT NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
   // 기존 유저 중 referralCode 없는 경우 자동 생성
   const noCodeUsers = await pool.query<{ id: number }>(`SELECT id FROM users WHERE "referralCode" IS NULL`);
   for (const u of noCodeUsers.rows) {

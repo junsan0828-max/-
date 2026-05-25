@@ -2683,6 +2683,105 @@ const expensesRouter = t.router({
 
 // ─── App Router ───────────────────────────────────────────────────────────────
 
+// ── 운동 프로그램 템플릿 ───────────────────────────────────────────────────
+const workoutTemplatesRouter = t.router({
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const rows = await pool.query<any>(`SELECT * FROM workout_templates WHERE "trainerId"=$1 ORDER BY id DESC`, [trainerId]);
+    return rows.rows;
+  }),
+  create: protectedProcedure.input(z.object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+    bodyPart: z.string().optional(),
+    exercisesJson: z.string().optional(),
+  })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const row = await pool.query<{ id: number }>(
+      `INSERT INTO workout_templates ("trainerId", name, description, "bodyPart", "exercisesJson") VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [trainerId, input.name, input.description ?? null, input.bodyPart ?? null, input.exercisesJson ?? null]
+    );
+    return { id: row.rows[0].id };
+  }),
+  delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await pool.query(`DELETE FROM workout_templates WHERE id=$1 AND "trainerId"=$2`, [input.id, trainerId]);
+    return { success: true };
+  }),
+});
+
+// ── 맞춤 상담 설문 ────────────────────────────────────────────────────────
+const surveyRouter = t.router({
+  listQuestions: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const rows = await pool.query<any>(`SELECT * FROM custom_survey_questions WHERE "trainerId"=$1 ORDER BY "sortOrder", id`, [trainerId]);
+    return rows.rows;
+  }),
+  createQuestion: protectedProcedure.input(z.object({
+    question: z.string().min(1),
+    type: z.enum(["text", "choice", "scale"]),
+    options: z.string().optional(),
+    isRequired: z.number().optional(),
+    sortOrder: z.number().optional(),
+  })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await pool.query(
+      `INSERT INTO custom_survey_questions ("trainerId", question, type, options, "isRequired", "sortOrder") VALUES ($1,$2,$3,$4,$5,$6)`,
+      [trainerId, input.question, input.type, input.options ?? null, input.isRequired ?? 0, input.sortOrder ?? 0]
+    );
+    return { success: true };
+  }),
+  deleteQuestion: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await pool.query(`DELETE FROM custom_survey_questions WHERE id=$1 AND "trainerId"=$2`, [input.id, trainerId]);
+    return { success: true };
+  }),
+  getPublic: t.procedure.input(z.object({ username: z.string() })).query(async ({ input }) => {
+    const userRow = await pool.query<{ id: number }>(`SELECT id FROM users WHERE username=$1`, [input.username]);
+    if (!userRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+    const userId = userRow.rows[0].id;
+    const trainerRow = await pool.query<any>(`SELECT id, "trainerName", "profileImage", "brandColor" FROM trainers WHERE "userId"=$1`, [userId]);
+    const trainer = trainerRow.rows[0];
+    if (!trainer) throw new TRPCError({ code: "NOT_FOUND" });
+    const qRows = await pool.query<any>(`SELECT * FROM custom_survey_questions WHERE "trainerId"=$1 ORDER BY "sortOrder", id`, [trainer.id]);
+    return { trainer, questions: qRows.rows };
+  }),
+  submit: t.procedure.input(z.object({
+    username: z.string(),
+    respondentName: z.string().min(1),
+    respondentPhone: z.string().optional(),
+    answers: z.record(z.string()),
+  })).mutation(async ({ input }) => {
+    const userRow = await pool.query<{ id: number }>(`SELECT id FROM users WHERE username=$1`, [input.username]);
+    if (!userRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+    const trainerRow = await pool.query<{ id: number }>(`SELECT id FROM trainers WHERE "userId"=$1`, [userRow.rows[0].id]);
+    if (!trainerRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+    const trainerId = trainerRow.rows[0].id;
+    await pool.query(
+      `INSERT INTO custom_survey_responses ("trainerId", "respondentName", "respondentPhone", answers) VALUES ($1,$2,$3,$4)`,
+      [trainerId, input.respondentName, input.respondentPhone ?? null, JSON.stringify(input.answers)]
+    );
+    const today = new Date().toISOString().slice(0, 10);
+    await pool.query(
+      `INSERT INTO leads ("trainerId", name, phone, status, "consultationDate", "consultationNote") VALUES ($1,$2,$3,'pending',$4,'맞춤 설문 응답')`,
+      [trainerId, input.respondentName, input.respondentPhone ?? "", today]
+    );
+    return { success: true };
+  }),
+  listResponses: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const rows = await pool.query<any>(`SELECT * FROM custom_survey_responses WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 50`, [trainerId]);
+    return rows.rows;
+  }),
+});
+
 // ── 브랜드 페이지 ──────────────────────────────────────────────────────────
 const brandRouter = t.router({
   // 내 브랜드 설정 조회
@@ -2804,6 +2903,8 @@ export const appRouter = t.router({
   expenses: expensesRouter,
   fitStepPlus: fitStepPlusRouter,
   brand: brandRouter,
+  workoutTemplates: workoutTemplatesRouter,
+  survey: surveyRouter,
 });
 
 export type AppRouter = typeof appRouter;

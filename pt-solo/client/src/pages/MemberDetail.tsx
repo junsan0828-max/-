@@ -71,7 +71,38 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  LayoutTemplate,
 } from "lucide-react";
+
+function TemplateLoader({ onLoad }: { onLoad: (exs: Exercise[]) => void }) {
+  const { data: templates } = trpc.workoutTemplates.list.useQuery();
+  const [open, setOpen] = useState(false);
+  if (!templates || templates.length === 0) return null;
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-xs text-primary mb-1">
+        <LayoutTemplate className="h-3.5 w-3.5" />템플릿 불러오기
+      </button>
+      {open && (
+        <div className="absolute z-10 top-6 left-0 w-56 bg-card border border-border rounded-xl shadow-lg overflow-hidden">
+          {templates.map((t: any) => (
+            <button key={t.id} className="w-full text-left px-3 py-2.5 text-xs hover:bg-accent/30 transition-colors border-b border-border last:border-0"
+              onClick={() => {
+                const exs: Exercise[] = t.exercisesJson ? JSON.parse(t.exercisesJson) : [];
+                onLoad(exs);
+                setOpen(false);
+                toast.success(`${t.name} 템플릿 적용됨`);
+              }}>
+              <p className="font-medium">{t.name}</p>
+              {t.bodyPart && <p className="text-muted-foreground mt-0.5">{t.bodyPart}</p>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   memberId: number;
@@ -1504,6 +1535,7 @@ export default function MemberDetail({ memberId }: Props) {
               <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
+              <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
               <Label className="text-xs">운동 종목</Label>
               <div className="space-y-1.5">
                 {journalForm.exercises.map((ex, i) => (
