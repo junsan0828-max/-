@@ -389,21 +389,34 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
+  const [adminTab, setAdminTab] = useState<"data" | "staff">("data");
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">관리자 설정</h1>
       </div>
 
+      {/* 상단 탭 */}
+      <div className="flex gap-1 bg-card border border-border rounded-xl p-1">
+        <button
+          onClick={() => setAdminTab("data")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "data" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          데이터 관리
+        </button>
+        <button
+          onClick={() => setAdminTab("staff")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "staff" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          인원 · 계정 관리
+        </button>
+      </div>
+
       {/* 계정 설정 */}
       {(<>
 
-      {/* ════ 데이터 관리 ════ */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">데이터 관리</span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
+      {adminTab === "data" && (<>
 
       {/* ── 구글시트 자동 동기화 설정 ── */}
       <Card className="bg-card border-border">
@@ -966,12 +979,9 @@ export default function Admin() {
         </CardContent>
       </Card>
 
-      {/* ════ 인원 / 계정 관리 ════ */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">인원 · 계정 관리</span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
+      </>)}
+
+      {adminTab === "staff" && (<>
 
       {/* 지점 관리 */}
       <Card className="bg-card border-border">
@@ -1224,6 +1234,8 @@ export default function Admin() {
 
       {/* 부관리자 계정 관리 */}
       {isAdmin && <SubAdminSection />}
+
+      </>)}
       </>)}
     </div>
   );
