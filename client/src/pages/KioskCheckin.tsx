@@ -64,12 +64,12 @@ function PhoneSegment({ value, maxLen }: { value: string; maxLen: number }) {
   const digits = value.split("");
   const empty = maxLen - digits.length;
   return (
-    <div className="flex items-end gap-1.5">
+    <div className="flex items-end gap-2">
       {digits.map((d, i) => (
-        <span key={i} className="font-mono font-bold" style={{ fontSize: 28, color: "white", lineHeight: 1 }}>{d}</span>
+        <span key={i} className="font-mono font-bold" style={{ fontSize: 42, color: "white", lineHeight: 1 }}>{d}</span>
       ))}
       {Array.from({ length: empty }).map((_, i) => (
-        <span key={i} style={{ display: "inline-block", width: 16, height: 2, background: "#333", borderRadius: 1, marginBottom: 5 }} />
+        <span key={i} style={{ display: "inline-block", width: 22, height: 3, background: "#333", borderRadius: 2, marginBottom: 8 }} />
       ))}
     </div>
   );
@@ -376,22 +376,22 @@ export default function KioskCheckin() {
           </div>
 
           {/* 번호 표시 */}
-          <div className="text-center py-4">
+          <div className="flex items-center justify-center py-3 gap-3">
             {activeTab === "phone" ? (
-              <div className="flex items-center justify-center gap-2">
-                <span className="font-mono font-bold" style={{ fontSize: 28, color: "white", letterSpacing: "0.08em" }}>010</span>
-                <span style={{ color: "#444", fontSize: 22 }}>-</span>
+              <>
+                <span className="font-mono font-bold" style={{ fontSize: 42, color: "white", letterSpacing: "0.06em" }}>010</span>
+                <span style={{ color: "#444", fontSize: 32 }}>-</span>
                 <PhoneSegment value={a} maxLen={4} />
-                <span style={{ color: "#444", fontSize: 22 }}>-</span>
+                <span style={{ color: "#444", fontSize: 32 }}>-</span>
                 <PhoneSegment value={b} maxLen={4} />
-              </div>
+              </>
             ) : (
               <div className="flex items-end justify-center gap-3">
                 <PhoneSegment value={digits.slice(0, 4)} maxLen={4} />
                 {digits.length > 4 && (
                   <>
-                    <span style={{ color: "#444", fontSize: 22 }}>-</span>
-                    <span className="font-mono font-bold" style={{ fontSize: 28, color: "white" }}>{digits[4]}</span>
+                    <span style={{ color: "#444", fontSize: 32 }}>-</span>
+                    <span className="font-mono font-bold" style={{ fontSize: 42, color: "white" }}>{digits[4]}</span>
                   </>
                 )}
               </div>
@@ -399,9 +399,9 @@ export default function KioskCheckin() {
           </div>
 
           {/* 키패드 */}
-          <div className="flex-1 flex flex-col px-5 gap-2" style={{ minHeight: 0 }}>
+          <div className="flex-1 flex flex-col px-3 gap-1.5" style={{ minHeight: 0 }}>
             <div
-              className="grid gap-2 flex-1"
+              className="grid gap-1.5 flex-1"
               style={{ gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(4, 1fr)" }}
             >
               {["1","2","3","4","5","6","7","8","9","취소","0","del"].map((k) => {
@@ -415,14 +415,14 @@ export default function KioskCheckin() {
                       background: isAction ? "#181818" : "#1c1c1c",
                       border: "1px solid #2a2a2a",
                       color: isAction ? "#666" : "white",
-                      fontSize: k === "취소" ? 13 : 24,
+                      fontSize: k === "취소" ? 15 : 30,
                       WebkitTapHighlightColor: "transparent",
                     }}
                     onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#303030"; }}
                     onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.background = isAction ? "#181818" : "#1c1c1c"; }}
                   >
                     {k === "del" ? (
-                      <svg width="24" height="18" viewBox="0 0 24 18" fill="none">
+                      <svg width="28" height="22" viewBox="0 0 24 18" fill="none">
                         <path d="M9 1H23V17H9L1 9L9 1Z" stroke="#666" strokeWidth="1.5"/>
                         <line x1="11" y1="6" x2="17" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
                         <line x1="17" y1="6" x2="11" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
