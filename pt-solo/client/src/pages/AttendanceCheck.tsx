@@ -17,7 +17,6 @@ const DIET_OPTIONS = [
   "인스턴트탄수화물", "건강식탄수화물",
   "인스턴트단백질", "건강식단백질",
   "인스턴트지방", "건강식지방",
-  "미섭취",
 ];
 
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
@@ -271,12 +270,12 @@ export default function AttendanceCheck({ memberId }: Props) {
             </div>
           </Field>
           <Field label="수면시간">
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="grid grid-cols-6 gap-1.5">
               {SLEEP_OPTIONS.map((v) => (
                 <button
                   key={v}
                   onClick={() => setSleepHours(sleepHours === v ? "" : v)}
-                  className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                  className={`py-2 text-sm rounded-lg border transition-colors text-center ${
                     sleepHours === v
                       ? "bg-primary/20 border-primary/40 text-primary"
                       : "border-border text-muted-foreground hover:border-primary/30"
