@@ -70,6 +70,10 @@ type KioskBanner = {
   sortOrder: number;
   startDate: string | null;
   endDate: string | null;
+  textAlign?: string;
+  textVAlign?: string;
+  branchId?: number | null;
+  hasUploadedImage?: boolean;
   createdAt: string;
 };
 
@@ -655,7 +659,7 @@ export default function AccessManagement() {
                           }}
                         />
                       </label>
-                      {(bannerForm.imageUrl?.startsWith("/api/banner-image/") || uploadedBannerId === editingBanner.id) && (
+                      {(editingBanner.hasUploadedImage || bannerForm.imageUrl?.startsWith("/api/banner-image/") || uploadedBannerId === editingBanner.id) && (
                         <button
                           type="button"
                           className="px-3 py-2 text-xs rounded-lg border border-red-300 text-red-500 hover:bg-red-50 transition-colors"

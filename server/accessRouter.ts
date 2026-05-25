@@ -474,7 +474,12 @@ export const accessRouter = t.router({
   getAllBanners: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select().from(kioskBanners).orderBy(kioskBanners.sortOrder, kioskBanners.id);
+    const rows = await db.select().from(kioskBanners).orderBy(kioskBanners.sortOrder, kioskBanners.id);
+    return rows.map(({ imageData, ...b }) => ({
+      ...b,
+      imageUrl: imageData ? `/api/banner-image/${b.id}` : b.imageUrl,
+      hasUploadedImage: !!imageData,
+    }));
   }),
 
   // 배너 생성
