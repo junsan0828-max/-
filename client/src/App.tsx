@@ -51,6 +51,7 @@ import AiAnalysisPage from "./pages/AiAnalysis";
 import AdminMembers from "./pages/AdminMembers";
 import AccessManagement from "./pages/AccessManagement";
 import KioskCheckin from "./pages/KioskCheckin";
+import TransferPage from "./pages/TransferPage";
 import TrainingManual, { TrainingManualWrite, TrainingManualDetail } from "./pages/TrainingManual";
 import MemberReRegister from "./pages/MemberReRegister";
 import WorkManagementPage from "./pages/WorkManagement";
@@ -131,6 +132,10 @@ function App() {
   }
   if (window.location.pathname === "/kiosk") {
     return <KioskCheckin />;
+  }
+  const transferMatch = window.location.pathname.match(/^\/transfer\/([^/]+)$/);
+  if (transferMatch) {
+    return <TransferPage token={transferMatch[1]} />;
   }
 
   if (isLoading) {

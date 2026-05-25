@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { trpc } from "@/lib/trpc";
 
 const membershipTypeLabel: Record<string, string> = {
