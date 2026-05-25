@@ -701,13 +701,17 @@ export default function AccessManagement() {
                       {!b.startDate && !b.endDate && "항상 표시"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => updateBanner.mutate({ id: b.id, isActive: b.isActive === 0 })}
-                      className={`p-1.5 rounded-lg transition-colors ${b.isActive ? "text-primary" : "text-muted-foreground"} hover:bg-accent`}
-                      title={b.isActive ? "비활성화" : "활성화"}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors border ${
+                        b.isActive
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
+                          : "bg-muted text-muted-foreground border-border hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30"
+                      }`}
+                      title={b.isActive ? "클릭하면 끄기" : "클릭하면 켜기"}
                     >
-                      {b.isActive ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                      {b.isActive ? <><Eye className="h-3 w-3" />노출 중</> : <><EyeOff className="h-3 w-3" />숨김</>}
                     </button>
                     <button
                       onClick={() => { openEditBanner(b); setShowBannerForm(false); }}
