@@ -638,12 +638,15 @@ async function initDatabase() {
     "videoUrl" TEXT,
     "thumbnailUrl" TEXT,
     duration TEXT,
+    "courseType" TEXT NOT NULL DEFAULT 'online',
     "pointReward" INTEGER NOT NULL DEFAULT 0,
     "isPublished" INTEGER NOT NULL DEFAULT 0,
     "createdBy" INTEGER NOT NULL,
     "createdAt" TEXT NOT NULL DEFAULT now()::text,
     "updatedAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+  // 기존 테이블에 courseType 컬럼 추가 (없을 경우)
+  await pool.query(`ALTER TABLE academy_courses ADD COLUMN IF NOT EXISTS "courseType" TEXT NOT NULL DEFAULT 'online'`);
   await pool.query(`CREATE TABLE IF NOT EXISTS academy_completions (
     id SERIAL PRIMARY KEY,
     "courseId" INTEGER NOT NULL,

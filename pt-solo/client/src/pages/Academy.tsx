@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { GraduationCap, Plus, Edit2, Trash2, Play, CheckCircle, Coins, Clock, Eye, EyeOff, X, Check } from "lucide-react";
+import { GraduationCap, Plus, Edit2, Trash2, Play, CheckCircle, Coins, Clock, Eye, EyeOff, X, Check, Wifi, MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import TabBanner from "@/components/TabBanner";
+
+type CourseType = "online" | "offline";
 
 type Course = {
   id: number;
@@ -16,6 +18,7 @@ type Course = {
   thumbnailUrl: string | null;
   duration: string | null;
   pointReward: number;
+  courseType: CourseType;
   isPublished: number;
   completed: boolean;
 };
@@ -26,6 +29,7 @@ const EMPTY_FORM = {
   videoUrl: "",
   thumbnailUrl: "",
   duration: "",
+  courseType: "online" as CourseType,
   pointReward: 0,
   isPublished: 1,
 };
@@ -70,6 +74,30 @@ function CourseForm({
           <Input value={form.thumbnailUrl} onChange={e => set("thumbnailUrl", e.target.value)} placeholder="https://..." className="text-sm" />
         </div>
       </div>
+      {/* 강의 유형 선택 */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">강의 유형</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {(["online", "offline"] as CourseType[]).map(type => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => set("courseType", type)}
+              className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                form.courseType === type
+                  ? type === "online"
+                    ? "bg-blue-50 border-blue-400 text-blue-700"
+                    : "bg-orange-50 border-orange-400 text-orange-700"
+                  : "bg-background border-border text-muted-foreground"
+              }`}
+            >
+              {type === "online" ? <Wifi className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
+              {type === "online" ? "온라인 강의" : "오프라인 강의"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">강의 시간</Label>
@@ -202,6 +230,7 @@ export default function Academy() {
             videoUrl: v.videoUrl || undefined,
             thumbnailUrl: v.thumbnailUrl || undefined,
             duration: v.duration || undefined,
+            courseType: v.courseType,
             pointReward: v.pointReward,
             isPublished: v.isPublished,
           })}
@@ -229,6 +258,7 @@ export default function Academy() {
                     videoUrl: course.videoUrl ?? "",
                     thumbnailUrl: course.thumbnailUrl ?? "",
                     duration: course.duration ?? "",
+                    courseType: (course.courseType ?? "online") as CourseType,
                     pointReward: course.pointReward,
                     isPublished: course.isPublished,
                   }}
@@ -241,6 +271,7 @@ export default function Academy() {
                     videoUrl: v.videoUrl || undefined,
                     thumbnailUrl: v.thumbnailUrl || undefined,
                     duration: v.duration || undefined,
+                    courseType: v.courseType,
                     pointReward: v.pointReward,
                     isPublished: v.isPublished,
                   })}
@@ -259,13 +290,27 @@ export default function Academy() {
                   )}
 
                   <CardContent className="p-4 space-y-3">
-                    {/* 상태 배지 (어드민) */}
-                    {isAdmin && (
-                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${course.isPublished ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
-                        {course.isPublished ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                        {course.isPublished ? "게시됨" : "비공개"}
+                    {/* 배지 행 */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* 강의 유형 배지 */}
+                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                        course.courseType === "offline"
+                          ? "bg-orange-100 text-orange-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}>
+                        {course.courseType === "offline"
+                          ? <MapPin className="h-3 w-3" />
+                          : <Wifi className="h-3 w-3" />}
+                        {course.courseType === "offline" ? "오프라인" : "온라인"}
                       </span>
-                    )}
+                      {/* 게시 상태 배지 (어드민) */}
+                      {isAdmin && (
+                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${course.isPublished ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                          {course.isPublished ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                          {course.isPublished ? "게시됨" : "비공개"}
+                        </span>
+                      )}
+                    </div>
 
                     <div className="space-y-1">
                       <p className="font-bold text-base leading-tight">{course.title}</p>

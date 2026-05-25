@@ -2975,15 +2975,16 @@ const academyRouter = t.router({
       videoUrl: z.string().optional(),
       thumbnailUrl: z.string().optional(),
       duration: z.string().optional(),
+      courseType: z.enum(["online", "offline"]).default("online"),
       pointReward: z.number().int().min(0).default(0),
       isPublished: z.number().int().min(0).max(1).default(0),
     }))
     .mutation(async ({ ctx, input }) => {
       const row = await pool.query<any>(
-        `INSERT INTO academy_courses (title, description, "videoUrl", "thumbnailUrl", duration, "pointReward", "isPublished", "createdBy")
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        `INSERT INTO academy_courses (title, description, "videoUrl", "thumbnailUrl", duration, "courseType", "pointReward", "isPublished", "createdBy")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [input.title, input.description ?? null, input.videoUrl ?? null, input.thumbnailUrl ?? null,
-         input.duration ?? null, input.pointReward, input.isPublished, ctx.user.id]
+         input.duration ?? null, input.courseType, input.pointReward, input.isPublished, ctx.user.id]
       );
       return row.rows[0];
     }),
@@ -2996,6 +2997,7 @@ const academyRouter = t.router({
       videoUrl: z.string().optional(),
       thumbnailUrl: z.string().optional(),
       duration: z.string().optional(),
+      courseType: z.enum(["online", "offline"]).optional(),
       pointReward: z.number().int().min(0).optional(),
       isPublished: z.number().int().min(0).max(1).optional(),
     }))
@@ -3009,6 +3011,7 @@ const academyRouter = t.router({
       if (fields.videoUrl !== undefined) { sets.push(`"videoUrl"=$${i++}`); vals.push(fields.videoUrl); }
       if (fields.thumbnailUrl !== undefined) { sets.push(`"thumbnailUrl"=$${i++}`); vals.push(fields.thumbnailUrl); }
       if (fields.duration !== undefined) { sets.push(`duration=$${i++}`); vals.push(fields.duration); }
+      if (fields.courseType !== undefined) { sets.push(`"courseType"=$${i++}`); vals.push(fields.courseType); }
       if (fields.pointReward !== undefined) { sets.push(`"pointReward"=$${i++}`); vals.push(fields.pointReward); }
       if (fields.isPublished !== undefined) { sets.push(`"isPublished"=$${i++}`); vals.push(fields.isPublished); }
       vals.push(id);
