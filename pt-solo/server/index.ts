@@ -588,6 +588,16 @@ async function initDatabase() {
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
 
+  // 작업실 기능 잠금해제
+  await pool.query(`CREATE TABLE IF NOT EXISTS workshop_unlocks (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    feature TEXT NOT NULL,
+    "pointsSpent" INTEGER NOT NULL DEFAULT 0,
+    "unlockedAt" TEXT NOT NULL DEFAULT now()::text,
+    UNIQUE("trainerId", feature)
+  )`);
+
   // 운동 프로그램 템플릿
   await pool.query(`CREATE TABLE IF NOT EXISTS workout_templates (
     id SERIAL PRIMARY KEY,

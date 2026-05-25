@@ -2684,6 +2684,67 @@ const expensesRouter = t.router({
 // ─── App Router ───────────────────────────────────────────────────────────────
 
 // ── 운동 프로그램 템플릿 ───────────────────────────────────────────────────
+// ── 작업실 잠금해제 ────────────────────────────────────────────────────────
+const WORKSHOP_FEATURES: Record<string, { label: string; points: number }> = {
+  brand_page:       { label: "내 브랜드 페이지",       points: 1000 },
+  booking:          { label: "상담 예약 링크",          points: 500  },
+  report_branding:  { label: "회원 보고서 브랜딩",      points: 500  },
+  templates:        { label: "운동 프로그램 템플릿",     points: 300  },
+  survey:           { label: "맞춤 상담 설문 빌더",     points: 800  },
+};
+
+const workshopRouter = t.router({
+  // 내 잠금해제 목록
+  listUnlocks: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const rows = await pool.query<{ feature: string }>(
+      `SELECT feature FROM workshop_unlocks WHERE "trainerId"=$1`, [trainerId]
+    );
+    const unlocked = new Set(rows.rows.map(r => r.feature));
+    return Object.entries(WORKSHOP_FEATURES).map(([key, meta]) => ({
+      key,
+      label: meta.label,
+      points: meta.points,
+      unlocked: unlocked.has(key),
+    }));
+  }),
+
+  // 포인트로 기능 잠금해제
+  unlock: protectedProcedure.input(z.object({ feature: z.string() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const meta = WORKSHOP_FEATURES[input.feature];
+    if (!meta) throw new TRPCError({ code: "BAD_REQUEST", message: "존재하지 않는 기능입니다." });
+
+    // 이미 잠금해제됐는지 확인
+    const existing = await pool.query(
+      `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature=$2`, [trainerId, input.feature]
+    );
+    if (existing.rows.length > 0) throw new TRPCError({ code: "CONFLICT", message: "이미 잠금해제된 기능입니다." });
+
+    // 포인트 잔액 확인
+    const balRow = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`, [trainerId]
+    );
+    const balance = Number(balRow.rows[0]?.balance ?? 0);
+    if (balance < meta.points) throw new TRPCError({ code: "FORBIDDEN", message: `포인트가 부족합니다. (필요: ${meta.points}P, 보유: ${balance}P)` });
+
+    // 포인트 차감
+    await pool.query(
+      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'workshop_unlock',$3,'completed')`,
+      [trainerId, -meta.points, `작업실 기능 잠금해제: ${meta.label}`]
+    );
+
+    // 잠금해제 기록
+    await pool.query(
+      `INSERT INTO workshop_unlocks ("trainerId", feature, "pointsSpent") VALUES ($1,$2,$3)`,
+      [trainerId, input.feature, meta.points]
+    );
+    return { success: true };
+  }),
+});
+
 const workoutTemplatesRouter = t.router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
@@ -2905,6 +2966,7 @@ export const appRouter = t.router({
   brand: brandRouter,
   workoutTemplates: workoutTemplatesRouter,
   survey: surveyRouter,
+  workshop: workshopRouter,
 });
 
 export type AppRouter = typeof appRouter;
