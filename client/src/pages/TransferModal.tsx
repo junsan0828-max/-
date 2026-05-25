@@ -6,6 +6,13 @@ import { toast } from "sonner";
 type PtPkg = { id: number; packageName: string | null; totalSessions: number; usedSessions: number };
 export type MemberBasic = { id: number; name: string; phone: string | null };
 
+const ITEM_TYPES = [
+  { key: "pt_package", label: "PT권" },
+  { key: "membership", label: "헬스권" },
+  { key: "uniform", label: "운동복" },
+  { key: "locker", label: "락커" },
+] as const;
+
 export function TransferModal({
   member,
   allMembers,
@@ -18,9 +25,10 @@ export function TransferModal({
   onClose: () => void;
 }) {
   const [step, setStep] = useState<"item" | "transferee" | "done">("item");
-  const [itemType, setItemType] = useState<"pt_package" | "membership" | "uniform" | "locker">("pt_package");
-  const [selectedPkgId, setSelectedPkgId] = useState<number | null>(ptPackages[0]?.id ?? null);
-  const [itemDesc, setItemDesc] = useState("");
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set(["pt_package"]));
+  const [selectedPkgIds, setSelectedPkgIds] = useState<Set<number>>(
+    new Set(ptPackages[0] ? [ptPackages[0].id] : [])
+  );
   const [transfereeType, setTransfeeType] = useState<"existing" | "new">("existing");
   const [search, setSearch] = useState("");
   const [selectedTransferee, setSelectedTransferee] = useState<MemberBasic | null>(null);
@@ -43,30 +51,62 @@ export function TransferModal({
     (m.name.includes(search) || (m.phone && m.phone.includes(search)))
   );
 
+  function toggleType(key: string) {
+    setSelectedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) { next.delete(key); } else { next.add(key); }
+      return next;
+    });
+  }
+
+  function togglePkg(id: number) {
+    setSelectedPkgIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      return next;
+    });
+  }
+
   function buildItemDescription() {
-    if (itemType === "pt_package" && selectedPkgId) {
-      const pkg = ptPackages.find((p) => p.id === selectedPkgId);
-      if (pkg) {
-        const rem = pkg.totalSessions - pkg.usedSessions;
-        return `PT 패키지 - ${pkg.packageName ?? "패키지"} (잔여 ${rem}회)`;
+    const parts: string[] = [];
+    for (const t of ITEM_TYPES) {
+      if (!selectedTypes.has(t.key)) continue;
+      if (t.key === "pt_package") {
+        const selected = ptPackages.filter((p) => selectedPkgIds.has(p.id));
+        if (selected.length > 0) {
+          selected.forEach((p) => {
+            parts.push(`PT권 - ${p.packageName ?? "패키지"} (잔여 ${p.totalSessions - p.usedSessions}회)`);
+          });
+        } else {
+          parts.push("PT권");
+        }
+      } else {
+        parts.push(t.label);
       }
     }
-    const fallback: Record<string, string> = { pt_package: "PT 패키지", membership: "헬스 회원권", uniform: "운동복", locker: "락커" };
-    return itemDesc || fallback[itemType] || "";
+    return parts.join(", ");
   }
 
   function handleCreate() {
-    const desc = buildItemDescription();
-    if (!desc) { toast.error("항목 설명을 입력해주세요"); return; }
+    if (selectedTypes.size === 0) { toast.error("양도 항목을 선택해주세요"); return; }
     const isExisting = transfereeType === "existing";
     if (isExisting && !selectedTransferee) { toast.error("양수인을 선택해주세요"); return; }
     if (!isExisting && !newName.trim()) { toast.error("양수인 이름을 입력해주세요"); return; }
 
+    const primaryType = selectedTypes.has("pt_package") ? "pt_package"
+      : selectedTypes.has("membership") ? "membership"
+      : selectedTypes.has("uniform") ? "uniform"
+      : "locker";
+
+    const primaryPkgId = primaryType === "pt_package"
+      ? [...selectedPkgIds][0] ?? undefined
+      : undefined;
+
     createTransfer.mutate({
       transferorMemberId: member.id,
-      itemType,
-      itemId: itemType === "pt_package" ? (selectedPkgId ?? undefined) : undefined,
-      itemDescription: desc,
+      itemType: primaryType,
+      itemId: primaryPkgId,
+      itemDescription: buildItemDescription(),
       transfereeMemberId: isExisting ? selectedTransferee!.id : undefined,
       transfereeName: isExisting ? selectedTransferee!.name : newName.trim(),
       transfereePhone: isExisting ? (selectedTransferee!.phone ?? undefined) : (newPhone.trim() || undefined),
@@ -116,32 +156,36 @@ export function TransferModal({
           {step === "item" && (
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-muted-foreground mb-2 block">양도 항목 유형</label>
+                <label className="text-xs text-muted-foreground mb-2 block">양도 항목 (복수 선택 가능)</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(["pt_package", "membership", "uniform", "locker"] as const).map((t) => (
+                  {ITEM_TYPES.map(({ key, label }) => (
                     <button
-                      key={t}
-                      onClick={() => setItemType(t)}
+                      key={key}
+                      onClick={() => toggleType(key)}
                       className={`py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                        itemType === t ? "border-orange-400 bg-orange-400/10 text-orange-400" : "border-border text-muted-foreground hover:border-orange-400/40"
+                        selectedTypes.has(key)
+                          ? "border-orange-400 bg-orange-400/10 text-orange-400"
+                          : "border-border text-muted-foreground hover:border-orange-400/40"
                       }`}
                     >
-                      {{ pt_package: "PT권", membership: "헬스권", uniform: "운동복", locker: "락커" }[t]}
+                      {label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {itemType === "pt_package" && ptPackages.length > 0 && (
+              {selectedTypes.has("pt_package") && ptPackages.length > 0 && (
                 <div>
-                  <label className="text-xs text-muted-foreground mb-2 block">패키지 선택</label>
+                  <label className="text-xs text-muted-foreground mb-2 block">PT 패키지 선택 (복수 가능)</label>
                   <div className="space-y-2">
                     {ptPackages.map((p) => (
                       <button
                         key={p.id}
-                        onClick={() => setSelectedPkgId(p.id)}
+                        onClick={() => togglePkg(p.id)}
                         className={`w-full text-left p-3 rounded-xl border text-sm transition-colors ${
-                          selectedPkgId === p.id ? "border-orange-400 bg-orange-400/10" : "border-border hover:border-orange-400/40"
+                          selectedPkgIds.has(p.id)
+                            ? "border-orange-400 bg-orange-400/10"
+                            : "border-border hover:border-orange-400/40"
                         }`}
                       >
                         <span className="font-medium">{p.packageName ?? "PT 패키지"}</span>
@@ -152,20 +196,17 @@ export function TransferModal({
                 </div>
               )}
 
-              {itemType !== "pt_package" && (
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">항목 설명 (선택)</label>
-                  <input
-                    className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background"
-                    placeholder="예: 헬스 회원권 2025.12까지"
-                    value={itemDesc}
-                    onChange={(e) => setItemDesc(e.target.value)}
-                  />
+              {selectedTypes.size > 0 && (
+                <div className="bg-muted/30 rounded-xl px-3 py-2 text-xs text-muted-foreground">
+                  양도 항목: <span className="text-foreground font-medium">{buildItemDescription()}</span>
                 </div>
               )}
 
               <button
-                onClick={() => setStep("transferee")}
+                onClick={() => {
+                  if (selectedTypes.size === 0) { toast.error("양도 항목을 선택해주세요"); return; }
+                  setStep("transferee");
+                }}
                 className="w-full py-3 rounded-xl bg-orange-500 text-white font-medium text-sm hover:bg-orange-600"
               >
                 다음 — 양수인 정보 입력
