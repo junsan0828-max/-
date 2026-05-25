@@ -2342,6 +2342,17 @@ const fitStepPlusRouter = t.router({
       const existing = await getDb().select({ id: fitStepPlusMembers.id }).from(fitStepPlusMembers)
         .where(and(eq(fitStepPlusMembers.trainerId, trainerId), eq(fitStepPlusMembers.username, input.username))).limit(1);
       if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
+      // 작업실 오픈 여부에 따라 FIT STEP+ 회원 수 제한
+      const workshopRow = await pool.query<{ id: number }>(
+        `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature='workshop_access' LIMIT 1`, [trainerId]
+      );
+      const fspLimit = workshopRow.rows.length > 0 ? 15 : 5;
+      const countRow = await pool.query<{ cnt: string }>(
+        `SELECT COUNT(*)::text AS cnt FROM fit_step_plus_members WHERE "trainerId"=$1`, [trainerId]
+      );
+      if (parseInt(countRow.rows[0].cnt) >= fspLimit) {
+        throw new TRPCError({ code: "FORBIDDEN", message: `FIT STEP+ 회원은 최대 ${fspLimit}명까지 등록할 수 있습니다. (작업실 오픈 시 15명으로 확장)` });
+      }
       const hashed = await bcrypt.hash(input.password, 10);
       const [row] = await getDb().insert(fitStepPlusMembers).values({ ...input, trainerId, password: hashed }).returning();
       const { password: _, ...safe } = row;
@@ -2687,11 +2698,6 @@ const expensesRouter = t.router({
 // ── 작업실 잠금해제 ────────────────────────────────────────────────────────
 const WORKSHOP_FEATURES: Record<string, { label: string; points: number }> = {
   workshop_access:  { label: "작업실 오픈",             points: 50000 },
-  brand_page:       { label: "내 브랜드 페이지",       points: 1000 },
-  booking:          { label: "상담 예약 링크",          points: 500  },
-  report_branding:  { label: "회원 보고서 브랜딩",      points: 500  },
-  templates:        { label: "운동 프로그램 템플릿",     points: 300  },
-  survey:           { label: "맞춤 상담 설문 빌더",     points: 800  },
 };
 
 const workshopRouter = t.router({

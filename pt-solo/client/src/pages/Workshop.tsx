@@ -1306,22 +1306,24 @@ export default function Workshop() {
     );
   }
 
-  // ── 오픈 상태: 개별 기능 잠금 게이트 ─────────────────────────────────────
+  // ── 오픈 상태: 모든 기능 무료 사용 ─────────────────────────────────────────
   return (
     <div className="space-y-4">
       <TabBanner tabKey="workshop" />
-      <div>
-        <h1 className="text-xl font-bold">작업실</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">핏포인트로 기능을 잠금해제하고 나만의 브랜딩을 완성하세요</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">작업실</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">스테퍼 전용 브랜딩 공간</p>
+        </div>
+        <span className="flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">
+          <Check className="h-3.5 w-3.5" /> 오픈됨
+        </span>
       </div>
 
       <div className="space-y-3">
-        {/* FIT STEP+ — 무료 기능 */}
+        {/* FIT STEP+ */}
         <Card className="bg-card border-border">
-          <button
-            className="w-full flex items-center justify-between px-4 py-3 text-left"
-            onClick={() => toggle("fitstep")}
-          >
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("fitstep")}>
             <div className="flex items-center gap-2.5">
               <Wrench className="h-4 w-4 text-primary" />
               <div className="flex items-baseline gap-2">
@@ -1336,112 +1338,81 @@ export default function Workshop() {
           </button>
           {openSection === "fitstep" && (
             <CardContent className="pt-0 pb-4">
-              {trainerId ? (
-                <FitStepPlusPanel trainerId={trainerId} />
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>
-              )}
+              {trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>}
             </CardContent>
           )}
         </Card>
 
         {/* 내 브랜드 페이지 */}
-        <FeatureCard
-          icon={<Globe className="h-4 w-4" />}
-          title="내 브랜드 페이지"
-          desc="공개 소개 페이지 · 예약 링크 공유"
-          featureKey="brand_page"
-          pointCost={pointCost("brand_page")}
-          isUnlocked={isUnlocked("brand_page")}
-          isOpen={openSection === "brand_page"}
-          onToggle={() => toggle("brand_page")}
-          onUnlock={() => handleUnlock("brand_page")}
-          unlocking={unlockingKey === "brand_page"}
-        >
-          <BrandPageEditor />
-        </FeatureCard>
+        <Card className="bg-card border-border">
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("brand_page")}>
+            <div className="flex items-center gap-2.5">
+              <Globe className="h-4 w-4 text-primary" />
+              <div><span className="font-semibold text-sm">내 브랜드 페이지</span><p className="text-xs text-muted-foreground mt-0.5">공개 소개 페이지 · 예약 링크 공유</p></div>
+            </div>
+            {openSection === "brand_page" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "brand_page" && <CardContent className="pt-0 pb-4"><BrandPageEditor /></CardContent>}
+        </Card>
 
         {/* 상담 예약 링크 */}
-        <FeatureCard
-          icon={<Calendar className="h-4 w-4" />}
-          title="상담 예약 링크"
-          desc="고객이 직접 상담 신청 · 리드 자동 등록"
-          featureKey="booking"
-          pointCost={pointCost("booking")}
-          isUnlocked={isUnlocked("booking")}
-          isOpen={openSection === "booking"}
-          onToggle={() => toggle("booking")}
-          onUnlock={() => handleUnlock("booking")}
-          unlocking={unlockingKey === "booking"}
-        >
-          <BrandPageEditor bookingOnly />
-        </FeatureCard>
+        <Card className="bg-card border-border">
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("booking")}>
+            <div className="flex items-center gap-2.5">
+              <Calendar className="h-4 w-4 text-primary" />
+              <div><span className="font-semibold text-sm">상담 예약 링크</span><p className="text-xs text-muted-foreground mt-0.5">고객이 직접 상담 신청 · 리드 자동 등록</p></div>
+            </div>
+            {openSection === "booking" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "booking" && <CardContent className="pt-0 pb-4"><BrandPageEditor bookingOnly /></CardContent>}
+        </Card>
 
         {/* 회원 보고서 브랜딩 */}
-        <FeatureCard
-          icon={<BookMarked className="h-4 w-4" />}
-          title="회원 보고서 브랜딩"
-          desc="공유 보고서에 내 프로필 · 브랜드 색상 표시"
-          featureKey="report_branding"
-          pointCost={pointCost("report_branding")}
-          isUnlocked={isUnlocked("report_branding")}
-          isOpen={openSection === "report_branding"}
-          onToggle={() => toggle("report_branding")}
-          onUnlock={() => handleUnlock("report_branding")}
-          unlocking={unlockingKey === "report_branding"}
-        >
-          <ReportBrandingEditor />
-        </FeatureCard>
+        <Card className="bg-card border-border">
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("report_branding")}>
+            <div className="flex items-center gap-2.5">
+              <BookMarked className="h-4 w-4 text-primary" />
+              <div><span className="font-semibold text-sm">회원 보고서 브랜딩</span><p className="text-xs text-muted-foreground mt-0.5">공유 보고서에 내 프로필 · 브랜드 색상 표시</p></div>
+            </div>
+            {openSection === "report_branding" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "report_branding" && <CardContent className="pt-0 pb-4"><ReportBrandingEditor /></CardContent>}
+        </Card>
 
         {/* 운동 프로그램 템플릿 */}
-        <FeatureCard
-          icon={<Dumbbell className="h-4 w-4" />}
-          title="운동 프로그램 템플릿"
-          desc="루틴 저장 · 일지 작성 시 불러오기"
-          featureKey="templates"
-          pointCost={pointCost("templates")}
-          isUnlocked={isUnlocked("templates")}
-          isOpen={openSection === "templates"}
-          onToggle={() => toggle("templates")}
-          onUnlock={() => handleUnlock("templates")}
-          unlocking={unlockingKey === "templates"}
-        >
-          <WorkoutTemplateEditor />
-        </FeatureCard>
+        <Card className="bg-card border-border">
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("templates")}>
+            <div className="flex items-center gap-2.5">
+              <Dumbbell className="h-4 w-4 text-primary" />
+              <div><span className="font-semibold text-sm">운동 프로그램 템플릿</span><p className="text-xs text-muted-foreground mt-0.5">루틴 저장 · 일지 작성 시 불러오기</p></div>
+            </div>
+            {openSection === "templates" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "templates" && <CardContent className="pt-0 pb-4"><WorkoutTemplateEditor /></CardContent>}
+        </Card>
 
         {/* 맞춤 상담 설문 빌더 */}
-        <FeatureCard
-          icon={<ClipboardList className="h-4 w-4" />}
-          title="맞춤 상담 설문 빌더"
-          desc="상담 전 고객 설문 · 링크 공유"
-          featureKey="survey"
-          pointCost={pointCost("survey")}
-          isUnlocked={isUnlocked("survey")}
-          isOpen={openSection === "survey"}
-          onToggle={() => toggle("survey")}
-          onUnlock={() => handleUnlock("survey")}
-          unlocking={unlockingKey === "survey"}
-        >
-          <SurveyBuilder />
-        </FeatureCard>
-
-        {/* 회원 계약서 약관 수정 — 무료 기능 */}
         <Card className="bg-card border-border">
-          <button
-            className="w-full flex items-center justify-between px-4 py-3 text-left"
-            onClick={() => toggle("terms")}
-          >
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("survey")}>
+            <div className="flex items-center gap-2.5">
+              <ClipboardList className="h-4 w-4 text-primary" />
+              <div><span className="font-semibold text-sm">맞춤 상담 설문 빌더</span><p className="text-xs text-muted-foreground mt-0.5">상담 전 고객 설문 · 링크 공유</p></div>
+            </div>
+            {openSection === "survey" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+          {openSection === "survey" && <CardContent className="pt-0 pb-4"><SurveyBuilder /></CardContent>}
+        </Card>
+
+        {/* 회원 계약서 약관 수정 */}
+        <Card className="bg-card border-border">
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("terms")}>
             <div className="flex items-center gap-2.5">
               <FileText className="h-4 w-4 text-primary" />
               <span className="font-semibold text-sm">회원 계약서 약관 수정</span>
             </div>
             {openSection === "terms" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
-          {openSection === "terms" && (
-            <CardContent className="pt-0 pb-4">
-              <ContractTermsEditor />
-            </CardContent>
-          )}
+          {openSection === "terms" && <CardContent className="pt-0 pb-4"><ContractTermsEditor /></CardContent>}
         </Card>
       </div>
     </div>
