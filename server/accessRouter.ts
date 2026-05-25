@@ -478,6 +478,8 @@ export const accessRouter = t.router({
       sortOrder: z.number().default(0),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
+      textAlign: z.string().default("center"),
+      textVAlign: z.string().default("center"),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -492,6 +494,8 @@ export const accessRouter = t.router({
         sortOrder: input.sortOrder,
         startDate: input.startDate,
         endDate: input.endDate,
+        textAlign: input.textAlign,
+        textVAlign: input.textVAlign,
       }).returning();
       return banner;
     }),
@@ -509,6 +513,8 @@ export const accessRouter = t.router({
       sortOrder: z.number().optional(),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
+      textAlign: z.string().optional(),
+      textVAlign: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();

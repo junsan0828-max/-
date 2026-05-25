@@ -9,6 +9,8 @@ type Banner = {
   bgColor: string;
   textColor: string;
   sortOrder: number;
+  textAlign?: string | null;
+  textVAlign?: string | null;
 };
 
 type CheckResult = {
@@ -307,26 +309,30 @@ export default function KioskCheckin() {
               banners.map((b, i) => (
                 <div
                   key={b.id}
-                  className="absolute inset-0 flex flex-col justify-center items-center transition-opacity duration-700"
+                  className="absolute inset-0 flex flex-col transition-opacity duration-700"
                   style={{
                     opacity: i === bannerIdx ? 1 : 0,
                     pointerEvents: i === bannerIdx ? "auto" : "none",
                     background: b.imageUrl
                       ? `linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%), url(${b.imageUrl}) center/cover no-repeat`
                       : b.bgColor,
+                    justifyContent: b.textVAlign === "top" ? "flex-start" : b.textVAlign === "bottom" ? "flex-end" : "center",
+                    alignItems: b.textAlign === "left" ? "flex-start" : b.textAlign === "right" ? "flex-end" : "center",
+                    padding: 24,
+                    paddingBottom: 32,
                   }}
                 >
-                  <div className="px-6 text-center w-full">
+                  <div style={{ width: "100%" }}>
                     <p
                       className="font-bold leading-snug"
-                      style={{ fontSize: 22, color: b.textColor, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
+                      style={{ fontSize: 22, color: b.textColor, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
                     >
                       {b.title}
                     </p>
                     {b.body && (
                       <p
                         className="mt-2 leading-relaxed whitespace-pre-line"
-                        style={{ fontSize: 15, color: b.textColor, opacity: 0.9, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
+                        style={{ fontSize: 15, color: b.textColor, opacity: 0.9, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
                       >
                         {b.body}
                       </p>

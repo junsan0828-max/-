@@ -101,7 +101,7 @@ export default function AccessManagement() {
   const [showBannerForm, setShowBannerForm] = useState(false);
   const [editingBanner, setEditingBanner] = useState<KioskBanner | null>(null);
   const [bannerForm, setBannerForm] = useState({
-    title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "",
+    title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center",
   });
 
   const utils = trpc.useUtils();
@@ -145,7 +145,7 @@ export default function AccessManagement() {
   });
 
   function resetBannerForm() {
-    setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "" });
+    setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center" });
   }
   function openEditBanner(b: KioskBanner) {
     setEditingBanner(b);
@@ -153,6 +153,8 @@ export default function AccessManagement() {
       title: b.title, body: b.body ?? "", imageUrl: b.imageUrl ?? "",
       bgColor: b.bgColor, textColor: b.textColor, sortOrder: b.sortOrder,
       startDate: b.startDate ?? "", endDate: b.endDate ?? "",
+      textAlign: (b as any).textAlign ?? "center",
+      textVAlign: (b as any).textVAlign ?? "center",
     });
   }
   function saveBanner() {
@@ -165,6 +167,8 @@ export default function AccessManagement() {
       sortOrder: bannerForm.sortOrder,
       startDate: bannerForm.startDate || undefined,
       endDate: bannerForm.endDate || undefined,
+      textAlign: bannerForm.textAlign,
+      textVAlign: bannerForm.textVAlign,
     };
     if (editingBanner) {
       updateBanner.mutate({ id: editingBanner.id, ...payload });
@@ -646,19 +650,53 @@ export default function AccessManagement() {
                     onChange={(e) => setBannerForm((f) => ({ ...f, sortOrder: Number(e.target.value) }))}
                   />
                 </div>
+                {/* 텍스트 위치 피커 */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block">텍스트 위치</label>
+                  <div className="grid grid-cols-3 gap-1.5" style={{ width: 108 }}>
+                    {(["top","center","bottom"] as const).map((v) =>
+                      (["left","center","right"] as const).map((h) => {
+                        const active = bannerForm.textVAlign === v && bannerForm.textAlign === h;
+                        return (
+                          <button
+                            key={`${v}-${h}`}
+                            type="button"
+                            onClick={() => setBannerForm((f) => ({ ...f, textAlign: h, textVAlign: v }))}
+                            className={`rounded flex items-center justify-center transition-colors ${active ? "bg-primary" : "bg-muted hover:bg-accent border border-border"}`}
+                            style={{ width: 32, height: 32 }}
+                          >
+                            <div className={`rounded-sm ${active ? "bg-white" : "bg-muted-foreground/50"}`}
+                              style={{
+                                width: 14, height: 10,
+                                alignSelf: v === "top" ? "flex-start" : v === "bottom" ? "flex-end" : "center",
+                                marginLeft: h === "left" ? 2 : h === "right" ? "auto" : "auto",
+                                marginRight: h === "right" ? 2 : h === "left" ? "auto" : "auto",
+                              }}
+                            />
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
               {/* 미리보기 */}
               <div
-                className="rounded-xl p-4 relative overflow-hidden"
+                className="rounded-xl relative overflow-hidden"
                 style={{
-                  height: 100,
+                  height: 120,
                   background: bannerForm.imageUrl
                     ? `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.55)), url(${bannerForm.imageUrl}) center/cover`
                     : bannerForm.bgColor,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: bannerForm.textAlign === "left" ? "flex-start" : bannerForm.textAlign === "right" ? "flex-end" : "center",
+                  justifyContent: bannerForm.textVAlign === "top" ? "flex-start" : bannerForm.textVAlign === "bottom" ? "flex-end" : "center",
+                  padding: 16,
                 }}
               >
-                <p className="font-bold text-sm" style={{ color: bannerForm.textColor }}>{bannerForm.title || "제목 미리보기"}</p>
-                {bannerForm.body && <p className="text-xs mt-1 opacity-80" style={{ color: bannerForm.textColor }}>{bannerForm.body}</p>}
+                <p className="font-bold text-sm" style={{ color: bannerForm.textColor, textAlign: bannerForm.textAlign as any }}>{bannerForm.title || "제목 미리보기"}</p>
+                {bannerForm.body && <p className="text-xs mt-1 opacity-80" style={{ color: bannerForm.textColor, textAlign: bannerForm.textAlign as any }}>{bannerForm.body}</p>}
               </div>
               <div className="flex gap-2 justify-end">
                 <button
