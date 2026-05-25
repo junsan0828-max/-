@@ -21,41 +21,41 @@ const DIET_OPTIONS = [
 
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 
-// 이미지 기반 핫스팟 — x/y는 body-map.png 전체 크기 대비 %
+// 이미지 기반 핫스팟 — x/y는 body-map.png (862×846) 대비 %
 type BodySpot = { part: string; x: number; y: number };
 
-// 전면(관절) 핫스팟 — 이미지 좌측 첫 번째 인체 도형
+// 전면(관절) 핫스팟 — 이미지 좌측 인체 도형
 const FRONT_SPOTS: BodySpot[] = [
-  { part: "턱관절",      x: 14,  y: 12 },
-  { part: "좌 어깨관절", x: 10,  y: 25 },
-  { part: "우 어깨관절", x: 23,  y: 25 },
-  { part: "좌 팔꿈치",   x:  7,  y: 45 },
-  { part: "우 팔꿈치",   x: 29,  y: 45 },
-  { part: "좌 손목",     x:  5,  y: 57 },
-  { part: "우 손목",     x: 32,  y: 57 },
-  { part: "좌 고관절",   x: 14,  y: 62 },
-  { part: "우 고관절",   x: 22,  y: 62 },
-  { part: "좌 무릎",     x: 12,  y: 77 },
-  { part: "우 무릎",     x: 23,  y: 77 },
-  { part: "좌 발목",     x: 13,  y: 90 },
-  { part: "우 발목",     x: 23,  y: 90 },
+  { part: "턱관절",      x: 24,  y: 11 },
+  { part: "좌 어깨관절", x: 19,  y: 24 },
+  { part: "우 어깨관절", x: 38,  y: 24 },
+  { part: "좌 팔꿈치",   x: 14,  y: 40 },
+  { part: "우 팔꿈치",   x: 48,  y: 40 },
+  { part: "좌 손목",     x: 10,  y: 51 },
+  { part: "우 손목",     x: 52,  y: 51 },
+  { part: "좌 고관절",   x: 22,  y: 60 },
+  { part: "우 고관절",   x: 36,  y: 60 },
+  { part: "좌 무릎",     x: 21,  y: 75 },
+  { part: "우 무릎",     x: 38,  y: 75 },
+  { part: "좌 발목",     x: 21,  y: 90 },
+  { part: "우 발목",     x: 38,  y: 90 },
 ];
 
-// 후면(근육) 핫스팟 — 이미지 좌측 두 번째 인체 도형
+// 후면(근육) 핫스팟 — 이미지 우측 인체 도형
 const BACK_SPOTS: BodySpot[] = [
-  { part: "목",           x: 46,  y: 12 },
-  { part: "좌 어깨(후)",  x: 38,  y: 24 },
-  { part: "우 어깨(후)",  x: 53,  y: 24 },
-  { part: "등(승모근)",   x: 46,  y: 32 },
-  { part: "좌 팔",        x: 36,  y: 44 },
-  { part: "허리",         x: 46,  y: 51 },
-  { part: "좌 엉덩이",    x: 39,  y: 62 },
-  { part: "우 엉덩이",    x: 53,  y: 62 },
-  { part: "좌 허벅지",    x: 42,  y: 73 },
-  { part: "우 허벅지",    x: 50,  y: 73 },
-  { part: "좌 종아리",    x: 41,  y: 84 },
-  { part: "우 종아리",    x: 49,  y: 84 },
-  { part: "발(족저근막)", x: 46,  y: 93 },
+  { part: "목",           x: 76,  y: 11 },
+  { part: "좌 어깨(후)",  x: 66,  y: 23 },
+  { part: "우 어깨(후)",  x: 88,  y: 23 },
+  { part: "등(승모근)",   x: 76,  y: 31 },
+  { part: "좌 팔",        x: 62,  y: 43 },
+  { part: "허리",         x: 76,  y: 50 },
+  { part: "좌 엉덩이",    x: 68,  y: 60 },
+  { part: "우 엉덩이",    x: 87,  y: 60 },
+  { part: "좌 허벅지",    x: 70,  y: 73 },
+  { part: "우 허벅지",    x: 85,  y: 73 },
+  { part: "좌 종아리",    x: 69,  y: 85 },
+  { part: "우 종아리",    x: 84,  y: 85 },
+  { part: "발(족저근막)", x: 76,  y: 94 },
 ];
 
 function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
@@ -72,12 +72,14 @@ function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v:
           onClick={() => toggle(s.part)}
           title={s.part}
           style={{ left: `${s.x}%`, top: `${s.y}%` }}
-          className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-all touch-manipulation
-            ${on
-              ? "w-6 h-6 bg-primary border-white shadow-lg shadow-primary/60 scale-110"
-              : "w-5 h-5 bg-white/60 border-primary/80 hover:border-primary hover:scale-110 hover:bg-primary/30"
-            }`}
-        />
+          className="absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center touch-manipulation"
+        >
+          <div className={`rounded-full transition-all pointer-events-none ${
+            on
+              ? "w-4 h-4 bg-primary ring-2 ring-white shadow-md shadow-primary/60"
+              : "w-3 h-3 bg-white/80 ring-2 ring-primary/80"
+          }`} />
+        </button>
       );
     });
   }
