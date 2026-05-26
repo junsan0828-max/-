@@ -414,6 +414,16 @@ function ActiveWorkoutModal({
     return () => clearInterval(id);
   }, [paused]);
 
+  // 화면 복귀 시 경과 시간 즉시 재동기화
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === "visible" && !paused)
+        setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [paused]);
+
   function togglePause() {
     if (paused) {
       startRef.current += Date.now() - pausedAtRef.current;
@@ -681,29 +691,35 @@ export default function GymPlusWorkout() {
   const [warmupStatus, setWarmupStatus] = useState<"idle" | "running" | "paused" | "done">("idle");
   const [warmupRemaining, setWarmupRemaining] = useState(600);
   const warmupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const warmupStartRef = useRef(0);    // 시작 시각 (일시정지 시간 누적 반영)
+  const warmupPausedAtRef = useRef(0); // 일시정지된 시각
 
+  function calcWarmupRemaining() {
+    return Math.max(0, 600 - Math.floor((Date.now() - warmupStartRef.current) / 1000));
+  }
+  function startWarmupInterval() {
+    warmupIntervalRef.current = setInterval(() => {
+      const rem = calcWarmupRemaining();
+      setWarmupRemaining(rem);
+      if (rem <= 0) { clearInterval(warmupIntervalRef.current!); warmupIntervalRef.current = null; setWarmupStatus("done"); }
+    }, 1000);
+  }
   function startWarmup() {
+    warmupStartRef.current = Date.now();
     setWarmupStatus("running");
     setWarmupRemaining(600);
-    warmupIntervalRef.current = setInterval(() => {
-      setWarmupRemaining(prev => {
-        if (prev <= 1) { clearInterval(warmupIntervalRef.current!); warmupIntervalRef.current = null; return 0; }
-        return prev - 1;
-      });
-    }, 1000);
+    startWarmupInterval();
   }
   function pauseWarmup() {
     if (warmupIntervalRef.current) { clearInterval(warmupIntervalRef.current); warmupIntervalRef.current = null; }
+    warmupPausedAtRef.current = Date.now();
     setWarmupStatus("paused");
   }
   function resumeWarmup() {
+    // 일시정지된 시간만큼 시작 시각을 앞으로 당겨 누적 경과 시간 보정
+    warmupStartRef.current += Date.now() - warmupPausedAtRef.current;
     setWarmupStatus("running");
-    warmupIntervalRef.current = setInterval(() => {
-      setWarmupRemaining(prev => {
-        if (prev <= 1) { clearInterval(warmupIntervalRef.current!); warmupIntervalRef.current = null; return 0; }
-        return prev - 1;
-      });
-    }, 1000);
+    startWarmupInterval();
   }
   function completeWarmup() {
     if (warmupIntervalRef.current) clearInterval(warmupIntervalRef.current);
@@ -745,6 +761,23 @@ export default function GymPlusWorkout() {
     setCardioElapsed(0);
     setCardioReport(null);
   }
+
+  // ── 화면 복귀 시 타이머 재동기화 ──────────────────────────────────────────────
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      if (warmupStatus === "running") {
+        const rem = calcWarmupRemaining();
+        setWarmupRemaining(rem);
+        if (rem <= 0) { setWarmupStatus("done"); if (warmupIntervalRef.current) { clearInterval(warmupIntervalRef.current); warmupIntervalRef.current = null; } }
+      }
+      if (cardioStatus === "running") {
+        setCardioElapsed(Math.floor((Date.now() - cardioStartRef.current) / 1000));
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [warmupStatus, cardioStatus]);
 
   const utils = trpc.useUtils();
   const { data: health } = trpc.gymPlus.getHealth.useQuery();
