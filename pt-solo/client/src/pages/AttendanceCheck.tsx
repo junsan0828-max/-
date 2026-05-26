@@ -47,10 +47,10 @@ type ColorRule = {
 };
 
 const FRONT_RULES: ColorRule[] = [
-  // 고관절 주변 — yellow 위쪽 (y 48~60%)
-  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 48, yMax: 60, part: () => "고관절 주변" },
-  // 내전근 — yellow 다리 안쪽 (y 60~78%)
-  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 60, yMax: 78, part: x => x < 50 ? "좌 내전근" : "우 내전근" },
+  // 고관절 주변 — yellow 위쪽 (y 48~58%)
+  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 48, yMax: 58, part: () => "고관절 주변" },
+  // 내전근 — yellow 다리 안쪽 (y 58~80%)
+  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 58, yMax: 80, part: x => x < 50 ? "좌 내전근" : "우 내전근" },
   // 가슴 — red/salmon
   { hMin: 340, hMax: 20,  sMin: 40, yMax: 55, part: () => "가슴" },
   // 어깨 — orange, 상단만 (y<28%)
@@ -59,25 +59,25 @@ const FRONT_RULES: ColorRule[] = [
   { hMin: 18,  hMax: 40,  sMin: 45, yMin: 28, yMax: 62, part: () => "복근" },
   // 정강이 — orange, 하단 (y>62%)
   { hMin: 18,  hMax: 40,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 정강이" : "우 정강이" },
-  // 이두근 — green, 상체 (y<53%)
+  // 이두근 — green, 상체 팔 (y<53%)
   { hMin: 76,  hMax: 148, sMin: 28, yMax: 53, part: x => x < 50 ? "좌 이두근" : "우 이두근" },
-  // 고관절 — lime/green, 엉덩이 옆 (y 53~73%)
-  { hMin: 76,  hMax: 148, sMin: 28, yMin: 53, yMax: 73, part: x => x < 50 ? "좌 고관절" : "우 고관절" },
-  // 손목 — teal, 팔 구간 전체 (y 35~73%)
+  // 고관절 부근 — lime/green, 골반 옆 (y 53~73%)
+  { hMin: 76,  hMax: 148, sMin: 28, yMin: 53, yMax: 73, part: x => x < 50 ? "좌 고관절 부근" : "우 고관절 부근" },
+  // 손목 — teal, 팔 구간 (y 35~73%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 35, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
   // 발목 — teal, 발목 레벨 (y 80~90%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
-  // 발바닥 — 최하단 전체 (y>90%)
-  { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발바닥" : "우 발바닥" },
+  // 발 — 최하단 전체 (y>90%)
+  { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발" : "우 발" },
   // 무릎 — blue, 다리 구간 (y 60~82%)
   { hMin: 200, hMax: 262, sMin: 25, yMin: 60, yMax: 82, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
   // 목/승모근 — purple, 최상단 (y<25%)
   { hMin: 262, hMax: 310, sMin: 25, yMax: 25, part: () => "목/승모근" },
-  // 어깨(삼각근) — purple, y 25~30%만
+  // 어깨(삼각근) — purple, y 25~30%
   { hMin: 262, hMax: 310, sMin: 25, yMin: 25, yMax: 30, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
-  // 전완 — purple, y 30~52%
-  { hMin: 262, hMax: 310, sMin: 25, yMin: 30, yMax: 52, part: x => x < 50 ? "좌 전완" : "우 전완" },
-  // 사두근 — purple y 52~80%, sMin 높여서 연보라(사타구니) 제외
+  // 전완 — purple, 팔 구간만 (y 30~46%), 다리 오인식 방지
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 30, yMax: 46, part: x => x < 50 ? "좌 전완" : "우 전완" },
+  // 사두근 — purple y 52~80%
   { hMin: 262, hMax: 310, sMin: 45, yMin: 52, yMax: 80, part: x => x < 50 ? "좌 사두근" : "우 사두근" },
   // 사두근 — pink/magenta wrapping (hue 290-360 and 0-20), y>52%
   { hMin: 290, hMax: 20,  sMin: 35, yMin: 52, part: x => x < 50 ? "좌 사두근" : "우 사두근" },
@@ -109,7 +109,7 @@ const BACK_RULES: ColorRule[] = [
   // 발목 — teal, 발목 레벨 (y 80~90%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
   // 발바닥 — 최하단 전체 (y>90%)
-  { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발바닥" : "우 발바닥" },
+  { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발" : "우 발" },
   // 오금 — blue, 다리 뒷편 (y 62~82%)
   { hMin: 200, hMax: 262, sMin: 25, yMin: 62, yMax: 82, part: x => x < 50 ? "좌 오금" : "우 오금" },
   // 목/승모근 — purple, 최상단 (y<22%)
