@@ -476,10 +476,10 @@ export default function GymDashboard() {
   const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery(
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }
   );
-  const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year });
-  const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month });
-  const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
-  const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month });
+  const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12); }

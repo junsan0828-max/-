@@ -515,12 +515,16 @@ const revenueRouter = t.router({
     }),
 
   monthlySummary: protectedProcedure
-    .input(z.object({ year: z.number() }))
+    .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const allEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${input.year}%`));
+      const allEntries = await db.select().from(revenueEntries).where(
+        input.branchId
+          ? and(like(revenueEntries.paymentDate, `${input.year}%`), eq(revenueEntries.branchId, input.branchId))
+          : like(revenueEntries.paymentDate, `${input.year}%`)
+      );
 
       const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
       for (let m = 1; m <= 12; m++) {
@@ -545,7 +549,7 @@ const revenueRouter = t.router({
     }),
 
   trainerSummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -557,7 +561,11 @@ const revenueRouter = t.router({
       })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
-        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+        .where(
+          input.branchId
+            ? and(like(revenueEntries.paymentDate, `${prefix}%`), eq(revenueEntries.branchId, input.branchId))
+            : like(revenueEntries.paymentDate, `${prefix}%`)
+        );
 
       const byTrainer: Record<number, { trainerId: number; trainerName: string; total: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
       for (const row of rows) {
@@ -578,7 +586,7 @@ const revenueRouter = t.router({
     }),
 
   channelSummary: protectedProcedure
-    .input(z.object({ year: z.number(), month: z.number() }))
+    .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -590,7 +598,11 @@ const revenueRouter = t.router({
       })
         .from(revenueEntries)
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
-        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+        .where(
+          input.branchId
+            ? and(like(revenueEntries.paymentDate, `${prefix}%`), eq(revenueEntries.branchId, input.branchId))
+            : like(revenueEntries.paymentDate, `${prefix}%`)
+        );
 
       const byChannel: Record<string, { channelId: number | null; channelName: string; total: number; count: number }> = {};
       for (const row of rows) {
