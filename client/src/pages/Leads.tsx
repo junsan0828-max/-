@@ -1105,8 +1105,8 @@ export default function LeadsPage() {
                 <div className="px-5 py-3 border-b border-border shrink-0">
                   <input
                     autoFocus
-                    value={reRegSearch}
-                    onChange={e => setReRegSearch(e.target.value)}
+                    defaultValue=""
+                    onInput={e => setReRegSearch((e.target as HTMLInputElement).value)}
                     placeholder="이름 또는 연락처 검색..."
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
