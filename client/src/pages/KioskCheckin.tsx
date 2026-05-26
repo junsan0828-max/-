@@ -18,6 +18,8 @@ type Banner = {
   sortOrder: number;
   textAlign?: string | null;
   textVAlign?: string | null;
+  titleFontSize?: number | null;
+  bodyFontSize?: number | null;
 };
 
 type CheckResult = {
@@ -443,14 +445,14 @@ export default function KioskCheckin() {
                     <div style={{ width: "100%" }}>
                       <p
                         className="font-bold leading-snug"
-                        style={{ fontSize: fs(22), color: b.textColor, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
+                        style={{ fontSize: fs(b.titleFontSize ?? 22), color: b.textColor, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
                       >
                         {b.title}
                       </p>
                       {b.body && (
                         <p
                           className="mt-2 leading-relaxed whitespace-pre-line"
-                          style={{ fontSize: fs(15), color: b.textColor, opacity: 0.9, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
+                          style={{ fontSize: fs(b.bodyFontSize ?? 15), color: b.textColor, opacity: 0.9, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
                         >
                           {b.body}
                         </p>

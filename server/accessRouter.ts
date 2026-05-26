@@ -514,6 +514,8 @@ export const accessRouter = t.router({
       endDate: z.string().optional(),
       textAlign: z.string().default("center"),
       textVAlign: z.string().default("center"),
+      titleFontSize: z.number().default(22),
+      bodyFontSize: z.number().default(15),
       branchId: z.number().nullable().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -531,6 +533,8 @@ export const accessRouter = t.router({
         endDate: input.endDate,
         textAlign: input.textAlign,
         textVAlign: input.textVAlign,
+        titleFontSize: input.titleFontSize,
+        bodyFontSize: input.bodyFontSize,
         branchId: input.branchId ?? null,
       }).returning();
       return banner;
@@ -571,6 +575,8 @@ export const accessRouter = t.router({
       endDate: z.string().optional(),
       textAlign: z.string().optional(),
       textVAlign: z.string().optional(),
+      titleFontSize: z.number().optional(),
+      bodyFontSize: z.number().optional(),
       branchId: z.number().nullable().optional(),
     }))
     .mutation(async ({ input }) => {

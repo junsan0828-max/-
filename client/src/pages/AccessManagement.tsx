@@ -72,6 +72,8 @@ type KioskBanner = {
   endDate: string | null;
   textAlign?: string;
   textVAlign?: string;
+  titleFontSize?: number;
+  bodyFontSize?: number;
   branchId?: number | null;
   hasUploadedImage?: boolean;
   createdAt: string;
@@ -109,7 +111,7 @@ export default function AccessManagement() {
   const [editingBanner, setEditingBanner] = useState<KioskBanner | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null | "uncat">(null);
   const [bannerForm, setBannerForm] = useState({
-    title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", branchId: null as number | null,
+    title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", titleFontSize: 22, bodyFontSize: 15, branchId: null as number | null,
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedBannerId, setUploadedBannerId] = useState<number | null>(null);
@@ -178,7 +180,7 @@ export default function AccessManagement() {
   });
 
   function resetBannerForm() {
-    setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", branchId: null });
+    setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", titleFontSize: 22, bodyFontSize: 15, branchId: null });
     setUploadedBannerId(null);
   }
   function openEditBanner(b: KioskBanner) {
@@ -189,6 +191,8 @@ export default function AccessManagement() {
       startDate: b.startDate ?? "", endDate: b.endDate ?? "",
       textAlign: (b as any).textAlign ?? "center",
       textVAlign: (b as any).textVAlign ?? "center",
+      titleFontSize: (b as any).titleFontSize ?? 22,
+      bodyFontSize: (b as any).bodyFontSize ?? 15,
       branchId: (b as any).branchId ?? null,
     });
   }
@@ -204,6 +208,8 @@ export default function AccessManagement() {
       endDate: bannerForm.endDate || undefined,
       textAlign: bannerForm.textAlign,
       textVAlign: bannerForm.textVAlign,
+      titleFontSize: bannerForm.titleFontSize,
+      bodyFontSize: bannerForm.bodyFontSize,
       branchId: bannerForm.branchId,
     };
     if (editingBanner) {
@@ -778,6 +784,27 @@ export default function AccessManagement() {
                   </div>
                 </div>
                 <div>
+                  <label className="text-xs text-muted-foreground mb-2 block">글씨 크기</label>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-1">제목</p>
+                      <div className="flex items-center gap-1">
+                        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, titleFontSize: Math.max(10, f.titleFontSize - 1) }))}>-</button>
+                        <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={10} max={60} value={bannerForm.titleFontSize} onChange={(e) => setBannerForm((f) => ({ ...f, titleFontSize: Number(e.target.value) }))} />
+                        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, titleFontSize: Math.min(60, f.titleFontSize + 1) }))}>+</button>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-1">내용</p>
+                      <div className="flex items-center gap-1">
+                        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, bodyFontSize: Math.max(10, f.bodyFontSize - 1) }))}>-</button>
+                        <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={10} max={60} value={bannerForm.bodyFontSize} onChange={(e) => setBannerForm((f) => ({ ...f, bodyFontSize: Number(e.target.value) }))} />
+                        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, bodyFontSize: Math.min(60, f.bodyFontSize + 1) }))}>+</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div>
                   <label className="text-xs text-muted-foreground mb-1 block">노출 시작일 (선택)</label>
                   <input type="date" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
                     value={bannerForm.startDate}
@@ -843,8 +870,8 @@ export default function AccessManagement() {
                   padding: 16,
                 }}
               >
-                <p className="font-bold text-sm" style={{ color: bannerForm.textColor, textAlign: bannerForm.textAlign as any }}>{bannerForm.title || "제목 미리보기"}</p>
-                {bannerForm.body && <p className="text-xs mt-1 opacity-80" style={{ color: bannerForm.textColor, textAlign: bannerForm.textAlign as any }}>{bannerForm.body}</p>}
+                <p className="font-bold" style={{ color: bannerForm.textColor, textAlign: bannerForm.textAlign as any, fontSize: bannerForm.titleFontSize }}>{bannerForm.title || "제목 미리보기"}</p>
+                {bannerForm.body && <p className="mt-1 opacity-80" style={{ color: bannerForm.textColor, textAlign: bannerForm.textAlign as any, fontSize: bannerForm.bodyFontSize }}>{bannerForm.body}</p>}
               </div>
               <div className="flex gap-2 justify-end">
                 <button

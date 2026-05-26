@@ -482,6 +482,8 @@ export const kioskBanners = pgTable("kiosk_banners", {
   endDate: text("endDate"),
   textAlign: text("textAlign").default("center"),
   textVAlign: text("textVAlign").default("center"),
+  titleFontSize: integer("titleFontSize").default(22),
+  bodyFontSize: integer("bodyFontSize").default(15),
   branchId: integer("branchId"),
   imageData: text("imageData"),
   createdAt: text("createdAt").default(now).notNull(),
