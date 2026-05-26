@@ -97,15 +97,15 @@ const BACK_RULES: ColorRule[] = [
   // 종아리 — orange, 하단 (y>62%)
   { hMin: 18,  hMax: 46,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
   // 골반 측면 — yellow/gold (y 45~70%)
-  { hMin: 46,  hMax: 73,  sMin: 35, yMin: 45, yMax: 70, part: x => x < 50 ? "좌 골반 측면" : "우 골반 측면" },
+  { hMin: 46,  hMax: 73,  sMin: 35, yMin: 45, yMax: 70, part: x => x < 50 ? "좌 골반 주변" : "우 골반 주변" },
   // 삼두근 — lime green, 팔 구간 (y<45%)
   { hMin: 73,  hMax: 148, sMin: 28, yMax: 45, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
   // 둔근 — lime green, 엉덩이 (y 45~73%)
   { hMin: 73,  hMax: 148, sMin: 28, yMin: 45, yMax: 73, part: () => "둔근" },
-  // 광배근 — teal/cyan, 등 중간 (y 18~58%)
-  { hMin: 148, hMax: 200, sMin: 40, yMin: 18, yMax: 58, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
-  // 손목 — teal, 손목 레벨 (y 58~73%)
-  { hMin: 148, hMax: 200, sMin: 40, yMin: 58, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
+  // 광배근 — teal/cyan, 등 중간 (y 18~50%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 18, yMax: 50, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
+  // 손목 — teal, 손목 레벨 (y 50~73%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 50, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
   // 발목 — teal, 발목 레벨 (y 80~90%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
   // 발바닥 — 최하단 전체 (y>90%)
@@ -116,8 +116,8 @@ const BACK_RULES: ColorRule[] = [
   { hMin: 262, hMax: 310, sMin: 25, yMax: 22, part: () => "목/승모근" },
   // 전완근 — purple, 팔 구간 (y 22~40%)
   { hMin: 262, hMax: 310, sMin: 25, yMin: 22, yMax: 40, part: x => x < 50 ? "좌 전완근" : "우 전완근" },
-  // 햄스트링 — purple 하체 (y 40~85%)
-  { hMin: 260, hMax: 355, sMin: 30, yMin: 40, yMax: 85, part: x => x < 50 ? "좌 햄스트링" : "우 햄스트링" },
+  // 햄스트링 — purple 하체 (y 52~85%), 전완근 구간 오인식 방지
+  { hMin: 260, hMax: 355, sMin: 30, yMin: 52, yMax: 85, part: x => x < 50 ? "좌 햄스트링" : "우 햄스트링" },
 ];
 
 function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
