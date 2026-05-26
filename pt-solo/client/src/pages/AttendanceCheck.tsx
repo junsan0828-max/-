@@ -92,8 +92,6 @@ const BACK_RULES: ColorRule[] = [
   { hMin: 340, hMax: 10,  sMin: 35, yMax: 32, part: () => "승모근 중부" },
   // 승모근 하부 — red/salmon, 등 하단 (y 32~48%)
   { hMin: 340, hMax: 10,  sMin: 35, yMin: 32, yMax: 48, part: () => "승모근 하부" },
-  // 허리 — orange (hue 10~40), 중간 (y 33~62%)
-  { hMin: 10,  hMax: 40,  sMin: 45, yMin: 33, yMax: 62, part: () => "허리" },
   // 종아리 — orange, 하단 (y>62%)
   { hMin: 10,  hMax: 46,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
   // 골반 주변 — yellow (hue 40~73), 중하단 (y 45~70%)
@@ -102,8 +100,6 @@ const BACK_RULES: ColorRule[] = [
   { hMin: 73,  hMax: 148, sMin: 28, yMax: 45, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
   // 둔근 — lime green, 엉덩이 (y 45~73%)
   { hMin: 73,  hMax: 148, sMin: 28, yMin: 45, yMax: 73, part: () => "둔근" },
-  // 광배근 — teal/cyan, 등 중간 (y 18~42%)
-  { hMin: 148, hMax: 200, sMin: 40, yMin: 18, yMax: 42, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
   // 손목 — teal, 손목 레벨 (y 42~73%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 42, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
   // 발목 — teal, 발목 레벨 (y 80~90%)
