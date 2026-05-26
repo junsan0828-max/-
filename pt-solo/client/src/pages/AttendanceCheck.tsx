@@ -80,8 +80,10 @@ const FRONT_RULES: ColorRule[] = [
 ];
 
 const BACK_RULES: ColorRule[] = [
-  // 회전근개 — pink/salmon, 등 중앙 상체 (y<48%)
-  { hMin: 340, hMax: 20,  sMin: 35, yMax: 48, part: () => "회전근개" },
+  // 승모근 중부 — red/salmon, 등 상단 (y<32%)
+  { hMin: 340, hMax: 20,  sMin: 35, yMax: 32, part: () => "승모근 중부" },
+  // 승모근 하부 — red/salmon, 등 하단 (y 32~48%)
+  { hMin: 340, hMax: 20,  sMin: 35, yMin: 32, yMax: 48, part: () => "승모근 하부" },
   // 어깨(후) — orange, 상단 (y<33%)
   { hMin: 18,  hMax: 46,  sMin: 45, yMax: 33, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
   // 허리 — orange, 중간 (y 33~62%)
