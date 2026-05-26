@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { Search, ChevronRight, MapPin } from "lucide-react";
@@ -46,11 +46,28 @@ function StatsBar({ label, count, total, color }: { label: string; count: number
   );
 }
 
+const SESSION_KEY = "admin_members_filter";
+
+function loadFilter() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as { search: string; typeFilter: TypeFilter; branchFilter: number | null };
+  } catch {
+    return null;
+  }
+}
+
 export default function AdminMembers() {
   const [, setLocation] = useLocation();
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [branchFilter, setBranchFilter] = useState<number | null>(null);
+  const saved = loadFilter();
+  const [search, setSearch] = useState(saved?.search ?? "");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(saved?.typeFilter ?? "all");
+  const [branchFilter, setBranchFilter] = useState<number | null>(saved?.branchFilter ?? null);
+
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ search, typeFilter, branchFilter }));
+  }, [search, typeFilter, branchFilter]);
 
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: allMembers, isLoading } = trpc.members.listAll.useQuery(
