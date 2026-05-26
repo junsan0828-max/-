@@ -221,6 +221,22 @@ export default function LeadsPage() {
 
   // 바로등록 모달
   const [showDirectReg, setShowDirectReg] = useState(false);
+  const [showRegModeSelect, setShowRegModeSelect] = useState(false);
+  const [directRegMode, setDirectRegMode] = useState<null | "재등록">(null);
+  const [reRegSearch, setReRegSearch] = useState("");
+  const [reRegMemberId, setReRegMemberId] = useState<number | null>(null);
+  const defaultReRegForm = {
+    membershipStart: "", membershipEnd: "",
+    programTypes: [] as string[],
+    ptProgram: "", ptSessions: "", serviceSessions: "",
+    healthDuration: "" as string,
+    otherItem: "",
+    paymentAmount: "", unpaidAmount: "",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentDate: "", paymentMemo: "",
+    branchId: "" as string,
+  };
+  const [reRegForm, setReRegForm] = useState(defaultReRegForm);
   const defaultDirectForm = {
     name: "", phone: "", birthDate: "", gender: "" as "" | "male" | "female" | "other",
     grade: "basic" as "basic" | "vip", status: "active" as "active" | "paused",
@@ -251,6 +267,24 @@ export default function LeadsPage() {
       setDirectForm(defaultDirectForm);
     },
     onError: (e) => toast.error(e.message || "등록 실패"),
+  });
+
+  const { data: allMembersList } = trpc.members.list.useQuery();
+
+  const reRegUpdateMutation = trpc.members.update.useMutation({
+    onSuccess: () => {},
+    onError: (e) => toast.error(e.message || "회원 정보 업데이트 실패"),
+  });
+
+  const reRegAddPackageMutation = trpc.pt.addPackage.useMutation({
+    onSuccess: () => {
+      toast.success("재등록이 완료되었습니다.");
+      setDirectRegMode(null);
+      setReRegMemberId(null);
+      setReRegSearch("");
+      setReRegForm(defaultReRegForm);
+    },
+    onError: (e) => toast.error(e.message || "패키지 추가 실패"),
   });
 
   const createRevenueMutation = trpc.gym.revenue.create.useMutation({
@@ -478,7 +512,7 @@ export default function LeadsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setShowDirectReg(true); setDirectForm(defaultDirectForm); }}
+            onClick={() => setShowRegModeSelect(true)}
             className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium"
           >
             <UserCheck className="h-4 w-4" />

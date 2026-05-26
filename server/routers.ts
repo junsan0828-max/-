@@ -1317,6 +1317,15 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
+  deletePackage: protectedProcedure
+    .input(z.object({ packageId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(ptPackages).where(eq(ptPackages.id, input.packageId));
+      return { success: true };
+    }),
+
   // 정지 내역 추가
   addPause: protectedProcedure
     .input(z.object({ packageId: z.number(), memberId: z.number(), pauseStart: z.string(), pauseEnd: z.string().optional(), reason: z.string().optional() }))

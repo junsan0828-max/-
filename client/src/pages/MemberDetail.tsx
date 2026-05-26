@@ -546,6 +546,11 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "패키지 추가 실패"),
   });
 
+  const deletePackageMutation = trpc.pt.deletePackage.useMutation({
+    onSuccess: () => { toast.success("프로그램이 삭제되었습니다."); refetchPt(); },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
   const updatePackageMutation = trpc.pt.updatePackage.useMutation({
     onSuccess: () => {
       toast.success("패키지 정보가 수정되었습니다.");
@@ -1031,117 +1036,8 @@ export default function MemberDetail({ memberId }: Props) {
         {/* ── PT 프로그램 탭 ── */}
         <TabsContent value="pt" className="mt-4">
           <Card className="bg-card border-border">
-            <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6">
+            <CardHeader className="px-4 sm:px-6">
               <CardTitle className="text-base">PT 프로그램</CardTitle>
-              {/* 패키지 추가 다이얼로그 */}
-              <Dialog open={addPkgOpen} onOpenChange={setAddPkgOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="gap-1.5 text-xs">
-                    <Plus className="h-3.5 w-3.5" />
-                    프로그램 추가
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-sm">
-                  <DialogHeader>
-                    <DialogTitle>PT 프로그램 추가</DialogTitle>
-                    <DialogDescription>{member.name}님에게 새 PT 프로그램을 추가합니다.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">PT 프로그램</Label>
-                      <Input
-                        value={pkgForm.ptProgram}
-                        onChange={(e) => setPkgForm((p) => ({ ...p, ptProgram: e.target.value }))}
-                        placeholder="프로그램명 직접 입력"
-                        className="h-9 text-sm"
-                      />
-                      <div className="flex gap-1.5 flex-wrap">
-                        {["케어피티", "웨이트피티", "이벤트피티", "이벤트세션"].map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => setPkgForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
-                            className={`px-2.5 py-0.5 rounded-full text-xs border transition-colors ${
-                              pkgForm.ptProgram === preset
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "border-border text-muted-foreground hover:border-primary/40"
-                            }`}
-                          >
-                            {preset}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">총 횟수 <span className="text-primary">*</span></Label>
-                      <Input
-                        type="number" min="1" placeholder="20"
-                        value={pkgForm.totalSessions}
-                        onChange={(e) => setPkgForm((p) => ({ ...p, totalSessions: e.target.value }))}
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">시작일</Label>
-                        <Input type="date" value={pkgForm.startDate} onChange={(e) => setPkgForm((p) => ({ ...p, startDate: e.target.value }))} className="h-9 text-sm" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">만료일</Label>
-                        <Input type="date" value={pkgForm.expiryDate} onChange={(e) => setPkgForm((p) => ({ ...p, expiryDate: e.target.value }))} className="h-9 text-sm" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">결제 금액</Label>
-                        <Input type="number" min="0" placeholder="0" value={pkgForm.paymentAmount} onChange={(e) => setPkgForm((p) => ({ ...p, paymentAmount: e.target.value }))} className="h-9 text-sm" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">미수금</Label>
-                        <Input type="number" min="0" placeholder="0" value={pkgForm.unpaidAmount} onChange={(e) => setPkgForm((p) => ({ ...p, unpaidAmount: e.target.value }))} className="h-9 text-sm" />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">결제방법</Label>
-                      <Select value={pkgForm.paymentMethod} onValueChange={(v) => setPkgForm((p) => ({ ...p, paymentMethod: v as any }))}>
-                        <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="현금영수증">현금영수증</SelectItem>
-                          <SelectItem value="이체">이체</SelectItem>
-                          <SelectItem value="지역화폐">지역화폐</SelectItem>
-                          <SelectItem value="카드">카드</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">결제 메모</Label>
-                      <Input placeholder="분납 등 메모" value={pkgForm.paymentMemo} onChange={(e) => setPkgForm((p) => ({ ...p, paymentMemo: e.target.value }))} className="h-9 text-sm" />
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                      <Button variant="outline" className="flex-1" onClick={() => setAddPkgOpen(false)}>취소</Button>
-                      <Button
-                        className="flex-1"
-                        disabled={!pkgForm.totalSessions || addPackageMutation.isPending}
-                        onClick={() =>
-                          addPackageMutation.mutate({
-                            memberId,
-                            ptProgram: pkgForm.ptProgram || undefined,
-                            totalSessions: parseInt(pkgForm.totalSessions),
-                            startDate: pkgForm.startDate || undefined,
-                            expiryDate: pkgForm.expiryDate || undefined,
-                            paymentAmount: pkgForm.paymentAmount ? parseInt(pkgForm.paymentAmount) : undefined,
-                            unpaidAmount: pkgForm.unpaidAmount ? parseInt(pkgForm.unpaidAmount) : undefined,
-                            paymentMethod: pkgForm.paymentMethod || undefined,
-                            paymentMemo: pkgForm.paymentMemo || undefined,
-                          })
-                        }
-                      >
-                        {addPackageMutation.isPending ? "추가 중..." : "추가"}
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
               {!ptPackages?.length ? (
@@ -1179,27 +1075,39 @@ export default function MemberDetail({ memberId }: Props) {
                               <p className="text-lg font-bold text-primary">{remaining}회</p>
                               <p className="text-xs text-muted-foreground">잔여 / {pkg.totalSessions}회</p>
                             </div>
-                            <button
-                              onClick={() => {
-                                setEditPkgForm({
-                                  packageId: pkg.id,
-                                  packageName: pkg.packageName ?? "",
-                                  totalSessions: String(pkg.totalSessions),
-                                  usedSessions: String(pkg.usedSessions),
-                                  startDate: pkg.startDate ?? "",
-                                  expiryDate: pkg.expiryDate ?? "",
-                                  paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
-                                  unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
-                                  paymentMethod: (pkg.paymentMethod ?? "") as any,
-                                  paymentDate: (pkg as any).paymentDate ?? "",
-                                  paymentMemo: pkg.paymentMemo ?? "",
-                                });
-                                setEditPkgOpen(true);
-                              }}
-                              className="text-xs text-primary underline hover:text-primary/70 transition-colors"
-                            >
-                              수정
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditPkgForm({
+                                    packageId: pkg.id,
+                                    packageName: pkg.packageName ?? "",
+                                    totalSessions: String(pkg.totalSessions),
+                                    usedSessions: String(pkg.usedSessions),
+                                    startDate: pkg.startDate ?? "",
+                                    expiryDate: pkg.expiryDate ?? "",
+                                    paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
+                                    unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
+                                    paymentMethod: (pkg.paymentMethod ?? "") as any,
+                                    paymentDate: (pkg as any).paymentDate ?? "",
+                                    paymentMemo: pkg.paymentMemo ?? "",
+                                  });
+                                  setEditPkgOpen(true);
+                                }}
+                                className="text-xs text-primary underline hover:text-primary/70 transition-colors"
+                              >
+                                수정
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`"${pkg.packageName || 'PT 프로그램'}" 프로그램을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+                                    deletePackageMutation.mutate({ packageId: pkg.id });
+                                  }
+                                }}
+                                className="text-xs text-red-400 underline hover:text-red-300 transition-colors"
+                              >
+                                삭제
+                              </button>
+                            </div>
                           </div>
                         </div>
 
