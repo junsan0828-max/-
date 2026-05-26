@@ -129,22 +129,40 @@ export default function AdminMembers() {
     return Array.from(map.values());
   }, [allMembers]);
 
-  const filtered = groupedMembers?.filter((group) => {
-    const m = group[0];
+  const filtered = useMemo(() => {
+    if (!groupedMembers) return [];
     const q = search.trim().toLowerCase();
-    const matchSearch =
-      !q ||
-      m.name.toLowerCase().includes(q) ||
-      group.some(g => (g.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, ""))) ||
-      group.some(g => (g.trainerName ?? "").toLowerCase().includes(q)) ||
-      group.some(g => (g.profileNote ?? "").toLowerCase().includes(q));
-    const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue));
-    // 기타(락커/운동복만 있는 회원)는 헬스 탭에서도 표시
-    const matchType = typeFilter === "all"
-      || mTypes.includes(typeFilter as any)
-      || (typeFilter === "헬스" && mTypes.every(t => t === "기타"));
-    return matchSearch && matchType;
-  });
+    const matched = groupedMembers.filter((group) => {
+      const m = group[0];
+      const matchSearch =
+        !q ||
+        m.name.toLowerCase().includes(q) ||
+        group.some(g => (g.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, ""))) ||
+        group.some(g => (g.trainerName ?? "").toLowerCase().includes(q)) ||
+        group.some(g => (g.profileNote ?? "").toLowerCase().includes(q));
+      const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue));
+      const matchType = typeFilter === "all"
+        || mTypes.includes(typeFilter as any)
+        || (typeFilter === "헬스" && mTypes.every(t => t === "기타"));
+      return matchSearch && matchType;
+    });
+    // 검색어가 있을 때: 이름 일치 → 연락처 일치 → 기타(트레이너/메모) 순으로 정렬
+    if (!q) return matched;
+    return [...matched].sort((a, b) => {
+      const aN = a[0].name.toLowerCase();
+      const bN = b[0].name.toLowerCase();
+      const aExact = aN === q;
+      const bExact = bN === q;
+      if (aExact !== bExact) return aExact ? -1 : 1;
+      const aName = aN.includes(q);
+      const bName = bN.includes(q);
+      if (aName !== bName) return aName ? -1 : 1;
+      const aPhone = a.some(g => (g.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, "")));
+      const bPhone = b.some(g => (g.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, "")));
+      if (aPhone !== bPhone) return aPhone ? -1 : 1;
+      return aN.localeCompare(bN, "ko");
+    });
+  }, [groupedMembers, search, typeFilter]);
 
   const BAR_COLORS = [
     "bg-blue-500", "bg-indigo-500", "bg-violet-500", "bg-purple-500", "bg-fuchsia-500", "bg-pink-500",
