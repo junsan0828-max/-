@@ -31,11 +31,11 @@ export default function TabBanner({ tabKey }: { tabKey: string }) {
       style={{ backgroundColor: banner.bgColor, height: heightStyle }}
     >
       <div className="flex-1 min-w-0">
-        <p className={`font-bold text-white leading-tight truncate ${
+        <p className={`font-bold text-white leading-tight line-clamp-2 ${
           (banner as any).textSize === "large" ? "text-lg" :
           (banner as any).textSize === "small" ? "text-xs" : "text-sm"
         }`}>{banner.text}</p>
-        {banner.subText && <p className="text-xs text-white/80 mt-0.5 truncate">{banner.subText}</p>}
+        {banner.subText && <p className="text-xs text-white/80 mt-0.5 line-clamp-2">{banner.subText}</p>}
       </div>
       {banner.link && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
     </div>

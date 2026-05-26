@@ -177,8 +177,8 @@ function TabBannerManager() {
               style={{ backgroundColor: current.bgColor }}
             >
               <div className="flex-1 min-w-0">
-                <p className={`font-bold text-white truncate ${current.textSize === "large" ? "text-lg" : current.textSize === "small" ? "text-xs" : "text-sm"}`}>{current.text}</p>
-                {current.subText && <p className="text-xs text-white/80 truncate">{current.subText}</p>}
+                <p className={`font-bold text-white line-clamp-2 leading-tight ${current.textSize === "large" ? "text-lg" : current.textSize === "small" ? "text-xs" : "text-sm"}`}>{current.text}</p>
+                {current.subText && <p className="text-xs text-white/80 mt-0.5 line-clamp-2">{current.subText}</p>}
               </div>
               {current.link && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
             </div>
@@ -285,8 +285,34 @@ function TabBannerManager() {
                 placeholder="서브 텍스트 (선택)"
                 className="bg-input border-border"
               />
+              {/* 프리셋 디자인 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">빠른 색상 선택</label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[
+                    { bg: "#2563eb", label: "블루" },
+                    { bg: "#7c3aed", label: "퍼플" },
+                    { bg: "#059669", label: "그린" },
+                    { bg: "#dc2626", label: "레드" },
+                    { bg: "#d97706", label: "오렌지" },
+                    { bg: "#0891b2", label: "시안" },
+                    { bg: "#be185d", label: "핑크" },
+                    { bg: "#1e293b", label: "다크" },
+                    { bg: "#374151", label: "그레이" },
+                    { bg: "#1a3a6e", label: "네이비" },
+                  ].map(p => (
+                    <button
+                      key={p.bg}
+                      title={p.label}
+                      onClick={() => setField(selectedTab, { bgColor: p.bg })}
+                      className={`h-8 rounded-lg border-2 transition-all ${current.bgColor === p.bg ? "border-white scale-110" : "border-transparent"}`}
+                      style={{ backgroundColor: p.bg }}
+                    />
+                  ))}
+                </div>
+              </div>
               <div className="flex items-center gap-3">
-                <label className="text-xs text-muted-foreground shrink-0">배경색</label>
+                <label className="text-xs text-muted-foreground shrink-0">직접 입력</label>
                 <input
                   type="color"
                   value={current.bgColor}
