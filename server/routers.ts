@@ -2549,6 +2549,41 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
+  // 지점 미배정 매출 목록 (revenue_entries.branchId NULL)
+  listUnassignedBranchRevenue: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+      throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) return [];
+    return db
+      .select({
+        id: revenueEntries.id,
+        customerName: revenueEntries.customerName,
+        type: revenueEntries.type,
+        subType: revenueEntries.subType,
+        paidAmount: revenueEntries.paidAmount,
+        paymentDate: revenueEntries.paymentDate,
+        trainerName: trainers.trainerName,
+      })
+      .from(revenueEntries)
+      .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
+      .where(isNull(revenueEntries.branchId))
+      .orderBy(desc(revenueEntries.paymentDate))
+      .limit(100);
+  }),
+
+  // 매출 건에 지점 배정
+  assignBranchToRevenue: protectedProcedure
+    .input(z.object({ revenueId: z.number(), branchId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(revenueEntries).set({ branchId: input.branchId }).where(eq(revenueEntries.id, input.revenueId));
+      return { success: true };
+    }),
+
   // 관리자 전체 통계
   getStats: protectedProcedure
     .input(z.object({ branchId: z.number().optional() }).optional())

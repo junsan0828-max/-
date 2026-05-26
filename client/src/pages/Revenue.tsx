@@ -68,7 +68,11 @@ function RevenueContent() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<RevForm>(defaultForm);
   const [filterType, setFilterType] = useState("");
-  const [branchFilter, setBranchFilter] = useState<number | null>(null);
+  const [branchFilter, setBranchFilter] = useState<number | null>(() => {
+    const saved = sessionStorage.getItem("revenue_default_branch");
+    if (saved) { sessionStorage.removeItem("revenue_default_branch"); return Number(saved); }
+    return null;
+  });
 
   const { data: me } = trpc.auth.me.useQuery();
   const isConsultant = me?.role === "consultant";
@@ -204,7 +208,7 @@ function RevenueContent() {
           <p className="text-xs text-muted-foreground">{isConsultant ? "오늘 입력한 매출 내역" : "매출 입력 및 분석"}</p>
         </div>
         <button
-          onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, paymentDate: new Date().toISOString().substring(0, 10) }); }}
+          onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, paymentDate: new Date().toISOString().substring(0, 10), branchId: branchFilter ?? undefined }); }}
           className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
         >
           <Plus className="h-4 w-4" />

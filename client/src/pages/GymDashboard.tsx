@@ -832,7 +832,12 @@ export default function GymDashboard() {
         ].map(item => (
           <button
             key={item.path}
-            onClick={() => setLocation(item.path)}
+            onClick={() => {
+              if (item.path === "/revenue" && branchFilter) {
+                sessionStorage.setItem("revenue_default_branch", String(branchFilter));
+              }
+              setLocation(item.path);
+            }}
             className={`border rounded-xl py-3 text-sm font-medium transition-colors hover:opacity-80 ${item.color}`}
           >
             {item.label}
