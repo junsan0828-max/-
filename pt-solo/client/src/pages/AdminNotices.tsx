@@ -11,7 +11,7 @@ type Notice = { id: number; title: string; content: string; isPinned: boolean; i
 const TAB_OPTIONS = [
   { key: "all",        label: "전체 (공통)" },
   { key: "dashboard",  label: "대시보드" },
-  { key: "pt",         label: "PT 관리" },
+  { key: "pt",         label: "수업 관리" },
   { key: "attendance", label: "출석 체크" },
   { key: "leads",      label: "상담관리" },
   { key: "profile",    label: "내 프로필" },

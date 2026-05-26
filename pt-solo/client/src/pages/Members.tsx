@@ -202,7 +202,7 @@ export default function Members() {
           },
           {
             key: "low_sessions" as SpecialFilter,
-            label: "PT 3회 이하",
+            label: "수업 3회 이하",
             count: counts.lowSessions,
             icon: <Dumbbell className="h-3.5 w-3.5" />,
             activeClass: "bg-primary/20 text-primary border-primary/40",

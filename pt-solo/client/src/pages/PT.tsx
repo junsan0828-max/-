@@ -160,7 +160,7 @@ function MembersTab() {
       <div className="grid grid-cols-2 gap-2">
         {[
           { key: "unpaid" as SpecialFilter, label: "미수금", count: counts.unpaid, icon: <AlertCircle className="h-3.5 w-3.5" />, activeClass: "bg-orange-500/20 text-orange-400 border-orange-500/40", inactiveClass: "text-orange-400/70 border-orange-500/20 hover:border-orange-500/40" },
-          { key: "low_sessions" as SpecialFilter, label: "PT 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" />, activeClass: "bg-primary/20 text-primary border-primary/40", inactiveClass: "text-primary/60 border-primary/20 hover:border-primary/40" },
+          { key: "low_sessions" as SpecialFilter, label: "수업 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" />, activeClass: "bg-primary/20 text-primary border-primary/40", inactiveClass: "text-primary/60 border-primary/20 hover:border-primary/40" },
           { key: "expiring" as SpecialFilter, label: "만료 임박 (7일)", count: counts.expiring, icon: <Clock className="h-3.5 w-3.5" />, activeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40", inactiveClass: "text-yellow-400/70 border-yellow-500/20 hover:border-yellow-500/40" },
           { key: "expired" as SpecialFilter, label: "만료됨", count: counts.expired, icon: <XCircle className="h-3.5 w-3.5" />, activeClass: "bg-red-500/20 text-red-400 border-red-500/40", inactiveClass: "text-red-400/70 border-red-500/20 hover:border-red-500/40" },
         ].map((f) => (
@@ -488,7 +488,7 @@ export default function PT() {
     <div className="space-y-4">
       <TabBanner tabKey="pt" />
       <div>
-        <h1 className="text-xl font-bold">PT 관리</h1>
+        <h1 className="text-xl font-bold">수업 관리</h1>
       </div>
 
       <div className="flex gap-1 bg-accent rounded-xl p-1">
@@ -498,7 +498,7 @@ export default function PT() {
             tab === "members" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          PT 회원 관리
+          수업 회원 관리
           <span className="ml-1.5 text-xs opacity-60">{members?.length ?? 0}</span>
         </button>
         <button
