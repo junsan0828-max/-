@@ -107,6 +107,7 @@ export default function AccessManagement() {
   const [deleteRangeTo, setDeleteRangeTo] = useState("");
   const [showBannerForm, setShowBannerForm] = useState(false);
   const [editingBanner, setEditingBanner] = useState<KioskBanner | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null | "uncat">(null);
   const [bannerForm, setBannerForm] = useState({
     title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", branchId: null as number | null,
   });
@@ -449,8 +450,11 @@ export default function AccessManagement() {
                   </div>
                 ) : (
                   <span
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium cursor-default"
-                    style={{ background: cat.color + "22", color: cat.color, border: `1px solid ${cat.color}44` }}
+                    onClick={() => setSelectedCategoryId(prev => prev === cat.id ? null : cat.id)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-all"
+                    style={selectedCategoryId === cat.id
+                      ? { background: cat.color + "55", color: cat.color, border: `2px solid ${cat.color}`, fontWeight: 700 }
+                      : { background: cat.color + "22", color: cat.color, border: `1px solid ${cat.color}44` }}
                   >
                     <span
                       className="w-2 h-2 rounded-full shrink-0"
@@ -563,7 +567,7 @@ export default function AccessManagement() {
           {/* 카테고리별 그룹 표시 */}
           {(() => {
             const displayLockers = lockers;
-            const grouped: { label: string; color?: string; catId: number | null; items: typeof displayLockers }[] = [
+            const allGrouped: { label: string; color?: string; catId: number | null; items: typeof displayLockers }[] = [
               ...categories.map((cat) => ({
                 label: cat.name,
                 color: cat.color,
@@ -577,6 +581,9 @@ export default function AccessManagement() {
                 items: displayLockers.filter((l) => !l.categoryId || !categories.find((c) => c.id === l.categoryId)),
               },
             ].filter((g) => g.items.length > 0);
+            const grouped = selectedCategoryId !== null
+              ? allGrouped.filter((g) => selectedCategoryId === "uncat" ? g.catId === null : g.catId === selectedCategoryId)
+              : allGrouped;
 
             if (grouped.length === 0) return (
               <div className="text-center py-10 text-muted-foreground text-sm">등록된 락커가 없습니다.</div>
