@@ -71,12 +71,14 @@ const FRONT_RULES: ColorRule[] = [
   { hMin: 200, hMax: 262, sMin: 25, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
   // 목/승모근 — purple, 최상단 (y<25%)
   { hMin: 262, hMax: 310, sMin: 25, yMax: 25, part: () => "목/승모근" },
-  // 어깨(삼각근) — purple, y 25~38%
-  { hMin: 262, hMax: 310, sMin: 25, yMin: 25, yMax: 38, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
-  // 팔(전완) — purple, y 38~62%
-  { hMin: 262, hMax: 310, sMin: 25, yMin: 38, yMax: 62, part: x => x < 50 ? "좌 팔" : "우 팔" },
-  // 사두근 — pink/magenta wrapping (hue 290-360 and 0-20), y>55%
-  { hMin: 290, hMax: 20,  sMin: 35, yMin: 55, part: x => x < 50 ? "좌 사두근" : "우 사두근" },
+  // 어깨(삼각근) — purple, y 25~30%만
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 25, yMax: 30, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
+  // 팔(전완) — purple, y 30~52%
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 30, yMax: 52, part: x => x < 50 ? "좌 팔" : "우 팔" },
+  // 사두근 — purple y 52~80% (허벅지)
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 52, yMax: 80, part: x => x < 50 ? "좌 사두근" : "우 사두근" },
+  // 사두근 — pink/magenta wrapping (hue 290-360 and 0-20), y>52%
+  { hMin: 290, hMax: 20,  sMin: 35, yMin: 52, part: x => x < 50 ? "좌 사두근" : "우 사두근" },
 ];
 
 const BACK_RULES: ColorRule[] = [
