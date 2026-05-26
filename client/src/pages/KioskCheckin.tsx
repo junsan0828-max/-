@@ -590,7 +590,7 @@ export default function KioskCheckin() {
                 style={{
                   height: 100,
                   fontSize: fs(28),
-                  background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
+                  background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#FACC15" : "#1c1c1c",
                   color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#444",
                   border: "none",
                   letterSpacing: "0.1em",
