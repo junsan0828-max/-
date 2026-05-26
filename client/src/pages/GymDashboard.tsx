@@ -312,11 +312,19 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
   kpi: any; onClose: () => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
-  const { data: entries } = trpc.gym.revenue.list.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
-  const { data: leads } = trpc.gym.leads.list.useQuery();
-  const { data: ptUnpaid } = trpc.pt.listUnpaid.useQuery();
+  const { data: entries, isLoading: revenueLoading } = trpc.gym.revenue.list.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: leads, isLoading: leadsLoading } = trpc.gym.leads.list.useQuery();
+  const { data: ptUnpaid, isLoading: unpaidLoading } = trpc.pt.listUnpaid.useQuery();
 
   if (!type) return null;
+
+  const needsRevenue = ["today", "month", "new", "renewal", "pt", "health"].includes(type);
+  const needsLeads = type === "conversion";
+  const needsUnpaid = type === "unpaid";
+  const isLoading =
+    (needsRevenue && revenueLoading) ||
+    (needsLeads && leadsLoading) ||
+    (needsUnpaid && unpaidLoading);
 
   const prefix = `${year}-${String(month).padStart(2, "0")}`;
 
@@ -441,18 +449,27 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-1">
-          {cfg.rows.length > 0 && cfg.rows.map((row, i) => (
-            <div key={i} className="flex justify-between items-start py-2 border-b border-border/40">
-              <div className="min-w-0 flex-1 pr-3">
-                <p className="text-sm font-medium truncate">{row.label}</p>
-                {row.sub && <p className="text-xs text-muted-foreground mt-0.5">{row.sub}</p>}
-              </div>
-              <p className="text-sm font-semibold text-foreground shrink-0">{row.value}</p>
-            </div>
-          ))}
-          {cfg.detail}
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-8">불러오는 중...</p>
+          ) : (
+            <>
+              {cfg.rows.length > 0 && cfg.rows.map((row, i) => (
+                <div key={i} className="flex justify-between items-start py-2 border-b border-border/40">
+                  <div className="min-w-0 flex-1 pr-3">
+                    <p className="text-sm font-medium truncate">{row.label}</p>
+                    {row.sub && <p className="text-xs text-muted-foreground mt-0.5">{row.sub}</p>}
+                  </div>
+                  <p className="text-sm font-semibold text-foreground shrink-0">{row.value}</p>
+                </div>
+              ))}
+              {cfg.rows.length === 0 && !cfg.detail && (
+                <p className="text-sm text-muted-foreground text-center py-8">내역이 없습니다</p>
+              )}
+              {cfg.detail}
+            </>
+          )}
         </div>
-        {showTotal && cfg.rows.length > 0 && (
+        {!isLoading && showTotal && cfg.rows.length > 0 && (
           <div className="px-5 py-3 border-t border-border flex justify-between items-center">
             <span className="text-sm font-semibold text-muted-foreground">합계</span>
             <span className="text-base font-bold text-primary">{total.toLocaleString()}원</span>
