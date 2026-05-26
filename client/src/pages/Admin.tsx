@@ -224,10 +224,13 @@ export default function Admin() {
   const { data: unassignedMembers, refetch: refetchUnassigned } = trpc.admin.listUnassignedMembers.useQuery(undefined, { enabled: !!user });
   const { data: unassignedRevenue, refetch: refetchUnassignedRevenue } = trpc.admin.listUnassignedRevenue.useQuery(undefined, { enabled: !!user });
   const { data: unclassifiedMembers, refetch: refetchUnclassified } = trpc.members.listUnclassified.useQuery();
+  const { data: unassignedBranchMembers, refetch: refetchUnassignedBranch } = trpc.admin.listUnassignedBranchMembers.useQuery(undefined, { enabled: isAdmin });
   const utils = trpc.useUtils();
 
   const [assigningMemberId, setAssigningMemberId] = useState<number | null>(null);
   const [assignMemberTrainerId, setAssignMemberTrainerId] = useState("");
+  const [assigningBranchMemberId, setAssigningBranchMemberId] = useState<number | null>(null);
+  const [assignBranchMemberBranchId, setAssignBranchMemberBranchId] = useState("");
   const [assigningRevenueId, setAssigningRevenueId] = useState<number | null>(null);
   const [assignRevenueTrainerId, setAssignRevenueTrainerId] = useState("");
 
@@ -365,6 +368,16 @@ export default function Admin() {
 
   const assignBranchMutation = trpc.members.assignBranch.useMutation({
     onSuccess: () => { toast.success("지점이 배정되었습니다."); refetchUnclassified(); },
+    onError: (err) => toast.error(err.message || "배정 실패"),
+  });
+
+  const assignBranchToMemberMutation = trpc.admin.assignBranchToMember.useMutation({
+    onSuccess: () => {
+      toast.success("지점이 배정되었습니다.");
+      setAssigningBranchMemberId(null);
+      setAssignBranchMemberBranchId("");
+      refetchUnassignedBranch();
+    },
     onError: (err) => toast.error(err.message || "배정 실패"),
   });
 
@@ -795,6 +808,68 @@ export default function Admin() {
                     </button>
                   ))}
                 </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 지점 미배정 회원 (members.branchId NULL) ── */}
+      {unassignedBranchMembers && unassignedBranchMembers.length > 0 && (
+        <Card className="bg-card border-orange-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-orange-400" />
+              <span className="text-orange-400">지점 미배정 회원</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{unassignedBranchMembers.length}명</span>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">지점이 배정되지 않은 회원입니다. 지점을 선택해 배정해주세요.</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unassignedBranchMembers.map((m) => (
+              <div key={m.id} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {m.phone ?? "연락처 없음"}
+                      {m.trainerName && ` · ${m.trainerName}`}
+                    </p>
+                  </div>
+                </div>
+                {assigningBranchMemberId === m.id ? (
+                  <div className="flex gap-2">
+                    <Select value={assignBranchMemberBranchId} onValueChange={setAssignBranchMemberBranchId}>
+                      <SelectTrigger className="h-8 text-xs flex-1">
+                        <SelectValue placeholder="지점 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branchList?.map((b) => (
+                          <SelectItem key={b.id} value={String(b.id)} className="text-xs">{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      disabled={!assignBranchMemberBranchId || assignBranchToMemberMutation.isPending}
+                      onClick={() => assignBranchToMemberMutation.mutate({ memberId: m.id, branchId: parseInt(assignBranchMemberBranchId) })}
+                    >
+                      배정
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setAssigningBranchMemberId(null); setAssignBranchMemberBranchId(""); }}>
+                      취소
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs h-7 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                    onClick={() => { setAssigningBranchMemberId(m.id); setAssignBranchMemberBranchId(""); }}
+                  >
+                    지점 배정
+                  </Button>
+                )}
               </div>
             ))}
           </CardContent>

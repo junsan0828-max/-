@@ -2410,6 +2410,44 @@ const adminRouter = t.router({
     return withPt.filter((m) => m.remainingPt > 0);
   }),
 
+  // 지점 미배정 회원 목록 (members.branchId NULL)
+  listUnassignedBranchMembers: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+      throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) return [];
+
+    return db
+      .select({
+        id: members.id,
+        name: members.name,
+        phone: members.phone,
+        status: members.status,
+        trainerId: members.trainerId,
+        trainerName: trainers.trainerName,
+        createdAt: members.createdAt,
+      })
+      .from(members)
+      .leftJoin(trainers, eq(members.trainerId, trainers.id))
+      .where(isNull(members.branchId))
+      .orderBy(desc(members.createdAt));
+  }),
+
+  // 회원에 지점 배정 (members.branchId 업데이트)
+  assignBranchToMember: protectedProcedure
+    .input(z.object({ memberId: z.number(), branchId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      await db.update(members)
+        .set({ branchId: input.branchId })
+        .where(eq(members.id, input.memberId));
+      return { success: true };
+    }),
+
   // 트레이너 미배정 매출 건 목록 (revenue_entries.trainerId NULL)
   listUnassignedRevenue: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
