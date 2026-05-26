@@ -1,5 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, createContext, useContext } from "react";
 import { trpc } from "../lib/trpc";
+
+// ── 폰트 스케일 컨텍스트 ───────────────────────────────────────────────────
+const ScaleCtx = createContext(1);
+function useFs() {
+  const scale = useContext(ScaleCtx);
+  return (n: number) => Math.round(n * scale);
+}
 
 type Banner = {
   id: number;
@@ -61,12 +68,12 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((end.getTime() - today.getTime()) / 86400000);
 }
 
-// 전화번호 세그먼트: 입력된 숫자만 표시, 빈 자리 기호 없음
 function PhoneSegment({ value }: { value: string }) {
+  const fs = useFs();
   return (
     <div className="flex items-end gap-1" style={{ minWidth: 4 }}>
       {value.split("").map((d, i) => (
-        <span key={i} className="font-mono font-bold" style={{ fontSize: 40, color: "white", lineHeight: 1 }}>{d}</span>
+        <span key={i} className="font-mono font-bold" style={{ fontSize: fs(40), color: "white", lineHeight: 1 }}>{d}</span>
       ))}
     </div>
   );
@@ -74,26 +81,17 @@ function PhoneSegment({ value }: { value: string }) {
 
 // ZIANTGYM 로고 SVG — 바벨 + Z 구조 (|H-Z-H|)
 function ZiantLogo({ size = 36, color = "white" }: { size?: number; color?: string }) {
-  const w = Math.round(size * 2.75); // 220:80 비율
+  const w = Math.round(size * 2.75);
   return (
     <svg width={w} height={size} viewBox="0 0 220 80" fill="none">
-      {/* 왼쪽 외부 플레이트 */}
       <rect x="1" y="20" width="11" height="40" rx="3" fill={color}/>
-      {/* 왼쪽 H — 왼쪽 바 */}
       <rect x="18" y="10" width="14" height="60" rx="3" fill={color}/>
-      {/* 왼쪽 H — 오른쪽 바 */}
       <rect x="36" y="10" width="14" height="60" rx="3" fill={color}/>
-      {/* 왼쪽 H 크로스바 */}
       <rect x="18" y="33" width="32" height="14" fill={color}/>
-      {/* 중앙 Z 형태 — 평행한 두 대각선 엣지 (기울기 36/62) */}
       <polygon points="50,10 162,10 162,22 100,22 162,58 162,70 50,70 50,58 112,58 50,22" fill={color}/>
-      {/* 오른쪽 H — 왼쪽 바 */}
       <rect x="164" y="10" width="14" height="60" rx="3" fill={color}/>
-      {/* 오른쪽 H — 오른쪽 바 */}
       <rect x="182" y="10" width="14" height="60" rx="3" fill={color}/>
-      {/* 오른쪽 H 크로스바 */}
       <rect x="164" y="33" width="32" height="14" fill={color}/>
-      {/* 오른쪽 외부 플레이트 */}
       <rect x="208" y="20" width="11" height="40" rx="3" fill={color}/>
     </svg>
   );
@@ -101,6 +99,98 @@ function ZiantLogo({ size = 36, color = "white" }: { size?: number; color?: stri
 
 type KioskTab = "phone" | "number";
 type BottomNav = "home" | "locker" | "search" | "logs" | "more";
+
+// ── 글씨 크기 설정 패널 ────────────────────────────────────────────────────
+function FontSettingsPanel({ scale, onChange, onClose }: {
+  scale: number;
+  onChange: (v: number) => void;
+  onClose: () => void;
+}) {
+  const presets = [
+    { label: "작게", value: 0.7 },
+    { label: "보통", value: 1.0 },
+    { label: "크게", value: 1.3 },
+    { label: "매우 크게", value: 1.6 },
+  ];
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.85)" }}
+      onClick={onClose}
+    >
+      <div
+        className="flex flex-col gap-5 rounded-3xl"
+        style={{ background: "#181818", border: "1px solid #2a2a2a", padding: 32, minWidth: 320, maxWidth: "90vw" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <p style={{ fontSize: 20, fontWeight: 700, color: "white" }}>글씨 크기 설정</p>
+          <button onClick={onClose} style={{ color: "#666", fontSize: 22, background: "none", border: "none", cursor: "pointer", lineHeight: 1 }}>✕</button>
+        </div>
+
+        {/* 프리셋 버튼 */}
+        <div className="grid grid-cols-4 gap-2">
+          {presets.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => onChange(p.value)}
+              style={{
+                padding: "10px 0",
+                borderRadius: 12,
+                background: Math.abs(scale - p.value) < 0.05 ? "white" : "#252525",
+                color: Math.abs(scale - p.value) < 0.05 ? "#0d0d0d" : "#888",
+                border: "1px solid #333",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* +/- 미세 조절 */}
+        <div className="flex items-center justify-between gap-4">
+          <button
+            onClick={() => onChange(Math.round((scale - 0.1) * 10) / 10)}
+            disabled={scale <= 0.5}
+            style={{
+              width: 56, height: 56, borderRadius: 14, fontSize: 28, fontWeight: 300,
+              background: "#252525", border: "1px solid #333", color: scale <= 0.5 ? "#333" : "white", cursor: "pointer",
+            }}
+          >−</button>
+          <div className="flex-1 text-center">
+            <p style={{ fontSize: 32, fontWeight: 800, color: "white", lineHeight: 1 }}>{Math.round(scale * 100)}%</p>
+            <p style={{ fontSize: 11, color: "#555", marginTop: 4 }}>기본값: 100%</p>
+          </div>
+          <button
+            onClick={() => onChange(Math.round((scale + 0.1) * 10) / 10)}
+            disabled={scale >= 2.5}
+            style={{
+              width: 56, height: 56, borderRadius: 14, fontSize: 28, fontWeight: 300,
+              background: "#252525", border: "1px solid #333", color: scale >= 2.5 ? "#333" : "white", cursor: "pointer",
+            }}
+          >+</button>
+        </div>
+
+        {/* 미리보기 */}
+        <div style={{ padding: "14px 16px", borderRadius: 14, background: "#111", border: "1px solid #1e1e1e" }}>
+          <p style={{ fontSize: 11, color: "#444", marginBottom: 8 }}>미리보기</p>
+          <p style={{ fontSize: Math.round(24 * scale), color: "white", fontWeight: 700, lineHeight: 1.3 }}>홍길동님</p>
+          <p style={{ fontSize: Math.round(14 * scale), color: "#555", marginTop: 4 }}>2025.01.01 (수) · 헬스 이용권</p>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{ padding: "14px 0", borderRadius: 14, background: "white", color: "#0d0d0d", fontSize: 15, fontWeight: 700, border: "none", cursor: "pointer" }}
+        >
+          적용
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function KioskCheckin() {
   const branchId = (() => {
@@ -118,12 +208,36 @@ export default function KioskCheckin() {
   const bannerTouchX = useRef<number | null>(null);
   const now = useClock();
 
-  // 키오스크 전용 manifest로 교체 → 홈 화면 추가 시 /kiosk로 열림
+  // 글씨 크기 설정
+  const [fontScale, setFontScale] = useState<number>(() => {
+    try { const s = localStorage.getItem("kiosk_font_scale"); return s ? parseFloat(s) : 1; } catch { return 1; }
+  });
+  const [showFontSettings, setShowFontSettings] = useState(false);
+  const fs = (n: number) => Math.round(n * fontScale);
+  const updateScale = (v: number) => {
+    const clamped = Math.max(0.5, Math.min(2.5, Math.round(v * 10) / 10));
+    setFontScale(clamped);
+    try { localStorage.setItem("kiosk_font_scale", String(clamped)); } catch {}
+  };
+
+  // 설정 버튼 5회 탭 카운터
+  const settingsTapRef = useRef(0);
+  const settingsTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSettingsTap = () => {
+    settingsTapRef.current += 1;
+    if (settingsTapTimer.current) clearTimeout(settingsTapTimer.current);
+    if (settingsTapRef.current >= 3) {
+      settingsTapRef.current = 0;
+      setShowFontSettings(true);
+    } else {
+      settingsTapTimer.current = setTimeout(() => { settingsTapRef.current = 0; }, 1500);
+    }
+  };
+
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     const prev = link?.href ?? "";
     if (link) link.href = "/manifest-kiosk.json";
-    // iOS apple-mobile-web-app-title 도 변경
     const appleMeta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
     const prevTitle = appleMeta?.content ?? "";
     if (appleMeta) appleMeta.content = "키오스크";
@@ -188,7 +302,6 @@ export default function KioskCheckin() {
       const r = (data as any).result;
       if (r === "success") playSound("success");
       else if (r === "not_found" || r === "expired") playSound("fail");
-      // ambiguous(이름 선택)는 카운트다운 없이 대기
       if (r !== "ambiguous") setCountdown(20);
     },
     onError: (err) => {
@@ -233,7 +346,6 @@ export default function KioskCheckin() {
     setResult(null); setErrorMsg(null); setDigits(""); setCountdown(0);
   }, []);
 
-  // ── 안드로이드 뒤로 버튼 처리 ─────────────────────────────────────────────
   const backStateRef = useRef({ result, errorMsg, bottomNav });
   useEffect(() => { backStateRef.current = { result, errorMsg, bottomNav }; }, [result, errorMsg, bottomNav]);
 
@@ -264,308 +376,310 @@ export default function KioskCheckin() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handleKey, handleSubmit, handleClose, result, errorMsg]);
 
-  // 휴대폰번호 표시: 010 - XXXX - XXXX (미입력 자리는 빈칸)
   const a = digits.slice(0, 4);
   const b = digits.slice(4, 8);
-  const aDisplay = a.length > 0 ? a.padEnd(4, " ") : "    ";
-  const bDisplay = b.length > 0 ? b.padEnd(4, " ") : "    ";
-
-  // 출석번호 표시
-  const numBase = digits.slice(0, 4).padEnd(4, " ").split("").join(" ");
-  const numSuffix = digits.length > 4 ? ` - ${digits[4]}` : "";
-  const numDisplay = numBase + numSuffix;
 
   const showPopup = result !== null || errorMsg !== null;
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col overflow-hidden select-none"
-      style={{ background: "#0d0d0d", fontFamily: "'Apple SD Gothic Neo','Noto Sans KR',sans-serif", color: "white" }}
-    >
-      {/* ── 메인 컨텐츠 ── */}
-      {bottomNav === "home" && (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* ── 배너 캐러셀 ── */}
-          <div
-            className="relative overflow-hidden shrink-0"
-            style={{ height: "42vh" }}
-            onTouchStart={(e) => { bannerTouchX.current = e.touches[0].clientX; }}
-            onTouchEnd={(e) => {
-              if (bannerTouchX.current === null || banners.length <= 1) return;
-              const dx = e.changedTouches[0].clientX - bannerTouchX.current;
-              bannerTouchX.current = null;
-              if (Math.abs(dx) < 30) return;
-              setBannerIdx((i) => dx < 0 ? (i + 1) % banners.length : (i - 1 + banners.length) % banners.length);
-            }}
-          >
-            {banners.length === 0 ? (
-              /* 배너 없을 때 기본 안내 화면 */
-              <div
-                className="absolute inset-0 flex flex-col justify-center items-center px-8"
-                style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 100%)" }}
-              >
-                <p style={{ fontSize: 13, color: "#334155", letterSpacing: "0.5em", marginBottom: 18, textTransform: "uppercase", fontWeight: 600 }}>NOTICE</p>
-                <p style={{ fontSize: 34, fontWeight: 800, color: "#e2e8f0", textAlign: "center", lineHeight: 1.4, marginBottom: 14 }}>
-                  공지사항이 없습니다
-                </p>
-                <p style={{ fontSize: 15, color: "#475569", textAlign: "center", lineHeight: 1.8 }}>출입관리 → 배너 관리에서 공지를 등록하세요</p>
-              </div>
-            ) : (
-              banners.map((b, i) => (
-                <div
-                  key={b.id}
-                  className="absolute inset-0 flex flex-col transition-opacity duration-700"
-                  style={{
-                    opacity: i === bannerIdx ? 1 : 0,
-                    pointerEvents: i === bannerIdx ? "auto" : "none",
-                    background: b.imageUrl
-                      ? `linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%), url(${b.imageUrl}) center/cover no-repeat`
-                      : b.bgColor,
-                    justifyContent: b.textVAlign === "top" ? "flex-start" : b.textVAlign === "bottom" ? "flex-end" : "center",
-                    alignItems: b.textAlign === "left" ? "flex-start" : b.textAlign === "right" ? "flex-end" : "center",
-                    padding: 24,
-                    paddingBottom: 32,
-                  }}
-                >
-                  <div style={{ width: "100%" }}>
-                    <p
-                      className="font-bold leading-snug"
-                      style={{ fontSize: 22, color: b.textColor, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
-                    >
-                      {b.title}
-                    </p>
-                    {b.body && (
-                      <p
-                        className="mt-2 leading-relaxed whitespace-pre-line"
-                        style={{ fontSize: 15, color: b.textColor, opacity: 0.9, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
-                      >
-                        {b.body}
-                      </p>
-                    )}
-                  </div>
-                  {/* 하단 인디케이터 바 */}
-                  {banners.length > 1 && (
-                    <div className="absolute bottom-0 left-0 right-0 flex gap-1 px-3 pb-2">
-                      {banners.map((_, di) => (
-                        <button
-                          key={di}
-                          onClick={() => setBannerIdx(di)}
-                          style={{
-                            flex: 1, height: 3, borderRadius: 2, border: "none", padding: 0,
-                            background: di === bannerIdx ? b.textColor : "rgba(255,255,255,0.25)",
-                            transition: "background 0.3s",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-          {/* 헤더 */}
-          <div className="flex flex-col items-center pt-3 pb-3 relative" style={{ borderBottom: "1px solid #1c1c1c" }}>
-            <p style={{ fontSize: 30, fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.04em", textShadow: "0 0 18px rgba(42,95,196,0.45)", lineHeight: 1.2 }}>맞춤운동센터 자이언트짐</p>
-            <p style={{ fontSize: 11, color: "#374151", letterSpacing: "0.15em", marginTop: 4 }}>ACCESS SYSTEM</p>
-          </div>
+    <ScaleCtx.Provider value={fontScale}>
+      <div
+        className="fixed inset-0 flex flex-col overflow-hidden select-none"
+        style={{ background: "#0d0d0d", fontFamily: "'Apple SD Gothic Neo','Noto Sans KR',sans-serif", color: "white" }}
+      >
+        {/* 글씨 크기 설정 패널 */}
+        {showFontSettings && (
+          <FontSettingsPanel
+            scale={fontScale}
+            onChange={updateScale}
+            onClose={() => setShowFontSettings(false)}
+          />
+        )}
 
-          {/* 탭 */}
-          <div className="flex" style={{ borderBottom: "1px solid #1e1e1e" }}>
-            {([["number","출석번호"], ["phone","휴대폰번호"]] as [KioskTab,string][]).map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => { setActiveTab(id); setDigits(""); }}
-                className="flex-1 py-3 text-center text-sm transition-colors"
-                style={{
-                  color: activeTab === id ? "white" : "#555",
-                  borderBottom: activeTab === id ? "2px solid white" : "2px solid transparent",
-                  marginBottom: -1,
-                  fontWeight: activeTab === id ? 600 : 400,
-                  fontSize: 16,
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* 번호 표시 — 숫자만, 구분자 없음 */}
-          <div className="flex items-center justify-center py-3 gap-4">
-            {activeTab === "phone" ? (
-              <>
-                <span className="font-mono font-bold" style={{ fontSize: 40, color: "white" }}>010</span>
-                <PhoneSegment value={a} />
-                <PhoneSegment value={b} />
-              </>
-            ) : (
-              <div className="flex items-end justify-center gap-2">
-                <PhoneSegment value={digits.slice(0, 4)} />
-                {digits.length > 4 && (
-                  <span className="font-mono font-bold" style={{ fontSize: 40, color: "white" }}>{digits[4]}</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* 키패드 */}
-          <div className="flex-1 flex flex-col px-3 gap-1.5" style={{ minHeight: 0 }}>
+        {/* ── 메인 컨텐츠 ── */}
+        {bottomNav === "home" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* ── 배너 캐러셀 ── */}
             <div
-              className="grid gap-1.5 flex-1"
-              style={{ gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(4, 1fr)" }}
-            >
-              {["1","2","3","4","5","6","7","8","9","취소","0","del"].map((k) => {
-                const isAction = k === "취소" || k === "del";
-                return (
-                  <button
-                    key={k}
-                    onClick={() => k === "취소" ? handleKey("clear") : handleKey(k)}
-                    className="flex items-center justify-center rounded-2xl font-semibold transition-all active:scale-95"
-                    style={{
-                      background: isAction ? "#181818" : "#1c1c1c",
-                      border: "1px solid #2a2a2a",
-                      color: isAction ? "#666" : "white",
-                      fontSize: k === "취소" ? 17 : 32,
-                      WebkitTapHighlightColor: "transparent",
-                    }}
-                    onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#303030"; }}
-                    onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.background = isAction ? "#181818" : "#1c1c1c"; }}
-                  >
-                    {k === "del" ? (
-                      <svg width="28" height="22" viewBox="0 0 24 18" fill="none">
-                        <path d="M9 1H23V17H9L1 9L9 1Z" stroke="#666" strokeWidth="1.5"/>
-                        <line x1="11" y1="6" x2="17" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
-                        <line x1="17" y1="6" x2="11" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
-                    ) : k}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 출입하기 버튼 */}
-          <div className="px-4 pb-4 pt-2 shrink-0">
-            <button
-              onClick={handleSubmit}
-              disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 4) || checkIn.isPending}
-              className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
-              style={{
-                height: 100,
-                fontSize: 28,
-                background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
-                color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#444",
-                border: "none",
-                letterSpacing: "0.1em",
-                WebkitTapHighlightColor: "transparent",
+              className="relative overflow-hidden shrink-0"
+              style={{ height: "42vh" }}
+              onTouchStart={(e) => { bannerTouchX.current = e.touches[0].clientX; }}
+              onTouchEnd={(e) => {
+                if (bannerTouchX.current === null || banners.length <= 1) return;
+                const dx = e.changedTouches[0].clientX - bannerTouchX.current;
+                bannerTouchX.current = null;
+                if (Math.abs(dx) < 30) return;
+                setBannerIdx((i) => dx < 0 ? (i + 1) % banners.length : (i - 1 + banners.length) % banners.length);
               }}
             >
-              {checkIn.isPending ? "확인 중..." : (
-                <>
-                  출입하기
-                  <svg width="22" height="17" viewBox="0 0 22 17" fill="none">
-                    {(() => { const active = activeTab === "phone" ? digits.length === 8 : digits.length >= 4; return (<><line x1="0" y1="8.5" x2="19" y2="8.5" stroke={active ? "#0d0d0d" : "#444"} strokeWidth="2.5" strokeLinecap="round"/><polyline points="12,1 20,8.5 12,16" stroke={active ? "#0d0d0d" : "#444"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>); })()}
-                  </svg>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── 다른 탭 자리표시자 ── */}
-      {bottomNav !== "home" && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <p className="text-gray-600 text-sm">준비 중입니다</p>
-          <button onClick={() => setBottomNav("home")} className="text-white text-sm underline">홈으로</button>
-        </div>
-      )}
-
-      {/* 하단 네비게이션 숨김 (회원용 키오스크) */}
-
-      {/* ── 결과 팝업 — 중앙 70% 네모 ── */}
-      {showPopup && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.85)" }}
-          onClick={handleClose}
-        >
-          <div
-            className="relative flex flex-col overflow-hidden"
-            style={{
-              width: "88%",
-              height: "70vh",
-              background: "#141414",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 28,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 닫기 버튼 */}
-            <button
-              onClick={handleClose}
-              className="absolute top-4 right-4 z-10 flex items-center justify-center rounded-full"
-              style={{ width: 36, height: 36, background: "rgba(255,255,255,0.08)" }}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <line x1="1" y1="1" x2="11" y2="11" stroke="#aaa" strokeWidth="1.8" strokeLinecap="round"/>
-                <line x1="11" y1="1" x2="1" y2="11" stroke="#aaa" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
-            </button>
-
-            {/* 내용 (스크롤 가능) */}
-            <div className="flex-1 overflow-y-auto">
-              {errorMsg ? <ErrorCard msg={errorMsg} />
-                : result?.result === "ambiguous" ? (
-                  <AmbiguousCard
-                    candidates={result.candidates ?? []}
-                    onSelect={(id) => {
-                      setResult(null);
-                      checkIn.mutate({ memberId: id });
+              {banners.length === 0 ? (
+                <div
+                  className="absolute inset-0 flex flex-col justify-center items-center px-8"
+                  style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 100%)" }}
+                >
+                  <p style={{ fontSize: fs(13), color: "#334155", letterSpacing: "0.5em", marginBottom: 18, textTransform: "uppercase", fontWeight: 600 }}>NOTICE</p>
+                  <p style={{ fontSize: fs(34), fontWeight: 800, color: "#e2e8f0", textAlign: "center", lineHeight: 1.4, marginBottom: 14 }}>
+                    공지사항이 없습니다
+                  </p>
+                  <p style={{ fontSize: fs(15), color: "#475569", textAlign: "center", lineHeight: 1.8 }}>출입관리 → 배너 관리에서 공지를 등록하세요</p>
+                </div>
+              ) : (
+                banners.map((b, i) => (
+                  <div
+                    key={b.id}
+                    className="absolute inset-0 flex flex-col transition-opacity duration-700"
+                    style={{
+                      opacity: i === bannerIdx ? 1 : 0,
+                      pointerEvents: i === bannerIdx ? "auto" : "none",
+                      background: b.imageUrl
+                        ? `linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%), url(${b.imageUrl}) center/cover no-repeat`
+                        : b.bgColor,
+                      justifyContent: b.textVAlign === "top" ? "flex-start" : b.textVAlign === "bottom" ? "flex-end" : "center",
+                      alignItems: b.textAlign === "left" ? "flex-start" : b.textAlign === "right" ? "flex-end" : "center",
+                      padding: 24,
+                      paddingBottom: 32,
                     }}
-                    onCancel={handleClose}
-                  />
-                )
-                : result?.result === "not_found" ? <NotFoundCard />
-                : result?.result === "blocked" ? <BlockedCard name={result.member!.name} now={now} branchName={result.branchName} />
-                : result ? <MemberCard result={result} now={now} expired={result.result === "expired"} />
-                : null}
+                  >
+                    <div style={{ width: "100%" }}>
+                      <p
+                        className="font-bold leading-snug"
+                        style={{ fontSize: fs(22), color: b.textColor, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
+                      >
+                        {b.title}
+                      </p>
+                      {b.body && (
+                        <p
+                          className="mt-2 leading-relaxed whitespace-pre-line"
+                          style={{ fontSize: fs(15), color: b.textColor, opacity: 0.9, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
+                        >
+                          {b.body}
+                        </p>
+                      )}
+                    </div>
+                    {banners.length > 1 && (
+                      <div className="absolute bottom-0 left-0 right-0 flex gap-1 px-3 pb-2">
+                        {banners.map((_, di) => (
+                          <button
+                            key={di}
+                            onClick={() => setBannerIdx(di)}
+                            style={{
+                              flex: 1, height: 3, borderRadius: 2, border: "none", padding: 0,
+                              background: di === bannerIdx ? b.textColor : "rgba(255,255,255,0.25)",
+                              transition: "background 0.3s",
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
 
-            {/* 카운트다운 바 (하단 고정) */}
-            <div style={{ height: 4, background: "#1e1e1e", borderRadius: "0 0 28px 28px", flexShrink: 0 }}>
-              <div style={{ height: "100%", width: `${(countdown / 20) * 100}%`, background: "white", transition: "width 1s linear", borderRadius: "0 0 0 28px" }} />
+            {/* 헤더 */}
+            <div className="flex items-center pt-3 pb-3 relative px-4" style={{ borderBottom: "1px solid #1c1c1c" }}>
+              <div className="flex-1 flex flex-col items-center">
+                <p
+                  style={{ fontSize: fs(30), fontWeight: 900, color: "#2a5fc4", letterSpacing: "0.04em", textShadow: "0 0 18px rgba(42,95,196,0.45)", lineHeight: 1.2 }}
+                  onClick={handleSettingsTap}
+                >
+                  맞춤운동센터 자이언트짐
+                </p>
+                <p style={{ fontSize: fs(11), color: "#374151", letterSpacing: "0.15em", marginTop: 4 }}>ACCESS SYSTEM</p>
+              </div>
+              {/* 글씨 크기 설정 버튼 */}
+              <button
+                onClick={() => setShowFontSettings(true)}
+                style={{
+                  position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
+                  width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.05)",
+                  border: "1px solid #2a2a2a", color: "#444", fontSize: 16, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+                title="글씨 크기 설정"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="3" stroke="#555" strokeWidth="1.4"/>
+                  <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="#555" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* 탭 */}
+            <div className="flex" style={{ borderBottom: "1px solid #1e1e1e" }}>
+              {([["number","출석번호"], ["phone","휴대폰번호"]] as [KioskTab,string][]).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => { setActiveTab(id); setDigits(""); }}
+                  className="flex-1 py-3 text-center text-sm transition-colors"
+                  style={{
+                    color: activeTab === id ? "white" : "#555",
+                    borderBottom: activeTab === id ? "2px solid white" : "2px solid transparent",
+                    marginBottom: -1,
+                    fontWeight: activeTab === id ? 600 : 400,
+                    fontSize: fs(16),
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* 번호 표시 */}
+            <div className="flex items-center justify-center py-3 gap-4">
+              {activeTab === "phone" ? (
+                <>
+                  <span className="font-mono font-bold" style={{ fontSize: fs(40), color: "white" }}>010</span>
+                  <PhoneSegment value={a} />
+                  <PhoneSegment value={b} />
+                </>
+              ) : (
+                <div className="flex items-end justify-center gap-2">
+                  <PhoneSegment value={digits.slice(0, 4)} />
+                  {digits.length > 4 && (
+                    <span className="font-mono font-bold" style={{ fontSize: fs(40), color: "white" }}>{digits[4]}</span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 키패드 */}
+            <div className="flex-1 flex flex-col px-3 gap-1.5" style={{ minHeight: 0 }}>
+              <div
+                className="grid gap-1.5 flex-1"
+                style={{ gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "repeat(4, 1fr)" }}
+              >
+                {["1","2","3","4","5","6","7","8","9","취소","0","del"].map((k) => {
+                  const isAction = k === "취소" || k === "del";
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => k === "취소" ? handleKey("clear") : handleKey(k)}
+                      className="flex items-center justify-center rounded-2xl font-semibold transition-all active:scale-95"
+                      style={{
+                        background: isAction ? "#181818" : "#1c1c1c",
+                        border: "1px solid #2a2a2a",
+                        color: isAction ? "#666" : "white",
+                        fontSize: k === "취소" ? fs(17) : fs(32),
+                        WebkitTapHighlightColor: "transparent",
+                      }}
+                      onTouchStart={(e) => { (e.currentTarget as HTMLElement).style.background = "#303030"; }}
+                      onTouchEnd={(e) => { (e.currentTarget as HTMLElement).style.background = isAction ? "#181818" : "#1c1c1c"; }}
+                    >
+                      {k === "del" ? (
+                        <svg width="28" height="22" viewBox="0 0 24 18" fill="none">
+                          <path d="M9 1H23V17H9L1 9L9 1Z" stroke="#666" strokeWidth="1.5"/>
+                          <line x1="11" y1="6" x2="17" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
+                          <line x1="17" y1="6" x2="11" y2="12" stroke="#666" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                      ) : k}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 출입하기 버튼 */}
+            <div className="px-4 pb-4 pt-2 shrink-0">
+              <button
+                onClick={handleSubmit}
+                disabled={(activeTab === "phone" ? digits.length !== 8 : digits.length < 4) || checkIn.isPending}
+                className="w-full rounded-2xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+                style={{
+                  height: 100,
+                  fontSize: fs(28),
+                  background: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#ffffff" : "#1c1c1c",
+                  color: (activeTab === "phone" ? digits.length === 8 : digits.length >= 4) ? "#0d0d0d" : "#444",
+                  border: "none",
+                  letterSpacing: "0.1em",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {checkIn.isPending ? "확인 중..." : (
+                  <>
+                    출입하기
+                    <svg width="22" height="17" viewBox="0 0 22 17" fill="none">
+                      {(() => { const active = activeTab === "phone" ? digits.length === 8 : digits.length >= 4; return (<><line x1="0" y1="8.5" x2="19" y2="8.5" stroke={active ? "#0d0d0d" : "#444"} strokeWidth="2.5" strokeLinecap="round"/><polyline points="12,1 20,8.5 12,16" stroke={active ? "#0d0d0d" : "#444"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></>); })()}
+                    </svg>
+                  </>
+                )}
+              </button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
+        )}
 
-/* ── 하단 네비 아이콘 ── */
-function HomeIcon({ active }: { active: boolean }) {
-  const c = active ? "white" : "#555";
-  return <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M1 10L11 2L21 10V20C21 20.55 20.55 21 20 21H14V15H8V21H2C1.45 21 1 20.55 1 20V10Z" stroke={c} strokeWidth="1.5" fill="none"/></svg>;
-}
-function LockerIcon({ active }: { active: boolean }) {
-  const c = active ? "white" : "#555";
-  return <svg width="20" height="22" viewBox="0 0 20 22" fill="none"><rect x="1" y="6" width="18" height="15" rx="2" stroke={c} strokeWidth="1.5"/><path d="M6 6V4C6 2.34 7.34 1 9 1H11C12.66 1 14 2.34 14 4V6" stroke={c} strokeWidth="1.5" strokeLinecap="round"/><circle cx="10" cy="13.5" r="2" stroke={c} strokeWidth="1.5"/></svg>;
-}
-function SearchIcon({ active }: { active: boolean }) {
-  const c = active ? "white" : "#555";
-  return <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="9" cy="9" r="7" stroke={c} strokeWidth="1.5"/><line x1="14" y1="14" x2="21" y2="21" stroke={c} strokeWidth="1.5" strokeLinecap="round"/><circle cx="9" cy="7" r="2.5" stroke={c} strokeWidth="1"/><path d="M4 13C4 10.5 6.5 9 9 9C11.5 9 14 10.5 14 13" stroke={c} strokeWidth="1" strokeLinecap="round"/></svg>;
-}
-function LogIcon({ active }: { active: boolean }) {
-  const c = active ? "white" : "#555";
-  return <svg width="20" height="22" viewBox="0 0 20 22" fill="none"><rect x="1" y="1" width="18" height="20" rx="2" stroke={c} strokeWidth="1.5"/><line x1="5" y1="7" x2="15" y2="7" stroke={c} strokeWidth="1.2" strokeLinecap="round"/><line x1="5" y1="11" x2="15" y2="11" stroke={c} strokeWidth="1.2" strokeLinecap="round"/><line x1="5" y1="15" x2="10" y2="15" stroke={c} strokeWidth="1.2" strokeLinecap="round"/></svg>;
-}
-function MoreIcon({ active }: { active: boolean }) {
-  const c = active ? "white" : "#555";
-  return <svg width="22" height="6" viewBox="0 0 22 6" fill="none"><circle cx="3" cy="3" r="2" stroke={c} strokeWidth="1.5"/><circle cx="11" cy="3" r="2" stroke={c} strokeWidth="1.5"/><circle cx="19" cy="3" r="2" stroke={c} strokeWidth="1.5"/></svg>;
+        {/* ── 다른 탭 자리표시자 ── */}
+        {bottomNav !== "home" && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3">
+            <p className="text-gray-600 text-sm">준비 중입니다</p>
+            <button onClick={() => setBottomNav("home")} className="text-white text-sm underline">홈으로</button>
+          </div>
+        )}
+
+        {/* ── 결과 팝업 ── */}
+        {showPopup && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.85)" }}
+            onClick={handleClose}
+          >
+            <div
+              className="relative flex flex-col overflow-hidden"
+              style={{
+                width: "88%",
+                height: "70vh",
+                background: "#141414",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 28,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 닫기 버튼 */}
+              <button
+                onClick={handleClose}
+                className="absolute top-4 right-4 z-10 flex items-center justify-center rounded-full"
+                style={{ width: 36, height: 36, background: "rgba(255,255,255,0.08)" }}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <line x1="1" y1="1" x2="11" y2="11" stroke="#aaa" strokeWidth="1.8" strokeLinecap="round"/>
+                  <line x1="11" y1="1" x2="1" y2="11" stroke="#aaa" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </button>
+
+              {/* 내용 */}
+              <div className="flex-1 overflow-y-auto">
+                {errorMsg ? <ErrorCard msg={errorMsg} />
+                  : result?.result === "ambiguous" ? (
+                    <AmbiguousCard
+                      candidates={result.candidates ?? []}
+                      onSelect={(id) => {
+                        setResult(null);
+                        checkIn.mutate({ memberId: id });
+                      }}
+                      onCancel={handleClose}
+                    />
+                  )
+                  : result?.result === "not_found" ? <NotFoundCard />
+                  : result?.result === "blocked" ? <BlockedCard name={result.member!.name} now={now} branchName={result.branchName} />
+                  : result ? <MemberCard result={result} now={now} expired={result.result === "expired"} />
+                  : null}
+              </div>
+
+              {/* 카운트다운 바 */}
+              <div style={{ height: 4, background: "#1e1e1e", borderRadius: "0 0 28px 28px", flexShrink: 0 }}>
+                <div style={{ height: "100%", width: `${(countdown / 20) * 100}%`, background: "white", transition: "width 1s linear", borderRadius: "0 0 0 28px" }} />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </ScaleCtx.Provider>
+  );
 }
 
 /* ── 카드 컴포넌트 ── */
 function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>; now: Date; expired: boolean }) {
+  const fs = useFs();
   const m = result.member!;
   return (
     <div>
@@ -585,23 +699,23 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
           {/* 이름 + 날짜 */}
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-3 flex-wrap">
-              <p style={{ fontSize: 80, fontWeight: 800, color: "white", lineHeight: 1 }}>
-                {m.name}<span style={{ color: "#777", fontWeight: 400, fontSize: 52 }}>님</span>
+              <p style={{ fontSize: fs(80), fontWeight: 800, color: "white", lineHeight: 1 }}>
+                {m.name}<span style={{ color: "#777", fontWeight: 400, fontSize: fs(52) }}>님</span>
               </p>
               {result.branchName && (
-                <span style={{ fontSize: 26, padding: "4px 14px", borderRadius: 8, background: "rgba(255,255,255,0.1)", color: "#bbb", fontWeight: 500, whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: fs(26), padding: "4px 14px", borderRadius: 8, background: "rgba(255,255,255,0.1)", color: "#bbb", fontWeight: 500, whiteSpace: "nowrap" }}>
                   {result.branchName}
                 </span>
               )}
             </div>
-            <p style={{ color: "#555", fontSize: 32, marginTop: 4 }}>{fmtDate(now)} {fmtTime(now)}</p>
+            <p style={{ color: "#555", fontSize: fs(32), marginTop: 4 }}>{fmtDate(now)} {fmtTime(now)}</p>
           </div>
           {/* 입장 / 만료 뱃지 */}
           <div className="shrink-0">
             {expired ? (
-              <div style={{ minWidth: 120, height: 80, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "#ff4444", fontWeight: 800, background: "rgba(180,0,0,0.2)", borderRadius: 16, padding: "0 24px", border: "2px solid rgba(180,0,0,0.4)" }}>만료</div>
+              <div style={{ minWidth: 120, height: 80, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fs(36), color: "#ff4444", fontWeight: 800, background: "rgba(180,0,0,0.2)", borderRadius: 16, padding: "0 24px", border: "2px solid rgba(180,0,0,0.4)" }}>만료</div>
             ) : (
-              <div style={{ minWidth: 120, height: 80, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "#0d0d0d", fontWeight: 800, background: "#ffffff", borderRadius: 16, padding: "0 24px" }}>입장</div>
+              <div style={{ minWidth: 120, height: 80, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fs(36), color: "#0d0d0d", fontWeight: 800, background: "#ffffff", borderRadius: 16, padding: "0 24px" }}>입장</div>
             )}
           </div>
         </div>
@@ -611,7 +725,7 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
 
       {/* 회원권 */}
       <div className="px-6 py-5">
-        <p style={{ fontSize: 28, color: "#444", letterSpacing: "0.08em", marginBottom: 16, fontWeight: 600 }}>이용권</p>
+        <p style={{ fontSize: fs(28), color: "#444", letterSpacing: "0.08em", marginBottom: 16, fontWeight: 600 }}>이용권</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Row label="현재 회원권" value={m.membershipType ?? "-"} />
           {m.membershipEnd && (
@@ -636,7 +750,7 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
 
       {/* 락커 */}
       <div className="px-6 py-5">
-        <p style={{ fontSize: 28, color: "#444", letterSpacing: "0.08em", marginBottom: 16, fontWeight: 600 }}>락커</p>
+        <p style={{ fontSize: fs(28), color: "#444", letterSpacing: "0.08em", marginBottom: 16, fontWeight: 600 }}>락커</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Row
             label="개인 락커"
@@ -654,18 +768,20 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
 }
 
 function Row({ label, value, tag, tagColor }: { label: string; value: string; tag?: string; tagColor?: string }) {
+  const fs = useFs();
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #1a1a1a" }}>
-      <span style={{ color: "#777", fontSize: 36 }}>{label}</span>
+      <span style={{ color: "#777", fontSize: fs(36) }}>{label}</span>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ color: "white", fontSize: 40, fontWeight: 700 }}>{value}</span>
-        {tag && <span style={{ fontSize: 26, padding: "4px 14px", borderRadius: 8, background: tagColor ?? "#333", color: "white", fontWeight: 600 }}>{tag}</span>}
+        <span style={{ color: "white", fontSize: fs(40), fontWeight: 700 }}>{value}</span>
+        {tag && <span style={{ fontSize: fs(26), padding: "4px 14px", borderRadius: 8, background: tagColor ?? "#333", color: "white", fontWeight: 600 }}>{tag}</span>}
       </div>
     </div>
   );
 }
 
 function NotFoundCard() {
+  const fs = useFs();
   return (
     <div className="flex flex-col items-center py-12 px-6 text-center">
       <div className="flex items-center justify-center rounded-full mb-5" style={{ width: 72, height: 72, background: "#1c1c1c", border: "1px solid #2a2a2a" }}>
@@ -675,29 +791,31 @@ function NotFoundCard() {
           <line x1="20" y1="10" x2="10" y2="20" stroke="#555" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
       </div>
-      <p className="font-bold text-white" style={{ fontSize: 17 }}>등록된 회원을 찾을 수 없습니다</p>
-      <p style={{ color: "#555", fontSize: 13, marginTop: 6 }}>전화번호를 다시 확인해주세요</p>
+      <p className="font-bold text-white" style={{ fontSize: fs(17) }}>등록된 회원을 찾을 수 없습니다</p>
+      <p style={{ color: "#555", fontSize: fs(13), marginTop: 6 }}>전화번호를 다시 확인해주세요</p>
     </div>
   );
 }
 
 function BlockedCard({ name, now, branchName }: { name: string; now: Date; branchName?: string | null }) {
+  const fs = useFs();
   return (
     <div className="px-5 pt-5 pb-8">
       <div className="flex items-center gap-2">
-        <p style={{ fontSize: 20, fontWeight: 700 }}>{name}<span style={{ color: "#888", fontWeight: 400, fontSize: 16 }}>님</span></p>
-        {branchName && <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: "rgba(255,255,255,0.1)", color: "#aaa" }}>{branchName}</span>}
+        <p style={{ fontSize: fs(20), fontWeight: 700 }}>{name}<span style={{ color: "#888", fontWeight: 400, fontSize: fs(16) }}>님</span></p>
+        {branchName && <span style={{ fontSize: fs(11), padding: "2px 8px", borderRadius: 5, background: "rgba(255,255,255,0.1)", color: "#aaa" }}>{branchName}</span>}
       </div>
-      <p style={{ color: "#555", fontSize: 12, marginTop: 4, marginBottom: 20 }}>{fmtDate(now)} {fmtTime(now)}</p>
+      <p style={{ color: "#555", fontSize: fs(12), marginTop: 4, marginBottom: 20 }}>{fmtDate(now)} {fmtTime(now)}</p>
       <div className="rounded-2xl px-5 py-5 text-center" style={{ background: "rgba(140,0,0,0.15)", border: "1px solid rgba(160,0,0,0.3)" }}>
-        <p className="font-bold" style={{ color: "#ff4444", fontSize: 16 }}>출입이 제한된 회원입니다</p>
-        <p style={{ color: "#884444", fontSize: 13, marginTop: 6 }}>관리자에게 문의해주세요</p>
+        <p className="font-bold" style={{ color: "#ff4444", fontSize: fs(16) }}>출입이 제한된 회원입니다</p>
+        <p style={{ color: "#884444", fontSize: fs(13), marginTop: 6 }}>관리자에게 문의해주세요</p>
       </div>
     </div>
   );
 }
 
 function ErrorCard({ msg }: { msg: string }) {
+  const fs = useFs();
   return (
     <div className="flex flex-col items-center py-12 px-6 text-center">
       <div className="flex items-center justify-center rounded-full mb-5" style={{ width: 72, height: 72, background: "#1c1c1c" }}>
@@ -707,8 +825,8 @@ function ErrorCard({ msg }: { msg: string }) {
           <circle cx="15" cy="21" r="1.5" fill="#666"/>
         </svg>
       </div>
-      <p className="font-bold text-white" style={{ fontSize: 15 }}>오류가 발생했습니다</p>
-      <p style={{ color: "#555", fontSize: 12, marginTop: 6 }}>{msg}</p>
+      <p className="font-bold text-white" style={{ fontSize: fs(15) }}>오류가 발생했습니다</p>
+      <p style={{ color: "#555", fontSize: fs(12), marginTop: 6 }}>{msg}</p>
     </div>
   );
 }
@@ -722,6 +840,7 @@ function AmbiguousCard({
   onSelect: (id: number) => void;
   onCancel: () => void;
 }) {
+  const fs = useFs();
   return (
     <div className="px-5 pt-5 pb-6">
       <div className="flex flex-col items-center mb-6">
@@ -734,8 +853,8 @@ function AmbiguousCard({
             <path d="M2 25C2 18.5 24 18.5 24 25" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
         </div>
-        <p style={{ fontSize: 17, fontWeight: 700, color: "white" }}>본인 이름을 선택해주세요</p>
-        <p style={{ fontSize: 13, color: "#555", marginTop: 4 }}>동일한 출석번호를 가진 회원이 있습니다</p>
+        <p style={{ fontSize: fs(17), fontWeight: 700, color: "white" }}>본인 이름을 선택해주세요</p>
+        <p style={{ fontSize: fs(13), color: "#555", marginTop: 4 }}>동일한 출석번호를 가진 회원이 있습니다</p>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -746,7 +865,7 @@ function AmbiguousCard({
             className="w-full rounded-2xl font-bold transition-all active:scale-[0.98]"
             style={{
               height: 60,
-              fontSize: 18,
+              fontSize: fs(18),
               background: "#1c1c1c",
               border: "1px solid #2a2a2a",
               color: "white",
@@ -764,7 +883,7 @@ function AmbiguousCard({
           className="w-full rounded-2xl font-semibold transition-all active:scale-[0.98] mt-1"
           style={{
             height: 48,
-            fontSize: 14,
+            fontSize: fs(14),
             background: "transparent",
             border: "1px solid #2a2a2a",
             color: "#555",
