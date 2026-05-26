@@ -47,35 +47,65 @@ type ColorRule = {
 
 // 같은 색이 상/하체에 겹치는 경우 yMin/yMax로 구분
 const FRONT_RULES: ColorRule[] = [
-  { hMin: 340, hMax: 20,  sMin: 40, yMax: 55, part: () => "가슴" },
-  { hMin: 20,  hMax: 45,  sMin: 45, yMax: 35, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
-  { hMin: 20,  hMax: 45,  sMin: 45, yMin: 35, yMax: 65, part: () => "복근" },
-  { hMin: 20,  hMax: 45,  sMin: 45, yMin: 65, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
-  { hMin: 45,  hMax: 70,  sMin: 35, part: x => x < 50 ? "좌 복사근" : "우 복사근" },
-  { hMin: 70,  hMax: 155, sMin: 25, part: x => x < 50 ? "좌 이두/팔" : "우 이두/팔" },
-  { hMin: 155, hMax: 200, sMin: 40, yMax: 60, part: x => x < 50 ? "좌 손목" : "우 손목" },
-  { hMin: 155, hMax: 200, sMin: 40, yMin: 78, part: x => x < 50 ? "좌 발목" : "우 발목" },
-  { hMin: 200, hMax: 260, sMin: 25, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
-  { hMin: 260, hMax: 310, sMin: 25, yMax: 28, part: () => "목/승모근" },
-  { hMin: 260, hMax: 310, sMin: 25, yMin: 28, yMax: 65, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
-  { hMin: 260, hMax: 310, sMin: 25, yMin: 65, part: x => x < 50 ? "좌 정강이" : "우 정강이" },
-  { hMin: 310, hMax: 340, sMin: 35, part: x => x < 50 ? "좌 대퇴사두" : "우 대퇴사두" },
+  // 가슴 — red/salmon
+  { hMin: 340, hMax: 20,  sMin: 40, yMax: 58, part: () => "가슴" },
+  // 어깨 — orange, 상단만 (y<27%)
+  { hMin: 18,  hMax: 46,  sMin: 45, yMax: 27, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
+  // 복근 — orange, 중간 (y 27~62%)
+  { hMin: 18,  hMax: 46,  sMin: 45, yMin: 27, yMax: 62, part: () => "복근" },
+  // 정강이 — orange, 하단 (y>62%)
+  { hMin: 18,  hMax: 46,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 정강이" : "우 정강이" },
+  // 서혜부 — yellow (V자 아래, y>55%)
+  { hMin: 46,  hMax: 73,  sMin: 38, yMin: 55, part: () => "서혜부" },
+  // 이두근 — green, 상체 (y<53%)
+  { hMin: 73,  hMax: 148, sMin: 28, yMax: 53, part: x => x < 50 ? "좌 이두근" : "우 이두근" },
+  // 고관절 — lime/green, 엉덩이 옆 (y 53~73%)
+  { hMin: 73,  hMax: 148, sMin: 28, yMin: 53, yMax: 73, part: x => x < 50 ? "좌 고관절" : "우 고관절" },
+  // 전완근 — teal, 복부 옆 레벨 (y 35~58%) ← 손목 아님
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 35, yMax: 58, part: x => x < 50 ? "좌 전완근" : "우 전완근" },
+  // 손목 — teal, 손 레벨 (y 58~73%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 58, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
+  // 발목 — teal, 최하단 (y>88%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 88, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 무릎 — blue
+  { hMin: 200, hMax: 262, sMin: 25, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
+  // 목/승모근 — purple, 최상단 (y<28%)
+  { hMin: 262, hMax: 310, sMin: 25, yMax: 28, part: () => "목/승모근" },
+  // 전면 삼두근 없음 — purple 중간(y 28~58%)은 어깨(삼각근)로
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 28, yMax: 58, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
+  // 사두근 — pink/magenta + 하체 purple (y>60%), 삼두근 오인식 방지
+  { hMin: 290, hMax: 355, sMin: 35, yMin: 60, part: x => x < 50 ? "좌 사두근" : "우 사두근" },
 ];
 
 const BACK_RULES: ColorRule[] = [
-  { hMin: 340, hMax: 20,  sMin: 40, yMax: 45, part: () => "등 상부" },
-  { hMin: 20,  hMax: 45,  sMin: 45, yMax: 32, part: x => x < 50 ? "좌 어깨(후)" : "우 어깨(후)" },
-  { hMin: 20,  hMax: 45,  sMin: 45, yMin: 32, yMax: 62, part: () => "허리" },
-  { hMin: 20,  hMax: 45,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
-  { hMin: 45,  hMax: 70,  sMin: 35, part: () => "등 중부" },
-  { hMin: 70,  hMax: 155, sMin: 25, part: x => x < 50 ? "좌 팔(후)" : "우 팔(후)" },
-  { hMin: 155, hMax: 200, sMin: 40, yMax: 60, part: x => x < 50 ? "좌 손목" : "우 손목" },
-  { hMin: 155, hMax: 200, sMin: 40, yMin: 78, part: x => x < 50 ? "좌 발목" : "우 발목" },
-  { hMin: 200, hMax: 260, sMin: 25, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
-  { hMin: 260, hMax: 310, sMin: 25, yMax: 30, part: () => "목/승모근" },
-  { hMin: 260, hMax: 310, sMin: 25, yMin: 30, yMax: 65, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
-  { hMin: 260, hMax: 310, sMin: 25, yMin: 65, part: x => x < 50 ? "좌 종아리(후)" : "우 종아리(후)" },
-  { hMin: 310, hMax: 340, sMin: 35, part: x => x < 50 ? "좌 허벅지(후)" : "우 허벅지(후)" },
+  // 등 상부/승모근 — pink/salmon, 상체 중앙 (y<48%)
+  { hMin: 340, hMax: 20,  sMin: 35, yMax: 48, part: () => "등 상부" },
+  // 후면 어깨 — orange, 상단 (y<33%)
+  { hMin: 18,  hMax: 46,  sMin: 45, yMax: 33, part: x => x < 50 ? "좌 어깨(후)" : "우 어깨(후)" },
+  // 허리 — orange, 중간 (y 33~62%)
+  { hMin: 18,  hMax: 46,  sMin: 45, yMin: 33, yMax: 62, part: () => "허리" },
+  // 종아리 — orange, 하단 (y>62%)
+  { hMin: 18,  hMax: 46,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
+  // 고관절 — yellow/gold (y 50~70%)
+  { hMin: 46,  hMax: 73,  sMin: 35, yMin: 50, yMax: 70, part: x => x < 50 ? "좌 고관절" : "우 고관절" },
+  // 팔 — green, 상체 팔 (y<50%)
+  { hMin: 73,  hMax: 148, sMin: 28, yMax: 50, part: x => x < 50 ? "좌 팔" : "우 팔" },
+  // 둔근 — lime green, 엉덩이 (y 50~73%)
+  { hMin: 73,  hMax: 148, sMin: 28, yMin: 50, yMax: 73, part: () => "둔근" },
+  // 광배근 — teal/cyan, 등 중간 (y 18~58%) ← 청록=광배근!
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 18, yMax: 58, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
+  // 손목 — teal, 손목 레벨 (y 58~73%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 58, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
+  // 발목 — teal, 최하단 (y>88%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 88, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 무릎 — blue
+  { hMin: 200, hMax: 262, sMin: 25, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
+  // 목/승모근 — purple, 최상단 (y<22%)
+  { hMin: 262, hMax: 310, sMin: 25, yMax: 22, part: () => "목/승모근" },
+  // 삼두근 — purple, 팔 구간 (y 22~62%) ← 광배근 아님!
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 22, yMax: 62, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
+  // 햄스트링 — pink/magenta 하체 후면 (y 62~85%)
+  { hMin: 290, hMax: 355, sMin: 35, yMin: 62, yMax: 85, part: x => x < 50 ? "좌 햄스트링" : "우 햄스트링" },
 ];
 
 function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
