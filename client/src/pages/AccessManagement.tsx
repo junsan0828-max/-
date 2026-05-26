@@ -97,32 +97,31 @@ function formatTime(iso: string) {
 function KioskFontSettings() {
   const clamp = (v: number) => Math.max(0.5, Math.min(2.5, Math.round(v * 10) / 10));
   const read = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseFloat(s) : def; } catch { return def; } };
-  const [bannerScale, setBannerScaleState] = useState(() => read("kiosk_banner_scale", 1));
-  const [uiScale, setUiScaleState] = useState(() => read("kiosk_font_scale", 1));
+  const [bannerScale, setBannerScale] = useState(() => read("kiosk_banner_scale", 1));
+  const [uiScale, setUiScale] = useState(() => read("kiosk_font_scale", 1));
 
-  const setScale = (key: string, val: number, setter: (v: number) => void) => {
+  const save = (key: string, val: number, setter: (v: number) => void) => {
     const c = clamp(val);
     setter(c);
     try { localStorage.setItem(key, String(c)); } catch {}
   };
 
-  const Row = ({ label, scale, onChange }: { label: string; scale: number; onChange: (v: number) => void }) => (
-    <div className="flex items-center gap-3 flex-1">
-      <span className="text-xs text-muted-foreground w-24 shrink-0">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent disabled:opacity-30" disabled={scale <= 0.5} onClick={() => onChange(scale - 0.1)}>-</button>
-        <span className="w-12 text-center text-sm font-semibold">{Math.round(scale * 100)}%</span>
-        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent disabled:opacity-30" disabled={scale >= 2.5} onClick={() => onChange(scale + 0.1)}>+</button>
-      </div>
-    </div>
-  );
-
   return (
     <div className="border border-border rounded-xl p-4 bg-card">
-      <p className="text-sm font-semibold mb-3">키오스크 글씨 크기</p>
-      <div className="flex flex-col gap-2">
-        <Row label="배너 · 공지 영역" scale={bannerScale} onChange={(v) => setScale("kiosk_banner_scale", v, setBannerScaleState)} />
-        <Row label="출입 팝업 · 키패드" scale={uiScale} onChange={(v) => setScale("kiosk_font_scale", v, setUiScaleState)} />
+      <label className="text-xs text-muted-foreground mb-2 block">키오스크 글씨 크기</label>
+      <div className="flex gap-6">
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">배너</span>
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => save("kiosk_banner_scale", bannerScale - 0.1, setBannerScale)}>-</button>
+          <span className="w-14 text-center text-sm border border-border rounded bg-background py-1">{Math.round(bannerScale * 100)}%</span>
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => save("kiosk_banner_scale", bannerScale + 0.1, setBannerScale)}>+</button>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">팝업</span>
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => save("kiosk_font_scale", uiScale - 0.1, setUiScale)}>-</button>
+          <span className="w-14 text-center text-sm border border-border rounded bg-background py-1">{Math.round(uiScale * 100)}%</span>
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => save("kiosk_font_scale", uiScale + 0.1, setUiScale)}>+</button>
+        </div>
       </div>
       <p className="text-xs text-muted-foreground mt-2">키오스크 화면을 새로고침하면 적용됩니다.</p>
     </div>
