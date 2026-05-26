@@ -352,7 +352,7 @@ function LegacyBannerManager() {
   );
 }
 
-
+export default function AdminNotices() {
   const utils = trpc.useUtils();
   const { data: notices } = trpc.notices.listAll.useQuery();
 
