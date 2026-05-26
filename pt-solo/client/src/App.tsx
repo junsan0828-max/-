@@ -3,6 +3,7 @@ import { Component, type ReactNode } from "react";
 import { trpc } from "./lib/trpc";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Landing from "./pages/Landing";
 import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
@@ -125,6 +126,10 @@ function App() {
     return <Privacy />;
   }
 
+  if (window.location.pathname === "/landing") {
+    return <Landing />;
+  }
+
   // FIT STEP+ 회원앱 라우트 (트레이너 로그인 불필요)
   const fspTrainerId = fitStepParams?.trainerId ?? fitStepRootParams?.trainerId;
   if ((fitStepMatch || fitStepRootMatch) && fspTrainerId) {
@@ -139,7 +144,7 @@ function App() {
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
     if (window.location.pathname === "/login") return <Login />;
-    return <Login />;
+    return <Landing />;
   }
 
   return (
