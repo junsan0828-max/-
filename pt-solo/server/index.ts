@@ -371,6 +371,8 @@ async function initDatabase() {
     )`,
     `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "imageUrl" TEXT`,
     `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "bannerHeight" TEXT NOT NULL DEFAULT 'medium'`,
+    `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "textSize" TEXT NOT NULL DEFAULT 'medium'`,
+    `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "textAlign" TEXT NOT NULL DEFAULT 'left'`,
     `CREATE TABLE IF NOT EXISTS verification_codes (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,

@@ -67,6 +67,7 @@ const HEIGHT_OPTIONS = [
 type FieldState = {
   text: string; subText: string; link: string; bgColor: string;
   isActive: boolean; imageUrl: string; bannerHeight: string;
+  textSize: string; textAlign: string;
 };
 
 function TabBannerManager() {
@@ -92,6 +93,8 @@ function TabBannerManager() {
       isActive: row ? row.isActive === 1 : false,
       imageUrl: (row as any)?.imageUrl ?? "",
       bannerHeight: (row as any)?.bannerHeight ?? "medium",
+      textSize: (row as any)?.textSize ?? "medium",
+      textAlign: (row as any)?.textAlign ?? "left",
     };
   };
 
@@ -126,6 +129,8 @@ function TabBannerManager() {
       isActive: current.isActive,
       imageUrl: current.imageUrl || undefined,
       bannerHeight: current.bannerHeight,
+      textSize: current.textSize,
+      textAlign: current.textAlign,
     });
   };
 
@@ -165,9 +170,14 @@ function TabBannerManager() {
           {current.imageUrl ? (
             <img src={current.imageUrl} alt="미리보기" className="w-full h-full object-cover" />
           ) : current.text ? (
-            <div className="w-full h-full flex items-center gap-3 px-4" style={{ backgroundColor: current.bgColor }}>
+            <div
+              className={`w-full h-full flex items-center gap-3 px-4 ${
+                current.textAlign === "center" ? "justify-center text-center" : current.textAlign === "right" ? "justify-end text-right" : "justify-start text-left"
+              }`}
+              style={{ backgroundColor: current.bgColor }}
+            >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">{current.text}</p>
+                <p className={`font-bold text-white truncate ${current.textSize === "large" ? "text-lg" : current.textSize === "small" ? "text-xs" : "text-sm"}`}>{current.text}</p>
                 {current.subText && <p className="text-xs text-white/80 truncate">{current.subText}</p>}
               </div>
               {current.link && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
@@ -197,6 +207,32 @@ function TabBannerManager() {
                   }`}
                 >
                   {h.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 글씨 크기 */}
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">글씨 크기</label>
+            <div className="flex gap-2">
+              {[{ value: "small", label: "소" }, { value: "medium", label: "중" }, { value: "large", label: "대" }].map(o => (
+                <button key={o.value} onClick={() => setField(selectedTab, { textSize: o.value })}
+                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${current.textSize === o.value ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 글씨 위치 */}
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">글씨 위치</label>
+            <div className="flex gap-2">
+              {[{ value: "left", label: "왼쪽" }, { value: "center", label: "가운데" }, { value: "right", label: "오른쪽" }].map(o => (
+                <button key={o.value} onClick={() => setField(selectedTab, { textAlign: o.value })}
+                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${current.textAlign === o.value ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>
+                  {o.label}
                 </button>
               ))}
             </div>

@@ -24,11 +24,17 @@ export default function TabBanner({ tabKey }: { tabKey: string }) {
     />
   ) : (
     <div
-      className="flex items-center gap-3 px-4"
+      className={`flex items-center gap-3 px-4 ${
+        (banner as any).textAlign === "center" ? "justify-center text-center" :
+        (banner as any).textAlign === "right"  ? "justify-end text-right" : "justify-start text-left"
+      }`}
       style={{ backgroundColor: banner.bgColor, height: heightStyle }}
     >
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-white leading-tight truncate">{banner.text}</p>
+        <p className={`font-bold text-white leading-tight truncate ${
+          (banner as any).textSize === "large" ? "text-lg" :
+          (banner as any).textSize === "small" ? "text-xs" : "text-sm"
+        }`}>{banner.text}</p>
         {banner.subText && <p className="text-xs text-white/80 mt-0.5 truncate">{banner.subText}</p>}
       </div>
       {banner.link && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}

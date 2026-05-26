@@ -1604,9 +1604,9 @@ const bannerRouter = t.router({
 const TAB_KEYS = ["all", "dashboard", "pt", "attendance", "leads", "profile"] as const;
 type TabKey = typeof TAB_KEYS[number];
 
-type TabBannerRow = { id: number; tabKey: string; text: string; subText: string | null; link: string | null; bgColor: string; isActive: number; imageUrl: string | null; bannerHeight: string };
+type TabBannerRow = { id: number; tabKey: string; text: string; subText: string | null; link: string | null; bgColor: string; isActive: number; imageUrl: string | null; bannerHeight: string; textSize: string; textAlign: string };
 
-const TAB_BANNER_SELECT = `SELECT id, "tabKey", text, "subText", link, "bgColor", "isActive", "imageUrl", "bannerHeight" FROM tab_banners`;
+const TAB_BANNER_SELECT = `SELECT id, "tabKey", text, "subText", link, "bgColor", "isActive", "imageUrl", "bannerHeight", "textSize", "textAlign" FROM tab_banners`;
 
 const tabBannerRouter = t.router({
   getByTab: publicProcedure
@@ -1640,18 +1640,20 @@ const tabBannerRouter = t.router({
       isActive: z.boolean(),
       imageUrl: z.string().optional(),
       bannerHeight: z.string().default("medium"),
+      textSize: z.string().default("medium"),
+      textAlign: z.string().default("left"),
     }))
     .mutation(async ({ input }) => {
       const existing = await pool.query(`SELECT id FROM tab_banners WHERE "tabKey"=$1`, [input.tabKey]);
       if (existing.rows[0]) {
         await pool.query(
-          `UPDATE tab_banners SET text=$1, "subText"=$2, link=$3, "bgColor"=$4, "isActive"=$5, "imageUrl"=$6, "bannerHeight"=$7, "updatedAt"=now()::text WHERE "tabKey"=$8`,
-          [input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, input.imageUrl ?? null, input.bannerHeight, input.tabKey]
+          `UPDATE tab_banners SET text=$1, "subText"=$2, link=$3, "bgColor"=$4, "isActive"=$5, "imageUrl"=$6, "bannerHeight"=$7, "textSize"=$8, "textAlign"=$9, "updatedAt"=now()::text WHERE "tabKey"=$10`,
+          [input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, input.imageUrl ?? null, input.bannerHeight, input.textSize, input.textAlign, input.tabKey]
         );
       } else {
         await pool.query(
-          `INSERT INTO tab_banners ("tabKey", text, "subText", link, "bgColor", "isActive", "imageUrl", "bannerHeight") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [input.tabKey, input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, input.imageUrl ?? null, input.bannerHeight]
+          `INSERT INTO tab_banners ("tabKey", text, "subText", link, "bgColor", "isActive", "imageUrl", "bannerHeight", "textSize", "textAlign") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [input.tabKey, input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, input.imageUrl ?? null, input.bannerHeight, input.textSize, input.textAlign]
         );
       }
       return { success: true };
