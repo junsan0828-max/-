@@ -36,7 +36,15 @@ import {
   gymPlusVideos,
   gymPlusEvents,
   gymPlusWorkoutLogs,
+  gymPlusMessages,
+  gymPlusPushSubscriptions,
 } from "../drizzle/schema";
+import webpush from "web-push";
+
+const VAPID_PUBLIC = "BK_eYZuRk27SeTqaVTc1Ui5eK8fYjm_6CfLZfQK4L8eqhnqxhqA38lplk5Ez4064IN_3ag-kSTQkLxiuRn91-8E";
+const VAPID_PRIVATE = "Q-8EMtpbLdJf3VQqrfE4A8ZyBrtvVxfw4dp9h_31Ahc";
+
+webpush.setVapidDetails("mailto:admin@ziantgym.com", VAPID_PUBLIC, VAPID_PRIVATE);
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -4122,6 +4130,125 @@ const gymPlusRouter = t.router({
       await db.delete(gymPlusWorkoutLogs).where(eq(gymPlusWorkoutLogs.id, input.id));
       return { success: true };
     }),
+
+  // ── 메시지 관련 ─────────────────────────────────────────────────────────────
+
+  // 관리자/트레이너 → 특정 회원에게 메시지 전송
+  sendMessage: t.procedure
+    .input(z.object({ gymPlusMemberId: z.number(), title: z.string(), content: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 세션에서 발신자 이름 확인
+      const adminUser = (ctx.req.session as any).user as AuthUser | undefined;
+      if (!adminUser) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // 트레이너이면 트레이너 이름 사용
+      let senderName = adminUser.username;
+      if (adminUser.trainerId) {
+        const [tr] = await db.select({ trainerName: trainers.trainerName }).from(trainers).where(eq(trainers.id, adminUser.trainerId)).limit(1);
+        if (tr?.trainerName) senderName = tr.trainerName;
+      }
+
+      const [msg] = await db.insert(gymPlusMessages).values({
+        gymPlusMemberId: input.gymPlusMemberId,
+        senderName,
+        title: input.title,
+        content: input.content,
+        createdAt: new Date().toISOString(),
+      }).returning();
+
+      // 해당 회원 푸시 구독 조회 후 전송
+      const subs = await db.select().from(gymPlusPushSubscriptions).where(eq(gymPlusPushSubscriptions.gymPlusMemberId, input.gymPlusMemberId));
+      const payload = JSON.stringify({ title: `${senderName}: ${input.title}`, body: input.content, url: "/gym-plus/messages" });
+      for (const sub of subs) {
+        try {
+          await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload);
+        } catch (e: any) {
+          if (e.statusCode === 410 || e.statusCode === 404) {
+            await db.delete(gymPlusPushSubscriptions).where(eq(gymPlusPushSubscriptions.id, sub.id));
+          }
+        }
+      }
+      return { success: true, id: msg.id };
+    }),
+
+  // 회원 메시지 목록 조회
+  listMessages: publicProcedure.query(async ({ ctx }) => {
+    const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+    if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(gymPlusMessages)
+      .where(eq(gymPlusMessages.gymPlusMemberId, gymMemberId))
+      .orderBy(desc(gymPlusMessages.createdAt));
+  }),
+
+  // 메시지 읽음 처리
+  markMessageRead: publicProcedure
+    .input(z.object({ messageId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+      if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(gymPlusMessages).set({ isRead: 1 }).where(and(eq(gymPlusMessages.id, input.messageId), eq(gymPlusMessages.gymPlusMemberId, gymMemberId)));
+      return { success: true };
+    }),
+
+  // 읽지 않은 메시지 수
+  unreadMessageCount: publicProcedure.query(async ({ ctx }) => {
+    const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+    if (!gymMemberId) return 0;
+    const db = await getDb();
+    if (!db) return 0;
+    const [r] = await db.select({ count: sql<number>`count(*)` }).from(gymPlusMessages)
+      .where(and(eq(gymPlusMessages.gymPlusMemberId, gymMemberId), eq(gymPlusMessages.isRead, 0)));
+    return Number(r?.count ?? 0);
+  }),
+
+  // 푸시 구독 저장
+  savePushSubscription: publicProcedure
+    .input(z.object({ endpoint: z.string(), p256dh: z.string(), auth: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
+      if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 이미 같은 endpoint 있으면 업데이트
+      const [existing] = await db.select({ id: gymPlusPushSubscriptions.id }).from(gymPlusPushSubscriptions)
+        .where(and(eq(gymPlusPushSubscriptions.gymPlusMemberId, gymMemberId), eq(gymPlusPushSubscriptions.endpoint, input.endpoint)));
+      if (existing) {
+        await db.update(gymPlusPushSubscriptions).set({ p256dh: input.p256dh, auth: input.auth }).where(eq(gymPlusPushSubscriptions.id, existing.id));
+      } else {
+        await db.insert(gymPlusPushSubscriptions).values({ gymPlusMemberId: gymMemberId, ...input, createdAt: new Date().toISOString() });
+      }
+      return { success: true };
+    }),
+
+  // 관리자용 전체 회원에게 일괄 메시지
+  admin_sendBulkMessage: adminOnlyGymPlus
+    .input(z.object({ gymPlusMemberIds: z.array(z.number()), title: z.string(), content: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const adminUser = (ctx.req.session as any).user as AuthUser | undefined;
+      const senderName = adminUser?.username ?? "관리자";
+      const now = new Date().toISOString();
+      for (const memberId of input.gymPlusMemberIds) {
+        await db.insert(gymPlusMessages).values({ gymPlusMemberId: memberId, senderName, title: input.title, content: input.content, createdAt: now });
+        const subs = await db.select().from(gymPlusPushSubscriptions).where(eq(gymPlusPushSubscriptions.gymPlusMemberId, memberId));
+        const payload = JSON.stringify({ title: `${senderName}: ${input.title}`, body: input.content, url: "/gym-plus/messages" });
+        for (const sub of subs) {
+          try { await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload); } catch {}
+        }
+      }
+      return { count: input.gymPlusMemberIds.length };
+    }),
+
+  // 관리자용 VAPID 공개키 조회
+  getVapidPublicKey: publicProcedure.query(() => VAPID_PUBLIC),
 });
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({

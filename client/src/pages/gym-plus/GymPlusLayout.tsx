@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,44 @@ const navItems = [
   { path: "/gym-plus/videos", label: "운동영상", icon: "▶" },
   { path: "/gym-plus/events", label: "이벤트", icon: "★" },
   { path: "/gym-plus/workout", label: "운동기록", icon: "◎" },
+  { path: "/gym-plus/messages", label: "메시지", icon: "✉", badge: true },
   { path: "/gym-plus/profile", label: "내정보", icon: "◈" },
 ];
+
+async function registerPush() {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    const reg = await navigator.serviceWorker.register("/sw.js");
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+    // VAPID 공개키 가져오기
+    const vapidRes = await fetch("/trpc/gymPlus.getVapidPublicKey");
+    const vapidJson = await vapidRes.json();
+    const vapidKey = vapidJson?.result?.data;
+    if (!vapidKey) return;
+    const existing = await reg.pushManager.getSubscription();
+    let sub = existing;
+    if (!sub) {
+      const raw = vapidKey.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = raw.padEnd(raw.length + (4 - raw.length % 4) % 4, "=");
+      const keyBytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
+    }
+    const { endpoint, keys } = sub.toJSON() as any;
+    await fetch("/trpc/gymPlus.savePushSubscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ "0": { endpoint, p256dh: keys.p256dh, auth: keys.auth } }),
+    });
+  } catch {}
+}
 
 export default function GymPlusLayout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const { data: unreadCount } = trpc.gymPlus.unreadMessageCount.useQuery(undefined, { refetchInterval: 30000 });
+
+  useEffect(() => { registerPush(); }, []);
 
   const logoutMutation = trpc.gymPlus.memberLogout.useMutation({
     onSuccess: () => {
@@ -49,6 +81,7 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
         <div className="flex">
           {navItems.map((item) => {
             const isActive = location === item.path || (item.path !== "/gym-plus" && location.startsWith(item.path));
+            const showBadge = item.badge && unreadCount && unreadCount > 0;
             return (
               <button
                 key={item.path}
@@ -57,7 +90,14 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
                   isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                <span className="text-base leading-none">{item.icon}</span>
+                <span className="text-base leading-none relative">
+                  {item.icon}
+                  {showBadge && (
+                    <span className="absolute -top-1 -right-2 min-w-[14px] h-3.5 rounded-full bg-red-500 text-[9px] text-white flex items-center justify-center px-0.5">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </span>
                 <span className="text-[10px] leading-none">{item.label}</span>
               </button>
             );

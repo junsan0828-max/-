@@ -553,6 +553,25 @@ export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+export const gymPlusMessages = pgTable("gym_plus_messages", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  senderName: text("senderName").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  isRead: integer("isRead").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusPushSubscriptions = pgTable("gym_plus_push_subscriptions", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 // 양도양수 계약서
 export const transferContracts = pgTable("transfer_contracts", {
   id: serial("id").primaryKey(),

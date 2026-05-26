@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin } from "./gym-plus/GymPlusAdmin";
+import GymPlusMessageAdmin from "./gym-plus/GymPlusMessageAdmin";
 
-type Tab = "members" | "videos" | "events" | "logs";
+type Tab = "members" | "videos" | "events" | "logs" | "messages";
 
 const tabs: { key: Tab; label: string; icon: string }[] = [
   { key: "members", label: "회원관리", icon: "◎" },
   { key: "videos", label: "운동영상", icon: "▶" },
   { key: "events", label: "공지", icon: "★" },
   { key: "logs", label: "기록관리", icon: "≡" },
+  { key: "messages", label: "메시지", icon: "✉" },
 ];
 
 export default function GymPlusAdminPage() {
@@ -33,6 +35,7 @@ export default function GymPlusAdminPage() {
           {activeTab === "videos" && <GymPlusVideosAdmin />}
           {activeTab === "events" && <GymPlusEventsAdmin />}
           {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
+          {activeTab === "messages" && <GymPlusMessageAdmin />}
         </div>
       </main>
 
