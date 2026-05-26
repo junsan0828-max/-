@@ -320,19 +320,7 @@ const revenueRouter = t.router({
         result = result.filter(r => r.entry.paymentDate.startsWith(String(input.year)));
       }
       if (input?.trainerId) result = result.filter(r => r.entry.trainerId === input.trainerId);
-      if (input?.branchId) {
-        const [memberRows, trainerRows] = await Promise.all([
-          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
-          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
-        ]);
-        const branchMemberIds = new Set(memberRows.map(r => r.id));
-        const branchTrainerIds = new Set(trainerRows.map(r => r.id));
-        result = result.filter(r =>
-          r.entry.branchId === input.branchId ||
-          (!r.entry.branchId && r.entry.memberId != null && branchMemberIds.has(r.entry.memberId)) ||
-          (!r.entry.branchId && !r.entry.memberId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
-        );
-      }
+      if (input?.branchId) result = result.filter(r => r.entry.branchId === input.branchId);
       if (input?.type) result = result.filter(r => r.entry.type === input.type);
       if (input?.subType) result = result.filter(r => r.entry.subType === input.subType);
 
@@ -533,20 +521,9 @@ const revenueRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const rawEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${input.year}%`));
-      let allEntries = rawEntries;
-      if (input.branchId) {
-        const [memberRows, trainerRows] = await Promise.all([
-          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
-          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
-        ]);
-        const branchMemberIds = new Set(memberRows.map(r => r.id));
-        const branchTrainerIds = new Set(trainerRows.map(r => r.id));
-        allEntries = rawEntries.filter(r =>
-          r.branchId === input.branchId ||
-          (!r.branchId && r.memberId != null && branchMemberIds.has(r.memberId)) ||
-          (!r.branchId && !r.memberId && r.trainerId != null && branchTrainerIds.has(r.trainerId))
-        );
-      }
+      const allEntries = input.branchId
+        ? rawEntries.filter(r => r.branchId === input.branchId)
+        : rawEntries;
 
       const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
       for (let m = 1; m <= 12; m++) {
@@ -585,20 +562,7 @@ const revenueRouter = t.router({
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
         .where(like(revenueEntries.paymentDate, `${prefix}%`));
 
-      let rows = allRows;
-      if (input.branchId) {
-        const [memberRows, trainerRows] = await Promise.all([
-          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
-          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
-        ]);
-        const branchMemberIds = new Set(memberRows.map(r => r.id));
-        const branchTrainerIds = new Set(trainerRows.map(r => r.id));
-        rows = allRows.filter(r =>
-          r.entry.branchId === input.branchId ||
-          (!r.entry.branchId && r.entry.memberId != null && branchMemberIds.has(r.entry.memberId)) ||
-          (!r.entry.branchId && !r.entry.memberId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
-        );
-      }
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
       const byTrainer: Record<number, { trainerId: number; trainerName: string; total: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
       for (const row of rows) {
@@ -633,20 +597,7 @@ const revenueRouter = t.router({
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
         .where(like(revenueEntries.paymentDate, `${prefix}%`));
 
-      let rows = allRows;
-      if (input.branchId) {
-        const [memberRows, trainerRows] = await Promise.all([
-          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
-          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
-        ]);
-        const branchMemberIds = new Set(memberRows.map(r => r.id));
-        const branchTrainerIds = new Set(trainerRows.map(r => r.id));
-        rows = allRows.filter(r =>
-          r.entry.branchId === input.branchId ||
-          (!r.entry.branchId && r.entry.memberId != null && branchMemberIds.has(r.entry.memberId)) ||
-          (!r.entry.branchId && !r.entry.memberId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
-        );
-      }
+      const rows = input.branchId ? allRows.filter(r => r.entry.branchId === input.branchId) : allRows;
 
       const byChannel: Record<string, { channelId: number | null; channelName: string; total: number; count: number }> = {};
       for (const row of rows) {
@@ -932,28 +883,13 @@ const kpiRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      let branchMemberIdsForDetail: Set<number> | null = null;
-      let branchTrainerIdsForDetail: Set<number> | null = null;
-      if (input.branchId) {
-        const [memberRows, trainerRows] = await Promise.all([
-          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
-          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
-        ]);
-        branchMemberIdsForDetail = new Set(memberRows.map(r => r.id));
-        branchTrainerIdsForDetail = new Set(trainerRows.map(r => r.id));
-      }
-
       const [allRevenueRaw2, allExpensesRaw2] = await Promise.all([
         db.select().from(revenueEntries),
         db.select().from(expenseEntries),
       ]);
 
       const allRevenue = input.branchId
-        ? allRevenueRaw2.filter(r =>
-            r.branchId === input.branchId ||
-            (!r.branchId && r.memberId != null && branchMemberIdsForDetail!.has(r.memberId)) ||
-            (!r.branchId && !r.memberId && r.trainerId != null && branchTrainerIdsForDetail!.has(r.trainerId))
-          )
+        ? allRevenueRaw2.filter(r => r.branchId === input.branchId)
         : allRevenueRaw2;
       const allExpenses = input.branchId
         ? allExpensesRaw2.filter(e => e.branchId === input.branchId)
@@ -1033,17 +969,6 @@ const kpiRouter = t.router({
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
 
       // 지점 필터: 명시적 branchId 매칭 + branchId 없는 항목은 트레이너 소속 지점으로 판단
-      let branchMemberIds: Set<number> | null = null;
-      let branchTrainerIds: Set<number> | null = null;
-      if (input.branchId) {
-        const [memberRows, trainerRows] = await Promise.all([
-          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
-          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
-        ]);
-        branchMemberIds = new Set(memberRows.map(r => r.id));
-        branchTrainerIds = new Set(trainerRows.map(r => r.id));
-      }
-
       const [allRevenueRaw, allExpensesRaw, allLeads, allTargets] = await Promise.all([
         db.select().from(revenueEntries),
         db.select().from(expenseEntries),
@@ -1052,11 +977,7 @@ const kpiRouter = t.router({
       ]);
 
       const allRevenue = input.branchId
-        ? allRevenueRaw.filter(r =>
-            r.branchId === input.branchId ||
-            (!r.branchId && r.memberId != null && branchMemberIds!.has(r.memberId)) ||
-            (!r.branchId && !r.memberId && r.trainerId != null && branchTrainerIds!.has(r.trainerId))
-          )
+        ? allRevenueRaw.filter(r => r.branchId === input.branchId)
         : allRevenueRaw;
 
       const allExpenses = input.branchId
