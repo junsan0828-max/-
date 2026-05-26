@@ -66,8 +66,10 @@ const FRONT_RULES: ColorRule[] = [
   { hMin: 148, hMax: 200, sMin: 40, yMin: 35, yMax: 58, part: x => x < 50 ? "좌 전완근" : "우 전완근" },
   // 손목 — teal, 손 레벨 (y 58~73%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 58, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
-  // 발목/발 — teal, 최하단 (y>80%)
-  { hMin: 148, hMax: 200, sMin: 40, yMin: 80, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 발목 — teal, 발목 레벨 (y 80~90%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 발바닥 — 최하단 전체 (y>90%)
+  { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발바닥" : "우 발바닥" },
   // 목/승모근 — purple, 최상단 (y<25%)
   { hMin: 262, hMax: 310, sMin: 25, yMax: 25, part: () => "목/승모근" },
   // 어깨(삼각근) — purple, y 25~30%만
@@ -103,8 +105,10 @@ const BACK_RULES: ColorRule[] = [
   { hMin: 148, hMax: 200, sMin: 40, yMin: 18, yMax: 58, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
   // 손목 — teal, 손목 레벨 (y 58~73%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 58, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
-  // 발목/발 — teal, 최하단 (y>80%)
-  { hMin: 148, hMax: 200, sMin: 40, yMin: 80, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 발목 — teal, 발목 레벨 (y 80~90%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 발바닥 — 최하단 전체 (y>90%)
+  { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발바닥" : "우 발바닥" },
   // 오금 — blue, 다리 뒷편 (y 62~82%)
   { hMin: 200, hMax: 262, sMin: 25, yMin: 62, yMax: 82, part: x => x < 50 ? "좌 오금" : "우 오금" },
   // 목/승모근 — purple, 최상단 (y<22%)
