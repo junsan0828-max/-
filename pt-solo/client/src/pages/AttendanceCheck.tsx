@@ -70,12 +70,11 @@ function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v:
 
       {/* 이미지 + 그리드 오버레이 */}
       <div className="relative rounded-xl border border-border overflow-hidden">
-        {/* 이미지를 절반씩 잘라서 표시 (body-map.png: 좌=전면, 우=후면) */}
+        {/* 이미지 — 전면/후면 별도 파일 */}
         <div className="overflow-hidden">
           <img
-            src="/body-map.png"
-            className="block w-[200%]"
-            style={{ marginLeft: view === "front" ? "0" : "-100%" }}
+            src={view === "front" ? "/body-front.png" : "/body-back.png"}
+            className="block w-full"
             draggable={false}
             alt="신체 부위"
           />
