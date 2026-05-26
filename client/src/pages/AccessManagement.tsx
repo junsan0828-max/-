@@ -94,6 +94,41 @@ function formatTime(iso: string) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
 
+function KioskFontSettings() {
+  const clamp = (v: number) => Math.max(0.5, Math.min(2.5, Math.round(v * 10) / 10));
+  const read = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseFloat(s) : def; } catch { return def; } };
+  const [bannerScale, setBannerScaleState] = useState(() => read("kiosk_banner_scale", 1));
+  const [uiScale, setUiScaleState] = useState(() => read("kiosk_font_scale", 1));
+
+  const setScale = (key: string, val: number, setter: (v: number) => void) => {
+    const c = clamp(val);
+    setter(c);
+    try { localStorage.setItem(key, String(c)); } catch {}
+  };
+
+  const Row = ({ label, scale, onChange }: { label: string; scale: number; onChange: (v: number) => void }) => (
+    <div className="flex items-center gap-3 flex-1">
+      <span className="text-xs text-muted-foreground w-24 shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent disabled:opacity-30" disabled={scale <= 0.5} onClick={() => onChange(scale - 0.1)}>-</button>
+        <span className="w-12 text-center text-sm font-semibold">{Math.round(scale * 100)}%</span>
+        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent disabled:opacity-30" disabled={scale >= 2.5} onClick={() => onChange(scale + 0.1)}>+</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="border border-border rounded-xl p-4 bg-card">
+      <p className="text-sm font-semibold mb-3">키오스크 글씨 크기</p>
+      <div className="flex flex-col gap-2">
+        <Row label="배너 · 공지 영역" scale={bannerScale} onChange={(v) => setScale("kiosk_banner_scale", v, setBannerScaleState)} />
+        <Row label="출입 팝업 · 키패드" scale={uiScale} onChange={(v) => setScale("kiosk_font_scale", v, setUiScaleState)} />
+      </div>
+      <p className="text-xs text-muted-foreground mt-2">키오스크 화면을 새로고침하면 적용됩니다.</p>
+    </div>
+  );
+}
+
 export default function AccessManagement() {
   const [tab, setTab] = useState<"logs" | "lockers" | "banners">("logs");
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
@@ -637,6 +672,8 @@ export default function AccessManagement() {
       {/* 배너 관리 */}
       {tab === "banners" && (
         <div className="space-y-3">
+          {/* 키오스크 글씨 크기 설정 */}
+          <KioskFontSettings />
           <div className="flex justify-between items-center">
             <p className="text-sm text-muted-foreground">
               키오스크 상단에 표시되는 이벤트/공지 배너입니다.
@@ -690,7 +727,7 @@ export default function AccessManagement() {
                   <label className="text-xs text-muted-foreground mb-1 block">이미지</label>
                   {/* 파일 직접 업로드 (수정 모드에서만) */}
                   {editingBanner ? (
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2">
                       <label className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background cursor-pointer hover:bg-muted transition-colors">
                         <Image className="h-4 w-4" />
                         {uploadingImage ? "업로드 중..." : "파일 업로드"}
@@ -731,25 +768,10 @@ export default function AccessManagement() {
                           이미지 삭제
                         </button>
                       )}
-                      <span className="text-xs text-muted-foreground">또는 URL 직접 입력 ↓</span>
                     </div>
                   ) : (
-                    <p className="text-xs text-amber-500 mb-2">파일 업로드는 배너 저장 후 수정 화면에서 가능합니다</p>
+                    <p className="text-xs text-amber-500">파일 업로드는 배너 저장 후 수정 화면에서 가능합니다</p>
                   )}
-                  <input
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    placeholder="이미지 URL 또는 HTML/BBCode 코드 붙여넣기"
-                    value={bannerForm.imageUrl}
-                    onChange={(e) => {
-                      let val = e.target.value;
-                      const htmlMatch = val.match(/src=["']([^"']+)["']/);
-                      if (htmlMatch) val = htmlMatch[1];
-                      const bbMatch = val.match(/\[img\](https?:\/\/[^\[]+)\[\/img\]/i);
-                      if (bbMatch) val = bbMatch[1];
-                      setBannerForm((f) => ({ ...f, imageUrl: val }));
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">imgbb.com → "HTML 원본 이미지 링크" 또는 "BBCode" 코드 그대로 붙여넣어도 됩니다</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">배경색 (이미지 없을 때)</label>
@@ -783,27 +805,7 @@ export default function AccessManagement() {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-2 block">글씨 크기</label>
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-1">제목</p>
-                      <div className="flex items-center gap-1">
-                        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, titleFontSize: Math.max(10, f.titleFontSize - 1) }))}>-</button>
-                        <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={10} max={60} value={bannerForm.titleFontSize} onChange={(e) => setBannerForm((f) => ({ ...f, titleFontSize: Number(e.target.value) }))} />
-                        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, titleFontSize: Math.min(60, f.titleFontSize + 1) }))}>+</button>
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground mb-1">내용</p>
-                      <div className="flex items-center gap-1">
-                        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, bodyFontSize: Math.max(10, f.bodyFontSize - 1) }))}>-</button>
-                        <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={10} max={60} value={bannerForm.bodyFontSize} onChange={(e) => setBannerForm((f) => ({ ...f, bodyFontSize: Number(e.target.value) }))} />
-                        <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, bodyFontSize: Math.min(60, f.bodyFontSize + 1) }))}>+</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* 노출 시작일 + 종료일 같은 줄 */}
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">노출 시작일 (선택)</label>
                   <input type="date" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
@@ -817,6 +819,24 @@ export default function AccessManagement() {
                     value={bannerForm.endDate}
                     onChange={(e) => setBannerForm((f) => ({ ...f, endDate: e.target.value }))}
                   />
+                </div>
+                {/* 글씨 크기 */}
+                <div className="col-span-2">
+                  <label className="text-xs text-muted-foreground mb-2 block">글씨 크기</label>
+                  <div className="flex gap-6">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground w-6">제목</span>
+                      <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, titleFontSize: Math.max(10, f.titleFontSize - 1) }))}>-</button>
+                      <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={10} max={60} value={bannerForm.titleFontSize} onChange={(e) => setBannerForm((f) => ({ ...f, titleFontSize: Number(e.target.value) }))} />
+                      <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, titleFontSize: Math.min(60, f.titleFontSize + 1) }))}>+</button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground w-6">내용</span>
+                      <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, bodyFontSize: Math.max(10, f.bodyFontSize - 1) }))}>-</button>
+                      <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={10} max={60} value={bannerForm.bodyFontSize} onChange={(e) => setBannerForm((f) => ({ ...f, bodyFontSize: Number(e.target.value) }))} />
+                      <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, bodyFontSize: Math.min(60, f.bodyFontSize + 1) }))}>+</button>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">순서</label>
