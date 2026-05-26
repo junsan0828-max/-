@@ -321,18 +321,16 @@ const revenueRouter = t.router({
       }
       if (input?.trainerId) result = result.filter(r => r.entry.trainerId === input.trainerId);
       if (input?.branchId) {
-        // KPI overview와 동일한 로직: 명시적 branchId 매칭 + branchId 없는 항목은 트레이너 소속으로 판단
-        const [tbRows, trainerPrimaryRows] = await Promise.all([
-          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+        const [memberRows, trainerRows] = await Promise.all([
+          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
           db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
         ]);
-        const branchTrainerIds = new Set([
-          ...tbRows.map(r => r.trainerId),
-          ...trainerPrimaryRows.map(r => r.id),
-        ]);
+        const branchMemberIds = new Set(memberRows.map(r => r.id));
+        const branchTrainerIds = new Set(trainerRows.map(r => r.id));
         result = result.filter(r =>
           r.entry.branchId === input.branchId ||
-          (!r.entry.branchId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
+          (!r.entry.branchId && r.entry.memberId != null && branchMemberIds.has(r.entry.memberId)) ||
+          (!r.entry.branchId && !r.entry.memberId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
         );
       }
       if (input?.type) result = result.filter(r => r.entry.type === input.type);
@@ -537,14 +535,16 @@ const revenueRouter = t.router({
       const rawEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${input.year}%`));
       let allEntries = rawEntries;
       if (input.branchId) {
-        const [tbRows, trainerPrimaryRows] = await Promise.all([
-          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+        const [memberRows, trainerRows] = await Promise.all([
+          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
           db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
         ]);
-        const branchTrainerIds = new Set([...tbRows.map(r => r.trainerId), ...trainerPrimaryRows.map(r => r.id)]);
+        const branchMemberIds = new Set(memberRows.map(r => r.id));
+        const branchTrainerIds = new Set(trainerRows.map(r => r.id));
         allEntries = rawEntries.filter(r =>
           r.branchId === input.branchId ||
-          (!r.branchId && r.trainerId != null && branchTrainerIds.has(r.trainerId))
+          (!r.branchId && r.memberId != null && branchMemberIds.has(r.memberId)) ||
+          (!r.branchId && !r.memberId && r.trainerId != null && branchTrainerIds.has(r.trainerId))
         );
       }
 
@@ -587,14 +587,16 @@ const revenueRouter = t.router({
 
       let rows = allRows;
       if (input.branchId) {
-        const [tbRows, trainerPrimaryRows] = await Promise.all([
-          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+        const [memberRows, trainerRows] = await Promise.all([
+          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
           db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
         ]);
-        const branchTrainerIds = new Set([...tbRows.map(r => r.trainerId), ...trainerPrimaryRows.map(r => r.id)]);
+        const branchMemberIds = new Set(memberRows.map(r => r.id));
+        const branchTrainerIds = new Set(trainerRows.map(r => r.id));
         rows = allRows.filter(r =>
           r.entry.branchId === input.branchId ||
-          (!r.entry.branchId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
+          (!r.entry.branchId && r.entry.memberId != null && branchMemberIds.has(r.entry.memberId)) ||
+          (!r.entry.branchId && !r.entry.memberId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
         );
       }
 
@@ -633,14 +635,16 @@ const revenueRouter = t.router({
 
       let rows = allRows;
       if (input.branchId) {
-        const [tbRows, trainerPrimaryRows] = await Promise.all([
-          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+        const [memberRows, trainerRows] = await Promise.all([
+          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
           db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
         ]);
-        const branchTrainerIds = new Set([...tbRows.map(r => r.trainerId), ...trainerPrimaryRows.map(r => r.id)]);
+        const branchMemberIds = new Set(memberRows.map(r => r.id));
+        const branchTrainerIds = new Set(trainerRows.map(r => r.id));
         rows = allRows.filter(r =>
           r.entry.branchId === input.branchId ||
-          (!r.entry.branchId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
+          (!r.entry.branchId && r.entry.memberId != null && branchMemberIds.has(r.entry.memberId)) ||
+          (!r.entry.branchId && !r.entry.memberId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
         );
       }
 
@@ -928,16 +932,15 @@ const kpiRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      let branchMemberIdsForDetail: Set<number> | null = null;
       let branchTrainerIdsForDetail: Set<number> | null = null;
       if (input.branchId) {
-        const [tbRows, trainerPrimaryRows] = await Promise.all([
-          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+        const [memberRows, trainerRows] = await Promise.all([
+          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
           db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
         ]);
-        branchTrainerIdsForDetail = new Set([
-          ...tbRows.map(r => r.trainerId),
-          ...trainerPrimaryRows.map(r => r.id),
-        ]);
+        branchMemberIdsForDetail = new Set(memberRows.map(r => r.id));
+        branchTrainerIdsForDetail = new Set(trainerRows.map(r => r.id));
       }
 
       const [allRevenueRaw2, allExpensesRaw2] = await Promise.all([
@@ -948,7 +951,8 @@ const kpiRouter = t.router({
       const allRevenue = input.branchId
         ? allRevenueRaw2.filter(r =>
             r.branchId === input.branchId ||
-            (!r.branchId && r.trainerId != null && branchTrainerIdsForDetail!.has(r.trainerId))
+            (!r.branchId && r.memberId != null && branchMemberIdsForDetail!.has(r.memberId)) ||
+            (!r.branchId && !r.memberId && r.trainerId != null && branchTrainerIdsForDetail!.has(r.trainerId))
           )
         : allRevenueRaw2;
       const allExpenses = input.branchId
@@ -1029,16 +1033,15 @@ const kpiRouter = t.router({
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
 
       // 지점 필터: 명시적 branchId 매칭 + branchId 없는 항목은 트레이너 소속 지점으로 판단
+      let branchMemberIds: Set<number> | null = null;
       let branchTrainerIds: Set<number> | null = null;
       if (input.branchId) {
-        const [tbRows, trainerPrimaryRows] = await Promise.all([
-          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+        const [memberRows, trainerRows] = await Promise.all([
+          db.select({ id: members.id }).from(members).where(eq(members.branchId, input.branchId)),
           db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
         ]);
-        branchTrainerIds = new Set([
-          ...tbRows.map(r => r.trainerId),
-          ...trainerPrimaryRows.map(r => r.id),
-        ]);
+        branchMemberIds = new Set(memberRows.map(r => r.id));
+        branchTrainerIds = new Set(trainerRows.map(r => r.id));
       }
 
       const [allRevenueRaw, allExpensesRaw, allLeads, allTargets] = await Promise.all([
@@ -1051,7 +1054,8 @@ const kpiRouter = t.router({
       const allRevenue = input.branchId
         ? allRevenueRaw.filter(r =>
             r.branchId === input.branchId ||
-            (!r.branchId && r.trainerId != null && branchTrainerIds!.has(r.trainerId))
+            (!r.branchId && r.memberId != null && branchMemberIds!.has(r.memberId)) ||
+            (!r.branchId && !r.memberId && r.trainerId != null && branchTrainerIds!.has(r.trainerId))
           )
         : allRevenueRaw;
 
