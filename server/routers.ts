@@ -2584,6 +2584,17 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
+  bulkAssignBranchToRevenue: protectedProcedure
+    .input(z.object({ revenueIds: z.array(z.number()), branchId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(revenueEntries).set({ branchId: input.branchId }).where(inArray(revenueEntries.id, input.revenueIds));
+      return { count: input.revenueIds.length };
+    }),
+
   // 관리자 전체 통계
   getStats: protectedProcedure
     .input(z.object({ branchId: z.number().optional() }).optional())

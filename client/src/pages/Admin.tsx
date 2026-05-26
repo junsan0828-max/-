@@ -232,8 +232,8 @@ export default function Admin() {
   const [assignMemberTrainerId, setAssignMemberTrainerId] = useState("");
   const [assigningBranchMemberId, setAssigningBranchMemberId] = useState<number | null>(null);
   const [assignBranchMemberBranchId, setAssignBranchMemberBranchId] = useState("");
-  const [assigningBranchRevenueId, setAssigningBranchRevenueId] = useState<number | null>(null);
-  const [assignBranchRevenueBranchId, setAssignBranchRevenueBranchId] = useState("");
+  const [selectedRevenueIds, setSelectedRevenueIds] = useState<Set<number>>(new Set());
+  const [bulkRevenueBranchId, setBulkRevenueBranchId] = useState("");
   const [assigningRevenueId, setAssigningRevenueId] = useState<number | null>(null);
   const [assignRevenueTrainerId, setAssignRevenueTrainerId] = useState("");
 
@@ -384,11 +384,11 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "배정 실패"),
   });
 
-  const assignBranchToRevenueMutation = trpc.admin.assignBranchToRevenue.useMutation({
-    onSuccess: () => {
-      toast.success("지점이 배정되었습니다.");
-      setAssigningBranchRevenueId(null);
-      setAssignBranchRevenueBranchId("");
+  const bulkAssignBranchToRevenueMutation = trpc.admin.bulkAssignBranchToRevenue.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.count}건에 지점이 배정되었습니다.`);
+      setSelectedRevenueIds(new Set());
+      setBulkRevenueBranchId("");
       refetchUnassignedBranchRevenue();
     },
     onError: (err) => toast.error(err.message || "배정 실패"),
@@ -898,13 +898,74 @@ export default function Admin() {
               <span className="text-orange-400">지점 미배정 매출</span>
               <span className="ml-auto text-xs font-normal text-muted-foreground">{unassignedBranchRevenue.length}건</span>
             </CardTitle>
-            <p className="text-xs text-muted-foreground">지점이 배정되지 않은 매출 내역입니다. 지점을 선택해 배정해주세요.</p>
+            <p className="text-xs text-muted-foreground">항목을 선택한 후 지점을 골라 한 번에 배정하세요.</p>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {unassignedBranchRevenue.map((r) => (
-              <div key={r.id} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+          <CardContent className="space-y-3">
+            {/* 전체 선택 + 일괄 배정 바 */}
+            <div className="flex items-center gap-2 pb-2 border-b border-border">
+              <button
+                onClick={() => {
+                  if (selectedRevenueIds.size === unassignedBranchRevenue.length) {
+                    setSelectedRevenueIds(new Set());
+                  } else {
+                    setSelectedRevenueIds(new Set(unassignedBranchRevenue.map(r => r.id)));
+                  }
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                {selectedRevenueIds.size === unassignedBranchRevenue.length ? "전체 해제" : "전체 선택"}
+              </button>
+              {selectedRevenueIds.size > 0 && (
+                <>
+                  <span className="text-xs text-orange-400 shrink-0">{selectedRevenueIds.size}건 선택</span>
+                  <Select value={bulkRevenueBranchId} onValueChange={setBulkRevenueBranchId}>
+                    <SelectTrigger className="h-7 text-xs flex-1">
+                      <SelectValue placeholder="지점 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branchList?.map((b) => (
+                        <SelectItem key={b.id} value={String(b.id)} className="text-xs">{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    disabled={!bulkRevenueBranchId || bulkAssignBranchToRevenueMutation.isPending}
+                    onClick={() => bulkAssignBranchToRevenueMutation.mutate({
+                      revenueIds: Array.from(selectedRevenueIds),
+                      branchId: parseInt(bulkRevenueBranchId),
+                    })}
+                  >
+                    일괄 배정
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* 목록 */}
+            {unassignedBranchRevenue.map((r) => {
+              const checked = selectedRevenueIds.has(r.id);
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedRevenueIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                    return next;
+                  })}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    checked
+                      ? "bg-primary/10 border-primary/40"
+                      : "bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                    checked ? "bg-primary border-primary" : "border-muted-foreground"
+                  }`}>
+                    {checked && <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{r.customerName ?? "이름 없음"} · {r.type} {r.subType}</p>
                     <p className="text-xs text-muted-foreground">
                       {r.paymentDate} · {r.paidAmount.toLocaleString()}원
@@ -912,41 +973,8 @@ export default function Admin() {
                     </p>
                   </div>
                 </div>
-                {assigningBranchRevenueId === r.id ? (
-                  <div className="flex gap-2">
-                    <Select value={assignBranchRevenueBranchId} onValueChange={setAssignBranchRevenueBranchId}>
-                      <SelectTrigger className="h-8 text-xs flex-1">
-                        <SelectValue placeholder="지점 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {branchList?.map((b) => (
-                          <SelectItem key={b.id} value={String(b.id)} className="text-xs">{b.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      disabled={!assignBranchRevenueBranchId || assignBranchToRevenueMutation.isPending}
-                      onClick={() => assignBranchToRevenueMutation.mutate({ revenueId: r.id, branchId: parseInt(assignBranchRevenueBranchId) })}
-                    >
-                      배정
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => { setAssigningBranchRevenueId(null); setAssignBranchRevenueBranchId(""); }}>
-                      취소
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-xs h-7 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
-                    onClick={() => { setAssigningBranchRevenueId(r.id); setAssignBranchRevenueBranchId(""); }}
-                  >
-                    지점 배정
-                  </Button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}
