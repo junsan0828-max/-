@@ -218,6 +218,8 @@ const membersRouter = t.router({
         phone: members.phone,
         status: members.status,
         grade: members.grade,
+        gender: members.gender,
+        birthDate: members.birthDate,
         membershipStart: members.membershipStart,
         membershipEnd: members.membershipEnd,
         profileNote: members.profileNote,
