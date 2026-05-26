@@ -93,22 +93,26 @@ const BACK_RULES: ColorRule[] = [
   { hMin: 18,  hMax: 46,  sMin: 45, yMin: 33, yMax: 62, part: () => "허리" },
   // 종아리 — orange, 하단 (y>62%)
   { hMin: 18,  hMax: 46,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
-  // 고관절 — yellow/gold (y 50~70%)
-  { hMin: 46,  hMax: 73,  sMin: 35, yMin: 50, yMax: 70, part: x => x < 50 ? "좌 고관절" : "우 고관절" },
-  // 둔근 — lime green 전체 (팔 오인식 제거, 초록=무조건 둔근)
-  { hMin: 73,  hMax: 148, sMin: 28, yMax: 73, part: () => "둔근" },
+  // 골반 측면 — yellow/gold (y 45~70%)
+  { hMin: 46,  hMax: 73,  sMin: 35, yMin: 45, yMax: 70, part: x => x < 50 ? "좌 골반 측면" : "우 골반 측면" },
+  // 삼두근 — lime green, 팔 구간 (y<45%)
+  { hMin: 73,  hMax: 148, sMin: 28, yMax: 45, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
+  // 둔근 — lime green, 엉덩이 (y 45~73%)
+  { hMin: 73,  hMax: 148, sMin: 28, yMin: 45, yMax: 73, part: () => "둔근" },
   // 광배근 — teal/cyan, 등 중간 (y 18~58%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 18, yMax: 58, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
   // 손목 — teal, 손목 레벨 (y 58~73%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 58, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
   // 발목/발 — teal, 최하단 (y>80%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 80, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 오금 — blue, 다리 뒷편 (y 62~82%)
+  { hMin: 200, hMax: 262, sMin: 25, yMin: 62, yMax: 82, part: x => x < 50 ? "좌 오금" : "우 오금" },
   // 목/승모근 — purple, 최상단 (y<22%)
   { hMin: 262, hMax: 310, sMin: 25, yMax: 22, part: () => "목/승모근" },
-  // 삼두근 — purple, 팔 구간 (y 22~38%)
-  { hMin: 262, hMax: 310, sMin: 25, yMin: 22, yMax: 38, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
-  // 햄스트링 — purple 하체 (y 38~85%, 삼두근 오인식 제거)
-  { hMin: 260, hMax: 355, sMin: 30, yMin: 38, yMax: 85, part: x => x < 50 ? "좌 햄스트링" : "우 햄스트링" },
+  // 전완근 — purple, 팔 구간 (y 22~40%)
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 22, yMax: 40, part: x => x < 50 ? "좌 전완근" : "우 전완근" },
+  // 햄스트링 — purple 하체 (y 40~85%)
+  { hMin: 260, hMax: 355, sMin: 30, yMin: 40, yMax: 85, part: x => x < 50 ? "좌 햄스트링" : "우 햄스트링" },
 ];
 
 function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
