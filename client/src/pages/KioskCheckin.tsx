@@ -570,46 +570,49 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
   return (
     <div>
       {/* 헤더 */}
-      <div className="px-5 pt-4 pb-5">
-        <div className="flex items-center gap-4">
+      <div className="px-6 pt-6 pb-5">
+        <div className="flex items-center gap-5">
+          {/* 아바타 */}
           <div
             className="shrink-0 flex items-center justify-center rounded-2xl"
-            style={{ width: 56, height: 56, background: expired ? "rgba(180,0,0,0.2)" : "rgba(255,255,255,0.08)", border: `1px solid ${expired ? "rgba(180,0,0,0.4)" : "rgba(255,255,255,0.1)"}` }}
+            style={{ width: 88, height: 88, background: expired ? "rgba(180,0,0,0.2)" : "rgba(255,255,255,0.08)", border: `2px solid ${expired ? "rgba(180,0,0,0.5)" : "rgba(255,255,255,0.12)"}` }}
           >
-            <svg width="26" height="28" viewBox="0 0 26 28" fill="none">
+            <svg width="44" height="48" viewBox="0 0 26 28" fill="none">
               <circle cx="13" cy="9" r="6.5" stroke={expired ? "#cc3333" : "white"} strokeWidth="1.5"/>
               <path d="M2 27C2 20 24 20 24 27" stroke={expired ? "#cc3333" : "white"} strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <p style={{ fontSize: 24, fontWeight: 700, color: "white" }}>
-                {m.name}<span style={{ color: "#888", fontWeight: 400, fontSize: 18 }}>님</span>
+          {/* 이름 + 날짜 */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <p style={{ fontSize: 80, fontWeight: 800, color: "white", lineHeight: 1 }}>
+                {m.name}<span style={{ color: "#777", fontWeight: 400, fontSize: 52 }}>님</span>
               </p>
               {result.branchName && (
-                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 5, background: "rgba(255,255,255,0.1)", color: "#aaa", fontWeight: 500 }}>
+                <span style={{ fontSize: 26, padding: "4px 14px", borderRadius: 8, background: "rgba(255,255,255,0.1)", color: "#bbb", fontWeight: 500, whiteSpace: "nowrap" }}>
                   {result.branchName}
                 </span>
               )}
             </div>
-            <p style={{ color: "#555", fontSize: 14, marginTop: 2 }}>{fmtDate(now)} {fmtTime(now)}</p>
+            <p style={{ color: "#555", fontSize: 32, marginTop: 4 }}>{fmtDate(now)} {fmtTime(now)}</p>
           </div>
-          <div className="ml-auto text-right">
+          {/* 입장 / 만료 뱃지 */}
+          <div className="shrink-0">
             {expired ? (
-              <span style={{ fontSize: 16, color: "#ff4444", fontWeight: 700, background: "rgba(180,0,0,0.2)", padding: "6px 16px", borderRadius: 8 }}>만료</span>
+              <div style={{ minWidth: 120, height: 80, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "#ff4444", fontWeight: 800, background: "rgba(180,0,0,0.2)", borderRadius: 16, padding: "0 24px", border: "2px solid rgba(180,0,0,0.4)" }}>만료</div>
             ) : (
-              <span style={{ fontSize: 16, color: "#0d0d0d", fontWeight: 700, background: "#ffffff", padding: "6px 16px", borderRadius: 8 }}>입장</span>
+              <div style={{ minWidth: 120, height: 80, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, color: "#0d0d0d", fontWeight: 800, background: "#ffffff", borderRadius: 16, padding: "0 24px" }}>입장</div>
             )}
           </div>
         </div>
       </div>
 
-      <div style={{ height: 1, background: "#1e1e1e" }} />
+      <div style={{ height: 2, background: "#1e1e1e" }} />
 
       {/* 회원권 */}
-      <div className="px-5 py-4">
-        <p style={{ fontSize: 13, color: "#555", letterSpacing: "0.1em", marginBottom: 12 }}>이용권</p>
-        <div className="space-y-2">
+      <div className="px-6 py-5">
+        <p style={{ fontSize: 28, color: "#444", letterSpacing: "0.08em", marginBottom: 16, fontWeight: 600 }}>이용권</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Row label="현재 회원권" value={m.membershipType ?? "-"} />
           {m.membershipEnd && (
             <Row
@@ -629,34 +632,34 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
         </div>
       </div>
 
-      <div style={{ height: 1, background: "#1e1e1e" }} />
+      <div style={{ height: 2, background: "#1e1e1e" }} />
 
       {/* 락커 */}
-      <div className="px-5 py-4">
-        <p style={{ fontSize: 13, color: "#555", letterSpacing: "0.1em", marginBottom: 12 }}>락커</p>
-        <div className="space-y-2">
+      <div className="px-6 py-5">
+        <p style={{ fontSize: 28, color: "#444", letterSpacing: "0.08em", marginBottom: 16, fontWeight: 600 }}>락커</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Row
             label="개인 락커"
             value={result.locker ? `${result.locker.lockerNumber}번` : "미사용"}
             tag={result.locker ? "사용중" : undefined}
-            tagColor={result.locker ? "#333" : undefined}
+            tagColor={result.locker ? "#2a5" : undefined}
           />
           {result.locker?.endDate && <Row label="만료일" value={result.locker.endDate} />}
         </div>
       </div>
 
-      <div style={{ height: 16 }} />
+      <div style={{ height: 20 }} />
     </div>
   );
 }
 
 function Row({ label, value, tag, tagColor }: { label: string; value: string; tag?: string; tagColor?: string }) {
   return (
-    <div className="flex justify-between items-center">
-      <span style={{ color: "#666", fontSize: 15 }}>{label}</span>
-      <div className="flex items-center gap-2">
-        <span style={{ color: "white", fontSize: 15, fontWeight: 500 }}>{value}</span>
-        {tag && <span style={{ fontSize: 13, padding: "2px 10px", borderRadius: 4, background: tagColor ?? "#333", color: "white" }}>{tag}</span>}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #1a1a1a" }}>
+      <span style={{ color: "#777", fontSize: 36 }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ color: "white", fontSize: 40, fontWeight: 700 }}>{value}</span>
+        {tag && <span style={{ fontSize: 26, padding: "4px 14px", borderRadius: 8, background: tagColor ?? "#333", color: "white", fontWeight: 600 }}>{tag}</span>}
       </div>
     </div>
   );
