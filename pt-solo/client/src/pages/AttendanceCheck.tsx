@@ -41,6 +41,7 @@ function hueIn(h: number, min: number, max: number) {
 
 type ColorRule = {
   hMin: number; hMax: number; sMin: number;
+  lMin?: number; lMax?: number;
   yMin?: number; yMax?: number;
   part: (xPct: number) => string;
 };
@@ -84,8 +85,10 @@ const BACK_RULES: ColorRule[] = [
   { hMin: 340, hMax: 20,  sMin: 35, yMax: 32, part: () => "승모근 중부" },
   // 승모근 하부 — red/salmon, 등 하단 (y 32~48%)
   { hMin: 340, hMax: 20,  sMin: 35, yMin: 32, yMax: 48, part: () => "승모근 하부" },
-  // 어깨(후) — orange, 상단 (y<33%)
-  { hMin: 18,  hMax: 46,  sMin: 45, yMax: 33, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
+  // 어깨 후면 — 밝은 주황 (l>55), 상단 (y<33%)
+  { hMin: 18,  hMax: 46,  sMin: 45, lMin: 56, yMax: 33, part: x => x < 50 ? "좌 어깨 후면" : "우 어깨 후면" },
+  // 회전근개 — 짙은 주황 (l≤55), 상단 (y<33%)
+  { hMin: 18,  hMax: 46,  sMin: 45, lMax: 55, yMax: 33, part: x => x < 50 ? "좌 회전근개" : "우 회전근개" },
   // 허리 — orange, 중간 (y 33~62%)
   { hMin: 18,  hMax: 46,  sMin: 45, yMin: 33, yMax: 62, part: () => "허리" },
   // 종아리 — orange, 하단 (y>62%)
@@ -138,6 +141,8 @@ function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v:
     const rules = view === "front" ? FRONT_RULES : BACK_RULES;
     const rule = rules.find(rule => {
       if (s < rule.sMin) return false;
+      if (rule.lMin !== undefined && l < rule.lMin) return false;
+      if (rule.lMax !== undefined && l > rule.lMax) return false;
       if (rule.yMin !== undefined && yPct < rule.yMin) return false;
       if (rule.yMax !== undefined && yPct > rule.yMax) return false;
       return hueIn(h, rule.hMin, rule.hMax);
