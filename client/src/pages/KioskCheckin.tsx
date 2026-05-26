@@ -499,15 +499,15 @@ export default function KioskCheckin() {
                 onClick={() => setShowFontSettings(true)}
                 style={{
                   position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-                  width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.05)",
-                  border: "1px solid #2a2a2a", color: "#444", fontSize: 16, cursor: "pointer",
+                  width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.2)", color: "#aaa", fontSize: 16, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}
                 title="글씨 크기 설정"
               >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="3" stroke="#555" strokeWidth="1.4"/>
-                  <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="#555" strokeWidth="1.4" strokeLinecap="round"/>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="3" stroke="#bbb" strokeWidth="1.5"/>
+                  <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="#bbb" strokeWidth="1.5" strokeLinecap="round"/>
                 </svg>
               </button>
             </div>
