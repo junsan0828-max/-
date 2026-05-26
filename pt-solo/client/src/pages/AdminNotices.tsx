@@ -292,7 +292,67 @@ function TabBannerManager() {
   );
 }
 
-export default function AdminNotices() {
+function LegacyBannerManager() {
+  const utils = trpc.useUtils();
+  const { data: banner } = trpc.banner.get.useQuery();
+  const upsertMutation = trpc.banner.upsert.useMutation({
+    onSuccess: () => { toast.success("배너 저장 완료"); utils.banner.get.invalidate(); },
+    onError: e => toast.error(e.message),
+  });
+
+  const [text, setText] = useState("");
+  const [subText, setSubText] = useState("");
+  const [bgColor, setBgColor] = useState("#6366f1");
+  const [isActive, setIsActive] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  if (banner && !loaded) {
+    setText(banner.text ?? "");
+    setSubText(banner.subText ?? "");
+    setBgColor(banner.bgColor ?? "#6366f1");
+    setIsActive(!!banner.isActive);
+    setLoaded(true);
+  }
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Bell className="h-4 w-4 text-primary" />대시보드 일반 배너
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">대시보드 공지사항 영역에 표시되는 배너입니다</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {text && (
+          <div className="rounded-xl overflow-hidden border border-border/40">
+            <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: bgColor }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white truncate">{text}</p>
+                {subText && <p className="text-xs text-white/80 mt-0.5 truncate">{subText}</p>}
+              </div>
+            </div>
+          </div>
+        )}
+        <Input value={text} onChange={e => setText(e.target.value)} placeholder="배너 텍스트" className="bg-input border-border" />
+        <Input value={subText} onChange={e => setSubText(e.target.value)} placeholder="서브 텍스트 (선택)" className="bg-input border-border" />
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-muted-foreground shrink-0">배경색</label>
+          <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)} className="h-8 w-12 rounded cursor-pointer border-0" />
+          <span className="text-xs text-muted-foreground">{bgColor}</span>
+        </div>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="accent-primary" />
+          배너 활성화
+        </label>
+        <Button className="w-full" size="sm" onClick={() => upsertMutation.mutate({ text, subText: subText || undefined, bgColor, isActive })} disabled={upsertMutation.isPending}>
+          {upsertMutation.isPending ? "저장 중..." : "배너 저장"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+
   const utils = trpc.useUtils();
   const { data: notices } = trpc.notices.listAll.useQuery();
 
@@ -319,6 +379,7 @@ export default function AdminNotices() {
       </div>
 
       <TabBannerManager />
+      <LegacyBannerManager />
 
       {/* 공지사항 */}
       <Card className="bg-card border-border">
