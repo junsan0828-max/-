@@ -992,8 +992,24 @@ function LockerCard({
   const isMoving = movingLockerId === locker.id;
   const currentCat = categories.find((c) => c.id === locker.categoryId);
 
+  const expiryInfo = (() => {
+    if (!locker.endDate) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const end = new Date(locker.endDate); end.setHours(0, 0, 0, 0);
+    const diff = Math.round((end.getTime() - today.getTime()) / 86400000);
+    if (diff < 0) return { label: `${Math.abs(diff)}일째 만료`, expired: true };
+    if (diff === 0) return { label: "오늘 만료", expired: false };
+    return { label: `${diff}일 후 만료`, expired: false };
+  })();
+
   return (
-    <div className={`border rounded-xl p-3 space-y-1.5 relative ${isOccupied ? "border-orange-500/50 bg-orange-500/5" : "border-border bg-card"}`}>
+    <div className={`border rounded-xl p-3 space-y-1.5 relative ${
+      isOccupied
+        ? expiryInfo?.expired
+          ? "border-red-500/50 bg-red-500/5"
+          : "border-orange-500/50 bg-orange-500/5"
+        : "border-border bg-card"
+    }`}>
       <div className="flex justify-between items-center">
         <span className="font-bold text-lg">{locker.lockerNumber}</span>
         <div className="flex items-center gap-1">
@@ -1029,15 +1045,23 @@ function LockerCard({
 
       {isOccupied ? (
         <>
-          <p className="text-sm font-medium text-foreground truncate">{locker.memberName}</p>
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-sm font-medium text-foreground truncate">{locker.memberName}</p>
+            <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+              expiryInfo?.expired
+                ? "bg-red-500/20 text-red-400"
+                : "bg-green-500/20 text-green-400"
+            }`}>
+              {expiryInfo?.expired ? "만료" : "활성"}
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground truncate">{locker.memberPhone ?? ""}</p>
-          {locker.endDate && <p className="text-xs text-muted-foreground">~ {locker.endDate}</p>}
-          <button onClick={onRelease} className="w-full text-xs py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors mt-1">반납</button>
-          {categories.length > 0 && (
-            <button onClick={onToggleMove} className="w-full text-xs py-1 rounded-md bg-muted/50 text-muted-foreground hover:bg-muted transition-colors">
-              카테고리
-            </button>
+          {expiryInfo && (
+            <p className={`text-xs font-medium ${expiryInfo.expired ? "text-red-400" : "text-muted-foreground"}`}>
+              {expiryInfo.label}
+            </p>
           )}
+          <button onClick={onRelease} className="w-full text-xs py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors mt-1">반납</button>
         </>
       ) : (
         <>
