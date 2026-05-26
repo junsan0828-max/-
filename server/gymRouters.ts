@@ -320,7 +320,21 @@ const revenueRouter = t.router({
         result = result.filter(r => r.entry.paymentDate.startsWith(String(input.year)));
       }
       if (input?.trainerId) result = result.filter(r => r.entry.trainerId === input.trainerId);
-      if (input?.branchId) result = result.filter(r => r.entry.branchId === input.branchId);
+      if (input?.branchId) {
+        // KPI overview와 동일한 로직: 명시적 branchId 매칭 + branchId 없는 항목은 트레이너 소속으로 판단
+        const [tbRows, trainerPrimaryRows] = await Promise.all([
+          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
+        ]);
+        const branchTrainerIds = new Set([
+          ...tbRows.map(r => r.trainerId),
+          ...trainerPrimaryRows.map(r => r.id),
+        ]);
+        result = result.filter(r =>
+          r.entry.branchId === input.branchId ||
+          (!r.entry.branchId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
+        );
+      }
       if (input?.type) result = result.filter(r => r.entry.type === input.type);
       if (input?.subType) result = result.filter(r => r.entry.subType === input.subType);
 
@@ -520,11 +534,19 @@ const revenueRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const allEntries = await db.select().from(revenueEntries).where(
-        input.branchId
-          ? and(like(revenueEntries.paymentDate, `${input.year}%`), eq(revenueEntries.branchId, input.branchId))
-          : like(revenueEntries.paymentDate, `${input.year}%`)
-      );
+      const rawEntries = await db.select().from(revenueEntries).where(like(revenueEntries.paymentDate, `${input.year}%`));
+      let allEntries = rawEntries;
+      if (input.branchId) {
+        const [tbRows, trainerPrimaryRows] = await Promise.all([
+          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
+        ]);
+        const branchTrainerIds = new Set([...tbRows.map(r => r.trainerId), ...trainerPrimaryRows.map(r => r.id)]);
+        allEntries = rawEntries.filter(r =>
+          r.branchId === input.branchId ||
+          (!r.branchId && r.trainerId != null && branchTrainerIds.has(r.trainerId))
+        );
+      }
 
       const monthly: Record<number, { month: number; total: number; paid: number; unpaid: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
       for (let m = 1; m <= 12; m++) {
@@ -555,17 +577,26 @@ const revenueRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-      const rows = await db.select({
+      const allRows = await db.select({
         entry: revenueEntries,
         trainerName: trainers.trainerName,
       })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
-        .where(
-          input.branchId
-            ? and(like(revenueEntries.paymentDate, `${prefix}%`), eq(revenueEntries.branchId, input.branchId))
-            : like(revenueEntries.paymentDate, `${prefix}%`)
+        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+
+      let rows = allRows;
+      if (input.branchId) {
+        const [tbRows, trainerPrimaryRows] = await Promise.all([
+          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
+        ]);
+        const branchTrainerIds = new Set([...tbRows.map(r => r.trainerId), ...trainerPrimaryRows.map(r => r.id)]);
+        rows = allRows.filter(r =>
+          r.entry.branchId === input.branchId ||
+          (!r.entry.branchId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
         );
+      }
 
       const byTrainer: Record<number, { trainerId: number; trainerName: string; total: number; pt: number; health: number; newSales: number; renewal: number; count: number }> = {};
       for (const row of rows) {
@@ -592,17 +623,26 @@ const revenueRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
-      const rows = await db.select({
+      const allRows = await db.select({
         entry: revenueEntries,
         channelName: channels.name,
       })
         .from(revenueEntries)
         .leftJoin(channels, eq(revenueEntries.channelId, channels.id))
-        .where(
-          input.branchId
-            ? and(like(revenueEntries.paymentDate, `${prefix}%`), eq(revenueEntries.branchId, input.branchId))
-            : like(revenueEntries.paymentDate, `${prefix}%`)
+        .where(like(revenueEntries.paymentDate, `${prefix}%`));
+
+      let rows = allRows;
+      if (input.branchId) {
+        const [tbRows, trainerPrimaryRows] = await Promise.all([
+          db.select({ trainerId: trainerBranches.trainerId }).from(trainerBranches).where(eq(trainerBranches.branchId, input.branchId)),
+          db.select({ id: trainers.id }).from(trainers).where(eq(trainers.branchId, input.branchId)),
+        ]);
+        const branchTrainerIds = new Set([...tbRows.map(r => r.trainerId), ...trainerPrimaryRows.map(r => r.id)]);
+        rows = allRows.filter(r =>
+          r.entry.branchId === input.branchId ||
+          (!r.entry.branchId && r.entry.trainerId != null && branchTrainerIds.has(r.entry.trainerId))
         );
+      }
 
       const byChannel: Record<string, { channelId: number | null; channelName: string; total: number; count: number }> = {};
       for (const row of rows) {
