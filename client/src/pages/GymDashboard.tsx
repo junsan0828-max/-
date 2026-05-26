@@ -338,13 +338,23 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
   const registeredLeads = monthLeads.filter(l => l.lead.status === "registered");
   const unpaidList = (ptUnpaid ?? []).filter(p => (p.unpaidAmount ?? 0) > 0);
 
-  const configs: Record<NonNullable<ModalType>, { title: string; rows: { label: string; value: string; sub?: string }[]; detail?: React.ReactNode }> = {
+  // 전체 뷰일 때 지점/트레이너 표시, 미배정이면 경고 표시
+  function rowSub(r: typeof monthEntries[0], parts: string[]) {
+    const branch = r.branchName ?? (r.trainerName ? null : "⚠︎미배정");
+    const extra = branchFilter === null
+      ? [r.trainerName ?? (branch ? branch : null), branch !== r.branchName ? null : null].filter(Boolean)
+      : [r.trainerName ?? null].filter(Boolean);
+    return [...parts, ...extra].filter(Boolean).join(" · ");
+  }
+
+  const configs: Record<NonNullable<ModalType>, { title: string; rows: { label: string; value: string; sub?: string; warn?: boolean }[]; detail?: React.ReactNode }> = {
     today: {
       title: "오늘 매출 내역",
       rows: todayEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
-        sub: `${r.entry.type} · ${r.entry.subType ?? ""} ${r.trainerName ? `· ${r.trainerName}` : ""}`,
+        sub: rowSub(r, [r.entry.type, r.entry.subType ?? ""]),
+        warn: !r.entry.branchId && !r.entry.trainerId,
       })),
       detail: todayEntries.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">오늘 매출 내역이 없습니다</p> : null,
     },
@@ -353,7 +363,8 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       rows: monthEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
-        sub: `${r.entry.paymentDate} · ${r.entry.type} · ${r.entry.subType ?? ""}`,
+        sub: rowSub(r, [r.entry.paymentDate, r.entry.type, r.entry.subType ?? ""]),
+        warn: !r.entry.branchId && !r.entry.trainerId,
       })),
       detail: null,
     },
@@ -362,7 +373,8 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       rows: newEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
-        sub: `${r.entry.paymentDate} · ${r.entry.type} ${r.trainerName ? `· ${r.trainerName}` : ""}`,
+        sub: rowSub(r, [r.entry.paymentDate, r.entry.type]),
+        warn: !r.entry.branchId && !r.entry.trainerId,
       })),
       detail: null,
     },
@@ -371,7 +383,8 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       rows: renewalEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
-        sub: `${r.entry.paymentDate} · ${r.entry.type} ${r.trainerName ? `· ${r.trainerName}` : ""}`,
+        sub: rowSub(r, [r.entry.paymentDate, r.entry.type]),
+        warn: !r.entry.branchId && !r.entry.trainerId,
       })),
       detail: null,
     },
@@ -380,7 +393,8 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       rows: ptEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
-        sub: `${r.entry.paymentDate} · ${r.entry.subType ?? ""} ${r.trainerName ? `· ${r.trainerName}` : ""}`,
+        sub: rowSub(r, [r.entry.paymentDate, r.entry.subType ?? ""]),
+        warn: !r.entry.branchId && !r.entry.trainerId,
       })),
       detail: null,
     },
@@ -389,7 +403,8 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       rows: healthEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
-        sub: `${r.entry.paymentDate} · ${r.entry.subType ?? ""}`,
+        sub: rowSub(r, [r.entry.paymentDate, r.entry.subType ?? ""]),
+        warn: !r.entry.branchId && !r.entry.trainerId,
       })),
       detail: null,
     },
@@ -454,10 +469,10 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
           ) : (
             <>
               {cfg.rows.length > 0 && cfg.rows.map((row, i) => (
-                <div key={i} className="flex justify-between items-start py-2 border-b border-border/40">
+                <div key={i} className={`flex justify-between items-start py-2 border-b border-border/40 ${(row as any).warn ? "bg-orange-500/5 rounded-lg px-2 -mx-2" : ""}`}>
                   <div className="min-w-0 flex-1 pr-3">
                     <p className="text-sm font-medium truncate">{row.label}</p>
-                    {row.sub && <p className="text-xs text-muted-foreground mt-0.5">{row.sub}</p>}
+                    {row.sub && <p className={`text-xs mt-0.5 ${(row as any).warn ? "text-orange-400" : "text-muted-foreground"}`}>{row.sub}</p>}
                   </div>
                   <p className="text-sm font-semibold text-foreground shrink-0">{row.value}</p>
                 </div>
