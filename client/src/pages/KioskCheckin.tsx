@@ -103,17 +103,54 @@ type KioskTab = "phone" | "number";
 type BottomNav = "home" | "locker" | "search" | "logs" | "more";
 
 // ── 글씨 크기 설정 패널 ────────────────────────────────────────────────────
-function FontSettingsPanel({ scale, onChange, onClose }: {
-  scale: number;
-  onChange: (v: number) => void;
-  onClose: () => void;
-}) {
+function ScaleRow({ label, scale, onChange }: { label: string; scale: number; onChange: (v: number) => void }) {
   const presets = [
     { label: "작게", value: 0.7 },
     { label: "보통", value: 1.0 },
     { label: "크게", value: 1.3 },
     { label: "매우 크게", value: 1.6 },
   ];
+  return (
+    <div className="flex flex-col gap-3">
+      <p style={{ fontSize: 13, color: "#888", fontWeight: 600, letterSpacing: "0.05em" }}>{label}</p>
+      <div className="grid grid-cols-4 gap-2">
+        {presets.map((p) => (
+          <button
+            key={p.value}
+            onClick={() => onChange(p.value)}
+            style={{
+              padding: "8px 0", borderRadius: 10,
+              background: Math.abs(scale - p.value) < 0.05 ? "white" : "#252525",
+              color: Math.abs(scale - p.value) < 0.05 ? "#0d0d0d" : "#888",
+              border: "1px solid #333", fontSize: 12, fontWeight: 600, cursor: "pointer",
+            }}
+          >{p.label}</button>
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => onChange(Math.round((scale - 0.1) * 10) / 10)}
+          disabled={scale <= 0.5}
+          style={{ width: 48, height: 48, borderRadius: 12, fontSize: 26, fontWeight: 300, background: "#252525", border: "1px solid #333", color: scale <= 0.5 ? "#333" : "white", cursor: "pointer" }}
+        >−</button>
+        <div className="flex-1 text-center">
+          <p style={{ fontSize: 28, fontWeight: 800, color: "white", lineHeight: 1 }}>{Math.round(scale * 100)}%</p>
+        </div>
+        <button
+          onClick={() => onChange(Math.round((scale + 0.1) * 10) / 10)}
+          disabled={scale >= 2.5}
+          style={{ width: 48, height: 48, borderRadius: 12, fontSize: 26, fontWeight: 300, background: "#252525", border: "1px solid #333", color: scale >= 2.5 ? "#333" : "white", cursor: "pointer" }}
+        >+</button>
+      </div>
+    </div>
+  );
+}
+
+function FontSettingsPanel({ bannerScale, onBannerChange, uiScale, onUiChange, onClose }: {
+  bannerScale: number; onBannerChange: (v: number) => void;
+  uiScale: number; onUiChange: (v: number) => void;
+  onClose: () => void;
+}) {
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center"
@@ -122,7 +159,7 @@ function FontSettingsPanel({ scale, onChange, onClose }: {
     >
       <div
         className="flex flex-col gap-5 rounded-3xl"
-        style={{ background: "#181818", border: "1px solid #2a2a2a", padding: 32, minWidth: 320, maxWidth: "90vw" }}
+        style={{ background: "#181818", border: "1px solid #2a2a2a", padding: 28, minWidth: 320, maxWidth: "90vw" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -130,58 +167,9 @@ function FontSettingsPanel({ scale, onChange, onClose }: {
           <button onClick={onClose} style={{ color: "#666", fontSize: 22, background: "none", border: "none", cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
 
-        {/* 프리셋 버튼 */}
-        <div className="grid grid-cols-4 gap-2">
-          {presets.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => onChange(p.value)}
-              style={{
-                padding: "10px 0",
-                borderRadius: 12,
-                background: Math.abs(scale - p.value) < 0.05 ? "white" : "#252525",
-                color: Math.abs(scale - p.value) < 0.05 ? "#0d0d0d" : "#888",
-                border: "1px solid #333",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* +/- 미세 조절 */}
-        <div className="flex items-center justify-between gap-4">
-          <button
-            onClick={() => onChange(Math.round((scale - 0.1) * 10) / 10)}
-            disabled={scale <= 0.5}
-            style={{
-              width: 56, height: 56, borderRadius: 14, fontSize: 28, fontWeight: 300,
-              background: "#252525", border: "1px solid #333", color: scale <= 0.5 ? "#333" : "white", cursor: "pointer",
-            }}
-          >−</button>
-          <div className="flex-1 text-center">
-            <p style={{ fontSize: 32, fontWeight: 800, color: "white", lineHeight: 1 }}>{Math.round(scale * 100)}%</p>
-            <p style={{ fontSize: 11, color: "#555", marginTop: 4 }}>기본값: 100%</p>
-          </div>
-          <button
-            onClick={() => onChange(Math.round((scale + 0.1) * 10) / 10)}
-            disabled={scale >= 2.5}
-            style={{
-              width: 56, height: 56, borderRadius: 14, fontSize: 28, fontWeight: 300,
-              background: "#252525", border: "1px solid #333", color: scale >= 2.5 ? "#333" : "white", cursor: "pointer",
-            }}
-          >+</button>
-        </div>
-
-        {/* 미리보기 */}
-        <div style={{ padding: "14px 16px", borderRadius: 14, background: "#111", border: "1px solid #1e1e1e" }}>
-          <p style={{ fontSize: 11, color: "#444", marginBottom: 8 }}>미리보기</p>
-          <p style={{ fontSize: Math.round(24 * scale), color: "white", fontWeight: 700, lineHeight: 1.3 }}>홍길동님</p>
-          <p style={{ fontSize: Math.round(14 * scale), color: "#555", marginTop: 4 }}>2025.01.01 (수) · 헬스 이용권</p>
-        </div>
+        <ScaleRow label="배너 · 공지 영역" scale={bannerScale} onChange={onBannerChange} />
+        <div style={{ height: 1, background: "#222" }} />
+        <ScaleRow label="출입 팝업 · 키패드" scale={uiScale} onChange={onUiChange} />
 
         <button
           onClick={onClose}
@@ -210,16 +198,26 @@ export default function KioskCheckin() {
   const bannerTouchX = useRef<number | null>(null);
   const now = useClock();
 
-  // 글씨 크기 설정
+  // 글씨 크기 설정 — UI(팝업·키패드)
   const [fontScale, setFontScale] = useState<number>(() => {
     try { const s = localStorage.getItem("kiosk_font_scale"); return s ? parseFloat(s) : 1; } catch { return 1; }
   });
+  // 글씨 크기 설정 — 배너·공지
+  const [bannerScale, setBannerScale] = useState<number>(() => {
+    try { const s = localStorage.getItem("kiosk_banner_scale"); return s ? parseFloat(s) : 1; } catch { return 1; }
+  });
   const [showFontSettings, setShowFontSettings] = useState(false);
   const fs = (n: number) => Math.round(n * fontScale);
-  const updateScale = (v: number) => {
-    const clamped = Math.max(0.5, Math.min(2.5, Math.round(v * 10) / 10));
-    setFontScale(clamped);
-    try { localStorage.setItem("kiosk_font_scale", String(clamped)); } catch {}
+  const bfs = (n: number) => Math.round(n * bannerScale);
+  const updateUiScale = (v: number) => {
+    const c = Math.max(0.5, Math.min(2.5, Math.round(v * 10) / 10));
+    setFontScale(c);
+    try { localStorage.setItem("kiosk_font_scale", String(c)); } catch {}
+  };
+  const updateBannerScale = (v: number) => {
+    const c = Math.max(0.5, Math.min(2.5, Math.round(v * 10) / 10));
+    setBannerScale(c);
+    try { localStorage.setItem("kiosk_banner_scale", String(c)); } catch {}
   };
 
   // 설정 버튼 5회 탭 카운터
@@ -392,8 +390,10 @@ export default function KioskCheckin() {
         {/* 글씨 크기 설정 패널 */}
         {showFontSettings && (
           <FontSettingsPanel
-            scale={fontScale}
-            onChange={updateScale}
+            bannerScale={bannerScale}
+            onBannerChange={updateBannerScale}
+            uiScale={fontScale}
+            onUiChange={updateUiScale}
             onClose={() => setShowFontSettings(false)}
           />
         )}
@@ -419,11 +419,11 @@ export default function KioskCheckin() {
                   className="absolute inset-0 flex flex-col justify-center items-center px-8"
                   style={{ background: "linear-gradient(160deg, #0f172a 0%, #1e293b 100%)" }}
                 >
-                  <p style={{ fontSize: fs(13), color: "#334155", letterSpacing: "0.5em", marginBottom: 18, textTransform: "uppercase", fontWeight: 600 }}>NOTICE</p>
-                  <p style={{ fontSize: fs(34), fontWeight: 800, color: "#e2e8f0", textAlign: "center", lineHeight: 1.4, marginBottom: 14 }}>
+                  <p style={{ fontSize: bfs(13), color: "#334155", letterSpacing: "0.5em", marginBottom: 18, textTransform: "uppercase", fontWeight: 600 }}>NOTICE</p>
+                  <p style={{ fontSize: bfs(34), fontWeight: 800, color: "#e2e8f0", textAlign: "center", lineHeight: 1.4, marginBottom: 14 }}>
                     공지사항이 없습니다
                   </p>
-                  <p style={{ fontSize: fs(15), color: "#475569", textAlign: "center", lineHeight: 1.8 }}>출입관리 → 배너 관리에서 공지를 등록하세요</p>
+                  <p style={{ fontSize: bfs(15), color: "#475569", textAlign: "center", lineHeight: 1.8 }}>출입관리 → 배너 관리에서 공지를 등록하세요</p>
                 </div>
               ) : (
                 banners.map((b, i) => (
@@ -445,14 +445,14 @@ export default function KioskCheckin() {
                     <div style={{ width: "100%" }}>
                       <p
                         className="font-bold leading-snug"
-                        style={{ fontSize: fs(b.titleFontSize ?? 22), color: b.textColor, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
+                        style={{ fontSize: bfs(b.titleFontSize ?? 22), color: b.textColor, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 4px rgba(0,0,0,0.6)" : "none" }}
                       >
                         {b.title}
                       </p>
                       {b.body && (
                         <p
                           className="mt-2 leading-relaxed whitespace-pre-line"
-                          style={{ fontSize: fs(b.bodyFontSize ?? 15), color: b.textColor, opacity: 0.9, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
+                          style={{ fontSize: bfs(b.bodyFontSize ?? 15), color: b.textColor, opacity: 0.9, textAlign: (b.textAlign ?? "center") as any, textShadow: b.imageUrl ? "0 1px 3px rgba(0,0,0,0.5)" : "none" }}
                         >
                           {b.body}
                         </p>
