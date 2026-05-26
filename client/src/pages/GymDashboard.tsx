@@ -338,13 +338,14 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
   const registeredLeads = monthLeads.filter(l => l.lead.status === "registered");
   const unpaidList = (ptUnpaid ?? []).filter(p => (p.unpaidAmount ?? 0) > 0);
 
-  // 전체 뷰일 때 지점/트레이너 표시, 미배정이면 경고 표시
+  // 전체 뷰일 때 지점명 추가 표시, 지점 자체가 없을 때만 경고
   function rowSub(r: typeof monthEntries[0], parts: string[]) {
-    const branch = r.branchName ?? (r.trainerName ? null : "⚠︎미배정");
-    const extra = branchFilter === null
-      ? [r.trainerName ?? (branch ? branch : null), branch !== r.branchName ? null : null].filter(Boolean)
-      : [r.trainerName ?? null].filter(Boolean);
-    return [...parts, ...extra].filter(Boolean).join(" · ");
+    const extras: string[] = [];
+    if (branchFilter === null) {
+      extras.push(r.branchName ?? "⚠︎지점미배정");
+    }
+    if (r.trainerName) extras.push(r.trainerName);
+    return [...parts, ...extras].filter(Boolean).join(" · ");
   }
 
   const configs: Record<NonNullable<ModalType>, { title: string; rows: { label: string; value: string; sub?: string; warn?: boolean }[]; detail?: React.ReactNode }> = {
@@ -354,7 +355,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.type, r.entry.subType ?? ""]),
-        warn: !r.entry.branchId && !r.entry.trainerId,
+        warn: !r.entry.branchId,
       })),
       detail: todayEntries.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">오늘 매출 내역이 없습니다</p> : null,
     },
@@ -364,7 +365,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type, r.entry.subType ?? ""]),
-        warn: !r.entry.branchId && !r.entry.trainerId,
+        warn: !r.entry.branchId,
       })),
       detail: null,
     },
@@ -374,7 +375,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type]),
-        warn: !r.entry.branchId && !r.entry.trainerId,
+        warn: !r.entry.branchId,
       })),
       detail: null,
     },
@@ -384,7 +385,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type]),
-        warn: !r.entry.branchId && !r.entry.trainerId,
+        warn: !r.entry.branchId,
       })),
       detail: null,
     },
@@ -394,7 +395,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.subType ?? ""]),
-        warn: !r.entry.branchId && !r.entry.trainerId,
+        warn: !r.entry.branchId,
       })),
       detail: null,
     },
@@ -404,7 +405,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
         label: r.memberName ?? r.entry.customerName ?? "-",
         value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.subType ?? ""]),
-        warn: !r.entry.branchId && !r.entry.trainerId,
+        warn: !r.entry.branchId,
       })),
       detail: null,
     },
