@@ -1039,6 +1039,358 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* 바로등록 모드 선택 */}
+      {showRegModeSelect && (
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowRegModeSelect(false)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-xs p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <h2 className="font-semibold text-foreground text-center">등록 유형 선택</h2>
+            <p className="text-xs text-muted-foreground text-center">신규 회원인지, 기존 회원의 재등록인지 선택해주세요</p>
+            <div className="space-y-2">
+              <button
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-colors"
+                onClick={() => { setShowRegModeSelect(false); setShowDirectReg(true); setDirectForm(defaultDirectForm); }}
+              >
+                신규등록
+                <span className="block text-xs font-normal opacity-80 mt-0.5">처음 등록하는 새 회원</span>
+              </button>
+              <button
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors"
+                onClick={() => { setShowRegModeSelect(false); setDirectRegMode("재등록"); setReRegSearch(""); setReRegMemberId(null); setReRegForm(defaultReRegForm); }}
+              >
+                재등록
+                <span className="block text-xs font-normal opacity-80 mt-0.5">기존 회원의 프로그램 재등록</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 재등록 모달 */}
+      {directRegMode === "재등록" && (
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" onClick={() => setDirectRegMode(null)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
+              <div className="flex items-center gap-2">
+                {reRegMemberId && (
+                  <button onClick={() => setReRegMemberId(null)} className="text-muted-foreground hover:text-foreground">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                )}
+                <h2 className="font-semibold text-foreground">
+                  {reRegMemberId ? "재등록 — 프로그램 입력" : "재등록 — 회원 선택"}
+                </h2>
+              </div>
+              <button onClick={() => setDirectRegMode(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Step 1: 회원 선택 */}
+            {!reRegMemberId && (
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <div className="px-5 py-3 border-b border-border shrink-0">
+                  <input
+                    value={reRegSearch}
+                    onChange={e => setReRegSearch(e.target.value)}
+                    placeholder="이름 또는 연락처 검색..."
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="overflow-y-auto flex-1 divide-y divide-border">
+                  {(allMembersList ?? [])
+                    .filter(m => {
+                      if (!reRegSearch.trim()) return true;
+                      const q = reRegSearch.trim().toLowerCase();
+                      return m.name.toLowerCase().includes(q) || (m.phone ?? "").replace(/\D/g,"").includes(q.replace(/\D/g,""));
+                    })
+                    .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+                    .map(m => (
+                      <button
+                        key={m.id}
+                        className="w-full flex items-center justify-between px-5 py-3 hover:bg-accent transition-colors text-left"
+                        onClick={() => setReRegMemberId(m.id)}
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{m.name}</p>
+                          {m.phone && <p className="text-xs text-muted-foreground mt-0.5">{m.phone}</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${m.status === "active" ? "border-green-500/30 text-green-400" : "border-border text-muted-foreground"}`}>
+                            {m.status === "active" ? "활성" : m.status === "paused" ? "정지" : "만료"}
+                          </span>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: 프로그램 정보 입력 */}
+            {reRegMemberId && (() => {
+              const selectedMem = (allMembersList ?? []).find(m => m.id === reRegMemberId);
+              return (
+                <>
+                  {/* 선택된 회원 정보 표시 */}
+                  {selectedMem && (
+                    <div className="px-5 py-3 border-b border-border bg-accent/30 shrink-0">
+                      <p className="text-sm font-semibold text-foreground">{selectedMem.name}</p>
+                      {selectedMem.phone && <p className="text-xs text-muted-foreground">{selectedMem.phone}</p>}
+                    </div>
+                  )}
+                  <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+
+                    {/* 운동 기간 */}
+                    <div className="border-t border-border pt-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">운동 기간</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-muted-foreground">운동 시작일</label>
+                        <input type="date" value={reRegForm.membershipStart}
+                          onChange={e => {
+                            const start = e.target.value;
+                            const end = calcEndDate(start, reRegForm.ptSessions);
+                            setReRegForm(f => ({ ...f, membershipStart: start, membershipEnd: end }));
+                          }}
+                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-muted-foreground">운동 만료일 <span className="text-primary text-xs">(자동계산)</span></label>
+                        <input type="date" value={reRegForm.membershipEnd} readOnly
+                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground opacity-60 cursor-not-allowed" />
+                      </div>
+                    </div>
+
+                    {/* 프로그램 / 결제 */}
+                    <div className="border-t border-border pt-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">프로그램 / 결제</p>
+                    </div>
+
+                    {/* 프로그램 선택 — PT / 헬스 / 기타 */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">프로그램 (복수 선택 가능)</label>
+
+                      {/* PT */}
+                      <div className={`rounded-xl border transition-colors ${reRegForm.programTypes.includes("PT") ? "border-primary/60 bg-primary/5" : "border-border"}`}>
+                        <button type="button"
+                          onClick={() => setReRegForm(f => {
+                            const has = f.programTypes.includes("PT");
+                            return { ...f, programTypes: has ? f.programTypes.filter(x => x !== "PT") : [...f.programTypes, "PT"],
+                              ptProgram: has ? "" : f.ptProgram, ptSessions: has ? "" : f.ptSessions, serviceSessions: has ? "" : f.serviceSessions };
+                          })}
+                          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                          <span className={reRegForm.programTypes.includes("PT") ? "text-primary" : "text-muted-foreground"}>PT</span>
+                          {reRegForm.programTypes.includes("PT") && <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                        </button>
+                        {reRegForm.programTypes.includes("PT") && (
+                          <div className="px-4 pb-4 space-y-3 border-t border-primary/20 pt-3">
+                            <div>
+                              <label className="text-xs text-muted-foreground">PT 프로그램</label>
+                              <div className="flex gap-1.5 flex-wrap mt-1">
+                                {["케어피티", "웨이트피티", "이벤트피티"].map(p => (
+                                  <button key={p} type="button"
+                                    onClick={() => setReRegForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p }))}
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${reRegForm.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{p}</button>
+                                ))}
+                              </div>
+                              <input value={!["케어피티","웨이트피티","이벤트피티"].includes(reRegForm.ptProgram) ? reRegForm.ptProgram : ""}
+                                onChange={e => setReRegForm(f => ({ ...f, ptProgram: e.target.value }))}
+                                placeholder="직접 입력"
+                                className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground">PT 횟수</label>
+                              <div className="flex gap-1.5 flex-wrap mt-1">
+                                {[10, 20, 30, 40, 50].map(n => (
+                                  <button key={n} type="button"
+                                    onClick={() => setReRegForm(f => {
+                                      const next = f.ptSessions === String(n) ? "" : String(n);
+                                      return { ...f, ptSessions: next, membershipEnd: calcEndDate(f.membershipStart, next) };
+                                    })}
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${reRegForm.ptSessions === String(n) ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{n}회</button>
+                                ))}
+                              </div>
+                              <input value={reRegForm.ptSessions} onChange={e => setReRegForm(f => ({ ...f, ptSessions: e.target.value, membershipEnd: calcEndDate(f.membershipStart, e.target.value) }))}
+                                placeholder="직접 입력" type="number" min="1"
+                                className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground">서비스 횟수</label>
+                              <div className="flex gap-1.5 flex-wrap mt-1 items-center">
+                                {[0,1,2,3,5].map(n => (
+                                  <button key={n} type="button"
+                                    onClick={() => setReRegForm(f => ({ ...f, serviceSessions: f.serviceSessions === String(n) ? "" : String(n) }))}
+                                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reRegForm.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
+                                    {n === 0 ? "없음" : `+${n}회`}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 헬스 */}
+                      <div className={`rounded-xl border transition-colors ${reRegForm.programTypes.includes("헬스") ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                        <button type="button"
+                          onClick={() => setReRegForm(f => {
+                            const has = f.programTypes.includes("헬스");
+                            return { ...f, programTypes: has ? f.programTypes.filter(x => x !== "헬스") : [...f.programTypes, "헬스"],
+                              healthDuration: has ? "" : f.healthDuration, membershipEnd: has ? "" : f.membershipEnd };
+                          })}
+                          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                          <span className={reRegForm.programTypes.includes("헬스") ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                          {reRegForm.programTypes.includes("헬스") && <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                        </button>
+                        {reRegForm.programTypes.includes("헬스") && (
+                          <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3">
+                            <label className="text-xs text-muted-foreground">이용 기간</label>
+                            <div className="flex gap-2 mt-1">
+                              {[1, 3, 6, 12].map(d => (
+                                <button key={d} type="button"
+                                  onClick={() => setReRegForm(f => {
+                                    const dur = String(d);
+                                    const end = f.membershipStart
+                                      ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + d); return e.toISOString().substring(0, 10); })()
+                                      : "";
+                                    return { ...f, healthDuration: f.healthDuration === dur ? "" : dur, membershipEnd: f.healthDuration === dur ? "" : end };
+                                  })}
+                                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${reRegForm.healthDuration === String(d) ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                  {d}개월
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 기타 */}
+                      <div className={`rounded-xl border transition-colors ${reRegForm.programTypes.includes("기타") ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                        <button type="button"
+                          onClick={() => setReRegForm(f => {
+                            const has = f.programTypes.includes("기타");
+                            return { ...f, programTypes: has ? f.programTypes.filter(x => x !== "기타") : [...f.programTypes, "기타"],
+                              otherItem: has ? "" : f.otherItem };
+                          })}
+                          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                          <span className={reRegForm.programTypes.includes("기타") ? "text-amber-400" : "text-muted-foreground"}>기타 <span className="font-normal text-xs">(운동복, 락커 등)</span></span>
+                          {reRegForm.programTypes.includes("기타") && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                        </button>
+                        {reRegForm.programTypes.includes("기타") && (
+                          <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
+                            <label className="text-xs text-muted-foreground">항목명</label>
+                            <input value={reRegForm.otherItem} onChange={e => setReRegForm(f => ({ ...f, otherItem: e.target.value }))}
+                              placeholder="예: 락커 1개월, 운동복 등"
+                              className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 결제 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-muted-foreground">결제 금액</label>
+                        <input type="number" min="0" value={reRegForm.paymentAmount} onChange={e => setReRegForm(f => ({ ...f, paymentAmount: e.target.value }))} placeholder="0"
+                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-muted-foreground">미수금 금액</label>
+                        <input type="number" min="0" value={reRegForm.unpaidAmount} onChange={e => setReRegForm(f => ({ ...f, unpaidAmount: e.target.value }))} placeholder="0"
+                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">결제방법</label>
+                      <select value={reRegForm.paymentMethod} onChange={e => setReRegForm(f => ({ ...f, paymentMethod: e.target.value as any }))}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                        <option value="">결제방법 선택</option>
+                        {["현금영수증", "이체", "지역화폐", "카드"].map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">결제일자</label>
+                      <input type="date" value={reRegForm.paymentDate} onChange={e => setReRegForm(f => ({ ...f, paymentDate: e.target.value }))}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-muted-foreground">결제 메모</label>
+                      <input value={reRegForm.paymentMemo} onChange={e => setReRegForm(f => ({ ...f, paymentMemo: e.target.value }))} placeholder="분납 등 메모"
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    </div>
+                    {/* 지점 */}
+                    {branchList && branchList.length > 0 && (
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-muted-foreground">지점</label>
+                        <div className="flex gap-2 flex-wrap">
+                          <button type="button" onClick={() => setReRegForm(f => ({ ...f, branchId: "" }))}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!reRegForm.branchId ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                            미지정
+                          </button>
+                          {branchList.map((b: any) => (
+                            <button key={b.id} type="button" onClick={() => setReRegForm(f => ({ ...f, branchId: String(b.id) }))}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${reRegForm.branchId === String(b.id) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                              {b.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 제출 버튼 */}
+                  <div className="p-4 border-t border-border shrink-0">
+                    <button type="button"
+                      disabled={reRegAddPackageMutation.isPending || reRegUpdateMutation.isPending}
+                      onClick={async () => {
+                        if (!reRegMemberId) return;
+                        const isPT = reRegForm.programTypes.includes("PT");
+                        const isHealth = reRegForm.programTypes.includes("헬스");
+                        if (!isPT && !isHealth && !reRegForm.programTypes.includes("기타")) {
+                          return toast.error("프로그램을 선택해주세요.");
+                        }
+                        // 회원 기간 업데이트
+                        await reRegUpdateMutation.mutateAsync({
+                          id: reRegMemberId,
+                          name: selectedMem?.name ?? "",
+                          membershipStart: reRegForm.membershipStart || undefined,
+                          membershipEnd: reRegForm.membershipEnd || undefined,
+                          status: "active",
+                        });
+                        // PT 패키지 추가
+                        if (isPT && reRegForm.ptSessions) {
+                          reRegAddPackageMutation.mutate({
+                            memberId: reRegMemberId,
+                            ptProgram: reRegForm.ptProgram || undefined,
+                            totalSessions: parseInt(reRegForm.ptSessions),
+                            startDate: reRegForm.membershipStart || undefined,
+                            expiryDate: reRegForm.membershipEnd || undefined,
+                            paymentAmount: reRegForm.paymentAmount ? parseInt(reRegForm.paymentAmount) : undefined,
+                            unpaidAmount: reRegForm.unpaidAmount ? parseInt(reRegForm.unpaidAmount) : undefined,
+                            paymentMethod: reRegForm.paymentMethod || undefined,
+                            paymentDate: reRegForm.paymentDate || undefined,
+                            paymentMemo: reRegForm.paymentMemo || undefined,
+                          });
+                        } else {
+                          toast.success("재등록이 완료되었습니다.");
+                          setDirectRegMode(null);
+                          setReRegMemberId(null);
+                          setReRegSearch("");
+                          setReRegForm(defaultReRegForm);
+                        }
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
+                      {(reRegAddPackageMutation.isPending || reRegUpdateMutation.isPending) ? "처리 중..." : "재등록 완료"}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* 바로등록 모달 */}
       {showDirectReg && (
         <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" onClick={() => setShowDirectReg(false)}>
