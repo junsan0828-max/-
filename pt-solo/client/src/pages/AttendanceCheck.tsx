@@ -42,6 +42,7 @@ function hueIn(h: number, min: number, max: number) {
 type ColorRule = {
   hMin: number; hMax: number; sMin: number;
   lMin?: number; lMax?: number;
+  xMin?: number; xMax?: number;
   yMin?: number; yMax?: number;
   part: (xPct: number) => string;
 };
@@ -100,7 +101,9 @@ const BACK_RULES: ColorRule[] = [
   { hMin: 73,  hMax: 148, sMin: 28, yMax: 45, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
   // 둔근 — lime green, 엉덩이 (y 45~73%)
   { hMin: 73,  hMax: 148, sMin: 28, yMin: 45, yMax: 73, part: () => "둔근" },
-  // 손목 — teal (y 18~73%)
+  // 광배근 — teal, 등 중앙 (x 22~78%, y 18~55%)
+  { hMin: 148, hMax: 200, sMin: 40, xMin: 22, xMax: 78, yMin: 18, yMax: 55, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
+  // 손목 — teal, 팔 바깥쪽 (x<22% or x>78%, y 18~73%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 18, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
   // 발목 — teal, 발목 레벨 (y 80~90%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
@@ -148,6 +151,8 @@ function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v:
       if (s < rule.sMin) return false;
       if (rule.lMin !== undefined && l < rule.lMin) return false;
       if (rule.lMax !== undefined && l > rule.lMax) return false;
+      if (rule.xMin !== undefined && xPct < rule.xMin) return false;
+      if (rule.xMax !== undefined && xPct > rule.xMax) return false;
       if (rule.yMin !== undefined && yPct < rule.yMin) return false;
       if (rule.yMax !== undefined && yPct > rule.yMax) return false;
       return hueIn(h, rule.hMin, rule.hMax);
