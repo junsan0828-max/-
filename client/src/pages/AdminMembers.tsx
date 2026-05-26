@@ -134,6 +134,7 @@ export default function AdminMembers() {
     const matchSearch =
       !q ||
       m.name.toLowerCase().includes(q) ||
+      group.some(g => (g.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, ""))) ||
       group.some(g => (g.trainerName ?? "").toLowerCase().includes(q)) ||
       group.some(g => (g.profileNote ?? "").toLowerCase().includes(q));
     const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue));
