@@ -271,26 +271,31 @@ export default function KioskCheckin() {
   const playSound = (type: "success" | "fail") => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      const t = ctx.currentTime;
+
+      const note = (freq: number, start: number, dur: number, vol: number, wave: OscillatorType = "sine") => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = wave;
+        osc.frequency.setValueAtTime(freq, t + start);
+        gain.gain.setValueAtTime(0, t + start);
+        gain.gain.linearRampToValueAtTime(vol, t + start + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + start + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t + start);
+        osc.stop(t + start + dur);
+      };
+
       if (type === "success") {
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.4, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.4);
+        // 밝은 3음 상승 아르페지오 (C5 → E5 → G5)
+        note(523, 0,    0.18, 0.35);
+        note(659, 0.13, 0.18, 0.35);
+        note(784, 0.26, 0.35, 0.4);
       } else {
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(220, ctx.currentTime);
-        osc.frequency.setValueAtTime(150, ctx.currentTime + 0.2);
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
+        // 낮고 무거운 2음 하강 버저
+        note(300, 0,    0.22, 0.45, "square");
+        note(200, 0.20, 0.35, 0.5,  "square");
       }
     } catch {}
   };
@@ -300,8 +305,8 @@ export default function KioskCheckin() {
       setErrorMsg(null);
       setResult(data as CheckResult);
       const r = (data as any).result;
-      if (r === "success") playSound("success");
-      else if (r === "not_found" || r === "expired") playSound("fail");
+      if (r === "allowed") playSound("success");
+      else if (r === "not_found" || r === "expired" || r === "blocked") playSound("fail");
       if (r !== "ambiguous") setCountdown(20);
     },
     onError: (err) => {
