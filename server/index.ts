@@ -528,6 +528,8 @@ async function initDatabase() {
     `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "textVAlign" TEXT DEFAULT 'center'`,
     `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
     `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "imageData" TEXT`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "titleFontSize" INTEGER DEFAULT 22`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "bodyFontSize" INTEGER DEFAULT 15`,
     `CREATE TABLE IF NOT EXISTS training_manuals (
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,

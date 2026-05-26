@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
@@ -270,6 +270,20 @@ export default function LeadsPage() {
   });
 
   const { data: allMembersList } = trpc.members.list.useQuery();
+
+  const filteredReRegMembers = useMemo(() => {
+    const all = allMembersList ?? [];
+    const q = reRegSearch.trim().toLowerCase();
+    const matched = q
+      ? all.filter(m =>
+          (m.name ?? "").toLowerCase().includes(q) ||
+          (m.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, ""))
+        )
+      : all;
+    return [...matched].sort((a, b) =>
+      (a.name ?? "").localeCompare(b.name ?? "", "ko")
+    );
+  }, [allMembersList, reRegSearch]);
 
   const reRegUpdateMutation = trpc.members.update.useMutation({
     onSuccess: () => {},
@@ -1090,6 +1104,7 @@ export default function LeadsPage() {
               <div className="flex flex-col flex-1 overflow-hidden">
                 <div className="px-5 py-3 border-b border-border shrink-0">
                   <input
+                    autoFocus
                     value={reRegSearch}
                     onChange={e => setReRegSearch(e.target.value)}
                     placeholder="이름 또는 연락처 검색..."
@@ -1097,14 +1112,7 @@ export default function LeadsPage() {
                   />
                 </div>
                 <div className="overflow-y-auto flex-1 divide-y divide-border">
-                  {(allMembersList ?? [])
-                    .filter(m => {
-                      if (!reRegSearch.trim()) return true;
-                      const q = reRegSearch.trim().toLowerCase();
-                      return m.name.toLowerCase().includes(q) || (m.phone ?? "").replace(/\D/g,"").includes(q.replace(/\D/g,""));
-                    })
-                    .sort((a, b) => a.name.localeCompare(b.name, "ko"))
-                    .map(m => (
+                  {filteredReRegMembers.map(m => (
                       <button
                         key={m.id}
                         className="w-full flex items-center justify-between px-5 py-3 hover:bg-accent transition-colors text-left"
