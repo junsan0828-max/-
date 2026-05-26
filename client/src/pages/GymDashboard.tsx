@@ -305,6 +305,164 @@ function FinancialDetailModal({ year, branchFilter, onClose }: { year: number; b
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+type ModalType = "today" | "month" | "new" | "renewal" | "pt" | "health" | "conversion" | "unpaid" | null;
+
+function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
+  type: ModalType; year: number; month: number; branchFilter: number | null;
+  kpi: any; onClose: () => void;
+}) {
+  const today = new Date().toISOString().split("T")[0];
+  const { data: entries } = trpc.gym.revenue.list.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: leads } = trpc.gym.leads.list.useQuery();
+  const { data: ptUnpaid } = trpc.pt.listUnpaid.useQuery();
+
+  if (!type) return null;
+
+  const prefix = `${year}-${String(month).padStart(2, "0")}`;
+
+  const todayEntries = (entries ?? []).filter(r => r.entry.paymentDate === today);
+  const monthEntries = entries ?? [];
+  const newEntries = monthEntries.filter(r => r.entry.subType === "신규");
+  const renewalEntries = monthEntries.filter(r => r.entry.subType === "재등록");
+  const ptEntries = monthEntries.filter(r => r.entry.type === "PT");
+  const healthEntries = monthEntries.filter(r => r.entry.type === "헬스");
+  const monthLeads = (leads ?? []).filter(l => (l.lead.createdAt ?? "").startsWith(prefix));
+  const registeredLeads = monthLeads.filter(l => l.lead.status === "registered");
+  const unpaidList = (ptUnpaid ?? []).filter(p => (p.unpaidAmount ?? 0) > 0);
+
+  const configs: Record<NonNullable<ModalType>, { title: string; rows: { label: string; value: string; sub?: string }[]; detail?: React.ReactNode }> = {
+    today: {
+      title: "오늘 매출 내역",
+      rows: todayEntries.map(r => ({
+        label: r.memberName ?? r.entry.customerName ?? "-",
+        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        sub: `${r.entry.type} · ${r.entry.subType ?? ""} ${r.trainerName ? `· ${r.trainerName}` : ""}`,
+      })),
+      detail: todayEntries.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">오늘 매출 내역이 없습니다</p> : null,
+    },
+    month: {
+      title: `${month}월 누적 매출 내역`,
+      rows: monthEntries.map(r => ({
+        label: r.memberName ?? r.entry.customerName ?? "-",
+        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        sub: `${r.entry.paymentDate} · ${r.entry.type} · ${r.entry.subType ?? ""}`,
+      })),
+      detail: null,
+    },
+    new: {
+      title: `${month}월 신규 매출`,
+      rows: newEntries.map(r => ({
+        label: r.memberName ?? r.entry.customerName ?? "-",
+        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        sub: `${r.entry.paymentDate} · ${r.entry.type} ${r.trainerName ? `· ${r.trainerName}` : ""}`,
+      })),
+      detail: null,
+    },
+    renewal: {
+      title: `${month}월 재등록 매출`,
+      rows: renewalEntries.map(r => ({
+        label: r.memberName ?? r.entry.customerName ?? "-",
+        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        sub: `${r.entry.paymentDate} · ${r.entry.type} ${r.trainerName ? `· ${r.trainerName}` : ""}`,
+      })),
+      detail: null,
+    },
+    pt: {
+      title: `${month}월 PT 매출`,
+      rows: ptEntries.map(r => ({
+        label: r.memberName ?? r.entry.customerName ?? "-",
+        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        sub: `${r.entry.paymentDate} · ${r.entry.subType ?? ""} ${r.trainerName ? `· ${r.trainerName}` : ""}`,
+      })),
+      detail: null,
+    },
+    health: {
+      title: `${month}월 헬스 매출`,
+      rows: healthEntries.map(r => ({
+        label: r.memberName ?? r.entry.customerName ?? "-",
+        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        sub: `${r.entry.paymentDate} · ${r.entry.subType ?? ""}`,
+      })),
+      detail: null,
+    },
+    conversion: {
+      title: `${month}월 전환율 상세`,
+      rows: [
+        { label: "총 상담", value: `${monthLeads.length}건` },
+        { label: "등록 전환", value: `${registeredLeads.length}건` },
+        { label: "전환율", value: `${monthLeads.length > 0 ? Math.round((registeredLeads.length / monthLeads.length) * 100) : 0}%` },
+      ],
+      detail: (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">이번달 상담 목록</p>
+          {monthLeads.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">상담 내역이 없습니다</p>
+          ) : monthLeads.map((l, i) => (
+            <div key={i} className="flex justify-between items-center text-sm py-1.5 border-b border-border/50">
+              <div>
+                <span className="font-medium">{l.lead.name}</span>
+                {l.channelName && <span className="text-muted-foreground ml-2 text-xs">{l.channelName}</span>}
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                l.lead.status === "registered" ? "bg-green-500/20 text-green-400"
+                : l.lead.status === "consulting" ? "bg-blue-500/20 text-blue-400"
+                : "bg-muted text-muted-foreground"
+              }`}>
+                {l.lead.status === "registered" ? "등록" : l.lead.status === "consulting" ? "상담중" : l.lead.status === "followup" ? "팔로업" : l.lead.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    unpaid: {
+      title: "미수금 내역",
+      rows: unpaidList.map(p => ({
+        label: p.memberName ?? "-",
+        value: `${(p.unpaidAmount ?? 0).toLocaleString()}원`,
+        sub: `${p.packageName ?? "PT"} · ${p.trainerName ?? ""}`,
+      })),
+      detail: unpaidList.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">미수금이 없습니다</p> : null,
+    },
+  };
+
+  const cfg = configs[type];
+  const total = cfg.rows.reduce((s, r) => {
+    const n = parseInt(r.value.replace(/[^0-9]/g, ""));
+    return isNaN(n) ? s : s + n;
+  }, 0);
+  const showTotal = ["today", "month", "new", "renewal", "pt", "health", "unpaid"].includes(type);
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-bold text-base">{cfg.title}</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-1">
+          {cfg.rows.length > 0 && cfg.rows.map((row, i) => (
+            <div key={i} className="flex justify-between items-start py-2 border-b border-border/40">
+              <div className="min-w-0 flex-1 pr-3">
+                <p className="text-sm font-medium truncate">{row.label}</p>
+                {row.sub && <p className="text-xs text-muted-foreground mt-0.5">{row.sub}</p>}
+              </div>
+              <p className="text-sm font-semibold text-foreground shrink-0">{row.value}</p>
+            </div>
+          ))}
+          {cfg.detail}
+        </div>
+        {showTotal && cfg.rows.length > 0 && (
+          <div className="px-5 py-3 border-t border-border flex justify-between items-center">
+            <span className="text-sm font-semibold text-muted-foreground">합계</span>
+            <span className="text-base font-bold text-primary">{total.toLocaleString()}원</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function GymDashboard() {
   const [, setLocation] = useLocation();
   const now = new Date();
@@ -312,6 +470,7 @@ export default function GymDashboard() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
   const [showFinancial, setShowFinancial] = useState(false);
+  const [modal, setModal] = useState<ModalType>(null);
 
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery(
@@ -407,6 +566,7 @@ export default function GymDashboard() {
           value={`${fmt(kpi?.todayRevenue ?? 0)}원`}
           icon={DollarSign}
           color="text-emerald-400"
+          onClick={() => setModal("today")}
         />
         <div className="space-y-2">
           <button
@@ -422,6 +582,7 @@ export default function GymDashboard() {
             trend={kpi?.momGrowth}
             icon={TrendingUp}
             color="text-primary"
+            onClick={() => setModal("month")}
           />
         </div>
         <KpiCard
@@ -430,7 +591,7 @@ export default function GymDashboard() {
           sub={`전체의 ${kpi?.monthTotal ? Math.round((kpi.monthNewSales / kpi.monthTotal) * 100) : 0}%`}
           icon={Users}
           color="text-blue-400"
-          onClick={() => setLocation("/revenue")}
+          onClick={() => setModal("new")}
         />
         <KpiCard
           label="재등록 매출"
@@ -438,19 +599,21 @@ export default function GymDashboard() {
           sub={`재등록률 ${kpi?.renewalRate}%`}
           icon={RefreshCw}
           color="text-violet-400"
-          onClick={() => setLocation("/revenue")}
+          onClick={() => setModal("renewal")}
         />
         <KpiCard
           label="PT 매출"
           value={`${fmt(kpi?.monthPT ?? 0)}원`}
           icon={BarChart2}
           color="text-amber-400"
+          onClick={() => setModal("pt")}
         />
         <KpiCard
           label="헬스 매출"
           value={`${fmt(kpi?.monthHealth ?? 0)}원`}
           icon={Target}
           color="text-teal-400"
+          onClick={() => setModal("health")}
         />
         <KpiCard
           label="전환율"
@@ -458,14 +621,14 @@ export default function GymDashboard() {
           sub="상담→등록"
           icon={Percent}
           color="text-sky-400"
-          onClick={() => setLocation("/leads")}
+          onClick={() => setModal("conversion")}
         />
         <KpiCard
           label="미수금"
           value={`${fmt(kpi?.totalUnpaid ?? 0)}원`}
           icon={AlertCircle}
           color={(kpi?.totalUnpaid ?? 0) > 0 ? "text-red-400" : "text-muted-foreground"}
-          onClick={() => setLocation("/revenue")}
+          onClick={() => setModal("unpaid")}
         />
       </div>
 
@@ -650,6 +813,18 @@ export default function GymDashboard() {
           year={year}
           branchFilter={branchFilter}
           onClose={() => setShowFinancial(false)}
+        />
+      )}
+
+      {/* KPI 카드 상세 모달 */}
+      {modal && (
+        <KpiDetailModal
+          type={modal}
+          year={year}
+          month={month}
+          branchFilter={branchFilter}
+          kpi={kpi}
+          onClose={() => setModal(null)}
         />
       )}
     </div>

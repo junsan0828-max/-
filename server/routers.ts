@@ -883,6 +883,31 @@ const ptRouter = t.router({
     return q.orderBy(desc(ptPackages.createdAt));
   }),
 
+  // 미수금 있는 PT 패키지 목록 (admin/sub_admin용)
+  listUnpaid: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    return db
+      .select({
+        id: ptPackages.id,
+        memberName: members.name,
+        packageName: ptPackages.packageName,
+        unpaidAmount: ptPackages.unpaidAmount,
+        trainerName: trainers.trainerName,
+      })
+      .from(ptPackages)
+      .innerJoin(members, eq(ptPackages.memberId, members.id))
+      .leftJoin(trainers, eq(ptPackages.trainerId, trainers.id))
+      .where(
+        and(
+          sql`${ptPackages.unpaidAmount} IS NOT NULL`,
+          gt(ptPackages.unpaidAmount, 0)
+        )
+      )
+      .orderBy(desc(ptPackages.unpaidAmount));
+  }),
+
   // 기존 회원에게 PT 패키지 추가
   addPackage: protectedProcedure
     .input(
