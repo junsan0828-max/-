@@ -10,9 +10,12 @@ export default function Privacy() {
           핏스텝(이하 "서비스")은 카카오 소셜 로그인을 통해 서비스 이용에 필요한 최소한의 개인정보만 수집합니다.
         </p>
         <ul className="mt-3 space-y-1 text-sm text-gray-700 list-disc list-inside">
-          <li>카카오 닉네임</li>
-          <li>카카오 이메일 주소 (선택)</li>
-          <li>카카오 고유 식별자 (providerId)</li>
+          <li>이름 (카카오 닉네임)</li>
+          <li>성별</li>
+          <li>연령대</li>
+          <li>출생연도</li>
+          <li>카카오계정 (이메일)</li>
+          <li>카카오 고유 식별자</li>
         </ul>
       </section>
 

@@ -22,6 +22,9 @@ export const trainers = pgTable("trainers", {
   trainerName: text("trainerName").notNull(),
   phone: text("phone"),
   email: text("email"),
+  gender: text("gender"),
+  birthYear: text("birthYear"),
+  ageRange: text("ageRange"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

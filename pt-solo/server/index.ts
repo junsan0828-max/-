@@ -109,14 +109,17 @@ app.get("/auth/kakao/callback", async (req, res) => {
     const kakaoUser = await userRes.json() as any;
     const name = kakaoUser.kakao_account?.profile?.nickname || kakaoUser.properties?.nickname || "카카오사용자";
     const email = kakaoUser.kakao_account?.email;
-    await handleOAuthLogin(req, res, "kakao", String(kakaoUser.id), name, email);
+    const gender = kakaoUser.kakao_account?.gender;
+    const birthYear = kakaoUser.kakao_account?.birthyear;
+    const ageRange = kakaoUser.kakao_account?.age_range;
+    await handleOAuthLogin(req, res, "kakao", String(kakaoUser.id), name, email, gender, birthYear, ageRange);
   } catch (e) {
     console.error("Kakao OAuth error:", e);
     res.redirect("/login?error=kakao_failed");
   }
 });
 
-async function handleOAuthLogin(req: any, res: any, provider: string, providerId: string, name: string, email?: string) {
+async function handleOAuthLogin(req: any, res: any, provider: string, providerId: string, name: string, email?: string, gender?: string, birthYear?: string, ageRange?: string) {
   const db2 = getDb();
   // 기존 계정 찾기
   const existing = await pool.query<{ id: number; role: string; position: string | null; trainerId: number | null }>(
@@ -129,6 +132,13 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
     const u = existing.rows[0];
     if (u.position === "pending") return res.redirect("/login?error=pending");
     if (u.position === "rejected") return res.redirect("/login?error=rejected");
+    // 재로그인 시 카카오 정보 업데이트
+    if (u.trainerId) {
+      await pool.query(
+        `UPDATE trainers SET "trainerName"=$1, email=COALESCE($2, email), gender=COALESCE($3, gender), "birthYear"=COALESCE($4, "birthYear"), "ageRange"=COALESCE($5, "ageRange") WHERE id=$6`,
+        [name, email || null, gender || null, birthYear || null, ageRange || null, u.trainerId]
+      );
+    }
     (req.session as any).user = { id: u.id, username: name, role: u.role, trainerId: u.trainerId ?? undefined };
     await new Promise<void>((resolve, reject) => req.session.save((err: any) => err ? reject(err) : resolve()));
     return res.redirect("/");
@@ -138,7 +148,14 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
   const myCode = Math.random().toString(36).slice(2, 10).toUpperCase();
   const [userRow] = await db2.insert(users).values({ username, password: null as any, role: "trainer", position: "pending" }).returning({ id: users.id });
   await pool.query(`UPDATE users SET provider=$1, "providerId"=$2, "referralCode"=$3 WHERE id=$4`, [provider, providerId, myCode, userRow.id]);
-  const [trainerRow] = await db2.insert(trainers).values({ userId: userRow.id, trainerName: name, email: email || undefined }).returning({ id: trainers.id });
+  const [trainerRow] = await db2.insert(trainers).values({
+    userId: userRow.id,
+    trainerName: name,
+    email: email || undefined,
+    gender: gender || undefined,
+    birthYear: birthYear || undefined,
+    ageRange: ageRange || undefined,
+  }).returning({ id: trainers.id });
   await db2.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
   return res.redirect("/login?error=pending");
 }
@@ -523,6 +540,9 @@ async function initDatabase() {
   }
 
   // trainer_settings 컬럼 추가 (없으면)
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "gender" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "birthYear" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "ageRange" TEXT`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT NOT NULL DEFAULT 'trial'`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionEndDate" TEXT`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "adminMemo" TEXT`);
