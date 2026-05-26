@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
-import { Search, ChevronRight, MapPin, Users, UserCheck, Clock, UserX, Pause, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Search, ChevronRight, MapPin, Users, UserCheck, Clock, UserX, Pause, TrendingUp, TrendingDown, Minus, X } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 type TypeFilter = "all" | "PT" | "헬스";
@@ -150,37 +150,49 @@ export default function AdminMembers() {
     "bg-blue-500", "bg-indigo-500", "bg-violet-500", "bg-purple-500", "bg-fuchsia-500", "bg-pink-500",
   ];
 
+  type StatModal = "total" | "active" | "expiringSoon" | "expired" | "paused" | "newThisMonth" | null;
+  const [statModal, setStatModal] = useState<StatModal>(null);
+
   // ── 통계 계산 ─────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     if (!allMembers) return null;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().slice(0, 10);
 
-    const total = allMembers.length;
-    const active = allMembers.filter(m => m.status === "active").length;
-    const paused = allMembers.filter(m => m.status === "paused").length;
+    const totalList = allMembers;
+    const activeList = allMembers.filter(m => m.status === "active");
+    const pausedList = allMembers.filter(m => m.status === "paused");
 
-    const expired = allMembers.filter(m => {
+    const total = allMembers.length;
+    const active = activeList.length;
+    const paused = pausedList.length;
+
+    const expiredList = allMembers.filter(m => {
       if (!m.membershipEnd) return false;
       return new Date(m.membershipEnd) < today;
-    }).length;
+    });
+    const expired = expiredList.length;
 
-    const expiringSoon = allMembers.filter(m => {
+    const expiringSoonList = allMembers.filter(m => {
       if (!m.membershipEnd || m.status !== "active") return false;
       const diff = Math.ceil((new Date(m.membershipEnd).getTime() - today.getTime()) / 86400000);
       return diff >= 0 && diff <= 7;
-    }).length;
+    });
+    const expiringSoon = expiringSoonList.length;
 
     // 전월 대비 (신규 가입)
     const thisMonthStr = todayStr.slice(0, 7);
     const prevMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     const prevMonthStr = prevMonthDate.toISOString().slice(0, 7);
-    const newThisMonth = allMembers.filter(m => m.createdAt?.slice(0, 7) === thisMonthStr).length;
+    const newThisMonthList = allMembers.filter(m => m.createdAt?.slice(0, 7) === thisMonthStr);
+    const newThisMonth = newThisMonthList.length;
     const newPrevMonth = allMembers.filter(m => m.createdAt?.slice(0, 7) === prevMonthStr).length;
     const newDiff = newThisMonth - newPrevMonth;
 
+    const memberLists = { total: totalList, active: activeList, expiringSoon: expiringSoonList, expired: expiredList, paused: pausedList, newThisMonth: newThisMonthList };
+
     // 활성 회원 성별 비율
-    const activeMembers = allMembers.filter(m => m.status === "active");
+    const activeMembers = activeList;
     const genderMap: Record<string, number> = {};
     for (const m of activeMembers) {
       const g = m.gender === "male" ? "남성" : m.gender === "female" ? "여성" : "미등록";
@@ -207,7 +219,7 @@ export default function AdminMembers() {
       else ageData.push({ name: "80대 이상", value: over80 });
     }
 
-    return { total, active, paused, expired, expiringSoon, newThisMonth, newPrevMonth, newDiff, genderData, ageData };
+    return { total, active, paused, expired, expiringSoon, newThisMonth, newPrevMonth, newDiff, genderData, ageData, memberLists };
   }, [allMembers]);
 
   const GENDER_COLORS = ["#3b82f6", "#ec4899", "#94a3b8"];
@@ -245,38 +257,31 @@ export default function AdminMembers() {
       {/* ── 회원 통계 대시보드 ── */}
       {stats && (
         <div className="space-y-3">
-          {/* 요약 카드 5개 */}
+          {/* 요약 카드 6개 */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {[
-              { label: "전체 회원", value: stats.total, icon: <Users className="h-4 w-4 text-primary" />, color: "border-primary/20 bg-primary/5" },
-              { label: "활성 회원", value: stats.active, icon: <UserCheck className="h-4 w-4 text-green-400" />, color: "border-green-500/20 bg-green-500/5" },
-              { label: "만료 임박 (7일)", value: stats.expiringSoon, icon: <Clock className="h-4 w-4 text-yellow-400" />, color: "border-yellow-500/20 bg-yellow-500/5" },
-              { label: "만료 회원", value: stats.expired, icon: <UserX className="h-4 w-4 text-red-400" />, color: "border-red-500/20 bg-red-500/5" },
-              { label: "정지 회원", value: stats.paused, icon: <Pause className="h-4 w-4 text-orange-400" />, color: "border-orange-500/20 bg-orange-500/5" },
+            {([
+              { key: "total" as StatModal, label: "전체 회원", value: stats.total, icon: <Users className="h-4 w-4 text-primary" />, color: "border-primary/20 bg-primary/5" },
+              { key: "active" as StatModal, label: "활성 회원", value: stats.active, icon: <UserCheck className="h-4 w-4 text-green-400" />, color: "border-green-500/20 bg-green-500/5" },
+              { key: "expiringSoon" as StatModal, label: "만료 임박 (7일)", value: stats.expiringSoon, icon: <Clock className="h-4 w-4 text-yellow-400" />, color: "border-yellow-500/20 bg-yellow-500/5" },
+              { key: "expired" as StatModal, label: "만료 회원", value: stats.expired, icon: <UserX className="h-4 w-4 text-red-400" />, color: "border-red-500/20 bg-red-500/5" },
+              { key: "paused" as StatModal, label: "정지 회원", value: stats.paused, icon: <Pause className="h-4 w-4 text-orange-400" />, color: "border-orange-500/20 bg-orange-500/5" },
               {
+                key: "newThisMonth" as StatModal,
                 label: "이번달 신규",
                 value: stats.newThisMonth,
-                icon: stats.newDiff > 0
-                  ? <TrendingUp className="h-4 w-4 text-emerald-400" />
-                  : stats.newDiff < 0
-                    ? <TrendingDown className="h-4 w-4 text-red-400" />
-                    : <Minus className="h-4 w-4 text-muted-foreground" />,
+                icon: stats.newDiff > 0 ? <TrendingUp className="h-4 w-4 text-emerald-400" /> : stats.newDiff < 0 ? <TrendingDown className="h-4 w-4 text-red-400" /> : <Minus className="h-4 w-4 text-muted-foreground" />,
                 color: "border-border bg-card",
-                sub: stats.newDiff > 0
-                  ? <span className="text-xs text-emerald-400">↑ 전월 대비 +{stats.newDiff}명</span>
-                  : stats.newDiff < 0
-                    ? <span className="text-xs text-red-400">↓ 전월 대비 {stats.newDiff}명</span>
-                    : <span className="text-xs text-muted-foreground">전월과 동일</span>,
+                sub: stats.newDiff > 0 ? <span className="text-xs text-emerald-400">↑ 전월 대비 +{stats.newDiff}명</span> : stats.newDiff < 0 ? <span className="text-xs text-red-400">↓ 전월 대비 {stats.newDiff}명</span> : <span className="text-xs text-muted-foreground">전월과 동일</span>,
               },
-            ].map((card, i) => (
-              <div key={i} className={`border rounded-xl p-3 ${card.color}`}>
+            ] as { key: StatModal; label: string; value: number; icon: React.ReactNode; color: string; sub?: React.ReactNode }[]).map((card) => (
+              <button key={card.key} onClick={() => setStatModal(card.key)} className={`border rounded-xl p-3 text-left hover:opacity-80 transition-opacity ${card.color}`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-muted-foreground">{card.label}</span>
                   {card.icon}
                 </div>
                 <p className="text-2xl font-bold text-foreground">{card.value}<span className="text-sm font-normal ml-0.5">명</span></p>
                 {card.sub && <div className="mt-1">{card.sub}</div>}
-              </div>
+              </button>
             ))}
           </div>
 
@@ -387,15 +392,26 @@ export default function AdminMembers() {
             .join(", ");
           const trainerNames = Array.from(new Set(group.map(g => g.trainerName).filter(Boolean)));
           const isDuplicate = group.length > 1;
-          // 그룹 내 락커/운동복 합산
           const hasLocker = group.some(g => (g as any).lockerNumber);
           const hasUniform = group.some(g => (g as any).hasUniform);
-          // "기타"만 있으면 뱃지 숨기고 락커/운동복 뱃지로 대체
           const isOnlyEtc = types.length === 1 && types[0] === "기타";
           const displayTypes = isOnlyEtc ? [] : types.filter(t => t !== "기타");
+          const isPaused = group.some(g => g.status === "paused");
           const typeStyle = (t: string) =>
             t === "PT" ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
             : "bg-green-500/20 text-green-400 border-green-500/30";
+
+          // D-Day 계산
+          const dDay = (() => {
+            if (!primary.membershipEnd) return null;
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const end = new Date(primary.membershipEnd); end.setHours(0, 0, 0, 0);
+            const diff = Math.round((end.getTime() - today.getTime()) / 86400000);
+            if (diff > 0) return { label: `D-${diff}`, urgent: diff <= 7 };
+            if (diff === 0) return { label: "D-Day", urgent: true };
+            return { label: `D+${Math.abs(diff)}`, urgent: false, expired: true };
+          })();
+
           return (
             <div
               key={primary.id}
@@ -407,28 +423,42 @@ export default function AdminMembers() {
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                    {displayTypes.map(t => (
-                      <span key={t} className={`text-xs px-1.5 py-0.5 rounded font-medium border ${typeStyle(t)}`}>{t}</span>
-                    ))}
-                    {hasLocker && (
-                      <span className="text-xs px-1.5 py-0.5 rounded font-medium border bg-cyan-500/20 text-cyan-400 border-cyan-500/30">락커</span>
+                  {/* 이름 + 상태 뱃지 + D-Day */}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="font-semibold text-sm">{primary.name}</span>
+                    {isPaused && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded border font-medium bg-orange-500/20 text-orange-400 border-orange-500/30">정지</span>
                     )}
-                    {hasUniform && (
-                      <span className="text-xs px-1.5 py-0.5 rounded font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">운동복</span>
-                    )}
-                    <span className="font-medium text-sm">{primary.name}</span>
-                    {pkgLabel && <span className="text-xs text-muted-foreground truncate">{pkgLabel}</span>}
                     {isDuplicate && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/30">통합</span>
                     )}
+                    {dDay && (
+                      <span className={`ml-auto text-[10px] font-medium tabular-nums ${dDay.expired ? "text-muted-foreground" : dDay.urgent ? "text-yellow-400" : "text-muted-foreground"}`}>
+                        {dDay.label}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {trainerNames.length > 0 && <span>{trainerNames.join(", ")}</span>}
-                    {trainerNames.length > 0 && primary.membershipStart && <span>·</span>}
-                    {primary.membershipStart && <span>{primary.membershipStart}</span>}
-                    {primary.profileNote && <><span>·</span><span className="truncate max-w-[120px]">{primary.profileNote}</span></>}
+                  {/* 타입 뱃지 + 패키지 이름 */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {displayTypes.map(t => (
+                      <span key={t} className={`text-[10px] px-1.5 py-0.5 rounded font-medium border ${typeStyle(t)}`}>{t}</span>
+                    ))}
+                    {hasLocker && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium border bg-cyan-500/20 text-cyan-400 border-cyan-500/30">락커</span>
+                    )}
+                    {hasUniform && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">운동복</span>
+                    )}
+                    {pkgLabel && <span className="text-xs text-muted-foreground truncate">{pkgLabel}</span>}
                   </div>
+                  {/* 트레이너 + 시작일 */}
+                  {(trainerNames.length > 0 || primary.membershipStart) && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                      {trainerNames.length > 0 && <span>{trainerNames.join(", ")}</span>}
+                      {trainerNames.length > 0 && primary.membershipStart && <span>·</span>}
+                      {primary.membershipStart && <span>{primary.membershipStart}</span>}
+                    </div>
+                  )}
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </div>
@@ -442,6 +472,73 @@ export default function AdminMembers() {
           합계 ({filtered.length}건)
         </p>
       )}
+
+      {/* 통계 모달 */}
+      {statModal && stats && (() => {
+        const labelMap: Record<NonNullable<StatModal>, string> = {
+          total: "전체 회원",
+          active: "활성 회원",
+          expiringSoon: "만료 임박 (7일)",
+          expired: "만료 회원",
+          paused: "정지 회원",
+          newThisMonth: "이번달 신규",
+        };
+        const modalMembers = stats.memberLists[statModal];
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={() => setStatModal(null)}>
+            <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[75vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              {/* 모달 헤더 */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <span className="font-semibold text-sm">{labelMap[statModal]} <span className="text-muted-foreground font-normal">({modalMembers.length}명)</span></span>
+                <button onClick={() => setStatModal(null)} className="p-1 rounded-lg hover:bg-accent transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {/* 모달 목록 */}
+              <div className="overflow-y-auto flex-1 divide-y divide-border">
+                {modalMembers.length === 0 && (
+                  <p className="text-center text-muted-foreground py-8 text-sm">해당 회원이 없습니다</p>
+                )}
+                {modalMembers.map(m => {
+                  const mType = memberType(m.packages, m.status, m.hasPtRevenue);
+                  const dDay = (() => {
+                    if (!m.membershipEnd) return null;
+                    const end = new Date(m.membershipEnd); end.setHours(0, 0, 0, 0);
+                    const diff = Math.round((end.getTime() - today.getTime()) / 86400000);
+                    if (diff > 0) return { label: `D-${diff}`, urgent: diff <= 7, expired: false };
+                    if (diff === 0) return { label: "D-Day", urgent: true, expired: false };
+                    return { label: `D+${Math.abs(diff)}`, urgent: false, expired: true };
+                  })();
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => { setStatModal(null); setLocation(`/members/${m.id}`); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{m.name}</span>
+                          {m.status === "paused" && <span className="text-[10px] px-1 py-0.5 rounded border font-medium bg-orange-500/20 text-orange-400 border-orange-500/30">정지</span>}
+                          {mType === "PT" && <span className="text-[10px] px-1 py-0.5 rounded border font-medium bg-blue-500/20 text-blue-400 border-blue-500/30">PT</span>}
+                          {mType === "헬스" && <span className="text-[10px] px-1 py-0.5 rounded border font-medium bg-green-500/20 text-green-400 border-green-500/30">헬스</span>}
+                        </div>
+                        {m.trainerName && <p className="text-xs text-muted-foreground mt-0.5">{m.trainerName}</p>}
+                      </div>
+                      {dDay && (
+                        <span className={`text-xs font-medium tabular-nums shrink-0 ${dDay.expired ? "text-muted-foreground" : dDay.urgent ? "text-yellow-400" : "text-muted-foreground"}`}>
+                          {dDay.label}
+                        </span>
+                      )}
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
