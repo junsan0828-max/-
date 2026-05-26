@@ -4,7 +4,7 @@ import { trpc } from "../lib/trpc";
 import { Search, ChevronRight, MapPin, Users, UserCheck, Clock, UserX, Pause, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-type TypeFilter = "all" | "PT" | "헬스" | "기타";
+type TypeFilter = "all" | "PT" | "헬스";
 
 function memberType(packages: { packageName: string; totalSessions: number }[], status: string, hasPtRevenue?: boolean): "PT" | "헬스" | "기타" {
   if (packages.length > 0 || hasPtRevenue) return "PT";
@@ -139,7 +139,10 @@ export default function AdminMembers() {
       group.some(g => (g.trainerName ?? "").toLowerCase().includes(q)) ||
       group.some(g => (g.profileNote ?? "").toLowerCase().includes(q));
     const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue));
-    const matchType = typeFilter === "all" || mTypes.includes(typeFilter as any);
+    // 기타(락커/운동복만 있는 회원)는 헬스 탭에서도 표시
+    const matchType = typeFilter === "all"
+      || mTypes.includes(typeFilter as any)
+      || (typeFilter === "헬스" && mTypes.every(t => t === "기타"));
     return matchSearch && matchType;
   });
 
@@ -316,7 +319,7 @@ export default function AdminMembers() {
 
       {/* 타입 필터 탭 */}
       <div className="flex gap-1 bg-card border border-border rounded-xl p-1">
-        {(["all", "PT", "헬스", "기타"] as TypeFilter[]).map((t) => (
+        {(["all", "PT", "헬스"] as TypeFilter[]).map((t) => (
           <button
             key={t}
             onClick={() => setTypeFilter(t)}
@@ -384,10 +387,15 @@ export default function AdminMembers() {
             .join(", ");
           const trainerNames = Array.from(new Set(group.map(g => g.trainerName).filter(Boolean)));
           const isDuplicate = group.length > 1;
+          // 그룹 내 락커/운동복 합산
+          const hasLocker = group.some(g => (g as any).lockerNumber);
+          const hasUniform = group.some(g => (g as any).hasUniform);
+          // "기타"만 있으면 뱃지 숨기고 락커/운동복 뱃지로 대체
+          const isOnlyEtc = types.length === 1 && types[0] === "기타";
+          const displayTypes = isOnlyEtc ? [] : types.filter(t => t !== "기타");
           const typeStyle = (t: string) =>
             t === "PT" ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
-            : t === "헬스" ? "bg-green-500/20 text-green-400 border-green-500/30"
-            : "bg-muted text-muted-foreground border-border";
+            : "bg-green-500/20 text-green-400 border-green-500/30";
           return (
             <div
               key={primary.id}
@@ -400,9 +408,15 @@ export default function AdminMembers() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                    {types.map(t => (
+                    {displayTypes.map(t => (
                       <span key={t} className={`text-xs px-1.5 py-0.5 rounded font-medium border ${typeStyle(t)}`}>{t}</span>
                     ))}
+                    {hasLocker && (
+                      <span className="text-xs px-1.5 py-0.5 rounded font-medium border bg-cyan-500/20 text-cyan-400 border-cyan-500/30">락커</span>
+                    )}
+                    {hasUniform && (
+                      <span className="text-xs px-1.5 py-0.5 rounded font-medium border bg-purple-500/20 text-purple-400 border-purple-500/30">운동복</span>
+                    )}
                     <span className="font-medium text-sm">{primary.name}</span>
                     {pkgLabel && <span className="text-xs text-muted-foreground truncate">{pkgLabel}</span>}
                     {isDuplicate && (

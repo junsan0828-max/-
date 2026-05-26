@@ -24,6 +24,7 @@ import {
   branches,
   trainerBranches,
   revenueEntries,
+  lockers,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
@@ -211,7 +212,7 @@ const membersRouter = t.router({
 
     const whereClause = input?.branchId ? eq(members.branchId, input.branchId) : undefined;
 
-    const [rows, pkgs, ptRevs] = await Promise.all([
+    const [rows, pkgs, ptRevs, lockerRows, etcRevs] = await Promise.all([
       db.select({
         id: members.id,
         name: members.name,
@@ -239,6 +240,10 @@ const membersRouter = t.router({
       }).from(ptPackages),
       db.select({ memberId: revenueEntries.memberId }).from(revenueEntries)
         .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`)),
+      db.select({ memberId: lockers.memberId, lockerNumber: lockers.lockerNumber }).from(lockers)
+        .where(sql`${lockers.memberId} IS NOT NULL`),
+      db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail }).from(revenueEntries)
+        .where(and(eq(revenueEntries.type, "기타"), sql`${revenueEntries.memberId} IS NOT NULL`)),
     ]);
 
     const pkgMap = new Map<number, { id: number; packageName: string; totalSessions: number; usedSessions: number }[]>();
@@ -248,7 +253,27 @@ const membersRouter = t.router({
     }
     const ptRevSet = new Set(ptRevs.map((r) => r.memberId).filter(Boolean) as number[]);
 
-    return rows.map((r) => ({ ...r, packages: pkgMap.get(r.id) ?? [], hasPtRevenue: ptRevSet.has(r.id) }));
+    // 락커 배정 map
+    const lockerMap = new Map<number, string>();
+    for (const l of lockerRows) {
+      if (l.memberId) lockerMap.set(l.memberId, l.lockerNumber ?? "");
+    }
+    // 운동복 대여 여부
+    const uniformSet = new Set<number>();
+    for (const e of etcRevs) {
+      const d = (e.programDetail ?? "").toLowerCase();
+      if (d.includes("운동복") || d.includes("유니폼") || d.includes("uniform")) {
+        if (e.memberId) uniformSet.add(e.memberId);
+      }
+    }
+
+    return rows.map((r) => ({
+      ...r,
+      packages: pkgMap.get(r.id) ?? [],
+      hasPtRevenue: ptRevSet.has(r.id),
+      lockerNumber: lockerMap.get(r.id) ?? null,
+      hasUniform: uniformSet.has(r.id),
+    }));
   }),
 
   getById: protectedProcedure
