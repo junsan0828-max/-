@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -21,101 +21,138 @@ const DIET_OPTIONS = [
 
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 
-type BodyRow = { left: string; right: string };
+// ── 색상 기반 신체 부위 감지 ──────────────────────────────────────────────────
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l * 100];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) * 60;
+  else if (max === gn) h = ((bn - rn) / d + 2) * 60;
+  else h = ((rn - gn) / d + 4) * 60;
+  return [h, s * 100, l * 100];
+}
+function hueIn(h: number, min: number, max: number) {
+  return min <= max ? h >= min && h <= max : h >= min || h <= max;
+}
 
-const FRONT_ROWS: BodyRow[] = [
-  { left: "목",         right: "목" },
-  { left: "좌 어깨",    right: "우 어깨" },
-  { left: "좌 팔",      right: "우 팔" },
-  { left: "복부",       right: "복부" },
-  { left: "좌 고관절",  right: "우 고관절" },
-  { left: "좌 무릎",    right: "우 무릎" },
-  { left: "좌 발목/발", right: "우 발목/발" },
+type ColorRule = {
+  hMin: number; hMax: number; sMin: number;
+  yMin?: number; yMax?: number;
+  part: (xPct: number) => string;
+};
+
+// 같은 색이 상/하체에 겹치는 경우 yMin/yMax로 구분
+const FRONT_RULES: ColorRule[] = [
+  { hMin: 340, hMax: 20,  sMin: 40, yMax: 55, part: () => "가슴" },
+  { hMin: 20,  hMax: 45,  sMin: 45, yMax: 35, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
+  { hMin: 20,  hMax: 45,  sMin: 45, yMin: 35, yMax: 65, part: () => "복근" },
+  { hMin: 20,  hMax: 45,  sMin: 45, yMin: 65, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
+  { hMin: 45,  hMax: 70,  sMin: 35, part: x => x < 50 ? "좌 복사근" : "우 복사근" },
+  { hMin: 70,  hMax: 155, sMin: 25, part: x => x < 50 ? "좌 이두/팔" : "우 이두/팔" },
+  { hMin: 155, hMax: 200, sMin: 40, yMax: 60, part: x => x < 50 ? "좌 손목" : "우 손목" },
+  { hMin: 155, hMax: 200, sMin: 40, yMin: 78, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  { hMin: 200, hMax: 260, sMin: 25, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
+  { hMin: 260, hMax: 310, sMin: 25, yMax: 28, part: () => "목/승모근" },
+  { hMin: 260, hMax: 310, sMin: 25, yMin: 28, yMax: 65, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
+  { hMin: 260, hMax: 310, sMin: 25, yMin: 65, part: x => x < 50 ? "좌 정강이" : "우 정강이" },
+  { hMin: 310, hMax: 340, sMin: 35, part: x => x < 50 ? "좌 대퇴사두" : "우 대퇴사두" },
 ];
 
-const BACK_ROWS: BodyRow[] = [
-  { left: "좌 목/등",    right: "우 목/등" },
-  { left: "좌 어깨/등",  right: "우 어깨/등" },
-  { left: "좌 등/허리",  right: "우 등/허리" },
-  { left: "좌 허리",     right: "우 허리" },
-  { left: "좌 엉덩이",   right: "우 엉덩이" },
-  { left: "좌 허벅지",   right: "우 허벅지" },
-  { left: "좌 종아리/발", right: "우 종아리/발" },
+const BACK_RULES: ColorRule[] = [
+  { hMin: 340, hMax: 20,  sMin: 40, yMax: 45, part: () => "등 상부" },
+  { hMin: 20,  hMax: 45,  sMin: 45, yMax: 32, part: x => x < 50 ? "좌 어깨(후)" : "우 어깨(후)" },
+  { hMin: 20,  hMax: 45,  sMin: 45, yMin: 32, yMax: 62, part: () => "허리" },
+  { hMin: 20,  hMax: 45,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
+  { hMin: 45,  hMax: 70,  sMin: 35, part: () => "등 중부" },
+  { hMin: 70,  hMax: 155, sMin: 25, part: x => x < 50 ? "좌 팔(후)" : "우 팔(후)" },
+  { hMin: 155, hMax: 200, sMin: 40, yMax: 60, part: x => x < 50 ? "좌 손목" : "우 손목" },
+  { hMin: 155, hMax: 200, sMin: 40, yMin: 78, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  { hMin: 200, hMax: 260, sMin: 25, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
+  { hMin: 260, hMax: 310, sMin: 25, yMax: 30, part: () => "목/승모근" },
+  { hMin: 260, hMax: 310, sMin: 25, yMin: 30, yMax: 65, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
+  { hMin: 260, hMax: 310, sMin: 25, yMin: 65, part: x => x < 50 ? "좌 종아리(후)" : "우 종아리(후)" },
+  { hMin: 310, hMax: 340, sMin: 35, part: x => x < 50 ? "좌 허벅지(후)" : "우 허벅지(후)" },
 ];
 
 function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
   const [view, setView] = useState<"front" | "back">("front");
-  const rows = view === "front" ? FRONT_ROWS : BACK_ROWS;
+  const [flash, setFlash] = useState<{ part: string; x: number; y: number } | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
 
-  function toggle(part: string) {
+  function handleTap(e: React.MouseEvent<HTMLImageElement>) {
+    const img = imgRef.current;
+    if (!img) return;
+    const rect = img.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+
+    // 캔버스에 이미지를 그려서 픽셀 색상 읽기
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(img, 0, 0);
+    const px = Math.round((xPct / 100) * img.naturalWidth);
+    const py = Math.round((yPct / 100) * img.naturalHeight);
+    const [r, g, b, a] = ctx.getImageData(px, py, 1, 1).data;
+
+    if (a < 100) return; // 투명
+    const [h, s, l] = rgbToHsl(r, g, b);
+    if (s < 15 || l > 92 || l < 8) return; // 흰색/검정/무채색 무시
+
+    const rules = view === "front" ? FRONT_RULES : BACK_RULES;
+    const rule = rules.find(rule => {
+      if (s < rule.sMin) return false;
+      if (rule.yMin !== undefined && yPct < rule.yMin) return false;
+      if (rule.yMax !== undefined && yPct > rule.yMax) return false;
+      return hueIn(h, rule.hMin, rule.hMax);
+    });
+    if (!rule) return;
+
+    const part = rule.part(xPct);
     onChange(selected.includes(part) ? selected.filter(p => p !== part) : [...selected, part]);
+    setFlash({ part, x: xPct, y: yPct });
+    setTimeout(() => setFlash(null), 1200);
   }
 
   return (
     <div className="space-y-3">
-      {/* 전면 / 후면 탭 */}
       <div className="grid grid-cols-2 rounded-lg border border-border overflow-hidden text-sm">
         {(["front", "back"] as const).map(v => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            className={`py-1.5 font-medium transition-colors touch-manipulation ${
-              view === v ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
+          <button key={v} onClick={() => setView(v)}
+            className={`py-1.5 font-medium transition-colors touch-manipulation ${view === v ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>
             {v === "front" ? "전면" : "후면"}
           </button>
         ))}
       </div>
 
-      {/* 이미지 + 그리드 오버레이 */}
-      <div className="relative rounded-xl border border-border overflow-hidden">
-        {/* 이미지 — 전면/후면 별도 파일 */}
-        <div className="overflow-hidden">
-          <img
-            src={view === "front" ? "/body-front.png" : "/body-back.png"}
-            className="block w-full"
-            draggable={false}
-            alt="신체 부위"
-          />
-        </div>
-
-        {/* 투명 그리드 — 각 행을 좌/우 버튼으로 분할 */}
-        <div className="absolute inset-0 flex flex-col">
-          {rows.map((row, i) => {
-            const leftOn = selected.includes(row.left);
-            const rightOn = selected.includes(row.right);
-            return (
-              <div key={i} className="flex flex-1 border-b border-white/10 last:border-0">
-                <button
-                  onClick={() => toggle(row.left)}
-                  className={`w-1/2 flex items-center px-2 transition-colors touch-manipulation ${
-                    leftOn ? "bg-primary/50" : "active:bg-white/15"
-                  }`}
-                >
-                  <span className="text-[10px] text-white/40 mr-0.5 shrink-0 tabular-nums">{i * 2 + 1}</span>
-                  <span className={`text-xs leading-tight text-left ${leftOn ? "text-white font-bold" : "text-white/70"}`}>
-                    {row.left}
-                  </span>
-                </button>
-                <button
-                  onClick={() => toggle(row.right)}
-                  className={`w-1/2 flex items-center justify-end px-2 transition-colors touch-manipulation ${
-                    rightOn ? "bg-primary/50" : "active:bg-white/15"
-                  }`}
-                >
-                  <span className={`text-xs leading-tight text-right ${rightOn ? "text-white font-bold" : "text-white/70"}`}>
-                    {row.right}
-                  </span>
-                  <span className="text-[10px] text-white/40 ml-0.5 shrink-0 tabular-nums">{i * 2 + 2}</span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
+      <div className="relative rounded-xl border border-border overflow-hidden cursor-pointer">
+        <img
+          ref={imgRef}
+          src={view === "front" ? "/body-front.png" : "/body-back.png"}
+          className="block w-full touch-manipulation"
+          draggable={false}
+          crossOrigin="anonymous"
+          alt="신체 부위 — 탭하세요"
+          onClick={handleTap}
+        />
+        {flash && (
+          <div
+            className="absolute -translate-x-1/2 -translate-y-full pointer-events-none"
+            style={{ left: `${flash.x}%`, top: `${flash.y}%` }}
+          >
+            <div className="bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-lg whitespace-nowrap mb-1 animate-bounce">
+              {selected.includes(flash.part) ? `✓ ${flash.part}` : `✕ ${flash.part} 해제`}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 선택된 부위 칩 */}
       {selected.length > 0 && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -124,13 +161,9 @@ function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v:
           </div>
           <div className="flex flex-wrap gap-1.5">
             {selected.map(part => (
-              <button
-                key={part}
-                onClick={() => onChange(selected.filter(p => p !== part))}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30 transition-colors touch-manipulation"
-              >
-                {part}
-                <X className="h-3 w-3" />
+              <button key={part} onClick={() => onChange(selected.filter(p => p !== part))}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30 transition-colors touch-manipulation">
+                {part}<X className="h-3 w-3" />
               </button>
             ))}
           </div>
