@@ -41,12 +41,13 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
       </header>
 
       {/* 콘텐츠 */}
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}>
         {children}
       </main>
 
       {/* 하단 네비게이션 */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card border-t border-border z-10">
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card border-t border-border z-10"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="flex">
           {navItems.map((item) => {
             const isActive = location === item.path || (item.path !== "/gym-plus" && location.startsWith(item.path));
