@@ -46,10 +46,11 @@ type ColorRule = {
   part: (xPct: number) => string;
 };
 
-// 같은 색이 상/하체에 겹치는 경우 yMin/yMax로 구분
 const FRONT_RULES: ColorRule[] = [
-  // 고관절 주변 — yellow (노란색, y>48%), 복근보다 먼저 매칭
-  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 48, part: () => "고관절 주변" },
+  // 고관절 주변 — yellow 위쪽 (y 48~60%)
+  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 48, yMax: 60, part: () => "고관절 주변" },
+  // 내전근 — yellow 다리 안쪽 (y 60~78%)
+  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 60, yMax: 78, part: x => x < 50 ? "좌 내전근" : "우 내전근" },
   // 가슴 — red/salmon
   { hMin: 340, hMax: 20,  sMin: 40, yMax: 55, part: () => "가슴" },
   // 어깨 — orange, 상단만 (y<28%)
@@ -62,14 +63,14 @@ const FRONT_RULES: ColorRule[] = [
   { hMin: 76,  hMax: 148, sMin: 28, yMax: 53, part: x => x < 50 ? "좌 이두근" : "우 이두근" },
   // 고관절 — lime/green, 엉덩이 옆 (y 53~73%)
   { hMin: 76,  hMax: 148, sMin: 28, yMin: 53, yMax: 73, part: x => x < 50 ? "좌 고관절" : "우 고관절" },
-  // 전완근 — teal, 복부 옆 레벨 (y 35~58%)
-  { hMin: 148, hMax: 200, sMin: 40, yMin: 35, yMax: 58, part: x => x < 50 ? "좌 전완근" : "우 전완근" },
-  // 손목 — teal, 손 레벨 (y 58~73%)
-  { hMin: 148, hMax: 200, sMin: 40, yMin: 58, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
+  // 손목 — teal, 팔 구간 전체 (y 35~73%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 35, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
   // 발목 — teal, 발목 레벨 (y 80~90%)
   { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
   // 발바닥 — 최하단 전체 (y>90%)
   { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발바닥" : "우 발바닥" },
+  // 무릎 — blue, 다리 구간 (y 60~82%)
+  { hMin: 200, hMax: 262, sMin: 25, yMin: 60, yMax: 82, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
   // 목/승모근 — purple, 최상단 (y<25%)
   { hMin: 262, hMax: 310, sMin: 25, yMax: 25, part: () => "목/승모근" },
   // 어깨(삼각근) — purple, y 25~30%만
