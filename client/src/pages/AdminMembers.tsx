@@ -364,15 +364,26 @@ export default function AdminMembers() {
       )}
 
       {/* 검색 */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="회원명, 트레이너, 메모 검색..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 bg-input border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary"
-        />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="회원명, 연락처, 트레이너, 메모 검색..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            className="w-full pl-9 pr-4 py-2.5 bg-input border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="px-3 py-2.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            초기화
+          </button>
+        )}
       </div>
 
       {/* 목록 */}
