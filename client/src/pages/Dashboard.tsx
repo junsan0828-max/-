@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -413,6 +413,7 @@ function TrainerDashboard() {
     exercises: [] as Exercise[],
   });
 
+  const sessionSubmittingRef = useRef(false);
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onSuccess: (data) => {
       toast.success(`${selectedMember?.name} 수업 기록 완료! 잔여 ${data.remaining}회`);
@@ -420,6 +421,7 @@ function TrainerDashboard() {
       utils.dashboard.getStats.invalidate();
     },
     onError: (err) => toast.error(err.message || "기록 실패"),
+    onSettled: () => { sessionSubmittingRef.current = false; },
   });
   const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
@@ -808,7 +810,8 @@ function TrainerDashboard() {
               <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
               <Button className="flex-1" disabled={useSessionMutation.isPending}
                 onClick={() => {
-                  if (!selectedMember) return;
+                  if (!selectedMember || sessionSubmittingRef.current) return;
+                  sessionSubmittingRef.current = true;
                   useSessionMutation.mutate({
                     memberId: selectedMember.id,
                     sessionDate: journalForm.sessionDate,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -79,6 +79,7 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [notes, setNotes] = useState("");
   const [deductSession, setDeductSession] = useState(false);
   const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
+  const savingRef = useRef(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: member } = trpc.members.getById.useQuery({ id: memberId });
@@ -143,20 +144,24 @@ export default function AttendanceCheck({ memberId }: Props) {
           { packageId: selectedPkgId, memberId, sessionDate: checkDate },
           {
             onSettled: () => {
+              savingRef.current = false;
               toast.success("출석 및 세션이 저장되었습니다.");
               setLocation(`/attendance?date=${checkDate}`);
             },
           }
         );
       } else {
+        savingRef.current = false;
         toast.success("출석이 저장되었습니다.");
         setLocation(`/attendance?date=${checkDate}`);
       }
     },
-    onError: (err) => toast.error(err.message || "저장 실패"),
+    onError: (err) => { savingRef.current = false; toast.error(err.message || "저장 실패"); },
   });
 
   const handleSave = () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     const painAreaStr = selectedPainAreas.length ? selectedPainAreas.join(", ") : undefined;
     upsertMutation.mutate({
       memberId,

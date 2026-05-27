@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -435,6 +435,7 @@ export default function MemberDetail({ memberId }: Props) {
   });
 
   // PT 세션 사용 (완료 후 메모 입력 유도)
+  const sessionSubmittingRef = useRef(false);
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onSuccess: (data) => {
       toast.success(`세션 사용 완료! 잔여 ${data.remaining}회`);
@@ -445,6 +446,7 @@ export default function MemberDetail({ memberId }: Props) {
       setSessionMemoOpen(true);
     },
     onError: (err) => toast.error(err.message || "세션 사용 실패"),
+    onSettled: () => { sessionSubmittingRef.current = false; },
   });
 
   // 회원 상태 변경 (활성 ↔ 정지)
@@ -2127,6 +2129,8 @@ export default function MemberDetail({ memberId }: Props) {
                 className="flex-1"
                 disabled={useSessionMutation.isPending}
                 onClick={() => {
+                  if (sessionSubmittingRef.current) return;
+                  sessionSubmittingRef.current = true;
                   useSessionMutation.mutate({
                     packageId: sessionDialogPkgId,
                     memberId,
