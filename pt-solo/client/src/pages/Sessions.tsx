@@ -52,6 +52,7 @@ function TemplateLoader({ onLoad }: { onLoad: (exs: Exercise[]) => void }) {
 
 type JournalForm = {
   sessionDate: string;
+  datePending: boolean;
   bodyPart: string;
   exercises: Exercise[];
   notes: string;
@@ -61,6 +62,7 @@ type JournalForm = {
 
 const emptyForm = (): JournalForm => ({
   sessionDate: new Date().toISOString().split("T")[0],
+  datePending: false,
   bodyPart: "",
   exercises: [],
   notes: "",
@@ -136,7 +138,8 @@ export default function Sessions() {
   function openEdit(log: any) {
     setEditId(log.id);
     setEditForm({
-      sessionDate: log.sessionDate,
+      sessionDate: log.sessionDate === "미정" ? new Date().toISOString().split("T")[0] : log.sessionDate,
+      datePending: log.sessionDate === "미정",
       bodyPart: log.bodyPart ?? "",
       exercises: parseExercisesJson(log.exercisesJson),
       notes: log.notes ?? "",
@@ -255,18 +258,22 @@ export default function Sessions() {
           </div>
         ) : logs.map(log => {
           const exercises = parseExercisesJson(log.exercisesJson);
-          const isFuture = log.sessionDate > new Date().toISOString().slice(0, 10);
+          const isPending = log.sessionDate === "미정";
+          const isFuture = !isPending && log.sessionDate > new Date().toISOString().slice(0, 10);
           return (
-            <div key={log.id} className="border border-border rounded-xl bg-card overflow-hidden">
+            <div key={log.id} className={`border rounded-xl bg-card overflow-hidden ${isPending ? "border-amber-500/30" : "border-border"}`}>
               <button
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/50 transition-colors text-left"
                 onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
               >
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold">{log.sessionDate}</span>
+                    <span className={`text-sm font-semibold ${isPending ? "text-amber-500" : ""}`}>{log.sessionDate}</span>
+                    {isPending && (
+                      <span className="text-[10px] bg-amber-500/15 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-medium">날짜 미정</span>
+                    )}
                     {isFuture && (
-                      <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-medium">예정</span>
+                      <span className="text-[10px] bg-blue-500/15 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded-full font-medium">예정</span>
                     )}
                     {log.bodyPart && log.bodyPart.split(",").map(bp => (
                       <span key={bp} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{bp.trim()}</span>
@@ -353,13 +360,30 @@ export default function Sessions() {
             <DialogDescription>{selectedMember?.name}님의 트레이닝 기록을 작성합니다.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* 날짜 미정 체크박스 */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={journalForm.datePending}
+                onChange={e => setJournalForm(p => ({
+                  ...p,
+                  datePending: e.target.checked,
+                  sessionDate: e.target.checked ? "미정" : new Date().toISOString().split("T")[0],
+                }))}
+                className="w-4 h-4 accent-primary"
+              />
+              <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
+            </label>
+
             <div className="space-y-1.5">
               <Label className="text-xs">날짜</Label>
               <Input
-                type="date"
-                value={journalForm.sessionDate}
+                type={journalForm.datePending ? "text" : "date"}
+                value={journalForm.datePending ? "" : journalForm.sessionDate}
+                placeholder={journalForm.datePending ? "미정" : ""}
+                disabled={journalForm.datePending}
                 onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))}
-                className="h-9 text-sm"
+                className="h-9 text-sm disabled:opacity-50"
               />
             </div>
             <div className="space-y-1.5">
@@ -387,7 +411,7 @@ export default function Sessions() {
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
               <Button className="flex-1" disabled={createMutation.isPending} onClick={submitCreate}>
-                {createMutation.isPending ? "저장 중..." : "저장"}
+                {createMutation.isPending ? "저장 중..." : journalForm.datePending ? "임시 저장" : "저장"}
               </Button>
             </div>
           </div>
@@ -402,13 +426,28 @@ export default function Sessions() {
             <DialogDescription>{editForm.sessionDate}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editForm.datePending}
+                onChange={e => setEditForm(p => ({
+                  ...p,
+                  datePending: e.target.checked,
+                  sessionDate: e.target.checked ? "미정" : new Date().toISOString().split("T")[0],
+                }))}
+                className="w-4 h-4 accent-primary"
+              />
+              <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
+            </label>
             <div className="space-y-1.5">
               <Label className="text-xs">날짜</Label>
               <Input
-                type="date"
-                value={editForm.sessionDate}
+                type={editForm.datePending ? "text" : "date"}
+                value={editForm.datePending ? "" : editForm.sessionDate}
+                placeholder={editForm.datePending ? "미정" : ""}
+                disabled={editForm.datePending}
                 onChange={e => setEditForm(p => ({ ...p, sessionDate: e.target.value }))}
-                className="h-9 text-sm"
+                className="h-9 text-sm disabled:opacity-50"
               />
             </div>
             <div className="space-y-1.5">
@@ -435,7 +474,7 @@ export default function Sessions() {
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)}>취소</Button>
               <Button className="flex-1" disabled={updateMutation.isPending} onClick={submitEdit}>
-                {updateMutation.isPending ? "저장 중..." : "저장"}
+                {updateMutation.isPending ? "저장 중..." : editForm.datePending ? "임시 저장" : "저장"}
               </Button>
             </div>
           </div>
