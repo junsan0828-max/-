@@ -4,6 +4,7 @@ import { trpc } from "./lib/trpc";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Landing from "./pages/Landing";
+import AdminLogin from "./pages/AdminLogin";
 import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
@@ -128,6 +129,10 @@ function App() {
 
   if (window.location.pathname === "/landing") {
     return <Landing />;
+  }
+
+  if (window.location.pathname === "/admin-login") {
+    return <AdminLogin />;
   }
 
   // FIT STEP+ 회원앱 라우트 (트레이너 로그인 불필요)
