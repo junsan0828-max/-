@@ -124,7 +124,7 @@ app.get("/auth/kakao/callback", async (req, res) => {
 });
 
 async function handleOAuthLogin(req: any, res: any, provider: string, providerId: string, name: string, email?: string, gender?: string, birthYear?: string, ageRange?: string) {
-  const db2 = getDb();
+  const db2 = db;
   // 기존 계정 찾기
   const existing = await pool.query<{ id: number; role: string; position: string | null; trainerId: number | null }>(
     `SELECT u.id, u.role, u.position, t.id AS "trainerId"
