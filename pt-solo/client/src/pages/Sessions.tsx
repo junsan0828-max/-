@@ -49,6 +49,12 @@ export default function Sessions() {
 
   const selectedMember = allMembers?.find(m => m.id === selectedMemberId);
 
+  const { data: packages } = trpc.pt.listByMember.useQuery(
+    { memberId: selectedMemberId! },
+    { enabled: !!selectedMemberId }
+  );
+  const activePackage = packages?.find(p => p.status === "active") ?? packages?.[0];
+
   const { data: logs } = trpc.trainingLog.listAll.useQuery(
     selectedMemberId ? { memberId: selectedMemberId } : undefined,
     { enabled: true }
@@ -151,14 +157,34 @@ export default function Sessions() {
         )}
 
         {selectedMember && (
-          <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5">
-            <div>
-              <span className="text-sm font-semibold text-primary">{selectedMember.name}</span>
-              <span className="text-xs text-muted-foreground ml-2">{selectedMember.phone}</span>
+          <div className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-semibold text-primary">{selectedMember.name}</span>
+                <span className="text-xs text-muted-foreground ml-2">{selectedMember.phone}</span>
+              </div>
+              <button onClick={() => { setSelectedMemberId(null); }} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <button onClick={() => setSelectedMemberId(null)} className="text-muted-foreground hover:text-foreground">
-              <X className="h-4 w-4" />
-            </button>
+            {activePackage && (
+              <div className="flex items-center gap-3 pt-1 border-t border-primary/15 flex-wrap">
+                <span className="text-xs font-medium text-foreground">{activePackage.packageName || "PT"}</span>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="bg-background rounded-full px-2 py-0.5 border border-border font-medium">
+                    총 {activePackage.totalSessions}회
+                  </span>
+                  <span className="text-muted-foreground/50">·</span>
+                  <span className="bg-background rounded-full px-2 py-0.5 border border-border font-medium">
+                    사용 {activePackage.usedSessions}회
+                  </span>
+                  <span className="text-muted-foreground/50">·</span>
+                  <span className="bg-primary/20 text-primary rounded-full px-2 py-0.5 border border-primary/30 font-semibold">
+                    잔여 {(activePackage.totalSessions ?? 0) - (activePackage.usedSessions ?? 0)}회
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
