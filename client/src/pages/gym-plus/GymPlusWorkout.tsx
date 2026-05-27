@@ -871,15 +871,26 @@ export default function GymPlusWorkout() {
     let parsedBodyParts: string[] = [];
     try { parsedBodyParts = (log as any).bodyPartsJson ? JSON.parse((log as any).bodyPartsJson) : []; } catch {}
     const isCheckIn = log.title === "출석체크";
+    // 트레이너가 통합운영시스템에서 전송한 기록 여부 (notes에 __src: 마커 포함)
+    const isTrainerSent = typeof log.notes === "string" && log.notes.includes("__src:");
+    const displayNotes = isTrainerSent
+      ? log.notes.replace(/\n?__src:\d+/g, "").trim()
+      : log.notes;
+
     return (
-      <div key={log.id} className="bg-card border border-border rounded-xl p-4 space-y-2">
+      <div key={log.id} className={`bg-card border rounded-xl p-4 space-y-2 ${isTrainerSent ? "border-primary/40" : "border-border"}`}>
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs text-muted-foreground">{log.logDate}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-muted-foreground">{log.logDate}</p>
+              {isTrainerSent && (
+                <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-medium">트레이너 전송</span>
+              )}
+            </div>
             <p className="font-semibold text-sm">{log.title || "운동 기록"}</p>
           </div>
           <div className="flex gap-1">
-            {!isCheckIn && (
+            {!isCheckIn && !isTrainerSent && (
               <button onClick={() => openEdit(log)} className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-lg">수정</button>
             )}
             <button onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: log.id }); }}
@@ -916,9 +927,9 @@ export default function GymPlusWorkout() {
           </div>
         )}
 
-        {log.notes && <p className="text-xs text-muted-foreground border-t border-border pt-2">{log.notes}</p>}
+        {displayNotes && <p className="text-xs text-muted-foreground border-t border-border pt-2">{displayNotes}</p>}
 
-        {!isCheckIn && parsedExercises.filter((e: any) => e.name).length > 0 && (
+        {!isCheckIn && !isTrainerSent && parsedExercises.filter((e: any) => e.name).length > 0 && (
           <button
             onClick={() => setActiveLog(log)}
             className="w-full mt-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
