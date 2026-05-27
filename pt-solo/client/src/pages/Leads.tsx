@@ -551,7 +551,10 @@ export default function LeadsPage() {
                   <div className="flex gap-2">
                     {/* 계약서 PDF 출력 */}
                     <button
-                      onClick={() => window.open(contractUrl, "_blank")}
+                      onClick={() => {
+                        if (contractTerms) sessionStorage.setItem("contractTerms", JSON.stringify(contractTerms));
+                        window.open(contractUrl, "_blank");
+                      }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                     >
                       <FileText className="h-3.5 w-3.5" />
