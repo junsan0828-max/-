@@ -84,6 +84,11 @@ export default function ContractPrint() {
   const phone = params.get("phone") || "";
   const date = params.get("date") || new Date().toLocaleDateString("ko-KR");
   const marketing = params.get("marketing") === "1";
+  const trainerName = params.get("trainerName") || "";
+  const gymName = params.get("gymName") || "";
+  const centerLabel = gymName || trainerName || "센터";
+  const contractTermsText = CONTRACT_TERMS.replaceAll("자이언트짐", centerLabel);
+  const privacyTermsText = PRIVACY_TERMS.replaceAll("자이언트짐", centerLabel);
   const [signatureImg, setSignatureImg] = useState<string>("");
 
   useEffect(() => {
@@ -140,8 +145,8 @@ export default function ContractPrint() {
 
         {/* 헤더 */}
         <div className="text-center mb-8 border-b-2 border-gray-800 pb-6">
-          <h1 className="text-3xl font-bold tracking-wide mb-1">자이언트짐</h1>
-          <p className="text-base text-gray-500">GIANT GYM</p>
+          <h1 className="text-3xl font-bold tracking-wide mb-1">{gymName || trainerName || "센터"}</h1>
+          {gymName && trainerName && <p className="text-sm text-gray-500">{trainerName} 트레이너</p>}
           <h2 className="text-xl font-bold mt-4 tracking-widest">회 원 계 약 서</h2>
         </div>
 
@@ -171,7 +176,7 @@ export default function ContractPrint() {
             센터 이용 약관
           </h3>
           <div className="section-box border border-gray-200 rounded-lg p-4 bg-gray-50 text-xs leading-relaxed whitespace-pre-wrap text-gray-700" style={{ fontSize: "11px" }}>
-            {CONTRACT_TERMS}
+            {contractTermsText}
           </div>
           <div className="mt-3 flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-bold text-sm">✓</div>
@@ -186,7 +191,7 @@ export default function ContractPrint() {
             개인정보 수집·이용 동의서
           </h3>
           <div className="section-box border border-gray-200 rounded-lg p-4 bg-gray-50 text-xs leading-relaxed whitespace-pre-wrap text-gray-700" style={{ fontSize: "11px" }}>
-            {PRIVACY_TERMS}
+            {privacyTermsText}
           </div>
           <div className="mt-3 flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-bold text-sm">✓</div>
@@ -240,7 +245,7 @@ export default function ContractPrint() {
             </div>
           </div>
           <div className="mt-8 text-center">
-            <p className="text-sm text-gray-600 font-semibold">자이언트짐 센터장</p>
+            <p className="text-sm text-gray-600 font-semibold">{gymName ? `${gymName} ` : ""}{trainerName || "트레이너"}</p>
             <div className="mt-2 inline-block border-b border-gray-400 w-40 pb-8"></div>
             <span className="text-xs text-gray-400 ml-2">(서명/인)</span>
           </div>
@@ -248,7 +253,7 @@ export default function ContractPrint() {
 
         {/* 푸터 */}
         <div className="mt-10 border-t border-gray-200 pt-4 text-center text-xs text-gray-400">
-          자이언트짐 · 본 계약서는 등록 시 작성되었습니다
+          {gymName || trainerName || "FIT STEP"} · 본 계약서는 등록 시 작성되었습니다
         </div>
       </div>
     </>

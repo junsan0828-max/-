@@ -175,6 +175,7 @@ export default function LeadsPage() {
   const { data: channels } = trpc.channels.list.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
   const { data: contractTerms } = trpc.trainers.getContractTerms.useQuery();
+  const { data: myProfile } = trpc.trainers.getMyProfile.useQuery();
 
   // 바로등록 상태
   const [showQuickModal, setShowQuickModal] = useState(false);
@@ -507,7 +508,7 @@ export default function LeadsPage() {
             const s = STATUS_OPTIONS.find(s => s.value === displayStatus);
             const mainTypes = row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [];
             const subTypes = row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [];
-            const contractUrl = `/contract-print?name=${encodeURIComponent(row.lead.name)}&phone=${encodeURIComponent(row.lead.phone ?? "")}&date=${encodeURIComponent(new Date().toLocaleDateString("ko-KR"))}`;
+            const contractUrl = `/contract-print?name=${encodeURIComponent(row.lead.name)}&phone=${encodeURIComponent(row.lead.phone ?? "")}&date=${encodeURIComponent(new Date().toLocaleDateString("ko-KR"))}&trainerName=${encodeURIComponent((myProfile as any)?.trainerName ?? "")}&gymName=${encodeURIComponent((myProfile as any)?.workplaceName ?? "")}`;
             return (
               <div key={row.lead.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
                 {/* 헤더: 이름/상태 */}
