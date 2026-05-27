@@ -168,7 +168,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
         <CardContent className="grid grid-cols-3 gap-2">
           {[
             { label: "관리 회원", value: `${t.memberCount}명`, color: "text-blue-400" },
-            { label: "PT 세션", value: `${t.sessionCount}회`, color: "text-green-400" },
+            { label: "수업", value: `${t.sessionCount}회`, color: "text-green-400" },
             { label: "출석 체크", value: `${t.attendanceCount}회`, color: "text-purple-400" },
           ].map(item => (
             <div key={item.label} className="p-2.5 rounded-lg bg-accent/20 border border-border text-center">

@@ -43,7 +43,7 @@ function AdminDashboard() {
         {[
           { label: "가입 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: ShieldCheck, color: "text-blue-400" },
           { label: "누적 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400" },
-          { label: "누적 PT 세션", value: `${stats?.totalSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400" },
+          { label: "누적 수업", value: `${stats?.totalSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400" },
         ].map((card) => (
           <Card key={card.label} className="bg-card border-border">
             <CardContent className="p-4">
@@ -250,7 +250,7 @@ function TrainerDashboard() {
           { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", onClick: () => setLocation("/members") },
           { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", onClick: () => setLocation("/members") },
           { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", onClick: () => setTodayModalOpen(true) },
-          { label: "이번달 PT 세션", value: `${stats?.monthPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
+          { label: "이번달 수업", value: `${stats?.monthPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
         ].map((card) => (
           <button key={card.label} onClick={card.onClick} className="text-left">
             <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
@@ -618,7 +618,7 @@ function TrainerDashboard() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Dumbbell className="h-4 w-4 text-purple-400" />
-              회원별 PT 세션 현황
+              회원별 수업 현황
             </DialogTitle>
             <DialogDescription className="text-xs">
               누적 세션 횟수 기준 정렬
