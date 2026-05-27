@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
+import BasicInfoModal from "./BasicInfoModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -23,8 +24,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [surveyDone, setSurveyDone] = useState(false);
+  const [basicInfoDone, setBasicInfoDone] = useState(false);
 
-  const showSurvey = user?.role === "trainer" && profile !== undefined && !(profile as any).onboardingSurveyDone && !surveyDone;
+  const needsBasicInfo = user?.role === "trainer"
+    && profile !== undefined
+    && !(profile as any).phone
+    && !basicInfoDone;
+
+  const showSurvey = user?.role === "trainer"
+    && profile !== undefined
+    && !(profile as any).onboardingSurveyDone
+    && !surveyDone
+    && !needsBasicInfo;
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -217,6 +228,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
         {!isAdmin && <ProfileSetupModal />}
+        {needsBasicInfo && (
+          <BasicInfoModal
+            currentName={(profile as any)?.trainerName ?? ""}
+            onClose={() => setBasicInfoDone(true)}
+          />
+        )}
         {showSurvey && <OnboardingSurveyModal required onClose={() => setSurveyDone(true)} />}
       </div>
     </div>
