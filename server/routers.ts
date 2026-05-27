@@ -3170,19 +3170,43 @@ const adminRouter = t.router({
         );
         let gm = ((gmRows as any).rows ?? (gmRows as any))[0];
 
-        // 2차 폴백: 이름으로 매칭
-        if (!gm && log.memberName) {
-          const nameRows = await db.execute(
-            sql`SELECT id FROM gym_plus_members WHERE name = ${log.memberName} LIMIT 1`
+        // 2차 폴백: 이름으로 매칭 (이름 스냅샷 + 실제 회원 이름 둘 다 시도)
+        if (!gm) {
+          const nameToTry = log.memberName || log.memberNameJoined;
+          if (nameToTry) {
+            const nameRows = await db.execute(
+              sql`SELECT id FROM gym_plus_members WHERE name = ${nameToTry} LIMIT 1`
+            );
+            gm = ((nameRows as any).rows ?? (nameRows as any))[0];
+          }
+        }
+
+        // 3차 폴백: 이름 이름으로 찾은 경우 전화번호도 업데이트해서 연결 강화
+        if (gm && normalizedPhone) {
+          await db.execute(
+            sql`UPDATE gym_plus_members SET "memberId" = ${log.memberId} WHERE id = ${gm.id} AND "memberId" IS NULL`
           );
-          gm = ((nameRows as any).rows ?? (nameRows as any))[0];
         }
 
         if (!gm) {
+          // 진단: gym_plus_members에 이 회원이 아예 없는지, 아니면 전화번호가 다른지
+          const nameCheck = log.memberName ? await db.execute(
+            sql`SELECT username, phone FROM gym_plus_members WHERE name = ${log.memberName} LIMIT 1`
+          ) : null;
+          const nameMatch = nameCheck ? ((nameCheck as any).rows ?? (nameCheck as any))[0] : null;
+
+          let reason = "";
+          if (!log.phone) {
+            reason = `회원 전화번호 없음 (짐플러스 가입 여부 불명)`;
+          } else if (nameMatch) {
+            reason = `전화번호 불일치 — 회원: ${log.phone} / 짐플러스(${nameMatch.username}): ${nameMatch.phone ?? "없음"}`;
+          } else {
+            reason = `짐플러스 미가입 (전화: ${log.phone}, 이름: ${log.memberName ?? "-"})`;
+          }
           failedItems.push({
             memberName: log.memberName ?? log.memberNameJoined ?? "알 수 없음",
             sessionDate: log.sessionDate,
-            reason: `짐플러스 계정 없음 (전화: ${log.phone ?? "-"})`,
+            reason,
           });
           continue;
         }
