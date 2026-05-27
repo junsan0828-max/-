@@ -3147,23 +3147,33 @@ const adminRouter = t.router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    // 같은 DB에서 직접 JOIN: pt_session_logs → members → gym_plus_members
-    // memberId 링크, 전화번호(정규화), 이름 세 가지를 DB 안에서 한번에 비교
+    // 같은 DB. COALESCE 서브쿼리로 순서대로 매칭:
+    // 1) memberId 직접 링크
+    // 2) 전화번호 정규화 매칭 (양쪽 모두 비어있으면 제외)
+    // 3) 이름 매칭 (세션 스냅샷 이름)
+    // 4) 이름 매칭 (현재 회원 이름)
     const sharedLogs = await db.execute(sql`
       SELECT
         s.id, s."memberId", s."memberName", s."sessionDate",
         s.notes, s.goal, s.feedback, s."bodyPart", s."exercisesJson",
         m.phone AS memberPhone, m.name AS memberNameReal,
-        gpm.id AS gymPlusMemberId,
-        gpm.phone AS gymPlusPhone
+        COALESCE(
+          (SELECT id FROM gym_plus_members
+           WHERE "memberId" = s."memberId" LIMIT 1),
+          (SELECT id FROM gym_plus_members
+           WHERE m.phone IS NOT NULL AND m.phone != ''
+             AND REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g')
+                 = REGEXP_REPLACE(m.phone, '[^0-9]', '', 'g')
+           LIMIT 1),
+          (SELECT id FROM gym_plus_members
+           WHERE s."memberName" IS NOT NULL
+             AND name = s."memberName" LIMIT 1),
+          (SELECT id FROM gym_plus_members
+           WHERE m.name IS NOT NULL
+             AND name = m.name LIMIT 1)
+        ) AS "gymPlusMemberId"
       FROM pt_session_logs s
       LEFT JOIN members m ON m.id = s."memberId"
-      LEFT JOIN gym_plus_members gpm
-        ON gpm."memberId" = s."memberId"
-        OR REGEXP_REPLACE(COALESCE(gpm.phone,''), '[^0-9]', '', 'g')
-           = REGEXP_REPLACE(COALESCE(m.phone,''), '[^0-9]', '', 'g')
-        OR gpm.name = COALESCE(s."memberName", m.name)
-        OR gpm.username = REGEXP_REPLACE(COALESCE(m.phone,''), '[^0-9]', '', 'g')
       WHERE s."sharedToMember" = 1
     `);
     const rows: any[] = (sharedLogs as any).rows ?? (sharedLogs as any);
