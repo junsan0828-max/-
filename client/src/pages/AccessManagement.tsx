@@ -95,15 +95,25 @@ function formatTime(iso: string) {
 }
 
 function KioskFontSettings() {
-  const clamp = (v: number) => Math.max(0.5, Math.min(2.5, Math.round(v * 10) / 10));
-  const read = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseFloat(s) : def; } catch { return def; } };
-  const [bannerScale, setBannerScale] = useState(() => read("kiosk_banner_scale", 1));
-  const [uiScale, setUiScale] = useState(() => read("kiosk_font_scale", 1));
+  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(v)));
+  const readPct = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseFloat(s) : def; } catch { return def; } };
+  const readPt  = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseInt(s) : def; } catch { return def; } };
 
-  const save = (key: string, val: number, setter: (v: number) => void) => {
-    const c = clamp(val);
-    setter(c);
-    try { localStorage.setItem(key, String(c)); } catch {}
+  const [bannerScale, setBannerScale] = useState(() => readPct("kiosk_banner_scale", 1));
+  const [uiBase, setUiBase] = useState(() => readPt("kiosk_ui_base", 16));
+
+  const saveBanner = (val: number) => {
+    const c = Math.max(0.5, Math.min(2.5, Math.round(val * 10) / 10));
+    setBannerScale(c);
+    try { localStorage.setItem("kiosk_banner_scale", String(c)); } catch {}
+  };
+  const saveUi = (val: number) => {
+    const c = clamp(val, 8, 40);
+    setUiBase(c);
+    try {
+      localStorage.setItem("kiosk_ui_base", String(c));
+      localStorage.setItem("kiosk_font_scale", String(c / 16));
+    } catch {}
   };
 
   return (
@@ -112,15 +122,16 @@ function KioskFontSettings() {
       <div className="flex gap-6">
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">배너</span>
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => save("kiosk_banner_scale", bannerScale - 0.1, setBannerScale)}>-</button>
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveBanner(bannerScale - 0.1)}>-</button>
           <span className="w-14 text-center text-sm border border-border rounded bg-background py-1">{Math.round(bannerScale * 100)}%</span>
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => save("kiosk_banner_scale", bannerScale + 0.1, setBannerScale)}>+</button>
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveBanner(bannerScale + 0.1)}>+</button>
         </div>
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">팝업</span>
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => save("kiosk_font_scale", uiScale - 0.1, setUiScale)}>-</button>
-          <span className="w-14 text-center text-sm border border-border rounded bg-background py-1">{Math.round(uiScale * 100)}%</span>
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => save("kiosk_font_scale", uiScale + 0.1, setUiScale)}>+</button>
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveUi(uiBase - 1)}>-</button>
+          <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={8} max={40} value={uiBase} onChange={(e) => saveUi(Number(e.target.value))} />
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveUi(uiBase + 1)}>+</button>
+          <span className="text-xs text-muted-foreground">pt</span>
         </div>
       </div>
       <p className="text-xs text-muted-foreground mt-2">키오스크 화면을 새로고침하면 적용됩니다.</p>

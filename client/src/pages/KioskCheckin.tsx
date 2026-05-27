@@ -198,9 +198,14 @@ export default function KioskCheckin() {
   const bannerTouchX = useRef<number | null>(null);
   const now = useClock();
 
-  // 글씨 크기 설정 — UI(팝업·키패드)
+  // 글씨 크기 설정 — UI(팝업·키패드): pt값 우선, 없으면 scale 폴백
   const [fontScale, setFontScale] = useState<number>(() => {
-    try { const s = localStorage.getItem("kiosk_font_scale"); return s ? parseFloat(s) : 1; } catch { return 1; }
+    try {
+      const pt = localStorage.getItem("kiosk_ui_base");
+      if (pt) return parseFloat(pt) / 16;
+      const s = localStorage.getItem("kiosk_font_scale");
+      return s ? parseFloat(s) : 1;
+    } catch { return 1; }
   });
   // 글씨 크기 설정 — 배너·공지
   const [bannerScale, setBannerScale] = useState<number>(() => {
