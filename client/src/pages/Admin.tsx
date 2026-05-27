@@ -211,6 +211,34 @@ function parseSingleRow(row: Record<string, string>): ParsedRow | null {
   };
 }
 
+function ResyncGymPlusButton() {
+  const [result, setResult] = useState<{ synced: number; skipped: number; failed: number } | null>(null);
+  const resync = trpc.admin.resyncAllSharedLogs.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      toast.success(`재동기화 완료: ${data.synced}건 전송, ${data.skipped}건 이미존재, ${data.failed}건 실패`);
+    },
+    onError: (err) => toast.error(err.message || "재동기화 실패"),
+  });
+  return (
+    <div className="pt-2 border-t border-border mt-2">
+      <p className="text-xs text-muted-foreground mb-2">짐플러스에 전송됐어야 하는데 누락된 기록을 일괄 재동기화합니다.</p>
+      <button
+        disabled={resync.isPending}
+        onClick={() => { setResult(null); resync.mutate(); }}
+        className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md border border-primary/40 bg-primary/10 hover:bg-primary/20 transition-colors text-sm text-primary disabled:opacity-50"
+      >
+        {resync.isPending ? "동기화 중..." : "짐플러스 기록 누락분 재동기화"}
+      </button>
+      {result && (
+        <p className="text-xs text-muted-foreground mt-1.5 text-center">
+          전체 {result.synced + result.skipped + result.failed}건 중 · 전송 {result.synced}건 · 이미존재 {result.skipped}건 · 실패 {result.failed}건
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -1172,6 +1200,7 @@ export default function Admin() {
             </label>
           </div>
           <p className="text-xs text-muted-foreground">⚠ DB 복원 시 현재 모든 데이터가 업로드한 파일로 교체됩니다.</p>
+          <ResyncGymPlusButton />
         </CardContent>
       </Card>
 
