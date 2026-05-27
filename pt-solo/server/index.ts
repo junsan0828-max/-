@@ -111,20 +111,24 @@ app.get("/auth/kakao/callback", async (req, res) => {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     const kakaoUser = await userRes.json() as any;
-    const name = kakaoUser.kakao_account?.profile?.nickname || kakaoUser.properties?.nickname || "카카오사용자";
+    // kakao_account.name = 실명(동의 시), profile.nickname = 닉네임
+    const name = kakaoUser.kakao_account?.name || kakaoUser.kakao_account?.profile?.nickname || kakaoUser.properties?.nickname || "카카오사용자";
     const email = kakaoUser.kakao_account?.email;
+    const phone = kakaoUser.kakao_account?.phone_number;  // "+82 10-xxxx-xxxx" 형식
     const gender = kakaoUser.kakao_account?.gender;
     const birthYear = kakaoUser.kakao_account?.birthyear;
     const ageRange = kakaoUser.kakao_account?.age_range;
-    await handleOAuthLogin(req, res, "kakao", String(kakaoUser.id), name, email, gender, birthYear, ageRange);
+    await handleOAuthLogin(req, res, "kakao", String(kakaoUser.id), name, email, phone, gender, birthYear, ageRange);
   } catch (e) {
     console.error("Kakao OAuth error:", e);
     res.redirect("/login?error=kakao_failed");
   }
 });
 
-async function handleOAuthLogin(req: any, res: any, provider: string, providerId: string, name: string, email?: string, gender?: string, birthYear?: string, ageRange?: string) {
+async function handleOAuthLogin(req: any, res: any, provider: string, providerId: string, name: string, email?: string, phone?: string, gender?: string, birthYear?: string, ageRange?: string) {
   const db2 = db;
+  // 카카오 phone_number는 "+82 10-xxxx-xxxx" 형식 → "010-xxxx-xxxx"로 변환
+  const normalizedPhone = phone ? phone.replace(/^\+82\s*/, "0").replace(/\s+/g, "") : undefined;
   // 기존 계정 찾기
   const existing = await pool.query<{ id: number; role: string; position: string | null; trainerId: number | null }>(
     `SELECT u.id, u.role, u.position, t.id AS "trainerId"
@@ -139,11 +143,11 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
     if (u.position === "pending") {
       await pool.query(`UPDATE users SET position='active' WHERE id=$1`, [u.id]);
     }
-    // 재로그인 시 카카오 부가 정보만 업데이트 (이름은 덮어쓰지 않음 — 트레이너가 직접 입력한 이름 유지)
+    // 재로그인: 이름은 덮어쓰지 않음, phone이 비어있을 때만 카카오 값으로 채움
     if (u.trainerId) {
       await pool.query(
-        `UPDATE trainers SET email=COALESCE($1, email), gender=COALESCE($2, gender), "birthYear"=COALESCE($3, "birthYear"), "ageRange"=COALESCE($4, "ageRange") WHERE id=$5`,
-        [email || null, gender || null, birthYear || null, ageRange || null, u.trainerId]
+        `UPDATE trainers SET email=COALESCE($1, email), phone=COALESCE(NULLIF(phone,''), $2, phone), gender=COALESCE($3, gender), "birthYear"=COALESCE($4, "birthYear"), "ageRange"=COALESCE($5, "ageRange") WHERE id=$6`,
+        [email || null, normalizedPhone || null, gender || null, birthYear || null, ageRange || null, u.trainerId]
       );
     }
     (req.session as any).user = { id: u.id, username: name, role: u.role, trainerId: u.trainerId ?? undefined };
@@ -159,6 +163,7 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
     userId: userRow.id,
     trainerName: name,
     email: email || undefined,
+    phone: normalizedPhone || undefined,
     gender: gender || undefined,
     birthYear: birthYear || undefined,
     ageRange: ageRange || undefined,
