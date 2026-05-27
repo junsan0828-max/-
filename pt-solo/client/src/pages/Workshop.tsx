@@ -1165,6 +1165,7 @@ export default function Workshop() {
   const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
   const [showOpenModal, setShowOpenModal] = useState(false);
   const trainerId = (user as any)?.trainerId as number | undefined;
+  const isAdmin = (user as any)?.role === "admin";
 
   const { data: unlocks, isLoading: unlocksLoading } = trpc.workshop.listUnlocks.useQuery();
   const unlockMutation = trpc.workshop.unlock.useMutation({
@@ -1200,7 +1201,7 @@ export default function Workshop() {
     return unlocks?.find((u: any) => u.key === feature)?.points ?? 0;
   }
 
-  const workshopOpen = isUnlocked("workshop_access");
+  const workshopOpen = isAdmin || isUnlocked("workshop_access");
 
   if (unlocksLoading) {
     return (
@@ -1315,9 +1316,10 @@ export default function Workshop() {
           <h1 className="text-xl font-bold">작업실</h1>
           <p className="text-sm text-muted-foreground mt-0.5">스테퍼 전용 브랜딩 공간</p>
         </div>
-        <span className="flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">
-          <Check className="h-3.5 w-3.5" /> 오픈됨
-        </span>
+        {isAdmin
+          ? <span className="flex items-center gap-1.5 text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-semibold">관리자 모드</span>
+          : <span className="flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold"><Check className="h-3.5 w-3.5" /> 오픈됨</span>
+        }
       </div>
 
       <div className="space-y-3">

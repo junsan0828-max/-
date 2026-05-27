@@ -2836,7 +2836,12 @@ const workshopRouter = t.router({
   // 내 잠금해제 목록
   listUnlocks: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    // 어드민은 모든 기능 잠금해제 상태로 반환
+    if (!trainerId) {
+      return Object.entries(WORKSHOP_FEATURES).map(([key, meta]) => ({
+        key, label: meta.label, points: meta.points, unlocked: true,
+      }));
+    }
     const rows = await pool.query<{ feature: string }>(
       `SELECT feature FROM workshop_unlocks WHERE "trainerId"=$1`, [trainerId]
     );
