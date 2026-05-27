@@ -723,6 +723,25 @@ async function initDatabase() {
       ('session_milestone_50', 'PT 50회 달성', 'PT 세션 누적 50회를 달성했을 때', 300, 0)
     `);
   }
+  // 활동 기반 규칙 추가 (없으면 INSERT)
+  const activityRules = [
+    ['session_log',       '수업 일지 작성',   '수업 기록을 작성했을 때',           10, 1],
+    ['parq_submit',       'PAR-Q 작성',       '회원 PAR-Q를 최초 작성했을 때',     10, 1],
+    ['attendance_check',  '회원 출석 체크',   '회원 출석을 체크했을 때',            5, 1],
+    ['lead_complete',     '신규 상담 완료',   '신규 상담을 완료 처리했을 때',       5, 1],
+    ['renewal_complete',  '재등록 완료',      '기존 회원이 패키지를 재등록했을 때', 30, 1],
+    ['referral_member',   '회원 소개 발생',   '소개로 신규 회원이 등록됐을 때',     30, 0],
+    ['profile_share',     '브랜딩 프로필 공유','트레이너 프로필 링크를 공유했을 때', 5, 0],
+    ['academy_complete',  '교육 참여',        '아카데미 강의를 수료했을 때',        20, 1],
+  ];
+  for (const [event, label, description, amount, isEnabled] of activityRules) {
+    await pool.query(
+      `INSERT INTO point_auto_rules (event, label, description, amount, "isEnabled")
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (event) DO NOTHING`,
+      [event, label, description, amount, isEnabled]
+    );
+  }
 
   // 회원권 날짜 자동 보정
   try {
