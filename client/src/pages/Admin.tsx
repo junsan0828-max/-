@@ -239,6 +239,7 @@ export default function Admin() {
 
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [dbRestoring, setDbRestoring] = useState(false);
+  const [gymPlusResyncing, setGymPlusResyncing] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [trainerBranchFilter, setTrainerBranchFilter] = useState<number | undefined>(undefined);
   const [createOpen, setCreateOpen] = useState(false);
@@ -392,6 +393,20 @@ export default function Admin() {
       refetchUnassignedBranchRevenue();
     },
     onError: (err) => toast.error(err.message || "배정 실패"),
+  });
+
+  const resyncGymPlusMutation = trpc.pt.resyncAllSharedLogs.useMutation({
+    onSuccess: (data) => {
+      setGymPlusResyncing(false);
+      toast.success(`짐플러스 동기화 완료: ${data.synced}건 전송, ${data.skipped}건 이미 존재, ${data.failed}건 실패`);
+      if (data.errors.length > 0) {
+        console.warn("[resync errors]", data.errors);
+      }
+    },
+    onError: (err) => {
+      setGymPlusResyncing(false);
+      toast.error(err.message || "동기화 실패");
+    },
   });
 
   // 관리자 권한 확인
@@ -1172,6 +1187,20 @@ export default function Admin() {
             </label>
           </div>
           <p className="text-xs text-muted-foreground">⚠ DB 복원 시 현재 모든 데이터가 업로드한 파일로 교체됩니다.</p>
+          <div className="pt-2 border-t border-border">
+            <p className="text-xs text-muted-foreground mb-2">짐플러스 앱으로 전송된 기록 중 누락된 것을 일괄 동기화합니다.</p>
+            <button
+              onClick={() => {
+                if (!confirm("전송됨으로 표시된 트레이닝 일지 중 짐플러스에 없는 것을 모두 다시 전송합니다. 계속하시겠습니까?")) return;
+                setGymPlusResyncing(true);
+                resyncGymPlusMutation.mutate();
+              }}
+              disabled={gymPlusResyncing}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md border border-primary/30 bg-primary/10 hover:bg-primary/20 transition-colors text-sm text-primary disabled:opacity-50"
+            >
+              {gymPlusResyncing ? "동기화 중..." : "짐플러스 기록 누락분 재동기화"}
+            </button>
+          </div>
         </CardContent>
       </Card>
 

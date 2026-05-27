@@ -1285,6 +1285,60 @@ const ptRouter = t.router({
       return { success: true, gymPlusSynced, gymPlusSyncError };
     }),
 
+  resyncAllSharedLogs: protectedProcedure
+    .mutation(async () => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const sharedRows = await db.execute(
+        sql`SELECT s.*, m.phone FROM pt_session_logs s LEFT JOIN members m ON s."memberId" = m.id WHERE s."sharedToMember" = 1`
+      );
+      const shared = (sharedRows as any).rows ?? (sharedRows as any) ?? [];
+
+      let synced = 0;
+      let skipped = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const log of shared) {
+        try {
+          const existing = await db.execute(
+            sql`SELECT id FROM gym_plus_workout_logs WHERE notes LIKE ${'%__src:' + log.id + '%'} LIMIT 1`
+          );
+          const existingRow = (existing as any).rows?.[0] ?? (existing as any)[0];
+          if (existingRow) { skipped++; continue; }
+
+          const normalizedPhone = log.phone ? String(log.phone).replace(/\D/g, '') : null;
+          const gmRows = await db.execute(
+            sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (${normalizedPhone} IS NOT NULL AND (REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = ${normalizedPhone} OR username = ${normalizedPhone})) LIMIT 1`
+          );
+          const gm = (gmRows as any).rows?.[0] ?? (gmRows as any)[0];
+          if (!gm) {
+            errors.push(`Log #${log.id}: 짐플러스 계정 없음 (phone: ${log.phone ?? "없음"})`);
+            failed++;
+            continue;
+          }
+
+          const title = log.bodyPart ? `[트레이닝] ${log.bodyPart}` : "트레이닝 기록";
+          const notes = ([log.notes, log.goal, log.feedback].filter(Boolean).join("\n") || "") + `\n__src:${log.id}`;
+          const logDate = log.sessionDate ?? new Date().toISOString().slice(0, 10);
+          const bodyPartsJson = log.bodyPart
+            ? JSON.stringify(String(log.bodyPart).split(",").map((s: string) => s.trim()).filter(Boolean))
+            : null;
+
+          await db.execute(
+            sql`INSERT INTO gym_plus_workout_logs ("gymPlusMemberId", "logDate", title, "exercisesJson", "bodyPartsJson", notes, "createdAt") VALUES (${gm.id}, ${logDate}, ${title}, ${log.exercisesJson}, ${bodyPartsJson}, ${notes}, ${new Date().toISOString()})`
+          );
+          synced++;
+        } catch (e: any) {
+          errors.push(`Log #${log.id}: ${e?.message ?? "오류"}`);
+          failed++;
+        }
+      }
+
+      return { success: true, total: shared.length, synced, skipped, failed, errors };
+    }),
+
   // 미수금 업데이트 (결제 완료 처리)
   updatePayment: protectedProcedure
     .input(
