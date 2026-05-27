@@ -85,7 +85,7 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-export default function OnboardingSurveyModal({ onClose }: { onClose: () => void }) {
+export default function OnboardingSurveyModal({ onClose, required = false }: { onClose: () => void; required?: boolean }) {
   const utils = trpc.useUtils();
   const [step, setStep] = useState<"intro" | "survey" | "done">("intro");
   const [current, setCurrent] = useState(0);
@@ -127,6 +127,7 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
   }
 
   function handleClose() {
+    if (required) return; // 필수 설문은 닫기 불가
     setExiting(true);
     setTimeout(onClose, 200);
   }
@@ -156,12 +157,15 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
     return (
       <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity ${exiting ? "opacity-0" : "opacity-100"}`}>
         <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden">
-          {/* 닫기 */}
-          <div className="flex justify-end p-4 pb-0">
-            <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          {/* 닫기 — 필수 모드에서는 숨김 */}
+          {!required && (
+            <div className="flex justify-end p-4 pb-0">
+              <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+          {required && <div className="pt-6" />}
 
           <div className="px-6 pb-6 pt-2 space-y-5 text-center">
             {/* 아이콘 */}
@@ -191,9 +195,11 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
                 <Sparkles className="h-4 w-4" />
                 설문 시작하기 (10문항)
               </Button>
-              <button onClick={handleClose} className="w-full text-xs text-muted-foreground py-2 hover:text-foreground transition-colors">
-                나중에 하기
-              </button>
+              {!required && (
+                <button onClick={handleClose} className="w-full text-xs text-muted-foreground py-2 hover:text-foreground transition-colors">
+                  나중에 하기
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -213,9 +219,11 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
               </span>
               <span className="text-xs text-muted-foreground">30초 성장 설문</span>
             </div>
-            <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
-              <X className="h-4 w-4" />
-            </button>
+            {!required && (
+              <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {/* 프로그레스 바 */}
