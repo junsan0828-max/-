@@ -227,7 +227,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
-        {!isAdmin && <ProfileSetupModal />}
+        {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal />}
         {needsBasicInfo && (
           <BasicInfoModal
             currentName={(profile as any)?.trainerName ?? ""}
