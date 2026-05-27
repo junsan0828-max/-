@@ -1188,12 +1188,26 @@ const trainersRouter = t.router({
     }),
 
   submitOnboardingSurvey: protectedProcedure
-    .input(z.object({ answers: z.record(z.string(), z.array(z.string())) }))
+    .input(z.object({
+      answers: z.record(z.string(), z.array(z.string())),
+      trainerName: z.string().optional(),
+      phone: z.string().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const updates: string[] = [`"onboardingSurveyData"=$1`, `"onboardingSurveyDone"=1`];
+      const values: any[] = [JSON.stringify(input.answers), ctx.user.trainerId];
+      if (input.trainerName) {
+        values.splice(values.length - 1, 0, input.trainerName);
+        updates.push(`"trainerName"=$${values.length - 1}`);
+      }
+      if (input.phone) {
+        values.splice(values.length - 1, 0, input.phone);
+        updates.push(`"phone"=$${values.length - 1}`);
+      }
       await pool.query(
-        `UPDATE trainers SET "onboardingSurveyData"=$1, "onboardingSurveyDone"=1 WHERE id=$2`,
-        [JSON.stringify(input.answers), ctx.user.trainerId]
+        `UPDATE trainers SET ${updates.join(", ")} WHERE id=$${values.length}`,
+        values
       );
       return { ok: true };
     }),
