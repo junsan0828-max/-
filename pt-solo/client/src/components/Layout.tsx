@@ -17,9 +17,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { data: user } = trpc.auth.me.useQuery();
   const { data: profile } = trpc.trainers.getMyProfile.useQuery(undefined, { enabled: user?.role === "trainer" });
   const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => window.location.reload(),
+    onSuccess: () => {
+      localStorage.removeItem("fitStep-autoLogin");
+      window.location.reload();
+    },
     onError: () => toast.error("로그아웃 실패"),
   });
+
+  // 로그인 성공 시 자동 로그인 플래그 저장
+  useEffect(() => {
+    if (user) localStorage.setItem("fitStep-autoLogin", "kakao");
+  }, [user]);
 
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);

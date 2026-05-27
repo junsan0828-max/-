@@ -49,11 +49,12 @@ export default function InstallPromptModal({ deferredPrompt, onClear }: Props) {
 
   const handleInstall = async () => {
     if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      dismiss(true);
-    } else {
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      dismiss(outcome === "accepted");
+    } catch {
+      // 설치 불가 환경 (이미 설치됨 등) — 조용히 닫기
       dismiss(false);
     }
   };
@@ -117,21 +118,29 @@ export default function InstallPromptModal({ deferredPrompt, onClear }: Props) {
         )}
 
         {/* 버튼 */}
-        <div className="px-5 pt-3 pb-5 flex gap-2">
-          {!ios && deferredPrompt && (
+        <div className="px-5 pt-3 pb-5 space-y-2">
+          <div className="flex gap-2">
+            {!ios && deferredPrompt && (
+              <button
+                onClick={handleInstall}
+                className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold"
+              >
+                <Download className="h-4 w-4" />
+                설치하기
+              </button>
+            )}
             <button
-              onClick={handleInstall}
-              className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold"
+              onClick={() => dismiss(false)}
+              className={`${ios || !deferredPrompt ? "flex-1" : ""} px-4 py-3 rounded-xl text-sm text-muted-foreground bg-muted hover:bg-accent transition-colors`}
             >
-              <Download className="h-4 w-4" />
-              설치하기
+              {ios ? "확인" : "다음에"}
             </button>
-          )}
+          </div>
           <button
             onClick={() => dismiss(true)}
-            className={`${ios || !deferredPrompt ? "flex-1" : ""} px-4 py-3 rounded-xl text-sm text-muted-foreground bg-muted hover:bg-accent transition-colors`}
+            className="w-full text-xs text-muted-foreground/50 py-1"
           >
-            {ios ? "확인" : "다음에"}
+            이미 설치됨 · 다시 보지 않기
           </button>
         </div>
       </div>
