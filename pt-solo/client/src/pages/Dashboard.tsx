@@ -27,6 +27,7 @@ const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#0
 
 // ─── 운영자(Admin) SaaS 대시보드 ──────────────────────────────────────────────
 function AdminDashboard() {
+  const [, setLocation] = useLocation();
   const { data: stats } = trpc.admin.getSaasStats.useQuery();
   const { data: trainerList } = trpc.admin.listTrainers.useQuery();
 
@@ -68,18 +69,25 @@ function AdminDashboard() {
             <p className="text-sm text-muted-foreground text-center py-6">가입된 트레이너가 없습니다.</p>
           ) : (
             trainerList.map((t) => (
-              <div key={t.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border">
+              <button
+                key={t.id}
+                onClick={() => setLocation(`/admin/trainers/${t.id}`)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border hover:border-primary/30 hover:bg-accent/40 transition-colors text-left"
+              >
                 <div>
                   <p className="text-sm font-medium">{t.trainerName}</p>
                   <p className="text-xs text-muted-foreground">
                     @{t.username} · 가입 {t.createdAt?.slice(0, 10) ?? "-"}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs font-semibold text-blue-400">{t.memberCount}명</p>
-                  <p className="text-xs text-muted-foreground">{t.sessionCount}세션</p>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-blue-400">{t.memberCount}명</p>
+                    <p className="text-xs text-muted-foreground">{t.sessionCount}세션</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </div>
-              </div>
+              </button>
             ))
           )}
         </CardContent>

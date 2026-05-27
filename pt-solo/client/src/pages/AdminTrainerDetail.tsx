@@ -288,9 +288,9 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
             className="w-full border-red-700/60 text-red-500 hover:bg-red-500/10 gap-2"
             onClick={() => {
               if (!confirm(`${t.trainerName ?? t.username} 계정을 완전히 삭제하시겠습니까?\n\n회원, PT 기록, 포인트 등 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`)) return;
-              if (t.userId != null) deleteMutation.mutate({ userId: t.userId });
+              deleteMutation.mutate({ userId: t.userId ?? undefined, trainerId: t.id });
             }}
-            disabled={deleteMutation.isPending || t.userId == null}
+            disabled={deleteMutation.isPending}
           >
             <Trash2 className="h-4 w-4" />
             계정 영구 삭제

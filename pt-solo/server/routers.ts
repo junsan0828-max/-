@@ -1788,12 +1788,16 @@ const adminRouter = t.router({
     }),
 
   deleteTrainer: adminProcedure
-    .input(z.object({ userId: z.number() }))
+    .input(z.object({ userId: z.number().optional(), trainerId: z.number().optional() }))
     .mutation(async ({ input }) => {
-      const trainerRow = await pool.query<{ id: number }>(
-        `SELECT id FROM trainers WHERE "userId" = $1 LIMIT 1`, [input.userId]
-      );
-      const trainerId = trainerRow.rows[0]?.id;
+      // trainerId 직접 전달 또는 userId로 조회 (고아 레코드 처리 포함)
+      let trainerId = input.trainerId;
+      if (!trainerId && input.userId) {
+        const trainerRow = await pool.query<{ id: number }>(
+          `SELECT id FROM trainers WHERE "userId" = $1 LIMIT 1`, [input.userId]
+        );
+        trainerId = trainerRow.rows[0]?.id;
+      }
       if (trainerId) {
         // FIT STEP+ 관련
         await pool.query(`DELETE FROM fit_step_plus_attendance WHERE "trainerId" = $1`, [trainerId]);
@@ -1831,7 +1835,9 @@ const adminRouter = t.router({
         await pool.query(`DELETE FROM trainer_settings WHERE "trainerId" = $1`, [trainerId]);
         await pool.query(`DELETE FROM trainers WHERE id = $1`, [trainerId]);
       }
-      await pool.query(`DELETE FROM users WHERE id = $1`, [input.userId]);
+      if (input.userId) {
+        await pool.query(`DELETE FROM users WHERE id = $1`, [input.userId]);
+      }
       return { success: true };
     }),
 
