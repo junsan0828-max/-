@@ -48,7 +48,11 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   });
 
   const deleteMutation = trpc.admin.deleteTrainer.useMutation({
-    onSuccess: () => { toast.success("트레이너 계정이 삭제되었습니다"); setLocation("/admin/trainers"); },
+    onSuccess: () => {
+      utils.admin.listTrainers.invalidate();
+      toast.success("트레이너 계정이 삭제되었습니다");
+      setLocation("/admin/trainers");
+    },
     onError: (e) => toast.error(e.message),
   });
 

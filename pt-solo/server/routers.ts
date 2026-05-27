@@ -1790,19 +1790,44 @@ const adminRouter = t.router({
   deleteTrainer: adminProcedure
     .input(z.object({ userId: z.number() }))
     .mutation(async ({ input }) => {
-      // trainerId 조회
       const trainerRow = await pool.query<{ id: number }>(
         `SELECT id FROM trainers WHERE "userId" = $1 LIMIT 1`, [input.userId]
       );
       const trainerId = trainerRow.rows[0]?.id;
       if (trainerId) {
-        // 연관 데이터 순서대로 삭제
+        // FIT STEP+ 관련
+        await pool.query(`DELETE FROM fit_step_plus_attendance WHERE "trainerId" = $1`, [trainerId]);
+        const fspMembers = await pool.query<{ id: number }>(`SELECT id FROM fit_step_plus_members WHERE "trainerId" = $1`, [trainerId]);
+        for (const m of fspMembers.rows) {
+          await pool.query(`DELETE FROM fit_step_plus_workout_logs WHERE "fitStepPlusMemberId" = $1`, [m.id]);
+        }
+        await pool.query(`DELETE FROM fit_step_plus_members WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM fit_step_plus_videos WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM fit_step_plus_video_categories WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM fit_step_plus_events WHERE "trainerId" = $1`, [trainerId]);
+        // 트레이너 데이터
         await pool.query(`DELETE FROM fit_point_logs WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM workout_templates WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM report_tokens WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM attendance_checks WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM attendances WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM schedules WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM workout_memos WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM payments WHERE "trainerId" = $1`, [trainerId]);
         await pool.query(`DELETE FROM pt_session_logs WHERE "trainerId" = $1`, [trainerId]);
+        // pt_pauses는 packageId 기준이므로 pt_packages 삭제 전에 처리
+        const pkgs = await pool.query<{ id: number }>(`SELECT id FROM pt_packages WHERE "trainerId" = $1`, [trainerId]);
+        for (const pkg of pkgs.rows) {
+          await pool.query(`DELETE FROM pt_pauses WHERE "packageId" = $1`, [pkg.id]);
+        }
         await pool.query(`DELETE FROM pt_packages WHERE "trainerId" = $1`, [trainerId]);
+        // 회원의 par_q 삭제 후 회원 삭제
+        const memberRows = await pool.query<{ id: number }>(`SELECT id FROM members WHERE "trainerId" = $1`, [trainerId]);
+        for (const mem of memberRows.rows) {
+          await pool.query(`DELETE FROM par_q WHERE "memberId" = $1`, [mem.id]);
+        }
         await pool.query(`DELETE FROM members WHERE "trainerId" = $1`, [trainerId]);
         await pool.query(`DELETE FROM leads WHERE "trainerId" = $1`, [trainerId]);
-        await pool.query(`DELETE FROM channels WHERE "trainerId" = $1`, [trainerId]);
         await pool.query(`DELETE FROM trainer_settings WHERE "trainerId" = $1`, [trainerId]);
         await pool.query(`DELETE FROM trainers WHERE id = $1`, [trainerId]);
       }
