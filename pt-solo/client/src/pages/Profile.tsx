@@ -157,6 +157,7 @@ export default function Profile() {
 
   const handleExtSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!info.trainerName.trim()) { toast.error("이름을 입력해주세요."); return; }
     updateExtended.mutate({
       jobType: ext.jobType || undefined,
       careerRange: ext.careerRange || undefined,
@@ -164,6 +165,7 @@ export default function Profile() {
       profileImage: ext.profileImage || undefined,
       educationNeeds: ext.educationNeeds || undefined,
     });
+    updateProfile.mutate({ trainerName: info.trainerName, phone: info.phone || undefined, email: info.email || undefined });
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -409,6 +411,29 @@ export default function Profile() {
               </div>
               <p className="text-xs text-muted-foreground">프로필 사진을 설정하세요</p>
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+            </div>
+
+            {/* 이름 / 연락처 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-sm text-muted-foreground">이름 *</Label>
+                <Input
+                  value={info.trainerName}
+                  onChange={e => setInfo(p => ({ ...p, trainerName: e.target.value }))}
+                  placeholder="실명 입력"
+                  className="bg-input border-border"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-sm text-muted-foreground">연락처</Label>
+                <Input
+                  type="tel"
+                  value={info.phone}
+                  onChange={e => setInfo(p => ({ ...p, phone: e.target.value }))}
+                  placeholder="010-0000-0000"
+                  className="bg-input border-border"
+                />
+              </div>
             </div>
 
             {/* 직무 선택 */}
