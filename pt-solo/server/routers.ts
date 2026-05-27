@@ -1790,6 +1790,22 @@ const adminRouter = t.router({
   deleteTrainer: adminProcedure
     .input(z.object({ userId: z.number() }))
     .mutation(async ({ input }) => {
+      // trainerId 조회
+      const trainerRow = await pool.query<{ id: number }>(
+        `SELECT id FROM trainers WHERE "userId" = $1 LIMIT 1`, [input.userId]
+      );
+      const trainerId = trainerRow.rows[0]?.id;
+      if (trainerId) {
+        // 연관 데이터 순서대로 삭제
+        await pool.query(`DELETE FROM fit_point_logs WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM pt_session_logs WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM pt_packages WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM members WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM leads WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM channels WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM trainer_settings WHERE "trainerId" = $1`, [trainerId]);
+        await pool.query(`DELETE FROM trainers WHERE id = $1`, [trainerId]);
+      }
       await pool.query(`DELETE FROM users WHERE id = $1`, [input.userId]);
       return { success: true };
     }),
