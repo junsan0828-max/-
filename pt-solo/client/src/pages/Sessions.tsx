@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  Search, Plus, ChevronDown, ChevronUp, Pencil, Trash2, X, LayoutTemplate,
+  Search, Plus, ChevronDown, ChevronUp, Trash2, X, LayoutTemplate,
   PlusCircle, ChevronsDown, Send, Save, Dumbbell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -82,11 +82,6 @@ export default function Sessions() {
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalForm, setJournalForm] = useState<JournalForm>(emptyForm());
 
-  // 수정 모달
-  const [editOpen, setEditOpen] = useState(false);
-  const [editId, setEditId] = useState(0);
-  const [editForm, setEditForm] = useState<JournalForm>(emptyForm());
-
   // 라이브 트레이닝 모달
   const [liveOpen, setLiveOpen] = useState(false);
   const [liveLogId, setLiveLogId] = useState(0);
@@ -117,15 +112,6 @@ export default function Sessions() {
     onError: (e) => toast.error(e.message),
   });
 
-  const updateMutation = trpc.pt.updateLog.useMutation({
-    onSuccess: () => {
-      toast.success("수정되었습니다");
-      utils.trainingLog.listAll.invalidate();
-      setEditOpen(false);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
   const deleteMutation = trpc.pt.deleteLog.useMutation({
     onSuccess: () => {
       toast.success("삭제되었습니다");
@@ -149,20 +135,6 @@ export default function Sessions() {
   function openCreate() {
     setJournalForm(emptyForm());
     setJournalOpen(true);
-  }
-
-  function openEdit(log: any) {
-    setEditId(log.id);
-    setEditForm({
-      sessionDate: log.sessionDate === "미정" ? new Date().toISOString().split("T")[0] : log.sessionDate,
-      datePending: log.sessionDate === "미정",
-      bodyPart: log.bodyPart ?? "",
-      exercises: parseExercisesJson(log.exercisesJson),
-      notes: log.notes ?? "",
-      goal: log.goal ?? "",
-      feedback: log.feedback ?? "",
-    });
-    setEditOpen(true);
   }
 
   function submitCreate() {
@@ -244,17 +216,6 @@ export default function Sessions() {
     toast.success("회원에게 전송되었습니다");
   }
 
-  function submitEdit() {
-    updateMutation.mutate({
-      id: editId,
-      sessionDate: editForm.sessionDate || undefined,
-      goal: editForm.goal || undefined,
-      bodyPart: editForm.bodyPart || undefined,
-      exercisesJson: editForm.exercises.length > 0 ? JSON.stringify(editForm.exercises) : undefined,
-      feedback: editForm.feedback || undefined,
-      notes: editForm.notes || undefined,
-    });
-  }
 
   return (
     <div className="space-y-4">
@@ -411,20 +372,13 @@ export default function Sessions() {
                       <p className="text-sm whitespace-pre-wrap">{log.notes}</p>
                     </div>
                   )}
-                  <div className="flex gap-2 pt-1 flex-wrap">
+                  <div className="flex gap-2 pt-1">
                     <button
                       onClick={() => openLive(log)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 text-xs text-primary hover:bg-primary/10 transition-colors"
                     >
                       <Dumbbell className="h-3.5 w-3.5" />
                       라이브
-                    </button>
-                    <button
-                      onClick={() => openEdit(log)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      수정
                     </button>
                     <button
                       onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: log.id }); }}
@@ -614,68 +568,6 @@ export default function Sessions() {
         </DialogContent>
       </Dialog>
 
-      {/* 수정 모달 */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>트레이닝 일지 수정</DialogTitle>
-            <DialogDescription>{editForm.sessionDate}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={editForm.datePending}
-                onChange={e => setEditForm(p => ({
-                  ...p,
-                  datePending: e.target.checked,
-                  sessionDate: e.target.checked ? "미정" : new Date().toISOString().split("T")[0],
-                }))}
-                className="w-4 h-4 accent-primary"
-              />
-              <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
-            </label>
-            <div className="space-y-1.5">
-              <Label className="text-xs">날짜</Label>
-              <Input
-                type={editForm.datePending ? "text" : "date"}
-                value={editForm.datePending ? "" : editForm.sessionDate}
-                placeholder={editForm.datePending ? "미정" : ""}
-                disabled={editForm.datePending}
-                onChange={e => setEditForm(p => ({ ...p, sessionDate: e.target.value }))}
-                className="h-9 text-sm disabled:opacity-50"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">운동 부위 (최대 3개)</Label>
-              <BodyPartPicker value={editForm.bodyPart} onChange={v => setEditForm(p => ({ ...p, bodyPart: v }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor
-                exercises={editForm.exercises}
-                onChange={exs => setEditForm(p => ({ ...p, exercises: exs }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">메모 (선택)</Label>
-              <Textarea
-                value={editForm.notes}
-                onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))}
-                placeholder="특이사항..."
-                rows={2}
-                className="text-sm resize-none"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setEditOpen(false)}>취소</Button>
-              <Button className="flex-1" disabled={updateMutation.isPending} onClick={submitEdit}>
-                {updateMutation.isPending ? "저장 중..." : editForm.datePending ? "임시 저장" : "저장"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
