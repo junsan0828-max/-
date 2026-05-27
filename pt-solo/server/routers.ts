@@ -2185,8 +2185,9 @@ const fitPointsRouter = t.router({
 
 const fitStepPlusProtected = t.procedure.use(({ ctx, next }) => {
   const memberId = (ctx.req.session as any).fitStepPlusMemberId as number | undefined;
-  if (!memberId) throw new TRPCError({ code: "UNAUTHORIZED" });
-  return next({ ctx: { ...ctx, fitStepPlusMemberId: memberId } });
+  const isAdmin = ctx.user?.role === "admin";
+  if (!memberId && !isAdmin) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return next({ ctx: { ...ctx, fitStepPlusMemberId: memberId ?? 0 } });
 });
 
 const fitStepPlusRouter = t.router({
