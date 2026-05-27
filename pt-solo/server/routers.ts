@@ -1507,7 +1507,7 @@ const parQRouter = t.router({
 
   upsert: protectedProcedure
     .input(parQSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const { memberId, ...fields } = input;
       const existing = await db.select({ id: parQ.id }).from(parQ).where(eq(parQ.memberId, memberId)).limit(1);
