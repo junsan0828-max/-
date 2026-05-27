@@ -1231,45 +1231,54 @@ const ptRouter = t.router({
         })
         .where(eq(ptSessionLogs.id, input.id));
 
-      // 2) ZIANTGYM+ gym_plus_workout_logs 동기화 (raw SQL - 공유 DB 사용)
+      // 2) ZIANTGYM+ gym_plus_workout_logs 동기화
+      let gymPlusSynced = false;
+      let gymPlusSyncError: string | undefined;
+
       try {
         if (input.share) {
-          // 세션 정보 조회
           const logRows = await db.execute(
             sql`SELECT s.*, m.phone FROM pt_session_logs s LEFT JOIN members m ON s."memberId" = m.id WHERE s.id = ${input.id} LIMIT 1`
           );
           const log = (logRows as any).rows?.[0] ?? (logRows as any)[0];
-          if (log) {
-            // gymPlusMember 조회: memberId 직접 링크 > 전화번호 매칭 (모든 구분자 제거 후 비교) > username 매칭
+
+          if (!log) {
+            gymPlusSyncError = "세션 기록을 찾을 수 없습니다.";
+          } else {
             const normalizedPhone = log.phone ? String(log.phone).replace(/\D/g, '') : null;
             const gmRows = await db.execute(
-              sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (${normalizedPhone} IS NOT NULL AND (REGEXP_REPLACE(phone, '[^0-9]', '', 'g') = ${normalizedPhone} OR username = ${normalizedPhone})) LIMIT 1`
+              sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (${normalizedPhone} IS NOT NULL AND (REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = ${normalizedPhone} OR username = ${normalizedPhone})) LIMIT 1`
             );
             const gm = (gmRows as any).rows?.[0] ?? (gmRows as any)[0];
-            if (gm) {
-              // 이미 전송된 기록 있으면 삭제 후 재삽입
+
+            if (!gm) {
+              gymPlusSyncError = `짐플러스 계정을 찾을 수 없습니다. (전화번호: ${log.phone ?? "없음"})`;
+              console.warn("[shareLog] gymPlus member not found for memberId:", log.memberId, "phone:", log.phone);
+            } else {
               await db.execute(
                 sql`DELETE FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = ${gm.id} AND notes LIKE ${'%__src:' + input.id + '%'}`
               );
               const title = log.bodyPart ? `[트레이닝] ${log.bodyPart}` : "트레이닝 기록";
-              const notes = [log.notes, log.goal, log.feedback].filter(Boolean).join("\n") + `\n__src:${input.id}`;
+              const notes = ([log.notes, log.goal, log.feedback].filter(Boolean).join("\n") || "") + `\n__src:${input.id}`;
+              const logDate = log.sessionDate ?? new Date().toISOString().slice(0, 10);
               await db.execute(
-                sql`INSERT INTO gym_plus_workout_logs ("gymPlusMemberId", "logDate", title, "exercisesJson", notes, "createdAt") VALUES (${gm.id}, ${log.sessionDate}, ${title}, ${log.exercisesJson}, ${notes}, ${new Date().toISOString()})`
+                sql`INSERT INTO gym_plus_workout_logs ("gymPlusMemberId", "logDate", title, "exercisesJson", notes, "createdAt") VALUES (${gm.id}, ${logDate}, ${title}, ${log.exercisesJson}, ${notes}, ${new Date().toISOString()})`
               );
+              gymPlusSynced = true;
             }
           }
         } else {
-          // 전송 취소: 해당 기록 삭제
           await db.execute(
             sql`DELETE FROM gym_plus_workout_logs WHERE notes LIKE ${'%__src:' + input.id + '%'}`
           );
+          gymPlusSynced = true;
         }
-      } catch (e) {
-        // gymPlus 테이블 없어도 메인 기능은 정상 동작
+      } catch (e: any) {
+        gymPlusSyncError = e?.message ?? "짐플러스 동기화 중 오류가 발생했습니다.";
         console.error("[shareLog] gymPlus sync error:", e);
       }
 
-      return { success: true };
+      return { success: true, gymPlusSynced, gymPlusSyncError };
     }),
 
   // 미수금 업데이트 (결제 완료 처리)

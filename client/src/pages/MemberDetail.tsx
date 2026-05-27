@@ -426,8 +426,16 @@ export default function MemberDetail({ memberId }: Props) {
   });
 
   const shareLogMutation = trpc.pt.shareLog.useMutation({
-    onSuccess: (_, vars) => {
-      toast.success(vars.share ? "회원에게 전송되었습니다." : "전송이 취소되었습니다.");
+    onSuccess: (data, vars) => {
+      if (vars.share) {
+        if (data.gymPlusSynced) {
+          toast.success("짐플러스 앱에 전송되었습니다.");
+        } else {
+          toast.warning(`전송 플래그는 저장됐지만 짐플러스 연동 실패: ${data.gymPlusSyncError ?? "알 수 없는 오류"}`);
+        }
+      } else {
+        toast.success("전송이 취소되었습니다.");
+      }
       utils.pt.sessionLogs.invalidate({ memberId });
       setLiveLog((prev: any) => prev ? { ...prev, sharedToMember: vars.share ? 1 : 0 } : prev);
     },
