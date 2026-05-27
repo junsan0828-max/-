@@ -557,7 +557,9 @@ function SurveyManager() {
 export default function AdminNotices() {
   const utils = trpc.useUtils();
   const { data: notices } = trpc.notices.listAll.useQuery();
+  const { data: surveyResponses } = trpc.admin.listSurveyResponses.useQuery();
 
+  const [tab, setTab] = useState<"survey" | "banner" | "notice">("notice");
   const [creating, setCreating] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
 
@@ -573,68 +575,103 @@ export default function AdminNotices() {
     onSuccess: () => { toast.success("삭제 완료"); utils.notices.listAll.invalidate(); utils.notices.list.invalidate(); },
   });
 
+  const TABS = [
+    { key: "notice" as const, label: "공지사항", icon: Bell },
+    { key: "banner" as const, label: "배너", icon: ExternalLink },
+    { key: "survey" as const, label: "설문 응답", icon: ClipboardList, badge: surveyResponses?.length },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold">공지사항 / 배너 관리</h1>
         <p className="text-sm text-muted-foreground mt-0.5">트레이너 앱에 표시되는 공지와 배너</p>
       </div>
 
-      <SurveyManager />
-      <TabBannerManager />
-      <LegacyBannerManager />
+      {/* 탭 */}
+      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl border border-border">
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium rounded-lg transition-colors ${
+              tab === t.key
+                ? "bg-card shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <t.icon className="h-4 w-4 shrink-0" />
+            {t.label}
+            {t.badge != null && t.badge > 0 && (
+              <span className="ml-0.5 text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded-full leading-none">
+                {t.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-      {/* 공지사항 */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center justify-between">
-            <span className="flex items-center gap-2"><Bell className="h-4 w-4 text-primary" />공지사항</span>
-            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => { setCreating(true); setEditId(null); }}>
-              <Plus className="h-3.5 w-3.5" />새 공지
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {creating && (
-            <NoticeForm
-              onSave={d => createMutation.mutate(d)}
-              onCancel={() => setCreating(false)}
-            />
-          )}
-          {(!notices || notices.length === 0) && !creating && (
-            <p className="text-sm text-muted-foreground text-center py-4">공지사항이 없습니다.</p>
-          )}
-          {notices?.map(n => (
-            <div key={n.id}>
-              {editId === n.id ? (
-                <NoticeForm
-                  initial={n}
-                  onSave={d => updateMutation.mutate({ id: n.id, ...d })}
-                  onCancel={() => setEditId(null)}
-                />
-              ) : (
-                <div className={`p-3 rounded-lg border ${n.isActive ? "bg-accent/20 border-border" : "bg-accent/5 border-border/30 opacity-50"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        {n.isPinned && <Pin className="h-3 w-3 text-primary shrink-0" />}
-                        {!n.isActive && <span className="text-xs text-muted-foreground">[비활성]</span>}
-                        <p className="text-sm font-semibold truncate">{n.title}</p>
+      {tab === "survey" && <SurveyManager />}
+
+      {tab === "banner" && (
+        <>
+          <TabBannerManager />
+          <LegacyBannerManager />
+        </>
+      )}
+
+      {tab === "notice" && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span className="flex items-center gap-2"><Bell className="h-4 w-4 text-primary" />공지사항</span>
+              <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => { setCreating(true); setEditId(null); }}>
+                <Plus className="h-3.5 w-3.5" />새 공지
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {creating && (
+              <NoticeForm
+                onSave={d => createMutation.mutate(d)}
+                onCancel={() => setCreating(false)}
+              />
+            )}
+            {(!notices || notices.length === 0) && !creating && (
+              <p className="text-sm text-muted-foreground text-center py-4">공지사항이 없습니다.</p>
+            )}
+            {notices?.map(n => (
+              <div key={n.id}>
+                {editId === n.id ? (
+                  <NoticeForm
+                    initial={n}
+                    onSave={d => updateMutation.mutate({ id: n.id, ...d })}
+                    onCancel={() => setEditId(null)}
+                  />
+                ) : (
+                  <div className={`p-3 rounded-lg border ${n.isActive ? "bg-accent/20 border-border" : "bg-accent/5 border-border/30 opacity-50"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          {n.isPinned && <Pin className="h-3 w-3 text-primary shrink-0" />}
+                          {!n.isActive && <span className="text-xs text-muted-foreground">[비활성]</span>}
+                          <p className="text-sm font-semibold truncate">{n.title}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{n.content}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{n.createdAt.slice(0, 10)}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{n.content}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{n.createdAt.slice(0, 10)}</p>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <button onClick={() => setEditId(n.id)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => deleteMutation.mutate({ id: n.id })} className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => setEditId(n.id)} className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => deleteMutation.mutate({ id: n.id })} className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
