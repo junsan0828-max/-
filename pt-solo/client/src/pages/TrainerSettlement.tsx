@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, BarChart2, Wallet, Plus, Trash2 } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
+import PointSpendConfirm from "@/components/PointSpendConfirm";
 
 function fmt(n: number) { return n.toLocaleString(); }
 
@@ -35,6 +37,9 @@ function RevenueTab() {
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
   );
   const [view, setView] = useState<"monthly" | "daily">("monthly");
+  const [showPdfConfirm, setShowPdfConfirm] = useState(false);
+  const [pendingPdfAction, setPendingPdfAction] = useState<"csv" | "pdf" | null>(null);
+  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
 
   const { data: monthly } = trpc.trainers.getMonthlySettlement.useQuery(
     { yearMonth },
@@ -135,14 +140,32 @@ function RevenueTab() {
 
       {data && data.sessionCount > 0 && (
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={exportCSV}>
-            <FileText className="h-4 w-4" />CSV
+          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => { setPendingPdfAction("csv"); setShowPdfConfirm(true); }}>
+            <FileText className="h-4 w-4" />CSV <span className="text-primary/70 text-[10px]">-50P</span>
           </Button>
-          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={exportPDF}>
-            <FileText className="h-4 w-4" />PDF 인쇄
+          <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => { setPendingPdfAction("pdf"); setShowPdfConfirm(true); }}>
+            <FileText className="h-4 w-4" />PDF 인쇄 <span className="text-primary/70 text-[10px]">-50P</span>
           </Button>
         </div>
       )}
+
+      <PointSpendConfirm
+        open={showPdfConfirm}
+        onClose={() => { setShowPdfConfirm(false); setPendingPdfAction(null); }}
+        featureName="통계 리포트 생성"
+        loading={spendFeatureMutation.isPending}
+        onConfirm={() => {
+          spendFeatureMutation.mutate({ feature: "stats_report" }, {
+            onSuccess: () => {
+              setShowPdfConfirm(false);
+              if (pendingPdfAction === "csv") exportCSV();
+              else if (pendingPdfAction === "pdf") exportPDF();
+              setPendingPdfAction(null);
+            },
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
 
       {data && data.logs.length > 0 && (
         <div className="space-y-2">

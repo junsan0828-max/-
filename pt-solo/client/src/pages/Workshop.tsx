@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
+import PointSpendConfirm from "@/components/PointSpendConfirm";
 
 const WORKSHOP_LOCKED = true; // 개발 중 — 완료 후 false로 변경
 
@@ -782,6 +783,8 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const statusMutation = trpc.brand.updateBookingStatus.useMutation({
     onSuccess: () => utils.brand.listBookings.invalidate(),
   });
+  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
+  const [showShareConfirm, setShowShareConfirm] = useState(false);
 
   const [form, setForm] = useState({
     brandBio: "", brandSpecialties: "", brandColor: "#1a00ff",
@@ -884,12 +887,31 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
       </div>
 
       {form.brandIsPublic ? (
-        <button onClick={() => { navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); }}
-          className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/30 rounded-xl text-xs text-primary">
-          <Globe className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{brandUrl}</span>
-          <Copy className="h-3.5 w-3.5 shrink-0 ml-auto" />
-        </button>
+        <>
+          <button onClick={() => setShowShareConfirm(true)}
+            className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/30 rounded-xl text-xs text-primary">
+            <Globe className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{brandUrl}</span>
+            <span className="text-primary/70 shrink-0">-50P</span>
+            <Copy className="h-3.5 w-3.5 shrink-0" />
+          </button>
+          <PointSpendConfirm
+            open={showShareConfirm}
+            onClose={() => setShowShareConfirm(false)}
+            featureName="브랜딩 페이지 공유"
+            loading={spendFeatureMutation.isPending}
+            onConfirm={() => {
+              spendFeatureMutation.mutate({ feature: "branding_share" }, {
+                onSuccess: () => {
+                  setShowShareConfirm(false);
+                  navigator.clipboard.writeText(brandUrl);
+                  toast.success("링크 복사됨!");
+                },
+                onError: (e) => toast.error(e.message),
+              });
+            }}
+          />
+        </>
       ) : null}
 
       {/* 브랜드 컬러 */}

@@ -53,6 +53,26 @@ async function giveAutoPoints(trainerId: number, event: string, memo: string) {
   } catch { /* 포인트 지급 실패는 조용히 무시 */ }
 }
 
+// 포인트 차감 헬퍼 — 잔액 부족 시 TRPCError 발생
+const FEATURE_COST = 50;
+async function spendPoints(trainerId: number, memo: string) {
+  const bal = await pool.query<{ balance: string }>(
+    `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
+    [trainerId]
+  );
+  const balance = Number(bal.rows[0]?.balance ?? 0);
+  if (balance < FEATURE_COST) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `포인트가 부족합니다. (필요: ${FEATURE_COST}P, 보유: ${balance}P)`,
+    });
+  }
+  await pool.query(
+    `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'feature_use',$3,'completed')`,
+    [trainerId, -FEATURE_COST, memo]
+  );
+}
+
 
 const DEFAULT_TERMS_OF_SERVICE = `이용 약관
 
@@ -592,6 +612,7 @@ const ptRouter = t.router({
       paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
       paymentDate: z.string().optional(),
       paymentMemo: z.string().optional(),
+      withContract: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
@@ -620,6 +641,7 @@ const ptRouter = t.router({
       });
 
       if (isRenewal && trainerId) giveAutoPoints(trainerId, "renewal_complete", "재등록 완료");
+      if (input.withContract) await spendPoints(trainerId, "재등록 계약");
 
       const memberInfo = await db.select({ membershipEnd: members.membershipEnd, membershipStart: members.membershipStart }).from(members).where(eq(members.id, input.memberId)).limit(1);
       if (memberInfo[0] && !memberInfo[0].membershipEnd) {
@@ -2219,6 +2241,8 @@ const leadsRouter = t.router({
       const [totalCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
       if (Number(totalCnt?.count ?? 0) >= contractLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${plan.toUpperCase()} 플랜은 유효회원을 최대 ${contractLimit}명까지 등록할 수 있습니다.` });
 
+      await spendPoints(trainerId, "신규 전자계약");
+
       const [member] = await db.insert(members).values({
         trainerId, name: input.name, phone: input.phone, gender: input.gender,
         status: "active", membershipStart: input.startDate,
@@ -2321,6 +2345,30 @@ const fitPointsRouter = t.router({
         `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'charge_request',$3,'pending')`,
         [trainerId, input.amount, input.memo ?? null]
       );
+      return { success: true };
+    }),
+
+  spendFeature: protectedProcedure
+    .input(z.object({
+      feature: z.enum([
+        "contract_pdf",    // 계약서 PDF 전달
+        "health_report",   // 건강 리포트 공유
+        "stats_report",    // 통계 리포트 생성
+        "branding_share",  // 브랜딩 페이지 공유
+        "exercise_report", // 회원 운동 리포트 공유
+      ]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const memoMap: Record<string, string> = {
+        contract_pdf:    "계약서 PDF 전달",
+        health_report:   "건강 리포트 공유",
+        stats_report:    "통계 리포트 생성",
+        branding_share:  "브랜딩 페이지 공유",
+        exercise_report: "회원 운동 리포트 공유",
+      };
+      await spendPoints(trainerId, memoMap[input.feature]);
       return { success: true };
     }),
 });

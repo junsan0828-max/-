@@ -7,6 +7,7 @@ import TabBanner from "@/components/TabBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import PointSpendConfirm from "@/components/PointSpendConfirm";
 
 // 관리상담: consulted 상태이고 상담일로부터 7일 이내
 function resolveDisplayStatus(status: string, consultationDate: string | null | undefined): string {
@@ -182,6 +183,9 @@ export default function LeadsPage() {
   const [quickStep, setQuickStep] = useState<"select" | "new" | "rereg">("select");
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
+  const [showPdfConfirm, setShowPdfConfirm] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [showReregiConfirm, setShowReregiConfirm] = useState(false);
   const [reregMemberId, setReregMemberId] = useState("");
   const [reregPkg, setReregPkg] = useState({
     ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
@@ -189,6 +193,8 @@ export default function LeadsPage() {
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
     paymentMemo: "",
   });
+
+  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
 
   const addPackageMutation = trpc.pt.addPackage.useMutation({
     onSuccess: () => {
@@ -553,12 +559,13 @@ export default function LeadsPage() {
                     <button
                       onClick={() => {
                         if (contractTerms) sessionStorage.setItem("contractTerms", JSON.stringify(contractTerms));
-                        window.open(contractUrl, "_blank");
+                        setPdfUrl(contractUrl);
+                        setShowPdfConfirm(true);
                       }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                     >
                       <FileText className="h-3.5 w-3.5" />
-                      계약서 PDF 출력
+                      계약서 PDF 출력 <span className="text-primary/70">-50P</span>
                     </button>
                   </div>
                   {/* PAR-Q */}
@@ -789,20 +796,10 @@ export default function LeadsPage() {
                     disabled={!reregMemberId || !reregPkg.totalSessions || addPackageMutation.isPending}
                     onClick={() => {
                       if (!reregMemberId || !reregPkg.totalSessions) return;
-                      addPackageMutation.mutate({
-                        memberId: Number(reregMemberId),
-                        ptProgram: reregPkg.ptProgram || undefined,
-                        totalSessions: Number(reregPkg.totalSessions),
-                        startDate: reregPkg.startDate || undefined,
-                        expiryDate: reregPkg.expiryDate || undefined,
-                        paymentAmount: reregPkg.paymentAmount ? Number(reregPkg.paymentAmount) : undefined,
-                        unpaidAmount: reregPkg.unpaidAmount ? Number(reregPkg.unpaidAmount) : undefined,
-                        paymentMethod: reregPkg.paymentMethod || undefined,
-                        paymentMemo: reregPkg.paymentMemo || undefined,
-                      });
+                      setShowReregiConfirm(true);
                     }}
                     className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-emerald-700 disabled:opacity-40">
-                    {addPackageMutation.isPending ? "등록 중..." : "재등록 완료"}
+                    {addPackageMutation.isPending ? "등록 중..." : "재등록 완료 (-50P)"}
                   </button>
                 </div>
               </div>
@@ -963,7 +960,7 @@ export default function LeadsPage() {
               <button type="button" onClick={saveRegistration}
                 disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50">
-                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : "등록 완료 및 회원 생성"}
+                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : "등록 완료 및 회원 생성 (-50P)"}
               </button>
               <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
@@ -1127,6 +1124,48 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      {/* PDF 출력 포인트 확인 */}
+      <PointSpendConfirm
+        open={showPdfConfirm}
+        onClose={() => setShowPdfConfirm(false)}
+        featureName="계약서 PDF 전달"
+        loading={spendFeatureMutation.isPending}
+        onConfirm={() => {
+          spendFeatureMutation.mutate({ feature: "contract_pdf" }, {
+            onSuccess: () => {
+              setShowPdfConfirm(false);
+              window.open(pdfUrl, "_blank");
+            },
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
+
+      {/* 재등록 계약 포인트 확인 */}
+      <PointSpendConfirm
+        open={showReregiConfirm}
+        onClose={() => setShowReregiConfirm(false)}
+        featureName="재등록 계약"
+        loading={addPackageMutation.isPending}
+        onConfirm={() => {
+          if (!reregMemberId || !reregPkg.totalSessions) return;
+          addPackageMutation.mutate({
+            memberId: Number(reregMemberId),
+            ptProgram: reregPkg.ptProgram || undefined,
+            totalSessions: Number(reregPkg.totalSessions),
+            startDate: reregPkg.startDate || undefined,
+            expiryDate: reregPkg.expiryDate || undefined,
+            paymentAmount: reregPkg.paymentAmount ? Number(reregPkg.paymentAmount) : undefined,
+            unpaidAmount: reregPkg.unpaidAmount ? Number(reregPkg.unpaidAmount) : undefined,
+            paymentMethod: reregPkg.paymentMethod || undefined,
+            paymentMemo: reregPkg.paymentMemo || undefined,
+            withContract: true,
+          }, {
+            onSuccess: () => setShowReregiConfirm(false),
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
     </div>
   );
 }
