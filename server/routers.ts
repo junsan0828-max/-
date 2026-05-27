@@ -3147,30 +3147,45 @@ const adminRouter = t.router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    // sharedToMember=1인 세션 로그 전체 조회
     const sharedLogs = await db.execute(
-      sql`SELECT s.*, m.phone FROM pt_session_logs s LEFT JOIN members m ON s."memberId" = m.id WHERE s."sharedToMember" = 1`
+      sql`SELECT s.*, m.phone, m.name AS memberNameJoined FROM pt_session_logs s LEFT JOIN members m ON s."memberId" = m.id WHERE s."sharedToMember" = 1`
     );
     const rows: any[] = (sharedLogs as any).rows ?? (sharedLogs as any);
 
-    let synced = 0, skipped = 0, failed = 0;
+    let synced = 0, skipped = 0;
+    const failedItems: { memberName: string; sessionDate: string; reason: string }[] = [];
 
     for (const log of rows) {
       try {
-        // 이미 gym_plus_workout_logs에 있는지 확인
+        // 이미 존재하면 건너뜀
         const existCheck = await db.execute(
           sql`SELECT id FROM gym_plus_workout_logs WHERE notes LIKE ${'%__src:' + log.id + '%'} LIMIT 1`
         );
-        const existing = ((existCheck as any).rows ?? (existCheck as any))[0];
-        if (existing) { skipped++; continue; }
+        if (((existCheck as any).rows ?? (existCheck as any))[0]) { skipped++; continue; }
 
-        // gymPlus 멤버 찾기
+        // 1차: memberId 또는 전화번호로 매칭
         const normalizedPhone = log.phone ? String(log.phone).replace(/\D/g, '') : null;
         const gmRows = await db.execute(
           sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (${normalizedPhone} IS NOT NULL AND (REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = ${normalizedPhone} OR username = ${normalizedPhone})) LIMIT 1`
         );
-        const gm = ((gmRows as any).rows ?? (gmRows as any))[0];
-        if (!gm) { failed++; continue; }
+        let gm = ((gmRows as any).rows ?? (gmRows as any))[0];
+
+        // 2차 폴백: 이름으로 매칭
+        if (!gm && log.memberName) {
+          const nameRows = await db.execute(
+            sql`SELECT id FROM gym_plus_members WHERE name = ${log.memberName} LIMIT 1`
+          );
+          gm = ((nameRows as any).rows ?? (nameRows as any))[0];
+        }
+
+        if (!gm) {
+          failedItems.push({
+            memberName: log.memberName ?? log.memberNameJoined ?? "알 수 없음",
+            sessionDate: log.sessionDate,
+            reason: `짐플러스 계정 없음 (전화: ${log.phone ?? "-"})`,
+          });
+          continue;
+        }
 
         const title = log.bodyPart ? `[트레이닝] ${log.bodyPart}` : "트레이닝 기록";
         const notes = ([log.notes, log.goal, log.feedback].filter(Boolean).join("\n") || "") + `\n__src:${log.id}`;
@@ -3179,12 +3194,16 @@ const adminRouter = t.router({
           sql`INSERT INTO gym_plus_workout_logs ("gymPlusMemberId", "logDate", title, "exercisesJson", notes, "createdAt") VALUES (${gm.id}, ${logDate}, ${title}, ${log.exercisesJson}, ${notes}, ${new Date().toISOString()})`
         );
         synced++;
-      } catch {
-        failed++;
+      } catch (e: any) {
+        failedItems.push({
+          memberName: log.memberName ?? "알 수 없음",
+          sessionDate: log.sessionDate,
+          reason: e?.message ?? "오류",
+        });
       }
     }
 
-    return { success: true, total: rows.length, synced, skipped, failed };
+    return { success: true, total: rows.length, synced, skipped, failed: failedItems.length, failedItems };
   }),
 });
 

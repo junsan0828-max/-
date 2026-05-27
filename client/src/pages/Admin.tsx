@@ -212,28 +212,60 @@ function parseSingleRow(row: Record<string, string>): ParsedRow | null {
 }
 
 function ResyncGymPlusButton() {
-  const [result, setResult] = useState<{ synced: number; skipped: number; failed: number } | null>(null);
+  const [result, setResult] = useState<{
+    total: number; synced: number; skipped: number; failed: number;
+    failedItems: { memberName: string; sessionDate: string; reason: string }[];
+  } | null>(null);
+  const [showFailed, setShowFailed] = useState(false);
+
   const resync = trpc.admin.resyncAllSharedLogs.useMutation({
     onSuccess: (data) => {
       setResult(data);
-      toast.success(`재동기화 완료: ${data.synced}건 전송, ${data.skipped}건 이미존재, ${data.failed}건 실패`);
+      setShowFailed(data.failed > 0);
+      if (data.failed > 0) {
+        toast.error(`${data.synced}건 전송 완료, ${data.failed}건 실패 (아래 확인)`);
+      } else {
+        toast.success(`재동기화 완료: ${data.synced}건 전송, ${data.skipped}건 이미존재`);
+      }
     },
     onError: (err) => toast.error(err.message || "재동기화 실패"),
   });
+
   return (
-    <div className="pt-2 border-t border-border mt-2">
-      <p className="text-xs text-muted-foreground mb-2">짐플러스에 전송됐어야 하는데 누락된 기록을 일괄 재동기화합니다.</p>
+    <div className="pt-2 border-t border-border mt-2 space-y-2">
+      <p className="text-xs text-muted-foreground">짐플러스에 전송됐어야 하는데 누락된 기록을 일괄 재동기화합니다.</p>
       <button
         disabled={resync.isPending}
-        onClick={() => { setResult(null); resync.mutate(); }}
+        onClick={() => { setResult(null); setShowFailed(false); resync.mutate(); }}
         className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md border border-primary/40 bg-primary/10 hover:bg-primary/20 transition-colors text-sm text-primary disabled:opacity-50"
       >
         {resync.isPending ? "동기화 중..." : "짐플러스 기록 누락분 재동기화"}
       </button>
       {result && (
-        <p className="text-xs text-muted-foreground mt-1.5 text-center">
-          전체 {result.synced + result.skipped + result.failed}건 중 · 전송 {result.synced}건 · 이미존재 {result.skipped}건 · 실패 {result.failed}건
+        <p className="text-xs text-muted-foreground text-center">
+          전체 {result.total}건 중 · 전송 {result.synced}건 · 이미존재 {result.skipped}건 · 실패 {result.failed}건
         </p>
+      )}
+      {result && result.failed > 0 && (
+        <div>
+          <button
+            onClick={() => setShowFailed(v => !v)}
+            className="text-xs text-red-400 underline"
+          >
+            {showFailed ? "실패 목록 숨기기" : `실패 ${result.failed}건 보기`}
+          </button>
+          {showFailed && (
+            <div className="mt-1.5 space-y-1 max-h-48 overflow-y-auto">
+              {result.failedItems.map((item, i) => (
+                <div key={i} className="text-xs px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20">
+                  <span className="font-medium text-foreground">{item.memberName}</span>
+                  <span className="text-muted-foreground ml-1">{item.sessionDate}</span>
+                  <p className="text-red-400 mt-0.5">{item.reason}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
