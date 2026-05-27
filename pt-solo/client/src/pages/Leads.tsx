@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, ClipboardList } from "lucide-react";
+import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, ClipboardList, FileText, Share2, ClipboardCheck } from "lucide-react";
+import { useLocation } from "wouter";
 import TabBanner from "@/components/TabBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -147,6 +148,7 @@ const defaultReg: RegForm = {
 
 export default function LeadsPage() {
   const utils = trpc.useUtils();
+  const [, setLocation] = useLocation();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -505,10 +507,11 @@ export default function LeadsPage() {
             const s = STATUS_OPTIONS.find(s => s.value === displayStatus);
             const mainTypes = row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [];
             const subTypes = row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [];
+            const contractUrl = `/contract-print?name=${encodeURIComponent(row.lead.name)}&phone=${encodeURIComponent(row.lead.phone ?? "")}&date=${encodeURIComponent(new Date().toLocaleDateString("ko-KR"))}`;
             return (
-              <div key={row.lead.id} onClick={() => openEdit(row)}
-                className="bg-card border border-border rounded-xl p-4 space-y-2 cursor-pointer hover:border-primary/30 transition-colors">
-                <div className="flex items-start justify-between">
+              <div key={row.lead.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
+                {/* 헤더: 이름/상태 */}
+                <div className="flex items-start justify-between cursor-pointer" onClick={() => openEdit(row)}>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground">{row.lead.name}</span>
@@ -526,13 +529,73 @@ export default function LeadsPage() {
                     {s && <s.icon className="h-3 w-3" />}{s?.label}
                   </div>
                 </div>
+
+                {/* 태그 */}
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   {mainTypes.map(mt => <span key={mt} className="bg-primary/10 text-primary px-2 py-0.5 rounded-full">{mt}</span>)}
                   {subTypes.map(st => <span key={st} className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{st}</span>)}
                   {row.lead.interestType && <span className="bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded-full">{row.lead.interestType}</span>}
                   {row.channelName && <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{row.channelName}</span>}
                 </div>
-                {row.lead.consultationNote && <p className="text-xs text-muted-foreground line-clamp-2">{row.lead.consultationNote}</p>}
+
+                {/* 메모 */}
+                {(row.lead.consultationNote || row.lead.memo) && (
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                    {row.lead.consultationNote || row.lead.memo}
+                  </p>
+                )}
+
+                {/* 액션 버튼 */}
+                <div className="flex flex-col gap-2 pt-1">
+                  <div className="flex gap-2">
+                    {/* 계약서 PDF 출력 */}
+                    <button
+                      onClick={() => window.open(contractUrl, "_blank")}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      계약서 PDF 출력
+                    </button>
+                    {/* 카카오톡 공유 */}
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}${contractUrl}`;
+                        const kakaoShareUrl = `https://sharer.kakao.com/talk/friends/picker/link?app_key=${encodeURIComponent("")}&url=${encodeURIComponent(url)}`;
+                        if ((window as any).Kakao?.Share) {
+                          (window as any).Kakao.Share.sendDefault({
+                            objectType: "text",
+                            text: `${row.lead.name}님 계약서 확인 링크입니다.`,
+                            link: { mobileWebUrl: url, webUrl: url },
+                          });
+                        } else {
+                          navigator.clipboard.writeText(url).then(() => toast.success("계약서 링크가 복사되었습니다."));
+                        }
+                      }}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-yellow-400/40 transition-colors"
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      공유
+                    </button>
+                  </div>
+                  {/* PAR-Q */}
+                  <button
+                    onClick={() => {
+                      if (row.lead.registeredMemberId) {
+                        setLocation(`/members/${row.lead.registeredMemberId}/parq`);
+                      } else {
+                        toast.error("회원 등록 후 PAR-Q 검사를 진행할 수 있습니다.");
+                      }
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border transition-colors ${
+                      row.lead.registeredMemberId
+                        ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                        : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    }`}
+                  >
+                    <ClipboardCheck className="h-3.5 w-3.5" />
+                    PAR-Q 사전건강검사
+                  </button>
+                </div>
               </div>
             );
           })}
