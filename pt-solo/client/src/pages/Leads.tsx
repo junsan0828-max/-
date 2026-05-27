@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, ClipboardList, FileText, Share2, ClipboardCheck } from "lucide-react";
+import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, ClipboardList, FileText, ClipboardCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import TabBanner from "@/components/TabBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -556,26 +556,6 @@ export default function LeadsPage() {
                     >
                       <FileText className="h-3.5 w-3.5" />
                       계약서 PDF 출력
-                    </button>
-                    {/* 카카오톡 공유 */}
-                    <button
-                      onClick={() => {
-                        const url = `${window.location.origin}${contractUrl}`;
-                        const kakaoShareUrl = `https://sharer.kakao.com/talk/friends/picker/link?app_key=${encodeURIComponent("")}&url=${encodeURIComponent(url)}`;
-                        if ((window as any).Kakao?.Share) {
-                          (window as any).Kakao.Share.sendDefault({
-                            objectType: "text",
-                            text: `${row.lead.name}님 계약서 확인 링크입니다.`,
-                            link: { mobileWebUrl: url, webUrl: url },
-                          });
-                        } else {
-                          navigator.clipboard.writeText(url).then(() => toast.success("계약서 링크가 복사되었습니다."));
-                        }
-                      }}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-yellow-400/40 transition-colors"
-                    >
-                      <Share2 className="h-3.5 w-3.5" />
-                      공유
                     </button>
                   </div>
                   {/* PAR-Q */}
