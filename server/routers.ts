@@ -1082,7 +1082,31 @@ const ptRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 패키지 연결된 세션 로그라면 usedSessions 복구
+      const [log] = await db
+        .select({ packageId: ptSessionLogs.packageId, isDraft: ptSessionLogs.isDraft })
+        .from(ptSessionLogs)
+        .where(eq(ptSessionLogs.id, input.id))
+        .limit(1);
+
       await db.delete(ptSessionLogs).where(eq(ptSessionLogs.id, input.id));
+
+      if (log?.packageId && !log.isDraft) {
+        const [pkg] = await db
+          .select({ usedSessions: ptPackages.usedSessions, totalSessions: ptPackages.totalSessions })
+          .from(ptPackages)
+          .where(eq(ptPackages.id, log.packageId))
+          .limit(1);
+        if (pkg) {
+          const newUsed = Math.max(0, pkg.usedSessions - 1);
+          await db
+            .update(ptPackages)
+            .set({ usedSessions: newUsed, status: newUsed < pkg.totalSessions ? "active" : "completed" })
+            .where(eq(ptPackages.id, log.packageId));
+        }
+      }
+
       return { success: true };
     }),
 
