@@ -488,7 +488,7 @@ export default function PT() {
     <div className="space-y-4">
       <TabBanner tabKey="pt" />
       <div>
-        <h1 className="text-xl font-bold">수업 관리</h1>
+        <h1 className="text-xl font-bold">회원관리</h1>
       </div>
 
       <div className="flex gap-1 bg-accent rounded-xl p-1">

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, Download, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog, Menu, GraduationCap,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog, Menu, GraduationCap, BookOpen,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
@@ -76,6 +76,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/", label: "대시보드", icon: LayoutDashboard },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "회원관리", icon: Dumbbell },
+    { path: "/sessions", label: "수업 관리", icon: BookOpen },
     { path: "/leads", label: "상담실", icon: UserPlus },
     { path: "/settlement", label: "성장분석", icon: TrendingUp },
     { path: "/workshop", label: "작업실", icon: Wrench },

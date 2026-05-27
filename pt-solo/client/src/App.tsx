@@ -26,6 +26,7 @@ import AdminPoints from "./pages/AdminPoints";
 import AdminRegistrations from "./pages/AdminRegistrations";
 import Leads from "./pages/Leads";
 import Workshop from "./pages/Workshop";
+import Sessions from "./pages/Sessions";
 import Academy from "./pages/Academy";
 import TrainerBrandPage from "./pages/TrainerBrandPage";
 import SurveyPage from "./pages/SurveyPage";
@@ -176,6 +177,7 @@ function App() {
           <Route path="/leads">{() => <Leads />}</Route>
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
+          <Route path="/sessions">{() => <Sessions />}</Route>
           <Route path="/workshop">{() => <Workshop />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" />}</Route>
