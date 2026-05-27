@@ -69,6 +69,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/admin/points", label: "포인트 관리", icon: Coins },
     { path: "/admin/notices", label: "공지/배너", icon: Bell },
     { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },
+    { path: "/academy", label: "성장아카데미 관리", icon: GraduationCap },
   ];
 
   const trainerNavItems = [
