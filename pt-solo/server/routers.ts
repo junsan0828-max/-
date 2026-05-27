@@ -1709,7 +1709,6 @@ const adminRouter = t.router({
         lastLoginAt: users.lastLoginAt,
         userId: trainers.userId,
         plan: sql<string>`users."plan"`,
-        isActive: sql<number>`COALESCE(users."isActive", 1)`,
       })
       .from(trainers)
       .leftJoin(users, eq(trainers.userId, users.id))
