@@ -1787,6 +1787,13 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
+  deleteTrainer: adminProcedure
+    .input(z.object({ userId: z.number() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`DELETE FROM users WHERE id = $1`, [input.userId]);
+      return { success: true };
+    }),
+
   grantPoints: adminProcedure
     .input(z.object({ trainerId: z.number(), amount: z.number(), memo: z.string().optional() }))
     .mutation(async ({ input }) => {

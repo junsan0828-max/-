@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = [
@@ -45,6 +45,11 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   const updateMutation = trpc.admin.updateTrainer.useMutation({
     onSuccess: () => { toast.success("저장되었습니다."); utils.admin.getTrainer.invalidate({ trainerId }); utils.admin.listTrainers.invalidate(); setMemoEdit(false); },
     onError: e => toast.error(e.message),
+  });
+
+  const deleteMutation = trpc.admin.deleteTrainer.useMutation({
+    onSuccess: () => { toast.success("트레이너 계정이 삭제되었습니다"); setLocation("/admin/trainers"); },
+    onError: (e) => toast.error(e.message),
   });
 
   const toggleActiveMutation = trpc.admin.toggleUserActive.useMutation({
@@ -265,7 +270,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
 
       {/* 계정 제어 */}
       <Card className="bg-card border-red-500/20">
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-2">
           <Button
             variant="outline"
             className={`w-full ${isSuspended ? "border-green-500/50 text-green-400 hover:bg-green-500/10" : "border-red-500/50 text-red-400 hover:bg-red-500/10"}`}
@@ -273,6 +278,18 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
             disabled={toggleActiveMutation.isPending || t.userId == null}
           >
             {isSuspended ? "계정 활성화" : "계정 비활성화"}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full border-red-700/60 text-red-500 hover:bg-red-500/10 gap-2"
+            onClick={() => {
+              if (!confirm(`${t.trainerName ?? t.username} 계정을 완전히 삭제하시겠습니까?\n\n회원, PT 기록, 포인트 등 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`)) return;
+              if (t.userId != null) deleteMutation.mutate({ userId: t.userId });
+            }}
+            disabled={deleteMutation.isPending || t.userId == null}
+          >
+            <Trash2 className="h-4 w-4" />
+            계정 영구 삭제
           </Button>
         </CardContent>
       </Card>
