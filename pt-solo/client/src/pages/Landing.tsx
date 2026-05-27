@@ -355,8 +355,8 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
           <span className="text-lg font-black tracking-tight select-none">FIT <span className="text-blue-400">STEP</span></span>
           <div className="flex items-center gap-2">
-            <button onClick={() => setLocation("/login")} className="text-sm text-white/45 hover:text-white px-3 py-1.5 transition-colors">로그인</button>
-            <button onClick={() => setLocation("/register")} className="text-sm font-bold px-4 py-1.5 rounded-full bg-blue-500 hover:bg-blue-400 transition-all shadow-lg shadow-blue-500/25">무료 시작</button>
+            <a href="/auth/kakao" className="text-sm text-white/45 hover:text-white px-3 py-1.5 transition-colors">로그인</a>
+            <a href="/auth/kakao" className="text-sm font-bold px-4 py-1.5 rounded-full bg-blue-500 hover:bg-blue-400 transition-all shadow-lg shadow-blue-500/25">무료 시작</a>
           </div>
         </div>
       </nav>
@@ -393,14 +393,14 @@ export default function Landing() {
                 트레이너와 강사를 위한 피트니스 성장 플랫폼.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-8">
-                <button onClick={() => setLocation("/register")}
-                  className="px-7 py-3.5 rounded-xl bg-blue-500 hover:bg-blue-400 transition-all font-bold text-[15px] shadow-xl shadow-blue-500/25 hover:-translate-y-0.5 hover:shadow-blue-500/40">
+                <a href="/auth/kakao"
+                  className="px-7 py-3.5 rounded-xl bg-blue-500 hover:bg-blue-400 transition-all font-bold text-[15px] shadow-xl shadow-blue-500/25 hover:-translate-y-0.5 hover:shadow-blue-500/40 text-center">
                   무료로 시작하기
-                </button>
-                <button onClick={() => setLocation("/login")}
-                  className="px-7 py-3.5 rounded-xl border border-white/10 hover:border-white/22 bg-white/[0.03] hover:bg-white/5 transition-all font-medium text-[15px] text-white/55 hover:text-white hover:-translate-y-0.5">
+                </a>
+                <a href="/auth/kakao"
+                  className="px-7 py-3.5 rounded-xl border border-white/10 hover:border-white/22 bg-white/[0.03] hover:bg-white/5 transition-all font-medium text-[15px] text-white/55 hover:text-white hover:-translate-y-0.5 text-center">
                   로그인
-                </button>
+                </a>
               </div>
               <p className="text-xs text-white/18">무료로 시작 · 신용카드 불필요</p>
             </div>
@@ -662,11 +662,11 @@ export default function Landing() {
             더 체계적인 트레이너가 늘어나고,<br />
             더 건강한 운영 문화가 자리 잡는 것이 우리의 목표입니다.
           </p>
-          <button onClick={() => setLocation("/register")}
+          <a href="/auth/kakao"
             className="inline-flex items-center gap-2.5 px-10 py-4 rounded-xl bg-blue-500 hover:bg-blue-400 transition-all font-bold text-base shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5">
             무료로 시작하기
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </button>
+          </a>
           <p className="mt-4 text-xs text-white/16">신용카드 불필요 · 바로 사용 가능</p>
         </div>
       </section>
