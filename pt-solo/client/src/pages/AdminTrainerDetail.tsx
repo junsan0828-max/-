@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock, Trash2 } from "lucide-react";
+import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = [
@@ -41,6 +41,10 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   const [memoEdit, setMemoEdit] = useState(false);
   const [grantAmount, setGrantAmount] = useState("");
   const [grantMemo, setGrantMemo] = useState("");
+  const [infoEdit, setInfoEdit] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
 
   const updateMutation = trpc.admin.updateTrainer.useMutation({
     onSuccess: () => { toast.success("저장되었습니다."); utils.admin.getTrainer.invalidate({ trainerId }); utils.admin.listTrainers.invalidate(); setMemoEdit(false); },
@@ -97,20 +101,62 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
       {/* 기본 정보 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2"><User className="h-4 w-4 text-primary" />기본 정보</CardTitle>
+          <CardTitle className="text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2"><User className="h-4 w-4 text-primary" />기본 정보</span>
+            {!infoEdit && (
+              <button
+                onClick={() => { setEditName(t.trainerName ?? ""); setEditPhone(t.phone ?? ""); setEditEmail(t.email ?? ""); setInfoEdit(true); }}
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <Pencil className="h-3 w-3" />수정
+              </button>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {[
-            ["연락처", t.phone ?? "-"],
-            ["이메일", t.email ?? "-"],
-            ["가입일", t.createdAt?.slice(0, 10) ?? "-"],
-            ["마지막 접속", t.lastLoginAt ? `${t.lastLoginAt.slice(0, 10)} (${days}일 전)` : "없음"],
-          ].map(([label, value]) => (
-            <div key={label} className="flex justify-between py-1 border-b border-border/50 last:border-0">
-              <span className="text-muted-foreground">{label}</span>
-              <span className="font-medium">{value}</span>
+          {infoEdit ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">이름</label>
+                <Input value={editName} onChange={e => setEditName(e.target.value)} className="h-9 text-sm bg-input border-border" placeholder="트레이너 이름" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">연락처</label>
+                <Input value={editPhone} onChange={e => setEditPhone(e.target.value)} className="h-9 text-sm bg-input border-border" placeholder="010-0000-0000" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">이메일</label>
+                <Input value={editEmail} onChange={e => setEditEmail(e.target.value)} className="h-9 text-sm bg-input border-border" placeholder="email@example.com" />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setInfoEdit(false)}>취소</Button>
+                <Button size="sm" className="flex-1" disabled={updateMutation.isPending}
+                  onClick={() => updateMutation.mutate({
+                    trainerId,
+                    trainerName: editName.trim() || undefined,
+                    phone: editPhone.trim() || null,
+                    email: editEmail.trim() || null,
+                  }, { onSuccess: () => setInfoEdit(false) })}>
+                  {updateMutation.isPending ? "저장 중..." : "저장"}
+                </Button>
+              </div>
             </div>
-          ))}
+          ) : (
+            <>
+              {[
+                ["이름", t.trainerName ?? "-"],
+                ["연락처", t.phone ?? "-"],
+                ["이메일", t.email ?? "-"],
+                ["가입일", t.createdAt?.slice(0, 10) ?? "-"],
+                ["마지막 접속", t.lastLoginAt ? `${t.lastLoginAt.slice(0, 10)} (${days}일 전)` : "없음"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between py-1 border-b border-border/50 last:border-0">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium">{value}</span>
+                </div>
+              ))}
+            </>
+          )}
         </CardContent>
       </Card>
 

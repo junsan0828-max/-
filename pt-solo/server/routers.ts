@@ -1770,6 +1770,9 @@ const adminRouter = t.router({
   updateTrainer: adminProcedure
     .input(z.object({
       trainerId: z.number(),
+      trainerName: z.string().optional(),
+      phone: z.string().optional().nullable(),
+      email: z.string().optional().nullable(),
       subscriptionStatus: z.enum(["trial", "active", "expired", "suspended"]).optional(),
       subscriptionEndDate: z.string().optional().nullable(),
       adminMemo: z.string().optional().nullable(),
@@ -1777,7 +1780,15 @@ const adminRouter = t.router({
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      const { trainerId, plan, ...fields } = input;
+      const { trainerId, plan, trainerName, phone, email, ...fields } = input;
+      // trainers 테이블 업데이트
+      const trainerFields: Record<string, any> = {};
+      if (trainerName !== undefined) trainerFields.trainerName = trainerName;
+      if (phone !== undefined) trainerFields.phone = phone;
+      if (email !== undefined) trainerFields.email = email;
+      if (Object.keys(trainerFields).length > 0) {
+        await db.update(trainers).set(trainerFields).where(eq(trainers.id, trainerId));
+      }
       const setParts: Record<string, any> = {};
       if (fields.subscriptionStatus !== undefined) setParts['"subscriptionStatus"'] = fields.subscriptionStatus;
       if (fields.subscriptionEndDate !== undefined) setParts['"subscriptionEndDate"'] = fields.subscriptionEndDate;
