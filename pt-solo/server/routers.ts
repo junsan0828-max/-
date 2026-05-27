@@ -2012,6 +2012,23 @@ const adminRouter = t.router({
       await pool.query(`DELETE FROM point_auto_rules WHERE event=$1`, [input.event]);
       return { success: true };
     }),
+
+  listSurveyResponses: adminProcedure.query(async () => {
+    const rows = await pool.query<{
+      id: number; trainerName: string | null; phone: string | null; email: string | null;
+      createdAt: string; onboardingSurveyData: string | null; onboardingSurveyDone: number;
+    }>(
+      `SELECT t.id, t."trainerName", t.phone, t.email, t."createdAt",
+              t."onboardingSurveyData", t."onboardingSurveyDone"
+       FROM trainers t
+       WHERE t."onboardingSurveyDone" = 1
+       ORDER BY t."createdAt" DESC`
+    );
+    return rows.rows.map(r => ({
+      ...r,
+      answers: r.onboardingSurveyData ? JSON.parse(r.onboardingSurveyData) as Record<string, string[]> : {},
+    }));
+  }),
 });
 
 // ─── Channels Router ──────────────────────────────────────────────────────────

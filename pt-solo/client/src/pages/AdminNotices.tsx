@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bell, Plus, Pencil, Trash2, Pin, ExternalLink, ImageIcon, X } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, Pin, ExternalLink, ImageIcon, X, ClipboardList, ChevronDown, ChevronUp, Users } from "lucide-react";
 import { toast } from "sonner";
 
 type Notice = { id: number; title: string; content: string; isPinned: boolean; isActive: boolean; createdAt: string };
@@ -414,6 +414,146 @@ function LegacyBannerManager() {
   );
 }
 
+const SURVEY_QUESTIONS: { id: string; question: string }[] = [
+  { id: "q1", question: "가장 배우고 싶은 분야" },
+  { id: "q2", question: "가장 어려운 부분" },
+  { id: "q3", question: "현재 활동 형태" },
+  { id: "q4", question: "향후 목표" },
+  { id: "q5", question: "회원 관리 경험" },
+  { id: "q6", question: "선호 교육 형태" },
+  { id: "q7", question: "활동하고 싶은 분야" },
+  { id: "q8", question: "회원 상담 경험" },
+  { id: "q9", question: "SNS/개인 브랜딩 활동" },
+  { id: "q10", question: "FIT STEP 기대 기능" },
+];
+
+function SurveyManager() {
+  const { data: responses, isLoading } = trpc.admin.listSurveyResponses.useQuery();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [filterQ, setFilterQ] = useState("");
+
+  const filtered = filterQ
+    ? responses?.filter(r => {
+        const answers = Object.values(r.answers).flat().join(" ");
+        return (r.trainerName ?? "").includes(filterQ) || answers.includes(filterQ);
+      })
+    : responses;
+
+  // 항목별 집계
+  const stats: Record<string, Record<string, number>> = {};
+  responses?.forEach(r => {
+    Object.entries(r.answers).forEach(([qId, opts]) => {
+      if (!stats[qId]) stats[qId] = {};
+      opts.forEach(o => { stats[qId][o] = (stats[qId][o] ?? 0) + 1; });
+    });
+  });
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-primary" />온보딩 설문 응답
+          {responses && (
+            <span className="ml-auto text-xs font-normal text-muted-foreground flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" />{responses.length}명 응답
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading && <p className="text-sm text-muted-foreground text-center py-4">불러오는 중...</p>}
+        {!isLoading && (!responses || responses.length === 0) && (
+          <p className="text-sm text-muted-foreground text-center py-4">아직 설문 응답이 없습니다.</p>
+        )}
+
+        {responses && responses.length > 0 && (
+          <>
+            {/* 집계 통계 */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">항목별 집계</p>
+              {SURVEY_QUESTIONS.map(q => {
+                const qStats = stats[q.id];
+                if (!qStats) return null;
+                const sorted = Object.entries(qStats).sort((a, b) => b[1] - a[1]);
+                const total = sorted.reduce((s, [, v]) => s + v, 0);
+                return (
+                  <div key={q.id} className="space-y-1.5">
+                    <p className="text-xs font-medium text-foreground">{q.question}</p>
+                    <div className="space-y-1">
+                      {sorted.slice(0, 5).map(([opt, cnt]) => (
+                        <div key={opt} className="flex items-center gap-2">
+                          <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary/60 rounded-full"
+                              style={{ width: `${Math.round((cnt / total) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground w-5 text-right shrink-0">{cnt}</span>
+                          <span className="text-xs text-foreground truncate max-w-[140px]">{opt}</span>
+                        </div>
+                      ))}
+                      {sorted.length > 5 && (
+                        <p className="text-xs text-muted-foreground pl-1">+ {sorted.length - 5}개 항목 더 있음</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="border-t border-border pt-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">개별 응답 목록</p>
+              <Input
+                value={filterQ}
+                onChange={e => setFilterQ(e.target.value)}
+                placeholder="이름 또는 응답 내용으로 검색..."
+                className="h-8 text-xs bg-input border-border"
+              />
+              <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
+                {filtered?.map(r => (
+                  <div key={r.id} className="rounded-lg border border-border bg-background">
+                    <button
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-left"
+                      onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{r.trainerName ?? "이름 없음"}</p>
+                        <p className="text-xs text-muted-foreground">{r.phone ?? r.email ?? ""} · {r.createdAt?.slice(0, 10)}</p>
+                      </div>
+                      {expandedId === r.id
+                        ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                        : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      }
+                    </button>
+                    {expandedId === r.id && (
+                      <div className="px-3 pb-3 space-y-2 border-t border-border">
+                        {SURVEY_QUESTIONS.map(q => {
+                          const ans = r.answers[q.id];
+                          if (!ans || ans.length === 0) return null;
+                          return (
+                            <div key={q.id}>
+                              <p className="text-xs text-muted-foreground mt-2">{q.question}</p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {ans.map(a => (
+                                  <span key={a} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{a}</span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminNotices() {
   const utils = trpc.useUtils();
   const { data: notices } = trpc.notices.listAll.useQuery();
@@ -440,6 +580,7 @@ export default function AdminNotices() {
         <p className="text-sm text-muted-foreground mt-0.5">트레이너 앱에 표시되는 공지와 배너</p>
       </div>
 
+      <SurveyManager />
       <TabBannerManager />
       <LegacyBannerManager />
 
