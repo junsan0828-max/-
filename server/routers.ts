@@ -3147,9 +3147,25 @@ const adminRouter = t.router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    const sharedLogs = await db.execute(
-      sql`SELECT s.*, m.phone, m.name AS memberNameJoined FROM pt_session_logs s LEFT JOIN members m ON s."memberId" = m.id WHERE s."sharedToMember" = 1`
-    );
+    // 같은 DB에서 직접 JOIN: pt_session_logs → members → gym_plus_members
+    // memberId 링크, 전화번호(정규화), 이름 세 가지를 DB 안에서 한번에 비교
+    const sharedLogs = await db.execute(sql`
+      SELECT
+        s.id, s."memberId", s."memberName", s."sessionDate",
+        s.notes, s.goal, s.feedback, s."bodyPart", s."exercisesJson",
+        m.phone AS memberPhone, m.name AS memberNameReal,
+        gpm.id AS gymPlusMemberId,
+        gpm.phone AS gymPlusPhone
+      FROM pt_session_logs s
+      LEFT JOIN members m ON m.id = s."memberId"
+      LEFT JOIN gym_plus_members gpm
+        ON gpm."memberId" = s."memberId"
+        OR REGEXP_REPLACE(COALESCE(gpm.phone,''), '[^0-9]', '', 'g')
+           = REGEXP_REPLACE(COALESCE(m.phone,''), '[^0-9]', '', 'g')
+        OR gpm.name = COALESCE(s."memberName", m.name)
+        OR gpm.username = REGEXP_REPLACE(COALESCE(m.phone,''), '[^0-9]', '', 'g')
+      WHERE s."sharedToMember" = 1
+    `);
     const rows: any[] = (sharedLogs as any).rows ?? (sharedLogs as any);
 
     let synced = 0, skipped = 0;
@@ -3163,53 +3179,21 @@ const adminRouter = t.router({
         );
         if (((existCheck as any).rows ?? (existCheck as any))[0]) { skipped++; continue; }
 
-        // 1차: memberId 또는 전화번호로 매칭
-        const normalizedPhone = log.phone ? String(log.phone).replace(/\D/g, '') : null;
-        const gmRows = await db.execute(
-          sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (${normalizedPhone} IS NOT NULL AND (REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = ${normalizedPhone} OR username = ${normalizedPhone})) LIMIT 1`
-        );
-        let gm = ((gmRows as any).rows ?? (gmRows as any))[0];
-
-        // 2차 폴백: 이름으로 매칭 (이름 스냅샷 + 실제 회원 이름 둘 다 시도)
-        if (!gm) {
-          const nameToTry = log.memberName || log.memberNameJoined;
-          if (nameToTry) {
-            const nameRows = await db.execute(
-              sql`SELECT id FROM gym_plus_members WHERE name = ${nameToTry} LIMIT 1`
-            );
-            gm = ((nameRows as any).rows ?? (nameRows as any))[0];
-          }
-        }
-
-        // 3차 폴백: 이름 이름으로 찾은 경우 전화번호도 업데이트해서 연결 강화
-        if (gm && normalizedPhone) {
-          await db.execute(
-            sql`UPDATE gym_plus_members SET "memberId" = ${log.memberId} WHERE id = ${gm.id} AND "memberId" IS NULL`
-          );
-        }
+        const gm = log.gymPlusMemberId ? { id: log.gymPlusMemberId } : null;
 
         if (!gm) {
-          // 진단: gym_plus_members에 이 회원이 아예 없는지, 아니면 전화번호가 다른지
-          const nameCheck = log.memberName ? await db.execute(
-            sql`SELECT username, phone FROM gym_plus_members WHERE name = ${log.memberName} LIMIT 1`
-          ) : null;
-          const nameMatch = nameCheck ? ((nameCheck as any).rows ?? (nameCheck as any))[0] : null;
-
-          let reason = "";
-          if (!log.phone) {
-            reason = `회원 전화번호 없음 (짐플러스 가입 여부 불명)`;
-          } else if (nameMatch) {
-            reason = `전화번호 불일치 — 회원: ${log.phone} / 짐플러스(${nameMatch.username}): ${nameMatch.phone ?? "없음"}`;
-          } else {
-            reason = `짐플러스 미가입 (전화: ${log.phone}, 이름: ${log.memberName ?? "-"})`;
-          }
           failedItems.push({
-            memberName: log.memberName ?? log.memberNameJoined ?? "알 수 없음",
+            memberName: log.memberName ?? log.memberNameReal ?? "알 수 없음",
             sessionDate: log.sessionDate,
-            reason,
+            reason: `짐플러스 미가입 (전화: ${log.memberPhone ?? "없음"})`,
           });
           continue;
         }
+
+        // 짐플러스 계정에 memberId 링크 없으면 자동 연결
+        await db.execute(
+          sql`UPDATE gym_plus_members SET "memberId" = ${log.memberId} WHERE id = ${gm.id} AND "memberId" IS NULL`
+        );
 
         const title = log.bodyPart ? `[트레이닝] ${log.bodyPart}` : "트레이닝 기록";
         const notes = ([log.notes, log.goal, log.feedback].filter(Boolean).join("\n") || "") + `\n__src:${log.id}`;
