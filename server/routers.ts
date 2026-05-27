@@ -1134,19 +1134,37 @@ const ptRouter = t.router({
       const newUsed = pkg.usedSessions + 1;
       const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
 
+      const today = new Date().toISOString().split("T")[0];
+      const targetDate = input.sessionDate ?? today;
+
+      // 같은 날 같은 회원 세션 중복 방지
+      const [dupCheck] = await db
+        .select({ id: ptSessionLogs.id })
+        .from(ptSessionLogs)
+        .where(
+          and(
+            eq(ptSessionLogs.memberId, input.memberId),
+            eq(ptSessionLogs.trainerId, trainerId),
+            eq(ptSessionLogs.sessionDate, targetDate),
+          )
+        )
+        .limit(1);
+      if (dupCheck) {
+        throw new TRPCError({ code: "CONFLICT", message: "해당 날짜에 이미 세션이 기록되어 있습니다." });
+      }
+
       await db
         .update(ptPackages)
         .set({ usedSessions: newUsed, status: newStatus as any })
         .where(eq(ptPackages.id, resolvedPackageId!));
 
-      const today = new Date().toISOString().split("T")[0];
       const [useMemRow] = await db.select({ name: members.name }).from(members).where(eq(members.id, input.memberId)).limit(1);
       await db.insert(ptSessionLogs).values({
         memberId: input.memberId,
         memberName: useMemRow?.name ?? null,
         trainerId,
         packageId: resolvedPackageId,
-        sessionDate: input.sessionDate ?? today,
+        sessionDate: targetDate,
         notes: input.notes,
         bodyPart: input.bodyPart,
         exercisesJson: input.exercisesJson,
@@ -1157,7 +1175,7 @@ const ptRouter = t.router({
       // 회원권 시작일이 비어있으면 첫 수업일로 자동 설정
       const memberRow = await db.select({ membershipStart: members.membershipStart }).from(members).where(eq(members.id, input.memberId)).limit(1);
       if (memberRow[0] && !memberRow[0].membershipStart) {
-        await db.update(members).set({ membershipStart: input.sessionDate ?? today }).where(eq(members.id, input.memberId));
+        await db.update(members).set({ membershipStart: targetDate }).where(eq(members.id, input.memberId));
       }
 
       return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
