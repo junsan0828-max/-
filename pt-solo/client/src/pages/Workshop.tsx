@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
+const WORKSHOP_LOCKED = true; // 개발 중 — 완료 후 false로 변경
+
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
 const EVENT_TYPE_LABELS: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션" };
 
@@ -1160,6 +1162,23 @@ const PREVIEW_FEATURES = [
 
 export default function Workshop() {
   const { data: user } = trpc.auth.me.useQuery();
+
+  if (WORKSHOP_LOCKED) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 px-6">
+        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+          <Wrench className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-xl font-bold">작업실</p>
+          <span className="inline-block text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full font-semibold">🔧 개발 중</span>
+          <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+            현재 업데이트 작업 중입니다.<br />조금만 기다려 주세요!
+          </p>
+        </div>
+      </div>
+    );
+  }
   const utils = trpc.useUtils();
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
