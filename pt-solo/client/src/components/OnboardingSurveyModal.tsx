@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, X, Sparkles, TrendingUp, User, Phone } from "lucide-react";
+import { ChevronRight, ChevronLeft, X, Sparkles, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 type Question = {
   id: string;
@@ -89,11 +87,9 @@ const QUESTIONS: Question[] = [
 
 export default function OnboardingSurveyModal({ onClose, required = false }: { onClose: () => void; required?: boolean }) {
   const utils = trpc.useUtils();
-  const [step, setStep] = useState<"intro" | "survey" | "profile" | "done">("intro");
+  const [step, setStep] = useState<"intro" | "survey" | "done">("intro");
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
-  const [profileName, setProfileName] = useState("");
-  const [profilePhone, setProfilePhone] = useState("");
   const [exiting, setExiting] = useState(false);
 
   const submitMutation = trpc.trainers.submitOnboardingSurvey.useMutation({
@@ -122,16 +118,8 @@ export default function OnboardingSurveyModal({ onClose, required = false }: { o
     if (current < QUESTIONS.length - 1) {
       setCurrent(c => c + 1);
     } else {
-      setStep("profile");
+      submitMutation.mutate({ answers });
     }
-  }
-
-  function submitProfile() {
-    submitMutation.mutate({
-      answers,
-      trainerName: profileName.trim() || undefined,
-      phone: profilePhone.trim() || undefined,
-    });
   }
 
   function prev() {
@@ -142,76 +130,6 @@ export default function OnboardingSurveyModal({ onClose, required = false }: { o
     if (required) return; // 필수 설문은 닫기 불가
     setExiting(true);
     setTimeout(onClose, 200);
-  }
-
-  if (step === "profile") {
-    return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-          <div className="shrink-0 px-5 pt-5 pb-3 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">프로필</span>
-              <span className="text-xs text-muted-foreground">마지막 단계</span>
-            </div>
-            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full" style={{ width: "100%" }} />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-            <div className="space-y-1">
-              <p className="font-bold text-base">내 프로필 정보를 입력해주세요</p>
-              <p className="text-xs text-muted-foreground">나중에 프로필 설정에서 수정할 수 있어요.</p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-muted-foreground" />
-                  이름
-                </Label>
-                <Input
-                  value={profileName}
-                  onChange={e => setProfileName(e.target.value)}
-                  placeholder="트레이너 이름을 입력하세요"
-                  className="h-11"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                  연락처
-                </Label>
-                <Input
-                  type="tel"
-                  value={profilePhone}
-                  onChange={e => setProfilePhone(e.target.value)}
-                  placeholder="010-0000-0000"
-                  className="h-11"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="shrink-0 flex items-center gap-3 px-5 py-4 border-t border-border bg-card">
-            <button
-              onClick={() => { setStep("survey"); setCurrent(QUESTIONS.length - 1); }}
-              className="p-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <Button
-              className="flex-1"
-              disabled={submitMutation.isPending}
-              onClick={submitProfile}
-            >
-              {submitMutation.isPending ? "저장 중..." : "완료하기"}
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   if (step === "done") {
