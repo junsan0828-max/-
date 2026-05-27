@@ -85,7 +85,7 @@ function FitStepPlusApp({ trainerId }: { trainerId: number }) {
   }
 
   return (
-    <FitStepPlusLayout trainerId={trainerId}>
+    <FitStepPlusLayout trainerId={trainerId} isAdmin={isAdmin}>
       <ErrorBoundary>
         <Switch>
           <Route path={`/fit-step-plus/${trainerId}`}>{() => <FitStepPlusDashboard trainerId={trainerId} />}</Route>

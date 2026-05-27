@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Search, Plus, ChevronDown, ChevronUp, Pencil, Trash2, X, LayoutTemplate,
+  PlusCircle, ChevronsDown, Send, Save, Dumbbell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,13 @@ export default function Sessions() {
   const [editId, setEditId] = useState(0);
   const [editForm, setEditForm] = useState<JournalForm>(emptyForm());
 
+  // 라이브 트레이닝 모달
+  const [liveOpen, setLiveOpen] = useState(false);
+  const [liveLogId, setLiveLogId] = useState(0);
+  const [liveDate, setLiveDate] = useState("");
+  const [liveExercises, setLiveExercises] = useState<Exercise[]>([]);
+  const [liveMemberId, setLiveMemberId] = useState<number | null>(null);
+
   const selectedMember = allMembers?.find(m => m.id === selectedMemberId);
 
   const { data: packages } = trpc.pt.listByMember.useQuery(
@@ -126,6 +134,14 @@ export default function Sessions() {
     onError: (e) => toast.error(e.message),
   });
 
+  const liveSaveMutation = trpc.pt.updateLog.useMutation({
+    onSuccess: () => {
+      utils.trainingLog.listAll.invalidate();
+      setLiveOpen(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const filteredMembers = (allMembers ?? []).filter(m =>
     m.name.includes(search) || (m.phone ?? "").includes(search)
   );
@@ -160,6 +176,72 @@ export default function Sessions() {
       feedback: journalForm.feedback || undefined,
       notes: journalForm.notes || undefined,
     });
+  }
+
+  function openLive(log: any) {
+    setLiveLogId(log.id);
+    setLiveDate(log.sessionDate);
+    setLiveExercises(parseExercisesJson(log.exercisesJson));
+    setLiveMemberId(selectedMemberId ?? null);
+    setLiveOpen(true);
+  }
+
+  function addLiveSet(exIdx: number) {
+    setLiveExercises(prev => prev.map((ex, i) => {
+      if (i !== exIdx) return ex;
+      const last = ex.sets[ex.sets.length - 1];
+      return { ...ex, sets: [...ex.sets, last ? { ...last } : { reps: "", weight: "" }] };
+    }));
+  }
+
+  function updateLiveSet(exIdx: number, setIdx: number, field: "reps" | "weight", value: string) {
+    setLiveExercises(prev => prev.map((ex, i) => {
+      if (i !== exIdx) return ex;
+      return { ...ex, sets: ex.sets.map((s, j) => j !== setIdx ? s : { ...s, [field]: value }) };
+    }));
+  }
+
+  function removeLiveSet(exIdx: number, setIdx: number) {
+    setLiveExercises(prev => prev.map((ex, i) => {
+      if (i !== exIdx) return ex;
+      return { ...ex, sets: ex.sets.filter((_, j) => j !== setIdx) };
+    }));
+  }
+
+  function insertLiveExercise(afterIdx: number) {
+    setLiveExercises(prev => {
+      const next = [...prev];
+      next.splice(afterIdx + 1, 0, { name: "", sets: [{ reps: "", weight: "" }] });
+      return next;
+    });
+  }
+
+  function addLiveExercise() {
+    setLiveExercises(prev => [...prev, { name: "", sets: [{ reps: "", weight: "" }] }]);
+  }
+
+  function updateLiveExerciseName(idx: number, name: string) {
+    setLiveExercises(prev => prev.map((ex, i) => i !== idx ? ex : { ...ex, name }));
+  }
+
+  function removeLiveExercise(idx: number) {
+    setLiveExercises(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function saveLive() {
+    liveSaveMutation.mutate({
+      id: liveLogId,
+      exercisesJson: liveExercises.length > 0 ? JSON.stringify(liveExercises) : undefined,
+    });
+    toast.success("저장되었습니다");
+  }
+
+  function sendToMember() {
+    liveSaveMutation.mutate({
+      id: liveLogId,
+      exercisesJson: liveExercises.length > 0 ? JSON.stringify(liveExercises) : undefined,
+    });
+    toast.success("회원에게 전송되었습니다");
   }
 
   function submitEdit() {
@@ -329,7 +411,14 @@ export default function Sessions() {
                       <p className="text-sm whitespace-pre-wrap">{log.notes}</p>
                     </div>
                   )}
-                  <div className="flex gap-2 pt-1">
+                  <div className="flex gap-2 pt-1 flex-wrap">
+                    <button
+                      onClick={() => openLive(log)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 text-xs text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <Dumbbell className="h-3.5 w-3.5" />
+                      라이브
+                    </button>
                     <button
                       onClick={() => openEdit(log)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
@@ -414,6 +503,113 @@ export default function Sessions() {
                 {createMutation.isPending ? "저장 중..." : journalForm.datePending ? "임시 저장" : "저장"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 라이브 트레이닝 모달 */}
+      <Dialog open={liveOpen} onOpenChange={setLiveOpen}>
+        <DialogContent className="max-w-sm max-h-[95vh] overflow-y-auto p-0 flex flex-col">
+          <DialogHeader className="sticky top-0 bg-card border-b border-border px-4 py-3 shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-sm">라이브 트레이닝</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {liveDate !== "미정" ? liveDate : "날짜 미정"}
+                  {selectedMember ? ` · ${selectedMember.name}` : ""}
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {liveExercises.map((ex, exIdx) => (
+              <div key={exIdx} className="border border-border rounded-xl overflow-hidden">
+                <div className="bg-accent/30 px-3 py-2 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-muted-foreground w-5 shrink-0">{exIdx + 1}</span>
+                  <input
+                    value={ex.name}
+                    onChange={e => updateLiveExerciseName(exIdx, e.target.value)}
+                    placeholder="운동명"
+                    className="flex-1 bg-transparent text-sm font-medium focus:outline-none placeholder:text-muted-foreground/40 min-w-0"
+                  />
+                  <button onClick={() => removeLiveExercise(exIdx)} className="text-muted-foreground hover:text-red-400 shrink-0">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <div className="px-3 pt-2 pb-1 space-y-1.5">
+                  {ex.sets.map((s, setIdx) => (
+                    <div key={setIdx} className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground w-8 text-center shrink-0 font-medium">{setIdx + 1}set</span>
+                      <input
+                        type="number"
+                        value={s.reps}
+                        onChange={e => updateLiveSet(exIdx, setIdx, "reps", e.target.value)}
+                        placeholder="횟수"
+                        className="flex-1 bg-muted/50 rounded-lg px-2 py-1.5 text-center text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 min-w-0"
+                      />
+                      <span className="text-xs text-muted-foreground shrink-0">×</span>
+                      <input
+                        type="number"
+                        value={s.weight}
+                        onChange={e => updateLiveSet(exIdx, setIdx, "weight", e.target.value)}
+                        placeholder="kg"
+                        className="flex-1 bg-muted/50 rounded-lg px-2 py-1.5 text-center text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 min-w-0"
+                      />
+                      <button onClick={() => removeLiveSet(exIdx, setIdx)} className="text-muted-foreground hover:text-red-400 shrink-0">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="px-3 pb-2.5 flex items-center gap-3">
+                  <button
+                    onClick={() => addLiveSet(exIdx)}
+                    className="flex items-center gap-1 text-xs text-primary hover:text-primary/70 transition-colors"
+                  >
+                    <PlusCircle className="h-3.5 w-3.5" />
+                    세트 추가
+                  </button>
+                  <button
+                    onClick={() => insertLiveExercise(exIdx)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto"
+                  >
+                    <ChevronsDown className="h-3.5 w-3.5" />
+                    운동 삽입
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <button
+              onClick={addLiveExercise}
+              className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              운동 추가
+            </button>
+          </div>
+
+          <div className="sticky bottom-0 bg-card border-t border-border px-4 py-3 flex gap-2 shrink-0">
+            <Button
+              variant="outline"
+              className="flex-1 gap-1.5 text-xs"
+              onClick={sendToMember}
+              disabled={liveSaveMutation.isPending}
+            >
+              <Send className="h-3.5 w-3.5" />
+              회원 전송
+            </Button>
+            <Button
+              className="flex-1 gap-1.5 text-xs"
+              onClick={saveLive}
+              disabled={liveSaveMutation.isPending}
+            >
+              <Save className="h-3.5 w-3.5" />
+              저장
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
