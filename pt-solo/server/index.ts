@@ -130,8 +130,11 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
   );
   if (existing.rows[0]) {
     const u = existing.rows[0];
-    if (u.position === "pending") return res.redirect("/login?error=pending");
     if (u.position === "rejected") return res.redirect("/login?error=rejected");
+    // pending 상태라도 소셜 로그인은 active로 자동 승급
+    if (u.position === "pending") {
+      await pool.query(`UPDATE users SET position='active' WHERE id=$1`, [u.id]);
+    }
     // 재로그인 시 카카오 정보 업데이트
     if (u.trainerId) {
       await pool.query(
@@ -143,10 +146,10 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
     await new Promise<void>((resolve, reject) => req.session.save((err: any) => err ? reject(err) : resolve()));
     return res.redirect("/");
   }
-  // 신규 가입
+  // 신규 가입 — 카카오/소셜 로그인은 즉시 active
   const username = `${provider}_${providerId.slice(0, 8)}`;
   const myCode = Math.random().toString(36).slice(2, 10).toUpperCase();
-  const [userRow] = await db2.insert(users).values({ username, password: null as any, role: "trainer", position: "pending" }).returning({ id: users.id });
+  const [userRow] = await db2.insert(users).values({ username, password: null as any, role: "trainer", position: "active" }).returning({ id: users.id });
   await pool.query(`UPDATE users SET provider=$1, "providerId"=$2, "referralCode"=$3 WHERE id=$4`, [provider, providerId, myCode, userRow.id]);
   const [trainerRow] = await db2.insert(trainers).values({
     userId: userRow.id,
@@ -157,7 +160,10 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
     ageRange: ageRange || undefined,
   }).returning({ id: trainers.id });
   await db2.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
-  return res.redirect("/login?error=pending");
+  // 신규 가입 즉시 로그인 처리
+  (req.session as any).user = { id: userRow.id, username: name, role: "trainer", trainerId: trainerRow.id };
+  await new Promise<void>((resolve, reject) => req.session.save((err: any) => err ? reject(err) : resolve()));
+  return res.redirect("/");
 }
 
 app.get("/.well-known/assetlinks.json", (_req, res) => {
