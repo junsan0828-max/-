@@ -1238,11 +1238,25 @@ const dashboardRouter = t.router({
     }
 
     return Promise.all(months.map(async (m) => {
-      const [attendCount, newMembers] = await Promise.all([
+      const [attendCount, newMembers, renewals] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(attendances).where(and(eq(attendances.trainerId, trainerId), eq(attendances.status, "attended"), sql`${attendances.attendDate} >= ${m.start}`, sql`${attendances.attendDate} < ${m.end}`)),
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, trainerId), sql`${members.createdAt} >= ${m.start}`, sql`${members.createdAt} < ${m.end}`)),
+        // 해당 월에 생성된 패키지 중, 회원 가입일이 해당 월 이전인 경우 = 재등록
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM pt_packages p
+           INNER JOIN members mem ON mem.id = p."memberId"
+           WHERE p."trainerId"=$1
+             AND p."createdAt" >= $2 AND p."createdAt" < $3
+             AND mem."createdAt" < $2`,
+          [trainerId, m.start, m.end]
+        ),
       ]);
-      return { month: m.label, 출석: Number(attendCount[0]?.count ?? 0), 신규회원: Number(newMembers[0]?.count ?? 0) };
+      return {
+        month: m.label,
+        출석: Number(attendCount[0]?.count ?? 0),
+        신규회원: Number(newMembers[0]?.count ?? 0),
+        재등록: Number(renewals.rows[0]?.count ?? 0),
+      };
     }));
   }),
 

@@ -302,8 +302,9 @@ function TrainerDashboard() {
                   formatter={(value) => [`${value}회`]}
                 />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Bar dataKey="출석" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="신규회원" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="출석" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                <Bar dataKey="신규회원" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                <Bar dataKey="재등록" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={24} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -469,100 +470,6 @@ function TrainerDashboard() {
           </CardContent>
         </Card>
       )}
-
-      {/* 트레이닝 일지 */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-primary" />트레이닝 일지
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {(!allMembers || allMembers.filter(m => m.status === "active").length === 0) && (
-            <p className="text-sm text-muted-foreground text-center py-4">활성 회원이 없습니다</p>
-          )}
-          {allMembers?.filter(m => m.status === "active").map((m) => (
-            <button
-              key={m.id}
-              onClick={() => {
-                setSelectedMember({ id: m.id, name: m.name });
-                setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], exerciseType: "", bodyPart: "", notes: "", exercises: [] });
-                setJournalOpen(true);
-              }}
-              className="w-full flex items-center justify-between p-3 rounded-md bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">{m.name.charAt(0)}</div>
-                <div>
-                  <p className="text-sm font-medium">{m.name}</p>
-                  {m.membershipEnd && <p className="text-xs text-muted-foreground">{m.membershipEnd} 만료</p>}
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-primary border border-primary/30 rounded-full px-2.5 py-1 bg-primary/10">
-                <BookOpen className="h-3 w-3" />기록
-              </div>
-            </button>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* 트레이닝 일지 기록 다이얼로그 */}
-      <Dialog open={journalOpen} onOpenChange={setJournalOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-primary" />트레이닝 일지</DialogTitle>
-            <DialogDescription>{selectedMember?.name} 수업 기록</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">수업일</label>
-              <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 형태</label>
-              <Select value={journalForm.exerciseType} onValueChange={v => setJournalForm(p => ({ ...p, exerciseType: v === "__none" ? "" : v }))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 형태를 선택하세요" /></SelectTrigger>
-                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                  {["다이어트","체형교정","재활","근비대","퍼포먼스","일반건강","스트레칭","유산소","기능성훈련","밸런스","체력증진"].map(t => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 부위 (최대 3개)</label>
-              <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
-              <ExerciseEditor
-                exercises={journalForm.exercises}
-                onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">메모</label>
-              <Textarea value={journalForm.notes} onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="오늘 수업 특이사항..." rows={2} className="text-sm resize-none" />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
-              <Button className="flex-1" disabled={useSessionMutation.isPending}
-                onClick={() => {
-                  if (!selectedMember) return;
-                  useSessionMutation.mutate({
-                    memberId: selectedMember.id,
-                    sessionDate: journalForm.sessionDate,
-                    bodyPart: journalForm.bodyPart || undefined,
-                    notes: journalForm.notes || undefined,
-                    exercisesJson: journalForm.exercises.length > 0 ? JSON.stringify(journalForm.exercises) : undefined,
-                  });
-                }}>
-                {useSessionMutation.isPending ? "기록 중..." : "기록 완료"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* 오늘 출석 모달 */}
       <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
