@@ -2460,6 +2460,18 @@ const fitStepPlusRouter = t.router({
       return { success: true };
     }),
 
+  trainer_checkMemberFSP: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) return { registered: false };
+      const row = await getDb().select({ id: fitStepPlusMembers.id })
+        .from(fitStepPlusMembers)
+        .where(and(eq(fitStepPlusMembers.trainerId, trainerId), eq(fitStepPlusMembers.memberId, input.memberId)))
+        .limit(1);
+      return { registered: row.length > 0 };
+    }),
+
   trainer_sendSessionToMember: protectedProcedure
     .input(z.object({ sessionLogId: z.number() }))
     .mutation(async ({ ctx, input }) => {

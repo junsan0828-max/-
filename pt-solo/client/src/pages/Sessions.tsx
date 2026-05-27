@@ -102,6 +102,21 @@ export default function Sessions() {
     { enabled: true }
   );
 
+  const { data: fspCheck } = trpc.fitStepPlus.trainer_checkMemberFSP.useQuery(
+    { memberId: liveMemberId! },
+    { enabled: !!liveMemberId }
+  );
+  const canSendToMember = fspCheck?.registered ?? false;
+
+  const sendSessionMutation = trpc.fitStepPlus.trainer_sendSessionToMember.useMutation({
+    onSuccess: () => {
+      toast.success("회원 FIT STEP+에 전송되었습니다");
+      setLiveOpen(false);
+      utils.trainingLog.listAll.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const createMutation = trpc.pt.createLog.useMutation({
     onSuccess: () => {
       toast.success("트레이닝 일지가 저장되었습니다");
@@ -209,11 +224,10 @@ export default function Sessions() {
   }
 
   function sendToMember() {
-    liveSaveMutation.mutate({
-      id: liveLogId,
-      exercisesJson: liveExercises.length > 0 ? JSON.stringify(liveExercises) : undefined,
-    });
-    toast.success("회원에게 전송되었습니다");
+    liveSaveMutation.mutate(
+      { id: liveLogId, exercisesJson: liveExercises.length > 0 ? JSON.stringify(liveExercises) : undefined },
+      { onSuccess: () => sendSessionMutation.mutate({ sessionLogId: liveLogId }) }
+    );
   }
 
 
@@ -547,17 +561,19 @@ export default function Sessions() {
           </div>
 
           <div className="sticky bottom-0 bg-card border-t border-border px-4 py-3 flex gap-2 shrink-0">
+            {canSendToMember && (
+              <Button
+                variant="outline"
+                className="flex-1 gap-1.5 text-xs"
+                onClick={sendToMember}
+                disabled={liveSaveMutation.isPending || sendSessionMutation.isPending}
+              >
+                <Send className="h-3.5 w-3.5" />
+                회원 전송
+              </Button>
+            )}
             <Button
-              variant="outline"
-              className="flex-1 gap-1.5 text-xs"
-              onClick={sendToMember}
-              disabled={liveSaveMutation.isPending}
-            >
-              <Send className="h-3.5 w-3.5" />
-              회원 전송
-            </Button>
-            <Button
-              className="flex-1 gap-1.5 text-xs"
+              className={`gap-1.5 text-xs ${canSendToMember ? "flex-1" : "w-full"}`}
               onClick={saveLive}
               disabled={liveSaveMutation.isPending}
             >

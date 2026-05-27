@@ -1193,11 +1193,11 @@ export default function Workshop() {
   }
 
   function isUnlocked(feature: string) {
-    return unlocks?.find((u: any) => u.feature === feature)?.unlocked ?? false;
+    return unlocks?.find((u: any) => u.key === feature)?.unlocked ?? false;
   }
 
   function pointCost(feature: string) {
-    return unlocks?.find((u: any) => u.feature === feature)?.points ?? 0;
+    return unlocks?.find((u: any) => u.key === feature)?.points ?? 0;
   }
 
   const workshopOpen = isUnlocked("workshop_access");
