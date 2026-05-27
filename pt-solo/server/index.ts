@@ -48,6 +48,7 @@ app.use(
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })
@@ -102,7 +103,10 @@ app.get("/auth/kakao/callback", async (req, res) => {
       }),
     });
     const tokenData = await tokenRes.json() as any;
-    if (!tokenData.access_token) return res.redirect("/login?error=kakao_token_failed");
+    if (!tokenData.access_token) {
+      console.error("Kakao token failed:", JSON.stringify(tokenData));
+      return res.redirect("/login?error=kakao_token_failed");
+    }
     const userRes = await fetch("https://kapi.kakao.com/v2/user/me", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
