@@ -1,20 +1,25 @@
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef } from "react";
+import {
+  ClipboardList, RefreshCw, NotebookPen, Globe, Settings,
+  Users, MessageSquare, BarChart2, Sparkles,
+  LayoutDashboard, Dumbbell, Video, Salad, Activity,
+} from "lucide-react";
 
 // ── 수정 가능한 콘텐츠 ─────────────────────────────────────────────────────────
 
 const PROBLEMS = [
-  { icon: "📋", title: "회원관리의 어려움", desc: "엑셀, 메모, 카카오톡으로 흩어진 회원 정보. 체계 없는 관리는 결국 이탈로 이어집니다." },
-  { icon: "🔄", title: "재등록 관리의 부재", desc: "언제 끊기는지 모른 채 회원이 떠나고서야 알게 되는 재등록 타이밍." },
-  { icon: "📝", title: "기록 부족", desc: "기억에 의존하는 수업 관리. 회원의 변화를 추적하지 못하면 결과도 없습니다." },
-  { icon: "🌐", title: "브랜딩 부족", desc: "실력이 있어도 보여줄 채널이 없는 현실. 트레이너 개인 브랜드가 필요합니다." },
-  { icon: "⚙️", title: "운영 시스템 부재", desc: "혼자 운영과 성장을 감당해야 하는 구조. 좋은 사람도 오래 버티기 어렵습니다." },
+  { icon: ClipboardList, title: "회원관리의 어려움", desc: "엑셀, 메모, 카카오톡으로 흩어진 회원 정보. 체계 없는 관리는 결국 이탈로 이어집니다." },
+  { icon: RefreshCw, title: "재등록 관리의 부재", desc: "언제 끊기는지 모른 채 회원이 떠나고서야 알게 되는 재등록 타이밍." },
+  { icon: NotebookPen, title: "기록 부족", desc: "기억에 의존하는 수업 관리. 회원의 변화를 추적하지 못하면 결과도 없습니다." },
+  { icon: Globe, title: "브랜딩 부족", desc: "실력이 있어도 보여줄 채널이 없는 현실. 트레이너 개인 브랜드가 필요합니다." },
+  { icon: Settings, title: "운영 시스템 부재", desc: "혼자 운영과 성장을 감당해야 하는 구조. 좋은 사람도 오래 버티기 어렵습니다." },
 ];
 
 const FEATURES = [
   {
     key: "member",
-    icon: "👥",
+    icon: Users,
     label: "회원관리",
     color: "blue",
     items: ["출석체크", "PT 관리", "건강리포트", "운동기록"],
@@ -22,7 +27,7 @@ const FEATURES = [
   },
   {
     key: "consult",
-    icon: "💬",
+    icon: MessageSquare,
     label: "상담실",
     color: "violet",
     items: ["전자계약서", "상담일지", "재등록 관리", "상담 흐름"],
@@ -30,7 +35,7 @@ const FEATURES = [
   },
   {
     key: "analytics",
-    icon: "📊",
+    icon: BarChart2,
     label: "성장분석",
     color: "cyan",
     items: ["재등록 분석", "회원 유지율", "출석 패턴", "운영 데이터"],
@@ -38,7 +43,7 @@ const FEATURES = [
   },
   {
     key: "studio",
-    icon: "✨",
+    icon: Sparkles,
     label: "작업실",
     color: "amber",
     items: ["개인 브랜딩", "트레이너 페이지", "SNS 관리", "콘텐츠"],
@@ -47,11 +52,11 @@ const FEATURES = [
 ];
 
 const PLUS_CARDS = [
-  { icon: "🗂", title: "개인 관리 페이지", items: ["회원별 전용 페이지", "운동·식단·기록 통합", "맞춤 콘텐츠 제공"] },
-  { icon: "🏋️", title: "맞춤 운동 프로그램", items: ["목표별 프로그램 구성", "회차별 운동 계획", "수행 기록 확인"] },
-  { icon: "🎬", title: "운동 영상 제공", items: ["트레이너 지정 영상", "동작 설명 안내", "혼자서도 복습 가능"] },
-  { icon: "🥗", title: "맞춤 식단 설계", items: ["목표별 식단 방향", "식사 기록 관리", "피드백 기반 관리"] },
-  { icon: "📈", title: "활동 데이터 확인", items: ["출석 기록", "운동 수행 기록", "변화 추적 및 이력"] },
+  { icon: LayoutDashboard, title: "개인 관리 페이지", items: ["회원별 전용 페이지", "운동·식단·기록 통합", "맞춤 콘텐츠 제공"] },
+  { icon: Dumbbell, title: "맞춤 운동 프로그램", items: ["목표별 프로그램 구성", "회차별 운동 계획", "수행 기록 확인"] },
+  { icon: Video, title: "운동 영상 제공", items: ["트레이너 지정 영상", "동작 설명 안내", "혼자서도 복습 가능"] },
+  { icon: Salad, title: "맞춤 식단 설계", items: ["목표별 식단 방향", "식사 기록 관리", "피드백 기반 관리"] },
+  { icon: Activity, title: "활동 데이터 확인", items: ["출석 기록", "운동 수행 기록", "변화 추적 및 이력"] },
 ];
 
 const CULTURES = [
@@ -168,7 +173,7 @@ function AttendanceMockup() {
           </div>
         </div>
         <div className="bg-white/[0.03] rounded-xl p-2.5 border border-blue-500/15 flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center text-xs">🏋️</div>
+          <div className="w-6 h-6 rounded-lg bg-blue-500/20 flex items-center justify-center"><Dumbbell className="h-3 w-3 text-blue-400/70" /></div>
           <div className="flex-1">
             <div className="text-[9px] text-white/60">PT 세션 1회 차감</div>
           </div>
@@ -279,7 +284,7 @@ function PlusMockup() {
         </div>
         {/* 영상 */}
         <div className="bg-white/[0.03] rounded-xl p-3 border border-white/5">
-          <div className="text-[9px] text-white/35 font-bold mb-2">🎬 추천 운동 영상</div>
+          <div className="text-[9px] text-white/35 font-bold mb-2">추천 운동 영상</div>
           {[["스쿼트 자세 교정", "3:42"], ["데드리프트 기초", "5:21"]].map(([title, dur]) => (
             <div key={title as string} className="flex items-center gap-2 py-1.5">
               <div className="w-8 h-6 rounded-lg bg-gradient-to-br from-blue-500/20 to-violet-500/15 border border-white/8 flex items-center justify-center">
@@ -292,7 +297,7 @@ function PlusMockup() {
         </div>
         {/* 식단 */}
         <div className="bg-white/[0.03] rounded-xl p-3 border border-white/5">
-          <div className="text-[9px] text-white/35 font-bold mb-2">🥗 오늘 식단</div>
+          <div className="text-[9px] text-white/35 font-bold mb-2">오늘 식단</div>
           <div className="grid grid-cols-3 gap-1.5">
             {[["단백질", "165g", "blue"], ["탄수화물", "220g", "amber"], ["지방", "55g", "violet"]].map(([n, v, c]) => (
               <div key={n as string} className="text-center">
@@ -450,7 +455,9 @@ export default function Landing() {
             {PROBLEMS.map(p => (
               <GlowCard key={p.title} className="p-5">
                 <div className="flex gap-4">
-                  <div className="text-2xl shrink-0 mt-0.5">{p.icon}</div>
+                  <div className="shrink-0 mt-0.5 w-9 h-9 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center">
+                    <p.icon className="h-4 w-4 text-white/50" />
+                  </div>
                   <div>
                     <h3 className="font-bold text-sm mb-1.5 text-white/85">{p.title}</h3>
                     <p className="text-xs text-white/35 leading-relaxed">{p.desc}</p>
@@ -481,7 +488,7 @@ export default function Landing() {
             {/* 회원관리 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
               <div className={`rounded-2xl border ${COLOR_MAP.blue.border} bg-gradient-to-br ${COLOR_MAP.blue.bg} p-7`}>
-                <div className="text-2xl mb-4">👥</div>
+                <div className="w-9 h-9 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center mb-4"><Users className="h-4 w-4 text-white/50" /></div>
                 <div className={`text-xs font-bold ${COLOR_MAP.blue.text} mb-2 tracking-widest uppercase`}>회원관리</div>
                 <h3 className="text-xl font-black mb-3 leading-snug">회원 한 명 한 명을<br />체계적으로 관리하세요</h3>
                 <p className="text-sm text-white/40 leading-relaxed mb-5">출석부터 PT 패키지, 건강리포트, 운동기록까지 회원의 모든 데이터를 한 곳에서.</p>
@@ -499,7 +506,7 @@ export default function Landing() {
             {/* 상담실 + 성장분석 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className={`rounded-2xl border ${COLOR_MAP.violet.border} bg-gradient-to-br ${COLOR_MAP.violet.bg} p-6`}>
-                <div className="text-2xl mb-3">💬</div>
+                <div className="w-9 h-9 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center mb-3"><MessageSquare className="h-4 w-4 text-white/50" /></div>
                 <div className={`text-xs font-bold ${COLOR_MAP.violet.text} mb-1.5 tracking-widest uppercase`}>상담실</div>
                 <h3 className="text-base font-black mb-2 leading-snug">상담부터 재등록까지</h3>
                 <p className="text-xs text-white/38 leading-relaxed mb-4">전자계약서, 상담일지, 재등록 알림 관리.</p>
@@ -513,7 +520,7 @@ export default function Landing() {
                 <div className="w-full max-w-[200px]"><ContractMockup /></div>
               </div>
               <div className={`rounded-2xl border ${COLOR_MAP.cyan.border} bg-gradient-to-br ${COLOR_MAP.cyan.bg} p-6`}>
-                <div className="text-2xl mb-3">📊</div>
+                <div className="w-9 h-9 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center mb-3"><BarChart2 className="h-4 w-4 text-white/50" /></div>
                 <div className={`text-xs font-bold ${COLOR_MAP.cyan.text} mb-1.5 tracking-widest uppercase`}>성장분석</div>
                 <h3 className="text-base font-black mb-2 leading-snug">데이터로 성장 방향을</h3>
                 <p className="text-xs text-white/38 leading-relaxed mb-4">재등록률, 유지율, 출석 패턴 분석.</p>
@@ -531,7 +538,7 @@ export default function Landing() {
                 <div className="w-full max-w-[220px]"><AnalyticsMockup /></div>
               </div>
               <div className={`order-1 lg:order-2 rounded-2xl border ${COLOR_MAP.amber.border} bg-gradient-to-br ${COLOR_MAP.amber.bg} p-7`}>
-                <div className="text-2xl mb-4">✨</div>
+                <div className="w-9 h-9 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center mb-4"><Sparkles className="h-4 w-4 text-white/50" /></div>
                 <div className={`text-xs font-bold ${COLOR_MAP.amber.text} mb-2 tracking-widest uppercase`}>작업실</div>
                 <h3 className="text-xl font-black mb-3 leading-snug">나만의 트레이너<br />브랜드를 만드세요</h3>
                 <p className="text-sm text-white/40 leading-relaxed mb-5">개인 페이지, SNS 관리, 콘텐츠 제작으로 잠재 회원에게 나를 알립니다.</p>
@@ -583,7 +590,9 @@ export default function Landing() {
               {PLUS_CARDS.map(f => (
                 <GlowCard key={f.title} className="p-5">
                   <div className="flex gap-4">
-                    <div className="text-xl shrink-0 mt-0.5">{f.icon}</div>
+                    <div className="shrink-0 mt-0.5 w-9 h-9 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center">
+                      <f.icon className="h-4 w-4 text-white/50" />
+                    </div>
                     <div>
                       <h3 className="font-bold text-sm mb-2 text-white/85">{f.title}</h3>
                       <ul className="space-y-1">
