@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, ChevronLeft, UserPlus, Edit, KeyRound, BarChart3, AtSign } from "lucide-react";
+import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, ChevronLeft, UserPlus, Edit, KeyRound, BarChart3, AtSign, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { trpc as trpcHook } from "@/lib/trpc";
 
@@ -57,7 +57,11 @@ export default function TrainerDetail({ trainerId }: Props) {
 
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
-  const { data: settlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
+  const { data: settlement, refetch: refetchSettlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
+  const deleteLogMutation = trpc.pt.deleteLog.useMutation({
+    onSuccess: () => { toast.success("세션이 삭제되었습니다."); refetchSettlement(); },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
   const { data: trainerStats } = trpc.trainers.getMyStats.useQuery({ trainerId });
   const { data: expiringMembers, refetch: refetchExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 8, trainerId });
   const [expiringOpen, setExpiringOpen] = useState(false);
@@ -551,8 +555,8 @@ export default function TrainerDetail({ trainerId }: Props) {
           {settlement?.logs && settlement.logs.length > 0 ? (
             <div className="space-y-0">
               {settlement.logs.map((log) => (
-                <div key={log.id} className="flex items-center justify-between text-xs py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div key={log.id} className="flex items-center gap-2 text-xs py-2 border-b border-border last:border-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="text-muted-foreground shrink-0">
                       {format(new Date(log.sessionDate), "MM.dd (EEE)", { locale: ko })}
                     </span>
@@ -561,9 +565,18 @@ export default function TrainerDetail({ trainerId }: Props) {
                       <span className="text-muted-foreground truncate">· {log.packageName}</span>
                     )}
                   </div>
-                  <span className="font-medium text-primary shrink-0 ml-2">
+                  <span className="font-medium text-primary shrink-0">
                     {log.effectivePrice ? `${log.effectivePrice.toLocaleString()}원` : "-"}
                   </span>
+                  <button
+                    className="shrink-0 p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    onClick={() => {
+                      if (!confirm(`${log.memberName ?? "이 회원"}의 ${log.sessionDate} 세션을 삭제할까요?`)) return;
+                      deleteLogMutation.mutate({ id: log.id });
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
             </div>
