@@ -4,12 +4,13 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
-  User, ClipboardCheck, Download, X, ShieldCheck, Bell,
+  User, ClipboardCheck, X, ShieldCheck, Bell,
   UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog, Menu, GraduationCap, BookOpen,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
 import BasicInfoModal from "./BasicInfoModal";
+import InstallPromptModal from "./InstallPromptModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -21,7 +22,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   });
 
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [surveyDone, setSurveyDone] = useState(false);
   const [basicInfoDone, setBasicInfoDone] = useState(false);
@@ -41,25 +41,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const handler = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
-      const dismissed = sessionStorage.getItem("pwa-banner-dismissed");
-      if (!dismissed) setShowInstallBanner(true);
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
-
-  const handleInstall = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === "accepted") setShowInstallBanner(false);
-    setInstallPrompt(null);
-  };
-
-  const dismissBanner = () => {
-    setShowInstallBanner(false);
-    sessionStorage.setItem("pwa-banner-dismissed", "1");
-  };
 
   const isAdmin = user?.role === "admin";
 
@@ -214,20 +199,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <span className="text-xs text-muted-foreground">{user?.username}</span>
         </header>
 
-        {showInstallBanner && (
-          <div className="md:hidden bg-primary/10 border-b border-primary/20 px-4 py-2.5 flex items-center gap-3 shrink-0">
-            <Download className="h-4 w-4 text-primary shrink-0" />
-            <p className="text-xs text-foreground flex-1">홈 화면에 FIT STEP을 추가하세요</p>
-            <button onClick={handleInstall} className="text-xs font-medium text-primary bg-primary/20 px-2.5 py-1 rounded-md shrink-0">설치</button>
-            <button onClick={dismissBanner} className="text-muted-foreground"><X className="h-4 w-4" /></button>
-          </div>
-        )}
-
         <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto px-4 py-6 max-w-3xl">
             {children}
           </div>
         </main>
+        {user && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
         {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal />}
         {needsBasicInfo && (
           <BasicInfoModal

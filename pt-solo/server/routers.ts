@@ -38,6 +38,22 @@ interface Context {
   res: Response;
 }
 
+// 자동 포인트 지급 헬퍼
+async function giveAutoPoints(trainerId: number, event: string, memo: string) {
+  try {
+    const rule = await pool.query<{ amount: number; isEnabled: number }>(
+      `SELECT amount, "isEnabled" FROM point_auto_rules WHERE event=$1 LIMIT 1`,
+      [event]
+    );
+    if (!rule.rows[0] || !rule.rows[0].isEnabled || rule.rows[0].amount <= 0) return;
+    await pool.query(
+      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'auto_reward',$3,'completed')`,
+      [trainerId, rule.rows[0].amount, memo]
+    );
+  } catch { /* 포인트 지급 실패는 조용히 무시 */ }
+}
+
+
 const DEFAULT_TERMS_OF_SERVICE = `이용 약관
 
 제1조 (목적)
@@ -584,6 +600,9 @@ const ptRouter = t.router({
 
       const pricePerSession = calcPricePerSession(input.paymentAmount, input.totalSessions, input.paymentMethod);
 
+      const existingPkgs = await db.select({ id: ptPackages.id }).from(ptPackages).where(eq(ptPackages.memberId, input.memberId)).limit(1);
+      const isRenewal = existingPkgs.length > 0;
+
       await db.insert(ptPackages).values({
         memberId: input.memberId,
         trainerId,
@@ -599,6 +618,8 @@ const ptRouter = t.router({
         paymentDate: input.paymentDate,
         paymentMemo: input.paymentMemo,
       });
+
+      if (isRenewal && trainerId) giveAutoPoints(trainerId, "renewal_complete", "재등록 완료");
 
       const memberInfo = await db.select({ membershipEnd: members.membershipEnd, membershipStart: members.membershipStart }).from(members).where(eq(members.id, input.memberId)).limit(1);
       if (memberInfo[0] && !memberInfo[0].membershipEnd) {
@@ -637,6 +658,7 @@ const ptRouter = t.router({
         feedback: input.feedback,
         notes: input.notes,
       }).returning();
+      giveAutoPoints(trainerId, "session_log", "수업 일지 작성");
       return row;
     }),
 
@@ -1423,6 +1445,7 @@ const attendanceChecksRouter = t.router({
 
       const { memberId, checkDate, ...fields } = input;
       const existing = await db.select({ id: attendanceChecks.id }).from(attendanceChecks).where(and(eq(attendanceChecks.memberId, memberId), eq(attendanceChecks.checkDate, checkDate))).limit(1);
+      const isNew = !existing[0];
 
       if (existing[0]) {
         await db.update(attendanceChecks).set({ ...fields, updatedAt: sql`now()::text` }).where(eq(attendanceChecks.id, existing[0].id));
@@ -1438,6 +1461,7 @@ const attendanceChecksRouter = t.router({
         await db.insert(attendances).values({ memberId, trainerId, attendDate: checkDate, status: attStatus });
       }
 
+      if (isNew && input.status === "attended") giveAutoPoints(trainerId, "attendance_check", "회원 출석 체크");
       return { success: true };
     }),
 
@@ -1487,11 +1511,14 @@ const parQRouter = t.router({
       const db = getDb();
       const { memberId, ...fields } = input;
       const existing = await db.select({ id: parQ.id }).from(parQ).where(eq(parQ.memberId, memberId)).limit(1);
+      const isNew = !existing[0];
       if (existing[0]) {
         await db.update(parQ).set({ ...fields, updatedAt: sql`now()::text` }).where(eq(parQ.memberId, memberId));
       } else {
         await db.insert(parQ).values({ memberId, ...fields });
       }
+      const trainerId = ctx.user.trainerId;
+      if (isNew && trainerId) giveAutoPoints(trainerId, "parq_submit", "PAR-Q 최초 작성");
       return { success: true };
     }),
 });
@@ -2142,7 +2169,14 @@ const leadsRouter = t.router({
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const db = getDb();
       const { id, ...data } = input;
+      // 상담 완료 전환 여부 확인
+      let wasCompleted = false;
+      if (data.status === "completed") {
+        const prev = await db.select({ status: leads.status }).from(leads).where(eq(leads.id, id)).limit(1);
+        wasCompleted = prev[0]?.status !== "completed";
+      }
       const [row] = await db.update(leads).set({ ...data, updatedAt: new Date().toISOString() }).where(and(eq(leads.id, id), eq(leads.trainerId, trainerId))).returning();
+      if (wasCompleted) giveAutoPoints(trainerId, "lead_complete", "신규 상담 완료");
       return row;
     }),
   delete: protectedProcedure
