@@ -22,7 +22,8 @@ export default function BasicInfoModal({ currentName, onClose }: { currentName: 
 
   function handleSubmit() {
     if (!name.trim()) { toast.error("이름을 입력해주세요."); return; }
-    updateProfile.mutate({ trainerName: name.trim(), phone: phone.trim() || undefined });
+    if (!phone.trim()) { toast.error("연락처를 입력해주세요."); return; }
+    updateProfile.mutate({ trainerName: name.trim(), phone: phone.trim() });
   }
 
   return (
@@ -50,7 +51,7 @@ export default function BasicInfoModal({ currentName, onClose }: { currentName: 
           <div className="space-y-1.5">
             <Label className="text-sm font-medium flex items-center gap-1.5">
               <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-              연락처
+              연락처 <span className="text-red-400">*</span>
             </Label>
             <Input
               type="tel"
