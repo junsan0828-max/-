@@ -87,8 +87,8 @@ export default function ContractPrint() {
   const trainerName = params.get("trainerName") || "";
   const gymName = params.get("gymName") || "";
   const centerLabel = gymName || trainerName || "센터";
-  const contractTermsText = CONTRACT_TERMS.replaceAll("자이언트짐", centerLabel);
-  const privacyTermsText = PRIVACY_TERMS.replaceAll("자이언트짐", centerLabel);
+  const contractTermsText = CONTRACT_TERMS.split("자이언트짐").join(centerLabel);
+  const privacyTermsText = PRIVACY_TERMS.split("자이언트짐").join(centerLabel);
   const [signatureImg, setSignatureImg] = useState<string>("");
 
   useEffect(() => {
