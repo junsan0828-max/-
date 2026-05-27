@@ -84,11 +84,6 @@ function AdminDashboard() {
           )}
         </CardContent>
       </Card>
-
-      <div className="p-4 rounded-xl bg-primary/10 border border-primary/30">
-        <p className="text-sm font-semibold text-primary mb-1">트레이너 가입 링크</p>
-        <p className="text-xs text-muted-foreground break-all">{window.location.origin}/register</p>
-      </div>
     </div>
   );
 }
