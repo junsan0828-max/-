@@ -270,12 +270,10 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           {/* 지급 폼 */}
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground">포인트 지급</label>
-            <div className="flex gap-2">
-              <Input type="number" placeholder="금액" value={grantAmount} onChange={e => setGrantAmount(e.target.value)}
-                className="h-9 text-sm bg-input border-border" />
-              <Input placeholder="메모" value={grantMemo} onChange={e => setGrantMemo(e.target.value)}
-                className="h-9 text-sm bg-input border-border flex-1" />
-            </div>
+            <Input type="number" placeholder="금액" value={grantAmount} onChange={e => setGrantAmount(e.target.value)}
+              className="h-9 text-sm bg-input border-border" />
+            <Input placeholder="메모 (선택)" value={grantMemo} onChange={e => setGrantMemo(e.target.value)}
+              className="h-9 text-sm bg-input border-border" />
             <Button size="sm" className="w-full" disabled={!grantAmount || grantMutation.isPending}
               onClick={() => grantMutation.mutate({ trainerId, amount: Number(grantAmount), memo: grantMemo || undefined })}>
               {grantMutation.isPending ? "지급 중..." : "포인트 지급"}
