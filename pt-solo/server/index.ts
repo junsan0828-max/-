@@ -139,11 +139,11 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
     if (u.position === "pending") {
       await pool.query(`UPDATE users SET position='active' WHERE id=$1`, [u.id]);
     }
-    // 재로그인 시 카카오 정보 업데이트
+    // 재로그인 시 카카오 부가 정보만 업데이트 (이름은 덮어쓰지 않음 — 트레이너가 직접 입력한 이름 유지)
     if (u.trainerId) {
       await pool.query(
-        `UPDATE trainers SET "trainerName"=$1, email=COALESCE($2, email), gender=COALESCE($3, gender), "birthYear"=COALESCE($4, "birthYear"), "ageRange"=COALESCE($5, "ageRange") WHERE id=$6`,
-        [name, email || null, gender || null, birthYear || null, ageRange || null, u.trainerId]
+        `UPDATE trainers SET email=COALESCE($1, email), gender=COALESCE($2, gender), "birthYear"=COALESCE($3, "birthYear"), "ageRange"=COALESCE($4, "ageRange") WHERE id=$5`,
+        [email || null, gender || null, birthYear || null, ageRange || null, u.trainerId]
       );
     }
     (req.session as any).user = { id: u.id, username: name, role: u.role, trainerId: u.trainerId ?? undefined };

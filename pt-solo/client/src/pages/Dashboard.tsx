@@ -78,6 +78,7 @@ function AdminDashboard() {
                   <p className="text-sm font-medium">{t.trainerName}</p>
                   <p className="text-xs text-muted-foreground">
                     @{t.username} · 가입 {t.createdAt?.slice(0, 10) ?? "-"}
+                    {t.phone && <span className="ml-1">· {t.phone}</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
