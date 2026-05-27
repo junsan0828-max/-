@@ -96,11 +96,11 @@ function formatTime(iso: string) {
 
 function KioskFontSettings() {
   const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(v)));
-  const readPct = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseFloat(s) : def; } catch { return def; } };
+  const readF   = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseFloat(s) : def; } catch { return def; } };
   const readPt  = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseInt(s) : def; } catch { return def; } };
 
-  const [bannerScale, setBannerScale] = useState(() => readPct("kiosk_banner_scale", 1));
-  const [uiBase, setUiBase] = useState(() => readPt("kiosk_ui_base", 16));
+  const [bannerScale, setBannerScale] = useState(() => readF("kiosk_banner_scale", 1));
+  const [uiBase, setUiBase] = useState(() => readPt("kiosk_ui_base", 80));
 
   const saveBanner = (val: number) => {
     const c = Math.max(0.5, Math.min(2.5, Math.round(val * 10) / 10));
@@ -108,11 +108,11 @@ function KioskFontSettings() {
     try { localStorage.setItem("kiosk_banner_scale", String(c)); } catch {}
   };
   const saveUi = (val: number) => {
-    const c = clamp(val, 8, 40);
+    const c = clamp(val, 20, 140);
     setUiBase(c);
     try {
       localStorage.setItem("kiosk_ui_base", String(c));
-      localStorage.setItem("kiosk_font_scale", String(c / 16));
+      localStorage.setItem("kiosk_font_scale", String(c / 80));
     } catch {}
   };
 
@@ -127,10 +127,10 @@ function KioskFontSettings() {
           <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveBanner(bannerScale + 0.1)}>+</button>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">팝업</span>
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveUi(uiBase - 1)}>-</button>
-          <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={8} max={40} value={uiBase} onChange={(e) => saveUi(Number(e.target.value))} />
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveUi(uiBase + 1)}>+</button>
+          <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">팝업 이름</span>
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveUi(uiBase - 2)}>-</button>
+          <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={20} max={140} value={uiBase} onChange={(e) => saveUi(Number(e.target.value))} />
+          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveUi(uiBase + 2)}>+</button>
           <span className="text-xs text-muted-foreground">pt</span>
         </div>
       </div>
