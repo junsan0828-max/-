@@ -1261,8 +1261,12 @@ const ptRouter = t.router({
               const title = log.bodyPart ? `[트레이닝] ${log.bodyPart}` : "트레이닝 기록";
               const notes = ([log.notes, log.goal, log.feedback].filter(Boolean).join("\n") || "") + `\n__src:${input.id}`;
               const logDate = log.sessionDate ?? new Date().toISOString().slice(0, 10);
+              // bodyPart "가슴,어깨" → bodyPartsJson ["가슴","어깨"]
+              const bodyPartsJson = log.bodyPart
+                ? JSON.stringify(String(log.bodyPart).split(",").map((s: string) => s.trim()).filter(Boolean))
+                : null;
               await db.execute(
-                sql`INSERT INTO gym_plus_workout_logs ("gymPlusMemberId", "logDate", title, "exercisesJson", notes, "createdAt") VALUES (${gm.id}, ${logDate}, ${title}, ${log.exercisesJson}, ${notes}, ${new Date().toISOString()})`
+                sql`INSERT INTO gym_plus_workout_logs ("gymPlusMemberId", "logDate", title, "exercisesJson", "bodyPartsJson", notes, "createdAt") VALUES (${gm.id}, ${logDate}, ${title}, ${log.exercisesJson}, ${bodyPartsJson}, ${notes}, ${new Date().toISOString()})`
               );
               gymPlusSynced = true;
             }
