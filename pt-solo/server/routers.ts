@@ -2109,6 +2109,106 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
+  // ── 작업실 기능 사용 현황 ─────────────────────────────────────────────────
+  getWorkshopAllStats: adminProcedure.query(async () => {
+    const rows = await pool.query<any>(`
+      SELECT
+        t.id,
+        t."trainerName",
+        t.username,
+        t.plan,
+        t."brandIsPublic",
+        t."brandBio",
+        t."brandColor",
+        t."bookingEnabled",
+        COALESCE(fsp.cnt, 0)::int AS fsp_count,
+        fsp.last_added AS fsp_last_added,
+        COALESCE(wt.cnt, 0)::int AS template_count,
+        COALESCE(sq.cnt, 0)::int AS survey_question_count,
+        COALESCE(sr.cnt, 0)::int AS survey_response_count,
+        COALESCE(cb.cnt, 0)::int AS booking_count,
+        COALESCE(cb.pending_cnt, 0)::int AS booking_pending,
+        cb.last_booking,
+        CASE WHEN ts."termsOfService" IS NOT NULL THEN true ELSE false END AS has_custom_terms
+      FROM trainers t
+      LEFT JOIN (
+        SELECT "trainerId", COUNT(*) AS cnt, MAX("createdAt") AS last_added
+        FROM fit_step_plus_members GROUP BY "trainerId"
+      ) fsp ON t.id = fsp."trainerId"
+      LEFT JOIN (
+        SELECT "trainerId", COUNT(*) AS cnt FROM workout_templates GROUP BY "trainerId"
+      ) wt ON t.id = wt."trainerId"
+      LEFT JOIN (
+        SELECT "trainerId", COUNT(*) AS cnt FROM custom_survey_questions GROUP BY "trainerId"
+      ) sq ON t.id = sq."trainerId"
+      LEFT JOIN (
+        SELECT "trainerId", COUNT(*) AS cnt FROM custom_survey_responses GROUP BY "trainerId"
+      ) sr ON t.id = sr."trainerId"
+      LEFT JOIN (
+        SELECT "trainerId", COUNT(*) AS cnt,
+          SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END)::int AS pending_cnt,
+          MAX("createdAt") AS last_booking
+        FROM consultation_bookings GROUP BY "trainerId"
+      ) cb ON t.id = cb."trainerId"
+      LEFT JOIN trainer_settings ts ON t.id = ts."trainerId"
+      ORDER BY t."trainerName"
+    `);
+    return rows.rows;
+  }),
+
+  getTrainerFspDetail: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const rows = await pool.query<any>(
+        `SELECT id, name, phone, username, "membershipType", "membershipStart", "membershipEnd", "createdAt"
+         FROM fit_step_plus_members WHERE "trainerId"=$1 ORDER BY "createdAt" DESC`,
+        [input.trainerId]
+      );
+      return rows.rows;
+    }),
+
+  getTrainerBookingsDetail: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const rows = await pool.query<any>(
+        `SELECT id, name, phone, "interestType", message, status, "createdAt"
+         FROM consultation_bookings WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 50`,
+        [input.trainerId]
+      );
+      return rows.rows;
+    }),
+
+  getTrainerTemplatesDetail: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const rows = await pool.query<any>(
+        `SELECT id, name, "bodyPart", description, "exercisesJson", "createdAt"
+         FROM workout_templates WHERE "trainerId"=$1 ORDER BY id DESC`,
+        [input.trainerId]
+      );
+      return rows.rows;
+    }),
+
+  getTrainerSurveyDetail: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const [qRows, rRows] = await Promise.all([
+        pool.query<any>(`SELECT * FROM custom_survey_questions WHERE "trainerId"=$1 ORDER BY "sortOrder", id`, [input.trainerId]),
+        pool.query<any>(`SELECT * FROM custom_survey_responses WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 30`, [input.trainerId]),
+      ]);
+      return { questions: qRows.rows, responses: rRows.rows };
+    }),
+
+  getTrainerContractDetail: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const row = await pool.query<any>(
+        `SELECT "termsOfService", "privacyPolicy", "marketingConsent" FROM trainer_settings WHERE "trainerId"=$1`,
+        [input.trainerId]
+      );
+      return row.rows[0] ?? null;
+    }),
+
   listSurveyResponses: adminProcedure.query(async () => {
     const rows = await pool.query<{
       id: number; trainerName: string | null; phone: string | null; email: string | null;
