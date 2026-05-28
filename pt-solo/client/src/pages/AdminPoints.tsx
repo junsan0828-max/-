@@ -19,6 +19,7 @@ function TrainerPointRow({ trainer }: { trainer: { trainerId: number; trainerNam
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
 
   const { data: pointData, refetch } = trpc.admin.getTrainerPoints.useQuery(
     { trainerId: trainer.trainerId },
@@ -28,7 +29,7 @@ function TrainerPointRow({ trainer }: { trainer: { trainerId: number; trainerNam
   const grantMutation = trpc.admin.grantPoints.useMutation({
     onSuccess: () => {
       toast.success(`${trainer.trainerName}에게 ${Number(amount).toLocaleString()}P 지급 완료`);
-      setAmount(""); setMemo("");
+      setAmount(""); setMemo(""); setExpiresAt("");
       refetch();
       utils.admin.listTrainersWithPoints.invalidate();
     },
@@ -67,24 +68,34 @@ function TrainerPointRow({ trainer }: { trainer: { trainerId: number; trainerNam
           {/* 수동 지급 폼 */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground mb-2">수동 포인트 지급</p>
-            <div className="flex gap-2">
-              <Input
-                type="number" placeholder="포인트" value={amount}
-                onChange={e => setAmount(e.target.value)}
-                className="h-8 text-sm w-28 bg-background border-border"
-              />
-              <Input
-                placeholder="메모 (선택)" value={memo}
-                onChange={e => setMemo(e.target.value)}
-                className="h-8 text-sm flex-1 bg-background border-border"
-              />
-              <Button
-                size="sm" className="h-8 px-3 shrink-0"
-                disabled={!amount || grantMutation.isPending}
-                onClick={() => grantMutation.mutate({ trainerId: trainer.trainerId, amount: Number(amount), memo: memo || undefined })}
-              >
-                지급
-              </Button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  type="number" placeholder="포인트" value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  className="h-8 text-sm w-28 bg-background border-border"
+                />
+                <Input
+                  placeholder="메모 (선택)" value={memo}
+                  onChange={e => setMemo(e.target.value)}
+                  className="h-8 text-sm flex-1 bg-background border-border"
+                />
+              </div>
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-muted-foreground shrink-0">만료일 (선택)</label>
+                <Input
+                  type="date" value={expiresAt}
+                  onChange={e => setExpiresAt(e.target.value)}
+                  className="h-8 text-sm flex-1 bg-background border-border"
+                />
+                <Button
+                  size="sm" className="h-8 px-3 shrink-0"
+                  disabled={!amount || grantMutation.isPending}
+                  onClick={() => grantMutation.mutate({ trainerId: trainer.trainerId, amount: Number(amount), memo: memo || undefined, expiresAt: expiresAt || undefined })}
+                >
+                  지급
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -113,18 +124,28 @@ function TrainerPointRow({ trainer }: { trainer: { trainerId: number; trainerNam
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-2">최근 내역</p>
               <div className="space-y-1">
-                {pointData.logs.filter(l => l.type !== "daily_reset").slice(0, 8).map(log => (
-                  <div key={log.id} className="flex items-center gap-2 text-xs py-1 border-b border-border/40 last:border-0">
-                    {log.status === "completed" && <CheckCircle className="h-3 w-3 text-green-400 shrink-0" />}
-                    {log.status === "pending" && <Clock className="h-3 w-3 text-yellow-400 shrink-0" />}
-                    {log.status === "rejected" && <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
-                    <span className="flex-1 text-muted-foreground">{TYPE_LABEL[log.type] ?? log.type}{log.memo ? ` · ${log.memo}` : ""}</span>
-                    <span className="text-muted-foreground/60">{log.createdAt.slice(0, 10)}</span>
-                    <span className={`font-semibold ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
-                      {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()}P
-                    </span>
-                  </div>
-                ))}
+                {pointData.logs.filter(l => l.type !== "daily_reset").slice(0, 8).map(log => {
+                  const expired = log.expiresAt && log.expiresAt < new Date().toISOString().slice(0, 10);
+                  return (
+                    <div key={log.id} className={`flex items-center gap-2 text-xs py-1 border-b border-border/40 last:border-0 ${expired ? "opacity-50" : ""}`}>
+                      {log.status === "completed" && <CheckCircle className="h-3 w-3 text-green-400 shrink-0" />}
+                      {log.status === "pending" && <Clock className="h-3 w-3 text-yellow-400 shrink-0" />}
+                      {log.status === "rejected" && <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-muted-foreground">{TYPE_LABEL[log.type] ?? log.type}{log.memo ? ` · ${log.memo}` : ""}</span>
+                        {log.expiresAt && (
+                          <span className={`ml-1.5 text-[10px] ${expired ? "text-red-400" : "text-amber-500"}`}>
+                            {expired ? "만료됨" : `~${log.expiresAt}`}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-muted-foreground/60 shrink-0">{log.createdAt.slice(0, 10)}</span>
+                      <span className={`font-semibold shrink-0 ${log.amount > 0 ? "text-green-400" : "text-red-400"}`}>
+                        {log.amount > 0 ? "+" : ""}{log.amount.toLocaleString()}P
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

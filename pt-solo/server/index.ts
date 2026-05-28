@@ -703,6 +703,7 @@ async function initDatabase() {
     await pool.query(`UPDATE users SET "referralCode"=$1 WHERE id=$2`, [code, u.id]);
   }
 
+  await pool.query(`ALTER TABLE fit_point_logs ADD COLUMN IF NOT EXISTS "expiresAt" TEXT`);
   // FIT STEP+ 플랜별 회원 수 제한 설정
   await pool.query(`CREATE TABLE IF NOT EXISTS plan_settings (
     key TEXT PRIMARY KEY,

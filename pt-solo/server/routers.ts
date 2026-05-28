@@ -62,7 +62,7 @@ async function spendPoints(trainerId: number, feature: string, memo: string) {
   const isEnabled = ruleRow.rows[0]?.isEnabled ?? 1;
   if (!isEnabled) return; // 규칙 비활성화 시 차감 안 함
   const bal = await pool.query<{ balance: string }>(
-    `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
+    `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
     [trainerId]
   );
   const balance = Number(bal.rows[0]?.balance ?? 0);
@@ -1935,11 +1935,11 @@ const adminRouter = t.router({
     }),
 
   grantPoints: adminProcedure
-    .input(z.object({ trainerId: z.number(), amount: z.number(), memo: z.string().optional() }))
+    .input(z.object({ trainerId: z.number(), amount: z.number(), memo: z.string().optional(), expiresAt: z.string().optional() }))
     .mutation(async ({ input }) => {
       await pool.query(
-        `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'admin_grant',$3,'completed')`,
-        [input.trainerId, input.amount, input.memo ?? null]
+        `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status, "expiresAt") VALUES ($1,$2,'admin_grant',$3,'completed',$4)`,
+        [input.trainerId, input.amount, input.memo ?? null, input.expiresAt ?? null]
       );
       return { success: true };
     }),
@@ -1948,11 +1948,11 @@ const adminRouter = t.router({
     .input(z.object({ trainerId: z.number() }))
     .query(async ({ input }) => {
       const bal = await pool.query<{ balance: string }>(
-        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
         [input.trainerId]
       );
-      const logs = await pool.query<{ id: number; amount: number; type: string; memo: string | null; status: string; createdAt: string }>(
-        `SELECT id, amount, type, memo, status, "createdAt" FROM fit_point_logs WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 30`,
+      const logs = await pool.query<{ id: number; amount: number; type: string; memo: string | null; status: string; createdAt: string; expiresAt: string | null }>(
+        `SELECT id, amount, type, memo, status, "createdAt", "expiresAt" FROM fit_point_logs WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 30`,
         [input.trainerId]
       );
       return { balance: Number(bal.rows[0]?.balance ?? 0), logs: logs.rows };
@@ -2035,7 +2035,7 @@ const adminRouter = t.router({
       balance: string; pendingAmount: string;
     }>(`
       SELECT t.id AS "trainerId", t."trainerName", u.username,
-        COALESCE(SUM(CASE WHEN l.status='completed' THEN l.amount ELSE 0 END),0) AS balance,
+        COALESCE(SUM(CASE WHEN l.status='completed' AND (l."expiresAt" IS NULL OR l."expiresAt" > CURRENT_DATE::text) THEN l.amount ELSE 0 END),0) AS balance,
         COALESCE(SUM(CASE WHEN l.status='pending' THEN l.amount ELSE 0 END),0) AS "pendingAmount"
       FROM trainers t
       JOIN users u ON u.id = t."userId"
@@ -2340,11 +2340,11 @@ const fitPointsRouter = t.router({
     const plan = planRow.rows[0]?.plan ?? "free";
     const dailyPoint = plan === "elite" ? 1000 : plan === "pro" ? 500 : 300;
     const totalResult = await pool.query<{ balance: string }>(
-      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
       [trainerId]
     );
     const earnedResult = await pool.query<{ balance: string }>(
-      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND type != 'daily_reset'`,
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND type != 'daily_reset' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
       [trainerId]
     );
     const total = Number(totalResult.rows[0]?.balance ?? 0);
