@@ -1942,13 +1942,18 @@ function AdminWorkshopView() {
   };
 
   const allFeatures: WsItemEnriched[] = WS_CATALOG.flatMap(cat =>
-    cat.items.map(item => ({
-      ...item,
-      catKey: cat.key,
-      catLabel: cat.label,
-      tracked: !!featureUsage[item.id],
-      usage: featureUsage[item.id] ?? null,
-    }))
+    cat.items.map(item => {
+      const cfgOverride = consoleData?.featureConfigs?.find(c => c.featureId === item.id);
+      const effectiveStatus = (cfgOverride?.status ?? item.status) as WsItemStatus;
+      return {
+        ...item,
+        status: effectiveStatus,
+        catKey: cat.key,
+        catLabel: cat.label,
+        tracked: !!featureUsage[item.id],
+        usage: featureUsage[item.id] ?? null,
+      };
+    })
   );
 
   const filteredFeatures = allFeatures.filter(f => {
