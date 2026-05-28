@@ -2907,6 +2907,35 @@ const fitStepPlusRouter = t.router({
     return { memberCounts };
   }),
 
+  // 어드민 작업실 현황: 트레이너별 작업실 오픈/브랜드페이지/FSP 현황
+  admin_workshopStats: adminProcedure.query(async () => {
+    const rows = await pool.query<{
+      trainerId: number;
+      workshopOpen: string;
+      brandIsPublic: number;
+      fspCount: string;
+    }>(`
+      SELECT
+        t.id AS "trainerId",
+        CASE WHEN wu.id IS NOT NULL THEN 'true' ELSE 'false' END AS "workshopOpen",
+        COALESCE(t."brandIsPublic", 0) AS "brandIsPublic",
+        COALESCE(fsp.cnt, 0)::text AS "fspCount"
+      FROM trainers t
+      LEFT JOIN workshop_unlocks wu
+        ON wu."trainerId" = t.id AND wu.feature = 'workshop_access'
+      LEFT JOIN (
+        SELECT "trainerId", COUNT(*) AS cnt FROM fit_step_plus_members GROUP BY "trainerId"
+      ) fsp ON fsp."trainerId" = t.id
+      ORDER BY t."trainerName"
+    `);
+    return rows.rows.map(r => ({
+      trainerId: r.trainerId,
+      workshopOpen: r.workshopOpen === "true",
+      brandIsPublic: Number(r.brandIsPublic) === 1,
+      fspCount: Number(r.fspCount),
+    }));
+  }),
+
   // ── 플랜별 FIT STEP+ 회원 수 제한 조회 ──
   admin_getPlanLimits: adminProcedure.query(async () => {
     const rows = await pool.query<{ key: string; value: string }>(

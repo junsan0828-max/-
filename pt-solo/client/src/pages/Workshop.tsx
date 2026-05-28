@@ -1298,8 +1298,8 @@ const PREVIEW_FEATURES = [
 function AdminWorkshopView() {
   const [, navigate] = useLocation();
   const { data: trainers } = trpc.admin.listTrainers.useQuery();
-  const { data: overview } = trpc.fitStepPlus.admin_overview.useQuery();
   const { data: limits } = trpc.fitStepPlus.admin_getPlanLimits.useQuery();
+  const { data: workshopStats } = trpc.fitStepPlus.admin_workshopStats.useQuery();
   const utils = trpc.useUtils();
   const updateLimitsMutation = trpc.fitStepPlus.admin_updatePlanLimits.useMutation({
     onSuccess: () => { utils.fitStepPlus.admin_getPlanLimits.invalidate(); toast.success("저장되었습니다"); },
@@ -1310,13 +1310,14 @@ function AdminWorkshopView() {
   const [pro, setPro] = useState("");
   const [elite, setElite] = useState("");
   const [limitsInited, setLimitsInited] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   if (limits && !limitsInited) {
     setFree(String(limits.free)); setPro(String(limits.pro)); setElite(String(limits.elite));
     setLimitsInited(true);
   }
 
-  const memberCountMap = new Map((overview?.memberCounts ?? []).map((mc) => [mc.trainerId, Number(mc.count)]));
+  const statsMap = new Map((workshopStats ?? []).map(s => [s.trainerId, s]));
 
   const planBadge = (plan: string) => {
     const base = "text-[10px] font-bold px-1.5 py-0.5 rounded";
@@ -1325,6 +1326,10 @@ function AdminWorkshopView() {
     return <span className={`${base} bg-muted text-muted-foreground`}>FREE</span>;
   };
 
+  const totalWorkshopOpen = (workshopStats ?? []).filter(s => s.workshopOpen).length;
+  const totalBrandPublic = (workshopStats ?? []).filter(s => s.brandIsPublic).length;
+  const totalFsp = (workshopStats ?? []).reduce((s, t) => s + t.fspCount, 0);
+
   return (
     <div className="space-y-5">
       <TabBanner tabKey="workshop" />
@@ -1332,17 +1337,30 @@ function AdminWorkshopView() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">작업실 관리</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">트레이너 FIT STEP+ 운영 현황 및 설정</p>
+          <p className="text-sm text-muted-foreground mt-0.5">트레이너 작업실 현황 통제 및 설정</p>
         </div>
         <span className="text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-semibold">관리자 모드</span>
       </div>
 
-      {/* 플랜별 한도 설정 */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <div>
-          <p className="text-sm font-semibold">플랜별 FIT STEP+ 회원 수 제한</p>
-          <p className="text-xs text-muted-foreground mt-0.5">각 플랜에서 등록 가능한 최대 FIT STEP+ 회원 수</p>
+      {/* 요약 통계 */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <p className="text-lg font-black text-primary">{totalWorkshopOpen}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">작업실 오픈</p>
         </div>
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <p className="text-lg font-black text-green-500">{totalBrandPublic}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">브랜드 페이지 공개</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-3 text-center">
+          <p className="text-lg font-black text-blue-500">{totalFsp}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">FIT STEP+ 전체 회원</p>
+        </div>
+      </div>
+
+      {/* 플랜별 FSP 한도 */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <p className="text-sm font-semibold">FIT STEP+ 플랜별 회원 수 제한</p>
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "FREE", value: free, set: setFree },
@@ -1362,45 +1380,101 @@ function AdminWorkshopView() {
         <button
           onClick={() => updateLimitsMutation.mutate({ free: parseInt(free)||5, pro: parseInt(pro)||15, elite: parseInt(elite)||30 })}
           disabled={updateLimitsMutation.isPending}
-          className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           {updateLimitsMutation.isPending ? "저장 중..." : "저장"}
         </button>
       </div>
 
-      {/* 트레이너별 FIT STEP+ 현황 */}
+      {/* 트레이너별 작업실 현황 */}
       <div>
-        <p className="text-sm font-semibold mb-3">트레이너별 FIT STEP+ 현황</p>
+        <p className="text-sm font-semibold mb-2">트레이너별 작업실 현황</p>
         {!trainers || trainers.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">등록된 트레이너가 없습니다</p>
         ) : (
           <div className="space-y-2">
             {trainers.map((trainer) => {
-              const count = memberCountMap.get(trainer.id) ?? 0;
               const plan = (trainer as any).plan ?? "free";
-              const limit = limits ? (plan === "elite" ? limits.elite : plan === "pro" ? limits.pro : limits.free) : (plan === "elite" ? 30 : plan === "pro" ? 15 : 5);
+              const stats = statsMap.get(trainer.id);
+              const fspLimit = limits ? (plan === "elite" ? limits.elite : plan === "pro" ? limits.pro : limits.free) : 5;
+              const isExpanded = expandedId === trainer.id;
+
               return (
-                <div key={trainer.id} className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold">{trainer.trainerName}</p>
-                      {planBadge(plan)}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">@{trainer.username}</p>
-                  </div>
-                  <div className="text-right mr-2">
-                    <p className="text-sm font-bold">{count}<span className="text-xs text-muted-foreground font-normal"> / {limit}명</span></p>
-                    <div className="w-16 h-1 bg-muted rounded-full mt-1 overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (count/limit)*100)}%` }} />
-                    </div>
-                  </div>
+                <div key={trainer.id} className="bg-card border border-border rounded-xl overflow-hidden">
+                  {/* 헤더 행 */}
                   <button
-                    onClick={() => navigate(`/fit-step-plus/${trainer.id}`)}
-                    className="w-8 h-8 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary flex items-center justify-center transition-colors shrink-0"
-                    title="회원앱 확인"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/20 transition-colors"
+                    onClick={() => setExpandedId(isExpanded ? null : trainer.id)}
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-primary">{trainer.trainerName?.[0]}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold">{trainer.trainerName}</p>
+                        {planBadge(plan)}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">@{trainer.username}</p>
+                    </div>
+                    {/* 상태 뱃지들 */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${stats?.workshopOpen ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                        {stats?.workshopOpen ? "작업실오픈" : "미오픈"}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${stats?.brandIsPublic ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"}`}>
+                        {stats?.brandIsPublic ? "브랜드공개" : "비공개"}
+                      </span>
+                    </div>
+                    {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
                   </button>
+
+                  {/* 확장 상세 */}
+                  {isExpanded && (
+                    <div className="border-t border-border px-4 py-3 space-y-3 bg-accent/10">
+                      {/* 수치 요약 */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="text-center">
+                          <p className="text-base font-bold">{(trainer as any).memberCount ?? 0}</p>
+                          <p className="text-[10px] text-muted-foreground">PT 회원</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-base font-bold">{stats?.fspCount ?? 0}<span className="text-xs text-muted-foreground">/{fspLimit}</span></p>
+                          <p className="text-[10px] text-muted-foreground">FIT STEP+</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-base font-bold">{(trainer as any).sessionCount ?? 0}</p>
+                          <p className="text-[10px] text-muted-foreground">수업 횟수</p>
+                        </div>
+                      </div>
+
+                      {/* 액션 버튼들 */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => navigate(`/fit-step-plus/${trainer.id}`)}
+                          className="flex items-center justify-center gap-1.5 text-xs font-medium border border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 rounded-lg px-3 py-2 transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          FIT STEP+ 앱 확인
+                        </button>
+                        <button
+                          onClick={() => navigate(`/admin/trainers/${trainer.id}`)}
+                          className="flex items-center justify-center gap-1.5 text-xs font-medium border border-border hover:bg-accent rounded-lg px-3 py-2 transition-colors"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          트레이너 상세 관리
+                        </button>
+                        {stats?.brandIsPublic && (
+                          <button
+                            onClick={() => navigate(`/p/${trainer.username}`)}
+                            className="flex items-center justify-center gap-1.5 text-xs font-medium border border-border hover:bg-accent rounded-lg px-3 py-2 transition-colors col-span-2"
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                            브랜드 페이지 미리보기
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
