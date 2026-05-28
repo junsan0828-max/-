@@ -384,6 +384,19 @@ const revenueRouter = t.router({
         await db.update(leads).set({ status: "registered", updatedAt: new Date().toISOString() }).where(eq(leads.id, input.leadId));
       }
 
+      // 리드에서 성별 + 유입경로(채널명) 조회
+      let leadGender: string | undefined;
+      let leadVisitRoute: string | undefined;
+      if (input.leadId) {
+        const [leadInfo] = await db.select({ gender: leads.gender, channelId: leads.channelId })
+          .from(leads).where(eq(leads.id, input.leadId)).limit(1);
+        if (leadInfo?.gender) leadGender = leadInfo.gender;
+        if (leadInfo?.channelId) {
+          const [ch] = await db.select({ name: channels.name }).from(channels).where(eq(channels.id, leadInfo.channelId)).limit(1);
+          if (ch?.name) leadVisitRoute = ch.name;
+        }
+      }
+
       // PT 등록 시 회원 자동 생성
       if (input.type === "PT" && resolvedTrainerId && input.customerName && !input.memberId && input.subType !== "이전") {
         const now = new Date().toISOString();
@@ -392,6 +405,8 @@ const revenueRouter = t.router({
           branchId: resolvedBranchId ?? null,
           name: input.customerName,
           phone: input.phone ?? undefined,
+          gender: leadGender ?? undefined,
+          visitRoute: leadVisitRoute ?? undefined,
           status: "active",
           grade: "basic",
           membershipStart: input.startDate ?? undefined,
@@ -421,6 +436,8 @@ const revenueRouter = t.router({
           branchId: resolvedBranchId ?? null,
           name: input.customerName,
           phone: input.phone ?? undefined,
+          gender: leadGender ?? undefined,
+          visitRoute: leadVisitRoute ?? undefined,
           status: "active",
           grade: "basic",
           membershipStart: input.startDate ?? undefined,
