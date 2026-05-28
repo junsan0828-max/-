@@ -1738,10 +1738,11 @@ interface WsItemEnriched extends WsItem {
   usage: { activeUsers: number; totalMetric: number; label: string } | null;
 }
 
-function WsAdminFeatureModal({ feature, trainers, onClose }: {
+function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
   feature: WsItemEnriched;
   trainers: any[];
   onClose: () => void;
+  onSave: (featureId: string, newStatus: string) => void;
 }) {
   const utils = trpc.useUtils();
   const FIcon = feature.icon;
@@ -1751,11 +1752,12 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
   const [saved, setSaved] = useState(false);
 
   const updateMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       utils.admin.getWorkshopConsole.invalidate();
       toast.success("기능 설정이 저장되었습니다");
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+      onSave(vars.featureId, vars.status);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -1973,6 +1975,8 @@ function AdminWorkshopView() {
   const [wsStatusFilter, setWsStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedTrainerId, setExpandedTrainerId] = useState<number | null>(null);
+  // 저장 즉시 반영을 위한 낙관적 로컬 오버라이드 (리패치 전까지 유지)
+  const [localStatusOverrides, setLocalStatusOverrides] = useState<Record<string, string>>({});
 
   const { data: consoleData, isLoading } = trpc.admin.getWorkshopConsole.useQuery();
   const utils = trpc.useUtils();
@@ -2002,7 +2006,8 @@ function AdminWorkshopView() {
   const allFeatures: WsItemEnriched[] = WS_CATALOG.flatMap(cat =>
     cat.items.map(item => {
       const cfgOverride = consoleData?.featureConfigs?.find(c => c.featureId === item.id);
-      const effectiveStatus = (cfgOverride?.status ?? item.status) as WsItemStatus;
+      // localStatusOverrides가 최우선 (저장 직후 즉시 반영), 그 다음 DB 오버라이드, 마지막으로 기본값
+      const effectiveStatus = (localStatusOverrides[item.id] ?? cfgOverride?.status ?? item.status) as WsItemStatus;
       return {
         ...item,
         status: effectiveStatus,
@@ -2263,6 +2268,10 @@ function AdminWorkshopView() {
           feature={selectedFeature}
           trainers={trainers}
           onClose={() => setSelectedFeature(null)}
+          onSave={(featureId, newStatus) => {
+            setLocalStatusOverrides(prev => ({ ...prev, [featureId]: newStatus }));
+            setSelectedFeature(prev => prev?.id === featureId ? { ...prev, status: newStatus as WsItemStatus } : prev);
+          }}
         />
       )}
     </div>
