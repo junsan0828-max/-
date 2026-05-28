@@ -208,6 +208,8 @@ export default function LeadsPage() {
   const [editHasSig, setEditHasSig] = useState(false); // 수정 중인 리드에 서명이 있는지
   const [form, setForm] = useState<LeadForm>(defaultForm);
   const [showContract, setShowContract] = useState(false);
+  const [sigContext, setSigContext] = useState<"lead" | "direct" | "rereg" | null>(null);
+  const [contractDisplayForm, setContractDisplayForm] = useState<RegForm>(defaultRegForm);
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [agreedMarketing, setAgreedMarketing] = useState(false);
@@ -352,6 +354,66 @@ export default function LeadsPage() {
     setShowContract(true);
   }
 
+  function openDirectSig() {
+    if (!directForm.name.trim()) return toast.error("이름을 입력해주세요.");
+    const isPT = directForm.programTypes.includes("PT");
+    const isHealth = directForm.programTypes.includes("헬스");
+    const isOther = directForm.programTypes.includes("기타");
+    setContractDisplayForm({
+      itemTypes: directForm.programTypes,
+      subType: "신규",
+      programKey: directForm.ptProgram || "",
+      programCustom: "",
+      sessions: isPT && directForm.ptSessions ? parseInt(directForm.ptSessions) : undefined,
+      serviceSessions: isPT && directForm.serviceSessions ? parseInt(directForm.serviceSessions) : undefined,
+      duration: isHealth && directForm.healthDuration ? parseInt(directForm.healthDuration) : undefined,
+      otherItem: directForm.otherItem || "",
+      amount: directForm.paymentAmount,
+      discountAmount: "0",
+      paidAmount: directForm.paymentAmount,
+      unpaidAmount: directForm.unpaidAmount || "0",
+      paymentMethod: directForm.paymentMethod || "",
+      paymentDate: directForm.paymentDate || new Date().toISOString().substring(0, 10),
+      startDate: directForm.membershipStart || new Date().toISOString().substring(0, 10),
+      memo: directForm.paymentMemo || "",
+      branchId: directForm.branchId ? parseInt(directForm.branchId) : undefined,
+    });
+    setSigContext("direct");
+    setSignatureDataUrl(null);
+    setShowSignature(true);
+  }
+
+  function openReRegSig() {
+    if (!reRegMemberId) return;
+    if (!reRegForm.programTypes.includes("PT") && !reRegForm.programTypes.includes("헬스") && !reRegForm.programTypes.includes("기타")) {
+      return toast.error("프로그램을 선택해주세요.");
+    }
+    const isPT = reRegForm.programTypes.includes("PT");
+    const isHealth = reRegForm.programTypes.includes("헬스");
+    setContractDisplayForm({
+      itemTypes: reRegForm.programTypes,
+      subType: "재등록",
+      programKey: reRegForm.ptProgram || "",
+      programCustom: "",
+      sessions: isPT && reRegForm.ptSessions ? parseInt(reRegForm.ptSessions) : undefined,
+      serviceSessions: isPT && reRegForm.serviceSessions ? parseInt(reRegForm.serviceSessions) : undefined,
+      duration: isHealth && reRegForm.healthDuration ? parseInt(reRegForm.healthDuration) : undefined,
+      otherItem: reRegForm.otherItem || "",
+      amount: reRegForm.paymentAmount,
+      discountAmount: "0",
+      paidAmount: reRegForm.paymentAmount,
+      unpaidAmount: reRegForm.unpaidAmount || "0",
+      paymentMethod: reRegForm.paymentMethod || "",
+      paymentDate: reRegForm.paymentDate || new Date().toISOString().substring(0, 10),
+      startDate: reRegForm.membershipStart || new Date().toISOString().substring(0, 10),
+      memo: reRegForm.paymentMemo || "",
+      branchId: reRegForm.branchId ? parseInt(reRegForm.branchId) : undefined,
+    });
+    setSigContext("rereg");
+    setSignatureDataUrl(null);
+    setShowSignature(true);
+  }
+
   function confirmRegistration() {
     if (!agreedTerms) return toast.error("이용약관에 동의해주세요");
     if (!agreedPrivacy) return toast.error("개인정보 수집·이용에 동의해주세요");
@@ -384,6 +446,85 @@ export default function LeadsPage() {
 
   function proceedToSave() {
     setShowSignedContract(false);
+    const sig = signatureDataUrl;
+    const ctx = sigContext;
+    setSigContext(null);
+
+    if (ctx === "direct") {
+      const f = directForm;
+      const isPT = f.programTypes.includes("PT");
+      const isHealth = f.programTypes.includes("헬스");
+      const isOther = f.programTypes.includes("기타");
+      const parts: string[] = [];
+      if (isPT && f.ptProgram) parts.push(f.ptProgram);
+      if (isHealth && f.healthDuration) parts.push(`헬스 ${f.healthDuration}개월`);
+      if (isOther && f.otherItem) parts.push(f.otherItem);
+      directRegMutation.mutate({
+        name: f.name.trim(),
+        phone: f.phone || undefined,
+        birthDate: f.birthDate || undefined,
+        gender: f.gender || undefined,
+        grade: f.grade,
+        status: f.status,
+        visitRoute: f.visitRoute || undefined,
+        profileNote: f.profileNote || undefined,
+        membershipStart: f.membershipStart || undefined,
+        membershipEnd: f.membershipEnd || undefined,
+        ptProgram: parts.length > 0 ? parts.join(" + ") : undefined,
+        ptSessions: isPT ? (f.ptSessions || undefined) : undefined,
+        serviceSessions: isPT && f.serviceSessions ? parseInt(f.serviceSessions) : undefined,
+        paymentAmount: f.paymentAmount ? parseInt(f.paymentAmount) : undefined,
+        unpaidAmount: f.unpaidAmount ? parseInt(f.unpaidAmount) : undefined,
+        paymentMethod: f.paymentMethod || undefined,
+        paymentDate: f.paymentDate || undefined,
+        paymentMemo: f.paymentMemo || undefined,
+        adminTrainerId: f.trainerId ? parseInt(f.trainerId) : undefined,
+        branchId: f.branchId ? parseInt(f.branchId) : undefined,
+        subType: "신규" as const,
+        primaryType: isPT ? "PT" : isHealth ? "헬스" : isOther ? "기타" : undefined,
+        signatureDataUrl: sig || undefined,
+      });
+      return;
+    }
+
+    if (ctx === "rereg") {
+      if (!reRegMemberId) return;
+      const f = reRegForm;
+      const isPT = f.programTypes.includes("PT");
+      const selectedMem = (allMembersList ?? []).find(m => m.id === reRegMemberId);
+      reRegUpdateMutation.mutateAsync({
+        id: reRegMemberId,
+        name: selectedMem?.name ?? "",
+        membershipStart: f.membershipStart || undefined,
+        membershipEnd: f.membershipEnd || undefined,
+        status: "active",
+        signatureDataUrl: sig || undefined,
+      }).then(() => {
+        if (isPT && f.ptSessions) {
+          reRegAddPackageMutation.mutate({
+            memberId: reRegMemberId!,
+            ptProgram: f.ptProgram || undefined,
+            totalSessions: parseInt(f.ptSessions),
+            startDate: f.membershipStart || undefined,
+            expiryDate: f.membershipEnd || undefined,
+            paymentAmount: f.paymentAmount ? parseInt(f.paymentAmount) : undefined,
+            unpaidAmount: f.unpaidAmount ? parseInt(f.unpaidAmount) : undefined,
+            paymentMethod: f.paymentMethod || undefined,
+            paymentDate: f.paymentDate || undefined,
+            paymentMemo: f.paymentMemo || undefined,
+          });
+        } else {
+          toast.success("재등록이 완료되었습니다.");
+          setDirectRegMode(null);
+          setReRegMemberId(null);
+          setReRegSearch("");
+          setReRegForm(defaultReRegForm);
+        }
+      });
+      return;
+    }
+
+    // lead flow (default)
     regPendingRef.current = regForm;
     handleSave("registered");
   }
@@ -747,51 +888,68 @@ export default function LeadsPage() {
       )}
 
       {/* 전자서명 모달 */}
-      {showSignature && (
-        <SignatureModal
-          memberName={form.name}
-          onConfirm={proceedAfterSignature}
-          onBack={() => { setShowSignature(false); setShowRegistration(true); }}
-        />
-      )}
+      {showSignature && (() => {
+        const sigName = sigContext === "direct" ? directForm.name
+          : sigContext === "rereg" ? ((allMembersList ?? []).find(m => m.id === reRegMemberId)?.name ?? "")
+          : form.name;
+        const backAction = sigContext === "direct" ? () => { setShowSignature(false); setSigContext(null); }
+          : sigContext === "rereg" ? () => { setShowSignature(false); setSigContext(null); }
+          : () => { setShowSignature(false); setShowRegistration(true); };
+        return (
+          <SignatureModal
+            memberName={sigName}
+            onConfirm={proceedAfterSignature}
+            onBack={backAction}
+          />
+        );
+      })()}
 
       {/* 서명된 계약서 확인 모달 */}
-      {showSignedContract && signatureDataUrl && (
-        <SignedContractModal
-          memberName={form.name}
-          memberPhone={form.phone || ""}
-          marketing={agreedMarketing}
-          signatureDataUrl={signatureDataUrl}
-          regForm={regForm}
-          onPrint={() => {
-            const sigKey = `contract_sig_${Date.now()}`;
-            localStorage.setItem(sigKey, signatureDataUrl);
-            const p = new URLSearchParams({
-              name: form.name,
-              phone: form.phone || "",
-              date: new Date().toLocaleDateString("ko-KR"),
-              marketing: agreedMarketing ? "1" : "0",
-              sigKey,
-              subType: regForm.subType,
-              itemTypes: regForm.itemTypes.join(","),
-              programKey: regForm.programKey,
-              programCustom: regForm.programCustom,
-              sessions: regForm.sessions?.toString() ?? "",
-              duration: regForm.duration?.toString() ?? "",
-              otherItem: regForm.otherItem,
-              amount: regForm.amount,
-              discountAmount: regForm.discountAmount,
-              paidAmount: regForm.paidAmount,
-              unpaidAmount: regForm.unpaidAmount,
-              paymentMethod: regForm.paymentMethod,
-              paymentDate: regForm.paymentDate,
-              startDate: regForm.startDate,
-            });
-            window.open(`/contract-print?${p.toString()}`, "_blank");
-          }}
-          onConfirm={proceedToSave}
-        />
-      )}
+      {showSignedContract && signatureDataUrl && (() => {
+        const displayForm = (sigContext === "direct" || sigContext === "rereg") ? contractDisplayForm : regForm;
+        const sigName = sigContext === "direct" ? directForm.name
+          : sigContext === "rereg" ? ((allMembersList ?? []).find(m => m.id === reRegMemberId)?.name ?? "")
+          : form.name;
+        const sigPhone = sigContext === "direct" ? (directForm.phone || "")
+          : sigContext === "rereg" ? ((allMembersList ?? []).find(m => m.id === reRegMemberId)?.phone ?? "")
+          : (form.phone || "");
+        return (
+          <SignedContractModal
+            memberName={sigName}
+            memberPhone={sigPhone}
+            marketing={agreedMarketing}
+            signatureDataUrl={signatureDataUrl}
+            regForm={displayForm}
+            onPrint={() => {
+              const sigKey = `contract_sig_${Date.now()}`;
+              localStorage.setItem(sigKey, signatureDataUrl);
+              const p = new URLSearchParams({
+                name: sigName,
+                phone: sigPhone,
+                date: new Date().toLocaleDateString("ko-KR"),
+                marketing: agreedMarketing ? "1" : "0",
+                sigKey,
+                subType: displayForm.subType,
+                itemTypes: displayForm.itemTypes.join(","),
+                programKey: displayForm.programKey,
+                programCustom: displayForm.programCustom,
+                sessions: displayForm.sessions?.toString() ?? "",
+                duration: displayForm.duration?.toString() ?? "",
+                otherItem: displayForm.otherItem,
+                amount: displayForm.amount,
+                discountAmount: displayForm.discountAmount,
+                paidAmount: displayForm.paidAmount,
+                unpaidAmount: displayForm.unpaidAmount,
+                paymentMethod: displayForm.paymentMethod,
+                paymentDate: displayForm.paymentDate,
+                startDate: displayForm.startDate,
+              });
+              window.open(`/contract-print?${p.toString()}`, "_blank");
+            }}
+            onConfirm={proceedToSave}
+          />
+        );
+      })()}
 
       {/* 등록 상세 모달 */}
       {showRegistration && (
@@ -1404,46 +1562,9 @@ export default function LeadsPage() {
                   {/* 제출 버튼 */}
                   <div className="p-4 border-t border-border shrink-0">
                     <button type="button"
-                      disabled={reRegAddPackageMutation.isPending || reRegUpdateMutation.isPending}
-                      onClick={async () => {
-                        if (!reRegMemberId) return;
-                        const isPT = reRegForm.programTypes.includes("PT");
-                        const isHealth = reRegForm.programTypes.includes("헬스");
-                        if (!isPT && !isHealth && !reRegForm.programTypes.includes("기타")) {
-                          return toast.error("프로그램을 선택해주세요.");
-                        }
-                        // 회원 기간 업데이트
-                        await reRegUpdateMutation.mutateAsync({
-                          id: reRegMemberId,
-                          name: selectedMem?.name ?? "",
-                          membershipStart: reRegForm.membershipStart || undefined,
-                          membershipEnd: reRegForm.membershipEnd || undefined,
-                          status: "active",
-                        });
-                        // PT 패키지 추가
-                        if (isPT && reRegForm.ptSessions) {
-                          reRegAddPackageMutation.mutate({
-                            memberId: reRegMemberId,
-                            ptProgram: reRegForm.ptProgram || undefined,
-                            totalSessions: parseInt(reRegForm.ptSessions),
-                            startDate: reRegForm.membershipStart || undefined,
-                            expiryDate: reRegForm.membershipEnd || undefined,
-                            paymentAmount: reRegForm.paymentAmount ? parseInt(reRegForm.paymentAmount) : undefined,
-                            unpaidAmount: reRegForm.unpaidAmount ? parseInt(reRegForm.unpaidAmount) : undefined,
-                            paymentMethod: reRegForm.paymentMethod || undefined,
-                            paymentDate: reRegForm.paymentDate || undefined,
-                            paymentMemo: reRegForm.paymentMemo || undefined,
-                          });
-                        } else {
-                          toast.success("재등록이 완료되었습니다.");
-                          setDirectRegMode(null);
-                          setReRegMemberId(null);
-                          setReRegSearch("");
-                          setReRegForm(defaultReRegForm);
-                        }
-                      }}
+                      onClick={openReRegSig}
                       className="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
-                      {(reRegAddPackageMutation.isPending || reRegUpdateMutation.isPending) ? "처리 중..." : "재등록 완료"}
+                      전자서명 후 재등록
                     </button>
                   </div>
                 </>
@@ -1791,43 +1912,9 @@ export default function LeadsPage() {
             </div>
             <div className="p-4 border-t border-border shrink-0">
               <button type="button" disabled={directRegMutation.isPending}
-                onClick={() => {
-                  if (!directForm.name.trim()) return toast.error("이름을 입력해주세요.");
-                  const isPT = directForm.programTypes.includes("PT");
-                  const isHealth = directForm.programTypes.includes("헬스");
-                  const isOther = directForm.programTypes.includes("기타");
-                  // programDetail 조합
-                  const parts: string[] = [];
-                  if (isPT && directForm.ptProgram) parts.push(directForm.ptProgram);
-                  if (isHealth && directForm.healthDuration) parts.push(`헬스 ${directForm.healthDuration}개월`);
-                  if (isOther && directForm.otherItem) parts.push(directForm.otherItem);
-                  directRegMutation.mutate({
-                    name: directForm.name.trim(),
-                    phone: directForm.phone || undefined,
-                    birthDate: directForm.birthDate || undefined,
-                    gender: directForm.gender || undefined,
-                    grade: directForm.grade,
-                    status: directForm.status,
-                    visitRoute: directForm.visitRoute || undefined,
-                    profileNote: directForm.profileNote || undefined,
-                    membershipStart: directForm.membershipStart || undefined,
-                    membershipEnd: directForm.membershipEnd || undefined,
-                    ptProgram: parts.length > 0 ? parts.join(" + ") : undefined,
-                    ptSessions: isPT ? (directForm.ptSessions || undefined) : undefined,
-                    serviceSessions: isPT && directForm.serviceSessions ? parseInt(directForm.serviceSessions) : undefined,
-                    paymentAmount: directForm.paymentAmount ? parseInt(directForm.paymentAmount) : undefined,
-                    unpaidAmount: directForm.unpaidAmount ? parseInt(directForm.unpaidAmount) : undefined,
-                    paymentMethod: directForm.paymentMethod || undefined,
-                    paymentDate: directForm.paymentDate || undefined,
-                    paymentMemo: directForm.paymentMemo || undefined,
-                    adminTrainerId: directForm.trainerId ? parseInt(directForm.trainerId) : undefined,
-                    branchId: directForm.branchId ? parseInt(directForm.branchId) : undefined,
-                    subType: "신규" as const,
-                    primaryType: isPT ? "PT" : isHealth ? "헬스" : isOther ? "기타" : undefined,
-                  });
-                }}
+                onClick={openDirectSig}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
-                {directRegMutation.isPending ? "등록 중..." : "회원 등록"}
+                {directRegMutation.isPending ? "등록 중..." : "전자서명 후 등록"}
               </button>
             </div>
           </div>

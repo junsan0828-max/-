@@ -376,6 +376,7 @@ const membersRouter = t.router({
         branchId: z.number().optional(),
         primaryType: z.enum(["PT", "헬스", "기타"]).optional(),
         subType: z.enum(["신규", "재등록"]).default("재등록"),
+        signatureDataUrl: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -487,6 +488,7 @@ const membersRouter = t.router({
         profileNote: z.string().optional(),
         visitRoute: z.string().optional(),
         trainerId: z.number().optional(),
+        signatureDataUrl: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

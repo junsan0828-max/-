@@ -543,6 +543,7 @@ async function initDatabase() {
     )`,
     `ALTER TABLE training_manuals ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "registeredMemberId" INTEGER`,
+    `ALTER TABLE members ADD COLUMN IF NOT EXISTS "signatureDataUrl" TEXT`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSessionPrice" INTEGER DEFAULT 0`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "isServiceSession" INTEGER DEFAULT 0`,
     `CREATE TABLE IF NOT EXISTS pt_event_programs (
