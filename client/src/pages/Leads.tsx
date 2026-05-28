@@ -259,7 +259,7 @@ export default function LeadsPage() {
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
-  const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT" });
+  const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
   const [showEventPicker, setShowEventPicker] = useState<"reReg" | "direct" | null>(null);
 
   const directRegMutation = trpc.members.create.useMutation({
@@ -1205,23 +1205,28 @@ export default function LeadsPage() {
                                 ))}
                               </div>
                               {reRegForm.ptProgram === "이벤트피티" && (
-                                <div className="mt-2 space-y-1">
-                                  <p className="text-xs text-muted-foreground">현재 이벤트 선택:</p>
-                                  {(ptEvents ?? []).filter((e: any) => e.isActive).map((ev: any) => (
-                                    <button key={ev.id} type="button" onClick={() => {
-                                      setReRegForm(f => ({
+                                <div className="mt-2">
+                                  <select
+                                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                    defaultValue=""
+                                    onChange={e => {
+                                      const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
+                                      if (ev) setReRegForm(f => ({
                                         ...f,
                                         ptSessions: String(ev.sessions),
                                         serviceSessions: String(ev.serviceSessions),
                                         paymentAmount: String(Math.round(ev.sessions * ev.pricePerSession * 1.1)),
                                       }));
-                                    }} className="w-full text-left px-3 py-2 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors">
-                                      <p className="text-sm font-medium">{ev.name}</p>
-                                      <p className="text-xs text-muted-foreground">결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회</p>
-                                    </button>
-                                  ))}
-                                  {(ptEvents ?? []).filter((e: any) => e.isActive).length === 0 && (
-                                    <p className="text-xs text-muted-foreground py-1">등록된 이벤트가 없습니다.</p>
+                                    }}>
+                                    <option value="" disabled>이벤트 선택...</option>
+                                    {(ptEvents ?? []).map((ev: any) => (
+                                      <option key={ev.id} value={String(ev.id)}>
+                                        {ev.name} (결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회)
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {(ptEvents ?? []).length === 0 && (
+                                    <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>
                                   )}
                                 </div>
                               )}
@@ -1245,18 +1250,6 @@ export default function LeadsPage() {
                               <input value={reRegForm.ptSessions} onChange={e => setReRegForm(f => ({ ...f, ptSessions: e.target.value, membershipEnd: calcEndDate(f.membershipStart, e.target.value) }))}
                                 placeholder="직접 입력" type="number" min="1"
                                 className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground">서비스 횟수</label>
-                              <div className="flex gap-1.5 flex-wrap mt-1 items-center">
-                                {[0,1,2,3,5].map(n => (
-                                  <button key={n} type="button"
-                                    onClick={() => setReRegForm(f => ({ ...f, serviceSessions: f.serviceSessions === String(n) ? "" : String(n) }))}
-                                    className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reRegForm.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
-                                    {n === 0 ? "없음" : `+${n}회`}
-                                  </button>
-                                ))}
-                              </div>
                             </div>
                           </div>
                         )}
@@ -1566,23 +1559,28 @@ export default function LeadsPage() {
                           ))}
                         </div>
                         {directForm.ptProgram === "이벤트피티" && (
-                          <div className="mt-2 space-y-1">
-                            <p className="text-xs text-muted-foreground">현재 이벤트 선택:</p>
-                            {(ptEvents ?? []).filter((e: any) => e.isActive).map((ev: any) => (
-                              <button key={ev.id} type="button" onClick={() => {
-                                setDirectForm(f => ({
+                          <div className="mt-2">
+                            <select
+                              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                              defaultValue=""
+                              onChange={e => {
+                                const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
+                                if (ev) setDirectForm(f => ({
                                   ...f,
                                   ptSessions: String(ev.sessions),
                                   serviceSessions: String(ev.serviceSessions),
                                   paymentAmount: String(Math.round(ev.sessions * ev.pricePerSession * 1.1)),
                                 }));
-                              }} className="w-full text-left px-3 py-2 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors">
-                                <p className="text-sm font-medium">{ev.name}</p>
-                                <p className="text-xs text-muted-foreground">결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회</p>
-                              </button>
-                            ))}
-                            {(ptEvents ?? []).filter((e: any) => e.isActive).length === 0 && (
-                              <p className="text-xs text-muted-foreground py-1">등록된 이벤트가 없습니다.</p>
+                              }}>
+                              <option value="" disabled>이벤트 선택...</option>
+                              {(ptEvents ?? []).map((ev: any) => (
+                                <option key={ev.id} value={String(ev.id)}>
+                                  {ev.name} (결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회)
+                                </option>
+                              ))}
+                            </select>
+                            {(ptEvents ?? []).length === 0 && (
+                              <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>
                             )}
                           </div>
                         )}
@@ -1606,28 +1604,6 @@ export default function LeadsPage() {
                         <input value={directForm.ptSessions} onChange={e => setDirectForm(f => ({ ...f, ptSessions: e.target.value, membershipEnd: calcEndDate(f.membershipStart, e.target.value) }))}
                           placeholder="직접 입력" type="number" min="1"
                           className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">서비스 횟수</label>
-                        <div className="flex gap-1.5 flex-wrap mt-1 items-center">
-                          {[0,1,2,3,5].map(n => (
-                            <button key={n} type="button"
-                              onClick={() => setDirectForm(f => ({ ...f, serviceSessions: f.serviceSessions === String(n) ? "" : String(n) }))}
-                              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${directForm.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
-                              {n === 0 ? "없음" : `+${n}회`}
-                            </button>
-                          ))}
-                          <input type="number" min="0" placeholder="직접"
-                            value={directForm.serviceSessions && !["0","1","2","3","5"].includes(directForm.serviceSessions) ? directForm.serviceSessions : ""}
-                            onChange={e => setDirectForm(f => ({ ...f, serviceSessions: e.target.value }))}
-                            className="w-14 bg-background border border-border rounded-lg px-2 py-1 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                        </div>
-                        {directForm.ptSessions && Number(directForm.serviceSessions) > 0 && (
-                          <p className="text-xs text-primary mt-1 font-medium">
-                            총 {Number(directForm.ptSessions) + Number(directForm.serviceSessions || 0)}회
-                            <span className="text-muted-foreground"> (결제 {directForm.ptSessions}회 + 서비스 {directForm.serviceSessions}회)</span>
-                          </p>
-                        )}
                       </div>
                     </div>
                   )}

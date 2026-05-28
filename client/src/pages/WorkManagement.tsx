@@ -340,7 +340,7 @@ function EventManagementSection() {
   const [eventType, setEventType] = useState<"PT" | "헬스">("PT");
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", sessions: "", serviceSessions: "0", pricePerSession: "", serviceSessionPrice: "0" });
+  const [form, setForm] = useState({ name: "", sessions: "", serviceSessions: "0", pricePerSession: "", serviceSessionPrice: "0", startDate: "", endDate: "" });
 
   const { data: events, refetch } = trpc.eventPrograms.list.useQuery({ type: eventType });
   const upsertMutation = trpc.eventPrograms.upsert.useMutation({
@@ -354,10 +354,10 @@ function EventManagementSection() {
 
   const openEdit = (item: any) => {
     setEditItem(item);
-    setForm({ name: item.name, sessions: String(item.sessions), serviceSessions: String(item.serviceSessions), pricePerSession: String(item.pricePerSession), serviceSessionPrice: String(item.serviceSessionPrice) });
+    setForm({ name: item.name, sessions: String(item.sessions), serviceSessions: String(item.serviceSessions), pricePerSession: String(item.pricePerSession), serviceSessionPrice: String(item.serviceSessionPrice), startDate: item.startDate ?? "", endDate: item.endDate ?? "" });
     setShowForm(true);
   };
-  const openNew = () => { setEditItem(null); setForm({ name: "", sessions: "", serviceSessions: "0", pricePerSession: "", serviceSessionPrice: "0" }); setShowForm(true); };
+  const openNew = () => { setEditItem(null); setForm({ name: "", sessions: "", serviceSessions: "0", pricePerSession: "", serviceSessionPrice: "0", startDate: "", endDate: "" }); setShowForm(true); };
 
   const handleSubmit = () => {
     if (!form.name || !form.sessions || !form.pricePerSession) { toast.error("필수 항목을 입력해주세요."); return; }
@@ -369,7 +369,9 @@ function EventManagementSection() {
       serviceSessions: parseInt(form.serviceSessions || "0"),
       pricePerSession: parseInt(form.pricePerSession),
       serviceSessionPrice: parseInt(form.serviceSessionPrice || "0"),
-      isActive: 1,
+      isActive: editItem?.isActive ?? 1,
+      startDate: form.startDate || null,
+      endDate: form.endDate || null,
     });
   };
 
@@ -404,6 +406,11 @@ function EventManagementSection() {
                   결제 {ev.sessions}회 · 서비스 {ev.serviceSessions}회 · 단가 {ev.pricePerSession.toLocaleString()}원
                   {ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
                 </p>
+                {(ev.startDate || ev.endDate) && (
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">
+                    {ev.startDate ? ev.startDate : "시작일 없음"} ~ {ev.endDate ? ev.endDate : "종료일 없음"}
+                  </p>
+                )}
               </div>
               <div className="flex gap-1.5 shrink-0">
                 <button onClick={() => upsertMutation.mutate({ ...ev, isActive: ev.isActive ? 0 : 1 })}
@@ -463,6 +470,18 @@ function EventManagementSection() {
                   <input type="number" value={form.serviceSessionPrice} onChange={e => setForm(f => ({...f, serviceSessionPrice: e.target.value}))} placeholder="0" className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
                   <span className="text-xs text-muted-foreground">원</span>
                 </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">시작 날짜 <span className="text-muted-foreground/60">(없으면 바로 적용)</span></label>
+                <input type="date" value={form.startDate} onChange={e => setForm(f => ({...f, startDate: e.target.value}))}
+                  className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">종료 날짜 <span className="text-muted-foreground/60">(없으면 무기한)</span></label>
+                <input type="date" value={form.endDate} onChange={e => setForm(f => ({...f, endDate: e.target.value}))}
+                  className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
               </div>
             </div>
             {form.sessions && form.pricePerSession && (

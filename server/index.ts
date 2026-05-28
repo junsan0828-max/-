@@ -554,8 +554,12 @@ async function initDatabase() {
       "pricePerSession" INTEGER NOT NULL,
       "serviceSessionPrice" INTEGER NOT NULL DEFAULT 0,
       "isActive" INTEGER NOT NULL DEFAULT 1,
+      "startDate" TEXT,
+      "endDate" TEXT,
       "createdAt" TEXT NOT NULL DEFAULT NOW()::text
     )`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "startDate" TEXT`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "endDate" TEXT`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

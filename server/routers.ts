@@ -4442,19 +4442,23 @@ const gymPlusRouter = t.router({
 // ─── Event Programs ────────────────────────────────────────────────────────────
 const eventProgramsRouter = t.router({
   list: protectedProcedure
-    .input(z.object({ type: z.enum(["PT", "헬스", "all"]).default("all") }))
+    .input(z.object({ type: z.enum(["PT", "헬스", "all"]).default("all"), activeOnly: z.boolean().default(false) }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const today = new Date().toISOString().slice(0, 10);
+      const typeFilter = input.type !== "all" ? sql`AND type = ${input.type}` : sql``;
+      // activeOnly: isActive=1 AND (startDate <= today OR startDate IS NULL) AND (endDate >= today OR endDate IS NULL)
+      const activeFilter = input.activeOnly
+        ? sql`AND "isActive" = 1 AND (("startDate" IS NULL OR "startDate" <= ${today}) AND ("endDate" IS NULL OR "endDate" >= ${today}))`
+        : sql``;
       const rows = await db.execute(
-        input.type === "all"
-          ? sql`SELECT * FROM pt_event_programs ORDER BY "isActive" DESC, "createdAt" DESC`
-          : sql`SELECT * FROM pt_event_programs WHERE type = ${input.type} ORDER BY "isActive" DESC, "createdAt" DESC`
+        sql`SELECT * FROM pt_event_programs WHERE 1=1 ${typeFilter} ${activeFilter} ORDER BY "isActive" DESC, "createdAt" DESC`
       );
       return ((rows as any).rows ?? (rows as any)) as Array<{
         id: number; type: string; name: string; sessions: number;
         serviceSessions: number; pricePerSession: number; serviceSessionPrice: number;
-        isActive: number; createdAt: string;
+        isActive: number; startDate: string | null; endDate: string | null; createdAt: string;
       }>;
     }),
 
@@ -4468,6 +4472,8 @@ const eventProgramsRouter = t.router({
       pricePerSession: z.number().min(0),
       serviceSessionPrice: z.number().min(0).default(0),
       isActive: z.number().default(1),
+      startDate: z.string().nullable().optional(),
+      endDate: z.string().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
@@ -4478,13 +4484,14 @@ const eventProgramsRouter = t.router({
           UPDATE pt_event_programs SET
             type = ${input.type}, name = ${input.name}, sessions = ${input.sessions},
             "serviceSessions" = ${input.serviceSessions}, "pricePerSession" = ${input.pricePerSession},
-            "serviceSessionPrice" = ${input.serviceSessionPrice}, "isActive" = ${input.isActive}
+            "serviceSessionPrice" = ${input.serviceSessionPrice}, "isActive" = ${input.isActive},
+            "startDate" = ${input.startDate ?? null}, "endDate" = ${input.endDate ?? null}
           WHERE id = ${input.id}
         `);
       } else {
         await db.execute(sql`
-          INSERT INTO pt_event_programs (type, name, sessions, "serviceSessions", "pricePerSession", "serviceSessionPrice", "isActive", "createdAt")
-          VALUES (${input.type}, ${input.name}, ${input.sessions}, ${input.serviceSessions}, ${input.pricePerSession}, ${input.serviceSessionPrice}, ${input.isActive}, NOW()::text)
+          INSERT INTO pt_event_programs (type, name, sessions, "serviceSessions", "pricePerSession", "serviceSessionPrice", "isActive", "startDate", "endDate", "createdAt")
+          VALUES (${input.type}, ${input.name}, ${input.sessions}, ${input.serviceSessions}, ${input.pricePerSession}, ${input.serviceSessionPrice}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
         `);
       }
       return { success: true };
