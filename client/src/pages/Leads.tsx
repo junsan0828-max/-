@@ -230,6 +230,7 @@ export default function LeadsPage() {
     programTypes: [] as string[],
     ptProgram: "", ptSessions: "", serviceSessions: "",
     healthDuration: "" as string,
+    healthServiceDays: "",
     otherItem: "",
     paymentAmount: "", unpaidAmount: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
@@ -246,6 +247,7 @@ export default function LeadsPage() {
     ptProgram: "",                  // 케어피티, 웨이트피티, 이벤트피티, 직접입력
     ptSessions: "", serviceSessions: "",
     healthDuration: "" as string,
+    healthServiceDays: "",
     otherItem: "",
     paymentAmount: "", unpaidAmount: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
@@ -1275,8 +1277,9 @@ export default function LeadsPage() {
                                 <button key={d} type="button"
                                   onClick={() => setReRegForm(f => {
                                     const dur = String(d);
+                                    const svcDays = parseInt(f.healthServiceDays || "0");
                                     const end = f.membershipStart
-                                      ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + d); return e.toISOString().substring(0, 10); })()
+                                      ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + d); if (svcDays > 0) e.setDate(e.getDate() + svcDays); return e.toISOString().substring(0, 10); })()
                                       : "";
                                     return { ...f, healthDuration: f.healthDuration === dur ? "" : dur, membershipEnd: f.healthDuration === dur ? "" : end };
                                   })}
@@ -1284,6 +1287,35 @@ export default function LeadsPage() {
                                   {d}개월
                                 </button>
                               ))}
+                            </div>
+                            <div className="mt-3">
+                              <label className="text-xs text-muted-foreground">기본 서비스 기간 <span className="text-muted-foreground/60">(일 단위)</span></label>
+                              <div className="flex items-center gap-2 mt-1">
+                                {[0, 7, 14, 30].map(n => (
+                                  <button key={n} type="button"
+                                    onClick={() => setReRegForm(f => {
+                                      const months = parseInt(f.healthDuration || "0");
+                                      const end = f.membershipStart && months > 0
+                                        ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + months); if (n > 0) e.setDate(e.getDate() + n); return e.toISOString().substring(0, 10); })()
+                                        : f.membershipEnd;
+                                      return { ...f, healthServiceDays: f.healthServiceDays === String(n) ? "" : String(n), membershipEnd: end };
+                                    })}
+                                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${reRegForm.healthServiceDays === String(n) ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                    {n === 0 ? "없음" : `+${n}일`}
+                                  </button>
+                                ))}
+                                <input type="number" min="0" placeholder="직접"
+                                  value={reRegForm.healthServiceDays && !["0","7","14","30"].includes(reRegForm.healthServiceDays) ? reRegForm.healthServiceDays : ""}
+                                  onChange={e => setReRegForm(f => {
+                                    const n = parseInt(e.target.value || "0");
+                                    const months = parseInt(f.healthDuration || "0");
+                                    const end = f.membershipStart && months > 0
+                                      ? (() => { const d = new Date(f.membershipStart); d.setMonth(d.getMonth() + months); if (n > 0) d.setDate(d.getDate() + n); return d.toISOString().substring(0, 10); })()
+                                      : f.membershipEnd;
+                                    return { ...f, healthServiceDays: e.target.value, membershipEnd: end };
+                                  })}
+                                  className="w-14 bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1629,8 +1661,9 @@ export default function LeadsPage() {
                           <button key={d} type="button"
                             onClick={() => setDirectForm(f => {
                               const dur = String(d);
+                              const svcDays = parseInt(f.healthServiceDays || "0");
                               const end = f.membershipStart
-                                ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + d); return e.toISOString().substring(0, 10); })()
+                                ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + d); if (svcDays > 0) e.setDate(e.getDate() + svcDays); return e.toISOString().substring(0, 10); })()
                                 : "";
                               return { ...f, healthDuration: f.healthDuration === dur ? "" : dur, membershipEnd: f.healthDuration === dur ? "" : end };
                             })}
@@ -1638,6 +1671,35 @@ export default function LeadsPage() {
                             {d}개월
                           </button>
                         ))}
+                      </div>
+                      <div className="mt-3">
+                        <label className="text-xs text-muted-foreground">기본 서비스 기간 <span className="text-muted-foreground/60">(일 단위)</span></label>
+                        <div className="flex items-center gap-2 mt-1">
+                          {[0, 7, 14, 30].map(n => (
+                            <button key={n} type="button"
+                              onClick={() => setDirectForm(f => {
+                                const months = parseInt(f.healthDuration || "0");
+                                const end = f.membershipStart && months > 0
+                                  ? (() => { const e = new Date(f.membershipStart); e.setMonth(e.getMonth() + months); if (n > 0) e.setDate(e.getDate() + n); return e.toISOString().substring(0, 10); })()
+                                  : f.membershipEnd;
+                                return { ...f, healthServiceDays: f.healthServiceDays === String(n) ? "" : String(n), membershipEnd: end };
+                              })}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${directForm.healthServiceDays === String(n) ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                              {n === 0 ? "없음" : `+${n}일`}
+                            </button>
+                          ))}
+                          <input type="number" min="0" placeholder="직접"
+                            value={directForm.healthServiceDays && !["0","7","14","30"].includes(directForm.healthServiceDays) ? directForm.healthServiceDays : ""}
+                            onChange={e => setDirectForm(f => {
+                              const n = parseInt(e.target.value || "0");
+                              const months = parseInt(f.healthDuration || "0");
+                              const end = f.membershipStart && months > 0
+                                ? (() => { const dd = new Date(f.membershipStart); dd.setMonth(dd.getMonth() + months); if (n > 0) dd.setDate(dd.getDate() + n); return dd.toISOString().substring(0, 10); })()
+                                : f.membershipEnd;
+                              return { ...f, healthServiceDays: e.target.value, membershipEnd: end };
+                            })}
+                            className="w-14 bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                        </div>
                       </div>
                       {directForm.membershipEnd && directForm.programTypes.includes("헬스") && (
                         <p className="text-xs text-emerald-400 font-medium mt-1">만료일: {directForm.membershipEnd}</p>
@@ -1768,8 +1830,8 @@ export default function LeadsPage() {
 
       {/* 상담 폼 모달 */}
       {showForm && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center p-4 pb-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }}>
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center px-4 pb-4" style={{ paddingTop: 'max(env(safe-area-inset-top), 1rem)' }}>
+          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - 1rem)' }}>
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
               <h2 className="font-semibold text-foreground">{editId ? "상담 수정" : "상담 일지"}</h2>
               <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">✕</button>
