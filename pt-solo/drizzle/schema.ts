@@ -303,6 +303,8 @@ export const fitStepPlusWorkoutLogs = pgTable("fit_step_plus_workout_logs", {
   bodyWeight: text("bodyWeight"),
   notes: text("notes"),
   mood: text("mood"),
+  intensity: text("intensity"),
+  totalVolume: integer("totalVolume"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 

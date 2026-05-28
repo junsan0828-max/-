@@ -2511,6 +2511,7 @@ const fitStepPlusRouter = t.router({
       logDate: z.string(), title: z.string().optional(), exercisesJson: z.string().optional(),
       durationMinutes: z.number().optional(), caloriesBurned: z.number().optional(),
       bodyWeight: z.string().optional(), notes: z.string().optional(), mood: z.string().optional(),
+      intensity: z.string().optional(), totalVolume: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const [row] = await getDb().insert(fitStepPlusWorkoutLogs).values({
@@ -2526,6 +2527,7 @@ const fitStepPlusRouter = t.router({
       exercisesJson: z.string().optional(), durationMinutes: z.number().optional(),
       caloriesBurned: z.number().optional(), bodyWeight: z.string().optional(),
       notes: z.string().optional(), mood: z.string().optional(),
+      intensity: z.string().optional(), totalVolume: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
