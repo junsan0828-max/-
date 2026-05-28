@@ -472,7 +472,7 @@ function RevenueContent() {
                     {form.serviceHealthDuration && (
                       <div>
                         <label className="text-xs text-muted-foreground">서비스 기간</label>
-                        <div className="flex gap-2 mt-1">
+                        <div className="flex gap-2 mt-1 flex-wrap">
                           {DURATIONS.map(d => (
                             <button key={d} type="button"
                               onClick={() => setForm(f => ({ ...f, serviceHealthDuration: String(d) }))}
@@ -480,7 +480,22 @@ function RevenueContent() {
                               {d}개월
                             </button>
                           ))}
+                          <button type="button"
+                            onClick={() => setForm(f => ({ ...f, serviceHealthDuration: DURATIONS.map(String).includes(f.serviceHealthDuration) ? "기타" : f.serviceHealthDuration }))}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${!DURATIONS.map(String).includes(form.serviceHealthDuration) && form.serviceHealthDuration !== "" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                            기타
+                          </button>
                         </div>
+                        {!DURATIONS.map(String).includes(form.serviceHealthDuration) && form.serviceHealthDuration !== "" && (
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="직접 입력 (개월)"
+                            value={form.serviceHealthDuration === "기타" ? "" : form.serviceHealthDuration}
+                            onChange={e => setForm(f => ({ ...f, serviceHealthDuration: e.target.value }))}
+                            className="mt-2 w-full px-3 py-2 bg-input border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        )}
                       </div>
                     )}
                   </div>
