@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc, and, like, sql } from "drizzle-orm";
 import { getDb, pool } from "./db";
-import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories } from "../drizzle/schema";
+import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories, uniforms } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -597,6 +597,70 @@ export const accessRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(kioskBanners).where(eq(kioskBanners.id, input.id));
+      return { ok: true };
+    }),
+
+  // ─── 운동복 관리 ────────────────────────────────────────────────────────────
+
+  getUniforms: protectedProcedure
+    .input(z.object({ branchId: z.number().optional(), activeOnly: z.boolean().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select().from(uniforms).orderBy(desc(uniforms.createdAt));
+      return rows.filter(r => {
+        if (input.branchId && r.branchId !== input.branchId) return false;
+        if (input.activeOnly && r.isActive !== 1) return false;
+        return true;
+      });
+    }),
+
+  createUniform: protectedProcedure
+    .input(z.object({
+      branchId: z.number().optional(),
+      memberId: z.number().optional(),
+      memberName: z.string().optional(),
+      memberPhone: z.string().optional(),
+      size: z.string().optional(),
+      quantity: z.number().min(1).default(1),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const now = new Date().toISOString();
+      const [row] = await db.insert(uniforms).values({ ...input, isActive: 1, createdAt: now, updatedAt: now }).returning();
+      return row;
+    }),
+
+  updateUniform: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      memberName: z.string().optional(),
+      memberPhone: z.string().optional(),
+      size: z.string().optional(),
+      quantity: z.number().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      memo: z.string().optional(),
+      isActive: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { id, ...data } = input;
+      const [row] = await db.update(uniforms).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(uniforms.id, id)).returning();
+      return row;
+    }),
+
+  deleteUniform: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(uniforms).where(eq(uniforms.id, input.id));
       return { ok: true };
     }),
 });

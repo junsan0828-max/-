@@ -473,6 +473,22 @@ export const lockers = pgTable("lockers", {
   updatedAt: text("updatedAt").default(now).notNull(),
 });
 
+export const uniforms = pgTable("uniforms", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  memberId: integer("memberId"),
+  memberName: text("memberName"),
+  memberPhone: text("memberPhone"),
+  size: text("size"),           // S / M / L / XL / XXL
+  quantity: integer("quantity").default(1).notNull(),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  memo: text("memo"),
+  isActive: integer("isActive").default(1).notNull(), // 1=사용중, 0=반납
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
 export const accessLogs = pgTable("access_logs", {
   id: serial("id").primaryKey(),
   memberId: integer("memberId"),

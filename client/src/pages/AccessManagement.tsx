@@ -18,6 +18,7 @@ import {
   Eye,
   EyeOff,
   Pencil,
+  Shirt,
 } from "lucide-react";
 
 type Branch = { id: number; name: string };
@@ -140,7 +141,7 @@ function KioskFontSettings() {
 }
 
 export default function AccessManagement() {
-  const [tab, setTab] = useState<"logs" | "lockers" | "banners">("logs");
+  const [tab, setTab] = useState<"logs" | "lockers" | "uniforms" | "banners">("logs");
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [showAddLocker, setShowAddLocker] = useState(false);
@@ -161,6 +162,16 @@ export default function AccessManagement() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedBannerId, setUploadedBannerId] = useState<number | null>(null);
 
+  // 운동복 관리 state
+  const [showUniformForm, setShowUniformForm] = useState(false);
+  const [editingUniform, setEditingUniform] = useState<any | null>(null);
+  const [uniformSearch, setUniformSearch] = useState("");
+  const [uniformActiveOnly, setUniformActiveOnly] = useState(true);
+  const [uniformForm, setUniformForm] = useState({
+    memberName: "", memberPhone: "", size: "", quantity: "1",
+    startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "",
+  });
+
   const utils = trpc.useUtils();
 
   const branchesQuery = trpc.access.getBranches.useQuery();
@@ -170,6 +181,9 @@ export default function AccessManagement() {
   const membersQuery = trpc.access.getMembersForLocker.useQuery();
   const bannersQuery = trpc.access.getAllBanners.useQuery();
   const categoriesQuery = trpc.access.getLockerCategories.useQuery();
+  const uniformsQuery = trpc.access.getUniforms.useQuery({
+    branchId: selectedBranch ?? undefined,
+  });
 
   const categories = (categoriesQuery.data ?? []) as LockerCategory[];
 
@@ -223,6 +237,50 @@ export default function AccessManagement() {
   const clearBannerImage = trpc.access.clearBannerImage.useMutation({
     onSuccess: () => { utils.access.getAllBanners.invalidate(); setBannerForm((f) => ({ ...f, imageUrl: "" })); toast.success("이미지 삭제 완료"); },
   });
+
+  const createUniform = trpc.access.createUniform.useMutation({
+    onSuccess: () => { utils.access.getUniforms.invalidate(); setShowUniformForm(false); resetUniformForm(); toast.success("운동복 추가 완료"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateUniform = trpc.access.updateUniform.useMutation({
+    onSuccess: () => { utils.access.getUniforms.invalidate(); setEditingUniform(null); resetUniformForm(); toast.success("수정 완료"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteUniform = trpc.access.deleteUniform.useMutation({
+    onSuccess: () => { utils.access.getUniforms.invalidate(); toast.success("삭제 완료"); },
+  });
+  const returnUniform = trpc.access.updateUniform.useMutation({
+    onSuccess: () => { utils.access.getUniforms.invalidate(); toast.success("반납 처리 완료"); },
+  });
+
+  function resetUniformForm() {
+    setUniformForm({ memberName: "", memberPhone: "", size: "", quantity: "1", startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "" });
+  }
+  function openEditUniform(u: any) {
+    setEditingUniform(u);
+    setUniformForm({
+      memberName: u.memberName ?? "", memberPhone: u.memberPhone ?? "",
+      size: u.size ?? "", quantity: String(u.quantity ?? 1),
+      startDate: u.startDate ?? "", endDate: u.endDate ?? "", memo: u.memo ?? "",
+    });
+    setShowUniformForm(true);
+  }
+  function saveUniform() {
+    const payload = {
+      memberName: uniformForm.memberName || undefined,
+      memberPhone: uniformForm.memberPhone || undefined,
+      size: uniformForm.size || undefined,
+      quantity: parseInt(uniformForm.quantity) || 1,
+      startDate: uniformForm.startDate || undefined,
+      endDate: uniformForm.endDate || undefined,
+      memo: uniformForm.memo || undefined,
+    };
+    if (editingUniform) {
+      updateUniform.mutate({ id: editingUniform.id, ...payload });
+    } else {
+      createUniform.mutate({ branchId: selectedBranch ?? undefined, ...payload });
+    }
+  }
 
   function resetBannerForm() {
     setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", titleFontSize: 22, bodyFontSize: 15, branchId: null });
@@ -358,7 +416,7 @@ export default function AccessManagement() {
 
       {/* 탭 */}
       <div className="flex gap-0 rounded-lg overflow-hidden border border-border">
-        {(["logs", "lockers", "banners"] as const).map((t, i) => (
+        {(["logs", "lockers", "uniforms", "banners"] as const).map((t, i, arr) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -366,7 +424,7 @@ export default function AccessManagement() {
               tab === t
                 ? "bg-primary/20 text-primary"
                 : "text-muted-foreground hover:bg-accent"
-            } ${i < 2 ? "border-r border-border" : ""}`}
+            } ${i < arr.length - 1 ? "border-r border-border" : ""}`}
           >
             {t === "logs" ? (
               <span className="flex items-center justify-center gap-1.5">
@@ -375,6 +433,10 @@ export default function AccessManagement() {
             ) : t === "lockers" ? (
               <span className="flex items-center justify-center gap-1.5">
                 <Lock className="h-3.5 w-3.5" /> 락커 관리 ({occupiedCount}/{lockers.length})
+              </span>
+            ) : t === "uniforms" ? (
+              <span className="flex items-center justify-center gap-1.5">
+                <Shirt className="h-3.5 w-3.5" /> 운동복 관리
               </span>
             ) : (
               <span className="flex items-center justify-center gap-1.5">
@@ -678,6 +740,179 @@ export default function AccessManagement() {
           })()}
         </div>
       )}
+
+      {/* 운동복 관리 */}
+      {tab === "uniforms" && (() => {
+        const SIZES = ["S", "M", "L", "XL", "XXL"];
+        const allUniforms = uniformsQuery.data ?? [];
+        const filteredUniforms = allUniforms.filter(u => {
+          const q = uniformSearch.toLowerCase();
+          const matchSearch = !q || (u.memberName ?? "").toLowerCase().includes(q) || (u.memberPhone ?? "").toLowerCase().includes(q);
+          const matchActive = !uniformActiveOnly || u.isActive === 1;
+          return matchSearch && matchActive;
+        });
+        const activeCount = allUniforms.filter(u => u.isActive === 1).length;
+
+        return (
+          <div className="space-y-3">
+            {/* 요약 + 버튼 */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                사용 중 <span className="text-foreground font-semibold">{activeCount}</span>개 / 전체 {allUniforms.length}개
+              </span>
+              <button
+                onClick={() => { setEditingUniform(null); resetUniformForm(); setShowUniformForm(true); }}
+                className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" /> 운동복 추가
+              </button>
+            </div>
+
+            {/* 검색 + 필터 */}
+            <div className="flex gap-2 items-center">
+              <input
+                value={uniformSearch}
+                onChange={e => setUniformSearch(e.target.value)}
+                placeholder="이름 또는 전화번호 검색"
+                className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm bg-background"
+              />
+              <button
+                onClick={() => setUniformActiveOnly(v => !v)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformActiveOnly ? "bg-primary/20 text-primary border-primary/30" : "border-border text-muted-foreground"}`}
+              >
+                사용 중만
+              </button>
+            </div>
+
+            {/* 목록 */}
+            {filteredUniforms.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">운동복 이용자가 없습니다</div>
+            ) : (
+              <div className="space-y-2">
+                {filteredUniforms.map(u => {
+                  const isActive = u.isActive === 1;
+                  const daysLeft = u.endDate ? Math.ceil((new Date(u.endDate).getTime() - Date.now()) / 86400000) : null;
+                  const isExpired = daysLeft !== null && daysLeft < 0;
+                  return (
+                    <div key={u.id} className={`bg-card border rounded-xl p-3 ${isExpired ? "border-red-500/40" : isActive ? "border-border" : "border-border/40 opacity-60"}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-0.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm text-foreground">{u.memberName || "—"}</span>
+                            {u.size && <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium">{u.size}</span>}
+                            {u.quantity > 1 && <span className="text-xs text-muted-foreground">×{u.quantity}</span>}
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${isActive ? (isExpired ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400") : "bg-muted text-muted-foreground"}`}>
+                              {isActive ? (isExpired ? "기간 만료" : "사용 중") : "반납"}
+                            </span>
+                          </div>
+                          {u.memberPhone && <div className="text-xs text-muted-foreground">{u.memberPhone}</div>}
+                          <div className="text-xs text-muted-foreground">
+                            {u.startDate && <span>{u.startDate}</span>}
+                            {u.endDate && <span> ~ {u.endDate}</span>}
+                            {daysLeft !== null && isActive && !isExpired && <span className="ml-1 text-amber-400">{daysLeft}일 남음</span>}
+                            {isExpired && <span className="ml-1 text-red-400">{Math.abs(daysLeft!)}일 초과</span>}
+                          </div>
+                          {u.memo && <div className="text-xs text-muted-foreground mt-0.5">{u.memo}</div>}
+                        </div>
+                        <div className="flex flex-col gap-1 shrink-0">
+                          {isActive && (
+                            <button
+                              onClick={() => { if (confirm("반납 처리하시겠습니까?")) returnUniform.mutate({ id: u.id, isActive: 0 }); }}
+                              className="text-xs px-2 py-1 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 font-medium"
+                            >
+                              반납
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openEditUniform(u)}
+                            className="text-xs px-2 py-1 rounded-lg bg-accent text-foreground hover:bg-accent/80"
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={() => { if (confirm("삭제하시겠습니까?")) deleteUniform.mutate({ id: u.id }); }}
+                            className="text-xs px-2 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 추가/수정 폼 모달 */}
+            {showUniformForm && (
+              <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4">
+                <div className="bg-card border border-border rounded-2xl w-full max-w-md space-y-3 p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-foreground">{editingUniform ? "운동복 수정" : "운동복 추가"}</h3>
+                    <button onClick={() => { setShowUniformForm(false); setEditingUniform(null); }} className="text-muted-foreground hover:text-foreground">✕</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">이름</label>
+                      <input value={uniformForm.memberName} onChange={e => setUniformForm(f => ({ ...f, memberName: e.target.value }))}
+                        placeholder="홍길동" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">연락처</label>
+                      <input value={uniformForm.memberPhone} onChange={e => setUniformForm(f => ({ ...f, memberPhone: e.target.value }))}
+                        placeholder="010-0000-0000" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">사이즈</label>
+                    <div className="flex gap-2 mt-1">
+                      {SIZES.map(s => (
+                        <button key={s} type="button"
+                          onClick={() => setUniformForm(f => ({ ...f, size: f.size === s ? "" : s }))}
+                          className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.size === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">수량</label>
+                      <input type="number" min="1" value={uniformForm.quantity} onChange={e => setUniformForm(f => ({ ...f, quantity: e.target.value }))}
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">시작일</label>
+                      <input type="date" value={uniformForm.startDate} onChange={e => setUniformForm(f => ({ ...f, startDate: e.target.value }))}
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">종료일</label>
+                      <input type="date" value={uniformForm.endDate} onChange={e => setUniformForm(f => ({ ...f, endDate: e.target.value }))}
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">메모</label>
+                    <input value={uniformForm.memo} onChange={e => setUniformForm(f => ({ ...f, memo: e.target.value }))}
+                      placeholder="특이사항" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <button
+                    onClick={saveUniform}
+                    disabled={createUniform.isPending || updateUniform.isPending}
+                    className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-bold disabled:opacity-50"
+                  >
+                    {createUniform.isPending || updateUniform.isPending ? "저장 중..." : editingUniform ? "수정 완료" : "추가"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 배너 관리 */}
       {tab === "banners" && (

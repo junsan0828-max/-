@@ -562,6 +562,21 @@ async function initDatabase() {
     )`,
     `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "startDate" TEXT`,
     `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "endDate" TEXT`,
+    `CREATE TABLE IF NOT EXISTS uniforms (
+      id SERIAL PRIMARY KEY,
+      "branchId" INTEGER,
+      "memberId" INTEGER,
+      "memberName" TEXT,
+      "memberPhone" TEXT,
+      size TEXT,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      "startDate" TEXT,
+      "endDate" TEXT,
+      memo TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
