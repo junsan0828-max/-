@@ -1182,25 +1182,60 @@ const PREVIEW_FEATURES = [
   },
 ];
 
-export default function Workshop() {
+// WORKSHOP_LOCKED가 true일 때 보여주는 화면
+// (compile-time constant이므로 hooks 규칙 위반 없음)
+function WorkshopLockedView() {
   const { data: user } = trpc.auth.me.useQuery();
+  const trainerId = (user as any)?.trainerId as number | undefined;
+  const isAdmin = (user as any)?.role === "admin";
 
-  if (WORKSHOP_LOCKED) {
+  // 어드민 또는 트레이너는 FIT STEP+ 패널 접근
+  if (isAdmin || trainerId) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 px-6">
-        <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-          <Wrench className="h-8 w-8 text-muted-foreground" />
+      <div className="space-y-4">
+        <TabBanner tabKey="workshop" />
+        <div className="flex items-center gap-2">
+          <div>
+            <p className="text-base font-bold">
+              <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+              <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
+              <span className="text-primary font-black" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
+              <span className="text-sm font-semibold ml-2">관리</span>
+            </p>
+            <p className="text-xs text-muted-foreground">작업실의 다른 기능은 업데이트 준비 중입니다</p>
+          </div>
+          <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-semibold ml-auto shrink-0">🔧 일부 개발 중</span>
         </div>
-        <div className="space-y-1.5">
-          <p className="text-xl font-bold">작업실</p>
-          <span className="inline-block text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full font-semibold">🔧 개발 중</span>
-          <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-            현재 업데이트 작업 중입니다.<br />조금만 기다려 주세요!
-          </p>
-        </div>
+        {trainerId ? (
+          <FitStepPlusPanel trainerId={trainerId} />
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-8">트레이너 계정에서만 이용할 수 있습니다.</p>
+        )}
       </div>
     );
   }
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 px-6">
+      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+        <Wrench className="h-8 w-8 text-muted-foreground" />
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-xl font-bold">작업실</p>
+        <span className="inline-block text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full font-semibold">🔧 개발 중</span>
+        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+          현재 업데이트 작업 중입니다.<br />조금만 기다려 주세요!
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function Workshop() {
+  // WORKSHOP_LOCKED는 compile-time 상수이므로 훅 규칙 위반 없음
+  if (WORKSHOP_LOCKED) return <WorkshopLockedView />;
+
+  const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
