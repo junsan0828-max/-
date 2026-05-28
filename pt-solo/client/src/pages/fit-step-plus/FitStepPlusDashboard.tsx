@@ -6,8 +6,10 @@ import { ChevronRight, Lock, Star, RefreshCw, Sparkles, X } from "lucide-react";
 
 const CONDITION_EMOJI = ["😴", "😑", "😐", "☺️", "💪"];
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
-const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
-const BODY_PARTS = ["전신", "상체", "하체", "등", "어깨", "가슴", "복부", "허리", "코어", "엉덩이", "대퇴 후면", "대퇴 전면", "하퇴", "이두", "삼두", "기타"];
+const ENERGY_OPTIONS = ["낮음", "보통", "높음"];
+const MAIN_BODY_PARTS = ["전신", "상체", "하체", "코어", "기타"];
+const UPPER_BODY_SUBS = ["등", "어깨", "가슴", "팔"];
+const LOWER_BODY_SUBS = ["엉덩이", "대퇴 후면", "대퇴 전면", "하퇴"];
 const WORKOUT_THEMES = ["유산소 위주", "스트레칭 위주", "근력운동"];
 const PREV_LOG_UNLOCK = 10; // 이전 운동 잠금 해제 기준
 
@@ -95,7 +97,7 @@ function WorkoutTypeModal({ onClose, onSelect, logCount }: {
 
 function CheckInModal({ onClose, onSubmit, isPending }: {
   onClose: () => void;
-  onSubmit: (data: { conditionScore?: number; sleepHours?: string; energyLevel?: string; bodyParts?: string[]; workoutTheme?: string[]; intensity?: number }) => void;
+  onSubmit: (data: { conditionScore?: number; sleepHours?: string; energyLevel?: string; bodyParts?: string[]; workoutTheme?: string[] }) => void;
   isPending: boolean;
 }) {
   const [conditionScore, setConditionScore] = useState<number | undefined>();
@@ -103,96 +105,154 @@ function CheckInModal({ onClose, onSubmit, isPending }: {
   const [energyLevel, setEnergyLevel] = useState<string | undefined>();
   const [bodyParts, setBodyParts] = useState<string[]>([]);
   const [workoutTheme, setWorkoutTheme] = useState<string[]>([]);
-  const [intensity, setIntensity] = useState<number | undefined>();
+
+  const showUpperSubs = bodyParts.includes("상체");
+  const showLowerSubs = bodyParts.includes("하체");
+
+  function toggleMain(p: string) {
+    setBodyParts((prev) => {
+      if (prev.includes(p)) {
+        const subsToRemove = p === "상체" ? UPPER_BODY_SUBS : p === "하체" ? LOWER_BODY_SUBS : [];
+        return prev.filter((v) => v !== p && !subsToRemove.includes(v));
+      }
+      return [...prev, p];
+    });
+  }
+
+  function toggleSub(p: string) {
+    setBodyParts((prev) => prev.includes(p) ? prev.filter((v) => v !== p) : [...prev, p]);
+  }
 
   function toggleArr<T>(arr: T[], val: T): T[] {
     return arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="bg-background w-full max-w-md rounded-t-3xl p-5 pb-8 max-h-[92vh] overflow-y-auto space-y-5"
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center px-4" onClick={onClose}>
+      <div className="bg-background w-full max-w-md rounded-3xl max-h-[90vh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
+
+        {/* 헤더 */}
+        <div className="px-5 pt-5 pb-4 border-b border-border flex items-center justify-between shrink-0">
           <div>
             <h2 className="font-bold text-lg">출석 체크인</h2>
             <p className="text-xs text-muted-foreground mt-0.5">오늘의 컨디션을 알려주세요</p>
           </div>
-          <button onClick={onClose} className="text-muted-foreground text-xl leading-none">✕</button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <div>
-          <p className="text-sm font-semibold mb-2">오늘 컨디션</p>
-          <div className="grid grid-cols-5 gap-2">
-            {CONDITION_EMOJI.map((emoji, i) => (
-              <button key={i} onClick={() => setConditionScore(i + 1)}
-                className={`flex flex-col items-center gap-1 py-3 rounded-2xl border text-xl transition-colors ${conditionScore === i + 1 ? "border-primary bg-primary/10" : "border-border bg-muted/30"}`}>
-                {emoji}
-                <span className="text-[10px] text-muted-foreground">{i + 1}점</span>
-              </button>
-            ))}
+
+        {/* 스크롤 콘텐츠 */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+          {/* 오늘 컨디션 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">오늘 컨디션</p>
+            <div className="grid grid-cols-5 gap-2">
+              {CONDITION_EMOJI.map((emoji, i) => (
+                <button key={i} onClick={() => setConditionScore(conditionScore === i + 1 ? undefined : i + 1)}
+                  className={`flex flex-col items-center gap-1 py-3 rounded-2xl border text-xl transition-colors ${conditionScore === i + 1 ? "border-primary bg-primary/10" : "border-border bg-muted/30"}`}>
+                  {emoji}
+                  <span className="text-[10px] text-muted-foreground">{i + 1}점</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 수면 시간 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">수면 시간</p>
+            <div className="grid grid-cols-6 gap-1.5">
+              {SLEEP_OPTIONS.map((h) => (
+                <button key={h} onClick={() => setSleepHours(sleepHours === h ? undefined : h)}
+                  className={`py-2.5 rounded-xl border text-xs font-medium transition-colors ${sleepHours === h ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
+                  {h}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 에너지 상태 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">에너지 상태</p>
+            <div className="grid grid-cols-3 gap-2">
+              {ENERGY_OPTIONS.map((e) => (
+                <button key={e} onClick={() => setEnergyLevel(energyLevel === e ? undefined : e)}
+                  className={`py-2.5 rounded-2xl border text-sm font-medium transition-colors ${energyLevel === e ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
+                  {e}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 오늘의 운동 부위 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">오늘의 운동 부위 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
+            <div className="flex flex-wrap gap-2">
+              {MAIN_BODY_PARTS.map((p) => (
+                <button key={p} onClick={() => toggleMain(p)}
+                  className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors ${bodyParts.includes(p) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
+                  {p}
+                </button>
+              ))}
+            </div>
+            {showUpperSubs && (
+              <div className="mt-2 pl-3 border-l-2 border-primary/30">
+                <p className="text-xs text-muted-foreground mb-1.5">상체 세부 부위</p>
+                <div className="flex flex-wrap gap-2">
+                  {UPPER_BODY_SUBS.map((p) => (
+                    <button key={p} onClick={() => toggleSub(p)}
+                      className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${bodyParts.includes(p) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/20 text-foreground"}`}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {showLowerSubs && (
+              <div className="mt-2 pl-3 border-l-2 border-primary/30">
+                <p className="text-xs text-muted-foreground mb-1.5">하체 세부 부위</p>
+                <div className="flex flex-wrap gap-2">
+                  {LOWER_BODY_SUBS.map((p) => (
+                    <button key={p} onClick={() => toggleSub(p)}
+                      className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${bodyParts.includes(p) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/20 text-foreground"}`}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 오늘의 운동 주제 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">오늘의 운동 주제 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
+            <div className="flex flex-wrap gap-2">
+              {WORKOUT_THEMES.map((t) => (
+                <button key={t} onClick={() => setWorkoutTheme((prev) => toggleArr(prev, t))}
+                  className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors ${workoutTheme.includes(t) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold mb-2">수면 시간</p>
-          <div className="grid grid-cols-3 gap-2">
-            {SLEEP_OPTIONS.map((h) => (
-              <button key={h} onClick={() => setSleepHours(sleepHours === h ? undefined : h)}
-                className={`py-2.5 rounded-2xl border text-sm font-medium transition-colors ${sleepHours === h ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                {h}
-              </button>
-            ))}
-          </div>
+
+        {/* 하단 버튼 */}
+        <div className="px-5 py-4 border-t border-border flex gap-3 shrink-0">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-border rounded-2xl py-3 text-sm font-semibold text-foreground hover:bg-muted/50 transition-colors">
+            취소
+          </button>
+          <button
+            onClick={() => onSubmit({ conditionScore, sleepHours, energyLevel, bodyParts: bodyParts.length ? bodyParts : undefined, workoutTheme: workoutTheme.length ? workoutTheme : undefined })}
+            disabled={isPending}
+            className="flex-1 bg-primary text-primary-foreground font-bold py-3 rounded-2xl text-sm active:scale-95 transition-transform disabled:opacity-60">
+            {isPending ? "체크인 중..." : "출석 완료"}
+          </button>
         </div>
-        <div>
-          <p className="text-sm font-semibold mb-2">에너지 레벨</p>
-          <div className="grid grid-cols-3 gap-2">
-            {ENERGY_OPTIONS.map((e) => (
-              <button key={e} onClick={() => setEnergyLevel(energyLevel === e ? undefined : e)}
-                className={`py-2.5 rounded-2xl border text-sm font-medium transition-colors ${energyLevel === e ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                {e}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="text-sm font-semibold mb-2">오늘의 운동 부위 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
-          <div className="flex flex-wrap gap-2">
-            {BODY_PARTS.map((p) => (
-              <button key={p} onClick={() => setBodyParts((prev) => toggleArr(prev, p))}
-                className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${bodyParts.includes(p) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="text-sm font-semibold mb-2">오늘의 운동 주제 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
-          <div className="flex flex-wrap gap-2">
-            {WORKOUT_THEMES.map((t) => (
-              <button key={t} onClick={() => setWorkoutTheme((prev) => toggleArr(prev, t))}
-                className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${workoutTheme.includes(t) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="text-sm font-semibold mb-2">운동 강도</p>
-          <div className="grid grid-cols-5 gap-2">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} onClick={() => setIntensity(intensity === n ? undefined : n)}
-                className={`py-2.5 rounded-2xl border text-sm font-bold transition-colors ${intensity === n ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
-        <button
-          onClick={() => onSubmit({ conditionScore, sleepHours, energyLevel, bodyParts: bodyParts.length ? bodyParts : undefined, workoutTheme: workoutTheme.length ? workoutTheme : undefined, intensity })}
-          disabled={isPending}
-          className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-2xl text-base active:scale-95 transition-transform disabled:opacity-60">
-          {isPending ? "체크인 중..." : "출석 완료 ✅"}
-        </button>
       </div>
     </div>
   );
