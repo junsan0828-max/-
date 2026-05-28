@@ -2269,11 +2269,76 @@ function AdminWorkshopView() {
   );
 }
 
+// ── 스토어 카드 (기능 구매 탭용) ──────────────────────────────────────────────
+function WorkshopStoreCard({ item, onClick }: { item: WsItem; onClick: () => void }) {
+  const Icon = item.icon;
+  const storeMeta: Record<WsItemStatus, { label: string; cls: string; action: string }> = {
+    active:        { label: "✓ 포함",   cls: "bg-green-100 text-green-700",  action: "자세히" },
+    coming_soon:   { label: "출시 예정", cls: "bg-muted text-muted-foreground", action: "미리보기" },
+    addon_fsp:     { label: "ADD-ON",   cls: "bg-blue-100 text-blue-600",    action: "구매하기" },
+    addon_premium: { label: "PREMIUM",  cls: "bg-amber-100 text-amber-600",  action: "구매하기" },
+  };
+  const sm = storeMeta[item.status];
+
+  return (
+    <button onClick={onClick}
+      className="w-full bg-card border border-border rounded-2xl p-4 text-left hover:border-primary/30 hover:bg-primary/[0.02] active:scale-[0.98] transition-all duration-150">
+      <div className="flex items-start gap-3">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.status === "active" ? "bg-primary/10" : "bg-muted/60"}`}>
+          <Icon className={`h-5 w-5 ${item.status === "active" ? "text-primary" : "text-muted-foreground"}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <p className="text-sm font-semibold">{item.name}</p>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${sm.cls}`}>{sm.label}</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{item.shortDesc}</p>
+          {(item.status === "addon_fsp" || item.status === "addon_premium") && (
+            <p className="text-[10px] text-muted-foreground/70 mt-1">별도 구매 필요</p>
+          )}
+        </div>
+        <div className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors mt-0.5
+          ${item.status === "active" ? "bg-primary/10 text-primary hover:bg-primary/20"
+          : item.status === "coming_soon" ? "bg-muted text-muted-foreground"
+          : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
+          {sm.action}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ── 내 작업실 기능 행 ──────────────────────────────────────────────────────────
+function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: string }; onClick: () => void }) {
+  const Icon = item.icon;
+  const hasSettings = ["brand_page","fitstep_plus","booking","report_branding","templates","survey","contract_terms"].includes(item.id);
+
+  return (
+    <button onClick={onClick}
+      className="w-full bg-card border border-border rounded-2xl p-4 text-left hover:border-primary/30 hover:bg-primary/[0.02] active:scale-[0.98] transition-all duration-150">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">{item.name}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{item.catLabel}</p>
+        </div>
+        <div className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg
+          ${hasSettings ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+          {hasSettings ? "설정하기" : "사용 중"}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // ── 작업실 메인 (트레이너용, 상태 기반) ─────────────────────────────────────
 function WorkshopContent() {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const [selectedItem, setSelectedItem] = useState<WsItem | null>(null);
+  const [wsTab, setWsTab] = useState<"store" | "workspace">("store");
   const trainerId = (user as any)?.trainerId as number | undefined;
   const isAdmin = (user as any)?.role === "admin";
 
@@ -2383,7 +2448,13 @@ function WorkshopContent() {
     );
   }
 
-  // ── 체험 중 / 유예 / 활성화 → 전체 기능 표시 ──────────────────────────────
+  // ── 체험 중 / 유예 / 활성화 → 두 탭 표시 ────────────────────────────────────
+  const activeItems = WS_CATALOG.flatMap(cat =>
+    cat.items
+      .filter(item => item.status === "active")
+      .map(item => ({ ...item, catKey: cat.key, catLabel: cat.label }))
+  );
+
   return (
     <div className="space-y-4">
       <TabBanner tabKey="workshop" />
@@ -2417,10 +2488,11 @@ function WorkshopContent() {
         </div>
       )}
 
+      {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">작업실</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">스테퍼 전용 브랜딩 공간</p>
+          <p className="text-sm text-muted-foreground mt-0.5">스테퍼 전용 기능 공간</p>
         </div>
         {status === "active" && (
           <span className="flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">
@@ -2432,23 +2504,64 @@ function WorkshopContent() {
         )}
       </div>
 
-      <div className="space-y-6">
-        {WS_CATALOG.map(cat => (
-          <div key={cat.key}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`w-6 h-6 rounded-lg ${cat.bgCls} flex items-center justify-center`}>
-                <cat.icon className={`h-3.5 w-3.5 ${cat.iconCls}`} />
-              </div>
-              <p className="text-sm font-bold">{cat.label}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {cat.items.map(item => (
-                <WorkshopItemCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
-              ))}
-            </div>
-          </div>
-        ))}
+      {/* 서브탭 */}
+      <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
+        <button onClick={() => setWsTab("store")}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${wsTab === "store" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          기능 구매
+        </button>
+        <button onClick={() => setWsTab("workspace")}
+          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${wsTab === "workspace" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          내 작업실
+        </button>
       </div>
+
+      {/* ── 기능 구매 탭 ─────────────────────────────────────── */}
+      {wsTab === "store" && (
+        <div className="space-y-6 pb-6">
+          {WS_CATALOG.map(cat => (
+            <div key={cat.key}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className={`w-6 h-6 rounded-lg ${cat.bgCls} flex items-center justify-center`}>
+                  <cat.icon className={`h-3.5 w-3.5 ${cat.iconCls}`} />
+                </div>
+                <p className="text-sm font-bold">{cat.label}</p>
+                <span className="text-[10px] text-muted-foreground ml-auto">
+                  {cat.items.filter(i => i.status === "active").length}/{cat.items.length} 이용 가능
+                </span>
+              </div>
+              <div className="space-y-2">
+                {cat.items.map(item => (
+                  <WorkshopStoreCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 text-center space-y-1.5">
+            <p className="text-sm font-semibold">ADD-ON · PREMIUM 기능</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              추가 기능은 FIT STEP 포인트로 구매할 수 있습니다.<br />
+              출시 시 알림을 받으려면 문의해 주세요.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── 내 작업실 탭 ─────────────────────────────────────── */}
+      {wsTab === "workspace" && (
+        <div className="space-y-3 pb-6">
+          <p className="text-xs text-muted-foreground">
+            현재 이용 가능한 기능 {activeItems.length}개 · 설정 및 관리하세요
+          </p>
+          {activeItems.map(item => (
+            <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+          ))}
+          <div className="mt-4 bg-muted/30 border border-border/40 rounded-2xl p-4 text-center">
+            <p className="text-xs text-muted-foreground">추가 기능은 <button className="text-primary font-semibold underline-offset-2 hover:underline" onClick={() => setWsTab("store")}>기능 구매</button> 탭에서 확인하세요</p>
+          </div>
+        </div>
+      )}
 
       {selectedItem && (
         <WorkshopItemSheet
