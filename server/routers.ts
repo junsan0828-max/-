@@ -4471,7 +4471,9 @@ const eventProgramsRouter = t.router({
       id: z.number().optional(),
       type: z.enum(["PT", "헬스"]),
       name: z.string().min(1),
-      applicableSessions: z.string(),             // 콤마 구분 세션 목록, 예: "10,20,30"
+      applicableSessions: z.string().optional().default(""), // 콤마 구분 세션 목록, 예: "10,20,30"
+      sessions: z.number().optional(),                       // 하위호환용
+      pricePerSession: z.number().optional(),                // 하위호환용
       serviceSessions: z.number().min(0).default(0),
       serviceSessionPrice: z.number().min(0).default(0),
       isActive: z.number().default(1),
@@ -4482,14 +4484,16 @@ const eventProgramsRouter = t.router({
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      // sessions: 하위호환용으로 첫 번째 값 저장
-      const firstSession = parseInt(input.applicableSessions.split(",")[0]) || 0;
+      // applicableSessions: 새 형식. 없으면 구 sessions 값으로 폴백
+      const resolvedApplicable = input.applicableSessions || (input.sessions ? String(input.sessions) : "");
+      const firstSession = parseInt(resolvedApplicable.split(",")[0]) || input.sessions || 0;
+      const resolvedPrice = input.pricePerSession ?? 0;
       if (input.id) {
         await db.execute(sql`
           UPDATE pt_event_programs SET
             type = ${input.type}, name = ${input.name},
-            sessions = ${firstSession}, "applicableSessions" = ${input.applicableSessions},
-            "serviceSessions" = ${input.serviceSessions}, "pricePerSession" = 0,
+            sessions = ${firstSession}, "applicableSessions" = ${resolvedApplicable},
+            "serviceSessions" = ${input.serviceSessions}, "pricePerSession" = ${resolvedPrice},
             "serviceSessionPrice" = ${input.serviceSessionPrice}, "isActive" = ${input.isActive},
             "startDate" = ${input.startDate ?? null}, "endDate" = ${input.endDate ?? null}
           WHERE id = ${input.id}
@@ -4497,7 +4501,7 @@ const eventProgramsRouter = t.router({
       } else {
         await db.execute(sql`
           INSERT INTO pt_event_programs (type, name, sessions, "applicableSessions", "serviceSessions", "pricePerSession", "serviceSessionPrice", "isActive", "startDate", "endDate", "createdAt")
-          VALUES (${input.type}, ${input.name}, ${firstSession}, ${input.applicableSessions}, ${input.serviceSessions}, 0, ${input.serviceSessionPrice}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
+          VALUES (${input.type}, ${input.name}, ${firstSession}, ${resolvedApplicable}, ${input.serviceSessions}, ${resolvedPrice}, ${input.serviceSessionPrice}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
         `);
       }
       return { success: true };
