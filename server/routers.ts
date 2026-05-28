@@ -3607,7 +3607,8 @@ const reportsRouter = t.router({
     .input(z.object({ memberId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const trainerId = ctx.user.trainerId;
+      // admin/sub_admin은 trainerId 대신 userId를 음수로 사용 (충돌 방지)
+      const trainerId = ctx.user.trainerId ?? (-(ctx.user.id));
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
       const existing = await db
@@ -3633,7 +3634,7 @@ const reportsRouter = t.router({
     .input(z.object({ memberId: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      const trainerId = ctx.user.trainerId;
+      const trainerId = ctx.user.trainerId ?? (-(ctx.user.id));
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
       await db.delete(reportTokens).where(
