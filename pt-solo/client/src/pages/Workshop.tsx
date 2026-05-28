@@ -1295,11 +1295,165 @@ const PREVIEW_FEATURES = [
 ];
 
 // ── 어드민 전용 작업실 관리 뷰 ──────────────────────────────────────────────
+
+type WsCategory = "fsp" | "brand" | "booking" | "branding" | "templates" | "survey" | "contract";
+
+const WS_CATS: { key: WsCategory; label: string; icon: React.ElementType }[] = [
+  { key: "fsp",       label: "FSP 회원 관리",    icon: Users },
+  { key: "brand",     label: "브랜드 페이지",    icon: Globe },
+  { key: "booking",   label: "상담 예약",        icon: Calendar },
+  { key: "branding",  label: "보고서 브랜딩",    icon: BookMarked },
+  { key: "templates", label: "운동 템플릿",       icon: Dumbbell },
+  { key: "survey",    label: "설문 빌더",        icon: ClipboardList },
+  { key: "contract",  label: "계약서 약관",      icon: FileText },
+];
+
+function planBadge(plan: string) {
+  const base = "text-[10px] font-bold px-1.5 py-0.5 rounded";
+  if (plan === "elite") return <span className={`${base} bg-amber-100 text-amber-700`}>ELITE</span>;
+  if (plan === "pro") return <span className={`${base} bg-blue-100 text-blue-700`}>PRO</span>;
+  return <span className={`${base} bg-muted text-muted-foreground`}>FREE</span>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg: Record<string, string> = {
+    "정상":       "bg-green-100 text-green-700",
+    "미사용":     "bg-muted text-muted-foreground",
+    "확인필요":   "bg-yellow-100 text-yellow-700",
+    "활성":       "bg-blue-100 text-blue-700",
+    "기본 사용":  "bg-muted text-muted-foreground",
+  };
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${cfg[status] ?? "bg-muted text-muted-foreground"}`}>{status}</span>;
+}
+
+function TrainerDetailPanel({ trainerId, category }: { trainerId: number; category: WsCategory }) {
+  const { data: fsp }      = trpc.admin.getTrainerFspDetail.useQuery({ trainerId }, { enabled: category === "fsp" });
+  const { data: bookings } = trpc.admin.getTrainerBookingsDetail.useQuery({ trainerId }, { enabled: category === "booking" });
+  const { data: templates }= trpc.admin.getTrainerTemplatesDetail.useQuery({ trainerId }, { enabled: category === "templates" });
+  const { data: survey }   = trpc.admin.getTrainerSurveyDetail.useQuery({ trainerId }, { enabled: category === "survey" });
+  const { data: contract } = trpc.admin.getTrainerContractDetail.useQuery({ trainerId }, { enabled: category === "contract" });
+
+  if (category === "fsp") {
+    if (!fsp) return <p className="text-xs text-muted-foreground text-center py-3">불러오는 중...</p>;
+    if (fsp.length === 0) return <p className="text-xs text-muted-foreground text-center py-3">등록된 FSP 회원이 없습니다</p>;
+    return (
+      <div className="space-y-1.5">
+        {fsp.map((m: any) => (
+          <div key={m.id} className="flex items-center justify-between bg-background border border-border rounded-lg px-3 py-2">
+            <div>
+              <p className="text-xs font-semibold">{m.name}</p>
+              <p className="text-[10px] text-muted-foreground">{m.phone ?? m.username} · {m.membershipType}</p>
+            </div>
+            <div className="text-right">
+              {m.membershipEnd && <p className="text-[10px] text-muted-foreground">만료: {m.membershipEnd}</p>}
+              <p className="text-[10px] text-muted-foreground">{m.createdAt?.slice(0,10)} 가입</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (category === "booking") {
+    if (!bookings) return <p className="text-xs text-muted-foreground text-center py-3">불러오는 중...</p>;
+    if (bookings.length === 0) return <p className="text-xs text-muted-foreground text-center py-3">예약 내역이 없습니다</p>;
+    const statusCls: Record<string, string> = { confirmed: "text-green-600", cancelled: "text-red-500", pending: "text-blue-500" };
+    const statusLabel: Record<string, string> = { confirmed: "확인", cancelled: "취소", pending: "대기" };
+    return (
+      <div className="space-y-1.5">
+        {bookings.map((b: any) => (
+          <div key={b.id} className="flex items-start justify-between bg-background border border-border rounded-lg px-3 py-2">
+            <div>
+              <p className="text-xs font-semibold">{b.name}</p>
+              <p className="text-[10px] text-muted-foreground">{b.phone}{b.interestType ? ` · ${b.interestType}` : ""}</p>
+              {b.message && <p className="text-[10px] text-muted-foreground line-clamp-1">{b.message}</p>}
+            </div>
+            <span className={`text-[10px] font-semibold ${statusCls[b.status] ?? ""}`}>{statusLabel[b.status] ?? b.status}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (category === "templates") {
+    if (!templates) return <p className="text-xs text-muted-foreground text-center py-3">불러오는 중...</p>;
+    if (templates.length === 0) return <p className="text-xs text-muted-foreground text-center py-3">저장된 템플릿이 없습니다</p>;
+    return (
+      <div className="space-y-1.5">
+        {templates.map((t: any) => {
+          let exNames = "";
+          try { exNames = JSON.parse(t.exercisesJson ?? "[]").map((e: any) => e.name).join(", "); } catch {}
+          return (
+            <div key={t.id} className="bg-background border border-border rounded-lg px-3 py-2">
+              <p className="text-xs font-semibold">{t.name}{t.bodyPart ? ` · ${t.bodyPart}` : ""}</p>
+              {exNames && <p className="text-[10px] text-muted-foreground">{exNames}</p>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (category === "survey") {
+    if (!survey) return <p className="text-xs text-muted-foreground text-center py-3">불러오는 중...</p>;
+    return (
+      <div className="space-y-3">
+        <div>
+          <p className="text-[10px] font-semibold text-muted-foreground mb-1">설문 문항 ({survey.questions.length})</p>
+          {survey.questions.length === 0 ? <p className="text-xs text-muted-foreground">등록된 문항 없음</p> : (
+            <div className="space-y-1">
+              {survey.questions.map((q: any, i: number) => (
+                <div key={q.id} className="bg-background border border-border rounded-lg px-3 py-1.5">
+                  <p className="text-xs">{i+1}. {q.question}</p>
+                  <p className="text-[10px] text-muted-foreground">{q.type}{q.isRequired ? " · 필수" : ""}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold text-muted-foreground mb-1">응답 ({survey.responses.length}건)</p>
+          {survey.responses.length === 0 ? <p className="text-xs text-muted-foreground">응답 없음</p> : (
+            <div className="space-y-1">
+              {survey.responses.map((r: any) => (
+                <div key={r.id} className="bg-background border border-border rounded-lg px-3 py-1.5">
+                  <p className="text-xs font-semibold">{r.respondentName}</p>
+                  <p className="text-[10px] text-muted-foreground">{r.respondentPhone ?? ""} · {r.createdAt?.slice(0,10)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (category === "contract") {
+    if (!contract) return <p className="text-xs text-muted-foreground text-center py-3">커스텀 약관 없음 (기본값 사용)</p>;
+    return (
+      <div className="space-y-2">
+        {[["이용 약관", contract.termsOfService], ["개인정보", contract.privacyPolicy], ["광고수신", contract.marketingConsent]].map(([label, val]) => (
+          val ? (
+            <div key={label} className="bg-background border border-border rounded-lg px-3 py-2">
+              <p className="text-[10px] font-semibold text-muted-foreground mb-1">{label}</p>
+              <p className="text-xs line-clamp-3">{val}</p>
+            </div>
+          ) : null
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-xs text-muted-foreground text-center py-3">상세 정보가 없습니다</div>
+  );
+}
+
 function AdminWorkshopView() {
-  const [, navigate] = useLocation();
-  const { data: trainers } = trpc.admin.listTrainers.useQuery();
+  const [activeCategory, setActiveCategory] = useState<WsCategory>("fsp");
+  const [expandedTrainerId, setExpandedTrainerId] = useState<number | null>(null);
+  const { data: stats, isLoading } = trpc.admin.getWorkshopAllStats.useQuery();
   const { data: limits } = trpc.fitStepPlus.admin_getPlanLimits.useQuery();
-  const { data: workshopStats } = trpc.fitStepPlus.admin_workshopStats.useQuery();
   const utils = trpc.useUtils();
   const updateLimitsMutation = trpc.fitStepPlus.admin_updatePlanLimits.useMutation({
     onSuccess: () => { utils.fitStepPlus.admin_getPlanLimits.invalidate(); toast.success("저장되었습니다"); },
@@ -1310,169 +1464,185 @@ function AdminWorkshopView() {
   const [pro, setPro] = useState("");
   const [elite, setElite] = useState("");
   const [limitsInited, setLimitsInited] = useState(false);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   if (limits && !limitsInited) {
     setFree(String(limits.free)); setPro(String(limits.pro)); setElite(String(limits.elite));
     setLimitsInited(true);
   }
 
-  const statsMap = new Map((workshopStats ?? []).map(s => [s.trainerId, s]));
+  const rows: any[] = stats ?? [];
 
-  const planBadge = (plan: string) => {
-    const base = "text-[10px] font-bold px-1.5 py-0.5 rounded";
-    if (plan === "elite") return <span className={`${base} bg-amber-100 text-amber-700`}>ELITE</span>;
-    if (plan === "pro") return <span className={`${base} bg-blue-100 text-blue-700`}>PRO</span>;
-    return <span className={`${base} bg-muted text-muted-foreground`}>FREE</span>;
-  };
+  function summaryCards(): { label: string; value: string | number; color?: string }[] {
+    switch (activeCategory) {
+      case "fsp": return [
+        { label: "전체 FSP 회원", value: rows.reduce((s, r) => s + (r.fsp_count ?? 0), 0), color: "text-primary" },
+        { label: "FSP 사용 트레이너", value: rows.filter(r => r.fsp_count > 0).length, color: "text-green-500" },
+        { label: "전체 트레이너", value: rows.length },
+      ];
+      case "brand": return [
+        { label: "브랜드 공개", value: rows.filter(r => r.brandIsPublic).length, color: "text-green-500" },
+        { label: "소개글 작성", value: rows.filter(r => r.brandBio).length },
+        { label: "미공개", value: rows.filter(r => !r.brandIsPublic).length },
+      ];
+      case "booking": return [
+        { label: "예약 받기 활성", value: rows.filter(r => r.bookingEnabled).length, color: "text-blue-500" },
+        { label: "총 예약 건수", value: rows.reduce((s, r) => s + (r.booking_count ?? 0), 0) },
+        { label: "대기 중 예약", value: rows.reduce((s, r) => s + (r.booking_pending ?? 0), 0), color: "text-yellow-600" },
+      ];
+      case "branding": return [
+        { label: "브랜드 컬러 설정", value: rows.filter(r => r.brandColor).length, color: "text-primary" },
+        { label: "브랜드 공개", value: rows.filter(r => r.brandIsPublic).length },
+        { label: "미설정", value: rows.filter(r => !r.brandColor).length },
+      ];
+      case "templates": return [
+        { label: "총 템플릿 수", value: rows.reduce((s, r) => s + (r.template_count ?? 0), 0), color: "text-primary" },
+        { label: "사용 트레이너", value: rows.filter(r => r.template_count > 0).length, color: "text-green-500" },
+        { label: "미사용 트레이너", value: rows.filter(r => !r.template_count).length },
+      ];
+      case "survey": return [
+        { label: "총 문항 수", value: rows.reduce((s, r) => s + (r.survey_question_count ?? 0), 0), color: "text-primary" },
+        { label: "총 응답 수", value: rows.reduce((s, r) => s + (r.survey_response_count ?? 0), 0), color: "text-green-500" },
+        { label: "사용 트레이너", value: rows.filter(r => r.survey_question_count > 0).length },
+      ];
+      case "contract": return [
+        { label: "커스텀 약관", value: rows.filter(r => r.has_custom_terms).length, color: "text-primary" },
+        { label: "기본값 사용", value: rows.filter(r => !r.has_custom_terms).length },
+        { label: "전체 트레이너", value: rows.length },
+      ];
+    }
+  }
 
-  const totalWorkshopOpen = (workshopStats ?? []).filter(s => s.workshopOpen).length;
-  const totalBrandPublic = (workshopStats ?? []).filter(s => s.brandIsPublic).length;
-  const totalFsp = (workshopStats ?? []).reduce((s, t) => s + t.fspCount, 0);
+  function trainerInfo(r: any): string {
+    switch (activeCategory) {
+      case "fsp": {
+        const lim = limits ? (r.plan === "elite" ? limits.elite : r.plan === "pro" ? limits.pro : limits.free) : 5;
+        return `FSP ${r.fsp_count ?? 0}/${lim}명`;
+      }
+      case "brand": return r.brandIsPublic ? "공개 중" : "비공개";
+      case "booking": return r.bookingEnabled ? `활성 · 예약 ${r.booking_count ?? 0}건` : "비활성";
+      case "branding": return r.brandColor ?? "미설정";
+      case "templates": return `템플릿 ${r.template_count ?? 0}개`;
+      case "survey": return `문항 ${r.survey_question_count ?? 0} · 응답 ${r.survey_response_count ?? 0}`;
+      case "contract": return r.has_custom_terms ? "커스텀 약관 설정" : "기본값 사용";
+    }
+  }
+
+  function trainerStatus(r: any): string {
+    switch (activeCategory) {
+      case "fsp": return r.fsp_count > 0 ? "활성" : "미사용";
+      case "brand": return r.brandIsPublic ? "공개" : "미사용";
+      case "booking": return r.bookingEnabled ? "활성" : "미사용";
+      case "branding": return r.brandColor ? "설정됨" : "미사용";
+      case "templates": return r.template_count > 0 ? "활성" : "미사용";
+      case "survey": return r.survey_question_count > 0 ? "활성" : "미사용";
+      case "contract": return r.has_custom_terms ? "커스텀" : "기본값";
+    }
+  }
+
+  const cards = summaryCards();
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <TabBanner tabKey="workshop" />
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">작업실 관리</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">트레이너 작업실 현황 통제 및 설정</p>
+          <h1 className="text-xl font-bold">기능 사용 현황</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">트레이너별 작업실 기능 사용 현황</p>
         </div>
         <span className="text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-semibold">관리자 모드</span>
       </div>
 
-      {/* 요약 통계 */}
+      {/* 카테고리 탭 */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+        {WS_CATS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => { setActiveCategory(key); setExpandedTrainerId(null); }}
+            className={`flex items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              activeCategory === key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            <Icon className="h-3 w-3" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* 요약 카드 */}
       <div className="grid grid-cols-3 gap-2">
-        <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-lg font-black text-primary">{totalWorkshopOpen}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">작업실 오픈</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-lg font-black text-green-500">{totalBrandPublic}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">브랜드 페이지 공개</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-3 text-center">
-          <p className="text-lg font-black text-blue-500">{totalFsp}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">FIT STEP+ 전체 회원</p>
-        </div>
+        {cards.map((card) => (
+          <div key={card.label} className="bg-card border border-border rounded-xl p-3 text-center">
+            <p className={`text-lg font-black ${card.color ?? "text-foreground"}`}>{card.value}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{card.label}</p>
+          </div>
+        ))}
       </div>
 
-      {/* 플랜별 FSP 한도 */}
-      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-        <p className="text-sm font-semibold">FIT STEP+ 플랜별 회원 수 제한</p>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "FREE", value: free, set: setFree },
-            { label: "PRO", value: pro, set: setPro },
-            { label: "ELITE", value: elite, set: setElite },
-          ].map(({ label, value, set }) => (
-            <div key={label} className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground">{label}</label>
-              <div className="flex items-center gap-1">
-                <input type="number" min={1} max={500} value={value} onChange={e => set(e.target.value)}
-                  className="w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
-                <span className="text-[10px] text-muted-foreground shrink-0">명</span>
+      {/* FSP 탭 전용: 플랜 한도 설정 */}
+      {activeCategory === "fsp" && (
+        <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <p className="text-sm font-semibold">플랜별 FSP 회원 수 제한</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "FREE", value: free, set: setFree },
+              { label: "PRO", value: pro, set: setPro },
+              { label: "ELITE", value: elite, set: setElite },
+            ].map(({ label, value, set }) => (
+              <div key={label} className="space-y-1">
+                <label className="text-[11px] font-semibold text-muted-foreground">{label}</label>
+                <div className="flex items-center gap-1">
+                  <input type="number" min={1} max={500} value={value} onChange={e => set(e.target.value)}
+                    className="w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary" />
+                  <span className="text-[10px] text-muted-foreground shrink-0">명</span>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          <button
+            onClick={() => updateLimitsMutation.mutate({ free: parseInt(free)||5, pro: parseInt(pro)||15, elite: parseInt(elite)||30 })}
+            disabled={updateLimitsMutation.isPending}
+            className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {updateLimitsMutation.isPending ? "저장 중..." : "저장"}
+          </button>
         </div>
-        <button
-          onClick={() => updateLimitsMutation.mutate({ free: parseInt(free)||5, pro: parseInt(pro)||15, elite: parseInt(elite)||30 })}
-          disabled={updateLimitsMutation.isPending}
-          className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-        >
-          {updateLimitsMutation.isPending ? "저장 중..." : "저장"}
-        </button>
-      </div>
+      )}
 
-      {/* 트레이너별 작업실 현황 */}
+      {/* 트레이너 리스트 */}
       <div>
-        <p className="text-sm font-semibold mb-2">트레이너별 작업실 현황</p>
-        {!trainers || trainers.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">등록된 트레이너가 없습니다</p>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">트레이너 목록 ({rows.length})</p>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">등록된 트레이너가 없습니다</p>
         ) : (
           <div className="space-y-2">
-            {trainers.map((trainer) => {
-              const plan = (trainer as any).plan ?? "free";
-              const stats = statsMap.get(trainer.id);
-              const fspLimit = limits ? (plan === "elite" ? limits.elite : plan === "pro" ? limits.pro : limits.free) : 5;
-              const isExpanded = expandedId === trainer.id;
-
+            {rows.map((r: any) => {
+              const isExpanded = expandedTrainerId === r.id;
               return (
-                <div key={trainer.id} className="bg-card border border-border rounded-xl overflow-hidden">
-                  {/* 헤더 행 */}
+                <div key={r.id} className="bg-card border border-border rounded-xl overflow-hidden">
                   <button
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/20 transition-colors"
-                    onClick={() => setExpandedId(isExpanded ? null : trainer.id)}
+                    onClick={() => setExpandedTrainerId(isExpanded ? null : r.id)}
                   >
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-primary">{trainer.trainerName?.[0]}</span>
+                      <span className="text-xs font-bold text-primary">{r.trainerName?.[0]}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold">{trainer.trainerName}</p>
-                        {planBadge(plan)}
+                        <p className="text-sm font-semibold truncate">{r.trainerName}</p>
+                        {planBadge(r.plan ?? "free")}
                       </div>
-                      <p className="text-[10px] text-muted-foreground">@{trainer.username}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{trainerInfo(r)}</p>
                     </div>
-                    {/* 상태 뱃지들 */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${stats?.workshopOpen ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>
-                        {stats?.workshopOpen ? "작업실오픈" : "미오픈"}
-                      </span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${stats?.brandIsPublic ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"}`}>
-                        {stats?.brandIsPublic ? "브랜드공개" : "비공개"}
-                      </span>
-                    </div>
+                    <StatusBadge status={trainerStatus(r)} />
                     {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
                   </button>
 
-                  {/* 확장 상세 */}
                   {isExpanded && (
-                    <div className="border-t border-border px-4 py-3 space-y-3 bg-accent/10">
-                      {/* 수치 요약 */}
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="text-center">
-                          <p className="text-base font-bold">{(trainer as any).memberCount ?? 0}</p>
-                          <p className="text-[10px] text-muted-foreground">PT 회원</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-base font-bold">{stats?.fspCount ?? 0}<span className="text-xs text-muted-foreground">/{fspLimit}</span></p>
-                          <p className="text-[10px] text-muted-foreground">FIT STEP+</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-base font-bold">{(trainer as any).sessionCount ?? 0}</p>
-                          <p className="text-[10px] text-muted-foreground">수업 횟수</p>
-                        </div>
-                      </div>
-
-                      {/* 액션 버튼들 */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => navigate(`/fit-step-plus/${trainer.id}`)}
-                          className="flex items-center justify-center gap-1.5 text-xs font-medium border border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 rounded-lg px-3 py-2 transition-colors"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          FIT STEP+ 앱 확인
-                        </button>
-                        <button
-                          onClick={() => navigate(`/admin/trainers/${trainer.id}`)}
-                          className="flex items-center justify-center gap-1.5 text-xs font-medium border border-border hover:bg-accent rounded-lg px-3 py-2 transition-colors"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          트레이너 상세 관리
-                        </button>
-                        {stats?.brandIsPublic && (
-                          <button
-                            onClick={() => navigate(`/p/${trainer.username}`)}
-                            className="flex items-center justify-center gap-1.5 text-xs font-medium border border-border hover:bg-accent rounded-lg px-3 py-2 transition-colors col-span-2"
-                          >
-                            <Globe className="w-3.5 h-3.5" />
-                            브랜드 페이지 미리보기
-                          </button>
-                        )}
-                      </div>
+                    <div className="border-t border-border px-4 py-3 bg-accent/10">
+                      <TrainerDetailPanel trainerId={r.id} category={activeCategory} />
                     </div>
                   )}
                 </div>
@@ -1503,13 +1673,13 @@ function WorkshopLockedView() {
             onClick={() => setAdminTab("manage")}
             className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "manage" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
-            작업실 관리
+            기능 사용 현황
           </button>
           <button
             onClick={() => setAdminTab("workshop")}
             className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "workshop" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
-            내 작업실 기능
+            내 작업실
           </button>
         </div>
         {adminTab === "manage" ? <AdminWorkshopView /> : <WorkshopContent />}
