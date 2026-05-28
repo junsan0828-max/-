@@ -2301,6 +2301,13 @@ const trainingLogRouter = t.router({
 // ─── FIT POINT Router ────────────────────────────────────────────────────────
 
 const fitPointsRouter = t.router({
+  getAutoRules: protectedProcedure.query(async () => {
+    const result = await pool.query<{ event: string; amount: number }>(
+      `SELECT event, amount FROM point_auto_rules WHERE "isEnabled"=1`
+    );
+    return Object.fromEntries(result.rows.map(r => [r.event, r.amount])) as Record<string, number>;
+  }),
+
   getBalance: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });

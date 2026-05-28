@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
+import { useAutoPoints, pointLabel } from "@/hooks/useAutoPoints";
 
 // 관리상담: consulted 상태이고 상담일로부터 7일 이내
 function resolveDisplayStatus(status: string, consultationDate: string | null | undefined): string {
@@ -196,6 +197,7 @@ export default function LeadsPage() {
   });
 
   const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
+  const autoPoints = useAutoPoints();
 
   const addPackageMutation = trpc.pt.addPackage.useMutation({
     onSuccess: () => {
@@ -800,7 +802,13 @@ export default function LeadsPage() {
                       setShowReregiConfirm(true);
                     }}
                     className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-emerald-700 disabled:opacity-40">
-                    {addPackageMutation.isPending ? "등록 중..." : "재등록 완료 (-50P)"}
+                    {addPackageMutation.isPending ? "등록 중..." : (
+                      <span className="flex items-center justify-center gap-1.5">
+                        재등록 완료
+                        {pointLabel(autoPoints("renewal_complete")) && <span className="text-xs font-normal text-green-300">{pointLabel(autoPoints("renewal_complete"))}</span>}
+                        <span className="text-xs font-normal opacity-70">-50P</span>
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1113,7 +1121,7 @@ export default function LeadsPage() {
                 <div className="flex gap-2">
                   <button type="button" onClick={() => handleSave("consulted")}
                     className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
-                    상담완료
+                    상담완료{pointLabel(autoPoints("lead_complete")) ? <span className="text-xs font-normal opacity-80 ml-1">{pointLabel(autoPoints("lead_complete"))}</span> : null}
                   </button>
                   <button type="button" onClick={openContract}
                     className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
