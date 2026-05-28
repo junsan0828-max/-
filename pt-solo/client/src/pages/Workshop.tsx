@@ -1767,7 +1767,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
     addon_premium: { label: "PREMIUM", cls: "bg-amber-100 text-amber-600" },
     hidden: { label: "숨김", cls: "bg-gray-200 text-gray-500" },
   };
-  const sm = STATUS_META[feature.status] ?? STATUS_META.coming_soon;
+  const sm = STATUS_META[editStatus] ?? STATUS_META.coming_soon;
 
   function getFeatureTrainers() {
     switch (feature.id) {
@@ -1856,7 +1856,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
           <div className="pt-2 border-t border-border space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기능 직접 테스트</p>
-              {feature.status === "active" && (
+              {editStatus === "active" && (
                 <button
                   onClick={() => setShowTestUI(v => !v)}
                   className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
@@ -1870,7 +1870,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                 </button>
               )}
             </div>
-            {feature.status !== "active" ? (
+            {editStatus !== "active" ? (
               <div className="bg-muted/40 rounded-xl px-4 py-3 text-center">
                 <p className="text-xs text-muted-foreground">활성 상태인 기능만 테스트할 수 있습니다.</p>
               </div>
