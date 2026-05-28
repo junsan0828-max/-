@@ -54,22 +54,27 @@ async function giveAutoPoints(trainerId: number, event: string, memo: string) {
 }
 
 // 포인트 차감 헬퍼 — 잔액 부족 시 TRPCError 발생
-const FEATURE_COST = 50;
-async function spendPoints(trainerId: number, memo: string) {
+async function spendPoints(trainerId: number, feature: string, memo: string) {
+  const ruleRow = await pool.query<{ cost: number; isEnabled: number }>(
+    `SELECT cost, "isEnabled" FROM feature_cost_rules WHERE feature=$1`, [feature]
+  );
+  const cost = ruleRow.rows[0]?.cost ?? 50;
+  const isEnabled = ruleRow.rows[0]?.isEnabled ?? 1;
+  if (!isEnabled) return; // 규칙 비활성화 시 차감 안 함
   const bal = await pool.query<{ balance: string }>(
     `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
     [trainerId]
   );
   const balance = Number(bal.rows[0]?.balance ?? 0);
-  if (balance < FEATURE_COST) {
+  if (balance < cost) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: `포인트가 부족합니다. (필요: ${FEATURE_COST}P, 보유: ${balance}P)`,
+      message: `포인트가 부족합니다. (필요: ${cost}P, 보유: ${balance}P)`,
     });
   }
   await pool.query(
     `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'feature_use',$3,'completed')`,
-    [trainerId, -FEATURE_COST, memo]
+    [trainerId, -cost, memo]
   );
 }
 
@@ -641,7 +646,7 @@ const ptRouter = t.router({
       });
 
       if (isRenewal && trainerId) giveAutoPoints(trainerId, "renewal_complete", "재등록 완료");
-      if (input.withContract) await spendPoints(trainerId, "재등록 계약");
+      if (input.withContract) await spendPoints(trainerId, "reregistration", "재등록 계약");
 
       const memberInfo = await db.select({ membershipEnd: members.membershipEnd, membershipStart: members.membershipStart }).from(members).where(eq(members.id, input.memberId)).limit(1);
       if (memberInfo[0] && !memberInfo[0].membershipEnd) {
@@ -2087,6 +2092,23 @@ const adminRouter = t.router({
       return { success: true };
     }),
 
+  getFeatureCostRules: adminProcedure.query(async () => {
+    const rows = await pool.query<{ feature: string; label: string; cost: number; isEnabled: number }>(
+      `SELECT feature, label, cost, "isEnabled" FROM feature_cost_rules ORDER BY feature`
+    );
+    return rows.rows;
+  }),
+
+  updateFeatureCostRule: adminProcedure
+    .input(z.object({ feature: z.string(), cost: z.number().int().min(0), isEnabled: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `UPDATE feature_cost_rules SET cost=$1, "isEnabled"=$2, "updatedAt"=now()::text WHERE feature=$3`,
+        [input.cost, input.isEnabled ? 1 : 0, input.feature]
+      );
+      return { success: true };
+    }),
+
   listSurveyResponses: adminProcedure.query(async () => {
     const rows = await pool.query<{
       id: number; trainerName: string | null; phone: string | null; email: string | null;
@@ -2375,7 +2397,7 @@ const fitPointsRouter = t.router({
         branding_share:  "브랜딩 페이지 공유",
         exercise_report: "회원 운동 리포트 공유",
       };
-      await spendPoints(trainerId, memoMap[input.feature]);
+      await spendPoints(trainerId, input.feature, memoMap[input.feature]);
       return { success: true };
     }),
 });

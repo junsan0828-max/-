@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Coins, ChevronDown, ChevronUp, CheckCircle, Clock, XCircle, Zap, Gift, ToggleLeft, ToggleRight, Pencil, Trash2, Plus, Check, X } from "lucide-react";
+import { Coins, ChevronDown, ChevronUp, CheckCircle, Clock, XCircle, Zap, Gift, ToggleLeft, ToggleRight, Pencil, Trash2, Plus, Check, X, Minus } from "lucide-react";
 import { toast } from "sonner";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -215,12 +215,78 @@ function AutoRuleCard({
   );
 }
 
+function FeatureCostRuleCard({ rule, onUpdate, saving }: {
+  rule: { feature: string; label: string; cost: number; isEnabled: number };
+  onUpdate: (feature: string, cost: number, isEnabled: boolean) => void;
+  saving: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftCost, setDraftCost] = useState(String(rule.cost));
+
+  const startEdit = () => { setDraftCost(String(rule.cost)); setEditing(true); };
+  const submitEdit = () => { onUpdate(rule.feature, Number(draftCost) || 0, !!rule.isEnabled); setEditing(false); };
+
+  return (
+    <div className={`rounded-xl border transition-colors ${rule.isEnabled ? "border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10" : "border-border bg-accent/10"}`}>
+      {editing ? (
+        <div className="p-3 space-y-2">
+          <p className="text-xs font-semibold">{rule.label}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground shrink-0">차감 포인트</span>
+            <Input type="number" min="0" value={draftCost} onChange={e => setDraftCost(e.target.value)}
+              className="h-8 text-sm w-24 bg-background border-border" />
+            <span className="text-xs text-muted-foreground">P</span>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" className="h-7 flex-1 text-xs gap-1" disabled={saving} onClick={submitEdit}>
+              <Check className="h-3 w-3" />저장
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 flex-1 text-xs gap-1" onClick={() => setEditing(false)}>
+              <X className="h-3 w-3" />취소
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-3">
+          <div className="flex items-start gap-2">
+            <Minus className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold leading-tight">{rule.label}</p>
+              {rule.isEnabled ? (
+                <p className="text-xs text-red-500 font-medium mt-1">{rule.cost.toLocaleString()} P 차감</p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">비활성 (무료)</p>
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button onClick={startEdit} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={() => onUpdate(rule.feature, rule.cost, !rule.isEnabled)} className="p-1">
+                {rule.isEnabled
+                  ? <ToggleRight className="h-6 w-6 text-red-400" />
+                  : <ToggleLeft className="h-6 w-6 text-muted-foreground" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPoints() {
   const [search, setSearch] = useState("");
   const { data: trainers, isLoading } = trpc.admin.listTrainersWithPoints.useQuery();
   const { data: rules, refetch: refetchRules } = trpc.admin.getAutoRules.useQuery();
   const [showAddRule, setShowAddRule] = useState(false);
   const [newRule, setNewRule] = useState<RuleEdit>({ label: "", description: "", amount: "100" });
+
+  const { data: costRules, refetch: refetchCostRules } = trpc.admin.getFeatureCostRules.useQuery();
+  const updateCostRule = trpc.admin.updateFeatureCostRule.useMutation({
+    onSuccess: () => { toast.success("저장되었습니다."); refetchCostRules(); },
+    onError: e => toast.error(e.message),
+  });
 
   const updateRule = trpc.admin.updateAutoRule.useMutation({
     onSuccess: () => { toast.success("저장되었습니다."); refetchRules(); },
@@ -323,6 +389,27 @@ export default function AdminPoints() {
               onToggle={handleToggle}
               onDelete={e => deleteRule.mutate({ event: e })}
               saving={updateRule.isPending}
+            />
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* 포인트 사용 규칙 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Minus className="h-4 w-4 text-red-400" />포인트 사용 규칙
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">기능 사용 시 차감되는 포인트를 설정합니다. 토글로 ON/OFF, 연필로 금액 수정</p>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {!costRules && <p className="text-xs text-muted-foreground py-4 text-center">로딩 중...</p>}
+          {costRules?.map(rule => (
+            <FeatureCostRuleCard
+              key={rule.feature}
+              rule={rule}
+              onUpdate={(feature, cost, isEnabled) => updateCostRule.mutate({ feature, cost, isEnabled })}
+              saving={updateCostRule.isPending}
             />
           ))}
         </CardContent>

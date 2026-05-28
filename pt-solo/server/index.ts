@@ -713,6 +713,29 @@ async function initDatabase() {
     await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, [k, v]);
   }
 
+  // 기능 사용 포인트 차감 규칙 테이블
+  await pool.query(`CREATE TABLE IF NOT EXISTS feature_cost_rules (
+    feature TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    cost INTEGER NOT NULL DEFAULT 50,
+    "isEnabled" INTEGER NOT NULL DEFAULT 1,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  for (const [feature, label] of [
+    ['new_contract',    '신규 전자계약'],
+    ['reregistration',  '재등록 계약'],
+    ['contract_pdf',    '계약서 PDF 전달'],
+    ['health_report',   '건강 리포트 공유'],
+    ['stats_report',    '통계 리포트 생성'],
+    ['branding_share',  '브랜딩 페이지 공유'],
+    ['exercise_report', '회원 운동 리포트 공유'],
+  ]) {
+    await pool.query(
+      `INSERT INTO feature_cost_rules (feature, label, cost, "isEnabled") VALUES ($1,$2,50,1) ON CONFLICT (feature) DO NOTHING`,
+      [feature, label]
+    );
+  }
+
   // 포인트 자동 지급 규칙 테이블
   await pool.query(`CREATE TABLE IF NOT EXISTS point_auto_rules (
     id SERIAL PRIMARY KEY,
