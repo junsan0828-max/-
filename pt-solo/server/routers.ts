@@ -2241,8 +2241,6 @@ const leadsRouter = t.router({
       const [totalCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
       if (Number(totalCnt?.count ?? 0) >= contractLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${plan.toUpperCase()} 플랜은 유효회원을 최대 ${contractLimit}명까지 등록할 수 있습니다.` });
 
-      await spendPoints(trainerId, "신규 전자계약");
-
       const [member] = await db.insert(members).values({
         trainerId, name: input.name, phone: input.phone, gender: input.gender,
         status: "active", membershipStart: input.startDate,
@@ -2351,6 +2349,7 @@ const fitPointsRouter = t.router({
   spendFeature: protectedProcedure
     .input(z.object({
       feature: z.enum([
+        "new_contract",    // 신규 전자계약
         "contract_pdf",    // 계약서 PDF 전달
         "health_report",   // 건강 리포트 공유
         "stats_report",    // 통계 리포트 생성
@@ -2362,6 +2361,7 @@ const fitPointsRouter = t.router({
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const memoMap: Record<string, string> = {
+        new_contract:    "신규 전자계약",
         contract_pdf:    "계약서 PDF 전달",
         health_report:   "건강 리포트 공유",
         stats_report:    "통계 리포트 생성",

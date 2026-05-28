@@ -186,6 +186,7 @@ export default function LeadsPage() {
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
   const [showReregiConfirm, setShowReregiConfirm] = useState(false);
+  const [showNewContractConfirm, setShowNewContractConfirm] = useState(false);
   const [reregMemberId, setReregMemberId] = useState("");
   const [reregPkg, setReregPkg] = useState({
     ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
@@ -722,7 +723,7 @@ export default function LeadsPage() {
                 <p className="text-xs text-muted-foreground">이름 입력 후 전자계약 화면으로 이동합니다.</p>
                 <div className="flex gap-2">
                   <button onClick={() => setShowQuickModal(false)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
-                  <button onClick={startQuickNew} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-bold hover:bg-primary/90">전자계약 진행</button>
+                  <button onClick={() => { if (!quickName.trim()) return toast.error("이름을 입력해주세요"); setShowNewContractConfirm(true); }} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-bold hover:bg-primary/90">전자계약 진행 (-50P)</button>
                 </div>
               </div>
             )}
@@ -1124,6 +1125,23 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      {/* 신규 전자계약 포인트 확인 */}
+      <PointSpendConfirm
+        open={showNewContractConfirm}
+        onClose={() => setShowNewContractConfirm(false)}
+        featureName="신규 전자계약"
+        loading={spendFeatureMutation.isPending}
+        onConfirm={() => {
+          spendFeatureMutation.mutate({ feature: "new_contract" }, {
+            onSuccess: () => {
+              setShowNewContractConfirm(false);
+              startQuickNew();
+            },
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
+
       {/* PDF 출력 포인트 확인 */}
       <PointSpendConfirm
         open={showPdfConfirm}
