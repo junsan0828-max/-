@@ -535,6 +535,118 @@ function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   );
 }
 
+// ── 어드민용 FIT STEP+ 플랜 한도 설정 패널 ────────────────────────────────────
+function AdminFspLimitsPanel() {
+  const utils = trpc.useUtils();
+  const { data: limits, isLoading } = trpc.fitStepPlus.admin_getPlanLimits.useQuery();
+  const { data: overview } = trpc.fitStepPlus.admin_overview.useQuery();
+  const { data: trainers } = trpc.admin.listTrainers.useQuery();
+  const updateMutation = trpc.fitStepPlus.admin_updatePlanLimits.useMutation({
+    onSuccess: () => { utils.fitStepPlus.admin_getPlanLimits.invalidate(); toast.success("저장되었습니다"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [free, setFree] = useState("");
+  const [pro, setPro] = useState("");
+  const [elite, setElite] = useState("");
+  const [inited, setInited] = useState(false);
+
+  if (!isLoading && limits && !inited) {
+    setFree(String(limits.free));
+    setPro(String(limits.pro));
+    setElite(String(limits.elite));
+    setInited(true);
+  }
+
+  const memberCountMap = new Map(
+    (overview?.memberCounts ?? []).map((mc) => [mc.trainerId, Number(mc.count)])
+  );
+
+  const planColor = (plan: string) => {
+    if (plan === "elite") return "bg-amber-100 text-amber-700";
+    if (plan === "pro") return "bg-blue-100 text-blue-700";
+    return "bg-muted text-muted-foreground";
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 플랜별 제한 설정 */}
+      <div className="bg-accent/20 border border-border rounded-xl p-4 space-y-3">
+        <div>
+          <p className="text-sm font-semibold">플랜별 FIT STEP+ 회원 수 제한</p>
+          <p className="text-xs text-muted-foreground mt-0.5">트레이너 플랜에 따라 등록 가능한 최대 회원 수</p>
+        </div>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">불러오는 중...</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "FREE", value: free, set: setFree },
+              { label: "PRO", value: pro, set: setPro },
+              { label: "ELITE", value: elite, set: setElite },
+            ].map(({ label, value, set }) => (
+              <div key={label} className="space-y-1">
+                <label className="text-[11px] font-semibold text-muted-foreground">{label}</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    className="w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <span className="text-[10px] text-muted-foreground shrink-0">명</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <button
+          onClick={() => updateMutation.mutate({ free: parseInt(free)||5, pro: parseInt(pro)||15, elite: parseInt(elite)||30 })}
+          disabled={updateMutation.isPending || isLoading}
+          className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {updateMutation.isPending ? "저장 중..." : "저장"}
+        </button>
+      </div>
+
+      {/* 트레이너별 현황 */}
+      <div>
+        <p className="text-xs font-semibold mb-2 text-muted-foreground">트레이너별 현황</p>
+        {!trainers || trainers.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">등록된 트레이너가 없습니다</p>
+        ) : (
+          <div className="space-y-2">
+            {trainers.map((trainer) => {
+              const count = memberCountMap.get(trainer.id) ?? 0;
+              const plan = (trainer as any).plan ?? "free";
+              const limit = plan === "elite" ? parseInt(elite)||30 : plan === "pro" ? parseInt(pro)||15 : parseInt(free)||5;
+              return (
+                <div key={trainer.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-card border border-border">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{trainer.trainerName}</p>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${planColor(plan)}`}>{plan.toUpperCase()}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">@{trainer.username}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold">{count} <span className="text-xs text-muted-foreground font-normal">/ {limit}명</span></p>
+                    <div className="w-20 h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.min(100, (count/limit)*100)}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── 메인 Workshop 페이지 ────────────────────────────────────────────────────
 function ContractTermsEditor() {
   const utils = trpc.useUtils();
@@ -1412,7 +1524,12 @@ function WorkshopContent() {
           </button>
           {openSection === "fitstep" && (
             <CardContent className="pt-0 pb-4">
-              {trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>}
+              {isAdmin
+                ? <AdminFspLimitsPanel />
+                : trainerId
+                  ? <FitStepPlusPanel trainerId={trainerId} />
+                  : <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>
+              }
             </CardContent>
           )}
         </Card>
