@@ -854,6 +854,28 @@ export default function LeadsPage() {
                             className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                         )}
                       </div>
+                      {regForm.programKey === "이벤트피티" && (
+                        <div>
+                          <label className="text-xs text-muted-foreground">이벤트 선택</label>
+                          <select
+                            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            defaultValue=""
+                            onChange={e => {
+                              const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
+                              if (ev) setRegForm(f => ({ ...f, sessions: ev.sessions, serviceSessions: ev.serviceSessions }));
+                            }}>
+                            <option value="" disabled>이벤트 선택...</option>
+                            {(ptEvents ?? []).map((ev: any) => (
+                              <option key={ev.id} value={String(ev.id)}>
+                                {ev.name} (결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회)
+                              </option>
+                            ))}
+                          </select>
+                          {(ptEvents ?? []).length === 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>
+                          )}
+                        </div>
+                      )}
                       <div>
                         <label className="text-xs text-muted-foreground">PT 횟수</label>
                         <div className="flex gap-2 mt-1">
@@ -864,22 +886,6 @@ export default function LeadsPage() {
                               {n}회
                             </button>
                           ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">서비스 횟수 <span className="text-muted-foreground/60">(무상 제공)</span></label>
-                        <div className="flex gap-2 mt-1 flex-wrap">
-                          {[0, 1, 2, 3, 5].map(n => (
-                            <button key={n} type="button"
-                              onClick={() => setRegForm(f => ({ ...f, serviceSessions: f.serviceSessions === n ? undefined : n }))}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${regForm.serviceSessions === n ? "bg-amber-500 text-white border-amber-500" : "bg-background border-border text-muted-foreground"}`}>
-                              {n === 0 ? "없음" : `+${n}회`}
-                            </button>
-                          ))}
-                          <input type="number" min="0" placeholder="직접"
-                            value={regForm.serviceSessions !== undefined && ![0,1,2,3,5].includes(regForm.serviceSessions) ? regForm.serviceSessions : ""}
-                            onChange={e => setRegForm(f => ({ ...f, serviceSessions: e.target.value ? Number(e.target.value) : undefined }))}
-                            className="w-16 bg-background border border-border rounded-lg px-2 py-1.5 text-sm text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                         </div>
                         {(regForm.sessions || regForm.serviceSessions) && (
                           <p className="text-xs text-primary mt-1 font-medium">

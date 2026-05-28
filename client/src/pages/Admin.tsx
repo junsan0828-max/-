@@ -271,6 +271,32 @@ function ResyncGymPlusButton() {
   );
 }
 
+function BackfillLeadMemberDataButton() {
+  const [result, setResult] = useState<{ total: number; updated: number } | null>(null);
+  const mutation = trpc.gym.leads.backfillMemberData.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      toast.success(`완료: ${data.total}건 중 ${data.updated}명 회원 정보 업데이트`);
+    },
+    onError: (e) => toast.error(e.message || "실패"),
+  });
+  return (
+    <div className="mt-3 space-y-2">
+      <button
+        onClick={() => { if (confirm("상담 리드에서 생성된 기존 회원의 성별/유입경로를 일괄 보완합니다. 진행할까요?")) mutation.mutate(); }}
+        disabled={mutation.isPending}
+        className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+        {mutation.isPending ? "업데이트 중..." : "리드→회원 성별/유입경로 일괄 보완"}
+      </button>
+      {result && (
+        <p className="text-xs text-muted-foreground text-center">
+          전체 {result.total}건 중 {result.updated}명 업데이트 완료
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -1233,6 +1259,7 @@ export default function Admin() {
           </div>
           <p className="text-xs text-muted-foreground">⚠ DB 복원 시 현재 모든 데이터가 업로드한 파일로 교체됩니다.</p>
           <ResyncGymPlusButton />
+          <BackfillLeadMemberDataButton />
         </CardContent>
       </Card>
 

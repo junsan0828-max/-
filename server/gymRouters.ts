@@ -271,6 +271,41 @@ const leadsRouter = t.router({
 
       return { total, consulted, followup, registered, conversionRate, byChannel };
     }),
+
+  backfillMemberData: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    // 리드와 연결된 회원 목록 조회
+    const linkedLeads = await db.select({
+      leadGender: leads.gender,
+      leadChannelId: leads.channelId,
+      memberId: leads.registeredMemberId,
+    }).from(leads).where(sql`"registeredMemberId" IS NOT NULL`);
+
+    const channelList = await db.select({ id: channels.id, name: channels.name }).from(channels);
+    const channelMap = new Map(channelList.map(c => [c.id, c.name]));
+
+    let updated = 0;
+    for (const row of linkedLeads) {
+      if (!row.memberId) continue;
+      const [mem] = await db.select({ gender: members.gender, visitRoute: members.visitRoute })
+        .from(members).where(eq(members.id, row.memberId)).limit(1);
+      if (!mem) continue;
+
+      const updates: Record<string, string | undefined> = {};
+      if (!mem.gender && row.leadGender) updates.gender = row.leadGender;
+      if (!mem.visitRoute && row.leadChannelId) updates.visitRoute = channelMap.get(row.leadChannelId) ?? undefined;
+
+      if (Object.keys(updates).length > 0) {
+        await db.update(members).set({ ...updates, updatedAt: new Date().toISOString() }).where(eq(members.id, row.memberId));
+        updated++;
+      }
+    }
+
+    return { total: linkedLeads.length, updated };
+  }),
 });
 
 // ─── Revenue Entries (매출 장부) ──────────────────────────────────────────────
