@@ -1737,7 +1737,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
 }) {
   const utils = trpc.useUtils();
   const FIcon = feature.icon;
-  const [editStatus, setEditStatus] = useState(feature.status);
+  const [editStatus, setEditStatus] = useState<string>(feature.status);
   const [adminNote, setAdminNote] = useState("");
 
   const updateMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
