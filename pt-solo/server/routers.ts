@@ -2228,6 +2228,118 @@ const adminRouter = t.router({
       answers: r.onboardingSurveyData ? JSON.parse(r.onboardingSurveyData) as Record<string, string[]> : {},
     }));
   }),
+
+  // ── 작업실 관리 콘솔 ─────────────────────────────────────────────────────────
+  getWorkshopConsole: adminProcedure.query(async () => {
+    const rows = await pool.query<any>(`
+      SELECT
+        t.id, t."trainerName", t.username, t.plan,
+        t."brandIsPublic", t."brandBio", t."brandColor", t."bookingEnabled",
+        COALESCE(fsp.cnt, 0)::int AS fsp_count,
+        COALESCE(wt.cnt, 0)::int AS template_count,
+        COALESCE(sq.cnt, 0)::int AS survey_question_count,
+        COALESCE(sr.cnt, 0)::int AS survey_response_count,
+        COALESCE(cb.cnt, 0)::int AS booking_count,
+        CASE WHEN ts."termsOfService" IS NOT NULL THEN true ELSE false END AS has_custom_terms,
+        ts."workshopTrialStartedAt",
+        CASE WHEN wu.id IS NOT NULL THEN true ELSE false END AS workshop_activated,
+        COALESCE(pts.balance, 0)::int AS points_balance
+      FROM trainers t
+      LEFT JOIN workshop_unlocks wu ON t.id = wu."trainerId" AND wu.feature = 'workshop_access'
+      LEFT JOIN (SELECT "trainerId", COUNT(*) cnt FROM fit_step_plus_members GROUP BY "trainerId") fsp ON t.id = fsp."trainerId"
+      LEFT JOIN (SELECT "trainerId", COUNT(*) cnt FROM workout_templates GROUP BY "trainerId") wt ON t.id = wt."trainerId"
+      LEFT JOIN (SELECT "trainerId", COUNT(*) cnt FROM custom_survey_questions GROUP BY "trainerId") sq ON t.id = sq."trainerId"
+      LEFT JOIN (SELECT "trainerId", COUNT(*) cnt FROM custom_survey_responses GROUP BY "trainerId") sr ON t.id = sr."trainerId"
+      LEFT JOIN (SELECT "trainerId", COUNT(*) cnt FROM consultation_bookings GROUP BY "trainerId") cb ON t.id = cb."trainerId"
+      LEFT JOIN trainer_settings ts ON t.id = ts."trainerId"
+      LEFT JOIN (
+        SELECT "trainerId", SUM(amount) balance FROM fit_point_logs
+        WHERE status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)
+        GROUP BY "trainerId"
+      ) pts ON t.id = pts."trainerId"
+      ORDER BY t."trainerName"
+    `);
+    const now = new Date();
+    const TRIAL_DAYS = 30, GRACE_DAYS = 2;
+    const trainers = rows.rows.map((r: any) => {
+      let wsStatus = 'unopened', daysRemaining: number | null = null;
+      if (r.workshop_activated) {
+        wsStatus = 'active';
+      } else if (r.workshopTrialStartedAt) {
+        const started = new Date(r.workshopTrialStartedAt);
+        const daysSince = Math.floor((now.getTime() - started.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSince <= TRIAL_DAYS) { wsStatus = 'trial'; daysRemaining = TRIAL_DAYS - daysSince; }
+        else if (daysSince <= TRIAL_DAYS + GRACE_DAYS) { wsStatus = 'grace'; daysRemaining = TRIAL_DAYS + GRACE_DAYS - daysSince; }
+        else wsStatus = 'locked';
+      }
+      return { ...r, wsStatus, daysRemaining };
+    });
+    const cfgRows = await pool.query<any>(`SELECT * FROM workshop_feature_config`);
+    const revenueRow = await pool.query<{ total: string }>(
+      `SELECT COALESCE(SUM(ABS(amount)), 0) AS total FROM fit_point_logs WHERE type='workshop_unlock' AND amount < 0 AND status='completed'`
+    );
+    return {
+      trainers,
+      featureConfigs: cfgRows.rows as { featureId: string; status: string; adminNote: string | null }[],
+      unlockRevenue: Number(revenueRow.rows[0]?.total ?? 0),
+      summary: {
+        total: trainers.length,
+        unopened: trainers.filter((t: any) => t.wsStatus === 'unopened').length,
+        trial: trainers.filter((t: any) => t.wsStatus === 'trial').length,
+        grace: trainers.filter((t: any) => t.wsStatus === 'grace').length,
+        locked: trainers.filter((t: any) => t.wsStatus === 'locked').length,
+        active: trainers.filter((t: any) => t.wsStatus === 'active').length,
+      }
+    };
+  }),
+
+  getWorkshopPointLog: adminProcedure.query(async () => {
+    const rows = await pool.query<any>(`
+      SELECT l.id, l."trainerId", l.amount, l.type, l.memo, l.status, l."createdAt",
+             t."trainerName"
+      FROM fit_point_logs l
+      LEFT JOIN trainers t ON l."trainerId" = t.id
+      WHERE l.type = 'workshop_unlock' OR (l.type = 'admin_grant' AND l.memo LIKE '%작업실%')
+      ORDER BY l.id DESC LIMIT 300
+    `);
+    return rows.rows;
+  }),
+
+  updateWorkshopFeatureConfig: adminProcedure
+    .input(z.object({ featureId: z.string(), status: z.string(), adminNote: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`
+        INSERT INTO workshop_feature_config ("featureId", status, "adminNote", "updatedAt")
+        VALUES ($1, $2, $3, now()::text)
+        ON CONFLICT ("featureId") DO UPDATE SET
+          status = EXCLUDED.status,
+          "adminNote" = COALESCE(EXCLUDED."adminNote", workshop_feature_config."adminNote"),
+          "updatedAt" = now()::text
+      `, [input.featureId, input.status, input.adminNote ?? null]);
+      return { success: true };
+    }),
+
+  grantWorkshopAccess: adminProcedure
+    .input(z.object({ trainerId: z.number(), memo: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`
+        INSERT INTO workshop_unlocks ("trainerId", feature, "pointsSpent")
+        VALUES ($1, 'workshop_access', 0)
+        ON CONFLICT ("trainerId", feature) DO NOTHING
+      `, [input.trainerId]);
+      await pool.query(
+        `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1, 0, 'admin_grant', $2, 'completed')`,
+        [input.trainerId, input.memo ?? '관리자 수동 작업실 활성화']
+      );
+      return { success: true };
+    }),
+
+  revokeWorkshopAccess: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`DELETE FROM workshop_unlocks WHERE "trainerId"=$1 AND feature='workshop_access'`, [input.trainerId]);
+      return { success: true };
+    }),
 });
 
 // ─── Channels Router ──────────────────────────────────────────────────────────
