@@ -1491,9 +1491,31 @@ function WorkshopLockedView() {
   const { data: user } = trpc.auth.me.useQuery();
   const trainerId = (user as any)?.trainerId as number | undefined;
   const isAdmin = (user as any)?.role === "admin";
+  const [adminTab, setAdminTab] = useState<"manage" | "workshop">("manage");
 
-  // 어드민은 관리자 전용 뷰
-  if (isAdmin) return <AdminWorkshopView />;
+  // 어드민은 탭으로 전환
+  if (isAdmin) {
+    return (
+      <div className="space-y-4">
+        {/* 탭 전환 */}
+        <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
+          <button
+            onClick={() => setAdminTab("manage")}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "manage" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            작업실 관리
+          </button>
+          <button
+            onClick={() => setAdminTab("workshop")}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "workshop" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            내 작업실 기능
+          </button>
+        </div>
+        {adminTab === "manage" ? <AdminWorkshopView /> : <WorkshopContent />}
+      </div>
+    );
+  }
 
   // 트레이너는 FIT STEP+ 패널 접근
   if (trainerId) {
