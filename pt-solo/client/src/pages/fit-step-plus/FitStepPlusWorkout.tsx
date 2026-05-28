@@ -1,40 +1,21 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
-import { GripVertical, Trash2, Plus, Check } from "lucide-react";
-
-// ─── Types ───────────────────────────────────────────────
-
-interface ActiveSet {
-  reps: string;
-  weight: string;
-  done: boolean;
-}
-
-interface ActiveExercise {
-  name: string;
-  sets: ActiveSet[];
-}
-
-interface LogFormData {
-  logDate: string;
-  title: string;
-  durationMinutes: string;
-  caloriesBurned: string;
-  bodyWeight: string;
-  notes: string;
-  mood: string;
-}
+import { GripVertical, Trash2, Plus, X } from "lucide-react";
 
 // ─── Constants ───────────────────────────────────────────
 
-const COMPOUND_KW = ["스쿼트", "데드리프트", "벤치", "랫풀", "런지", "로우", "딥스", "풀업", "프레스", "힙쓰러스트", "바벨"];
-const LOWER_KW = ["스쿼트", "런지", "레그", "햄스트링", "종아리", "힙", "글루트", "하체", "대퇴"];
-const FULL_KW = ["데드리프트", "클린", "스내치", "버피", "전신"];
+const CONDITION_EMOJI = ["😴", "😑", "😐", "☺️", "💪"];
+const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
+const ENERGY_OPTIONS = ["낮음", "보통", "높음"];
+const MAIN_BODY_PARTS = ["전신", "상체", "하체", "코어", "기타"];
+const UPPER_BODY_SUBS = ["등", "어깨", "가슴", "팔"];
+const LOWER_BODY_SUBS = ["엉덩이", "대퇴 후면", "대퇴 전면", "하퇴"];
+const WORKOUT_THEMES = ["유산소 위주", "스트레칭 위주", "근력운동"];
 
 const moodLabel: Record<string, string> = {
   great: "최고 💪", good: "좋음 😊", normal: "보통 😐", tired: "피곤 😴",
@@ -46,65 +27,22 @@ const moodColor: Record<string, string> = {
   tired: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
-// ─── Calorie / Intensity helpers ──────────────────────────
+// ─── Helpers ─────────────────────────────────────────────
 
-function hasKw(name: string, kws: string[]): boolean {
-  const l = name.toLowerCase();
-  return kws.some((k) => l.includes(k.toLowerCase()));
+function scoreToMood(score: number | undefined): string {
+  if (!score) return "normal";
+  if (score >= 5) return "great";
+  if (score >= 4) return "good";
+  if (score >= 3) return "normal";
+  return "tired";
 }
 
-function getIntensity(exercises: ActiveExercise[], durationMinutes: number): "LOW" | "MEDIUM" | "HIGH" {
-  const done = exercises.flatMap((ex) => ex.sets.filter((s) => s.done));
-  if (done.length === 0) return "LOW";
-  const weights = done.filter((s) => parseFloat(s.weight) > 0).map((s) => parseFloat(s.weight));
-  const avgW = weights.length > 0 ? weights.reduce((a, b) => a + b, 0) / weights.length : 0;
-  const spm = done.length / Math.max(durationMinutes, 1);
-  const hasLower = exercises.some((ex) => hasKw(ex.name, LOWER_KW));
-  const hasFull = exercises.some((ex) => hasKw(ex.name, FULL_KW));
-  const hasComp = exercises.some((ex) => hasKw(ex.name, COMPOUND_KW));
-  if ((hasFull || hasLower) && (avgW >= 50 || spm >= 0.25)) return "HIGH";
-  if (hasComp && avgW >= 30) return "HIGH";
-  if (hasComp || avgW >= 20 || spm >= 0.15) return "MEDIUM";
-  return "LOW";
+function energyToIntensity(e: string | undefined): string | undefined {
+  if (e === "높음") return "HIGH";
+  if (e === "보통") return "MEDIUM";
+  if (e === "낮음") return "LOW";
+  return undefined;
 }
-
-function calcCalories(exercises: ActiveExercise[], durationMinutes: number, bw: number): number {
-  if (bw <= 0 || durationMinutes <= 0) return 0;
-  const intensity = getIntensity(exercises, durationMinutes);
-  const MET = intensity === "HIGH" ? 8.0 : intensity === "MEDIUM" ? 5.5 : 3.5;
-  let mult = 1.0;
-  if (exercises.some((ex) => hasKw(ex.name, FULL_KW))) mult = 1.25;
-  else if (exercises.some((ex) => hasKw(ex.name, LOWER_KW))) mult = 1.20;
-  else if (exercises.some((ex) => hasKw(ex.name, COMPOUND_KW))) mult = 1.15;
-  return Math.round(MET * bw * (durationMinutes / 60) * mult);
-}
-
-function calcVolume(exercises: ActiveExercise[]): number {
-  return Math.round(
-    exercises.reduce((t, ex) =>
-      t + ex.sets.filter((s) => s.done).reduce((st, s) =>
-        st + parseFloat(s.weight || "0") * parseFloat(s.reps || "0"), 0), 0)
-  );
-}
-
-function calcScore(exercises: ActiveExercise[], durationMinutes: number, intensity: "LOW" | "MEDIUM" | "HIGH"): number {
-  const total = exercises.flatMap((ex) => ex.sets).length;
-  const done = exercises.flatMap((ex) => ex.sets.filter((s) => s.done)).length;
-  const iB = intensity === "HIGH" ? 40 : intensity === "MEDIUM" ? 25 : 10;
-  const tB = Math.min(Math.round(durationMinutes / 60 * 35), 35);
-  const cB = Math.round((total > 0 ? done / total : 0) * 25);
-  return Math.min(iB + tB + cB, 100);
-}
-
-function formatTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-// ─── Parse saved exercises for display ───────────────────
 
 function parseLogExercises(json: string | null | undefined): { name: string; detail: string }[] {
   if (!json) return [];
@@ -112,15 +50,14 @@ function parseLogExercises(json: string | null | undefined): { name: string; det
     const arr = JSON.parse(json) as any[];
     return arr.map((ex) => {
       if (Array.isArray(ex.sets)) {
-        const doneSets = (ex.sets as ActiveSet[]).filter((s) => s.done);
-        const allSets = doneSets.length > 0 ? doneSets : (ex.sets as ActiveSet[]);
-        const detail = allSets
+        const done = ex.sets.filter((s: any) => s.done);
+        const src = done.length > 0 ? done : ex.sets;
+        const detail = (src as any[])
           .filter((s) => s.reps || s.weight)
           .map((s) => `${s.reps || "-"}회${s.weight ? ` × ${s.weight}kg` : ""}`)
           .join(", ");
         return { name: ex.name, detail };
       }
-      // old format: {name, sets, reps, weight}
       const parts: string[] = [];
       if (ex.sets) parts.push(`${ex.sets}세트`);
       if (ex.reps) parts.push(`${ex.reps}회`);
@@ -132,295 +69,207 @@ function parseLogExercises(json: string | null | undefined): { name: string; det
   }
 }
 
-// ─── Plan Phase ───────────────────────────────────────────
+// ─── Workout Record Modal ─────────────────────────────────
 
-function PlanPhase({ onStart, onCancel }: { onStart: (names: string[]) => void; onCancel: () => void }) {
-  const [names, setNames] = useState<string[]>([""]);
-
-  const update = (i: number, v: string) => setNames((p) => { const n = [...p]; n[i] = v; return n; });
-  const add = () => setNames((p) => [...p, ""]);
-  const remove = (i: number) => setNames((p) => p.filter((_, j) => j !== i));
-  const validNames = names.filter((n) => n.trim());
-
-  return (
-    <div className="fixed inset-0 bg-background z-50 flex flex-col">
-      <div className="bg-card px-4 py-3 flex items-center justify-between border-b border-border">
-        <button onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground">취소</button>
-        <p className="font-semibold text-sm">운동 계획</p>
-        <div className="w-8" />
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <p className="text-sm font-semibold">운동 종목</p>
-        <div className="space-y-2">
-          {names.map((n, i) => (
-            <div key={i} className="flex items-center gap-2 bg-muted/30 border border-border rounded-xl px-3 py-2">
-              <GripVertical className="w-4 h-4 text-muted-foreground/30 shrink-0" />
-              <Input
-                placeholder="예: 스쿼트"
-                value={n}
-                onChange={(e) => update(i, e.target.value)}
-                className="bg-transparent border-0 text-sm h-7 p-0 focus-visible:ring-0 placeholder:text-muted-foreground/40"
-              />
-              <button onClick={() => remove(i)} className="text-red-400/50 hover:text-red-400 shrink-0">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={add}
-          className="w-full flex items-center justify-center gap-1.5 border border-dashed border-border/60 text-muted-foreground text-sm py-2.5 rounded-xl hover:border-primary/40 hover:text-primary/80 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> 운동 종목 추가
-        </button>
-      </div>
-
-      <div className="p-4 border-t border-border">
-        <button
-          onClick={() => validNames.length > 0 && onStart(validNames)}
-          disabled={validNames.length === 0}
-          className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-2xl text-base active:scale-95 transition-transform disabled:opacity-40"
-        >
-          ▶ 운동 시작
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Active Session ───────────────────────────────────────
-
-interface SessionResult {
-  exercises: ActiveExercise[];
-  durationMinutes: number;
-}
-
-function ActiveSession({ initialExercises, onFinish, onCancel }: {
-  initialExercises: string[];
-  onFinish: (r: SessionResult) => void;
-  onCancel: () => void;
+function WorkoutRecordModal({ onClose, onSubmit, isPending }: {
+  onClose: () => void;
+  onSubmit: (data: {
+    exerciseNames: string[];
+    conditionScore?: number;
+    sleepHours?: string;
+    energyLevel?: string;
+    bodyParts: string[];
+    workoutTheme: string[];
+  }) => void;
+  isPending: boolean;
 }) {
-  const [elapsed, setElapsed] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [exercises, setExercises] = useState<ActiveExercise[]>(
-    initialExercises.map((name) => ({ name, sets: [{ reps: "", weight: "", done: false }] }))
-  );
-  const startRef = useRef(Date.now());
-  const pausedAtRef = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [exerciseNames, setExerciseNames] = useState<string[]>([""]);
+  const [conditionScore, setConditionScore] = useState<number | undefined>();
+  const [sleepHours, setSleepHours] = useState<string | undefined>();
+  const [energyLevel, setEnergyLevel] = useState<string | undefined>();
+  const [bodyParts, setBodyParts] = useState<string[]>([]);
+  const [workoutTheme, setWorkoutTheme] = useState<string[]>([]);
 
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      if (!paused) setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
-    }, 1000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [paused]);
+  const showUpperSubs = bodyParts.includes("상체");
+  const showLowerSubs = bodyParts.includes("하체");
 
-  const totalSets = exercises.flatMap((ex) => ex.sets).length;
-  const doneSets = exercises.flatMap((ex) => ex.sets.filter((s) => s.done)).length;
-
-  function updateSet(exIdx: number, setIdx: number, field: keyof ActiveSet, val: string | boolean) {
-    setExercises((prev) => prev.map((ex, i) => {
-      if (i !== exIdx) return ex;
-      return { ...ex, sets: ex.sets.map((s, j) => j === setIdx ? { ...s, [field]: val } : s) };
-    }));
+  function updateName(i: number, v: string) {
+    setExerciseNames((p) => { const n = [...p]; n[i] = v; return n; });
+  }
+  function removeName(i: number) {
+    setExerciseNames((p) => p.filter((_, j) => j !== i));
   }
 
-  function addSet(exIdx: number) {
-    setExercises((prev) => prev.map((ex, i) => {
-      if (i !== exIdx) return ex;
-      const last = ex.sets[ex.sets.length - 1];
-      return { ...ex, sets: [...ex.sets, { reps: last?.reps ?? "", weight: last?.weight ?? "", done: false }] };
-    }));
+  function toggleMain(p: string) {
+    setBodyParts((prev) => {
+      if (prev.includes(p)) {
+        const subs = p === "상체" ? UPPER_BODY_SUBS : p === "하체" ? LOWER_BODY_SUBS : [];
+        return prev.filter((v) => v !== p && !subs.includes(v));
+      }
+      return [...prev, p];
+    });
   }
-
-  function togglePause() {
-    if (paused) {
-      startRef.current += Date.now() - pausedAtRef.current;
-      setPaused(false);
-    } else {
-      pausedAtRef.current = Date.now();
-      setPaused(true);
-    }
+  function toggleSub(p: string) {
+    setBodyParts((prev) => prev.includes(p) ? prev.filter((v) => v !== p) : [...prev, p]);
+  }
+  function toggleArr<T>(arr: T[], val: T): T[] {
+    return arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
   }
 
   return (
-    <div className="fixed inset-0 bg-[#0a0f1e] z-50 flex flex-col">
-      {/* Timer */}
-      <div className="bg-[#0f1929] px-4 py-4 text-center border-b border-white/10 shrink-0">
-        <p className="text-xs text-white/40 mb-1">운동 중</p>
-        <p className="text-4xl font-mono font-black text-white">{formatTime(elapsed)}</p>
-        <p className="text-xs text-white/30 mt-1">{doneSets}/{totalSets} 완료</p>
-        <button
-          onClick={togglePause}
-          className="mt-2 px-4 py-1.5 bg-yellow-500/20 border border-yellow-500/30 rounded-full text-yellow-400 text-xs font-medium"
-        >
-          {paused ? "▶ 재개" : "⏸ 일시정지"}
-        </button>
-      </div>
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center px-4" onClick={onClose}>
+      <div
+        className="bg-background w-full max-w-md rounded-3xl max-h-[90vh] flex flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="px-5 pt-5 pb-4 border-b border-border flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="font-bold text-lg">운동 기록하기</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">오늘의 운동을 기록하세요</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-      {/* Exercise cards */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {exercises.map((ex, exIdx) => {
-          const exDone = ex.sets.filter((s) => s.done).length;
-          return (
-            <div key={exIdx} className="bg-[#0f1929] border border-white/10 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="font-semibold text-white text-sm">{ex.name}</p>
-                <span className="text-xs text-white/30">{exDone}/{ex.sets.length} 완료</span>
-              </div>
-              <div className="grid grid-cols-[1.5rem_1fr_1fr_2.5rem] gap-2 mb-1.5 items-center">
-                <span />
-                <p className="text-[10px] text-white/40 text-center">횟수</p>
-                <p className="text-[10px] text-white/40 text-center">무게(kg)</p>
-                <p className="text-[10px] text-white/40 text-center">완료</p>
-              </div>
-              {ex.sets.map((set, setIdx) => (
-                <div key={setIdx} className="grid grid-cols-[1.5rem_1fr_1fr_2.5rem] gap-2 mb-1.5 items-center">
-                  <span className="text-xs text-white/30 text-center">{setIdx + 1}</span>
+        {/* 스크롤 콘텐츠 */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+          {/* 운동 종목 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">운동 종목</p>
+            <div className="space-y-2">
+              {exerciseNames.map((n, i) => (
+                <div key={i} className="flex items-center gap-2 bg-muted/30 border border-border rounded-xl px-3 py-2">
+                  <GripVertical className="w-4 h-4 text-muted-foreground/30 shrink-0" />
                   <Input
-                    type="number"
-                    placeholder="횟수"
-                    value={set.reps}
-                    onChange={(e) => updateSet(exIdx, setIdx, "reps", e.target.value)}
-                    className="bg-white/5 border-white/10 text-white text-xs h-8 text-center"
+                    placeholder="예: 스쿼트"
+                    value={n}
+                    onChange={(e) => updateName(i, e.target.value)}
+                    className="bg-transparent border-0 text-sm h-7 p-0 focus-visible:ring-0 placeholder:text-muted-foreground/40"
                   />
-                  <Input
-                    type="number"
-                    placeholder="kg"
-                    value={set.weight}
-                    onChange={(e) => updateSet(exIdx, setIdx, "weight", e.target.value)}
-                    className="bg-white/5 border-white/10 text-white text-xs h-8 text-center"
-                  />
-                  <button
-                    onClick={() => updateSet(exIdx, setIdx, "done", !set.done)}
-                    className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
-                      set.done
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : "border-white/20 text-white/20 hover:border-white/40"
-                    }`}
-                  >
-                    <Check className="w-3.5 h-3.5" />
+                  <button onClick={() => removeName(i)} className="text-red-400/50 hover:text-red-400 shrink-0">
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               ))}
-              <button
-                onClick={() => addSet(exIdx)}
-                className="mt-1.5 text-xs text-primary/60 hover:text-primary flex items-center gap-1 transition-colors"
-              >
-                <Plus className="w-3 h-3" /> 세트 추가
-              </button>
             </div>
-          );
-        })}
-      </div>
+            <button
+              onClick={() => setExerciseNames((p) => [...p, ""])}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 border border-dashed border-border/60 text-muted-foreground text-sm py-2.5 rounded-xl hover:border-primary/40 hover:text-primary/80 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> 운동 종목 추가
+            </button>
+          </div>
 
-      {/* Finish */}
-      <div className="p-4 border-t border-white/10 shrink-0">
-        <button
-          onClick={() => onFinish({ exercises, durationMinutes: Math.max(1, Math.round(elapsed / 60)) })}
-          className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-2xl text-base active:scale-95 transition-all"
-        >
-          운동 종료 · {formatTime(elapsed)}
-        </button>
-        <p className="text-center text-xs text-white/20 mt-2">종료하면 칼로리 리포트를 확인할 수 있어요</p>
-      </div>
-    </div>
-  );
-}
+          {/* 오늘 컨디션 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">오늘 컨디션</p>
+            <div className="grid grid-cols-5 gap-2">
+              {CONDITION_EMOJI.map((emoji, i) => (
+                <button key={i} onClick={() => setConditionScore(conditionScore === i + 1 ? undefined : i + 1)}
+                  className={`flex flex-col items-center gap-1 py-3 rounded-2xl border text-xl transition-colors ${conditionScore === i + 1 ? "border-primary bg-primary/10" : "border-border bg-muted/30"}`}>
+                  {emoji}
+                  <span className="text-[10px] text-muted-foreground">{i + 1}점</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-// ─── Workout Report ───────────────────────────────────────
+          {/* 수면 시간 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">수면 시간</p>
+            <div className="grid grid-cols-6 gap-1.5">
+              {SLEEP_OPTIONS.map((h) => (
+                <button key={h} onClick={() => setSleepHours(sleepHours === h ? undefined : h)}
+                  className={`py-2.5 rounded-xl border text-xs font-medium transition-colors ${sleepHours === h ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
+                  {h}
+                </button>
+              ))}
+            </div>
+          </div>
 
-function WorkoutReport({ exercises, durationMinutes, onSave, isSaving }: {
-  exercises: ActiveExercise[];
-  durationMinutes: number;
-  onSave: (bw: number, calories: number, intensity: string, volume: number, score: number) => void;
-  isSaving: boolean;
-}) {
-  const [bodyWeight, setBodyWeight] = useState("");
-  const bw = parseFloat(bodyWeight) || 0;
-  const intensity = getIntensity(exercises, durationMinutes);
-  const calories = calcCalories(exercises, durationMinutes, bw);
-  const volume = calcVolume(exercises);
-  const score = calcScore(exercises, durationMinutes, intensity);
-  const doneSets = exercises.flatMap((ex) => ex.sets.filter((s) => s.done)).length;
-  const totalSets = exercises.flatMap((ex) => ex.sets).length;
-  const intensityColor = intensity === "HIGH" ? "text-red-400" : intensity === "MEDIUM" ? "text-yellow-400" : "text-blue-400";
+          {/* 에너지 상태 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">에너지 상태</p>
+            <div className="grid grid-cols-3 gap-2">
+              {ENERGY_OPTIONS.map((e) => (
+                <button key={e} onClick={() => setEnergyLevel(energyLevel === e ? undefined : e)}
+                  className={`py-2.5 rounded-2xl border text-sm font-medium transition-colors ${energyLevel === e ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
+                  {e}
+                </button>
+              ))}
+            </div>
+          </div>
 
-  return (
-    <div className="fixed inset-0 bg-[#0a0f1e] z-50 overflow-y-auto">
-      <div className="p-6 space-y-4">
-        {/* Trophy */}
-        <div className="bg-[#0f1929] rounded-3xl p-6 text-center">
-          <div className="text-5xl mb-3">🏆</div>
-          <p className="text-white font-black text-2xl">운동 완료!</p>
-          <p className="text-white/40 text-sm mt-1">운동 기록</p>
-        </div>
+          {/* 오늘의 운동 부위 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">오늘의 운동 부위 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
+            <div className="flex flex-wrap gap-2">
+              {MAIN_BODY_PARTS.map((p) => (
+                <button key={p} onClick={() => toggleMain(p)}
+                  className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors ${bodyParts.includes(p) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
+                  {p}
+                </button>
+              ))}
+            </div>
+            {showUpperSubs && (
+              <div className="mt-2 pl-3 border-l-2 border-primary/30">
+                <p className="text-xs text-muted-foreground mb-1.5">상체 세부 부위</p>
+                <div className="flex flex-wrap gap-2">
+                  {UPPER_BODY_SUBS.map((p) => (
+                    <button key={p} onClick={() => toggleSub(p)}
+                      className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${bodyParts.includes(p) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/20 text-foreground"}`}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {showLowerSubs && (
+              <div className="mt-2 pl-3 border-l-2 border-primary/30">
+                <p className="text-xs text-muted-foreground mb-1.5">하체 세부 부위</p>
+                <div className="flex flex-wrap gap-2">
+                  {LOWER_BODY_SUBS.map((p) => (
+                    <button key={p} onClick={() => toggleSub(p)}
+                      className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${bodyParts.includes(p) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/20 text-foreground"}`}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
-        {/* Body weight */}
-        <div className="bg-[#0f1929] rounded-2xl p-4 border border-white/10">
-          <p className="text-white/50 text-xs mb-2">체중 입력 (칼로리 계산)</p>
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              placeholder="70"
-              value={bodyWeight}
-              onChange={(e) => setBodyWeight(e.target.value)}
-              className="bg-white/5 border-white/10 text-white text-lg font-bold text-center h-11 flex-1"
-            />
-            <span className="text-white/50 text-sm shrink-0">kg</span>
+          {/* 오늘의 운동 주제 */}
+          <div>
+            <p className="text-sm font-semibold mb-2">오늘의 운동 주제 <span className="text-xs text-muted-foreground font-normal">(중복 선택 가능)</span></p>
+            <div className="flex flex-wrap gap-2">
+              {WORKOUT_THEMES.map((t) => (
+                <button key={t} onClick={() => setWorkoutTheme((prev) => toggleArr(prev, t))}
+                  className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors ${workoutTheme.includes(t) ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/30 text-foreground"}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#0f1929] rounded-2xl p-4 border border-white/10">
-            <p className="text-white/40 text-xs">총 운동시간</p>
-            <p className="text-white font-black text-2xl mt-1">{durationMinutes}분</p>
-          </div>
-          <div className="bg-[#0f1929] rounded-2xl p-4 border border-white/10">
-            <p className="text-white/40 text-xs">예상 칼로리</p>
-            <p className={`font-black text-2xl mt-1 ${bw > 0 ? "text-orange-400" : "text-white/20"}`}>
-              {bw > 0 ? `${calories}kcal` : "- kcal"}
-            </p>
-          </div>
-          <div className="bg-[#0f1929] rounded-2xl p-4 border border-white/10">
-            <p className="text-white/40 text-xs">운동 강도</p>
-            <p className={`font-black text-2xl mt-1 ${intensityColor}`}>{intensity}</p>
-          </div>
-          <div className="bg-[#0f1929] rounded-2xl p-4 border border-white/10">
-            <p className="text-white/40 text-xs">총 볼륨</p>
-            <p className="text-white font-black text-2xl mt-1">
-              {volume > 0 ? `${volume.toLocaleString()}kg` : "0kg"}
-            </p>
-          </div>
+        {/* 하단 버튼 */}
+        <div className="px-5 py-4 border-t border-border flex gap-3 shrink-0">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-border rounded-2xl py-3 text-sm font-semibold text-foreground hover:bg-muted/50 transition-colors">
+            취소
+          </button>
+          <button
+            onClick={() => onSubmit({ exerciseNames, conditionScore, sleepHours, energyLevel, bodyParts, workoutTheme })}
+            disabled={isPending}
+            className="flex-1 bg-primary text-primary-foreground font-bold py-3 rounded-2xl text-sm active:scale-95 transition-transform disabled:opacity-60">
+            {isPending ? "저장 중..." : "운동 완료"}
+          </button>
         </div>
-
-        {/* Score */}
-        <div className="bg-[#0f1929] rounded-2xl p-4 border border-white/10">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-white/60 text-sm">운동 점수</p>
-            <p className="text-white font-bold text-lg">{score}점</p>
-          </div>
-          <div className="w-full bg-white/10 rounded-full h-2">
-            <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${score}%` }} />
-          </div>
-          <div className="flex items-center justify-between mt-1.5">
-            <p className="text-white/25 text-[10px]">완료 {doneSets}/{totalSets}종목</p>
-            <p className="text-white/25 text-[10px]">{durationMinutes}분 · {intensity}</p>
-          </div>
-        </div>
-
-        <p className="text-center text-white/25 text-[11px]">※ 예상 칼로리는 운동 데이터 기반 추정치입니다.</p>
-
-        <button
-          onClick={() => onSave(bw, calories, intensity, volume, score)}
-          disabled={isSaving}
-          className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-2xl text-base active:scale-95 transition-transform disabled:opacity-60"
-        >
-          {isSaving ? "저장 중..." : "저장하기"}
-        </button>
       </div>
     </div>
   );
@@ -451,7 +300,7 @@ function ManualExerciseForm({ exercises, setExercises }: { exercises: SimpleExer
           <div className="flex items-center gap-2">
             <Input placeholder="운동명" value={ex.name} onChange={(e) => update(i, "name", e.target.value)}
               className="bg-background text-sm h-8" />
-            <button onClick={() => remove(i)} className="text-red-400 text-xs shrink-0">
+            <button onClick={() => remove(i)} className="text-red-400 shrink-0">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
@@ -488,16 +337,24 @@ function IntensityBadge({ v }: { v: string }) {
   return <span className={`text-[10px] px-2 py-0.5 rounded-full border ${cls}`}>{v}</span>;
 }
 
-// ─── Main Component ───────────────────────────────────────
+// ─── Manual log form data ─────────────────────────────────
 
-type Phase = "list" | "plan" | "active" | "report";
+interface LogFormData {
+  logDate: string;
+  title: string;
+  durationMinutes: string;
+  caloriesBurned: string;
+  bodyWeight: string;
+  notes: string;
+  mood: string;
+}
+
+// ─── Main Component ───────────────────────────────────────
 
 export default function FitStepPlusWorkout() {
   const today = new Date().toISOString().slice(0, 10);
   const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7));
-  const [phase, setPhase] = useState<Phase>("list");
-  const [plannedNames, setPlannedNames] = useState<string[]>([]);
-  const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
+  const [showRecordModal, setShowRecordModal] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<LogFormData>({ logDate: today, title: "", durationMinutes: "", caloriesBurned: "", bodyWeight: "", notes: "", mood: "good" });
@@ -509,9 +366,8 @@ export default function FitStepPlusWorkout() {
   const createMutation = trpc.fitStepPlus.createWorkoutLog.useMutation({
     onSuccess: () => {
       utils.fitStepPlus.listWorkoutLogs.invalidate();
+      setShowRecordModal(false);
       setShowManualForm(false);
-      setPhase("list");
-      setSessionResult(null);
       resetManualForm();
       toast.success("운동 기록이 저장되었습니다 💪");
     },
@@ -541,26 +397,22 @@ export default function FitStepPlusWorkout() {
 
   function openEdit(log: any) {
     setForm({
-      logDate: log.logDate, title: log.title ?? "", durationMinutes: log.durationMinutes?.toString() ?? "",
-      caloriesBurned: log.caloriesBurned?.toString() ?? "", bodyWeight: log.bodyWeight ?? "",
-      notes: log.notes ?? "", mood: log.mood ?? "good",
+      logDate: log.logDate, title: log.title ?? "",
+      durationMinutes: log.durationMinutes?.toString() ?? "",
+      caloriesBurned: log.caloriesBurned?.toString() ?? "",
+      bodyWeight: log.bodyWeight ?? "", notes: log.notes ?? "", mood: log.mood ?? "good",
     });
     try {
       const parsed = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
       if (Array.isArray(parsed) && parsed[0] && Array.isArray(parsed[0].sets)) {
-        // new format → flatten for manual edit
-        setManualExercises(parsed.map((ex: ActiveExercise) => ({
-          name: ex.name,
-          sets: ex.sets.length.toString(),
-          reps: ex.sets[0]?.reps ?? "",
-          weight: ex.sets[0]?.weight ?? "",
+        setManualExercises(parsed.map((ex: any) => ({
+          name: ex.name, sets: ex.sets.length.toString(),
+          reps: ex.sets[0]?.reps ?? "", weight: ex.sets[0]?.weight ?? "",
         })));
       } else {
         setManualExercises(parsed);
       }
-    } catch {
-      setManualExercises([]);
-    }
+    } catch { setManualExercises([]); }
     setEditingId(log.id);
     setShowManualForm(true);
   }
@@ -576,19 +428,30 @@ export default function FitStepPlusWorkout() {
     else { createMutation.mutate(data); }
   }
 
-  function saveSessionReport(bw: number, calories: number, intensity: string, volume: number, score: number) {
-    if (!sessionResult) return;
-    const { exercises, durationMinutes } = sessionResult;
+  function handleRecordSubmit(data: {
+    exerciseNames: string[];
+    conditionScore?: number;
+    sleepHours?: string;
+    energyLevel?: string;
+    bodyParts: string[];
+    workoutTheme: string[];
+  }) {
+    const validNames = data.exerciseNames.filter((n) => n.trim());
+    const mood = scoreToMood(data.conditionScore);
+    const intensity = energyToIntensity(data.energyLevel);
+
+    const meta: Record<string, any> = {};
+    if (data.sleepHours) meta.sleepHours = data.sleepHours;
+    if (data.bodyParts.length) meta.bodyParts = data.bodyParts;
+    if (data.workoutTheme.length) meta.workoutTheme = data.workoutTheme;
+
     createMutation.mutate({
       logDate: today,
-      title: "오늘의 운동",
-      durationMinutes,
-      caloriesBurned: calories > 0 ? calories : undefined,
-      bodyWeight: bw > 0 ? bw.toString() : undefined,
-      exercisesJson: JSON.stringify(exercises),
+      title: data.bodyParts.filter((p) => MAIN_BODY_PARTS.includes(p)).join(" + ") || "오늘의 운동",
+      exercisesJson: validNames.length > 0 ? JSON.stringify(validNames.map((name) => ({ name }))) : undefined,
+      mood,
       intensity,
-      totalVolume: volume > 0 ? volume : undefined,
-      mood: "good",
+      notes: Object.keys(meta).length > 0 ? JSON.stringify(meta) : undefined,
     });
   }
 
@@ -597,49 +460,25 @@ export default function FitStepPlusWorkout() {
     return d.toISOString().slice(0, 7);
   });
 
-  // ── Full-screen overlays ──
-  if (phase === "plan") {
-    return (
-      <PlanPhase
-        onStart={(names) => { setPlannedNames(names); setPhase("active"); }}
-        onCancel={() => setPhase("list")}
-      />
-    );
-  }
-
-  if (phase === "active") {
-    return (
-      <ActiveSession
-        initialExercises={plannedNames}
-        onFinish={(result) => { setSessionResult(result); setPhase("report"); }}
-        onCancel={() => setPhase("list")}
-      />
-    );
-  }
-
-  if (phase === "report" && sessionResult) {
-    return (
-      <WorkoutReport
-        exercises={sessionResult.exercises}
-        durationMinutes={sessionResult.durationMinutes}
-        onSave={saveSessionReport}
-        isSaving={createMutation.isPending}
-      />
-    );
-  }
-
-  // ── List view ──
   return (
     <>
+      {showRecordModal && (
+        <WorkoutRecordModal
+          onClose={() => setShowRecordModal(false)}
+          onSubmit={handleRecordSubmit}
+          isPending={createMutation.isPending}
+        />
+      )}
+
       <div className="p-4 space-y-4">
-        {/* Start card */}
+        {/* 운동 시작 카드 */}
         <div className="bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/30 rounded-2xl p-4 flex items-center justify-between">
           <div>
             <p className="font-bold text-base">지금 운동할까요?</p>
-            <p className="text-xs text-muted-foreground mt-0.5">종목을 입력하고 타이머와 함께 기록해요</p>
+            <p className="text-xs text-muted-foreground mt-0.5">종목과 오늘의 컨디션을 기록해요</p>
           </div>
           <button
-            onClick={() => setPhase("plan")}
+            onClick={() => setShowRecordModal(true)}
             className="bg-primary text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-xl active:scale-95 transition-transform"
           >
             운동 시작 ▶
@@ -651,7 +490,7 @@ export default function FitStepPlusWorkout() {
           <Button size="sm" className="h-8 text-xs" onClick={() => { resetManualForm(); setEditingId(null); setShowManualForm(true); }}>+ 직접 입력</Button>
         </div>
 
-        {/* Month tabs */}
+        {/* 월 탭 */}
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
           {months.map((m) => (
             <button key={m} onClick={() => setSelectedMonth(m)}
@@ -661,18 +500,20 @@ export default function FitStepPlusWorkout() {
           ))}
         </div>
 
-        {/* Log list */}
+        {/* 기록 목록 */}
         {isLoading ? (
           <div className="text-center py-10 text-muted-foreground text-sm">불러오는 중...</div>
         ) : !logs || logs.length === 0 ? (
           <div className="text-center py-10 space-y-3">
             <p className="text-muted-foreground text-sm">이 달의 운동 기록이 없습니다</p>
-            <Button variant="outline" size="sm" onClick={() => setPhase("plan")}>운동 시작하기</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowRecordModal(true)}>첫 기록 남기기</Button>
           </div>
         ) : (
           <div className="space-y-3">
             {logs.map((log) => {
               const exList = parseLogExercises(log.exercisesJson);
+              let meta: any = {};
+              try { if (log.notes && log.notes.startsWith("{")) meta = JSON.parse(log.notes); } catch {}
               return (
                 <div key={log.id} className="bg-card border border-border rounded-xl p-4 space-y-2">
                   <div className="flex items-start justify-between">
@@ -691,8 +532,14 @@ export default function FitStepPlusWorkout() {
                     {log.durationMinutes && <span className="text-[10px] text-muted-foreground">⏱ {log.durationMinutes}분</span>}
                     {log.caloriesBurned && <span className="text-[10px] text-muted-foreground">🔥 {log.caloriesBurned}kcal</span>}
                     {(log as any).totalVolume > 0 && <span className="text-[10px] text-muted-foreground">🏋️ {((log as any).totalVolume as number).toLocaleString()}kg</span>}
-                    {log.bodyWeight && <span className="text-[10px] text-muted-foreground">⚖️ {log.bodyWeight}kg</span>}
                   </div>
+                  {meta.bodyParts?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(meta.bodyParts as string[]).map((p) => (
+                        <span key={p} className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full">{p}</span>
+                      ))}
+                    </div>
+                  )}
                   {exList.length > 0 && (
                     <div className="space-y-1">
                       {exList.map((ex, i) => (
@@ -703,7 +550,9 @@ export default function FitStepPlusWorkout() {
                       ))}
                     </div>
                   )}
-                  {log.notes && <p className="text-xs text-muted-foreground border-t border-border pt-2">{log.notes}</p>}
+                  {log.notes && !log.notes.startsWith("{") && (
+                    <p className="text-xs text-muted-foreground border-t border-border pt-2">{log.notes}</p>
+                  )}
                 </div>
               );
             })}
@@ -711,7 +560,7 @@ export default function FitStepPlusWorkout() {
         )}
       </div>
 
-      {/* Manual entry dialog */}
+      {/* 직접 입력 다이얼로그 */}
       <Dialog open={showManualForm} onOpenChange={(o) => { setShowManualForm(o); if (!o) { setEditingId(null); resetManualForm(); } }}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
