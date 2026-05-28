@@ -2,13 +2,96 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Lock, Star, RefreshCw, Sparkles, X } from "lucide-react";
 
 const CONDITION_EMOJI = ["😴", "😑", "😐", "☺️", "💪"];
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
 const BODY_PARTS = ["전신", "상체", "하체", "등", "어깨", "가슴", "복부", "허리", "코어", "엉덩이", "대퇴 후면", "대퇴 전면", "하퇴", "이두", "삼두", "기타"];
 const WORKOUT_THEMES = ["유산소 위주", "스트레칭 위주", "근력운동"];
+const PREV_LOG_UNLOCK = 10; // 이전 운동 잠금 해제 기준
+
+function WorkoutTypeModal({ onClose, onSelect, logCount }: {
+  onClose: () => void;
+  onSelect: (type: "new" | "prev") => void;
+  logCount: number;
+}) {
+  const prevUnlocked = logCount >= PREV_LOG_UNLOCK;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-5" onClick={onClose}>
+      <div
+        className="bg-[#1a2236] w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-white font-bold text-lg">어떤 운동을 할까요?</h2>
+            <p className="text-blue-300/70 text-sm mt-0.5">운동 유형을 선택하세요</p>
+          </div>
+          <button onClick={onClose} className="text-white/40 hover:text-white/80 transition-colors mt-0.5">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* 새로운 운동 */}
+        <button
+          onClick={() => onSelect("new")}
+          className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/50 rounded-2xl px-4 py-4 text-left transition-colors active:scale-[0.98]"
+        >
+          <div className="w-11 h-11 rounded-xl bg-blue-500 flex items-center justify-center shrink-0">
+            <span className="text-white text-[10px] font-black">NEW</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-semibold text-sm">새로운 운동</p>
+            <p className="text-white/50 text-xs mt-0.5">직접 종목을 입력하고 운동 계획 작성</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
+        </button>
+
+        {/* 추천 운동 (잠금) */}
+        <div className="w-full flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl px-4 py-4 opacity-60 cursor-not-allowed">
+          <div className="w-11 h-11 rounded-xl bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center shrink-0">
+            <Star className="w-5 h-5 text-yellow-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-semibold text-sm">추천 운동</p>
+            <p className="text-white/50 text-xs mt-0.5">내 정보 탭에서 미션 3가지를 완료하세요</p>
+          </div>
+          <span className="text-[11px] bg-white/10 text-white/60 px-2 py-0.5 rounded-full font-medium shrink-0 flex items-center gap-1">
+            <Lock className="w-3 h-3" />잠금
+          </span>
+        </div>
+
+        {/* 이전 운동 */}
+        <button
+          disabled={!prevUnlocked}
+          onClick={() => prevUnlocked && onSelect("prev")}
+          className={`w-full flex items-center gap-4 border rounded-2xl px-4 py-4 text-left transition-colors ${
+            prevUnlocked
+              ? "bg-white/5 hover:bg-white/10 border-white/10 hover:border-primary/50 active:scale-[0.98] cursor-pointer"
+              : "bg-white/5 border-white/10 opacity-60 cursor-not-allowed"
+          }`}
+        >
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${prevUnlocked ? "bg-primary/20 border border-primary/30" : "bg-white/10"}`}>
+            <RefreshCw className={`w-5 h-5 ${prevUnlocked ? "text-primary" : "text-white/40"}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-semibold text-sm">이전 운동</p>
+            <p className="text-white/50 text-xs mt-0.5">
+              {prevUnlocked ? "기록된 운동을 불러와 시작하기" : `운동 기록 ${logCount}/${PREV_LOG_UNLOCK}개 이상이면 활성화`}
+            </p>
+          </div>
+          {prevUnlocked
+            ? <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
+            : <span className="text-[11px] bg-white/10 text-white/60 px-2 py-0.5 rounded-full font-medium shrink-0">{logCount}/{PREV_LOG_UNLOCK}</span>
+          }
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function CheckInModal({ onClose, onSubmit, isPending }: {
   onClose: () => void;
@@ -123,6 +206,7 @@ function daysUntil(dateStr: string | null | undefined) {
 export default function FitStepPlusDashboard({ trainerId }: { trainerId: number }) {
   const [, navigate] = useLocation();
   const [showCheckIn, setShowCheckIn] = useState(false);
+  const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const base = `/fit-step-plus/${trainerId}`;
   const utils = trpc.useUtils();
   const { data: member } = trpc.fitStepPlus.memberMe.useQuery();
@@ -160,6 +244,16 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
           onClose={() => setShowCheckIn(false)}
           onSubmit={(data) => checkInMutation.mutate(data)}
           isPending={checkInMutation.isPending}
+        />
+      )}
+      {showWorkoutModal && (
+        <WorkoutTypeModal
+          onClose={() => setShowWorkoutModal(false)}
+          logCount={logs?.length ?? 0}
+          onSelect={(type) => {
+            setShowWorkoutModal(false);
+            navigate(`${base}/workout${type === "prev" ? "?mode=prev" : ""}`);
+          }}
         />
       )}
 
@@ -231,7 +325,7 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
       {/* ④ 오늘의 운동 기록 */}
       <button
         className="w-full bg-[#1a2236] border-2 border-dashed border-blue-800/60 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 active:scale-[0.99] transition-transform"
-        onClick={() => navigate(`${base}/workout`)}
+        onClick={() => todayLog ? navigate(`${base}/workout`) : setShowWorkoutModal(true)}
       >
         {todayLog ? (
           <>
