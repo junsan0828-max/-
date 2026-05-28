@@ -399,12 +399,11 @@ function EventManagementSection() {
   const handleSubmit = () => {
     const applicableSessions = buildApplicableSessions();
     if (!form.name) { toast.error("이벤트명을 입력해주세요."); return; }
-    if (!applicableSessions) { toast.error("이벤트 적용 세션을 선택해주세요."); return; }
     upsertMutation.mutate({
       id: editItem?.id,
       type: eventType,
       name: form.name,
-      applicableSessions,
+      applicableSessions: applicableSessions || "",
       serviceSessions: parseInt(form.serviceSessions || "0"),
       serviceSessionPrice: parseInt(form.serviceSessionPrice || "0"),
       isActive: editItem?.isActive ?? 1,
