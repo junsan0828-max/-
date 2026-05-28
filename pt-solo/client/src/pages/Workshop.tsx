@@ -10,7 +10,7 @@ import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, Ch
 import TabBanner from "@/components/TabBanner";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 
-const WORKSHOP_LOCKED = true; // 개발 중 — 완료 후 false로 변경
+const WORKSHOP_LOCKED = false;
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
 const EVENT_TYPE_LABELS: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션" };
