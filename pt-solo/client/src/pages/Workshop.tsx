@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 
@@ -882,6 +882,326 @@ function SurveyBuilder() {
 }
 
 // ── 브랜드 페이지 에디터 ─────────────────────────────────────────────────────
+// ── 브랜드 페이지 블록 시스템 ───────────────────────────────────────────────
+
+type BrandBlockType = "intro" | "specialties" | "career" | "sns" | "booking" | "programs" | "video" | "testimonials";
+
+interface BrandBlock {
+  id: string;
+  type: BrandBlockType;
+  visible: boolean;
+  data: any;
+}
+
+const BRAND_BLOCK_META: Record<BrandBlockType, { label: string; icon: React.ElementType; desc: string; canDelete: boolean; comingSoon?: boolean }> = {
+  intro:        { label: "소개",         icon: Users,          desc: "이름·소개글·브랜드 컬러",    canDelete: false },
+  specialties:  { label: "전문분야",     icon: Target,         desc: "전문 분야 태그 표시",         canDelete: true  },
+  career:       { label: "경력·자격증",  icon: Award,          desc: "자격증·학력·경력·수상",       canDelete: true  },
+  sns:          { label: "SNS 링크",     icon: Share2,         desc: "인스타·유튜브·카카오 연결",   canDelete: true  },
+  booking:      { label: "상담 예약",    icon: Calendar,       desc: "예약 신청 버튼·폼",           canDelete: true  },
+  programs:     { label: "프로그램 소개",icon: Dumbbell,       desc: "PT·필라테스 프로그램 안내",   canDelete: true  },
+  video:        { label: "운동 영상",    icon: PlaySquare,     desc: "유튜브 영상 연결",            canDelete: true  },
+  testimonials: { label: "회원 후기",    icon: Star,           desc: "회원 변화 사례·후기",         canDelete: true, comingSoon: true },
+};
+
+const ADDABLE_BLOCK_TYPES: BrandBlockType[] = ["specialties", "career", "sns", "booking", "programs", "video", "testimonials"];
+
+function defaultBlocks(brand: any): BrandBlock[] {
+  return [
+    { id: "intro", type: "intro", visible: true, data: {
+      bio: brand?.brandBio ?? "", color: brand?.brandColor ?? "#1a00ff",
+    }},
+    ...(brand?.brandSpecialties ? [{ id: "specialties", type: "specialties" as const, visible: true, data: { items: brand.brandSpecialties.split(",").map((s: string) => s.trim()).filter(Boolean) } }] : []),
+    ...((brand?.brandInstagram || brand?.brandKakao || brand?.brandYoutube) ? [{ id: "sns", type: "sns" as const, visible: true, data: { instagram: brand?.brandInstagram ?? "", kakao: brand?.brandKakao ?? "", youtube: brand?.brandYoutube ?? "" } }] : []),
+    ...(brand?.bookingEnabled ? [{ id: "booking", type: "booking" as const, visible: true, data: { enabled: true, message: brand?.bookingMessage ?? "" } }] : []),
+  ];
+}
+
+// ── 블록별 인라인 에디터 ─────────────────────────────────────────────────────
+function BlockEditor({ block, onChange }: { block: BrandBlock; onChange: (data: any) => void }) {
+  const d = block.data;
+
+  if (block.type === "intro") return (
+    <div className="space-y-3 pt-3 border-t border-border/60">
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">소개글</label>
+        <textarea value={d.bio ?? ""} onChange={e => onChange({ ...d, bio: e.target.value })}
+          rows={4} placeholder="트레이너 소개를 입력하세요..."
+          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">브랜드 컬러</label>
+        <div className="flex items-center gap-3">
+          <input type="color" value={d.color ?? "#1a00ff"} onChange={e => onChange({ ...d, color: e.target.value })}
+            className="w-10 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
+          <span className="text-xs text-muted-foreground font-mono">{d.color ?? "#1a00ff"}</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (block.type === "specialties") {
+    const items: string[] = d.items ?? [];
+    const [newItem, setNewItem] = useState("");
+    return (
+      <div className="space-y-3 pt-3 border-t border-border/60">
+        <div className="flex flex-wrap gap-2">
+          {items.map((item, i) => (
+            <span key={i} className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full">
+              {item}
+              <button onClick={() => onChange({ ...d, items: items.filter((_, j) => j !== i) })} className="hover:text-red-500">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <input value={newItem} onChange={e => setNewItem(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && newItem.trim()) { onChange({ ...d, items: [...items, newItem.trim()] }); setNewItem(""); } }}
+            placeholder="전문분야 입력 후 Enter"
+            className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          <button onClick={() => { if (newItem.trim()) { onChange({ ...d, items: [...items, newItem.trim()] }); setNewItem(""); } }}
+            className="px-3 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">
+            추가
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">예: 다이어트, 체형교정, 재활운동, 스포츠 퍼포먼스</p>
+      </div>
+    );
+  }
+
+  if (block.type === "career") {
+    const items: { text: string; category: string }[] = d.items ?? [];
+    const [newText, setNewText] = useState("");
+    const [newCat, setNewCat] = useState("cert");
+    const catLabels: Record<string, string> = { cert: "자격증", career: "경력", edu: "학력", award: "수상" };
+    return (
+      <div className="space-y-3 pt-3 border-t border-border/60">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-center gap-2 bg-accent/30 rounded-xl px-3 py-2">
+            <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{catLabels[item.category] ?? item.category}</span>
+            <span className="text-xs flex-1">{item.text}</span>
+            <button onClick={() => onChange({ ...d, items: items.filter((_, j) => j !== i) })} className="text-muted-foreground hover:text-red-500">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+        <div className="space-y-2">
+          <select value={newCat} onChange={e => setNewCat(e.target.value)}
+            className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none">
+            {Object.entries(catLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <div className="flex gap-2">
+            <input value={newText} onChange={e => setNewText(e.target.value)}
+              placeholder="내용 입력..."
+              className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            <button onClick={() => { if (newText.trim()) { onChange({ ...d, items: [...items, { text: newText.trim(), category: newCat }] }); setNewText(""); } }}
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">
+              추가
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === "sns") return (
+    <div className="space-y-2.5 pt-3 border-t border-border/60">
+      {[
+        { key: "instagram", icon: Instagram, placeholder: "https://instagram.com/..." },
+        { key: "youtube",   icon: Youtube,   placeholder: "https://youtube.com/..." },
+        { key: "kakao",     icon: MessageCircle, placeholder: "카카오 채널 링크" },
+      ].map(({ key, icon: Icon, placeholder }) => (
+        <div key={key} className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+          <input value={d[key] ?? ""} onChange={e => onChange({ ...d, [key]: e.target.value })}
+            placeholder={placeholder}
+            className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+        </div>
+      ))}
+    </div>
+  );
+
+  if (block.type === "booking") return (
+    <div className="space-y-3 pt-3 border-t border-border/60">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium">예약 받기 활성화</p>
+        <button onClick={() => onChange({ ...d, enabled: !d.enabled })}
+          className={`w-10 h-5.5 rounded-full transition-colors relative ${d.enabled ? "bg-primary" : "bg-muted"}`}
+          style={{ height: "22px", width: "40px" }}>
+          <span className={`absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-all ${d.enabled ? "left-[18px]" : "left-0.5"}`}
+            style={{ width: "18px", height: "18px" }} />
+        </button>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">예약 안내 메시지</label>
+        <textarea value={d.message ?? ""} onChange={e => onChange({ ...d, message: e.target.value })}
+          rows={2} placeholder="상담 가능 시간이나 안내 문구를 입력하세요..."
+          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+    </div>
+  );
+
+  if (block.type === "programs") {
+    const items: { name: string; desc: string }[] = d.items ?? [];
+    const [newName, setNewName] = useState("");
+    const [newDesc, setNewDesc] = useState("");
+    return (
+      <div className="space-y-3 pt-3 border-t border-border/60">
+        {items.map((item, i) => (
+          <div key={i} className="bg-accent/30 rounded-xl p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">{item.name}</p>
+              <button onClick={() => onChange({ ...d, items: items.filter((_, j) => j !== i) })} className="text-muted-foreground hover:text-red-500">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">{item.desc}</p>
+          </div>
+        ))}
+        <div className="space-y-2 border border-border/60 rounded-xl p-3">
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="프로그램명 (예: 12주 체형교정 PT)"
+            className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+          <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} rows={2} placeholder="프로그램 설명..."
+            className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+          <button onClick={() => { if (newName.trim()) { onChange({ ...d, items: [...items, { name: newName.trim(), desc: newDesc.trim() }] }); setNewName(""); setNewDesc(""); } }}
+            className="w-full py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">
+            프로그램 추가
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === "video") return (
+    <div className="space-y-2.5 pt-3 border-t border-border/60">
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">유튜브 URL</label>
+        <input value={d.youtubeUrl ?? ""} onChange={e => onChange({ ...d, youtubeUrl: e.target.value })}
+          placeholder="https://youtube.com/..."
+          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">설명 (선택)</label>
+        <input value={d.description ?? ""} onChange={e => onChange({ ...d, description: e.target.value })}
+          placeholder="영상 설명을 입력하세요..."
+          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+    </div>
+  );
+
+  return null;
+}
+
+// ── 블록 카드 ────────────────────────────────────────────────────────────────
+function BlockCard({
+  block, index, total,
+  onToggleVisible, onMoveUp, onMoveDown, onDelete, onUpdate,
+}: {
+  block: BrandBlock; index: number; total: number;
+  onToggleVisible: () => void; onMoveUp: () => void; onMoveDown: () => void;
+  onDelete: () => void; onUpdate: (data: any) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const meta = BRAND_BLOCK_META[block.type];
+  const Icon = meta.icon;
+
+  return (
+    <div className={`bg-card border rounded-2xl overflow-hidden transition-all duration-150 ${!block.visible ? "opacity-50 border-border/40" : "border-border"}`}>
+      {/* 카드 헤더 */}
+      <div className="flex items-center gap-2.5 px-4 py-3">
+        <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon className="h-4 w-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">{meta.label}</p>
+          <p className="text-[10px] text-muted-foreground">{meta.desc}</p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {/* 공개 토글 */}
+          <button onClick={onToggleVisible} title={block.visible ? "숨기기" : "공개"}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
+            {block.visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+          </button>
+          {/* 순서 이동 */}
+          <button onClick={onMoveUp} disabled={index === 0}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground disabled:opacity-30">
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={onMoveDown} disabled={index >= total - 1}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground disabled:opacity-30">
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          {/* 편집 */}
+          <button onClick={() => setEditing(v => !v)}
+            className={`p-1.5 rounded-lg transition-colors ${editing ? "bg-primary/10 text-primary" : "hover:bg-accent text-muted-foreground hover:text-foreground"}`}>
+            <Edit2 className="h-3.5 w-3.5" />
+          </button>
+          {/* 삭제 */}
+          {meta.canDelete && (
+            <button onClick={onDelete}
+              className="p-1.5 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors text-muted-foreground">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      {/* 인라인 에디터 */}
+      {editing && (
+        <div className="px-4 pb-4">
+          <BlockEditor block={block} onChange={onUpdate} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 블록 추가 시트 ───────────────────────────────────────────────────────────
+function AddBlockSheet({ existingTypes, onAdd, onClose }: {
+  existingTypes: string[];
+  onAdd: (type: BrandBlockType) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-card rounded-t-3xl w-full max-h-[70vh] overflow-y-auto shadow-2xl">
+        <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-card/95 z-10">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+        <div className="px-5 py-3 flex items-center justify-between border-b border-border sticky top-5 bg-card/95 z-10">
+          <p className="font-bold text-sm">블록 추가</p>
+          <button onClick={onClose}><X className="h-4 w-4 text-muted-foreground" /></button>
+        </div>
+        <div className="px-5 py-4 space-y-2 pb-8">
+          {ADDABLE_BLOCK_TYPES.map(type => {
+            const meta = BRAND_BLOCK_META[type];
+            const Icon = meta.icon;
+            const already = existingTypes.includes(type);
+            return (
+              <button key={type} disabled={already || meta.comingSoon}
+                onClick={() => { onAdd(type); onClose(); }}
+                className="w-full flex items-center gap-3 bg-background border border-border rounded-2xl p-3.5 text-left disabled:opacity-40 hover:border-primary/40 hover:bg-primary/[0.02] transition-all">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <Icon className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">{meta.label}</p>
+                  <p className="text-[11px] text-muted-foreground">{meta.desc}</p>
+                </div>
+                {already && <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">추가됨</span>}
+                {meta.comingSoon && <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">준비 중</span>}
+                {!already && !meta.comingSoon && <Plus className="h-4 w-4 text-primary shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 브랜드 페이지 빌더 (메인) ────────────────────────────────────────────────
 function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
@@ -897,61 +1217,99 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const isAdmin = (user as any)?.role === "admin";
   const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
   const [showShareConfirm, setShowShareConfirm] = useState(false);
+  const [showAddBlock, setShowAddBlock] = useState(false);
 
-  const [form, setForm] = useState({
-    brandBio: "", brandSpecialties: "", brandColor: "#1a00ff",
-    brandInstagram: "", brandKakao: "", brandYoutube: "",
-    brandIsPublic: 0, bookingEnabled: 0, bookingMessage: "",
-  });
+  const [blocks, setBlocks] = useState<BrandBlock[]>([]);
+  const [brandIsPublic, setBrandIsPublic] = useState(0);
   const [initialized, setInitialized] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   if (!initialized && brand) {
-    setForm({
-      brandBio: brand.brandBio ?? "",
-      brandSpecialties: brand.brandSpecialties ?? "",
-      brandColor: brand.brandColor ?? "#1a00ff",
-      brandInstagram: brand.brandInstagram ?? "",
-      brandKakao: brand.brandKakao ?? "",
-      brandYoutube: brand.brandYoutube ?? "",
-      brandIsPublic: brand.brandIsPublic ?? 0,
-      bookingEnabled: brand.bookingEnabled ?? 0,
-      bookingMessage: brand.bookingMessage ?? "",
-    });
+    const parsed = brand.brandBlocks ? (() => { try { return JSON.parse(brand.brandBlocks); } catch { return null; } })() : null;
+    setBlocks(parsed ?? defaultBlocks(brand));
+    setBrandIsPublic(brand.brandIsPublic ?? 0);
     setInitialized(true);
   }
 
   const username = (user as any)?.username;
   const brandUrl = `${window.location.origin}/p/${username}`;
 
+  function updateBlock(id: string, data: any) {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, data } : b));
+    setDirty(true);
+  }
+  function toggleVisible(id: string) {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, visible: !b.visible } : b));
+    setDirty(true);
+  }
+  function moveBlock(index: number, dir: -1 | 1) {
+    setBlocks(prev => {
+      const next = [...prev];
+      const target = index + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setDirty(true);
+  }
+  function deleteBlock(id: string) {
+    setBlocks(prev => prev.filter(b => b.id !== id));
+    setDirty(true);
+  }
+  function addBlock(type: BrandBlockType) {
+    const defaults: Record<BrandBlockType, any> = {
+      intro: {}, specialties: { items: [] }, career: { items: [] },
+      sns: { instagram: "", youtube: "", kakao: "" },
+      booking: { enabled: true, message: "" },
+      programs: { items: [] }, video: { youtubeUrl: "", description: "" },
+      testimonials: { items: [] },
+    };
+    setBlocks(prev => [...prev, { id: `${type}_${Date.now()}`, type, visible: true, data: defaults[type] }]);
+    setDirty(true);
+  }
+
+  function buildLegacyFields(blockList: BrandBlock[]) {
+    const intro = blockList.find(b => b.type === "intro");
+    const sns = blockList.find(b => b.type === "sns");
+    const spc = blockList.find(b => b.type === "specialties");
+    const bk  = blockList.find(b => b.type === "booking");
+    return {
+      brandBio: intro?.data?.bio ?? "",
+      brandColor: intro?.data?.color ?? "#1a00ff",
+      brandInstagram: sns?.data?.instagram ?? "",
+      brandKakao: sns?.data?.kakao ?? "",
+      brandYoutube: sns?.data?.youtube ?? "",
+      brandSpecialties: (spc?.data?.items ?? []).join(", "),
+      bookingEnabled: (bk?.visible && bk?.data?.enabled) ? 1 : 0,
+      bookingMessage: bk?.data?.message ?? "",
+    };
+  }
+
+  function handleSave() {
+    const legacy = buildLegacyFields(blocks);
+    updateMutation.mutate({
+      ...legacy,
+      brandIsPublic,
+      brandBlocks: JSON.stringify(blocks),
+    } as any);
+    setDirty(false);
+  }
+
   if (isLoading) return <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>;
 
+  // bookingOnly 모드: 수업 예약 기능 탭에서 사용
   if (bookingOnly) {
+    const bkBlock = blocks.find(b => b.type === "booking") ?? { id: "booking", type: "booking" as const, visible: true, data: { enabled: brand?.bookingEnabled === 1, message: brand?.bookingMessage ?? "" } };
     return (
       <div className="space-y-5">
-        <div className="space-y-3 p-3 bg-accent/20 rounded-xl">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              <p className="text-sm font-medium">상담 예약 받기</p>
-            </div>
-            <button
-              onClick={() => setForm(p => ({ ...p, bookingEnabled: p.bookingEnabled ? 0 : 1 }))}
-              className={`w-12 h-6 rounded-full transition-colors relative ${form.bookingEnabled ? "bg-primary" : "bg-muted"}`}
-            >
-              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.bookingEnabled ? "left-6" : "left-0.5"}`} />
-            </button>
-          </div>
-          {form.bookingEnabled ? (
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">예약 안내 메시지</Label>
-              <textarea value={form.bookingMessage} onChange={e => setForm(p => ({ ...p, bookingMessage: e.target.value }))}
-                rows={2} placeholder="상담 가능 시간이나 안내 문구를 입력하세요..."
-                className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-          ) : null}
-        </div>
-        <Button size="sm" className="w-full" disabled={updateMutation.isPending}
-          onClick={() => updateMutation.mutate(form as any)}>
+        <BlockEditor block={bkBlock} onChange={data => {
+          setBlocks(prev => prev.some(b => b.type === "booking")
+            ? prev.map(b => b.type === "booking" ? { ...b, data } : b)
+            : [...prev, { ...bkBlock, data }]
+          );
+          setDirty(true);
+        }} />
+        <Button size="sm" className="w-full" disabled={updateMutation.isPending} onClick={handleSave}>
           {updateMutation.isPending ? "저장 중..." : "저장"}
         </Button>
         {bookings && bookings.length > 0 && (
@@ -965,6 +1323,7 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
                     {b.status === "confirmed" ? "확인" : b.status === "cancelled" ? "취소" : "대기"}
                   </span>
                 </div>
+                {b.interestType && <p className="text-xs text-muted-foreground">{b.interestType}</p>}
                 {b.message && <p className="text-xs text-muted-foreground">{b.message}</p>}
                 {b.status === "pending" && (
                   <div className="flex gap-2 pt-1">
@@ -983,155 +1342,89 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   }
 
   return (
-    <div className="space-y-5">
-      {/* 공개 여부 + 링크 */}
-      <div className="flex items-center justify-between p-3 bg-accent/20 rounded-xl">
-        <div>
-          <p className="text-sm font-medium">브랜드 페이지 공개</p>
-          <p className="text-xs text-muted-foreground mt-0.5">/p/{username}</p>
+    <div className="space-y-4 relative pb-20">
+      {/* ── 상단: 공개 상태 + 링크 ── */}
+      <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">브랜드 페이지 공개</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">/p/{username}</p>
+          </div>
+          <button onClick={() => { setBrandIsPublic(p => p ? 0 : 1); setDirty(true); }}
+            className={`w-12 h-6 rounded-full transition-colors relative ${brandIsPublic ? "bg-primary" : "bg-muted"}`}>
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${brandIsPublic ? "left-6" : "left-0.5"}`} />
+          </button>
         </div>
-        <button
-          onClick={() => setForm(p => ({ ...p, brandIsPublic: p.brandIsPublic ? 0 : 1 }))}
-          className={`w-12 h-6 rounded-full transition-colors relative ${form.brandIsPublic ? "bg-primary" : "bg-muted"}`}
-        >
-          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.brandIsPublic ? "left-6" : "left-0.5"}`} />
+        {brandIsPublic ? (
+          <>
+            <button onClick={() => {
+              if (isAdmin) { navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); }
+              else setShowShareConfirm(true);
+            }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-xl text-xs text-primary">
+              <Globe className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate flex-1">{brandUrl}</span>
+              {!isAdmin && <span className="text-primary/70 shrink-0">-50P</span>}
+              <Copy className="h-3.5 w-3.5 shrink-0" />
+            </button>
+            <PointSpendConfirm open={showShareConfirm} onClose={() => setShowShareConfirm(false)}
+              featureName="브랜딩 페이지 공유" loading={spendFeatureMutation.isPending}
+              onConfirm={() => spendFeatureMutation.mutate({ feature: "branding_share" }, {
+                onSuccess: () => { setShowShareConfirm(false); navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); },
+                onError: (e) => toast.error(e.message),
+              })} />
+          </>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">공개로 설정하면 외부에서 접속할 수 있는 링크가 생성됩니다.</p>
+        )}
+      </div>
+
+      {/* ── 저장 버튼 ── */}
+      {dirty && (
+        <Button className="w-full" onClick={handleSave} disabled={updateMutation.isPending}>
+          {updateMutation.isPending ? "저장 중..." : "변경사항 저장"}
+        </Button>
+      )}
+
+      {/* ── 블록 섹션 헤더 ── */}
+      <div className="flex items-center gap-2">
+        <Layers className="h-4 w-4 text-muted-foreground" />
+        <p className="text-sm font-bold">페이지 구성</p>
+        <span className="text-[10px] text-muted-foreground ml-auto">{blocks.filter(b => b.visible).length}개 표시 중</span>
+      </div>
+
+      {/* ── 블록 리스트 ── */}
+      <div className="space-y-2">
+        {blocks.map((block, i) => (
+          <BlockCard
+            key={block.id}
+            block={block}
+            index={i}
+            total={blocks.length}
+            onToggleVisible={() => toggleVisible(block.id)}
+            onMoveUp={() => moveBlock(i, -1)}
+            onMoveDown={() => moveBlock(i, 1)}
+            onDelete={() => deleteBlock(block.id)}
+            onUpdate={data => updateBlock(block.id, data)}
+          />
+        ))}
+      </div>
+
+      {/* ── 플로팅 블록 추가 버튼 ── */}
+      <div className="fixed bottom-24 right-4 z-40">
+        <button onClick={() => setShowAddBlock(true)}
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-3 rounded-2xl shadow-lg hover:bg-primary/90 active:scale-95 transition-all font-semibold text-sm">
+          <Plus className="h-4 w-4" />
+          블록 추가
         </button>
       </div>
 
-      {form.brandIsPublic ? (
-        <>
-          <button onClick={() => {
-            if (isAdmin) {
-              navigator.clipboard.writeText(brandUrl);
-              toast.success("링크 복사됨!");
-            } else {
-              setShowShareConfirm(true);
-            }
-          }}
-            className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/30 rounded-xl text-xs text-primary">
-            <Globe className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{brandUrl}</span>
-            {!isAdmin && <span className="text-primary/70 shrink-0">-50P</span>}
-            <Copy className="h-3.5 w-3.5 shrink-0" />
-          </button>
-          <PointSpendConfirm
-            open={showShareConfirm}
-            onClose={() => setShowShareConfirm(false)}
-            featureName="브랜딩 페이지 공유"
-            loading={spendFeatureMutation.isPending}
-            onConfirm={() => {
-              spendFeatureMutation.mutate({ feature: "branding_share" }, {
-                onSuccess: () => {
-                  setShowShareConfirm(false);
-                  navigator.clipboard.writeText(brandUrl);
-                  toast.success("링크 복사됨!");
-                },
-                onError: (e) => toast.error(e.message),
-              });
-            }}
-          />
-        </>
-      ) : null}
-
-      {/* 브랜드 컬러 */}
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">브랜드 컬러</Label>
-        <div className="flex items-center gap-3">
-          <input type="color" value={form.brandColor} onChange={e => setForm(p => ({ ...p, brandColor: e.target.value }))}
-            className="w-12 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
-          <span className="text-sm text-muted-foreground font-mono">{form.brandColor}</span>
-        </div>
-      </div>
-
-      {/* 소개글 */}
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">소개글</Label>
-        <textarea value={form.brandBio} onChange={e => setForm(p => ({ ...p, brandBio: e.target.value }))}
-          rows={4} placeholder="트레이너 소개를 입력하세요..."
-          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
-      </div>
-
-      {/* 전문 분야 */}
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">전문 분야 (쉼표로 구분)</Label>
-        <Input value={form.brandSpecialties} onChange={e => setForm(p => ({ ...p, brandSpecialties: e.target.value }))}
-          placeholder="다이어트, 근력 강화, 재활, 체형 교정" className="text-sm" />
-      </div>
-
-      {/* 소셜 링크 */}
-      <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground">소셜 링크</Label>
-        <div className="flex items-center gap-2">
-          <Instagram className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Input value={form.brandInstagram} onChange={e => setForm(p => ({ ...p, brandInstagram: e.target.value }))}
-            placeholder="https://instagram.com/..." className="text-sm h-8" />
-        </div>
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Input value={form.brandKakao} onChange={e => setForm(p => ({ ...p, brandKakao: e.target.value }))}
-            placeholder="카카오 채널 링크" className="text-sm h-8" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Youtube className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Input value={form.brandYoutube} onChange={e => setForm(p => ({ ...p, brandYoutube: e.target.value }))}
-            placeholder="https://youtube.com/..." className="text-sm h-8" />
-        </div>
-      </div>
-
-      {/* 상담 예약 */}
-      <div className="space-y-3 p-3 bg-accent/20 rounded-xl">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-primary" />
-            <p className="text-sm font-medium">상담 예약 받기</p>
-          </div>
-          <button
-            onClick={() => setForm(p => ({ ...p, bookingEnabled: p.bookingEnabled ? 0 : 1 }))}
-            className={`w-12 h-6 rounded-full transition-colors relative ${form.bookingEnabled ? "bg-primary" : "bg-muted"}`}
-          >
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.bookingEnabled ? "left-6" : "left-0.5"}`} />
-          </button>
-        </div>
-        {form.bookingEnabled ? (
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">예약 안내 메시지</Label>
-            <textarea value={form.bookingMessage} onChange={e => setForm(p => ({ ...p, bookingMessage: e.target.value }))}
-              rows={2} placeholder="상담 가능 시간이나 안내 문구를 입력하세요..."
-              className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
-          </div>
-        ) : null}
-      </div>
-
-      <Button size="sm" className="w-full" disabled={updateMutation.isPending}
-        onClick={() => updateMutation.mutate(form as any)}>
-        {updateMutation.isPending ? "저장 중..." : "저장"}
-      </Button>
-
-      {/* 예약 목록 */}
-      {bookings && bookings.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">들어온 예약 ({bookings.length})</p>
-          {bookings.map((b: any) => (
-            <div key={b.id} className="bg-background border border-border rounded-xl p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">{b.name} · {b.phone}</p>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${b.status === "confirmed" ? "bg-green-500/20 text-green-600" : b.status === "cancelled" ? "bg-red-500/20 text-red-500" : "bg-blue-500/20 text-blue-500"}`}>
-                  {b.status === "confirmed" ? "확인" : b.status === "cancelled" ? "취소" : "대기"}
-                </span>
-              </div>
-              {b.interestType && <p className="text-xs text-muted-foreground">{b.interestType}</p>}
-              {b.message && <p className="text-xs text-muted-foreground">{b.message}</p>}
-              {b.status === "pending" && (
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => statusMutation.mutate({ bookingId: b.id, status: "confirmed" })}
-                    className="flex-1 text-xs py-1.5 rounded-lg bg-green-500/10 text-green-600 font-medium">확인</button>
-                  <button onClick={() => statusMutation.mutate({ bookingId: b.id, status: "cancelled" })}
-                    className="flex-1 text-xs py-1.5 rounded-lg bg-red-500/10 text-red-500 font-medium">취소</button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+      {showAddBlock && (
+        <AddBlockSheet
+          existingTypes={blocks.map(b => b.type)}
+          onAdd={addBlock}
+          onClose={() => setShowAddBlock(false)}
+        />
       )}
     </div>
   );

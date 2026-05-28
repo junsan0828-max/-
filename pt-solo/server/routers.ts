@@ -3467,7 +3467,7 @@ const brandRouter = t.router({
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
     const row = await pool.query<any>(
-      `SELECT "brandBio","brandSpecialties","brandColor","brandInstagram","brandKakao","brandYoutube","brandIsPublic","bookingEnabled","bookingMessage","trainerName","profileImage","activityArea","jobType","careerRange"
+      `SELECT "brandBio","brandSpecialties","brandColor","brandInstagram","brandKakao","brandYoutube","brandIsPublic","bookingEnabled","bookingMessage","trainerName","profileImage","activityArea","jobType","careerRange","brandBlocks"
        FROM trainers WHERE id=$1`,
       [trainerId]
     );
@@ -3485,6 +3485,7 @@ const brandRouter = t.router({
     brandIsPublic: z.number().optional(),
     bookingEnabled: z.number().optional(),
     bookingMessage: z.string().optional(),
+    brandBlocks: z.string().optional(),
   })).mutation(async ({ ctx, input }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
@@ -3504,7 +3505,7 @@ const brandRouter = t.router({
     const row = await pool.query<any>(
       `SELECT t.id AS "trainerId", t."trainerName", t."profileImage", t."activityArea", t."jobType", t."careerRange",
               t."brandBio", t."brandSpecialties", t."brandColor", t."brandInstagram", t."brandKakao", t."brandYoutube",
-              t."brandIsPublic", t."bookingEnabled", t."bookingMessage"
+              t."brandIsPublic", t."bookingEnabled", t."bookingMessage", t."brandBlocks"
        FROM trainers t WHERE t."userId"=$1`,
       [userId]
     );
