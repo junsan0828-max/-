@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 
@@ -1293,6 +1293,279 @@ const PREVIEW_FEATURES = [
   },
 ];
 
+// ── 작업실 기능 카탈로그 ───────────────────────────────────────────────────────
+
+type WsItemStatus = "active" | "coming_soon" | "addon_fsp" | "addon_premium";
+interface WsItem { id: string; icon: React.ElementType; name: string; shortDesc: string; description: string; tags: string[]; useCases: string[]; status: WsItemStatus; }
+interface WsCatDef { key: string; label: string; icon: React.ElementType; iconCls: string; bgCls: string; items: WsItem[]; }
+
+const WS_CATALOG: WsCatDef[] = [
+  {
+    key: "branding", label: "브랜딩 & 회원 경험", icon: Sparkles, iconCls: "text-violet-500", bgCls: "bg-violet-500/10",
+    items: [
+      { id: "brand_page", icon: Globe, name: "내 브랜드 페이지", shortDesc: "STEPER 소개 및 브랜드 페이지 제작", status: "active",
+        description: "트레이너만의 브랜드 소개 페이지를 만들고 링크 하나로 회원에게 공유하세요. 소개글, 전문 분야, SNS 계정을 한 페이지에 담을 수 있습니다.",
+        tags: ["소개 페이지", "SNS 연결", "브랜드 프로필"],
+        useCases: ["신규 회원 유치 시 소개 자료로 활용", "SNS 바이오 링크로 설정", "상담 전 회원에게 공유"] },
+      { id: "fitstep_plus", icon: Wrench, name: "FIT STEP+", shortDesc: "회원 전용 프리미엄 관리 페이지", status: "active",
+        description: "회원이 직접 접속하는 전용 앱 페이지입니다. 출석 체크, 개인 운동 기록, 트레이너 피드백을 한 곳에서 관리할 수 있습니다.",
+        tags: ["회원 앱", "출석 확인", "운동 기록", "리포트"],
+        useCases: ["회원 자가 출석 체크", "홈트레이닝 운동 기록", "트레이너 피드백 제공"] },
+      { id: "fitstep_videos", icon: PlaySquare, name: "운동 영상 200개", shortDesc: "회원에게 제공 가능한 운동 영상 라이브러리", status: "addon_fsp",
+        description: "카테고리·부위별로 정리된 200개의 운동 영상을 회원에게 제공하세요. 홈트레이닝 영상과 부위별 운동 영상을 FIT STEP+ 앱에서 바로 볼 수 있습니다.",
+        tags: ["카테고리별 영상", "부위별 영상", "홈트레이닝"],
+        useCases: ["홈트레이닝 영상 제공", "운동 복습 콘텐츠 제공", "회원 자가 운동 지원"] },
+      { id: "fitstep_rec", icon: Target, name: "맞춤 운동 추천", shortDesc: "회원 목표 및 상태 기반 운동 추천", status: "addon_fsp",
+        description: "회원의 목표, 체력 수준, 컨디션을 바탕으로 맞춤 운동 루틴을 자동 추천합니다. 최적화된 프로그램을 손쉽게 제공할 수 있습니다.",
+        tags: ["운동 루틴 추천", "목적별 구성", "상태 기반"],
+        useCases: ["목표별 맞춤 프로그램 제공", "회원 상태에 따른 강도 조절", "루틴 자동화"] },
+      { id: "fitstep_diet", icon: Utensils, name: "맞춤 식단 관리", shortDesc: "회원 식단 및 생활습관 관리", status: "addon_fsp",
+        description: "회원의 식사 기록과 생활 패턴을 관리하고 식단 방향을 제시하세요. 운동 효과를 극대화하는 통합 관리가 가능합니다.",
+        tags: ["식단 방향 제시", "식사 기록", "식단 피드백"],
+        useCases: ["다이어트 회원 식단 관리", "벌크업 영양 가이드", "생활습관 개선"] },
+      { id: "fitstep_personal", icon: Activity, name: "개인 운동 기록 관리", shortDesc: "회원 개인 운동 수행 기록 및 활동 관리", status: "addon_fsp",
+        description: "회원이 직접 수행한 운동 기록을 쌓고 활동 데이터를 분석하세요. 홈운동 체크, 운동 볼륨 추적, 성장 확인이 가능합니다.",
+        tags: ["운동 기록", "활동 데이터", "홈운동 체크"],
+        useCases: ["자가 운동 기록 추적", "운동 볼륨 성장 확인", "홈트레이닝 관리"] },
+      { id: "booking", icon: Calendar, name: "수업 예약 기능", shortDesc: "STEPER 전용 상담·PT 예약 시스템", status: "active",
+        description: "회원이 직접 상담·PT 예약을 신청할 수 있는 예약 시스템입니다. 내 브랜드 페이지와 연결되어 링크 하나로 예약을 받을 수 있습니다.",
+        tags: ["상담 예약", "PT 예약", "예약 링크 공유", "일정 관리"],
+        useCases: ["상담 신청 자동화", "예약 관리 효율화", "리드 자동 등록"] },
+      { id: "report_branding", icon: BookMarked, name: "회원 보고서 브랜딩", shortDesc: "회원 리포트에 브랜드 컬러·프로필 적용", status: "active",
+        description: "회원에게 공유하는 운동 보고서에 내 로고, 브랜드 컬러, 프로필, 메시지를 표시하세요. 전문적인 인상을 남기고 신뢰를 높입니다.",
+        tags: ["로고", "브랜드 컬러", "프로필", "메시지"],
+        useCases: ["월간 운동 리포트 공유", "회원 성과 보고", "브랜드 노출"] },
+      { id: "templates", icon: Dumbbell, name: "운동 프로그램 템플릿", shortDesc: "루틴 저장 · 일지 작성 시 불러오기", status: "active",
+        description: "자주 사용하는 운동 루틴을 템플릿으로 저장하고, 트레이닝 일지 작성 시 불러와 빠르게 입력하세요. 반복 작업을 대폭 줄여줍니다.",
+        tags: ["루틴 저장", "빠른 입력", "일지 연동"],
+        useCases: ["자주 쓰는 루틴 저장", "일지 작성 시간 절약", "프로그램 체계화"] },
+      { id: "training_video", icon: Video, name: "트레이닝 일지 + 영상 연결", shortDesc: "회원별 운동 영상 연결 기능", status: "coming_soon",
+        description: "트레이닝 일지에 운동 영상을 직접 연결하여 회원이 집에서도 운동을 복습할 수 있게 하세요. 홈트레이닝 프로그램 제공이 가능합니다.",
+        tags: ["일지 내 영상 연결", "회원 복습", "홈운동 제공"],
+        useCases: ["운동 후 복습 영상 제공", "홈트레이닝 프로그램", "회원 자가 학습"] },
+      { id: "contract_terms", icon: FileText, name: "계약서 약관 브랜딩", shortDesc: "계약서 및 약관 커스터마이징", status: "active",
+        description: "회원 계약서와 약관을 트레이너만의 운영 정책에 맞게 수정하세요. 브랜드 컬러와 운영 방침을 반영한 전문적인 계약서를 제공할 수 있습니다.",
+        tags: ["브랜드 컬러", "약관 수정", "운영 정책"],
+        useCases: ["계약서 조건 맞춤 설정", "개인정보 동의서 수정", "운영 방침 반영"] },
+    ],
+  },
+  {
+    key: "operations", label: "회원 운영 관리", icon: Users, iconCls: "text-blue-500", bgCls: "bg-blue-500/10",
+    items: [
+      { id: "member_overview", icon: Users, name: "회원 운영 현황", shortDesc: "전체 회원 상태 한눈에 파악", status: "coming_soon",
+        description: "전체 회원, 활성 회원, 만료 임박·만료·정지 회원을 한눈에 확인하세요. 성별 비율, 연령대 그래프로 회원 구성을 분석할 수 있습니다.",
+        tags: ["활성 회원", "만료 임박", "성별 비율", "연령대"],
+        useCases: ["월말 회원 현황 파악", "만료 예정 회원 관리", "회원 구성 분석"] },
+      { id: "activity_stats", icon: BarChart3, name: "활동 통계", shortDesc: "월별·누적 활동 데이터 분석", status: "coming_soon",
+        description: "월별 회원 활동량과 누적 데이터를 분석하세요. 출석률, 운동 빈도, 회원 참여도를 수치로 확인하고 운영에 반영할 수 있습니다.",
+        tags: ["월별 분석", "누적 분석", "활동 데이터"],
+        useCases: ["회원 활동 패턴 파악", "출석률 개선 전략", "운영 성과 측정"] },
+      { id: "data_migration", icon: Database, name: "데이터 이전", shortDesc: "기존 데이터 업로드 및 센터 이전", status: "coming_soon",
+        description: "다른 시스템에서 사용하던 회원 데이터를 엑셀로 업로드하거나 센터 이전 시 데이터를 연동할 수 있습니다.",
+        tags: ["엑셀 업로드", "센터 이전", "데이터 연동"],
+        useCases: ["신규 앱 전환 시 데이터 이전", "센터 이사 후 데이터 연동", "대량 회원 등록"] },
+    ],
+  },
+  {
+    key: "analytics", label: "센터 운영 분석", icon: TrendingUp, iconCls: "text-emerald-500", bgCls: "bg-emerald-500/10",
+    items: [
+      { id: "kpi_report", icon: Target, name: "운영 KPI 리포트", shortDesc: "센터 성장 및 운영 성과 분석", status: "coming_soon",
+        description: "센터의 핵심 운영 지표를 한눈에 확인하세요. 회원 수 추이, 수익 성장률, 목표 달성도를 KPI로 관리할 수 있습니다.",
+        tags: ["KPI 분석", "운영 성과", "성장 데이터"],
+        useCases: ["월간 운영 성과 점검", "연간 목표 달성도 확인", "성장 지표 모니터링"] },
+      { id: "consult_conversion", icon: ArrowUpRight, name: "상담 등록 전환율", shortDesc: "상담 → 등록 전환 성과 분석", status: "coming_soon",
+        description: "상담한 회원 중 실제로 등록한 비율을 분석하세요. 전환율 개선 포인트를 찾고 상담 성과를 높일 수 있습니다.",
+        tags: ["전환율", "상담 성과", "등록 분석"],
+        useCases: ["상담 전략 개선", "전환율 목표 설정", "월별 성과 비교"] },
+      { id: "unpaid", icon: Coins, name: "미수금 관리", shortDesc: "회원별 미납 현황 관리", status: "coming_soon",
+        description: "미수금 현황을 회원별로 파악하고 납부 관리를 체계화하세요. 미납 알림과 납부 추적으로 수익 누수를 방지합니다.",
+        tags: ["미수금 현황", "회원별 미납", "납부 추적"],
+        useCases: ["미납 회원 파악", "수납 관리 자동화", "수익 누수 방지"] },
+      { id: "monthly_pnl", icon: PieChart, name: "월간 손익 현황", shortDesc: "월별 수익·비용·손익 확인", status: "coming_soon",
+        description: "월별 매출과 비용을 비교하고 순이익을 확인하세요. 운영 비용 구조를 파악해 수익성을 개선할 수 있습니다.",
+        tags: ["월별 수익", "비용 분석", "손익 확인"],
+        useCases: ["월말 수익 정산", "비용 구조 파악", "손익분기점 분석"] },
+      { id: "sales_analysis", icon: BarChart3, name: "월별 매출 분석", shortDesc: "매출 추이 및 월별 비교 그래프", status: "coming_soon",
+        description: "매출 트렌드와 월별 매출 비교 그래프를 확인하세요. 성수기·비수기 패턴을 파악해 운영 전략을 수립할 수 있습니다.",
+        tags: ["매출 추이", "월별 비교", "그래프"],
+        useCases: ["매출 트렌드 분석", "성수기 전략 수립", "연간 목표 설정"] },
+      { id: "renewal_analysis", icon: TrendingUp, name: "신규·재등록 분석", shortDesc: "신규 회원 및 재등록 비율 분석", status: "coming_soon",
+        description: "신규 등록과 재등록 회원 비율을 분석하세요. 재등록율은 센터 만족도와 직결되는 핵심 지표입니다.",
+        tags: ["신규 회원", "재등록", "비율 분석"],
+        useCases: ["재등록 캠페인 효과 측정", "이탈 방지 전략", "회원 만족도 간접 측정"] },
+      { id: "channel_analysis", icon: Share2, name: "유입 채널 분석", shortDesc: "채널별 유입 및 매출 분석", status: "coming_soon",
+        description: "어떤 채널에서 회원이 유입되는지, 채널별 매출 기여도는 어떤지 분석하세요. 효율적인 마케팅 예산 배분이 가능합니다.",
+        tags: ["채널별 유입", "채널별 매출", "마케팅 효율"],
+        useCases: ["마케팅 예산 배분", "효율적 채널 집중", "채널별 ROI 분석"] },
+      { id: "marketing_analysis", icon: Zap, name: "마케팅 유입 분석", shortDesc: "퍼널 데이터 및 월별·연간 통계", status: "coming_soon",
+        description: "마케팅 퍼널 전 단계의 데이터를 추적하고 월별·연간 누적 통계로 캠페인 효과를 측정하세요.",
+        tags: ["퍼널 데이터", "월별 통계", "연간 누적"],
+        useCases: ["광고 효과 측정", "퍼널 최적화", "연간 마케팅 전략 수립"] },
+      { id: "ai_insights", icon: Brain, name: "AI 운영 인사이트", shortDesc: "운영 데이터 기반 AI 분석", status: "coming_soon",
+        description: "AI가 운영 데이터를 분석해 회원 흐름 패턴, 이탈 위험 회원, 최적 운영 방식을 인사이트로 제공합니다.",
+        tags: ["AI 분석", "회원 흐름", "운영 패턴"],
+        useCases: ["이탈 위험 회원 사전 파악", "운영 패턴 최적화", "데이터 기반 의사결정"] },
+    ],
+  },
+  {
+    key: "automation", label: "계약 & 상담 자동화", icon: FileSignature, iconCls: "text-amber-500", bgCls: "bg-amber-500/10",
+    items: [
+      { id: "survey", icon: ClipboardList, name: "맞춤 상담 설문 빌더", shortDesc: "상담 전 고객 설문 제작 및 링크 공유", status: "active",
+        description: "상담 전에 고객 정보를 미리 수집하는 설문을 직접 만들어 링크로 공유하세요. 주관식·객관식·척도 문항을 자유롭게 구성할 수 있습니다.",
+        tags: ["주관식·객관식", "척도 문항", "링크 공유"],
+        useCases: ["상담 전 사전 정보 수집", "고객 맞춤 상담 준비", "설문 링크 배포"] },
+      { id: "contract_kakao", icon: MessageCircle, name: "계약서 카카오톡 공유", shortDesc: "계약서 링크 카카오톡 전달", status: "coming_soon",
+        description: "작성된 계약서를 카카오톡으로 바로 공유하세요. 회원이 카카오톡에서 계약서를 확인하고 서명까지 완료할 수 있습니다.",
+        tags: ["카카오톡 공유", "계약서 링크", "빠른 전달"],
+        useCases: ["비대면 계약 체결", "원격 회원 등록", "계약 프로세스 간소화"] },
+      { id: "e_contract", icon: FileSignature, name: "비대면 전자계약", shortDesc: "원격 전자계약 및 비대면 등록", status: "coming_soon",
+        description: "회원이 직접 방문하지 않아도 온라인에서 계약서 확인과 전자 서명을 완료할 수 있습니다. 비대면 회원 등록을 자동화하세요.",
+        tags: ["전자계약", "비대면 등록", "온라인 서명"],
+        useCases: ["원격 회원 등록", "비대면 계약 체결", "계약 자동화"] },
+    ],
+  },
+];
+
+// ── 기능 카드 ─────────────────────────────────────────────────────────────────
+function WorkshopItemCard({ item, onClick }: { item: WsItem; onClick: () => void }) {
+  const Icon = item.icon;
+  const statusBadge: Record<WsItemStatus, { label: string; cls: string } | null> = {
+    active: null,
+    coming_soon: { label: "준비 중", cls: "bg-muted text-muted-foreground" },
+    addon_fsp: { label: "ADD-ON", cls: "bg-blue-100 text-blue-600" },
+    addon_premium: { label: "PREMIUM", cls: "bg-amber-100 text-amber-600" },
+  };
+  const badge = statusBadge[item.status];
+
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex flex-col bg-card border border-border/60 rounded-2xl p-3.5 text-left w-full transition-all duration-150
+        hover:border-primary/40 hover:bg-primary/[0.03] active:scale-[0.96]
+        ${item.status !== "active" ? "opacity-80" : ""}`}
+    >
+      {badge && (
+        <span className={`absolute top-2.5 right-2.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${badge.cls}`}>
+          {badge.label}
+        </span>
+      )}
+      <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-2.5">
+        <Icon className="h-[18px] w-[18px] text-primary" />
+      </div>
+      <p className="font-semibold text-[13px] leading-tight pr-8">{item.name}</p>
+      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed line-clamp-2">{item.shortDesc}</p>
+    </button>
+  );
+}
+
+// ── 기능 하단 시트 ────────────────────────────────────────────────────────────
+function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
+  item: WsItem; trainerId?: number; isAdmin: boolean; onClose: () => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const Icon = item.icon;
+
+  const statusMeta: Record<WsItemStatus, { label: string; cls: string }> = {
+    active: { label: "사용 가능", cls: "bg-green-100 text-green-700" },
+    coming_soon: { label: "출시 예정", cls: "bg-muted text-muted-foreground" },
+    addon_fsp: { label: "FITSTEP+ ADD-ON", cls: "bg-blue-100 text-blue-600" },
+    addon_premium: { label: "PREMIUM ADD-ON", cls: "bg-amber-100 text-amber-600" },
+  };
+  const sm = statusMeta[item.status];
+
+  function renderForm() {
+    if (!showForm) return null;
+    switch (item.id) {
+      case "brand_page":    return <BrandPageEditor />;
+      case "fitstep_plus":  return isAdmin ? <AdminFspLimitsPanel /> : trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : null;
+      case "booking":       return <BrandPageEditor bookingOnly />;
+      case "report_branding": return <ReportBrandingEditor />;
+      case "templates":     return <WorkoutTemplateEditor />;
+      case "survey":        return <SurveyBuilder />;
+      case "contract_terms": return <ContractTermsEditor />;
+      default:              return null;
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative bg-card rounded-t-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-2 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+
+        {/* Header */}
+        <div className="px-5 pt-1 pb-4 flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Icon className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="font-bold text-base leading-tight">{item.name}</h2>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sm.cls}`}>{sm.label}</span>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted mt-0.5 shrink-0">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 pb-10 space-y-4">
+          <p className="text-sm text-foreground/80 leading-relaxed">{item.description}</p>
+
+          <div className="flex flex-wrap gap-1.5">
+            {item.tags.map(tag => (
+              <span key={tag} className="text-xs bg-accent/60 text-foreground/70 px-2.5 py-1 rounded-full border border-border/40">{tag}</span>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">활용 상황</p>
+            {item.useCases.map(uc => (
+              <div key={uc} className="flex items-start gap-2">
+                <Check className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                <span className="text-xs text-foreground/80">{uc}</span>
+              </div>
+            ))}
+          </div>
+
+          {item.status === "active" && (
+            !showForm ? (
+              <Button className="w-full" onClick={() => setShowForm(true)}>설정하기</Button>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="text-xs text-muted-foreground font-medium">설정</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+                {renderForm()}
+              </div>
+            )
+          )}
+
+          {item.status !== "active" && (
+            <div className="bg-muted/40 border border-border/60 rounded-2xl p-5 text-center space-y-1.5">
+              <p className="text-sm font-semibold text-muted-foreground">
+                {item.status === "addon_fsp" ? "FITSTEP+ 확장 기능" :
+                 item.status === "addon_premium" ? "PREMIUM 확장 기능" : "출시 예정 기능"}
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {item.status === "coming_soon"
+                  ? "곧 업데이트될 예정입니다. 출시 시 알려드리겠습니다."
+                  : "FIT STEP의 확장 기능으로 별도 제공될 예정입니다."}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 어드민 전용 작업실 관리 뷰 ──────────────────────────────────────────────
 
 type WsCategory = "fsp" | "brand" | "booking" | "branding" | "templates" | "survey" | "contract";
@@ -1654,110 +1927,11 @@ function AdminWorkshopView() {
   );
 }
 
-// ── 작업실 기능 목록 (공통) ───────────────────────────────────────────────────
-function WorkshopFeatures({ openSection, toggle, trainerId, isAdmin }: {
-  openSection: string | null;
-  toggle: (k: string) => void;
-  trainerId?: number;
-  isAdmin: boolean;
-}) {
-  return (
-    <div className="space-y-3">
-      <Card className="bg-card border-border">
-        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("fitstep")}>
-          <div className="flex items-center gap-2.5">
-            <Wrench className="h-4 w-4 text-primary" />
-            <div className="flex items-baseline gap-2">
-              <span className="font-semibold text-base">
-                <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
-                <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP+</span>
-              </span>
-              <span className="text-xs text-muted-foreground">개인 회원 관리 페이지</span>
-            </div>
-          </div>
-          {openSection === "fitstep" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-        {openSection === "fitstep" && (
-          <CardContent className="pt-0 pb-4">
-            {isAdmin ? <AdminFspLimitsPanel /> : trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>}
-          </CardContent>
-        )}
-      </Card>
-
-      <Card className="bg-card border-border">
-        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("brand_page")}>
-          <div className="flex items-center gap-2.5">
-            <Globe className="h-4 w-4 text-primary" />
-            <div><span className="font-semibold text-sm">내 브랜드 페이지</span><p className="text-xs text-muted-foreground mt-0.5">공개 소개 페이지 · 예약 링크 공유</p></div>
-          </div>
-          {openSection === "brand_page" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-        {openSection === "brand_page" && <CardContent className="pt-0 pb-4"><BrandPageEditor /></CardContent>}
-      </Card>
-
-      <Card className="bg-card border-border">
-        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("booking")}>
-          <div className="flex items-center gap-2.5">
-            <Calendar className="h-4 w-4 text-primary" />
-            <div><span className="font-semibold text-sm">상담 예약 링크</span><p className="text-xs text-muted-foreground mt-0.5">고객이 직접 상담 신청 · 리드 자동 등록</p></div>
-          </div>
-          {openSection === "booking" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-        {openSection === "booking" && <CardContent className="pt-0 pb-4"><BrandPageEditor bookingOnly /></CardContent>}
-      </Card>
-
-      <Card className="bg-card border-border">
-        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("report_branding")}>
-          <div className="flex items-center gap-2.5">
-            <BookMarked className="h-4 w-4 text-primary" />
-            <div><span className="font-semibold text-sm">회원 보고서 브랜딩</span><p className="text-xs text-muted-foreground mt-0.5">공유 보고서에 내 프로필 · 브랜드 색상 표시</p></div>
-          </div>
-          {openSection === "report_branding" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-        {openSection === "report_branding" && <CardContent className="pt-0 pb-4"><ReportBrandingEditor /></CardContent>}
-      </Card>
-
-      <Card className="bg-card border-border">
-        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("templates")}>
-          <div className="flex items-center gap-2.5">
-            <Dumbbell className="h-4 w-4 text-primary" />
-            <div><span className="font-semibold text-sm">운동 프로그램 템플릿</span><p className="text-xs text-muted-foreground mt-0.5">루틴 저장 · 일지 작성 시 불러오기</p></div>
-          </div>
-          {openSection === "templates" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-        {openSection === "templates" && <CardContent className="pt-0 pb-4"><WorkoutTemplateEditor /></CardContent>}
-      </Card>
-
-      <Card className="bg-card border-border">
-        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("survey")}>
-          <div className="flex items-center gap-2.5">
-            <ClipboardList className="h-4 w-4 text-primary" />
-            <div><span className="font-semibold text-sm">맞춤 상담 설문 빌더</span><p className="text-xs text-muted-foreground mt-0.5">상담 전 고객 설문 · 링크 공유</p></div>
-          </div>
-          {openSection === "survey" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-        {openSection === "survey" && <CardContent className="pt-0 pb-4"><SurveyBuilder /></CardContent>}
-      </Card>
-
-      <Card className="bg-card border-border">
-        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("terms")}>
-          <div className="flex items-center gap-2.5">
-            <FileText className="h-4 w-4 text-primary" />
-            <span className="font-semibold text-sm">회원 계약서 약관 수정</span>
-          </div>
-          {openSection === "terms" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-        {openSection === "terms" && <CardContent className="pt-0 pb-4"><ContractTermsEditor /></CardContent>}
-      </Card>
-    </div>
-  );
-}
-
 // ── 작업실 메인 (트레이너용, 상태 기반) ─────────────────────────────────────
 function WorkshopContent() {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<WsItem | null>(null);
   const trainerId = (user as any)?.trainerId as number | undefined;
   const isAdmin = (user as any)?.role === "admin";
 
@@ -1770,8 +1944,6 @@ function WorkshopContent() {
     onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("작업실이 활성화되었습니다!"); },
     onError: (e) => toast.error(e.message),
   });
-
-  function toggle(key: string) { setOpenSection(v => v === key ? null : key); }
 
   if (isLoading) {
     return (
@@ -1918,7 +2090,32 @@ function WorkshopContent() {
         )}
       </div>
 
-      <WorkshopFeatures openSection={openSection} toggle={toggle} trainerId={trainerId} isAdmin={isAdmin} />
+      <div className="space-y-6">
+        {WS_CATALOG.map(cat => (
+          <div key={cat.key}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-6 h-6 rounded-lg ${cat.bgCls} flex items-center justify-center`}>
+                <cat.icon className={`h-3.5 w-3.5 ${cat.iconCls}`} />
+              </div>
+              <p className="text-sm font-bold">{cat.label}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {cat.items.map(item => (
+                <WorkshopItemCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {selectedItem && (
+        <WorkshopItemSheet
+          item={selectedItem}
+          trainerId={trainerId}
+          isAdmin={isAdmin}
+          onClose={() => setSelectedItem(null)}
+        />
+      )}
     </div>
   );
 }
