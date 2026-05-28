@@ -230,7 +230,7 @@ export default function LeadsPage() {
   const defaultReRegForm = {
     membershipStart: "", membershipEnd: "",
     programTypes: [] as string[],
-    ptProgram: "", ptSessions: "", serviceSessions: "",
+    ptProgram: "", ptSessions: "", serviceSessions: "", serviceSessionPrice: "",
     healthDuration: "" as string,
     healthServiceDays: "",
     otherItem: "",
@@ -247,7 +247,7 @@ export default function LeadsPage() {
     membershipStart: "", membershipEnd: "",
     programTypes: [] as string[],  // ["PT", "헬스", "기타"]
     ptProgram: "",                  // 케어피티, 웨이트피티, 이벤트피티, 직접입력
-    ptSessions: "", serviceSessions: "",
+    ptSessions: "", serviceSessions: "", serviceSessionPrice: "",
     healthDuration: "" as string,
     healthServiceDays: "",
     otherItem: "",
@@ -473,6 +473,7 @@ export default function LeadsPage() {
         ptProgram: parts.length > 0 ? parts.join(" + ") : undefined,
         ptSessions: isPT ? (f.ptSessions || undefined) : undefined,
         serviceSessions: isPT && f.serviceSessions ? parseInt(f.serviceSessions) : undefined,
+        serviceSessionPrice: isPT && f.serviceSessionPrice ? parseInt(f.serviceSessionPrice) : undefined,
         paymentAmount: f.paymentAmount ? parseInt(f.paymentAmount) : undefined,
         unpaidAmount: f.unpaidAmount ? parseInt(f.unpaidAmount) : undefined,
         paymentMethod: f.paymentMethod || undefined,
@@ -505,6 +506,8 @@ export default function LeadsPage() {
             memberId: reRegMemberId!,
             ptProgram: f.ptProgram || undefined,
             totalSessions: parseInt(f.ptSessions),
+            serviceSessions: f.serviceSessions ? parseInt(f.serviceSessions) : undefined,
+            serviceSessionPrice: f.serviceSessionPrice ? parseInt(f.serviceSessionPrice) : undefined,
             startDate: f.membershipStart || undefined,
             expiryDate: f.membershipEnd || undefined,
             paymentAmount: f.paymentAmount ? parseInt(f.paymentAmount) : undefined,
@@ -1025,7 +1028,7 @@ export default function LeadsPage() {
                             <option value="" disabled>이벤트 선택...</option>
                             {(ptEvents ?? []).map((ev: any) => (
                               <option key={ev.id} value={String(ev.id)}>
-                                {ev.name} (결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회)
+                                {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · 서비스단가 ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
                               </option>
                             ))}
                           </select>
@@ -1379,15 +1382,14 @@ export default function LeadsPage() {
                                       const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
                                       if (ev) setReRegForm(f => ({
                                         ...f,
-                                        ptSessions: String(ev.sessions),
                                         serviceSessions: String(ev.serviceSessions),
-                                        paymentAmount: String(Math.round(ev.sessions * ev.pricePerSession * 1.1)),
+                                        serviceSessionPrice: String(ev.serviceSessionPrice ?? 0),
                                       }));
                                     }}>
                                     <option value="" disabled>이벤트 선택...</option>
                                     {(ptEvents ?? []).map((ev: any) => (
                                       <option key={ev.id} value={String(ev.id)}>
-                                        {ev.name} (결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회)
+                                        {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · 서비스단가 ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
                                       </option>
                                     ))}
                                   </select>
@@ -1726,15 +1728,14 @@ export default function LeadsPage() {
                                 const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
                                 if (ev) setDirectForm(f => ({
                                   ...f,
-                                  ptSessions: String(ev.sessions),
                                   serviceSessions: String(ev.serviceSessions),
-                                  paymentAmount: String(Math.round(ev.sessions * ev.pricePerSession * 1.1)),
+                                  serviceSessionPrice: String(ev.serviceSessionPrice ?? 0),
                                 }));
                               }}>
                               <option value="" disabled>이벤트 선택...</option>
                               {(ptEvents ?? []).map((ev: any) => (
                                 <option key={ev.id} value={String(ev.id)}>
-                                  {ev.name} (결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회)
+                                  {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · 서비스단가 ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
                                 </option>
                               ))}
                             </select>
