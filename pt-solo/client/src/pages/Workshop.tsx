@@ -1692,18 +1692,12 @@ function WorkshopLockedView() {
     return (
       <div className="space-y-4">
         <TabBanner tabKey="workshop" />
-        <div className="flex items-center gap-2">
-          <div>
-            <p className="text-base font-bold">
-              <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
-              <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
-              <span className="text-primary font-black" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
-              <span className="text-sm font-semibold ml-2">관리</span>
-            </p>
-            <p className="text-xs text-muted-foreground">작업실의 다른 기능은 업데이트 준비 중입니다</p>
-          </div>
-          <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-semibold ml-auto shrink-0">🔧 일부 개발 중</span>
-        </div>
+        <p className="text-base font-bold">
+          <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+          <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
+          <span className="text-primary font-black" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
+          <span className="text-sm font-semibold ml-2">관리</span>
+        </p>
         <FitStepPlusPanel trainerId={trainerId} />
       </div>
     );
