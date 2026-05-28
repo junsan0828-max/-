@@ -2565,16 +2565,21 @@ const fitStepPlusRouter = t.router({
       const existing = await getDb().select({ id: fitStepPlusMembers.id }).from(fitStepPlusMembers)
         .where(and(eq(fitStepPlusMembers.trainerId, trainerId), eq(fitStepPlusMembers.username, input.username))).limit(1);
       if (existing[0]) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 아이디입니다." });
-      // 작업실 오픈 여부에 따라 FIT STEP+ 회원 수 제한
-      const workshopRow = await pool.query<{ id: number }>(
-        `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature='workshop_access' LIMIT 1`, [trainerId]
+      // 플랜별 FIT STEP+ 회원 수 제한
+      const trainerPlanRow = await pool.query<{ plan: string }>(
+        `SELECT COALESCE(u."plan",'free') AS plan FROM users u JOIN trainers t ON t."userId"=u.id WHERE t.id=$1`, [trainerId]
       );
-      const fspLimit = workshopRow.rows.length > 0 ? 15 : 5;
+      const trainerPlan = trainerPlanRow.rows[0]?.plan ?? "free";
+      const planKey = `fsp_limit_${trainerPlan}`;
+      const limitRow = await pool.query<{ value: string }>(
+        `SELECT value FROM plan_settings WHERE key=$1`, [planKey]
+      );
+      const fspLimit = parseInt(limitRow.rows[0]?.value ?? (trainerPlan === "elite" ? "30" : trainerPlan === "pro" ? "15" : "5"));
       const countRow = await pool.query<{ cnt: string }>(
         `SELECT COUNT(*)::text AS cnt FROM fit_step_plus_members WHERE "trainerId"=$1`, [trainerId]
       );
       if (parseInt(countRow.rows[0].cnt) >= fspLimit) {
-        throw new TRPCError({ code: "FORBIDDEN", message: `FIT STEP+ 회원은 최대 ${fspLimit}명까지 등록할 수 있습니다. (작업실 오픈 시 15명으로 확장)` });
+        throw new TRPCError({ code: "FORBIDDEN", message: `FIT STEP+ 회원은 최대 ${fspLimit}명까지 등록할 수 있습니다. (${trainerPlan.toUpperCase()} 플랜)` });
       }
       const hashed = await bcrypt.hash(input.password, 10);
       const [row] = await getDb().insert(fitStepPlusMembers).values({ ...input, trainerId, password: hashed }).returning();
@@ -2873,11 +2878,42 @@ const fitStepPlusRouter = t.router({
   // ── 어드민 현황 조회 ──
   admin_overview: adminProcedure.query(async () => {
     const memberCounts = await getDb().select({
-      trainerId: members.trainerId,
+      trainerId: fitStepPlusMembers.trainerId,
       count: sql<number>`COUNT(*)`,
-    }).from(members).groupBy(members.trainerId);
+    }).from(fitStepPlusMembers).groupBy(fitStepPlusMembers.trainerId);
     return { memberCounts };
   }),
+
+  // ── 플랜별 FIT STEP+ 회원 수 제한 조회 ──
+  admin_getPlanLimits: adminProcedure.query(async () => {
+    const rows = await pool.query<{ key: string; value: string }>(
+      `SELECT key, value FROM plan_settings WHERE key IN ('fsp_limit_free','fsp_limit_pro','fsp_limit_elite')`
+    );
+    const map: Record<string, number> = { free: 5, pro: 15, elite: 30 };
+    for (const r of rows.rows) {
+      const plan = r.key.replace("fsp_limit_", "");
+      map[plan] = parseInt(r.value);
+    }
+    return map;
+  }),
+
+  // ── 플랜별 FIT STEP+ 회원 수 제한 업데이트 ──
+  admin_updatePlanLimits: adminProcedure
+    .input(z.object({
+      free: z.number().int().min(1).max(500),
+      pro: z.number().int().min(1).max(500),
+      elite: z.number().int().min(1).max(500),
+    }))
+    .mutation(async ({ input }) => {
+      for (const [plan, val] of [["free", input.free], ["pro", input.pro], ["elite", input.elite]] as const) {
+        await pool.query(
+          `INSERT INTO plan_settings (key, value, "updatedAt") VALUES ($1,$2,now()::text)
+           ON CONFLICT (key) DO UPDATE SET value=$2, "updatedAt"=now()::text`,
+          [`fsp_limit_${plan}`, String(val)]
+        );
+      }
+      return { success: true };
+    }),
 });
 
 const expensesRouter = t.router({

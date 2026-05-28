@@ -703,6 +703,16 @@ async function initDatabase() {
     await pool.query(`UPDATE users SET "referralCode"=$1 WHERE id=$2`, [code, u.id]);
   }
 
+  // FIT STEP+ 플랜별 회원 수 제한 설정
+  await pool.query(`CREATE TABLE IF NOT EXISTS plan_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  for (const [k, v] of [['fsp_limit_free','5'],['fsp_limit_pro','15'],['fsp_limit_elite','30']]) {
+    await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, [k, v]);
+  }
+
   // 포인트 자동 지급 규칙 테이블
   await pool.query(`CREATE TABLE IF NOT EXISTS point_auto_rules (
     id SERIAL PRIMARY KEY,
