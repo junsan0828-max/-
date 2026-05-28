@@ -1189,8 +1189,11 @@ function WorkshopLockedView() {
   const trainerId = (user as any)?.trainerId as number | undefined;
   const isAdmin = (user as any)?.role === "admin";
 
-  // 어드민 또는 트레이너는 FIT STEP+ 패널 접근
-  if (isAdmin || trainerId) {
+  // 어드민은 전체 작업실 기능 접근
+  if (isAdmin) return <WorkshopContent />;
+
+  // 트레이너는 FIT STEP+ 패널 접근
+  if (trainerId) {
     return (
       <div className="space-y-4">
         <TabBanner tabKey="workshop" />
@@ -1206,11 +1209,7 @@ function WorkshopLockedView() {
           </div>
           <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-semibold ml-auto shrink-0">🔧 일부 개발 중</span>
         </div>
-        {trainerId ? (
-          <FitStepPlusPanel trainerId={trainerId} />
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">트레이너 계정에서만 이용할 수 있습니다.</p>
-        )}
+        <FitStepPlusPanel trainerId={trainerId} />
       </div>
     );
   }
@@ -1231,10 +1230,7 @@ function WorkshopLockedView() {
   );
 }
 
-export default function Workshop() {
-  // WORKSHOP_LOCKED는 compile-time 상수이므로 훅 규칙 위반 없음
-  if (WORKSHOP_LOCKED) return <WorkshopLockedView />;
-
+function WorkshopContent() {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -1495,4 +1491,10 @@ export default function Workshop() {
       </div>
     </div>
   );
+}
+
+export default function Workshop() {
+  // WORKSHOP_LOCKED는 compile-time 상수이므로 훅 규칙 위반 없음
+  if (WORKSHOP_LOCKED) return <WorkshopLockedView />;
+  return <WorkshopContent />;
 }
