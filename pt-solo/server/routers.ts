@@ -2387,6 +2387,7 @@ const fitPointsRouter = t.router({
       ]),
     }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role === "admin") return { success: true }; // 관리자는 포인트 차감 없음
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const memoMap: Record<string, string> = {
