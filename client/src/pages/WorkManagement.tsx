@@ -336,11 +336,17 @@ function NoticeManagementSection() {
   );
 }
 
+const SESSION_PRESETS = [10, 20, 30, 40, 50];
+const SERVICE_PRESETS = [1, 2, 3];
+
 function EventManagementSection() {
   const [eventType, setEventType] = useState<"PT" | "헬스">("PT");
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", sessions: "", serviceSessions: "0", pricePerSession: "", serviceSessionPrice: "0", startDate: "", endDate: "" });
+  // applicableSessions: Set of selected session counts (as strings)
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+  const [customSession, setCustomSession] = useState(""); // 직접입력 세션
+  const [form, setForm] = useState({ name: "", serviceSessions: "0", serviceSessionPrice: "0", startDate: "", endDate: "" });
 
   const { data: events, refetch } = trpc.eventPrograms.list.useQuery({ type: eventType });
   const upsertMutation = trpc.eventPrograms.upsert.useMutation({
@@ -352,28 +358,62 @@ function EventManagementSection() {
     onError: (e) => toast.error(e.message || "삭제 실패"),
   });
 
+  function resetForm() {
+    setSelectedSessions(new Set());
+    setCustomSession("");
+    setForm({ name: "", serviceSessions: "0", serviceSessionPrice: "0", startDate: "", endDate: "" });
+  }
+
   const openEdit = (item: any) => {
     setEditItem(item);
-    setForm({ name: item.name, sessions: String(item.sessions), serviceSessions: String(item.serviceSessions), pricePerSession: String(item.pricePerSession), serviceSessionPrice: String(item.serviceSessionPrice), startDate: item.startDate ?? "", endDate: item.endDate ?? "" });
+    // applicableSessions가 있으면 파싱, 없으면 기존 sessions 값 사용
+    const raw: string = item.applicableSessions || String(item.sessions || "");
+    const parsed = raw.split(",").map((s: string) => s.trim()).filter(Boolean);
+    const presetSet = new Set<string>();
+    let custom = "";
+    parsed.forEach((s: string) => {
+      if (SESSION_PRESETS.map(String).includes(s)) presetSet.add(s);
+      else custom = s;
+    });
+    setSelectedSessions(presetSet);
+    setCustomSession(custom);
+    setForm({ name: item.name, serviceSessions: String(item.serviceSessions), serviceSessionPrice: String(item.serviceSessionPrice), startDate: item.startDate ?? "", endDate: item.endDate ?? "" });
     setShowForm(true);
   };
-  const openNew = () => { setEditItem(null); setForm({ name: "", sessions: "", serviceSessions: "0", pricePerSession: "", serviceSessionPrice: "0", startDate: "", endDate: "" }); setShowForm(true); };
+  const openNew = () => { setEditItem(null); resetForm(); setShowForm(true); };
+
+  function toggleSession(s: string) {
+    setSelectedSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+  }
+
+  function buildApplicableSessions() {
+    const all = [...Array.from(selectedSessions).map(Number).sort((a, b) => a - b).map(String)];
+    if (customSession.trim()) all.push(customSession.trim());
+    return all.join(",");
+  }
 
   const handleSubmit = () => {
-    if (!form.name || !form.sessions || !form.pricePerSession) { toast.error("필수 항목을 입력해주세요."); return; }
+    const applicableSessions = buildApplicableSessions();
+    if (!form.name) { toast.error("이벤트명을 입력해주세요."); return; }
+    if (!applicableSessions) { toast.error("이벤트 적용 세션을 선택해주세요."); return; }
     upsertMutation.mutate({
       id: editItem?.id,
       type: eventType,
       name: form.name,
-      sessions: parseInt(form.sessions),
+      applicableSessions,
       serviceSessions: parseInt(form.serviceSessions || "0"),
-      pricePerSession: parseInt(form.pricePerSession),
       serviceSessionPrice: parseInt(form.serviceSessionPrice || "0"),
       isActive: editItem?.isActive ?? 1,
       startDate: form.startDate || null,
       endDate: form.endDate || null,
     });
   };
+
+  const isCustomServiceSessions = !["0", ...SERVICE_PRESETS.map(String)].includes(form.serviceSessions);
 
   return (
     <Card className="bg-card border-border">
@@ -395,86 +435,117 @@ function EventManagementSection() {
 
         {/* 이벤트 목록 */}
         <div className="space-y-2">
-          {(events ?? []).map((ev: any) => (
-            <div key={ev.id} className={`flex items-start gap-3 p-3 rounded-lg border ${ev.isActive ? "bg-accent/20 border-border" : "bg-muted/10 border-border/50 opacity-60"}`}>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">{ev.name}</span>
-                  {ev.isActive ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">운영중</span> : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/40 text-muted-foreground">중단</span>}
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  결제 {ev.sessions}회 · 서비스 {ev.serviceSessions}회 · 단가 {ev.pricePerSession.toLocaleString()}원
-                  {ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
-                </p>
-                {(ev.startDate || ev.endDate) && (
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">
-                    {ev.startDate ? ev.startDate : "시작일 없음"} ~ {ev.endDate ? ev.endDate : "종료일 없음"}
+          {(events ?? []).map((ev: any) => {
+            const appliedSessions = ev.applicableSessions || String(ev.sessions || "");
+            return (
+              <div key={ev.id} className={`flex items-start gap-3 p-3 rounded-lg border ${ev.isActive ? "bg-accent/20 border-border" : "bg-muted/10 border-border/50 opacity-60"}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold">{ev.name}</span>
+                    {ev.isActive ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">운영중</span> : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/40 text-muted-foreground">중단</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    적용 세션: {appliedSessions.split(",").map((s: string) => `${s}회`).join(" · ")}
+                    {" · "} 서비스 +{ev.serviceSessions}회
+                    {ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
                   </p>
-                )}
+                  {(ev.startDate || ev.endDate) && (
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">
+                      {ev.startDate ?? "시작일 없음"} ~ {ev.endDate ?? "종료일 없음"}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <button onClick={() => upsertMutation.mutate({ ...ev, applicableSessions: ev.applicableSessions || String(ev.sessions), isActive: ev.isActive ? 0 : 1 })}
+                    className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors">
+                    {ev.isActive ? "중단" : "재개"}
+                  </button>
+                  <button onClick={() => openEdit(ev)}
+                    className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors">수정</button>
+                  <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: ev.id }); }}
+                    className="text-xs px-2 py-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">삭제</button>
+                </div>
               </div>
-              <div className="flex gap-1.5 shrink-0">
-                <button onClick={() => upsertMutation.mutate({ ...ev, isActive: ev.isActive ? 0 : 1 })}
-                  className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors">
-                  {ev.isActive ? "중단" : "재개"}
-                </button>
-                <button onClick={() => openEdit(ev)}
-                  className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors">수정</button>
-                <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: ev.id }); }}
-                  className="text-xs px-2 py-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">삭제</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {(events ?? []).length === 0 && <p className="text-sm text-muted-foreground text-center py-4">등록된 이벤트가 없습니다.</p>}
         </div>
 
         {/* 추가/수정 폼 */}
         {showForm && (
-          <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+          <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-4">
             <p className="text-sm font-medium">{editItem ? "이벤트 수정" : "새 이벤트 추가"}</p>
+
+            {/* 이벤트명 */}
             <div>
               <label className="text-xs text-muted-foreground">이벤트명</label>
-              <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="예: 20회 이벤트 패키지" className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+              <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="예: 진단서 이벤트" className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
             </div>
+
+            {/* 이벤트 적용 세션 */}
+            <div>
+              <label className="text-xs text-muted-foreground">이벤트 적용 세션 <span className="text-muted-foreground/60">(중복 선택 가능)</span></label>
+              <div className="flex gap-2 mt-1.5 flex-wrap">
+                {SESSION_PRESETS.map(s => (
+                  <button key={s} type="button"
+                    onClick={() => toggleSession(String(s))}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${selectedSessions.has(String(s)) ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground bg-background hover:text-foreground"}`}>
+                    {s}회
+                  </button>
+                ))}
+                <input
+                  type="number" min="1"
+                  value={customSession}
+                  onChange={e => setCustomSession(e.target.value)}
+                  placeholder="직접입력"
+                  className="w-20 px-2 py-1.5 rounded-lg border border-border bg-background text-sm text-center"
+                />
+              </div>
+              {(selectedSessions.size > 0 || customSession) && (
+                <p className="text-xs text-primary mt-1">
+                  선택: {[...Array.from(selectedSessions).map(Number).sort((a,b)=>a-b).map(n=>`${n}회`), ...(customSession ? [`${customSession}회`] : [])].join(", ")}
+                </p>
+              )}
+            </div>
+
+            {/* 서비스 세션 */}
+            <div>
+              <label className="text-xs text-muted-foreground">서비스 세션</label>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <button type="button" onClick={() => setForm(f => ({...f, serviceSessions: "0"}))}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${form.serviceSessions === "0" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground bg-background"}`}>
+                  없음
+                </button>
+                {SERVICE_PRESETS.map(n => (
+                  <button key={n} type="button" onClick={() => setForm(f => ({...f, serviceSessions: String(n)}))}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${form.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground bg-background"}`}>
+                    +{n}
+                  </button>
+                ))}
+                <input
+                  type="number" min="1"
+                  value={isCustomServiceSessions ? form.serviceSessions : ""}
+                  onChange={e => setForm(f => ({...f, serviceSessions: e.target.value}))}
+                  placeholder="직접입력"
+                  className={`w-20 px-2 py-1.5 rounded-lg border text-sm text-center transition-colors ${isCustomServiceSessions ? "border-amber-500 bg-background text-foreground" : "border-border bg-background text-muted-foreground"}`}
+                />
+              </div>
+            </div>
+
+            {/* 서비스 세션 단가 */}
+            <div>
+              <label className="text-xs text-muted-foreground">서비스 세션 단가 <span className="text-muted-foreground/60">(정산용)</span></label>
+              <div className="flex items-center gap-1 mt-1">
+                <input type="number" value={form.serviceSessionPrice} onChange={e => setForm(f => ({...f, serviceSessionPrice: e.target.value}))} placeholder="40000"
+                  className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+                <span className="text-xs text-muted-foreground">원</span>
+              </div>
+            </div>
+
+            {/* 날짜 */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs text-muted-foreground">결제 횟수</label>
-                <div className="flex items-center gap-1 mt-1">
-                  <input type="number" value={form.sessions} onChange={e => setForm(f => ({...f, sessions: e.target.value}))} placeholder="20" className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
-                  <span className="text-xs text-muted-foreground">회</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">서비스 횟수</label>
-                <div className="flex items-center gap-1 mt-1 flex-wrap">
-                  {[0,1,2,3,5].map(n => (
-                    <button key={n} onClick={() => setForm(f => ({...f, serviceSessions: String(n)}))}
-                      className={`px-2 py-1.5 rounded text-xs border transition-colors ${form.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
-                      {n === 0 ? "없음" : `+${n}`}
-                    </button>
-                  ))}
-                  <input type="number" value={![0,1,2,3,5].includes(parseInt(form.serviceSessions||"0")) ? form.serviceSessions : ""} onChange={e => setForm(f => ({...f, serviceSessions: e.target.value}))} placeholder="직접" className="w-12 px-2 py-1.5 rounded border border-border bg-background text-xs text-center" />
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-muted-foreground">결제 세션 단가</label>
-                <div className="flex items-center gap-1 mt-1">
-                  <input type="number" value={form.pricePerSession} onChange={e => setForm(f => ({...f, pricePerSession: e.target.value}))} placeholder="50000" className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
-                  <span className="text-xs text-muted-foreground">원</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">서비스 세션 단가 <span className="text-muted-foreground/60">(정산용)</span></label>
-                <div className="flex items-center gap-1 mt-1">
-                  <input type="number" value={form.serviceSessionPrice} onChange={e => setForm(f => ({...f, serviceSessionPrice: e.target.value}))} placeholder="0" className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
-                  <span className="text-xs text-muted-foreground">원</span>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-muted-foreground">시작 날짜 <span className="text-muted-foreground/60">(없으면 바로 적용)</span></label>
+                <label className="text-xs text-muted-foreground">시작 날짜 <span className="text-muted-foreground/60">(없으면 즉시)</span></label>
                 <input type="date" value={form.startDate} onChange={e => setForm(f => ({...f, startDate: e.target.value}))}
                   className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
               </div>
@@ -484,11 +555,16 @@ function EventManagementSection() {
                   className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
               </div>
             </div>
-            {form.sessions && form.pricePerSession && (
+
+            {/* 요약 */}
+            {(selectedSessions.size > 0 || customSession) && form.serviceSessions !== "0" && (
               <div className="text-xs text-muted-foreground bg-accent/20 rounded p-2">
-                총 {parseInt(form.sessions||"0") + parseInt(form.serviceSessions||"0")}회 (결제 {form.sessions}회 + 서비스 {form.serviceSessions||0}회) · 결제금액 예시: {(parseInt(form.sessions||"0") * parseInt(form.pricePerSession||"0") * 1.1).toLocaleString()}원 (VAT 포함)
+                {[...Array.from(selectedSessions).map(Number).sort((a,b)=>a-b), ...(customSession ? [parseInt(customSession)] : [])].map(n => (
+                  <span key={n}>{n}회 등록 → +{form.serviceSessions}회 서비스 (단가 {parseInt(form.serviceSessionPrice||"0").toLocaleString()}원)　</span>
+                ))}
               </div>
             )}
+
             <div className="flex gap-2">
               <button onClick={() => { setShowForm(false); setEditItem(null); }} className="flex-1 py-2 rounded-md border border-border text-sm text-muted-foreground">취소</button>
               <button onClick={handleSubmit} disabled={upsertMutation.isPending} className="flex-1 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">

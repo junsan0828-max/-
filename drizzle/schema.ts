@@ -101,9 +101,10 @@ export const ptEventPrograms = pgTable("pt_event_programs", {
   id: serial("id").primaryKey(),
   type: text("type").notNull().default("PT"),
   name: text("name").notNull(),
-  sessions: integer("sessions").notNull(),
+  sessions: integer("sessions").notNull(),                    // 하위호환용 (첫 번째 적용 세션)
+  applicableSessions: text("applicableSessions"),             // 이벤트 적용 세션 (콤마 구분, 예: "10,20,30")
   serviceSessions: integer("serviceSessions").notNull().default(0),
-  pricePerSession: integer("pricePerSession").notNull(),
+  pricePerSession: integer("pricePerSession").notNull(),      // 하위호환용
   serviceSessionPrice: integer("serviceSessionPrice").notNull().default(0),
   isActive: integer("isActive").notNull().default(1),
   createdAt: text("createdAt").default(now).notNull(),

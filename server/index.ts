@@ -562,6 +562,7 @@ async function initDatabase() {
     )`,
     `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "startDate" TEXT`,
     `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "endDate" TEXT`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "applicableSessions" TEXT`,
     `CREATE TABLE IF NOT EXISTS uniforms (
       id SERIAL PRIMARY KEY,
       "branchId" INTEGER,

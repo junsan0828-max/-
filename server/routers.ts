@@ -4460,6 +4460,7 @@ const eventProgramsRouter = t.router({
       );
       return ((rows as any).rows ?? (rows as any)) as Array<{
         id: number; type: string; name: string; sessions: number;
+        applicableSessions: string | null;
         serviceSessions: number; pricePerSession: number; serviceSessionPrice: number;
         isActive: number; startDate: string | null; endDate: string | null; createdAt: string;
       }>;
@@ -4470,9 +4471,8 @@ const eventProgramsRouter = t.router({
       id: z.number().optional(),
       type: z.enum(["PT", "헬스"]),
       name: z.string().min(1),
-      sessions: z.number().min(1),
+      applicableSessions: z.string(),             // 콤마 구분 세션 목록, 예: "10,20,30"
       serviceSessions: z.number().min(0).default(0),
-      pricePerSession: z.number().min(0),
       serviceSessionPrice: z.number().min(0).default(0),
       isActive: z.number().default(1),
       startDate: z.string().nullable().optional(),
@@ -4482,19 +4482,22 @@ const eventProgramsRouter = t.router({
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // sessions: 하위호환용으로 첫 번째 값 저장
+      const firstSession = parseInt(input.applicableSessions.split(",")[0]) || 0;
       if (input.id) {
         await db.execute(sql`
           UPDATE pt_event_programs SET
-            type = ${input.type}, name = ${input.name}, sessions = ${input.sessions},
-            "serviceSessions" = ${input.serviceSessions}, "pricePerSession" = ${input.pricePerSession},
+            type = ${input.type}, name = ${input.name},
+            sessions = ${firstSession}, "applicableSessions" = ${input.applicableSessions},
+            "serviceSessions" = ${input.serviceSessions}, "pricePerSession" = 0,
             "serviceSessionPrice" = ${input.serviceSessionPrice}, "isActive" = ${input.isActive},
             "startDate" = ${input.startDate ?? null}, "endDate" = ${input.endDate ?? null}
           WHERE id = ${input.id}
         `);
       } else {
         await db.execute(sql`
-          INSERT INTO pt_event_programs (type, name, sessions, "serviceSessions", "pricePerSession", "serviceSessionPrice", "isActive", "startDate", "endDate", "createdAt")
-          VALUES (${input.type}, ${input.name}, ${input.sessions}, ${input.serviceSessions}, ${input.pricePerSession}, ${input.serviceSessionPrice}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
+          INSERT INTO pt_event_programs (type, name, sessions, "applicableSessions", "serviceSessions", "pricePerSession", "serviceSessionPrice", "isActive", "startDate", "endDate", "createdAt")
+          VALUES (${input.type}, ${input.name}, ${firstSession}, ${input.applicableSessions}, ${input.serviceSessions}, 0, ${input.serviceSessionPrice}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
         `);
       }
       return { success: true };
