@@ -894,6 +894,7 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const statusMutation = trpc.brand.updateBookingStatus.useMutation({
     onSuccess: () => utils.brand.listBookings.invalidate(),
   });
+  const isAdmin = (user as any)?.role === "admin";
   const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
   const [showShareConfirm, setShowShareConfirm] = useState(false);
 
@@ -999,11 +1000,18 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
 
       {form.brandIsPublic ? (
         <>
-          <button onClick={() => setShowShareConfirm(true)}
+          <button onClick={() => {
+            if (isAdmin) {
+              navigator.clipboard.writeText(brandUrl);
+              toast.success("링크 복사됨!");
+            } else {
+              setShowShareConfirm(true);
+            }
+          }}
             className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/30 rounded-xl text-xs text-primary">
             <Globe className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{brandUrl}</span>
-            <span className="text-primary/70 shrink-0">-50P</span>
+            {!isAdmin && <span className="text-primary/70 shrink-0">-50P</span>}
             <Copy className="h-3.5 w-3.5 shrink-0" />
           </button>
           <PointSpendConfirm
@@ -1740,9 +1748,15 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
   const [editStatus, setEditStatus] = useState<string>(feature.status);
   const [adminNote, setAdminNote] = useState("");
   const [showTestUI, setShowTestUI] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const updateMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
-    onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("기능 설정이 저장되었습니다"); onClose(); },
+    onSuccess: () => {
+      utils.admin.getWorkshopConsole.invalidate();
+      toast.success("기능 설정이 저장되었습니다");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -1901,10 +1915,10 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                 placeholder="메모 입력 (선택)"
                 className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
-            <Button className="w-full" size="sm"
+            <Button className={`w-full transition-colors ${saved ? "bg-green-600 hover:bg-green-600" : ""}`} size="sm"
               onClick={() => updateMutation.mutate({ featureId: feature.id, status: editStatus, adminNote: adminNote || undefined })}
               disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "저장 중..." : "설정 저장"}
+              {updateMutation.isPending ? "저장 중..." : saved ? "✓ 저장됨" : "설정 저장"}
             </Button>
           </div>
         </div>
