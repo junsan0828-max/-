@@ -85,6 +85,7 @@ export const ptPackages = pgTable("pt_packages", {
   status: text("status").default("active").notNull(),
   price: integer("price"),
   pricePerSession: integer("pricePerSession"),
+  serviceSessionPrice: integer("serviceSessionPrice").default(0),
   paymentAmount: integer("paymentAmount"),
   unpaidAmount: integer("unpaidAmount"),
   paymentMethod: text("paymentMethod"),
@@ -92,6 +93,19 @@ export const ptPackages = pgTable("pt_packages", {
   paymentMemo: text("paymentMemo"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// PT 이벤트 프로그램
+export const ptEventPrograms = pgTable("pt_event_programs", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull().default("PT"),
+  name: text("name").notNull(),
+  sessions: integer("sessions").notNull(),
+  serviceSessions: integer("serviceSessions").notNull().default(0),
+  pricePerSession: integer("pricePerSession").notNull(),
+  serviceSessionPrice: integer("serviceSessionPrice").notNull().default(0),
+  isActive: integer("isActive").notNull().default(1),
+  createdAt: text("createdAt").default(now).notNull(),
 });
 
 // PT 정지 내역
@@ -141,6 +155,7 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   goal: text("goal"),
   feedback: text("feedback"),
   isDraft: integer("isDraft").default(0).notNull(),
+  isServiceSession: integer("isServiceSession").default(0).notNull(),
   sharedToMember: integer("sharedToMember").default(0).notNull(),
   sharedAt: text("sharedAt"),
   createdAt: text("createdAt").default(now).notNull(),

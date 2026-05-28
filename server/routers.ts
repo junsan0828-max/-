@@ -25,6 +25,7 @@ import {
   trainerBranches,
   revenueEntries,
   lockers,
+  ptEventPrograms,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
@@ -950,6 +951,7 @@ const ptRouter = t.router({
         memberId: z.number(),
         ptProgram: z.string().optional(),
         totalSessions: z.number().min(1),
+        serviceSessions: z.number().min(0).default(0).optional(),
         startDate: z.string().optional(),
         expiryDate: z.string().optional(),
         paymentAmount: z.number().optional(),
@@ -975,7 +977,10 @@ const ptRouter = t.router({
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
       const packageName = input.ptProgram || undefined;
+      const svcSessions = input.serviceSessions ?? 0;
+      // 단가는 서비스 횟수 제외한 결제 횟수 기준으로 계산
       const pricePerSession = calcPricePerSession(input.paymentAmount, input.totalSessions, input.paymentMethod);
+      const actualTotalSessions = input.totalSessions + svcSessions;
 
       await db.insert(ptPackages).values({
         memberId: input.memberId,
@@ -1158,6 +1163,10 @@ const ptRouter = t.router({
       const newUsed = pkg.usedSessions + 1;
       const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
 
+      // Determine if this is a service session (beyond paid sessions)
+      const paidSessions = pkg.totalSessions - (pkg.serviceSessions ?? 0);
+      const isServiceSession = pkg.usedSessions >= paidSessions ? 1 : 0;
+
       const today = new Date().toISOString().split("T")[0];
       const targetDate = input.sessionDate ?? today;
 
@@ -1194,6 +1203,7 @@ const ptRouter = t.router({
         exercisesJson: input.exercisesJson,
         goal: input.goal,
         feedback: input.feedback,
+        isServiceSession,
       });
 
       // 회원권 시작일이 비어있으면 첫 수업일로 자동 설정
@@ -4423,6 +4433,68 @@ const gymPlusRouter = t.router({
   // 관리자용 VAPID 공개키 조회
   getVapidPublicKey: publicProcedure.query(() => VAPID_PUBLIC),
 });
+// ─── Event Programs ────────────────────────────────────────────────────────────
+const eventProgramsRouter = t.router({
+  list: protectedProcedure
+    .input(z.object({ type: z.enum(["PT", "헬스", "all"]).default("all") }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.execute(
+        input.type === "all"
+          ? sql`SELECT * FROM pt_event_programs ORDER BY "isActive" DESC, "createdAt" DESC`
+          : sql`SELECT * FROM pt_event_programs WHERE type = ${input.type} ORDER BY "isActive" DESC, "createdAt" DESC`
+      );
+      return ((rows as any).rows ?? (rows as any)) as Array<{
+        id: number; type: string; name: string; sessions: number;
+        serviceSessions: number; pricePerSession: number; serviceSessionPrice: number;
+        isActive: number; createdAt: string;
+      }>;
+    }),
+
+  upsert: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      type: z.enum(["PT", "헬스"]),
+      name: z.string().min(1),
+      sessions: z.number().min(1),
+      serviceSessions: z.number().min(0).default(0),
+      pricePerSession: z.number().min(0),
+      serviceSessionPrice: z.number().min(0).default(0),
+      isActive: z.number().default(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (input.id) {
+        await db.execute(sql`
+          UPDATE pt_event_programs SET
+            type = ${input.type}, name = ${input.name}, sessions = ${input.sessions},
+            "serviceSessions" = ${input.serviceSessions}, "pricePerSession" = ${input.pricePerSession},
+            "serviceSessionPrice" = ${input.serviceSessionPrice}, "isActive" = ${input.isActive}
+          WHERE id = ${input.id}
+        `);
+      } else {
+        await db.execute(sql`
+          INSERT INTO pt_event_programs (type, name, sessions, "serviceSessions", "pricePerSession", "serviceSessionPrice", "isActive", "createdAt")
+          VALUES (${input.type}, ${input.name}, ${input.sessions}, ${input.serviceSessions}, ${input.pricePerSession}, ${input.serviceSessionPrice}, ${input.isActive}, NOW()::text)
+        `);
+      }
+      return { success: true };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.execute(sql`DELETE FROM pt_event_programs WHERE id = ${input.id}`);
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({
   auth: authRouter,
@@ -4442,6 +4514,7 @@ export const appRouter = t.router({
   trainingManual: trainingManualRouter,
   gymPlus: gymPlusRouter,
   transfer: transferRouter,
+  eventPrograms: eventProgramsRouter,
 });
 
 export type AppRouter = typeof appRouter;

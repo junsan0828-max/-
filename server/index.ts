@@ -543,6 +543,19 @@ async function initDatabase() {
     )`,
     `ALTER TABLE training_manuals ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "registeredMemberId" INTEGER`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSessionPrice" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "isServiceSession" INTEGER DEFAULT 0`,
+    `CREATE TABLE IF NOT EXISTS pt_event_programs (
+      id SERIAL PRIMARY KEY,
+      type TEXT NOT NULL DEFAULT 'PT',
+      name TEXT NOT NULL,
+      sessions INTEGER NOT NULL,
+      "serviceSessions" INTEGER NOT NULL DEFAULT 0,
+      "pricePerSession" INTEGER NOT NULL,
+      "serviceSessionPrice" INTEGER NOT NULL DEFAULT 0,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT NOW()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
