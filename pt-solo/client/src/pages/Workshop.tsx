@@ -1739,6 +1739,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
   const FIcon = feature.icon;
   const [editStatus, setEditStatus] = useState<string>(feature.status);
   const [adminNote, setAdminNote] = useState("");
+  const [showTestUI, setShowTestUI] = useState(false);
 
   const updateMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
     onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("기능 설정이 저장되었습니다"); onClose(); },
@@ -1836,6 +1837,49 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
               ))}
             </div>
           )}
+
+          {/* 기능 직접 테스트 */}
+          <div className="pt-2 border-t border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기능 직접 테스트</p>
+              {feature.status === "active" && (
+                <button
+                  onClick={() => setShowTestUI(v => !v)}
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                    showTestUI
+                      ? "bg-primary/10 text-primary"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  }`}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  {showTestUI ? "닫기" : "기능 열어보기"}
+                </button>
+              )}
+            </div>
+            {feature.status !== "active" ? (
+              <div className="bg-muted/40 rounded-xl px-4 py-3 text-center">
+                <p className="text-xs text-muted-foreground">활성 상태인 기능만 테스트할 수 있습니다.</p>
+              </div>
+            ) : !showTestUI ? (
+              <p className="text-xs text-muted-foreground">실제 기능 UI를 관리자 화면에서 바로 확인할 수 있습니다.</p>
+            ) : (
+              <div className="border border-border rounded-2xl overflow-hidden bg-background">
+                <div className="px-4 py-2.5 bg-muted/40 border-b border-border flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-400" />
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">라이브 미리보기</span>
+                </div>
+                <div className="p-4">
+                  {feature.id === "brand_page"      && <BrandPageEditor />}
+                  {feature.id === "fitstep_plus"    && <AdminFspLimitsPanel />}
+                  {feature.id === "booking"         && <BrandPageEditor bookingOnly />}
+                  {feature.id === "report_branding" && <ReportBrandingEditor />}
+                  {feature.id === "templates"       && <WorkoutTemplateEditor />}
+                  {feature.id === "survey"          && <SurveyBuilder />}
+                  {feature.id === "contract_terms"  && <ContractTermsEditor />}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* 관리자 설정 */}
           <div className="space-y-3 pt-2 border-t border-border">
