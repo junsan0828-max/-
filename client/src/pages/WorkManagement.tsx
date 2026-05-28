@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Plus, ClipboardList, CheckCircle2, Clock, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Bell, Plus, ClipboardList, CheckCircle2, Clock, ChevronDown, ChevronUp, Trash2, Zap } from "lucide-react";
 
 const WORK_CATEGORIES = ["상담", "수업", "회원관리", "청소/정리", "마케팅", "매출/등록", "교육", "기타"];
 
@@ -336,14 +336,176 @@ function NoticeManagementSection() {
   );
 }
 
-export default function WorkManagementPage() {
+function EventManagementSection() {
+  const [eventType, setEventType] = useState<"PT" | "헬스">("PT");
+  const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [form, setForm] = useState({ name: "", sessions: "", serviceSessions: "0", pricePerSession: "", serviceSessionPrice: "0" });
+
+  const { data: events, refetch } = trpc.eventPrograms.list.useQuery({ type: eventType });
+  const upsertMutation = trpc.eventPrograms.upsert.useMutation({
+    onSuccess: () => { toast.success("저장되었습니다."); setShowForm(false); setEditItem(null); refetch(); },
+    onError: (e) => toast.error(e.message || "저장 실패"),
+  });
+  const deleteMutation = trpc.eventPrograms.delete.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다."); refetch(); },
+    onError: (e) => toast.error(e.message || "삭제 실패"),
+  });
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setForm({ name: item.name, sessions: String(item.sessions), serviceSessions: String(item.serviceSessions), pricePerSession: String(item.pricePerSession), serviceSessionPrice: String(item.serviceSessionPrice) });
+    setShowForm(true);
+  };
+  const openNew = () => { setEditItem(null); setForm({ name: "", sessions: "", serviceSessions: "0", pricePerSession: "", serviceSessionPrice: "0" }); setShowForm(true); };
+
+  const handleSubmit = () => {
+    if (!form.name || !form.sessions || !form.pricePerSession) { toast.error("필수 항목을 입력해주세요."); return; }
+    upsertMutation.mutate({
+      id: editItem?.id,
+      type: eventType,
+      name: form.name,
+      sessions: parseInt(form.sessions),
+      serviceSessions: parseInt(form.serviceSessions || "0"),
+      pricePerSession: parseInt(form.pricePerSession),
+      serviceSessionPrice: parseInt(form.serviceSessionPrice || "0"),
+      isActive: 1,
+    });
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">업무 관리</h1>
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />이벤트 관리
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* PT/헬스 탭 */}
+        <div className="flex gap-2">
+          {(["PT","헬스"] as const).map(t => (
+            <button key={t} onClick={() => { setEventType(t); setShowForm(false); }}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${eventType === t ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground"}`}>
+              {t} 이벤트
+            </button>
+          ))}
+        </div>
+
+        {/* 이벤트 목록 */}
+        <div className="space-y-2">
+          {(events ?? []).map((ev: any) => (
+            <div key={ev.id} className={`flex items-start gap-3 p-3 rounded-lg border ${ev.isActive ? "bg-accent/20 border-border" : "bg-muted/10 border-border/50 opacity-60"}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">{ev.name}</span>
+                  {ev.isActive ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">운영중</span> : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/40 text-muted-foreground">중단</span>}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  결제 {ev.sessions}회 · 서비스 {ev.serviceSessions}회 · 단가 {ev.pricePerSession.toLocaleString()}원
+                  {ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
+                </p>
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                <button onClick={() => upsertMutation.mutate({ ...ev, isActive: ev.isActive ? 0 : 1 })}
+                  className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors">
+                  {ev.isActive ? "중단" : "재개"}
+                </button>
+                <button onClick={() => openEdit(ev)}
+                  className="text-xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground transition-colors">수정</button>
+                <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: ev.id }); }}
+                  className="text-xs px-2 py-1 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">삭제</button>
+              </div>
+            </div>
+          ))}
+          {(events ?? []).length === 0 && <p className="text-sm text-muted-foreground text-center py-4">등록된 이벤트가 없습니다.</p>}
+        </div>
+
+        {/* 추가/수정 폼 */}
+        {showForm && (
+          <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+            <p className="text-sm font-medium">{editItem ? "이벤트 수정" : "새 이벤트 추가"}</p>
+            <div>
+              <label className="text-xs text-muted-foreground">이벤트명</label>
+              <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="예: 20회 이벤트 패키지" className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">결제 횟수</label>
+                <div className="flex items-center gap-1 mt-1">
+                  <input type="number" value={form.sessions} onChange={e => setForm(f => ({...f, sessions: e.target.value}))} placeholder="20" className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+                  <span className="text-xs text-muted-foreground">회</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">서비스 횟수</label>
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                  {[0,1,2,3,5].map(n => (
+                    <button key={n} onClick={() => setForm(f => ({...f, serviceSessions: String(n)}))}
+                      className={`px-2 py-1.5 rounded text-xs border transition-colors ${form.serviceSessions === String(n) ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
+                      {n === 0 ? "없음" : `+${n}`}
+                    </button>
+                  ))}
+                  <input type="number" value={![0,1,2,3,5].includes(parseInt(form.serviceSessions||"0")) ? form.serviceSessions : ""} onChange={e => setForm(f => ({...f, serviceSessions: e.target.value}))} placeholder="직접" className="w-12 px-2 py-1.5 rounded border border-border bg-background text-xs text-center" />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">결제 세션 단가</label>
+                <div className="flex items-center gap-1 mt-1">
+                  <input type="number" value={form.pricePerSession} onChange={e => setForm(f => ({...f, pricePerSession: e.target.value}))} placeholder="50000" className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+                  <span className="text-xs text-muted-foreground">원</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">서비스 세션 단가 <span className="text-muted-foreground/60">(정산용)</span></label>
+                <div className="flex items-center gap-1 mt-1">
+                  <input type="number" value={form.serviceSessionPrice} onChange={e => setForm(f => ({...f, serviceSessionPrice: e.target.value}))} placeholder="0" className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+                  <span className="text-xs text-muted-foreground">원</span>
+                </div>
+              </div>
+            </div>
+            {form.sessions && form.pricePerSession && (
+              <div className="text-xs text-muted-foreground bg-accent/20 rounded p-2">
+                총 {parseInt(form.sessions||"0") + parseInt(form.serviceSessions||"0")}회 (결제 {form.sessions}회 + 서비스 {form.serviceSessions||0}회) · 결제금액 예시: {(parseInt(form.sessions||"0") * parseInt(form.pricePerSession||"0") * 1.1).toLocaleString()}원 (VAT 포함)
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => { setShowForm(false); setEditItem(null); }} className="flex-1 py-2 rounded-md border border-border text-sm text-muted-foreground">취소</button>
+              <button onClick={handleSubmit} disabled={upsertMutation.isPending} className="flex-1 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
+                {upsertMutation.isPending ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!showForm && (
+          <button onClick={openNew} className="w-full py-2 rounded-md border border-dashed border-primary/40 text-sm text-primary hover:bg-primary/5 transition-colors">
+            + 이벤트 추가
+          </button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function WorkManagementPage() {
+  const [tab, setTab] = useState<"tasks" | "notices" | "events">("tasks");
+  return (
+    <div className="space-y-4">
+      <h1 className="text-xl font-bold">업무 관리</h1>
+      {/* Tab nav */}
+      <div className="flex gap-1 bg-accent/20 p-1 rounded-lg">
+        {([["tasks","업무 관리"],["notices","공지사항 관리"],["events","이벤트 관리"]] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`flex-1 py-2 text-sm rounded-md transition-colors font-medium ${tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+            {label}
+          </button>
+        ))}
       </div>
-      <WorkManagementSection />
-      <NoticeManagementSection />
+      {tab === "tasks" && <WorkManagementSection />}
+      {tab === "notices" && <NoticeManagementSection />}
+      {tab === "events" && <EventManagementSection />}
     </div>
   );
 }
