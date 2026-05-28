@@ -10,7 +10,6 @@ import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, Ch
 import TabBanner from "@/components/TabBanner";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 
-const WORKSHOP_LOCKED = false;
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
 const EVENT_TYPE_LABELS: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션" };
@@ -1655,116 +1654,126 @@ function AdminWorkshopView() {
   );
 }
 
-// WORKSHOP_LOCKED가 true일 때 보여주는 화면
-// (compile-time constant이므로 hooks 규칙 위반 없음)
-function WorkshopLockedView() {
-  const { data: user } = trpc.auth.me.useQuery();
-  const trainerId = (user as any)?.trainerId as number | undefined;
-  const isAdmin = (user as any)?.role === "admin";
-  const [adminTab, setAdminTab] = useState<"manage" | "workshop">("manage");
-
-  // 어드민은 탭으로 전환
-  if (isAdmin) {
-    return (
-      <div className="space-y-4">
-        {/* 탭 전환 */}
-        <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
-          <button
-            onClick={() => setAdminTab("manage")}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "manage" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            기능 사용 현황
-          </button>
-          <button
-            onClick={() => setAdminTab("workshop")}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "workshop" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            내 작업실
-          </button>
-        </div>
-        {adminTab === "manage" ? <AdminWorkshopView /> : <WorkshopContent />}
-      </div>
-    );
-  }
-
-  // 트레이너는 FIT STEP+ 패널 접근
-  if (trainerId) {
-    return (
-      <div className="space-y-4">
-        <TabBanner tabKey="workshop" />
-        <p className="text-base font-bold">
-          <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
-          <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP</span>
-          <span className="text-primary font-black" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>+</span>
-          <span className="text-sm font-semibold ml-2">관리</span>
-        </p>
-        <FitStepPlusPanel trainerId={trainerId} />
-      </div>
-    );
-  }
-
+// ── 작업실 기능 목록 (공통) ───────────────────────────────────────────────────
+function WorkshopFeatures({ openSection, toggle, trainerId, isAdmin }: {
+  openSection: string | null;
+  toggle: (k: string) => void;
+  trainerId?: number;
+  isAdmin: boolean;
+}) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 px-6">
-      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-        <Wrench className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <div className="space-y-1.5">
-        <p className="text-xl font-bold">작업실</p>
-        <span className="inline-block text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full font-semibold">🔧 개발 중</span>
-        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-          현재 업데이트 작업 중입니다.<br />조금만 기다려 주세요!
-        </p>
-      </div>
+    <div className="space-y-3">
+      <Card className="bg-card border-border">
+        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("fitstep")}>
+          <div className="flex items-center gap-2.5">
+            <Wrench className="h-4 w-4 text-primary" />
+            <div className="flex items-baseline gap-2">
+              <span className="font-semibold text-base">
+                <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
+                <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP+</span>
+              </span>
+              <span className="text-xs text-muted-foreground">개인 회원 관리 페이지</span>
+            </div>
+          </div>
+          {openSection === "fitstep" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {openSection === "fitstep" && (
+          <CardContent className="pt-0 pb-4">
+            {isAdmin ? <AdminFspLimitsPanel /> : trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>}
+          </CardContent>
+        )}
+      </Card>
+
+      <Card className="bg-card border-border">
+        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("brand_page")}>
+          <div className="flex items-center gap-2.5">
+            <Globe className="h-4 w-4 text-primary" />
+            <div><span className="font-semibold text-sm">내 브랜드 페이지</span><p className="text-xs text-muted-foreground mt-0.5">공개 소개 페이지 · 예약 링크 공유</p></div>
+          </div>
+          {openSection === "brand_page" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {openSection === "brand_page" && <CardContent className="pt-0 pb-4"><BrandPageEditor /></CardContent>}
+      </Card>
+
+      <Card className="bg-card border-border">
+        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("booking")}>
+          <div className="flex items-center gap-2.5">
+            <Calendar className="h-4 w-4 text-primary" />
+            <div><span className="font-semibold text-sm">상담 예약 링크</span><p className="text-xs text-muted-foreground mt-0.5">고객이 직접 상담 신청 · 리드 자동 등록</p></div>
+          </div>
+          {openSection === "booking" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {openSection === "booking" && <CardContent className="pt-0 pb-4"><BrandPageEditor bookingOnly /></CardContent>}
+      </Card>
+
+      <Card className="bg-card border-border">
+        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("report_branding")}>
+          <div className="flex items-center gap-2.5">
+            <BookMarked className="h-4 w-4 text-primary" />
+            <div><span className="font-semibold text-sm">회원 보고서 브랜딩</span><p className="text-xs text-muted-foreground mt-0.5">공유 보고서에 내 프로필 · 브랜드 색상 표시</p></div>
+          </div>
+          {openSection === "report_branding" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {openSection === "report_branding" && <CardContent className="pt-0 pb-4"><ReportBrandingEditor /></CardContent>}
+      </Card>
+
+      <Card className="bg-card border-border">
+        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("templates")}>
+          <div className="flex items-center gap-2.5">
+            <Dumbbell className="h-4 w-4 text-primary" />
+            <div><span className="font-semibold text-sm">운동 프로그램 템플릿</span><p className="text-xs text-muted-foreground mt-0.5">루틴 저장 · 일지 작성 시 불러오기</p></div>
+          </div>
+          {openSection === "templates" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {openSection === "templates" && <CardContent className="pt-0 pb-4"><WorkoutTemplateEditor /></CardContent>}
+      </Card>
+
+      <Card className="bg-card border-border">
+        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("survey")}>
+          <div className="flex items-center gap-2.5">
+            <ClipboardList className="h-4 w-4 text-primary" />
+            <div><span className="font-semibold text-sm">맞춤 상담 설문 빌더</span><p className="text-xs text-muted-foreground mt-0.5">상담 전 고객 설문 · 링크 공유</p></div>
+          </div>
+          {openSection === "survey" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {openSection === "survey" && <CardContent className="pt-0 pb-4"><SurveyBuilder /></CardContent>}
+      </Card>
+
+      <Card className="bg-card border-border">
+        <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("terms")}>
+          <div className="flex items-center gap-2.5">
+            <FileText className="h-4 w-4 text-primary" />
+            <span className="font-semibold text-sm">회원 계약서 약관 수정</span>
+          </div>
+          {openSection === "terms" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {openSection === "terms" && <CardContent className="pt-0 pb-4"><ContractTermsEditor /></CardContent>}
+      </Card>
     </div>
   );
 }
 
+// ── 작업실 메인 (트레이너용, 상태 기반) ─────────────────────────────────────
 function WorkshopContent() {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const [openSection, setOpenSection] = useState<string | null>(null);
-  const [unlockingKey, setUnlockingKey] = useState<string | null>(null);
-  const [showOpenModal, setShowOpenModal] = useState(false);
   const trainerId = (user as any)?.trainerId as number | undefined;
   const isAdmin = (user as any)?.role === "admin";
 
-  const { data: unlocks, isLoading: unlocksLoading } = trpc.workshop.listUnlocks.useQuery();
+  const { data: wsStatus, isLoading } = trpc.workshop.getStatus.useQuery();
+  const startTrialMutation = trpc.workshop.startTrial.useMutation({
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("30일 무료 체험이 시작되었습니다!"); },
+    onError: (e) => toast.error(e.message),
+  });
   const unlockMutation = trpc.workshop.unlock.useMutation({
-    onSuccess: (_data, vars) => {
-      utils.workshop.listUnlocks.invalidate();
-      utils.fitPoints.getBalance.invalidate();
-      if (vars.feature === "workshop_access") {
-        toast.success("작업실이 오픈되었습니다!");
-        setShowOpenModal(false);
-      } else {
-        toast.success("기능이 잠금해제되었습니다!");
-        setOpenSection(vars.feature);
-      }
-      setUnlockingKey(null);
-    },
-    onError: (e) => { toast.error(e.message); setUnlockingKey(null); },
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("작업실이 활성화되었습니다!"); },
+    onError: (e) => toast.error(e.message),
   });
 
-  function toggle(key: string) {
-    setOpenSection(v => v === key ? null : key);
-  }
+  function toggle(key: string) { setOpenSection(v => v === key ? null : key); }
 
-  function handleUnlock(feature: string) {
-    setUnlockingKey(feature);
-    unlockMutation.mutate({ feature });
-  }
-
-  function isUnlocked(feature: string) {
-    return unlocks?.find((u: any) => u.key === feature)?.unlocked ?? false;
-  }
-
-  function pointCost(feature: string) {
-    return unlocks?.find((u: any) => u.key === feature)?.points ?? 0;
-  }
-
-  const workshopOpen = isAdmin || isUnlocked("workshop_access");
-
-  if (unlocksLoading) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <TabBanner tabKey="workshop" />
@@ -1775,220 +1784,167 @@ function WorkshopContent() {
     );
   }
 
-  // ── 잠긴 상태: 프리뷰 + 오픈 모달 ──────────────────────────────────────────
-  if (!workshopOpen) {
+  const status = wsStatus?.status ?? "unopened";
+  const daysRemaining = wsStatus?.daysRemaining ?? 0;
+
+  // ── 미오픈: 무료 체험 CTA ─────────────────────────────────────────────────
+  if (status === "unopened") {
     return (
-      <div className="space-y-4">
+      <div className="space-y-5 pb-6">
         <TabBanner tabKey="workshop" />
-        <div>
-          <h1 className="text-xl font-bold">작업실</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">핏포인트로 작업실을 오픈하고 브랜딩 기능을 사용하세요</p>
-        </div>
-
-        {/* 오픈 CTA 배너 */}
-        <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 p-5 flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Lock className="h-5 w-5 text-primary" />
-            <p className="font-bold text-base">작업실이 잠겨 있습니다</p>
+        <div className="flex flex-col items-center text-center space-y-5 pt-2 px-2">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <Wrench className="h-8 w-8 text-primary" />
           </div>
-          <p className="text-sm text-muted-foreground">아래 기능들은 작업실을 오픈한 트레이너만 사용할 수 있습니다. 핏포인트 50,000P를 사용하면 모든 기능에 접근할 수 있습니다.</p>
-          <Button className="w-full gap-2 mt-1" onClick={() => setShowOpenModal(true)}>
-            <Coins className="h-4 w-4" />
-            작업실 오픈하기 · 50,000P
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold">작업실 무료 체험 시작하기</h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              회원 관리, 예약, 브랜딩, 설문, 템플릿 기능을<br />
+              30일 동안 자유롭게 사용해보세요.
+            </p>
+            <p className="text-xs text-muted-foreground">실제 회원 데이터와 작업 흐름을 직접 경험할 수 있습니다.</p>
+          </div>
+
+          <div className="w-full space-y-1.5 text-left">
+            {PREVIEW_FEATURES.map(f => (
+              <div key={f.key} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-card border border-border">
+                <span className="text-primary shrink-0">{f.icon}</span>
+                <span className="text-sm font-medium">{f.title}</span>
+              </div>
+            ))}
+          </div>
+
+          <Button className="w-full gap-2" size="lg"
+            onClick={() => startTrialMutation.mutate()}
+            disabled={startTrialMutation.isPending}>
+            {startTrialMutation.isPending ? "시작 중..." : "무료 체험 오픈 (30일)"}
           </Button>
+          <p className="text-xs text-muted-foreground">결제 없이 바로 시작 · 카드 정보 불필요</p>
         </div>
-
-        {/* 기능 프리뷰 카드들 */}
-        <div className="space-y-3">
-          {PREVIEW_FEATURES.map(f => (
-            <Card key={f.key} className="bg-card border-border opacity-80">
-              <div className="flex items-start gap-3 px-4 py-4">
-                <span className="text-muted-foreground mt-0.5 shrink-0">{f.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-semibold text-sm">{f.title}</p>
-                    <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        {/* 오픈 확인 모달 */}
-        {showOpenModal && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setShowOpenModal(false)} />
-            <div className="relative bg-card rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-6 space-y-5 shadow-2xl">
-              <div className="flex items-center justify-between">
-                <p className="text-lg font-bold">작업실 오픈</p>
-                <button onClick={() => setShowOpenModal(false)} className="p-1 rounded-lg hover:bg-muted">
-                  <X className="h-5 w-5 text-muted-foreground" />
-                </button>
-              </div>
-
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
-                <p className="text-sm font-semibold text-primary">포함 기능</p>
-                <ul className="space-y-2">
-                  {PREVIEW_FEATURES.map(f => (
-                    <li key={f.key} className="flex items-center gap-2 text-sm">
-                      <span className="text-primary shrink-0">{f.icon}</span>
-                      <span>{f.title}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <Coins className="h-5 w-5 text-amber-600" />
-                  <span className="text-sm font-semibold text-amber-800">사용 포인트</span>
-                </div>
-                <span className="text-lg font-bold text-amber-700">50,000 P</span>
-              </div>
-
-              <p className="text-xs text-muted-foreground">작업실 오픈은 영구 적용되며 환불되지 않습니다. 핏포인트 잔액이 충분한지 확인하세요.</p>
-
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setShowOpenModal(false)}>취소</Button>
-                <Button
-                  className="flex-1 gap-2"
-                  disabled={unlockingKey === "workshop_access"}
-                  onClick={() => handleUnlock("workshop_access")}
-                >
-                  <Coins className="h-4 w-4" />
-                  {unlockingKey === "workshop_access" ? "처리 중..." : "50,000P 결제"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
 
-  // ── 오픈 상태: 모든 기능 무료 사용 ─────────────────────────────────────────
+  // ── 잠금 상태: 데이터 보존 안내 + 코인 활성화 ────────────────────────────
+  if (status === "locked") {
+    return (
+      <div className="space-y-4 pb-6">
+        <TabBanner tabKey="workshop" />
+        <h1 className="text-xl font-bold">작업실</h1>
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Lock className="h-5 w-5 text-amber-600" />
+            <p className="font-bold text-amber-800">무료 체험 기간이 종료되었습니다</p>
+          </div>
+          <p className="text-sm text-amber-700">현재 저장된 데이터는 안전하게 보관 중입니다:</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {["회원 템플릿", "예약 링크 설정", "브랜딩 설정", "설문 데이터", "계약서 설정", "보고서 브랜딩"].map(item => (
+              <div key={item} className="flex items-center gap-1.5 text-sm text-amber-700">
+                <Check className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                <span className="text-xs">{item}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm font-semibold text-amber-800">작업실을 활성화하면 모든 데이터와 기능이 복구됩니다.</p>
+          <Button className="w-full bg-amber-500 hover:bg-amber-600 text-white gap-2"
+            onClick={() => unlockMutation.mutate({ feature: "workshop_access" })}
+            disabled={unlockMutation.isPending}>
+            <Coins className="h-4 w-4" />
+            {unlockMutation.isPending ? "처리 중..." : "50,000P로 작업실 활성화"}
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          {PREVIEW_FEATURES.map(f => (
+            <Card key={f.key} className="bg-card border-border opacity-60">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <span className="text-muted-foreground shrink-0">{f.icon}</span>
+                <span className="font-medium text-sm text-muted-foreground">{f.title}</span>
+                <Lock className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0" />
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── 체험 중 / 유예 / 활성화 → 전체 기능 표시 ──────────────────────────────
   return (
     <div className="space-y-4">
       <TabBanner tabKey="workshop" />
+
+      {status === "trial" && daysRemaining > 7 && (
+        <div className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5 flex items-center justify-between">
+          <p className="text-xs font-semibold text-primary">무료 체험 중</p>
+          <span className="text-xs font-bold text-primary">{daysRemaining}일 남음</span>
+        </div>
+      )}
+      {status === "trial" && daysRemaining <= 7 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
+          <p className="text-xs font-semibold text-yellow-700">무료 체험 중</p>
+          <span className="text-xs font-bold text-yellow-700">D-{daysRemaining}</span>
+        </div>
+      )}
+      {status === "grace" && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-red-700">무료 체험 종료 · {daysRemaining}일 후 완전 잠금</p>
+              <p className="text-[10px] text-red-600 mt-0.5">지금 활성화하면 기존 데이터가 그대로 유지됩니다</p>
+            </div>
+          </div>
+          <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
+            onClick={() => unlockMutation.mutate({ feature: "workshop_access" })}
+            disabled={unlockMutation.isPending}>
+            <Coins className="h-3.5 w-3.5" />
+            {unlockMutation.isPending ? "처리 중..." : "50,000P로 작업실 활성화"}
+          </Button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">작업실</h1>
           <p className="text-sm text-muted-foreground mt-0.5">스테퍼 전용 브랜딩 공간</p>
         </div>
-        {isAdmin
-          ? <span className="flex items-center gap-1.5 text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-semibold">관리자 모드</span>
-          : <span className="flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold"><Check className="h-3.5 w-3.5" /> 오픈됨</span>
-        }
+        {status === "active" && (
+          <span className="flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-semibold">
+            <Check className="h-3.5 w-3.5" /> 활성화
+          </span>
+        )}
+        {isAdmin && (
+          <span className="text-xs bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full font-semibold">관리자 모드</span>
+        )}
       </div>
 
-      <div className="space-y-3">
-        {/* FIT STEP+ */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("fitstep")}>
-            <div className="flex items-center gap-2.5">
-              <Wrench className="h-4 w-4 text-primary" />
-              <div className="flex items-baseline gap-2">
-                <span className="font-semibold text-base">
-                  <span style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>FIT</span>
-                  <span className="text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif" }}>STEP+</span>
-                </span>
-                <span className="text-xs text-muted-foreground">개인 회원 관리 페이지</span>
-              </div>
-            </div>
-            {openSection === "fitstep" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "fitstep" && (
-            <CardContent className="pt-0 pb-4">
-              {isAdmin
-                ? <AdminFspLimitsPanel />
-                : trainerId
-                  ? <FitStepPlusPanel trainerId={trainerId} />
-                  : <p className="text-sm text-muted-foreground text-center py-4">트레이너 계정에서만 사용할 수 있습니다.</p>
-              }
-            </CardContent>
-          )}
-        </Card>
-
-        {/* 내 브랜드 페이지 */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("brand_page")}>
-            <div className="flex items-center gap-2.5">
-              <Globe className="h-4 w-4 text-primary" />
-              <div><span className="font-semibold text-sm">내 브랜드 페이지</span><p className="text-xs text-muted-foreground mt-0.5">공개 소개 페이지 · 예약 링크 공유</p></div>
-            </div>
-            {openSection === "brand_page" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "brand_page" && <CardContent className="pt-0 pb-4"><BrandPageEditor /></CardContent>}
-        </Card>
-
-        {/* 상담 예약 링크 */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("booking")}>
-            <div className="flex items-center gap-2.5">
-              <Calendar className="h-4 w-4 text-primary" />
-              <div><span className="font-semibold text-sm">상담 예약 링크</span><p className="text-xs text-muted-foreground mt-0.5">고객이 직접 상담 신청 · 리드 자동 등록</p></div>
-            </div>
-            {openSection === "booking" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "booking" && <CardContent className="pt-0 pb-4"><BrandPageEditor bookingOnly /></CardContent>}
-        </Card>
-
-        {/* 회원 보고서 브랜딩 */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("report_branding")}>
-            <div className="flex items-center gap-2.5">
-              <BookMarked className="h-4 w-4 text-primary" />
-              <div><span className="font-semibold text-sm">회원 보고서 브랜딩</span><p className="text-xs text-muted-foreground mt-0.5">공유 보고서에 내 프로필 · 브랜드 색상 표시</p></div>
-            </div>
-            {openSection === "report_branding" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "report_branding" && <CardContent className="pt-0 pb-4"><ReportBrandingEditor /></CardContent>}
-        </Card>
-
-        {/* 운동 프로그램 템플릿 */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("templates")}>
-            <div className="flex items-center gap-2.5">
-              <Dumbbell className="h-4 w-4 text-primary" />
-              <div><span className="font-semibold text-sm">운동 프로그램 템플릿</span><p className="text-xs text-muted-foreground mt-0.5">루틴 저장 · 일지 작성 시 불러오기</p></div>
-            </div>
-            {openSection === "templates" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "templates" && <CardContent className="pt-0 pb-4"><WorkoutTemplateEditor /></CardContent>}
-        </Card>
-
-        {/* 맞춤 상담 설문 빌더 */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("survey")}>
-            <div className="flex items-center gap-2.5">
-              <ClipboardList className="h-4 w-4 text-primary" />
-              <div><span className="font-semibold text-sm">맞춤 상담 설문 빌더</span><p className="text-xs text-muted-foreground mt-0.5">상담 전 고객 설문 · 링크 공유</p></div>
-            </div>
-            {openSection === "survey" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "survey" && <CardContent className="pt-0 pb-4"><SurveyBuilder /></CardContent>}
-        </Card>
-
-        {/* 회원 계약서 약관 수정 */}
-        <Card className="bg-card border-border">
-          <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => toggle("terms")}>
-            <div className="flex items-center gap-2.5">
-              <FileText className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-sm">회원 계약서 약관 수정</span>
-            </div>
-            {openSection === "terms" ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </button>
-          {openSection === "terms" && <CardContent className="pt-0 pb-4"><ContractTermsEditor /></CardContent>}
-        </Card>
-      </div>
+      <WorkshopFeatures openSection={openSection} toggle={toggle} trainerId={trainerId} isAdmin={isAdmin} />
     </div>
   );
 }
 
 export default function Workshop() {
-  // WORKSHOP_LOCKED는 compile-time 상수이므로 훅 규칙 위반 없음
-  if (WORKSHOP_LOCKED) return <WorkshopLockedView />;
+  const { data: user } = trpc.auth.me.useQuery();
+  const [adminTab, setAdminTab] = useState<"manage" | "workshop">("manage");
+  const isAdmin = (user as any)?.role === "admin";
+
+  if (isAdmin) {
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
+          <button onClick={() => setAdminTab("manage")}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "manage" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            기능 사용 현황
+          </button>
+          <button onClick={() => setAdminTab("workshop")}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${adminTab === "workshop" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            내 작업실
+          </button>
+        </div>
+        {adminTab === "manage" ? <AdminWorkshopView /> : <WorkshopContent />}
+      </div>
+    );
+  }
+
   return <WorkshopContent />;
 }

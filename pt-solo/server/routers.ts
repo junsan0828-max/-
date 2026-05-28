@@ -2129,8 +2129,11 @@ const adminRouter = t.router({
         COALESCE(cb.cnt, 0)::int AS booking_count,
         COALESCE(cb.pending_cnt, 0)::int AS booking_pending,
         cb.last_booking,
-        CASE WHEN ts."termsOfService" IS NOT NULL THEN true ELSE false END AS has_custom_terms
+        CASE WHEN ts."termsOfService" IS NOT NULL THEN true ELSE false END AS has_custom_terms,
+        ts."workshopTrialStartedAt",
+        CASE WHEN wu_access.id IS NOT NULL THEN true ELSE false END AS workshop_activated
       FROM trainers t
+      LEFT JOIN workshop_unlocks wu_access ON t.id = wu_access."trainerId" AND wu_access.feature = 'workshop_access'
       LEFT JOIN (
         SELECT "trainerId", COUNT(*) AS cnt, MAX("createdAt") AS last_added
         FROM fit_step_plus_members GROUP BY "trainerId"
@@ -3125,7 +3128,72 @@ const WORKSHOP_FEATURES: Record<string, { label: string; points: number }> = {
   workshop_access:  { label: "작업실 오픈",             points: 50000 },
 };
 
+const WORKSHOP_TRIAL_DAYS = 30;
+const WORKSHOP_GRACE_DAYS = 2;
+
 const workshopRouter = t.router({
+  // 작업실 상태 조회 (미오픈 / 체험중 / 유예 / 잠금 / 활성화)
+  getStatus: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null };
+
+    // 코인 활성화 여부 확인
+    const activated = await pool.query(
+      `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature='workshop_access'`,
+      [trainerId]
+    );
+    if (activated.rows.length > 0) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null };
+
+    // 트라이얼 시작일 확인
+    const settings = await pool.query<{ workshopTrialStartedAt: string | null }>(
+      `SELECT "workshopTrialStartedAt" FROM trainer_settings WHERE "trainerId"=$1`,
+      [trainerId]
+    );
+    const trialStartedAt = settings.rows[0]?.workshopTrialStartedAt ?? null;
+    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null };
+
+    const started = new Date(trialStartedAt);
+    const now = new Date();
+    const daysSince = Math.floor((now.getTime() - started.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysSince <= WORKSHOP_TRIAL_DAYS) {
+      return { status: "trial", daysRemaining: WORKSHOP_TRIAL_DAYS - daysSince, trialStartedAt };
+    }
+    if (daysSince <= WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS) {
+      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt };
+    }
+    return { status: "locked", daysRemaining: 0, trialStartedAt };
+  }),
+
+  // 무료 체험 시작
+  startTrial: protectedProcedure.mutation(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+    const existing = await pool.query(
+      `SELECT "workshopTrialStartedAt" FROM trainer_settings WHERE "trainerId"=$1`,
+      [trainerId]
+    );
+    if (existing.rows[0]?.workshopTrialStartedAt) {
+      throw new TRPCError({ code: "CONFLICT", message: "이미 무료 체험이 시작되었습니다." });
+    }
+    const activated = await pool.query(
+      `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature='workshop_access'`,
+      [trainerId]
+    );
+    if (activated.rows.length > 0) {
+      throw new TRPCError({ code: "CONFLICT", message: "이미 작업실이 활성화되어 있습니다." });
+    }
+
+    await pool.query(
+      `INSERT INTO trainer_settings ("trainerId", "workshopTrialStartedAt")
+       VALUES ($1, NOW()::text)
+       ON CONFLICT ("trainerId") DO UPDATE SET "workshopTrialStartedAt" = NOW()::text`,
+      [trainerId]
+    );
+    return { started: true };
+  }),
+
   // 내 잠금해제 목록
   listUnlocks: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
