@@ -259,6 +259,8 @@ export default function LeadsPage() {
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT" });
+  const [showEventPicker, setShowEventPicker] = useState<"reReg" | "direct" | null>(null);
 
   const directRegMutation = trpc.members.create.useMutation({
     onSuccess: (data) => {
@@ -1202,6 +1204,27 @@ export default function LeadsPage() {
                                     className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${reRegForm.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{p}</button>
                                 ))}
                               </div>
+                              {reRegForm.ptProgram === "이벤트피티" && (
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-xs text-muted-foreground">현재 이벤트 선택:</p>
+                                  {(ptEvents ?? []).filter((e: any) => e.isActive).map((ev: any) => (
+                                    <button key={ev.id} type="button" onClick={() => {
+                                      setReRegForm(f => ({
+                                        ...f,
+                                        ptSessions: String(ev.sessions),
+                                        serviceSessions: String(ev.serviceSessions),
+                                        paymentAmount: String(Math.round(ev.sessions * ev.pricePerSession * 1.1)),
+                                      }));
+                                    }} className="w-full text-left px-3 py-2 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors">
+                                      <p className="text-sm font-medium">{ev.name}</p>
+                                      <p className="text-xs text-muted-foreground">결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회</p>
+                                    </button>
+                                  ))}
+                                  {(ptEvents ?? []).filter((e: any) => e.isActive).length === 0 && (
+                                    <p className="text-xs text-muted-foreground py-1">등록된 이벤트가 없습니다.</p>
+                                  )}
+                                </div>
+                              )}
                               <input value={!["케어피티","웨이트피티","이벤트피티"].includes(reRegForm.ptProgram) ? reRegForm.ptProgram : ""}
                                 onChange={e => setReRegForm(f => ({ ...f, ptProgram: e.target.value }))}
                                 placeholder="직접 입력"
@@ -1542,6 +1565,27 @@ export default function LeadsPage() {
                               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${directForm.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>{p}</button>
                           ))}
                         </div>
+                        {directForm.ptProgram === "이벤트피티" && (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-xs text-muted-foreground">현재 이벤트 선택:</p>
+                            {(ptEvents ?? []).filter((e: any) => e.isActive).map((ev: any) => (
+                              <button key={ev.id} type="button" onClick={() => {
+                                setDirectForm(f => ({
+                                  ...f,
+                                  ptSessions: String(ev.sessions),
+                                  serviceSessions: String(ev.serviceSessions),
+                                  paymentAmount: String(Math.round(ev.sessions * ev.pricePerSession * 1.1)),
+                                }));
+                              }} className="w-full text-left px-3 py-2 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors">
+                                <p className="text-sm font-medium">{ev.name}</p>
+                                <p className="text-xs text-muted-foreground">결제 {ev.sessions}회+서비스 {ev.serviceSessions}회 · {ev.pricePerSession.toLocaleString()}원/회</p>
+                              </button>
+                            ))}
+                            {(ptEvents ?? []).filter((e: any) => e.isActive).length === 0 && (
+                              <p className="text-xs text-muted-foreground py-1">등록된 이벤트가 없습니다.</p>
+                            )}
+                          </div>
+                        )}
                         <input value={!["케어피티","웨이트피티","이벤트피티"].includes(directForm.ptProgram) ? directForm.ptProgram : ""}
                           onChange={e => setDirectForm(f => ({ ...f, ptProgram: e.target.value }))}
                           placeholder="직접 입력"

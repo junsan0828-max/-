@@ -1905,6 +1905,8 @@ const trainersRouter = t.router({
           paymentMethod: ptPackages.paymentMethod,
           packageName: ptPackages.packageName,
           memberNameJoined: members.name,
+          isServiceSession: ptSessionLogs.isServiceSession,
+          serviceSessionPrice: ptPackages.serviceSessionPrice,
         })
         .from(ptSessionLogs)
         .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
@@ -1961,7 +1963,11 @@ const trainersRouter = t.router({
         }
       }
 
-      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null }) => {
+        // 서비스 세션인 경우 serviceSessionPrice 사용 (정산용 단가)
+        if (l.isServiceSession === 1) {
+          return l.serviceSessionPrice ?? 0;
+        }
         // paymentAmount 기준 계산 우선 (pricePerSession은 갱신 안 됐을 수 있음)
         if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
           return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
