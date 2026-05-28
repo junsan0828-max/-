@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, UserCog, Menu, GraduationCap, BookOpen,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
@@ -68,7 +68,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const adminNavItems = [
     { path: "/", label: "운영 현황", icon: LayoutDashboard },
-    { path: "/admin/registrations", label: "가입 관리", icon: UserCog },
     { path: "/admin/trainers", label: "트레이너 관리", icon: ShieldCheck },
     { path: "/admin/points", label: "포인트 관리", icon: Coins },
     { path: "/admin/notices", label: "공지/배너", icon: Bell },
