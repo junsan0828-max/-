@@ -315,6 +315,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   sessions: integer("sessions"),      // PT 횟수 (10/20/30/40/50회)
   serviceSessions: integer("serviceSessions").default(0), // 서비스 횟수 (무상 제공)
   duration: integer("duration"),      // 이용 기간(개월) - 헬스/기타
+  serviceHealthDuration: integer("serviceHealthDuration"), // PT 등록 시 서비스 헬스권 기간(개월)
   type: text("type").notNull(), // PT / 헬스 / 기타
   subType: text("subType").notNull(), // 신규 / 재등록
   amount: integer("amount").notNull(),

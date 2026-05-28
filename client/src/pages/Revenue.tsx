@@ -22,11 +22,12 @@ type RevForm = {
   amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string; refundAmount: string;
   paymentMethod: string; paymentDate: string; startDate: string; installments: string; memo: string;
   ptProgramKey: string; ptProgramCustom: string;
+  serviceHealthDuration: string; // PT 등록 시 서비스 헬스권 기간(개월), "" = 없음
 };
 
 const defaultForm: RevForm = {
   customerName: "", phone: "", programDetail: "", duration: "", sessions: "",
-  ptProgramKey: "", ptProgramCustom: "",
+  ptProgramKey: "", ptProgramCustom: "", serviceHealthDuration: "",
   type: "PT", subType: "신규",
   amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0", refundAmount: "0",
   paymentMethod: "카드", paymentDate: new Date().toISOString().substring(0, 10), startDate: "",
@@ -116,6 +117,7 @@ function RevenueContent() {
       sessions: row.entry.sessions ? String(row.entry.sessions) : "",
       ptProgramKey: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? (row.entry.programDetail ?? "") : (row.entry.programDetail ? "기타" : ""),
       ptProgramCustom: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? "" : (row.entry.programDetail ?? ""),
+      serviceHealthDuration: (row.entry as any).serviceHealthDuration ? String((row.entry as any).serviceHealthDuration) : "",
       leadId: row.entry.leadId ?? undefined,
       trainerId: row.entry.trainerId ?? undefined,
       consultantId: (row.entry as any).consultantId ?? undefined,
@@ -157,6 +159,7 @@ function RevenueContent() {
       programDetail: resolvedProgram,
       sessions: form.sessions ? parseInt(form.sessions) : undefined,
       duration: form.duration ? parseInt(form.duration) : undefined,
+      serviceHealthDuration: (form.type === "PT" && form.serviceHealthDuration) ? parseInt(form.serviceHealthDuration) : undefined,
       leadId: form.leadId ? Number(form.leadId) : undefined,
       trainerId: form.trainerId ? Number(form.trainerId) : undefined,
       consultantId: form.consultantId ? Number(form.consultantId) : undefined,
@@ -330,6 +333,9 @@ function RevenueContent() {
                     <span className="text-sm font-medium text-foreground">{row.entry.customerName || row.memberName || "—"}</span>
                     {row.entry.programDetail && <span className="text-xs text-muted-foreground">{row.entry.programDetail}</span>}
                     {row.entry.duration && <span className="text-xs text-muted-foreground">{row.entry.duration}개월</span>}
+                    {(row.entry as any).serviceHealthDuration > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400">헬스 {(row.entry as any).serviceHealthDuration}개월 서비스</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                     {row.entry.type === "PT" && !row.entry.trainerId && (
@@ -400,7 +406,8 @@ function RevenueContent() {
                 <label className="text-xs text-muted-foreground">프로그램 유형 *</label>
                 <div className="flex gap-2 mt-1">
                   {CATEGORIES.map(c => (
-                    <button key={c} type="button" onClick={() => setForm(f => ({ ...f, type: c, programDetail: "", duration: "" }))}
+                    <button key={c} type="button"
+                      onClick={() => setForm(f => ({ ...f, type: c, programDetail: "", duration: "", serviceHealthDuration: "" }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.type === c ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                       {c}
                     </button>
@@ -408,7 +415,7 @@ function RevenueContent() {
                 </div>
               </div>
 
-              {/* PT: 프로그램명 */}
+              {/* PT: 프로그램명 + 횟수 + 서비스 헬스권 */}
               {form.type === "PT" && (
                 <div className="space-y-2">
                   <div>
@@ -450,6 +457,31 @@ function RevenueContent() {
                         onChange={(e) => setForm(f => ({ ...f, sessions: e.target.value }))}
                         className="mt-2 w-full px-3 py-2 bg-input border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary"
                       />
+                    )}
+                  </div>
+                  {/* 서비스 헬스권 */}
+                  <div className="border border-border rounded-xl p-3 space-y-2 bg-background/50">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-foreground">헬스권 서비스 포함</label>
+                      <button type="button"
+                        onClick={() => setForm(f => ({ ...f, serviceHealthDuration: f.serviceHealthDuration ? "" : "1" }))}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${form.serviceHealthDuration ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {form.serviceHealthDuration ? "ON" : "OFF"}
+                      </button>
+                    </div>
+                    {form.serviceHealthDuration && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">서비스 기간</label>
+                        <div className="flex gap-2 mt-1">
+                          {DURATIONS.map(d => (
+                            <button key={d} type="button"
+                              onClick={() => setForm(f => ({ ...f, serviceHealthDuration: String(d) }))}
+                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.serviceHealthDuration === String(d) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                              {d}개월
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
