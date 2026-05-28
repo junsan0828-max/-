@@ -211,7 +211,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
-        {user && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
+        {user && !showSurvey && !needsBasicInfo && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
         {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal />}
         {needsBasicInfo && (
           <BasicInfoModal
