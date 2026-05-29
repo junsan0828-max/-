@@ -140,10 +140,11 @@ export default function TransferPage({ token }: { token: string }) {
   });
 
   const [signerName, setSignerName] = useState("");
+  const [signerPhone, setSignerPhone] = useState("");
   const contract = contractQuery.data as Contract | undefined;
 
-  // Reset signerName when contract status changes (e.g. after 양도인 signs → 양수인 step)
-  useEffect(() => { setSignerName(""); }, [contract?.status]);
+  // Reset fields when contract status changes (e.g. after 양도인 signs → 양수인 step)
+  useEffect(() => { setSignerName(""); setSignerPhone(""); }, [contract?.status]);
 
   if (contractQuery.isLoading) {
     return (
@@ -285,11 +286,28 @@ export default function TransferPage({ token }: { token: string }) {
             />
           </div>
 
+          {!isTransferor && (
+            <div>
+              <label className="text-xs text-gray-400 mb-1.5 block">양수인 연락처</label>
+              <input
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="010-0000-0000"
+                value={signerPhone}
+                onChange={(e) => setSignerPhone(e.target.value)}
+                type="tel"
+              />
+            </div>
+          )}
+
           {signerName.trim() ? (
             <div className="space-y-2">
               <label className="text-xs text-gray-400 block">아래 박스에 손글씨로 서명해주세요</label>
               <SignatureCanvas
-                onSigned={(sig) => signMutation.mutate({ token, role, signerName: signerName.trim(), signature: sig })}
+                onSigned={(sig) => signMutation.mutate({
+                  token, role, signerName: signerName.trim(),
+                  signerPhone: (!isTransferor && signerPhone.trim()) ? signerPhone.trim() : undefined,
+                  signature: sig,
+                })}
               />
             </div>
           ) : (

@@ -76,6 +76,7 @@ export default function AdminMembers() {
     onSuccess: (data) => {
       if (data.fixed.length > 0) utils.members.listAll.invalidate();
     },
+    onError: (e) => console.error("[fixMissingTransferees 오류]", e.message),
   });
   const { data: allMembers, isLoading } = trpc.members.listAll.useQuery(
     branchFilter ? { branchId: branchFilter } : undefined
@@ -438,6 +439,19 @@ export default function AdminMembers() {
       {debugContractsQuery.data && debugContractsQuery.data.length === 0 && (
         <div className="border border-red-500 rounded-lg p-3 bg-red-500/10">
           <p className="text-xs text-red-400 font-bold">양도양수 계약이 DB에 없습니다</p>
+        </div>
+      )}
+      {fixMissingMutation.data?.errors && fixMissingMutation.data.errors.length > 0 && (
+        <div className="border border-red-500 rounded-lg p-3 bg-red-500/10 space-y-1">
+          <p className="text-xs font-bold text-red-400">양수인 회원 생성 오류</p>
+          {fixMissingMutation.data.errors.map((e, i) => (
+            <p key={i} className="text-xs text-red-300">{e}</p>
+          ))}
+        </div>
+      )}
+      {fixMissingMutation.data?.fixed && fixMissingMutation.data.fixed.length > 0 && (
+        <div className="border border-green-500 rounded-lg p-3 bg-green-500/10">
+          <p className="text-xs text-green-400">✅ 자동 등록 완료: {fixMissingMutation.data.fixed.join(", ")}</p>
         </div>
       )}
 
