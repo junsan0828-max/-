@@ -236,7 +236,7 @@ export const transferRouter = t.router({
             }
 
             const memberResult = await pool.query(
-              `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, memo, "createdAt", "updatedAt")
+              `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, "profileNote", "createdAt", "updatedAt")
                VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $7)
                RETURNING id`,
               [
@@ -325,7 +325,7 @@ export const transferRouter = t.router({
 
         const now = new Date().toISOString();
         const mr = await pool.query(
-          `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, memo, "createdAt", "updatedAt")
+          `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, "profileNote", "createdAt", "updatedAt")
            VALUES ($1,$2,$3,$4,$5,'active',$6,$7,$7) RETURNING id`,
           [branchId, trainerId, contract.transfereeName, contract.transfereePhone ?? null,
            contract.transfereeBirthDate ?? null,
