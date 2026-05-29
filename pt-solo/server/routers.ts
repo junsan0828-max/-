@@ -2127,8 +2127,8 @@ const adminRouter = t.router({
       SELECT
         t.id,
         t."trainerName",
-        t.username,
-        t.plan,
+        u.username,
+        COALESCE(u.plan, 'free') AS plan,
         t."brandIsPublic",
         t."brandBio",
         t."brandColor",
@@ -2145,6 +2145,7 @@ const adminRouter = t.router({
         ts."workshopTrialStartedAt",
         CASE WHEN wu_access.id IS NOT NULL THEN true ELSE false END AS workshop_activated
       FROM trainers t
+      LEFT JOIN users u ON u.id = t."userId"
       LEFT JOIN workshop_unlocks wu_access ON t.id = wu_access."trainerId" AND wu_access.feature = 'workshop_access'
       LEFT JOIN (
         SELECT "trainerId", COUNT(*) AS cnt, MAX("createdAt") AS last_added
@@ -2245,7 +2246,7 @@ const adminRouter = t.router({
   getWorkshopConsole: adminProcedure.query(async () => {
     const rows = await pool.query<any>(`
       SELECT
-        t.id, t."trainerName", t.username, t.plan,
+        t.id, t."trainerName", u.username, COALESCE(u.plan, 'free') AS plan,
         t."brandIsPublic", t."brandBio", t."brandColor", t."bookingEnabled",
         COALESCE(fsp.cnt, 0)::int AS fsp_count,
         COALESCE(wt.cnt, 0)::int AS template_count,
@@ -2257,6 +2258,7 @@ const adminRouter = t.router({
         CASE WHEN wu.id IS NOT NULL THEN true ELSE false END AS workshop_activated,
         COALESCE(pts.balance, 0)::int AS points_balance
       FROM trainers t
+      LEFT JOIN users u ON u.id = t."userId"
       LEFT JOIN workshop_unlocks wu ON t.id = wu."trainerId" AND wu.feature = 'workshop_access'
       LEFT JOIN (SELECT "trainerId", COUNT(*) cnt FROM fit_step_plus_members GROUP BY "trainerId") fsp ON t.id = fsp."trainerId"
       LEFT JOIN (SELECT "trainerId", COUNT(*) cnt FROM workout_templates GROUP BY "trainerId") wt ON t.id = wt."trainerId"
