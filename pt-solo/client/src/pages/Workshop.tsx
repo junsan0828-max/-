@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -917,6 +917,23 @@ function defaultBlocks(brand: any): BrandBlock[] {
   ];
 }
 
+function buildLegacyFieldsStatic(blockList: BrandBlock[]) {
+  const intro = blockList.find(b => b.type === "intro");
+  const sns = blockList.find(b => b.type === "sns");
+  const spc = blockList.find(b => b.type === "specialties");
+  const bk  = blockList.find(b => b.type === "booking");
+  return {
+    brandBio: intro?.data?.bio ?? "",
+    brandColor: intro?.data?.color ?? "#1a00ff",
+    brandInstagram: sns?.data?.instagram ?? "",
+    brandKakao: sns?.data?.kakao ?? "",
+    brandYoutube: sns?.data?.youtube ?? "",
+    brandSpecialties: (spc?.data?.items ?? []).join(", "),
+    bookingEnabled: (bk?.visible && bk?.data?.enabled) ? 1 : 0,
+    bookingMessage: bk?.data?.message ?? "",
+  };
+}
+
 // ── 블록별 인라인 에디터 ─────────────────────────────────────────────────────
 function BlockEditor({ block, onChange }: { block: BrandBlock; onChange: (data: any) => void }) {
   const d = block.data;
@@ -1207,9 +1224,14 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const utils = trpc.useUtils();
   const { data: brand, isLoading } = trpc.brand.getMyBrand.useQuery();
   const { data: bookings } = trpc.brand.listBookings.useQuery();
+  const silentSaveRef = useRef(false);
   const updateMutation = trpc.brand.updateMyBrand.useMutation({
-    onSuccess: () => { toast.success("저장되었습니다."); utils.brand.getMyBrand.invalidate(); },
-    onError: e => toast.error(e.message),
+    onSuccess: () => {
+      if (!silentSaveRef.current) toast.success("저장되었습니다.");
+      silentSaveRef.current = false;
+      utils.brand.getMyBrand.invalidate();
+    },
+    onError: e => { silentSaveRef.current = false; toast.error(e.message); },
   });
   const statusMutation = trpc.brand.updateBookingStatus.useMutation({
     onSuccess: () => utils.brand.listBookings.invalidate(),
@@ -1221,30 +1243,74 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
 
   const [blocks, setBlocks] = useState<BrandBlock[]>([]);
   const [brandIsPublic, setBrandIsPublic] = useState(0);
-  const [initialized, setInitialized] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  if (!initialized && brand) {
+  // useRef로 추적 — setState during render 안티패턴 제거
+  const initializedRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blocksRef = useRef<BrandBlock[]>([]);
+  const brandIsPublicRef = useRef(0);
+  useEffect(() => { blocksRef.current = blocks; }, [blocks]);
+  useEffect(() => { brandIsPublicRef.current = brandIsPublic; }, [brandIsPublic]);
+
+  // 초기화: brand 데이터가 오면 한 번만 세팅
+  useEffect(() => {
+    if (!brand || initializedRef.current) return;
+    initializedRef.current = true;
     const parsed: BrandBlock[] | null = brand.brandBlocks
       ? (() => { try { return JSON.parse(brand.brandBlocks); } catch { return null; } })()
       : null;
-    // 빈 배열이면 기존 컬럼 데이터로 복구
     const blockList = (parsed && parsed.length > 0) ? parsed : defaultBlocks(brand);
     setBlocks(blockList);
     setBrandIsPublic(brand.brandIsPublic ?? 0);
-    setInitialized(true);
-  }
+  }, [brand]);
+
+  // 자동저장: unmount 시 미저장 데이터 즉시 flush
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (!initializedRef.current) return;
+      const currentBlocks = blocksRef.current;
+      if (currentBlocks.length === 0) return;
+      silentSaveRef.current = true;
+      const legacy = buildLegacyFieldsStatic(currentBlocks);
+      updateMutation.mutate({
+        ...legacy,
+        brandIsPublic: brandIsPublicRef.current,
+        brandBlocks: JSON.stringify(currentBlocks),
+      } as any);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const username = (user as any)?.username;
   const brandUrl = `${window.location.origin}/p/${username}`;
 
+  function scheduleAutoSave() {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const currentBlocks = blocksRef.current;
+      if (currentBlocks.length === 0) return;
+      silentSaveRef.current = true;
+      const legacy = buildLegacyFieldsStatic(currentBlocks);
+      updateMutation.mutate({
+        ...legacy,
+        brandIsPublic: brandIsPublicRef.current,
+        brandBlocks: JSON.stringify(currentBlocks),
+      } as any);
+      setDirty(false);
+    }, 1500);
+  }
+
   function updateBlock(id: string, data: any) {
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, data } : b));
     setDirty(true);
+    scheduleAutoSave();
   }
   function toggleVisible(id: string) {
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, visible: !b.visible } : b));
     setDirty(true);
+    scheduleAutoSave();
   }
   function moveBlock(index: number, dir: -1 | 1) {
     setBlocks(prev => {
@@ -1255,10 +1321,12 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
       return next;
     });
     setDirty(true);
+    scheduleAutoSave();
   }
   function deleteBlock(id: string) {
     setBlocks(prev => prev.filter(b => b.id !== id));
     setDirty(true);
+    scheduleAutoSave();
   }
   function addBlock(type: BrandBlockType) {
     const defaults: Record<BrandBlockType, any> = {
@@ -1270,26 +1338,15 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
     };
     setBlocks(prev => [...prev, { id: `${type}_${Date.now()}`, type, visible: true, data: defaults[type] }]);
     setDirty(true);
+    scheduleAutoSave();
   }
 
   function buildLegacyFields(blockList: BrandBlock[]) {
-    const intro = blockList.find(b => b.type === "intro");
-    const sns = blockList.find(b => b.type === "sns");
-    const spc = blockList.find(b => b.type === "specialties");
-    const bk  = blockList.find(b => b.type === "booking");
-    return {
-      brandBio: intro?.data?.bio ?? "",
-      brandColor: intro?.data?.color ?? "#1a00ff",
-      brandInstagram: sns?.data?.instagram ?? "",
-      brandKakao: sns?.data?.kakao ?? "",
-      brandYoutube: sns?.data?.youtube ?? "",
-      brandSpecialties: (spc?.data?.items ?? []).join(", "),
-      bookingEnabled: (bk?.visible && bk?.data?.enabled) ? 1 : 0,
-      bookingMessage: bk?.data?.message ?? "",
-    };
+    return buildLegacyFieldsStatic(blockList);
   }
 
   function handleSave() {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     const legacy = buildLegacyFields(blocks);
     updateMutation.mutate({
       ...legacy,
@@ -1401,11 +1458,9 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
       </div>
 
       {/* ── 저장 버튼 ── */}
-      {dirty && (
-        <Button className="w-full" onClick={handleSave} disabled={updateMutation.isPending}>
-          {updateMutation.isPending ? "저장 중..." : "변경사항 저장"}
-        </Button>
-      )}
+      <Button className="w-full" onClick={handleSave} disabled={!dirty || updateMutation.isPending}>
+        {updateMutation.isPending ? "저장 중..." : dirty ? "변경사항 저장" : "저장됨"}
+      </Button>
 
       {/* ── 블록 섹션 헤더 ── */}
       <div className="flex items-center gap-2">
