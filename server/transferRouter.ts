@@ -236,8 +236,8 @@ export const transferRouter = t.router({
             }
 
             const memberResult = await pool.query(
-              `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", "joinDate", status, memo, "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $8)
+              `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, memo, "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $7)
                RETURNING id`,
               [
                 branchId,
@@ -245,7 +245,6 @@ export const transferRouter = t.router({
                 input.signerName,
                 contract.transfereePhone ?? null,
                 contract.transfereeBirthDate ?? null,
-                now.substring(0, 10),
                 `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`,
                 now,
               ]
@@ -326,10 +325,10 @@ export const transferRouter = t.router({
 
         const now = new Date().toISOString();
         const mr = await pool.query(
-          `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", "joinDate", status, memo, "createdAt", "updatedAt")
-           VALUES ($1,$2,$3,$4,$5,$6,'active',$7,$8,$8) RETURNING id`,
+          `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, memo, "createdAt", "updatedAt")
+           VALUES ($1,$2,$3,$4,$5,'active',$6,$7,$7) RETURNING id`,
           [branchId, trainerId, contract.transfereeName, contract.transfereePhone ?? null,
-           contract.transfereeBirthDate ?? null, (contract.completedAt ?? now).substring(0, 10),
+           contract.transfereeBirthDate ?? null,
            `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`, now]
         );
         if (mr.rows[0]) {
