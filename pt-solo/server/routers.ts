@@ -3636,6 +3636,197 @@ const surveyRouter = t.router({
   }),
 });
 
+// ── 수업 예약 ──────────────────────────────────────────────────────────────
+const bookingRouter = t.router({
+  // 트레이너: 슬롯 목록 (월 기준)
+  getSlots: protectedProcedure
+    .input(z.object({ month: z.string() })) // "2025-06"
+    .query(async ({ ctx, input }) => {
+      const tid = (ctx.user as any).trainerId;
+      const rows = await pool.query<any>(
+        `SELECT * FROM booking_slots WHERE "trainerId"=$1 AND date LIKE $2 ORDER BY date, time`,
+        [tid, `${input.month}%`]
+      );
+      return rows.rows;
+    }),
+
+  addSlot: protectedProcedure
+    .input(z.object({ date: z.string(), times: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = (ctx.user as any).trainerId;
+      for (const time of input.times) {
+        await pool.query(
+          `INSERT INTO booking_slots ("trainerId", date, time) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+          [tid, input.date, time]
+        );
+      }
+      return { success: true };
+    }),
+
+  deleteSlot: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = (ctx.user as any).trainerId;
+      await pool.query(`DELETE FROM booking_slots WHERE id=$1 AND "trainerId"=$2 AND "isBooked"=0`, [input.id, tid]);
+      return { success: true };
+    }),
+
+  // 반복 일정
+  getRecurring: protectedProcedure.query(async ({ ctx }) => {
+    const tid = (ctx.user as any).trainerId;
+    const rows = await pool.query<any>(`SELECT * FROM booking_recurring WHERE "trainerId"=$1 ORDER BY "dayOfWeek"`, [tid]);
+    return rows.rows.map((r: any) => ({ ...r, times: JSON.parse(r.times || "[]") }));
+  }),
+
+  saveRecurring: protectedProcedure
+    .input(z.array(z.object({ dayOfWeek: z.number(), times: z.array(z.string()) })))
+    .mutation(async ({ ctx, input }) => {
+      const tid = (ctx.user as any).trainerId;
+      await pool.query(`DELETE FROM booking_recurring WHERE "trainerId"=$1`, [tid]);
+      for (const r of input) {
+        if (r.times.length > 0) {
+          await pool.query(
+            `INSERT INTO booking_recurring ("trainerId", "dayOfWeek", times) VALUES ($1,$2,$3)`,
+            [tid, r.dayOfWeek, JSON.stringify(r.times)]
+          );
+        }
+      }
+      return { success: true };
+    }),
+
+  // 반복 일정 → 슬롯 생성 (앞으로 N주)
+  generateFromRecurring: protectedProcedure
+    .input(z.object({ weeks: z.number().min(1).max(12) }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = (ctx.user as any).trainerId;
+      const recurring = await pool.query<any>(`SELECT * FROM booking_recurring WHERE "trainerId"=$1 AND active=1`, [tid]);
+      const blackouts = await pool.query<any>(`SELECT date FROM booking_blackouts WHERE "trainerId"=$1`, [tid]);
+      const blackoutSet = new Set(blackouts.rows.map((r: any) => r.date));
+      let created = 0;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      for (let w = 0; w < input.weeks; w++) {
+        for (let d = 0; d < 7; d++) {
+          const dt = new Date(today); dt.setDate(today.getDate() + w * 7 + d);
+          const dow = dt.getDay();
+          const dateStr = dt.toISOString().slice(0, 10);
+          if (blackoutSet.has(dateStr)) continue;
+          const rec = recurring.rows.find((r: any) => r.dayOfWeek === dow);
+          if (!rec) continue;
+          const times: string[] = JSON.parse(rec.times || "[]");
+          for (const time of times) {
+            const exists = await pool.query(`SELECT id FROM booking_slots WHERE "trainerId"=$1 AND date=$2 AND time=$3`, [tid, dateStr, time]);
+            if (exists.rows.length === 0) {
+              await pool.query(`INSERT INTO booking_slots ("trainerId", date, time) VALUES ($1,$2,$3)`, [tid, dateStr, time]);
+              created++;
+            }
+          }
+        }
+      }
+      return { created };
+    }),
+
+  // 휴무일
+  getBlackouts: protectedProcedure.query(async ({ ctx }) => {
+    const tid = (ctx.user as any).trainerId;
+    const rows = await pool.query<any>(`SELECT * FROM booking_blackouts WHERE "trainerId"=$1 ORDER BY date`, [tid]);
+    return rows.rows;
+  }),
+  addBlackout: protectedProcedure.input(z.object({ date: z.string() })).mutation(async ({ ctx, input }) => {
+    const tid = (ctx.user as any).trainerId;
+    await pool.query(`INSERT INTO booking_blackouts ("trainerId", date) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [tid, input.date]);
+    return { success: true };
+  }),
+  deleteBlackout: protectedProcedure.input(z.object({ date: z.string() })).mutation(async ({ ctx, input }) => {
+    const tid = (ctx.user as any).trainerId;
+    await pool.query(`DELETE FROM booking_blackouts WHERE "trainerId"=$1 AND date=$2`, [tid, input.date]);
+    return { success: true };
+  }),
+
+  // 예약 목록 (트레이너)
+  listBookings: protectedProcedure.query(async ({ ctx }) => {
+    const tid = (ctx.user as any).trainerId;
+    const rows = await pool.query<any>(
+      `SELECT * FROM consultation_bookings WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 100`, [tid]
+    );
+    return rows.rows;
+  }),
+
+  updateStatus: protectedProcedure
+    .input(z.object({ id: z.number(), status: z.enum(["pending", "confirmed", "visited", "cancelled", "noshow"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const tid = (ctx.user as any).trainerId;
+      await pool.query(`UPDATE consultation_bookings SET status=$1 WHERE id=$2 AND "trainerId"=$3`, [input.status, input.id, tid]);
+      return { success: true };
+    }),
+
+  // ── 공개 API (회원용) ──
+  getAvailableDates: t.procedure
+    .input(z.object({ trainerId: z.number(), month: z.string() }))
+    .query(async ({ input }) => {
+      const rows = await pool.query<any>(
+        `SELECT date, COUNT(*) as total, SUM("isBooked"::int) as booked
+         FROM booking_slots WHERE "trainerId"=$1 AND date LIKE $2
+         GROUP BY date ORDER BY date`,
+        [input.trainerId, `${input.month}%`]
+      );
+      const blackouts = await pool.query<any>(
+        `SELECT date FROM booking_blackouts WHERE "trainerId"=$1 AND date LIKE $2`,
+        [input.trainerId, `${input.month}%`]
+      );
+      const blackoutSet = new Set(blackouts.rows.map((r: any) => r.date));
+      return rows.rows
+        .filter((r: any) => !blackoutSet.has(r.date) && Number(r.total) > Number(r.booked))
+        .map((r: any) => ({ date: r.date, available: Number(r.total) - Number(r.booked) }));
+    }),
+
+  getAvailableSlots: t.procedure
+    .input(z.object({ trainerId: z.number(), date: z.string() }))
+    .query(async ({ input }) => {
+      const blackout = await pool.query(`SELECT id FROM booking_blackouts WHERE "trainerId"=$1 AND date=$2`, [input.trainerId, input.date]);
+      if (blackout.rows.length > 0) return [];
+      const rows = await pool.query<any>(
+        `SELECT id, time, "isBooked" FROM booking_slots WHERE "trainerId"=$1 AND date=$2 ORDER BY time`,
+        [input.trainerId, input.date]
+      );
+      return rows.rows;
+    }),
+
+  submitWithSlot: t.procedure
+    .input(z.object({
+      trainerId: z.number(),
+      slotId: z.number(),
+      name: z.string().min(1),
+      phone: z.string().min(1),
+      interestType: z.string().optional(),
+      message: z.string().optional(),
+      reservedDate: z.string(),
+      reservedTime: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      // 슬롯 잠금 확인
+      const slot = await pool.query<any>(`SELECT * FROM booking_slots WHERE id=$1 AND "trainerId"=$2 FOR UPDATE`, [input.slotId, input.trainerId]);
+      if (!slot.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "슬롯을 찾을 수 없습니다." });
+      if (slot.rows[0].isBooked) throw new TRPCError({ code: "CONFLICT", message: "이미 예약된 시간입니다." });
+      await pool.query(`UPDATE booking_slots SET "isBooked"=1 WHERE id=$1`, [input.slotId]);
+      const result = await pool.query<any>(
+        `INSERT INTO consultation_bookings ("trainerId", name, phone, "interestType", message, status, "slotId", "reservedDate", "reservedTime")
+         VALUES ($1,$2,$3,$4,$5,'confirmed',$6,$7,$8) RETURNING id`,
+        [input.trainerId, input.name, input.phone, input.interestType ?? null, input.message ?? null, input.slotId, input.reservedDate, input.reservedTime]
+      );
+      // 이메일 알림 (fire-and-forget)
+      const trainerRow = await pool.query<any>(`SELECT email, "trainerName" FROM trainers WHERE id=$1`, [input.trainerId]);
+      const tr = trainerRow.rows[0];
+      if (tr?.email) {
+        sendBookingNotificationEmail(tr.email, tr.trainerName ?? "", {
+          name: input.name, phone: input.phone,
+          interestType: input.interestType,
+          message: `${input.reservedDate} ${input.reservedTime}${input.message ? ` / ${input.message}` : ""}`,
+        });
+      }
+      return { success: true, bookingId: result.rows[0].id };
+    }),
+});
+
 // ── 브랜드 페이지 ──────────────────────────────────────────────────────────
 const brandRouter = t.router({
   // 내 브랜드 설정 조회
@@ -3676,10 +3867,9 @@ const brandRouter = t.router({
 
   // 공개 브랜드 페이지 조회 (username 기준, 로그인 불필요)
   getPublicProfile: t.procedure.input(z.object({ username: z.string() })).query(async ({ input }) => {
+    let row: any;
     const numericId = parseInt(input.username);
-    let row;
     if (!isNaN(numericId)) {
-      // 숫자 ID로 직접 조회 (새 방식)
       row = await pool.query<any>(
         `SELECT t.id AS "trainerId", t."trainerName", t."profileImage", t."activityArea", t."jobType", t."careerRange",
                 t."brandBio", t."brandSpecialties", t."brandColor", t."brandInstagram", t."brandKakao", t."brandYoutube",
@@ -3907,6 +4097,7 @@ export const appRouter = t.router({
   workshop: workshopRouter,
   academy: academyRouter,
   eContract: eContractRouter,
+  booking: bookingRouter,
 });
 
 export type AppRouter = typeof appRouter;

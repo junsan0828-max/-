@@ -628,6 +628,39 @@ async function initDatabase() {
     status TEXT NOT NULL DEFAULT 'pending',
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+  // 예약 시간 슬롯 관련 컬럼 추가 (기존 테이블에 없을 경우)
+  await pool.query(`ALTER TABLE consultation_bookings ADD COLUMN IF NOT EXISTS "reservedDate" TEXT`);
+  await pool.query(`ALTER TABLE consultation_bookings ADD COLUMN IF NOT EXISTS "reservedTime" TEXT`);
+  await pool.query(`ALTER TABLE consultation_bookings ADD COLUMN IF NOT EXISTS "slotId" INTEGER`);
+
+  // 예약 가능 시간 슬롯
+  await pool.query(`CREATE TABLE IF NOT EXISTS booking_slots (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    time TEXT NOT NULL,
+    "isBooked" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS booking_slots_trainer_date ON booking_slots ("trainerId", date)`);
+
+  // 반복 일정
+  await pool.query(`CREATE TABLE IF NOT EXISTS booking_recurring (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    "dayOfWeek" INTEGER NOT NULL,
+    times TEXT NOT NULL DEFAULT '[]',
+    active INTEGER NOT NULL DEFAULT 1,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
+  // 휴무일
+  await pool.query(`CREATE TABLE IF NOT EXISTS booking_blackouts (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    UNIQUE("trainerId", date)
+  )`);
 
   // 비대면 전자계약
   await pool.query(`CREATE TABLE IF NOT EXISTS e_contracts (
