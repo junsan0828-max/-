@@ -65,7 +65,7 @@ export default function PointSpendConfirm({ open, onClose, onConfirm, featureNam
             disabled={!hasEnough || loading}
             className="flex-1 py-3 rounded-xl text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {loading ? "처리 중..." : "확인 (-50P)"}
+            {loading ? "처리 중..." : `확인 (-${cost}P)`}
           </button>
         </div>
       </div>

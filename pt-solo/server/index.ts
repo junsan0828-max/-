@@ -782,7 +782,8 @@ async function initDatabase() {
     ['exercise_report', '회원 운동 리포트 공유'],
   ]) {
     await pool.query(
-      `INSERT INTO feature_cost_rules (feature, label, cost, "isEnabled") VALUES ($1,$2,50,1) ON CONFLICT (feature) DO NOTHING`,
+      `INSERT INTO feature_cost_rules (feature, label, cost, "isEnabled") VALUES ($1,$2,50,1)
+       ON CONFLICT (feature) DO UPDATE SET label=$2, cost=CASE WHEN feature_cost_rules.cost=0 THEN 50 ELSE feature_cost_rules.cost END, "isEnabled"=1`,
       [feature, label]
     );
   }

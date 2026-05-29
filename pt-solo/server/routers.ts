@@ -54,7 +54,19 @@ async function giveAutoPoints(trainerId: number, event: string, memo: string) {
 }
 
 // 포인트 차감 헬퍼 — 잔액 부족 시 TRPCError 발생
+const TRIAL_DAYS = 30;
 async function spendPoints(trainerId: number, feature: string, memo: string) {
+  // 무료 체험 기간 중에는 포인트 차감 없음
+  const trialRow = await pool.query<{ workshopTrialStartedAt: string | null }>(
+    `SELECT "workshopTrialStartedAt" FROM trainer_settings WHERE "trainerId"=$1`,
+    [trainerId]
+  );
+  const trialStartedAt = trialRow.rows[0]?.workshopTrialStartedAt;
+  if (trialStartedAt) {
+    const daysSince = Math.floor((Date.now() - new Date(trialStartedAt).getTime()) / 86400000);
+    if (daysSince <= TRIAL_DAYS) return;
+  }
+
   const ruleRow = await pool.query<{ cost: number; isEnabled: number }>(
     `SELECT cost, "isEnabled" FROM feature_cost_rules WHERE feature=$1`, [feature]
   );

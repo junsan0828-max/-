@@ -1237,6 +1237,8 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
     onSuccess: () => utils.brand.listBookings.invalidate(),
   });
   const isAdmin = (user as any)?.role === "admin";
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery(undefined, { enabled: !isAdmin });
+  const isTrial = wsStatus?.status === "trial" || wsStatus?.status === "active";
   const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
   const [showShareConfirm, setShowShareConfirm] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState(false);
@@ -1436,13 +1438,13 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         {brandIsPublic ? (
           <>
             <button onClick={() => {
-              if (isAdmin) { navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); }
+              if (isAdmin || isTrial) { navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); }
               else setShowShareConfirm(true);
             }}
               className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-xl text-xs text-primary">
               <Globe className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate flex-1">{brandUrl}</span>
-              {!isAdmin && <span className="text-primary/70 shrink-0">-50P</span>}
+              {!isAdmin && !isTrial && <span className="text-primary/70 shrink-0">-50P</span>}
               <Copy className="h-3.5 w-3.5 shrink-0" />
             </button>
             <PointSpendConfirm open={showShareConfirm} onClose={() => setShowShareConfirm(false)}
