@@ -1225,8 +1225,12 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const [dirty, setDirty] = useState(false);
 
   if (!initialized && brand) {
-    const parsed = brand.brandBlocks ? (() => { try { return JSON.parse(brand.brandBlocks); } catch { return null; } })() : null;
-    setBlocks(parsed ?? defaultBlocks(brand));
+    const parsed: BrandBlock[] | null = brand.brandBlocks
+      ? (() => { try { return JSON.parse(brand.brandBlocks); } catch { return null; } })()
+      : null;
+    // 빈 배열이면 기존 컬럼 데이터로 복구
+    const blockList = (parsed && parsed.length > 0) ? parsed : defaultBlocks(brand);
+    setBlocks(blockList);
     setBrandIsPublic(brand.brandIsPublic ?? 0);
     setInitialized(true);
   }
@@ -2164,29 +2168,28 @@ function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
             </div>
           )}
 
-          {/* 기능 직접 테스트 */}
+          {/* 기능 직접 테스트 — 어드민은 상태 무관하게 항상 테스트 가능 */}
           <div className="pt-2 border-t border-border space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기능 직접 테스트</p>
-              {editStatus === "active" && (
-                <button
-                  onClick={() => setShowTestUI(v => !v)}
-                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-                    showTestUI
-                      ? "bg-primary/10 text-primary"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90"
-                  }`}
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  {showTestUI ? "닫기" : "기능 열어보기"}
-                </button>
-              )}
-            </div>
-            {editStatus !== "active" ? (
-              <div className="bg-muted/40 rounded-xl px-4 py-3 text-center">
-                <p className="text-xs text-muted-foreground">활성 상태인 기능만 테스트할 수 있습니다.</p>
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기능 직접 테스트</p>
+                {editStatus !== "active" && (
+                  <p className="text-[10px] text-amber-600 mt-0.5">준비 중 상태 · 어드민만 테스트 가능</p>
+                )}
               </div>
-            ) : !showTestUI ? (
+              <button
+                onClick={() => setShowTestUI(v => !v)}
+                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                  showTestUI
+                    ? "bg-primary/10 text-primary"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                }`}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                {showTestUI ? "닫기" : "기능 열어보기"}
+              </button>
+            </div>
+            {!showTestUI ? (
               <p className="text-xs text-muted-foreground">실제 기능 UI를 관리자 화면에서 바로 확인할 수 있습니다.</p>
             ) : (
               <div className="border border-border rounded-2xl overflow-hidden bg-background">
