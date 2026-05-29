@@ -2045,14 +2045,14 @@ function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
   const [saved, setSaved] = useState(false);
 
   const updateMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
-    onSuccess: (_, vars) => {
+    onSuccess: (data, vars) => {
       utils.admin.getWorkshopConsole.invalidate();
-      toast.success("기능 설정이 저장되었습니다");
+      toast.success(`저장됨: ${vars.featureId} → ${vars.status}`);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       onSave(vars.featureId, vars.status);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(`저장 실패: ${e.message}`),
   });
 
   const STATUS_META: Record<string, { label: string; cls: string }> = {

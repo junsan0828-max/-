@@ -710,11 +710,13 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandBlocks" TEXT`);
   await pool.query(`CREATE TABLE IF NOT EXISTS workshop_feature_config (
     id SERIAL PRIMARY KEY,
-    "featureId" TEXT NOT NULL UNIQUE,
+    "featureId" TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     "adminNote" TEXT,
     "updatedAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS wfc_featureid_idx ON workshop_feature_config ("featureId")`);
+
   // FIT STEP+ 플랜별 회원 수 제한 설정
   await pool.query(`CREATE TABLE IF NOT EXISTS plan_settings (
     key TEXT PRIMARY KEY,

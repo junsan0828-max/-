@@ -2308,15 +2308,18 @@ const adminRouter = t.router({
   updateWorkshopFeatureConfig: adminProcedure
     .input(z.object({ featureId: z.string(), status: z.string(), adminNote: z.string().optional() }))
     .mutation(async ({ input }) => {
-      await pool.query(`
-        INSERT INTO workshop_feature_config ("featureId", status, "adminNote", "updatedAt")
-        VALUES ($1, $2, $3, now()::text)
-        ON CONFLICT ("featureId") DO UPDATE SET
-          status = EXCLUDED.status,
-          "adminNote" = COALESCE(EXCLUDED."adminNote", workshop_feature_config."adminNote"),
-          "updatedAt" = now()::text
-      `, [input.featureId, input.status, input.adminNote ?? null]);
-      return { success: true };
+      const note = input.adminNote ?? null;
+      const upd = await pool.query(
+        `UPDATE workshop_feature_config SET status=$2, "adminNote"=$3, "updatedAt"=now()::text WHERE "featureId"=$1`,
+        [input.featureId, input.status, note]
+      );
+      if ((upd.rowCount ?? 0) === 0) {
+        await pool.query(
+          `INSERT INTO workshop_feature_config ("featureId", status, "adminNote", "updatedAt") VALUES ($1, $2, $3, now()::text)`,
+          [input.featureId, input.status, note]
+        );
+      }
+      return { success: true, featureId: input.featureId, savedStatus: input.status };
     }),
 
   grantWorkshopAccess: adminProcedure
