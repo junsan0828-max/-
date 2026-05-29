@@ -784,19 +784,30 @@ async function initDatabase() {
       const transferorMember = transferorResult.rows[0];
       if (!transferorMember) continue;
 
+      // branchId가 NULL이면 trainer_branches에서 조회
+      let branchId = transferorMember.branchId;
+      if (!branchId && transferorMember.trainerId) {
+        const tbResult = await pool.query(
+          'SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1',
+          [transferorMember.trainerId]
+        );
+        branchId = tbResult.rows[0]?.branchId ?? null;
+      }
+
       const now = new Date().toISOString();
       const memberResult = await pool.query(
-        `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", "joinDate", status, memo)
-         VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
+        `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", "joinDate", status, memo, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $8)
          RETURNING id`,
         [
-          transferorMember.branchId,
+          branchId,
           transferorMember.trainerId ?? null,
           contract.transfereeName,
           contract.transfereePhone ?? null,
           contract.transfereeBirthDate ?? null,
           (contract.completedAt ?? now).substring(0, 10),
           `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`,
+          now,
         ]
       );
 
