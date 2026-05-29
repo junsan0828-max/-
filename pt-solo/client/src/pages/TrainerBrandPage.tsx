@@ -64,6 +64,7 @@ export default function TrainerBrandPage({ username }: Props) {
   const primaryColor: string = introBlock?.data?.color ?? trainer.brandColor ?? "#1a00ff";
   const bookingBlock = visibleBlocks.find(b => b.type === "booking" && b.data?.enabled);
   const bgImage: string | undefined = introBlock?.data?.bgImage;
+  const profileImage: string | undefined = introBlock?.data?.profileImage;
   const trainerTitle: string = introBlock?.data?.title || JOB_LABELS[trainer.jobType] || "";
   const tagline: string = introBlock?.data?.tagline || introBlock?.data?.bio || "";
 
@@ -76,19 +77,36 @@ export default function TrainerBrandPage({ username }: Props) {
 
     if (block.type === "specialties") {
       const items: string[] = (d.items ?? []).slice(0, 5);
-      if (items.length === 0) return null;
+      const targetItems: string[] = d.targetItems ?? [];
+      if (items.length === 0 && targetItems.length === 0) return null;
       return (
-        <section key={block.id} className="bg-white rounded-3xl p-6 shadow-sm">
-          <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">전문 분야</h2>
-          <div className="flex flex-wrap gap-2">
-            {items.map((s, i) => (
-              <span key={i}
-                className="px-4 py-2 rounded-full text-sm font-semibold border"
-                style={{ borderColor: primaryColor, color: primaryColor, backgroundColor: `${primaryColor}0f` }}>
-                {s}
-              </span>
-            ))}
-          </div>
+        <section key={block.id} className="bg-white rounded-3xl p-6 shadow-sm space-y-5">
+          {items.length > 0 && (
+            <div>
+              <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">전문 분야</h2>
+              <div className="flex flex-wrap gap-2">
+                {items.map((s, i) => (
+                  <span key={i}
+                    className="px-4 py-2 rounded-full text-sm font-semibold border"
+                    style={{ borderColor: primaryColor, color: primaryColor, backgroundColor: `${primaryColor}0f` }}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {targetItems.length > 0 && (
+            <div>
+              <h2 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">이런 분께 추천</h2>
+              <div className="flex flex-wrap gap-2">
+                {targetItems.map((s, i) => (
+                  <span key={i} className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       );
     }
@@ -224,8 +242,13 @@ export default function TrainerBrandPage({ username }: Props) {
         }}>
         <div className="absolute inset-0" style={{ background: heroOverlay }} />
         <div className="relative max-w-lg mx-auto px-6 pt-14 pb-10 flex flex-col justify-end h-full" style={{ minHeight: "52vh" }}>
+          {profileImage && (
+            <img src={profileImage} alt={trainer.trainerName}
+              className="w-16 h-16 rounded-full object-cover border-3 border-white/80 shadow-lg mb-3"
+              style={{ border: "3px solid rgba(255,255,255,0.8)" }} />
+          )}
           {trainerTitle && (
-            <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-2">{trainerTitle}</p>
+            <p className="text-white/70 text-xs font-semibold tracking-widest uppercase mb-1.5">{trainerTitle}</p>
           )}
           <h1 className="text-3xl font-bold text-white tracking-tight leading-tight">{trainer.trainerName}</h1>
           {tagline && (

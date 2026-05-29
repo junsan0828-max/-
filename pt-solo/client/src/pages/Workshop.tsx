@@ -955,33 +955,111 @@ function buildLegacyFieldsStatic(blockList: BrandBlock[]) {
 
 // ── 소개 블록 에디터 (배경 이미지 업로드 포함) ──────────────────────────────
 function IntroBlockEditor({ d, onChange }: { d: any; onChange: (data: any) => void }) {
+  const bgImgRef = useRef<HTMLInputElement>(null);
+  const profileImgRef = useRef<HTMLInputElement>(null);
+  const [hexVal, setHexVal] = useState(d.color ?? "#1a00ff");
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, field: "bgImage" | "profileImage", maxSize: number) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await resizeImageToBase64(file, maxSize);
+      onChange({ ...d, [field]: base64 });
+    } catch { toast.error("이미지 처리 실패"); }
+    e.target.value = "";
+  }
+
+  function applyHex(val: string) {
+    setHexVal(val);
+    if (/^#[0-9a-fA-F]{6}$/.test(val)) onChange({ ...d, color: val });
+  }
+
   return (
-    <div className="space-y-3 pt-3 border-t border-border/60">
+    <div className="space-y-4 pt-3 border-t border-border/60">
+      {/* 프로필 이미지 */}
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">프로필 이미지</label>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => profileImgRef.current?.click()} className="shrink-0">
+            {d.profileImage
+              ? <img src={d.profileImage} className="w-14 h-14 rounded-full object-cover border-2 border-border" alt="프로필" />
+              : <div className="w-14 h-14 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center">
+                  <Camera className="h-4 w-4 text-muted-foreground" />
+                </div>
+            }
+          </button>
+          <div className="space-y-1.5">
+            <button type="button" onClick={() => profileImgRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
+              <Camera className="h-3 w-3" />{d.profileImage ? "변경" : "업로드"}
+            </button>
+            {d.profileImage && (
+              <button type="button" onClick={() => onChange({ ...d, profileImage: undefined })}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-red-500 transition-colors">
+                <X className="h-3 w-3" />삭제
+              </button>
+            )}
+          </div>
+        </div>
+        <input ref={profileImgRef} type="file" accept="image/*" className="hidden"
+          onChange={e => handleImageUpload(e, "profileImage", 400)} />
+      </div>
+
+      {/* 직함 */}
       <div className="space-y-1.5">
         <label className="text-xs text-muted-foreground">직함 <span className="text-muted-foreground/50">(예: 퍼스널 트레이너)</span></label>
         <input value={d.title ?? ""} onChange={e => onChange({ ...d, title: e.target.value })}
           placeholder="퍼스널 트레이너"
           className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
       </div>
+
+      {/* 한줄 소개 */}
       <div className="space-y-1.5">
-        <label className="text-xs text-muted-foreground">한줄 소개 <span className="text-muted-foreground/50">(Hero 영역에 표시)</span></label>
+        <label className="text-xs text-muted-foreground">한줄 소개 <span className="text-muted-foreground/50">(Hero 영역 표시)</span></label>
         <input value={d.tagline ?? ""} onChange={e => onChange({ ...d, tagline: e.target.value })}
           placeholder="근거 있는 지도, 변화를 즐깁니다."
           className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
       </div>
+
+      {/* 소개글 */}
       <div className="space-y-1.5">
         <label className="text-xs text-muted-foreground">소개글</label>
         <textarea value={d.bio ?? ""} onChange={e => onChange({ ...d, bio: e.target.value })}
-          rows={4} placeholder="트레이너 소개를 입력하세요..."
+          rows={3} placeholder="트레이너 소개를 입력하세요..."
           className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
       </div>
+
+      {/* 브랜드 컬러 */}
       <div className="space-y-1.5">
         <label className="text-xs text-muted-foreground">브랜드 컬러</label>
-        <div className="flex items-center gap-3">
-          <input type="color" value={d.color ?? "#1a00ff"} onChange={e => onChange({ ...d, color: e.target.value })}
-            className="w-10 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
-          <span className="text-xs text-muted-foreground font-mono">{d.color ?? "#1a00ff"}</span>
+        <div className="flex items-center gap-2">
+          <input type="color" value={d.color ?? "#1a00ff"}
+            onChange={e => { onChange({ ...d, color: e.target.value }); setHexVal(e.target.value); }}
+            className="w-10 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background shrink-0" />
+          <input type="text" value={hexVal} onChange={e => applyHex(e.target.value)}
+            placeholder="#1a00ff" maxLength={7}
+            className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary" />
         </div>
+      </div>
+
+      {/* 배경 이미지 */}
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">배경 이미지 <span className="text-muted-foreground/50">(없으면 브랜드 컬러 사용)</span></label>
+        {d.bgImage && (
+          <div className="relative rounded-xl overflow-hidden border border-border">
+            <img src={d.bgImage} alt="배경" className="w-full h-24 object-cover" />
+            <button type="button" onClick={() => onChange({ ...d, bgImage: undefined })}
+              className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors">
+              <X className="h-3.5 w-3.5 text-white" />
+            </button>
+          </div>
+        )}
+        <button type="button" onClick={() => bgImgRef.current?.click()}
+          className="flex items-center gap-2 text-xs font-semibold px-3 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
+          <Camera className="h-3.5 w-3.5" />{d.bgImage ? "배경 이미지 변경" : "배경 이미지 업로드"}
+        </button>
+        <input ref={bgImgRef} type="file" accept="image/*" className="hidden"
+          onChange={e => handleImageUpload(e, "bgImage", 1200)} />
       </div>
     </div>
   );
@@ -997,30 +1075,63 @@ function BlockEditor({ block, onChange }: { block: BrandBlock; onChange: (data: 
 
   if (block.type === "specialties") {
     const items: string[] = d.items ?? [];
+    const targetItems: string[] = d.targetItems ?? [];
     const [newItem, setNewItem] = useState("");
+    const [newTarget, setNewTarget] = useState("");
+
+    function addTag(list: string[], val: string, field: string) {
+      if (!val.trim()) return;
+      onChange({ ...d, [field]: [...list, val.trim()] });
+    }
+
     return (
-      <div className="space-y-3 pt-3 border-t border-border/60">
-        <div className="flex flex-wrap gap-2">
-          {items.map((item, i) => (
-            <span key={i} className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full">
-              {item}
-              <button onClick={() => onChange({ ...d, items: items.filter((_, j) => j !== i) })} className="hover:text-red-500">
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
+      <div className="space-y-4 pt-3 border-t border-border/60">
+        {/* 전문분야 */}
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground font-semibold">전문분야 태그</label>
+          <div className="flex flex-wrap gap-2">
+            {items.map((item, i) => (
+              <span key={i} className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full">
+                {item}
+                <button onClick={() => onChange({ ...d, items: items.filter((_, j) => j !== i) })} className="hover:text-red-500">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input value={newItem} onChange={e => setNewItem(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { addTag(items, newItem, "items"); setNewItem(""); } }}
+              placeholder="전문분야 입력 후 Enter"
+              className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            <button onClick={() => { addTag(items, newItem, "items"); setNewItem(""); }}
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">추가</button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">예: 다이어트, 체형교정, 재활운동, 스포츠 퍼포먼스</p>
         </div>
-        <div className="flex gap-2">
-          <input value={newItem} onChange={e => setNewItem(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && newItem.trim()) { onChange({ ...d, items: [...items, newItem.trim()] }); setNewItem(""); } }}
-            placeholder="전문분야 입력 후 Enter"
-            className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-          <button onClick={() => { if (newItem.trim()) { onChange({ ...d, items: [...items, newItem.trim()] }); setNewItem(""); } }}
-            className="px-3 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">
-            추가
-          </button>
+
+        {/* 추천 대상 */}
+        <div className="space-y-2 pt-3 border-t border-border/40">
+          <label className="text-xs text-muted-foreground font-semibold">추천 대상 태그</label>
+          <div className="flex flex-wrap gap-2">
+            {targetItems.map((item, i) => (
+              <span key={i} className="flex items-center gap-1 bg-muted text-muted-foreground text-xs px-2.5 py-1 rounded-full">
+                {item}
+                <button onClick={() => onChange({ ...d, targetItems: targetItems.filter((_, j) => j !== i) })} className="hover:text-red-500">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input value={newTarget} onChange={e => setNewTarget(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { addTag(targetItems, newTarget, "targetItems"); setNewTarget(""); } }}
+              placeholder="거북목, 허리통증, 체형교정..."
+              className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            <button onClick={() => { addTag(targetItems, newTarget, "targetItems"); setNewTarget(""); }}
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">추가</button>
+          </div>
         </div>
-        <p className="text-[10px] text-muted-foreground">예: 다이어트, 체형교정, 재활운동, 스포츠 퍼포먼스</p>
       </div>
     );
   }
@@ -1324,31 +1435,6 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const trainerId = (user as any)?.trainerId;
   const brandUrl = `${window.location.origin}/p/${trainerId}`;
 
-  const bgImgInputRef = useRef<HTMLInputElement>(null);
-  const introBlock = blocks.find(b => b.type === "intro");
-  const bgImage = introBlock?.data?.bgImage as string | undefined;
-
-  async function handleBgImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const base64 = await resizeImageToBase64(file, 1200);
-      if (introBlock) {
-        updateBlock(introBlock.id, { ...introBlock.data, bgImage: base64 });
-      }
-    } catch {
-      toast.error("이미지 처리 중 오류가 발생했습니다.");
-    }
-    e.target.value = "";
-  }
-
-  function removeBgImage() {
-    if (introBlock) {
-      const { bgImage: _, ...rest } = introBlock.data;
-      updateBlock(introBlock.id, rest);
-    }
-  }
-
   function scheduleAutoSave() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
@@ -1508,30 +1594,6 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         ) : (
           <p className="text-[11px] text-muted-foreground">공개로 설정하면 외부에서 접속할 수 있는 링크가 생성됩니다.</p>
         )}
-      </div>
-
-      {/* ── 브랜드 배경 이미지 ── */}
-      <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-          <Camera className="h-3.5 w-3.5" />브랜드 배경 이미지
-        </p>
-        {bgImage ? (
-          <div className="relative rounded-xl overflow-hidden border border-border">
-            <img src={bgImage} alt="배경" className="w-full h-28 object-cover" />
-            <button type="button" onClick={removeBgImage}
-              className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors">
-              <X className="h-3.5 w-3.5 text-white" />
-            </button>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">이미지가 없으면 소개 블록의 브랜드 컬러가 배경으로 사용됩니다.</p>
-        )}
-        <button type="button" onClick={() => bgImgInputRef.current?.click()}
-          className="flex items-center gap-2 text-xs font-semibold px-3 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
-          <Camera className="h-3.5 w-3.5" />
-          {bgImage ? "이미지 변경" : "이미지 업로드"}
-        </button>
-        <input ref={bgImgInputRef} type="file" accept="image/*" className="hidden" onChange={handleBgImageChange} />
       </div>
 
       {/* ── 저장 버튼 ── */}
