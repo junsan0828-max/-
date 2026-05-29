@@ -1258,8 +1258,6 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const isAdmin = (user as any)?.role === "admin";
   const { data: wsStatus } = trpc.workshop.getStatus.useQuery(undefined, { enabled: !isAdmin });
   const isTrial = wsStatus?.status === "trial" || wsStatus?.status === "active";
-  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
-  const [showShareConfirm, setShowShareConfirm] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState(false);
 
   const [blocks, setBlocks] = useState<BrandBlock[]>([]);
@@ -1478,22 +1476,12 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         </div>
         {brandIsPublic ? (
           <>
-            <button onClick={() => {
-              if (isAdmin || isTrial) { navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); }
-              else setShowShareConfirm(true);
-            }}
+            <button onClick={() => { navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); }}
               className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-xl text-xs text-primary">
               <Globe className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate flex-1">{brandUrl}</span>
-              {!isAdmin && !isTrial && <span className="text-primary/70 shrink-0">-50P</span>}
               <Copy className="h-3.5 w-3.5 shrink-0" />
             </button>
-            <PointSpendConfirm open={showShareConfirm} onClose={() => setShowShareConfirm(false)}
-              featureName="브랜딩 페이지 공유" loading={spendFeatureMutation.isPending}
-              onConfirm={() => spendFeatureMutation.mutate({ feature: "branding_share" }, {
-                onSuccess: () => { setShowShareConfirm(false); navigator.clipboard.writeText(brandUrl); toast.success("링크 복사됨!"); },
-                onError: (e) => toast.error(e.message),
-              })} />
           </>
         ) : (
           <p className="text-[11px] text-muted-foreground">공개로 설정하면 외부에서 접속할 수 있는 링크가 생성됩니다.</p>
