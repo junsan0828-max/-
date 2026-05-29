@@ -13,11 +13,11 @@ const JOB_LABELS: Record<string, string> = {
 const CAREER_LABELS: Record<string, string> = {
   "1": "경력 1년 미만", "1-3": "경력 1~3년", "3-5": "경력 3~5년", "5+": "경력 5년 이상",
 };
-const CAREER_CAT_META: Record<string, { label: string; color: string; dot: string }> = {
-  cert:   { label: "자격증", color: "text-blue-600",   dot: "bg-blue-500" },
-  career: { label: "경력",   color: "text-emerald-600", dot: "bg-emerald-500" },
-  edu:    { label: "학력",   color: "text-violet-600",  dot: "bg-violet-500" },
-  award:  { label: "수상",   color: "text-amber-600",   dot: "bg-amber-500" },
+const CAREER_CAT_META: Record<string, { label: string }> = {
+  cert:   { label: "자격증" },
+  career: { label: "경력"   },
+  edu:    { label: "학력"   },
+  award:  { label: "수상"   },
 };
 
 interface BrandBlock { id: string; type: string; visible: boolean; data: any; }
@@ -126,16 +126,16 @@ export default function TrainerBrandPage({ username }: Props) {
           </h2>
           <div className="space-y-0">
             {displayed.map((item, i) => {
-              const meta = CAREER_CAT_META[item.category] ?? { label: item.category, color: "text-gray-500", dot: "bg-gray-400" };
+              const meta = CAREER_CAT_META[item.category] ?? { label: item.category };
               const isLast = i === displayed.length - 1;
               return (
                 <div key={i} className="flex gap-4">
                   <div className="flex flex-col items-center pt-1">
-                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${meta.dot}`} />
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: primaryColor }} />
                     {!isLast && <div className="w-px flex-1 bg-gray-100 mt-1.5 mb-0" />}
                   </div>
                   <div className={`${isLast ? "pb-0" : "pb-5"}`}>
-                    <span className={`text-[10px] font-bold uppercase tracking-wide ${meta.color}`}>{meta.label}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: primaryColor }}>{meta.label}</span>
                     <p className="text-sm text-gray-800 mt-0.5 leading-snug">{item.text}</p>
                   </div>
                 </div>
