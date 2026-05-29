@@ -20,7 +20,8 @@ interface BrandBlock { id: string; type: string; visible: boolean; data: any; }
 interface Props { username: string; }
 
 export default function TrainerBrandPage({ username }: Props) {
-  const { data: trainer, isLoading, error } = trpc.brand.getPublicProfile.useQuery({ username });
+  const decodedUsername = decodeURIComponent(username);
+  const { data: trainer, isLoading, error } = trpc.brand.getPublicProfile.useQuery({ username: decodedUsername });
   const [showBooking, setShowBooking] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", interestType: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
