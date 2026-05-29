@@ -1188,25 +1188,51 @@ function BlockEditor({ block, onChange }: { block: BrandBlock; onChange: (data: 
     </div>
   );
 
-  if (block.type === "booking") return (
-    <div className="space-y-3 pt-3 border-t border-border/60">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium">예약 받기 활성화</p>
-        <button onClick={() => onChange({ ...d, enabled: !d.enabled })}
-          className={`w-10 h-5.5 rounded-full transition-colors relative ${d.enabled ? "bg-primary" : "bg-muted"}`}
-          style={{ height: "22px", width: "40px" }}>
-          <span className={`absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-all ${d.enabled ? "left-[18px]" : "left-0.5"}`}
-            style={{ width: "18px", height: "18px" }} />
-        </button>
+  if (block.type === "booking") {
+    const programs: string[] = d.programs ?? ["PT (퍼스널 트레이닝)", "필라테스", "기타"];
+    const [newProgram, setNewProgram] = useState("");
+    return (
+      <div className="space-y-3 pt-3 border-t border-border/60">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium">예약 받기 활성화</p>
+          <button onClick={() => onChange({ ...d, enabled: !d.enabled })}
+            className={`w-10 h-5.5 rounded-full transition-colors relative ${d.enabled ? "bg-primary" : "bg-muted"}`}
+            style={{ height: "22px", width: "40px" }}>
+            <span className={`absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-all ${d.enabled ? "left-[18px]" : "left-0.5"}`}
+              style={{ width: "18px", height: "18px" }} />
+          </button>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground">예약 안내 메시지</label>
+          <textarea value={d.message ?? ""} onChange={e => onChange({ ...d, message: e.target.value })}
+            rows={2} placeholder="상담 가능 시간이나 안내 문구를 입력하세요..."
+            className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground font-semibold">관심 프로그램 옵션</label>
+          <div className="space-y-1.5">
+            {programs.map((p, i) => (
+              <div key={i} className="flex items-center gap-2 bg-accent/30 rounded-xl px-3 py-2">
+                <span className="text-xs flex-1">{p}</span>
+                <button onClick={() => onChange({ ...d, programs: programs.filter((_, j) => j !== i) })}
+                  className="text-muted-foreground hover:text-red-500">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input value={newProgram} onChange={e => setNewProgram(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && newProgram.trim()) { onChange({ ...d, programs: [...programs, newProgram.trim()] }); setNewProgram(""); } }}
+              placeholder="프로그램명 입력 후 Enter"
+              className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            <button onClick={() => { if (newProgram.trim()) { onChange({ ...d, programs: [...programs, newProgram.trim()] }); setNewProgram(""); } }}
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">추가</button>
+          </div>
+        </div>
       </div>
-      <div className="space-y-1.5">
-        <label className="text-xs text-muted-foreground">예약 안내 메시지</label>
-        <textarea value={d.message ?? ""} onChange={e => onChange({ ...d, message: e.target.value })}
-          rows={2} placeholder="상담 가능 시간이나 안내 문구를 입력하세요..."
-          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
-      </div>
-    </div>
-  );
+    );
+  }
 
   if (block.type === "programs") {
     const items: { name: string; desc: string }[] = d.items ?? [];

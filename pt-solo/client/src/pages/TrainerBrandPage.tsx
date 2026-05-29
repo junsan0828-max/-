@@ -335,9 +335,9 @@ export default function TrainerBrandPage({ username }: Props) {
                     <select value={form.interestType} onChange={e => setForm(p => ({ ...p, interestType: e.target.value }))}
                       className="w-full mt-1.5 border border-gray-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white transition-colors">
                       <option value="">선택</option>
-                      <option value="PT">PT (퍼스널 트레이닝)</option>
-                      <option value="필라테스">필라테스</option>
-                      <option value="기타">기타</option>
+                      {(bookingBlock?.data?.programs ?? ["PT (퍼스널 트레이닝)", "필라테스", "기타"]).map((p: string) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
