@@ -2204,34 +2204,13 @@ interface WsItemEnriched extends WsItem {
   usage: { activeUsers: number; totalMetric: number; label: string } | null;
 }
 
-function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
+function WsAdminFeatureModal({ feature, trainers, onClose }: {
   feature: WsItemEnriched;
   trainers: any[];
   onClose: () => void;
-  onSave: (featureId: string, newStatus: string) => void;
 }) {
-  const utils = trpc.useUtils();
   const FIcon = feature.icon;
-  const [editStatus, setEditStatus] = useState<string>(feature.status);
-  const [adminNote, setAdminNote] = useState("");
   const [showTestUI, setShowTestUI] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  // feature.status prop이 변경되면 editStatus 재동기화
-  useEffect(() => {
-    setEditStatus(feature.status);
-  }, [feature.id, feature.status]);
-
-  const updateMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
-    onSuccess: (data, vars) => {
-      utils.admin.getWorkshopConsole.invalidate();
-      toast.success(`저장됨: ${vars.featureId} → ${vars.status}`);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-      onSave(vars.featureId, vars.status);
-    },
-    onError: (e) => toast.error(`저장 실패: ${e.message}`),
-  });
 
   const STATUS_META: Record<string, { label: string; cls: string }> = {
     active: { label: "활성", cls: "bg-green-100 text-green-700" },
@@ -2240,7 +2219,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
     addon_premium: { label: "PREMIUM", cls: "bg-amber-100 text-amber-600" },
     hidden: { label: "숨김", cls: "bg-gray-200 text-gray-500" },
   };
-  const sm = STATUS_META[editStatus] ?? STATUS_META.coming_soon;
+  const sm = STATUS_META[feature.status] ?? STATUS_META.coming_soon;
 
   function getFeatureTrainers() {
     switch (feature.id) {
@@ -2330,7 +2309,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기능 직접 테스트</p>
-                {editStatus !== "active" && (
+                {feature.status !== "active" && (
                   <p className="text-[10px] text-amber-600 mt-0.5">준비 중 상태 · 어드민만 테스트 가능</p>
                 )}
               </div>
@@ -2367,32 +2346,6 @@ function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
             )}
           </div>
 
-          {/* 관리자 설정 */}
-          <div className="space-y-3 pt-2 border-t border-border">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">관리자 설정</p>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">기능 상태 변경</label>
-              <select value={editStatus} onChange={e => setEditStatus(e.target.value)}
-                className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                <option value="active">활성 (사용 가능)</option>
-                <option value="coming_soon">준비 중</option>
-                <option value="addon_fsp">ADD-ON (FSP)</option>
-                <option value="addon_premium">PREMIUM ADD-ON</option>
-                <option value="hidden">숨김</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">관리자 메모</label>
-              <input value={adminNote} onChange={e => setAdminNote(e.target.value)}
-                placeholder="메모 입력 (선택)"
-                className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-            </div>
-            <Button className={`w-full transition-colors ${saved ? "bg-green-600 hover:bg-green-600" : ""}`} size="sm"
-              onClick={() => updateMutation.mutate({ featureId: feature.id, status: editStatus as any, adminNote: adminNote || undefined })}
-              disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "저장 중..." : saved ? "✓ 저장됨" : "설정 저장"}
-            </Button>
-          </div>
         </div>
       </div>
     </div>
@@ -2739,22 +2692,6 @@ function AdminWorkshopView() {
           feature={selectedFeature}
           trainers={trainers}
           onClose={() => setSelectedFeature(null)}
-          onSave={(featureId, newStatus) => {
-            // 1) 현재 열린 모달 즉시 반영
-            setSelectedFeature(prev =>
-              prev?.id === featureId ? { ...prev, status: newStatus as WsItemStatus } : prev
-            );
-            // 2) React Query 캐시 즉시 동기 업데이트 — 리패치 완료 전 닫기/재열기 시 stale 방지
-            utils.admin.getWorkshopConsole.setData(undefined, (old: any) => {
-              if (!old) return old;
-              return {
-                ...old,
-                featureConfigs: (old.featureConfigs as any[]).map(c =>
-                  c.featureId === featureId ? { ...c, status: newStatus } : c
-                ),
-              };
-            });
-          }}
         />
       )}
     </div>
