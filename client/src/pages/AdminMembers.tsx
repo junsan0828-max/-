@@ -422,6 +422,25 @@ export default function AdminMembers() {
         )}
       </div>
 
+      {/* 양도양수 진단 패널 (임시) */}
+      {debugContractsQuery.data && debugContractsQuery.data.length > 0 && (
+        <div className="border border-yellow-500 rounded-lg p-3 bg-yellow-500/10 space-y-1">
+          <p className="text-xs font-bold text-yellow-400">양도양수 계약 목록 (진단용)</p>
+          {debugContractsQuery.data.map((c: any) => (
+            <div key={c.id} className="text-xs text-yellow-200 border-t border-yellow-500/30 pt-1">
+              <span className="font-medium">{c.transferorName} → {c.transfereeName ?? "미정"}</span>
+              {" "}<span className={c.status === "completed" ? "text-green-400" : "text-orange-400"}>[{c.status}]</span>
+              {" "}양수인ID: <span className={c.transfereeMemberId ? "text-green-400" : "text-red-400"}>{c.transfereeMemberId ?? "없음"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {debugContractsQuery.data && debugContractsQuery.data.length === 0 && (
+        <div className="border border-red-500 rounded-lg p-3 bg-red-500/10">
+          <p className="text-xs text-red-400 font-bold">양도양수 계약이 DB에 없습니다</p>
+        </div>
+      )}
+
       {/* 목록 */}
       <div className="space-y-2">
         {isLoading && (
