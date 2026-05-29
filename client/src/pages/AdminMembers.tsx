@@ -81,8 +81,16 @@ export default function AdminMembers() {
     branchFilter ? { branchId: branchFilter } : undefined
   );
 
+  const debugContractsQuery = trpc.transfer.debugContracts.useQuery(undefined, { staleTime: Infinity });
+
   // 회원관리 페이지 열릴 때 완료된 양도양수 계약 중 회원 미생성 건 자동 보정
   useEffect(() => { fixMissingMutation.mutate(); }, []);
+
+  useEffect(() => {
+    if (debugContractsQuery.data) {
+      console.log("[양도양수 계약 목록]", debugContractsQuery.data);
+    }
+  }, [debugContractsQuery.data]);
 
   const ptMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "PT") ?? [];
   const healthMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "헬스") ?? [];
