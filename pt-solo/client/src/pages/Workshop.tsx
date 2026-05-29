@@ -1343,17 +1343,34 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
 
   return (
     <div className="space-y-4 relative pb-20">
-      {/* ── 상단: 공개 상태 + 링크 ── */}
+      {/* ── 상단: 공개 상태 + 링크 + 미리보기 ── */}
       <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold">브랜드 페이지 공개</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">/p/{username}</p>
           </div>
-          <button onClick={() => { setBrandIsPublic(p => p ? 0 : 1); setDirty(true); }}
-            className={`w-12 h-6 rounded-full transition-colors relative ${brandIsPublic ? "bg-primary" : "bg-muted"}`}>
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${brandIsPublic ? "left-6" : "left-0.5"}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* 미리보기 버튼 */}
+            <button
+              onClick={() => {
+                if (dirty) { toast("저장 후 미리보기를 확인하세요", { icon: "💡" }); return; }
+                if (brandIsPublic) {
+                  window.open(brandUrl, "_blank");
+                } else {
+                  toast("공개로 설정하고 저장하면 미리보기 가능합니다", { icon: "🔒" });
+                }
+              }}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-muted hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
+              <Eye className="h-3.5 w-3.5" />
+              미리보기
+            </button>
+            {/* 공개 토글 */}
+            <button onClick={() => { setBrandIsPublic(p => p ? 0 : 1); setDirty(true); }}
+              className={`w-12 h-6 rounded-full transition-colors relative ${brandIsPublic ? "bg-primary" : "bg-muted"}`}>
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${brandIsPublic ? "left-6" : "left-0.5"}`} />
+            </button>
+          </div>
         </div>
         {brandIsPublic ? (
           <>
