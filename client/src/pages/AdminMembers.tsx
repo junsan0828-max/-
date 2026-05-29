@@ -134,10 +134,11 @@ export default function AdminMembers() {
     const q = search.trim().toLowerCase();
     const matched = groupedMembers.filter((group) => {
       const m = group[0];
+      const qDigits = q.replace(/\D/g, "");
       const matchSearch =
         !q ||
         m.name.toLowerCase().includes(q) ||
-        group.some(g => (g.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, ""))) ||
+        (qDigits.length > 0 && group.some(g => (g.phone ?? "").replace(/\D/g, "").includes(qDigits))) ||
         group.some(g => (g.trainerName ?? "").toLowerCase().includes(q)) ||
         group.some(g => (g.profileNote ?? "").toLowerCase().includes(q));
       const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue));

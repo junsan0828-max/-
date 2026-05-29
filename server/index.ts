@@ -766,75 +766,6 @@ async function initDatabase() {
     console.error("PT 패키지 자동 생성 오류:", e);
   }
 
-  // ── 완료된 양도양수 계약 중 양수인 회원 미생성 건 자동 보정 ──────────────
-  try {
-    const completedContracts = await pool.query(
-      `SELECT id, token, "transferorMemberId", "transfereeMemberId",
-              "transfereeName", "transfereePhone", "transfereeBirthDate",
-              "itemType", "itemId", "completedAt"
-       FROM transfer_contracts
-       WHERE status = 'completed' AND "transfereeMemberId" IS NULL AND "transfereeName" IS NOT NULL`
-    );
-
-    for (const contract of completedContracts.rows) {
-      const transferorResult = await pool.query(
-        'SELECT "branchId", "trainerId" FROM members WHERE id = $1',
-        [contract.transferorMemberId]
-      );
-      const transferorMember = transferorResult.rows[0];
-      if (!transferorMember) continue;
-
-      // branchId가 NULL이면 trainer_branches에서 조회
-      let branchId = transferorMember.branchId;
-      if (!branchId && transferorMember.trainerId) {
-        const tbResult = await pool.query(
-          'SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1',
-          [transferorMember.trainerId]
-        );
-        branchId = tbResult.rows[0]?.branchId ?? null;
-      }
-
-      const now = new Date().toISOString();
-      const memberResult = await pool.query(
-        `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", "joinDate", status, memo, "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $8)
-         RETURNING id`,
-        [
-          branchId,
-          transferorMember.trainerId ?? null,
-          contract.transfereeName,
-          contract.transfereePhone ?? null,
-          contract.transfereeBirthDate ?? null,
-          (contract.completedAt ?? now).substring(0, 10),
-          `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`,
-          now,
-        ]
-      );
-
-      if (memberResult.rows[0]) {
-        const transfereeMemberId = memberResult.rows[0].id;
-        await pool.query(
-          'UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE id = $2',
-          [transfereeMemberId, contract.id]
-        );
-        if (contract.itemId) {
-          if (contract.itemType === "pt_package") {
-            await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
-          } else if (contract.itemType === "membership") {
-            await pool.query('UPDATE memberships SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
-          } else if (contract.itemType === "locker") {
-            await pool.query('UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [transfereeMemberId, contract.transfereeName, contract.itemId]);
-          } else if (contract.itemType === "uniform") {
-            await pool.query('UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [transfereeMemberId, contract.transfereeName, contract.itemId]);
-          }
-        }
-        console.log(`✅ 양도양수 계약 ${contract.id} - 양수인 '${contract.transfereeName}' 회원 자동 생성 완료`);
-      }
-    }
-  } catch (e) {
-    console.error("양도양수 계약 양수인 회원 생성 오류:", e);
-  }
-
   // ── 전체 회원 운동시작일/운동만료일 자동 보정 (전체 적용) ─────────────────
   try {
     const allMembers = await db
@@ -967,6 +898,59 @@ async function start() {
     await initDatabase();
   } catch (e) {
     console.error("DB 초기화 오류 (서버는 계속 실행):", e);
+  }
+
+  // ── 완료된 양도양수 계약 중 양수인 회원 미생성 건 자동 보정 (initDatabase 실패해도 실행) ──
+  try {
+    const completedContracts = await pool.query(
+      `SELECT id, "transferorMemberId", "transfereeMemberId", "transfereeName",
+              "transfereePhone", "transfereeBirthDate", "itemType", "itemId", "completedAt"
+       FROM transfer_contracts
+       WHERE status = 'completed' AND "transfereeMemberId" IS NULL AND "transfereeName" IS NOT NULL`
+    );
+    for (const contract of completedContracts.rows) {
+      const transferorResult = await pool.query(
+        'SELECT "branchId", "trainerId" FROM members WHERE id = $1',
+        [contract.transferorMemberId]
+      );
+      const transferorMember = transferorResult.rows[0];
+      if (!transferorMember) continue;
+
+      let branchId = transferorMember.branchId;
+      if (!branchId && transferorMember.trainerId) {
+        const tbResult = await pool.query(
+          'SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1',
+          [transferorMember.trainerId]
+        );
+        branchId = tbResult.rows[0]?.branchId ?? null;
+      }
+
+      const now = new Date().toISOString();
+      const memberResult = await pool.query(
+        `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", "joinDate", status, memo, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $8) RETURNING id`,
+        [
+          branchId, transferorMember.trainerId ?? null, contract.transfereeName,
+          contract.transfereePhone ?? null, contract.transfereeBirthDate ?? null,
+          (contract.completedAt ?? now).substring(0, 10),
+          `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`, now,
+        ]
+      );
+      if (memberResult.rows[0]) {
+        const transfereeMemberId = memberResult.rows[0].id;
+        await pool.query('UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE id = $2', [transfereeMemberId, contract.id]);
+        if (contract.itemId) {
+          if (contract.itemType === "pt_package") await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
+          else if (contract.itemType === "membership") await pool.query('UPDATE memberships SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
+          else if (contract.itemType === "locker") await pool.query('UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [transfereeMemberId, contract.transfereeName, contract.itemId]);
+          else if (contract.itemType === "uniform") await pool.query('UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [transfereeMemberId, contract.transfereeName, contract.itemId]);
+        }
+        console.log(`✅ 양도양수 완료 계약 ${contract.id} - 양수인 '${contract.transfereeName}' 회원 자동 생성`);
+      }
+    }
+    if (completedContracts.rows.length > 0) console.log(`✅ 양도양수 양수인 회원 보정 완료 (${completedContracts.rows.length}건 처리)`);
+  } catch (e) {
+    console.error("양도양수 양수인 회원 자동 보정 오류:", e);
   }
 
   // 구글시트 자동 동기화 (5분마다)
