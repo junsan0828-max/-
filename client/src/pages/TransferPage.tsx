@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, Pen, Clock } from "lucide-react";
@@ -142,6 +142,9 @@ export default function TransferPage({ token }: { token: string }) {
   const [signerName, setSignerName] = useState("");
   const contract = contractQuery.data as Contract | undefined;
 
+  // Reset signerName when contract status changes (e.g. after 양도인 signs → 양수인 step)
+  useEffect(() => { setSignerName(""); }, [contract?.status]);
+
   if (contractQuery.isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -247,7 +250,7 @@ export default function TransferPage({ token }: { token: string }) {
         {/* 약관 */}
         <div className="bg-white rounded-2xl shadow-sm p-5">
           <h3 className="font-semibold text-gray-700 mb-3 text-sm">약관 및 동의사항</h3>
-          <pre className="text-xs text-gray-500 whitespace-pre-wrap font-sans leading-relaxed max-h-52 overflow-y-auto">
+          <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed max-h-52 overflow-y-auto">
             {contract.termsSnapshot}
           </pre>
         </div>

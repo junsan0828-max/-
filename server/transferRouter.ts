@@ -210,6 +210,61 @@ export const transferRouter = t.router({
             completedAt: now,
           })
           .where(eq(transferContracts.token, input.token));
+
+        // Get transferor's branchId to assign to the new transferee member
+        const transferorResult = await pool.query(
+          'SELECT "branchId", "trainerId" FROM members WHERE id = $1',
+          [contract.transferorMemberId]
+        );
+        const transferorMember = transferorResult.rows[0];
+
+        if (transferorMember) {
+          let transfereeMemberId: number | null = contract.transfereeMemberId ?? null;
+
+          // Create a member record for the transferee if one doesn't exist yet
+          if (!transfereeMemberId) {
+            const memberResult = await pool.query(
+              `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", "joinDate", status, memo)
+               VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
+               RETURNING id`,
+              [
+                transferorMember.branchId,
+                transferorMember.trainerId ?? null,
+                input.signerName,
+                contract.transfereePhone ?? null,
+                contract.transfereeBirthDate ?? null,
+                now.substring(0, 10),
+                `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`,
+              ]
+            );
+            if (memberResult.rows[0]) {
+              transfereeMemberId = memberResult.rows[0].id as number;
+              await pool.query(
+                'UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE token = $2',
+                [transfereeMemberId, input.token]
+              );
+            }
+          }
+
+          // Transfer the item to the new transferee member
+          if (transfereeMemberId && contract.itemId) {
+            if (contract.itemType === "pt_package") {
+              await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
+            } else if (contract.itemType === "membership") {
+              await pool.query('UPDATE memberships SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
+            } else if (contract.itemType === "locker") {
+              await pool.query(
+                'UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3',
+                [transfereeMemberId, input.signerName, contract.itemId]
+              );
+            } else if (contract.itemType === "uniform") {
+              await pool.query(
+                'UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3',
+                [transfereeMemberId, input.signerName, contract.itemId]
+              );
+            }
+          }
+        }
       }
 
       return { success: true };
