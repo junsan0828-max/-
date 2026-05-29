@@ -955,20 +955,6 @@ function buildLegacyFieldsStatic(blockList: BrandBlock[]) {
 
 // ── 소개 블록 에디터 (배경 이미지 업로드 포함) ──────────────────────────────
 function IntroBlockEditor({ d, onChange }: { d: any; onChange: (data: any) => void }) {
-  const bgImgInputRef = useRef<HTMLInputElement>(null);
-
-  async function handleBgImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const base64 = await resizeImageToBase64(file, 1200);
-      onChange({ ...d, bgImage: base64 });
-    } catch {
-      toast.error("이미지 처리 중 오류가 발생했습니다.");
-    }
-    e.target.value = "";
-  }
-
   return (
     <div className="space-y-3 pt-3 border-t border-border/60">
       <div className="space-y-1.5">
@@ -978,34 +964,12 @@ function IntroBlockEditor({ d, onChange }: { d: any; onChange: (data: any) => vo
           className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
       </div>
       <div className="space-y-1.5">
-        <label className="text-xs text-muted-foreground">브랜드 배경</label>
-        {d.bgImage ? (
-          <div className="relative rounded-xl overflow-hidden border border-border">
-            <img src={d.bgImage} alt="배경" className="w-full h-24 object-cover" />
-            <button
-              type="button"
-              onClick={() => onChange({ ...d, bgImage: undefined })}
-              className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
-            >
-              <X className="h-3.5 w-3.5 text-white" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <input type="color" value={d.color ?? "#1a00ff"} onChange={e => onChange({ ...d, color: e.target.value })}
-              className="w-10 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
-            <span className="text-xs text-muted-foreground font-mono">{d.color ?? "#1a00ff"}</span>
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => bgImgInputRef.current?.click()}
-          className="flex items-center gap-2 text-xs font-semibold px-3 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors"
-        >
-          <Camera className="h-3.5 w-3.5" />
-          {d.bgImage ? "이미지 변경" : "이미지 업로드"}
-        </button>
-        <input ref={bgImgInputRef} type="file" accept="image/*" className="hidden" onChange={handleBgImageChange} />
+        <label className="text-xs text-muted-foreground">브랜드 컬러</label>
+        <div className="flex items-center gap-3">
+          <input type="color" value={d.color ?? "#1a00ff"} onChange={e => onChange({ ...d, color: e.target.value })}
+            className="w-10 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
+          <span className="text-xs text-muted-foreground font-mono">{d.color ?? "#1a00ff"}</span>
+        </div>
       </div>
     </div>
   );
@@ -1348,6 +1312,31 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const trainerId = (user as any)?.trainerId;
   const brandUrl = `${window.location.origin}/p/${trainerId}`;
 
+  const bgImgInputRef = useRef<HTMLInputElement>(null);
+  const introBlock = blocks.find(b => b.type === "intro");
+  const bgImage = introBlock?.data?.bgImage as string | undefined;
+
+  async function handleBgImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await resizeImageToBase64(file, 1200);
+      if (introBlock) {
+        updateBlock(introBlock.id, { ...introBlock.data, bgImage: base64 });
+      }
+    } catch {
+      toast.error("이미지 처리 중 오류가 발생했습니다.");
+    }
+    e.target.value = "";
+  }
+
+  function removeBgImage() {
+    if (introBlock) {
+      const { bgImage: _, ...rest } = introBlock.data;
+      updateBlock(introBlock.id, rest);
+    }
+  }
+
   function scheduleAutoSave() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
@@ -1507,6 +1496,30 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         ) : (
           <p className="text-[11px] text-muted-foreground">공개로 설정하면 외부에서 접속할 수 있는 링크가 생성됩니다.</p>
         )}
+      </div>
+
+      {/* ── 브랜드 배경 이미지 ── */}
+      <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+          <Camera className="h-3.5 w-3.5" />브랜드 배경 이미지
+        </p>
+        {bgImage ? (
+          <div className="relative rounded-xl overflow-hidden border border-border">
+            <img src={bgImage} alt="배경" className="w-full h-28 object-cover" />
+            <button type="button" onClick={removeBgImage}
+              className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors">
+              <X className="h-3.5 w-3.5 text-white" />
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">이미지가 없으면 소개 블록의 브랜드 컬러가 배경으로 사용됩니다.</p>
+        )}
+        <button type="button" onClick={() => bgImgInputRef.current?.click()}
+          className="flex items-center gap-2 text-xs font-semibold px-3 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
+          <Camera className="h-3.5 w-3.5" />
+          {bgImage ? "이미지 변경" : "이미지 업로드"}
+        </button>
+        <input ref={bgImgInputRef} type="file" accept="image/*" className="hidden" onChange={handleBgImageChange} />
       </div>
 
       {/* ── 저장 버튼 ── */}
