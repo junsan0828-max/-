@@ -749,7 +749,9 @@ async function initDatabase() {
   ];
   for (const [featureId, status] of WS_FEATURE_DEFAULTS) {
     await pool.query(
-      `INSERT INTO workshop_feature_config ("featureId", status, "updatedAt") VALUES ($1, $2, now()::text) ON CONFLICT ("featureId") DO NOTHING`,
+      `INSERT INTO workshop_feature_config ("featureId", status, "updatedAt") VALUES ($1, $2, now()::text)
+       ON CONFLICT ("featureId") DO UPDATE SET status=$2, "updatedAt"=now()::text
+       WHERE workshop_feature_config.status='coming_soon' AND $2 != 'coming_soon'`,
       [featureId, status]
     );
   }
