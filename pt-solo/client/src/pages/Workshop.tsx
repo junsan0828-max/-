@@ -2122,6 +2122,11 @@ function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
   const [showTestUI, setShowTestUI] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // feature.status prop이 변경되면 editStatus 재동기화
+  useEffect(() => {
+    setEditStatus(feature.status);
+  }, [feature.id, feature.status]);
+
   const updateMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
     onSuccess: (data, vars) => {
       utils.admin.getWorkshopConsole.invalidate();
@@ -2288,7 +2293,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose, onSave }: {
                 className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <Button className={`w-full transition-colors ${saved ? "bg-green-600 hover:bg-green-600" : ""}`} size="sm"
-              onClick={() => updateMutation.mutate({ featureId: feature.id, status: editStatus, adminNote: adminNote || undefined })}
+              onClick={() => updateMutation.mutate({ featureId: feature.id, status: editStatus as any, adminNote: adminNote || undefined })}
               disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "저장 중..." : saved ? "✓ 저장됨" : "설정 저장"}
             </Button>
@@ -2640,10 +2645,20 @@ function AdminWorkshopView() {
           trainers={trainers}
           onClose={() => setSelectedFeature(null)}
           onSave={(featureId, newStatus) => {
-            // 저장 즉시 열린 모달의 feature 상태 업데이트 (리패치 전 즉시 반영)
+            // 1) 현재 열린 모달 즉시 반영
             setSelectedFeature(prev =>
               prev?.id === featureId ? { ...prev, status: newStatus as WsItemStatus } : prev
             );
+            // 2) React Query 캐시 즉시 동기 업데이트 — 리패치 완료 전 닫기/재열기 시 stale 방지
+            utils.admin.getWorkshopConsole.setData(undefined, (old: any) => {
+              if (!old) return old;
+              return {
+                ...old,
+                featureConfigs: (old.featureConfigs as any[]).map(c =>
+                  c.featureId === featureId ? { ...c, status: newStatus } : c
+                ),
+              };
+            });
           }}
         />
       )}

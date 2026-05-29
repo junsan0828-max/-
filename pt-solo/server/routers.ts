@@ -2318,7 +2318,11 @@ const adminRouter = t.router({
   }),
 
   updateWorkshopFeatureConfig: adminProcedure
-    .input(z.object({ featureId: z.string(), status: z.string(), adminNote: z.string().optional() }))
+    .input(z.object({
+      featureId: z.string(),
+      status: z.enum(["active", "coming_soon", "addon_fsp", "addon_premium", "hidden"]),
+      adminNote: z.string().optional(),
+    }))
     .mutation(async ({ input }) => {
       const note = input.adminNote ?? null;
       const upd = await pool.query(
@@ -2331,7 +2335,15 @@ const adminRouter = t.router({
           [input.featureId, input.status, note]
         );
       }
-      return { success: true, featureId: input.featureId, savedStatus: input.status };
+      // DB에서 SELECT해서 실제 저장값 검증 후 반환
+      const verified = await pool.query<{ status: string }>(
+        `SELECT status FROM workshop_feature_config WHERE "featureId"=$1`,
+        [input.featureId]
+      );
+      const savedStatus = verified.rows[0]?.status;
+      if (!savedStatus) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "저장 확인 실패" });
+      if (savedStatus !== input.status) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `DB 저장 불일치: 요청=${input.status}, 실제=${savedStatus}` });
+      return { success: true, featureId: input.featureId, savedStatus };
     }),
 
   grantWorkshopAccess: adminProcedure
