@@ -2483,6 +2483,8 @@ function AdminWorkshopView() {
   const [wsStatusFilter, setWsStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedTrainerId, setExpandedTrainerId] = useState<number | null>(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedFeatureIds, setSelectedFeatureIds] = useState<Set<string>>(new Set());
 
   const { data: consoleData, isLoading } = trpc.admin.getWorkshopConsole.useQuery();
   const utils = trpc.useUtils();
@@ -2494,6 +2496,15 @@ function AdminWorkshopView() {
   const revokeMutation = trpc.admin.revokeWorkshopAccess.useMutation({
     onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("작업실 접근이 회수되었습니다"); },
     onError: (e) => toast.error(e.message),
+  });
+  const bulkUpdateMutation = trpc.admin.bulkUpdateWorkshopFeatureConfig.useMutation({
+    onSuccess: (data) => {
+      utils.admin.getWorkshopConsole.invalidate();
+      toast.success(`${data.updated}개 기능 상태가 변경되었습니다.`);
+      setSelectedFeatureIds(new Set());
+      setBulkMode(false);
+    },
+    onError: () => toast.error("일괄 변경 실패"),
   });
 
   const trainers: any[] = consoleData?.trainers ?? [];
@@ -2715,7 +2726,8 @@ function AdminWorkshopView() {
       {/* ── 기능 관리 탭 ── */}
       {tab === "features" && (
         <div className="space-y-3">
-          <div className="flex gap-2 flex-wrap">
+          {/* 필터 + 선택 모드 토글 */}
+          <div className="flex gap-2 flex-wrap items-center">
             <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
               className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none">
               <option value="all">전체 카테고리</option>
@@ -2729,7 +2741,41 @@ function AdminWorkshopView() {
               <option value="addon_fsp">ADD-ON</option>
               <option value="addon_premium">PREMIUM</option>
             </select>
+            <button onClick={() => { setBulkMode(v => !v); setSelectedFeatureIds(new Set()); }}
+              className={`ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${bulkMode ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+              {bulkMode ? "취소" : "선택 편집"}
+            </button>
           </div>
+
+          {/* 전체 선택 + 일괄 변경 바 */}
+          {bulkMode && (
+            <div className="bg-accent/40 border border-border rounded-xl px-3 py-2.5 flex items-center gap-3">
+              <button onClick={() => {
+                if (selectedFeatureIds.size === filteredFeatures.length) {
+                  setSelectedFeatureIds(new Set());
+                } else {
+                  setSelectedFeatureIds(new Set(filteredFeatures.map(f => f.id)));
+                }
+              }} className="flex items-center gap-2 text-xs font-semibold">
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${selectedFeatureIds.size === filteredFeatures.length && filteredFeatures.length > 0 ? "bg-primary border-primary" : selectedFeatureIds.size > 0 ? "bg-primary/30 border-primary" : "border-border bg-background"}`}>
+                  {selectedFeatureIds.size > 0 && <Check className="h-2.5 w-2.5 text-white" />}
+                </div>
+                전체 선택 ({selectedFeatureIds.size}/{filteredFeatures.length})
+              </button>
+              <div className="flex gap-1.5 ml-auto">
+                <button disabled={selectedFeatureIds.size === 0 || bulkUpdateMutation.isPending}
+                  onClick={() => bulkUpdateMutation.mutate({ featureIds: Array.from(selectedFeatureIds), status: "active" })}
+                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-green-600 text-white disabled:opacity-40 transition-opacity">
+                  활성
+                </button>
+                <button disabled={selectedFeatureIds.size === 0 || bulkUpdateMutation.isPending}
+                  onClick={() => bulkUpdateMutation.mutate({ featureIds: Array.from(selectedFeatureIds), status: "coming_soon" })}
+                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-muted text-muted-foreground border border-border disabled:opacity-40 transition-opacity">
+                  준비 중
+                </button>
+              </div>
+            </div>
+          )}
 
           <p className="text-xs text-muted-foreground">{filteredFeatures.length}개 기능</p>
 
@@ -2737,10 +2783,27 @@ function AdminWorkshopView() {
             {filteredFeatures.map(f => {
               const sm = FEATURE_STATUS_META[f.status] ?? FEATURE_STATUS_META.coming_soon;
               const FIcon = f.icon;
+              const isChecked = selectedFeatureIds.has(f.id);
               return (
-                <button key={f.id} onClick={() => setSelectedFeature(f)}
-                  className="w-full bg-card border border-border rounded-xl p-4 text-left hover:border-primary/40 hover:bg-accent/10 transition-colors">
+                <div key={f.id}
+                  onClick={() => {
+                    if (bulkMode) {
+                      setSelectedFeatureIds(prev => {
+                        const next = new Set(prev);
+                        isChecked ? next.delete(f.id) : next.add(f.id);
+                        return next;
+                      });
+                    } else {
+                      setSelectedFeature(f);
+                    }
+                  }}
+                  className={`w-full bg-card border rounded-xl p-4 text-left cursor-pointer transition-colors ${bulkMode && isChecked ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-accent/10"}`}>
                   <div className="flex items-start gap-3">
+                    {bulkMode && (
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${isChecked ? "bg-primary border-primary" : "border-border bg-background"}`}>
+                        {isChecked && <Check className="h-2.5 w-2.5 text-white" />}
+                      </div>
+                    )}
                     <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                       <FIcon className="h-4 w-4 text-primary" />
                     </div>
@@ -2759,9 +2822,9 @@ function AdminWorkshopView() {
                         <p className="text-[10px] text-muted-foreground mt-1">추적 준비 중</p>
                       )}
                     </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    {!bulkMode && <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

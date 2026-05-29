@@ -2348,6 +2348,27 @@ const adminRouter = t.router({
       return { success: true, featureId: input.featureId, savedStatus };
     }),
 
+  bulkUpdateWorkshopFeatureConfig: adminProcedure
+    .input(z.object({
+      featureIds: z.array(z.string()).min(1),
+      status: z.enum(["active", "coming_soon"]),
+    }))
+    .mutation(async ({ input }) => {
+      for (const featureId of input.featureIds) {
+        const upd = await pool.query(
+          `UPDATE workshop_feature_config SET status=$2, "updatedAt"=now()::text WHERE "featureId"=$1`,
+          [featureId, input.status]
+        );
+        if ((upd.rowCount ?? 0) === 0) {
+          await pool.query(
+            `INSERT INTO workshop_feature_config ("featureId", status, "updatedAt") VALUES ($1, $2, now()::text)`,
+            [featureId, input.status]
+          );
+        }
+      }
+      return { success: true, updated: input.featureIds.length };
+    }),
+
   grantWorkshopAccess: adminProcedure
     .input(z.object({ trainerId: z.number(), memo: z.string().optional() }))
     .mutation(async ({ input }) => {
