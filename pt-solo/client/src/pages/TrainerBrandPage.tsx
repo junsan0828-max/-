@@ -195,51 +195,31 @@ export default function TrainerBrandPage({ username }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 히어로 헤더 */}
+      {/* 히어로 헤더 — 이미지만, 텍스트 없음 */}
       <div className="relative overflow-hidden"
         style={bgImage
-          ? { backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center" }
-          : { background: `linear-gradient(135deg, ${primaryColor}dd, ${primaryColor})` }
+          ? { backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center", minHeight: "220px" }
+          : { background: `linear-gradient(135deg, ${primaryColor}dd, ${primaryColor})`, minHeight: "220px" }
         }>
-        {bgImage && <div className="absolute inset-0 bg-black/40" />}
-        <div className="relative max-w-sm mx-auto px-6 pt-16 pb-12 text-center">
-          <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
-            <span className="text-3xl font-bold text-white">{trainer.trainerName?.[0]}</span>
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-1">{trainer.trainerName}</h1>
-          <p className="text-white/80 text-sm mb-2">
-            {JOB_LABELS[trainer.jobType] || trainer.jobType}
-            {trainer.careerRange && ` · ${CAREER_LABELS[trainer.careerRange] || trainer.careerRange}`}
-          </p>
-          {trainer.activityArea && (
-            <p className="text-white/60 text-xs">{trainer.activityArea}</p>
-          )}
-          {/* SNS 아이콘 (헤더에도 표시) */}
-          {(() => {
-            const snsBlock = visibleBlocks.find(b => b.type === "sns");
-            const snsData = snsBlock?.data ?? {};
-            const links = [
-              { href: snsData.instagram, icon: Instagram },
-              { href: snsData.kakao, icon: MessageCircle },
-              { href: snsData.youtube, icon: Youtube },
-            ].filter(l => l.href);
-            if (links.length === 0) return null;
-            return (
-              <div className="flex items-center justify-center gap-3 mt-4">
-                {links.map(({ href, icon: Icon }, i) => (
-                  <a key={i} href={href} target="_blank" rel="noreferrer"
-                    className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors">
-                    <Icon className="h-4 w-4 text-white" />
-                  </a>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
+        {bgImage && <div className="absolute inset-0 bg-black/20" />}
       </div>
 
-      <div className="max-w-sm mx-auto px-4 py-6 space-y-4">
-        {/* 상담 예약 CTA (booking 블록 있을 때 상단에도 배치) */}
+      <div className="max-w-sm mx-auto px-4 space-y-4">
+        {/* 이름 + 직업 정보 */}
+        <div className="pt-5 pb-1">
+          <h1 className="text-xl font-bold text-gray-900">{trainer.trainerName}</h1>
+          {(trainer.jobType || trainer.careerRange) && (
+            <p className="text-sm text-gray-500 mt-0.5">
+              {JOB_LABELS[trainer.jobType] || trainer.jobType}
+              {trainer.careerRange && ` · ${CAREER_LABELS[trainer.careerRange] || trainer.careerRange}`}
+            </p>
+          )}
+          {trainer.activityArea && (
+            <p className="text-xs text-gray-400 mt-0.5">{trainer.activityArea}</p>
+          )}
+        </div>
+
+        {/* 상담 예약 CTA */}
         {bookingBlock && (
           <button onClick={() => setShowBooking(true)}
             className="w-full py-4 rounded-2xl text-white font-bold text-base shadow-md active:opacity-90 transition-opacity flex items-center justify-center gap-2"
@@ -250,12 +230,13 @@ export default function TrainerBrandPage({ username }: Props) {
           </button>
         )}
 
-        {/* 블록 렌더링 (intro는 bio가 있을 때만, booking은 CTA로 이미 표시) */}
-        {visibleBlocks.filter(b => b.type !== "booking").map(block => renderBlock(block))}
-
-        <p className="text-center text-xs text-gray-400 pt-2">
-          Powered by <a href="/" className="font-semibold text-gray-500">FIT STEP</a>
-        </p>
+        {/* 블록 렌더링 */}
+        <div className="space-y-4 pb-8">
+          {visibleBlocks.filter(b => b.type !== "booking").map(block => renderBlock(block))}
+          <p className="text-center text-xs text-gray-400 pt-2">
+            Powered by <a href="/" className="font-semibold text-gray-500">FIT STEP</a>
+          </p>
+        </div>
       </div>
 
       {/* 예약 폼 오버레이 */}
