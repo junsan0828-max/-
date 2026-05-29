@@ -958,6 +958,18 @@ function IntroBlockEditor({ d, onChange }: { d: any; onChange: (data: any) => vo
   return (
     <div className="space-y-3 pt-3 border-t border-border/60">
       <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">직함 <span className="text-muted-foreground/50">(예: 퍼스널 트레이너)</span></label>
+        <input value={d.title ?? ""} onChange={e => onChange({ ...d, title: e.target.value })}
+          placeholder="퍼스널 트레이너"
+          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">한줄 소개 <span className="text-muted-foreground/50">(Hero 영역에 표시)</span></label>
+        <input value={d.tagline ?? ""} onChange={e => onChange({ ...d, tagline: e.target.value })}
+          placeholder="근거 있는 지도, 변화를 즐깁니다."
+          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+      </div>
+      <div className="space-y-1.5">
         <label className="text-xs text-muted-foreground">소개글</label>
         <textarea value={d.bio ?? ""} onChange={e => onChange({ ...d, bio: e.target.value })}
           rows={4} placeholder="트레이너 소개를 입력하세요..."
