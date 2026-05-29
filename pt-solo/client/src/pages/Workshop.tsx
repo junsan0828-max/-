@@ -1454,7 +1454,7 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   }
 
   return (
-    <div className="space-y-4 relative pb-20">
+    <div className="space-y-4 relative">
       {/* ── 상단: 공개 상태 + 링크 + 미리보기 ── */}
       <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -1551,14 +1551,12 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         ))}
       </div>
 
-      {/* ── 플로팅 블록 추가 버튼 ── */}
-      <div className="fixed bottom-24 right-4 z-40">
-        <button onClick={() => setShowAddBlock(true)}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-3 rounded-2xl shadow-lg hover:bg-primary/90 active:scale-95 transition-all font-semibold text-sm">
-          <Plus className="h-4 w-4" />
-          블록 추가
-        </button>
-      </div>
+      {/* ── 블록 추가 버튼 ── */}
+      <button onClick={() => setShowAddBlock(true)}
+        className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-border rounded-2xl text-sm font-semibold text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+        <Plus className="h-4 w-4" />
+        블록 추가
+      </button>
 
       {showAddBlock && (
         <AddBlockSheet
