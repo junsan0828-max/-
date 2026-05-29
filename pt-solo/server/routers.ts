@@ -3513,6 +3513,7 @@ const brandRouter = t.router({
     bookingEnabled: z.number().optional(),
     bookingMessage: z.string().optional(),
     brandBlocks: z.string().optional(),
+    profileImage: z.string().optional(),
   })).mutation(async ({ ctx, input }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });

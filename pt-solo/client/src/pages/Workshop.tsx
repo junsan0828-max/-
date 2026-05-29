@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers, Camera } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 
@@ -906,6 +906,25 @@ const BRAND_BLOCK_META: Record<BrandBlockType, { label: string; icon: React.Elem
 
 const ADDABLE_BLOCK_TYPES: BrandBlockType[] = ["specialties", "career", "sns", "booking", "programs", "video", "testimonials"];
 
+async function resizeImageToBase64(file: File, maxSize = 400): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 function defaultBlocks(brand: any): BrandBlock[] {
   return [
     { id: "intro", type: "intro", visible: true, data: {
@@ -1245,15 +1264,19 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
 
   const [blocks, setBlocks] = useState<BrandBlock[]>([]);
   const [brandIsPublic, setBrandIsPublic] = useState(0);
+  const [profileImage, setProfileImage] = useState<string>("");
   const [dirty, setDirty] = useState(false);
+  const profileImgInputRef = useRef<HTMLInputElement>(null);
 
   // useRef로 추적 — setState during render 안티패턴 제거
   const initializedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const blocksRef = useRef<BrandBlock[]>([]);
   const brandIsPublicRef = useRef(0);
+  const profileImageRef = useRef("");
   useEffect(() => { blocksRef.current = blocks; }, [blocks]);
   useEffect(() => { brandIsPublicRef.current = brandIsPublic; }, [brandIsPublic]);
+  useEffect(() => { profileImageRef.current = profileImage; }, [profileImage]);
 
   // 초기화: brand 데이터가 오면 한 번만 세팅
   useEffect(() => {
@@ -1265,6 +1288,7 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
     const blockList = (parsed && parsed.length > 0) ? parsed : defaultBlocks(brand);
     setBlocks(blockList);
     setBrandIsPublic(brand.brandIsPublic ?? 0);
+    setProfileImage((brand as any).profileImage ?? "");
   }, [brand]);
 
   // 자동저장: unmount 시 미저장 데이터 즉시 flush
@@ -1280,6 +1304,7 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         ...legacy,
         brandIsPublic: brandIsPublicRef.current,
         brandBlocks: JSON.stringify(currentBlocks),
+        ...(profileImageRef.current ? { profileImage: profileImageRef.current } : {}),
       } as any);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1287,6 +1312,20 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
 
   const username = (user as any)?.username;
   const brandUrl = `${window.location.origin}/p/${username}`;
+
+  async function handleProfileImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await resizeImageToBase64(file);
+      setProfileImage(base64);
+      setDirty(true);
+      scheduleAutoSave();
+    } catch {
+      toast.error("이미지 처리 중 오류가 발생했습니다.");
+    }
+    e.target.value = "";
+  }
 
   function scheduleAutoSave() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -1299,6 +1338,7 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         ...legacy,
         brandIsPublic: brandIsPublicRef.current,
         brandBlocks: JSON.stringify(currentBlocks),
+        ...(profileImageRef.current ? { profileImage: profileImageRef.current } : {}),
       } as any);
       setDirty(false);
     }, 1500);
@@ -1354,6 +1394,7 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
       ...legacy,
       brandIsPublic,
       brandBlocks: JSON.stringify(blocks),
+      ...(profileImage ? { profileImage } : {}),
     } as any);
     setDirty(false);
   }
@@ -1457,6 +1498,60 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         ) : (
           <p className="text-[11px] text-muted-foreground">공개로 설정하면 외부에서 접속할 수 있는 링크가 생성됩니다.</p>
         )}
+      </div>
+
+      {/* ── 프로필 이미지 업로드 ── */}
+      <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+          <Camera className="h-3.5 w-3.5" />프로필 이미지
+        </p>
+        <div className="flex items-center gap-4">
+          {/* 미리보기 */}
+          <button
+            type="button"
+            onClick={() => profileImgInputRef.current?.click()}
+            className="relative shrink-0 group"
+          >
+            {profileImage ? (
+              <img src={profileImage} alt="프로필"
+                className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-4 border-white shadow-md">
+                <span className="text-2xl font-bold text-primary">{(brand as any)?.trainerName?.[0] ?? "T"}</span>
+              </div>
+            )}
+            <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <Camera className="h-5 w-5 text-white" />
+            </div>
+          </button>
+          <div className="flex-1 space-y-2">
+            <p className="text-xs text-muted-foreground">브랜드 페이지 상단에 표시되는 프로필 사진입니다.</p>
+            <button
+              type="button"
+              onClick={() => profileImgInputRef.current?.click()}
+              className="flex items-center gap-2 text-xs font-semibold px-3 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors"
+            >
+              <Camera className="h-3.5 w-3.5" />
+              이미지 변경
+            </button>
+            {profileImage && (
+              <button
+                type="button"
+                onClick={() => { setProfileImage(""); setDirty(true); scheduleAutoSave(); }}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-red-500 transition-colors"
+              >
+                <X className="h-3 w-3" />삭제
+              </button>
+            )}
+          </div>
+        </div>
+        <input
+          ref={profileImgInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleProfileImageChange}
+        />
       </div>
 
       {/* ── 저장 버튼 ── */}
