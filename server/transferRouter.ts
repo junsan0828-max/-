@@ -281,6 +281,52 @@ export const transferRouter = t.router({
       return { success: true };
     }),
 
+  // 완료된 계약 중 양수인 회원 미생성 건 즉시 보정 (회원관리 페이지 로드 시 호출)
+  fixMissingTransferees: protectedProcedure.mutation(async () => {
+    const fixed: string[] = [];
+    const completedContracts = await pool.query(
+      `SELECT id, "transferorMemberId", "transfereeMemberId", "transfereeName",
+              "transfereePhone", "transfereeBirthDate", "itemType", "itemId", "completedAt"
+       FROM transfer_contracts
+       WHERE status = 'completed' AND "transfereeMemberId" IS NULL AND "transfereeName" IS NOT NULL`
+    );
+    for (const contract of completedContracts.rows) {
+      const transferorResult = await pool.query(
+        'SELECT "branchId", "trainerId" FROM members WHERE id = $1',
+        [contract.transferorMemberId]
+      );
+      const tm = transferorResult.rows[0];
+      if (!tm) continue;
+
+      let branchId = tm.branchId;
+      if (!branchId && tm.trainerId) {
+        const tbr = await pool.query('SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1', [tm.trainerId]);
+        branchId = tbr.rows[0]?.branchId ?? null;
+      }
+
+      const now = new Date().toISOString();
+      const mr = await pool.query(
+        `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", "joinDate", status, memo, "createdAt", "updatedAt")
+         VALUES ($1,$2,$3,$4,$5,$6,'active',$7,$8,$8) RETURNING id`,
+        [branchId, tm.trainerId ?? null, contract.transfereeName, contract.transfereePhone ?? null,
+         contract.transfereeBirthDate ?? null, (contract.completedAt ?? now).substring(0, 10),
+         `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`, now]
+      );
+      if (mr.rows[0]) {
+        const tid = mr.rows[0].id;
+        await pool.query('UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE id = $2', [tid, contract.id]);
+        if (contract.itemId) {
+          if (contract.itemType === "pt_package") await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [tid, contract.itemId]);
+          else if (contract.itemType === "membership") await pool.query('UPDATE memberships SET "memberId" = $1 WHERE id = $2', [tid, contract.itemId]);
+          else if (contract.itemType === "locker") await pool.query('UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [tid, contract.transfereeName, contract.itemId]);
+          else if (contract.itemType === "uniform") await pool.query('UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [tid, contract.transfereeName, contract.itemId]);
+        }
+        fixed.push(contract.transfereeName);
+      }
+    }
+    return { fixed };
+  }),
+
   // 내 양도양수 목록 (회원별)
   getMyTransfers: protectedProcedure
     .input(z.object({ memberId: z.number() }))

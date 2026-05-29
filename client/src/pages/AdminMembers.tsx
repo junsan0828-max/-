@@ -71,9 +71,18 @@ export default function AdminMembers() {
   }, [search, typeFilter, branchFilter]);
 
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const utils = trpc.useUtils();
+  const fixMissingMutation = trpc.transfer.fixMissingTransferees.useMutation({
+    onSuccess: (data) => {
+      if (data.fixed.length > 0) utils.members.listAll.invalidate();
+    },
+  });
   const { data: allMembers, isLoading } = trpc.members.listAll.useQuery(
     branchFilter ? { branchId: branchFilter } : undefined
   );
+
+  // 회원관리 페이지 열릴 때 완료된 양도양수 계약 중 회원 미생성 건 자동 보정
+  useEffect(() => { fixMissingMutation.mutate(); }, []);
 
   const ptMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "PT") ?? [];
   const healthMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "헬스") ?? [];
