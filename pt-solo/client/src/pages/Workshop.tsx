@@ -2273,6 +2273,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
 }) {
   const FIcon = feature.icon;
   const [showTestUI, setShowTestUI] = useState(false);
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const updateStatusMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
     onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("상태가 변경되었습니다."); },
@@ -2388,6 +2389,28 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
               })}
             </div>
           </div>
+
+          {/* 전용 설정 페이지 링크 */}
+          {(["fitstep_plus", "brand_page", "booking", "report_branding", "templates", "survey", "contract_terms"] as const).includes(feature.id as any) && (() => {
+            const pageMap: Record<string, { path: string; label: string }> = {
+              fitstep_plus:    { path: "/admin/fit-step-plus",  label: "FIT STEP+ 전용 설정 페이지" },
+              brand_page:      { path: "/workshop",             label: "브랜드 페이지 편집기" },
+              booking:         { path: "/workshop",             label: "예약 설정 편집기" },
+              report_branding: { path: "/workshop",             label: "보고서 브랜딩 설정" },
+              templates:       { path: "/workshop",             label: "운동 템플릿 관리" },
+              survey:          { path: "/workshop",             label: "설문 빌더" },
+              contract_terms:  { path: "/workshop",             label: "계약서 약관 설정" },
+            };
+            const pg = pageMap[feature.id];
+            if (!pg) return null;
+            return (
+              <button onClick={() => { onClose(); navigate(pg.path); }}
+                className="w-full flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 hover:bg-primary/10 transition-colors">
+                <span className="text-xs font-semibold text-primary">{pg.label}</span>
+                <ExternalLink className="h-3.5 w-3.5 text-primary" />
+              </button>
+            );
+          })()}
 
           {/* 기능 직접 테스트 — 어드민은 상태 무관하게 항상 테스트 가능 */}
           <div className="pt-2 border-t border-border space-y-3">
