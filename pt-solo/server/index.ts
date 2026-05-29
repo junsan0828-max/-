@@ -717,6 +717,43 @@ async function initDatabase() {
   )`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS wfc_featureid_idx ON workshop_feature_config ("featureId")`);
 
+  // 서버 시작 시 모든 기능의 기본 상태를 DB에 seed (없으면 삽입, 있으면 무시)
+  // → DB가 항상 26개 기능 전체를 보유 → 클라이언트는 DB만 읽으면 됨
+  const WS_FEATURE_DEFAULTS: [string, string][] = [
+    ["brand_page",          "active"],
+    ["fitstep_plus",        "active"],
+    ["fitstep_videos",      "addon_fsp"],
+    ["fitstep_rec",         "addon_fsp"],
+    ["fitstep_diet",        "addon_fsp"],
+    ["fitstep_personal",    "addon_fsp"],
+    ["booking",             "active"],
+    ["report_branding",     "active"],
+    ["templates",           "active"],
+    ["training_video",      "coming_soon"],
+    ["contract_terms",      "active"],
+    ["member_overview",     "coming_soon"],
+    ["activity_stats",      "coming_soon"],
+    ["data_migration",      "coming_soon"],
+    ["kpi_report",          "coming_soon"],
+    ["consult_conversion",  "coming_soon"],
+    ["unpaid",              "coming_soon"],
+    ["monthly_pnl",         "coming_soon"],
+    ["sales_analysis",      "coming_soon"],
+    ["renewal_analysis",    "coming_soon"],
+    ["channel_analysis",    "coming_soon"],
+    ["marketing_analysis",  "coming_soon"],
+    ["ai_insights",         "coming_soon"],
+    ["survey",              "active"],
+    ["contract_kakao",      "coming_soon"],
+    ["e_contract",          "coming_soon"],
+  ];
+  for (const [featureId, status] of WS_FEATURE_DEFAULTS) {
+    await pool.query(
+      `INSERT INTO workshop_feature_config ("featureId", status, "updatedAt") VALUES ($1, $2, now()::text) ON CONFLICT ("featureId") DO NOTHING`,
+      [featureId, status]
+    );
+  }
+
   // FIT STEP+ 플랜별 회원 수 제한 설정
   await pool.query(`CREATE TABLE IF NOT EXISTS plan_settings (
     key TEXT PRIMARY KEY,

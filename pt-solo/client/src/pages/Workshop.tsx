@@ -2268,8 +2268,6 @@ function AdminWorkshopView() {
   const [wsStatusFilter, setWsStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedTrainerId, setExpandedTrainerId] = useState<number | null>(null);
-  // 저장 즉시 반영을 위한 낙관적 로컬 오버라이드 (리패치 전까지 유지)
-  const [localStatusOverrides, setLocalStatusOverrides] = useState<Record<string, string>>({});
 
   const { data: consoleData, isLoading } = trpc.admin.getWorkshopConsole.useQuery();
   const utils = trpc.useUtils();
@@ -2296,11 +2294,14 @@ function AdminWorkshopView() {
     contract_terms:  { activeUsers: trainers.filter(t => t.has_custom_terms).length, totalMetric: trainers.filter(t => t.has_custom_terms).length, label: "커스텀 약관" },
   };
 
+  // DB가 단일 진실 출처: 서버 시작 시 모든 기능이 workshop_feature_config에 seed됨
+  // featureConfigs에 항상 모든 기능이 존재하므로 WS_CATALOG status는 fallback으로만 사용
+  const featureConfigMap = new Map(
+    (consoleData?.featureConfigs ?? []).map(c => [c.featureId, c.status])
+  );
   const allFeatures: WsItemEnriched[] = WS_CATALOG.flatMap(cat =>
     cat.items.map(item => {
-      const cfgOverride = consoleData?.featureConfigs?.find(c => c.featureId === item.id);
-      // localStatusOverrides가 최우선 (저장 직후 즉시 반영), 그 다음 DB 오버라이드, 마지막으로 기본값
-      const effectiveStatus = (localStatusOverrides[item.id] ?? cfgOverride?.status ?? item.status) as WsItemStatus;
+      const effectiveStatus = (featureConfigMap.get(item.id) ?? item.status) as WsItemStatus;
       return {
         ...item,
         status: effectiveStatus,
@@ -2562,8 +2563,10 @@ function AdminWorkshopView() {
           trainers={trainers}
           onClose={() => setSelectedFeature(null)}
           onSave={(featureId, newStatus) => {
-            setLocalStatusOverrides(prev => ({ ...prev, [featureId]: newStatus }));
-            setSelectedFeature(prev => prev?.id === featureId ? { ...prev, status: newStatus as WsItemStatus } : prev);
+            // 저장 즉시 열린 모달의 feature 상태 업데이트 (리패치 전 즉시 반영)
+            setSelectedFeature(prev =>
+              prev?.id === featureId ? { ...prev, status: newStatus as WsItemStatus } : prev
+            );
           }}
         />
       )}
