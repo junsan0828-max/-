@@ -2273,6 +2273,11 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
 }) {
   const FIcon = feature.icon;
   const [showTestUI, setShowTestUI] = useState(false);
+  const utils = trpc.useUtils();
+  const updateStatusMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
+    onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("상태가 변경되었습니다."); },
+    onError: () => toast.error("상태 변경 실패"),
+  });
 
   const STATUS_META: Record<string, { label: string; cls: string }> = {
     active: { label: "활성", cls: "bg-green-100 text-green-700" },
@@ -2365,6 +2370,24 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
               ))}
             </div>
           )}
+
+          {/* 상태 변경 */}
+          <div className="pt-2 border-t border-border space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기능 상태 변경</p>
+            <div className="flex gap-2">
+              {(["active", "coming_soon"] as const).map(s => {
+                const meta = { active: { label: "활성", cls: "bg-green-600 text-white" }, coming_soon: { label: "준비 중", cls: "bg-muted text-muted-foreground border border-border" } }[s];
+                const isCurrent = feature.status === s;
+                return (
+                  <button key={s} disabled={isCurrent || updateStatusMutation.isPending}
+                    onClick={() => updateStatusMutation.mutate({ featureId: feature.id, status: s })}
+                    className={`flex-1 text-xs font-semibold py-2 rounded-xl transition-all ${isCurrent ? (s === "active" ? "bg-green-100 text-green-700 ring-2 ring-green-400" : "bg-muted text-muted-foreground ring-2 ring-border") : (s === "active" ? "bg-muted/60 text-foreground/60 hover:bg-green-50 hover:text-green-700" : "bg-muted/40 text-foreground/50 hover:bg-muted")}`}>
+                    {isCurrent ? `✓ ${meta.label}` : meta.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* 기능 직접 테스트 — 어드민은 상태 무관하게 항상 테스트 가능 */}
           <div className="pt-2 border-t border-border space-y-3">
