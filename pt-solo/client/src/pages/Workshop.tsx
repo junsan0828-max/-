@@ -1308,8 +1308,8 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const username = (user as any)?.username;
-  const brandUrl = `${window.location.origin}/p/${username}`;
+  const trainerId = (user as any)?.trainerId;
+  const brandUrl = `${window.location.origin}/p/${trainerId}`;
 
   async function handleProfileImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1450,7 +1450,7 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold">브랜드 페이지 공개</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">/p/{username}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">/p/{trainerId}</p>
           </div>
           <div className="flex items-center gap-2">
             {/* 미리보기 버튼 */}

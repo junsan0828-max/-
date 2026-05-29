@@ -3527,16 +3527,30 @@ const brandRouter = t.router({
 
   // 공개 브랜드 페이지 조회 (username 기준, 로그인 불필요)
   getPublicProfile: t.procedure.input(z.object({ username: z.string() })).query(async ({ input }) => {
-    const userRow = await pool.query<{ id: number }>(`SELECT id FROM users WHERE username=$1`, [input.username]);
-    if (!userRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
-    const userId = userRow.rows[0].id;
-    const row = await pool.query<any>(
-      `SELECT t.id AS "trainerId", t."trainerName", t."profileImage", t."activityArea", t."jobType", t."careerRange",
-              t."brandBio", t."brandSpecialties", t."brandColor", t."brandInstagram", t."brandKakao", t."brandYoutube",
-              t."brandIsPublic", t."bookingEnabled", t."bookingMessage", t."brandBlocks"
-       FROM trainers t WHERE t."userId"=$1`,
-      [userId]
-    );
+    const numericId = parseInt(input.username);
+    let row;
+    if (!isNaN(numericId)) {
+      // 숫자 ID로 직접 조회 (새 방식)
+      row = await pool.query<any>(
+        `SELECT t.id AS "trainerId", t."trainerName", t."profileImage", t."activityArea", t."jobType", t."careerRange",
+                t."brandBio", t."brandSpecialties", t."brandColor", t."brandInstagram", t."brandKakao", t."brandYoutube",
+                t."brandIsPublic", t."bookingEnabled", t."bookingMessage", t."brandBlocks"
+         FROM trainers t WHERE t.id=$1`,
+        [numericId]
+      );
+    } else {
+      // username으로 조회 (기존 한글 링크 후방호환)
+      const decoded = decodeURIComponent(input.username);
+      const userRow = await pool.query<{ id: number }>(`SELECT id FROM users WHERE username=$1`, [decoded]);
+      if (!userRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      row = await pool.query<any>(
+        `SELECT t.id AS "trainerId", t."trainerName", t."profileImage", t."activityArea", t."jobType", t."careerRange",
+                t."brandBio", t."brandSpecialties", t."brandColor", t."brandInstagram", t."brandKakao", t."brandYoutube",
+                t."brandIsPublic", t."bookingEnabled", t."bookingMessage", t."brandBlocks"
+         FROM trainers t WHERE t."userId"=$1`,
+        [userRow.rows[0].id]
+      );
+    }
     const trainer = row.rows[0];
     if (!trainer || !trainer.brandIsPublic) throw new TRPCError({ code: "NOT_FOUND", message: "공개된 페이지가 없습니다." });
     return trainer;
