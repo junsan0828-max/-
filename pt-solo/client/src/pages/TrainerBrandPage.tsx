@@ -191,19 +191,21 @@ export default function TrainerBrandPage({ username }: Props) {
     return null;
   }
 
+  const bgImage: string | undefined = introBlock?.data?.bgImage;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 히어로 헤더 */}
-      <div className="relative" style={{ background: `linear-gradient(135deg, ${primaryColor}dd, ${primaryColor})` }}>
-        <div className="max-w-sm mx-auto px-6 pt-16 pb-12 text-center">
-          {trainer.profileImage ? (
-            <img src={trainer.profileImage} alt={trainer.trainerName}
-              className="w-24 h-24 rounded-full object-cover mx-auto mb-4 border-4 border-white shadow-lg" />
-          ) : (
-            <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
-              <span className="text-3xl font-bold text-white">{trainer.trainerName?.[0]}</span>
-            </div>
-          )}
+      <div className="relative overflow-hidden"
+        style={bgImage
+          ? { backgroundImage: `url(${bgImage})`, backgroundSize: "cover", backgroundPosition: "center" }
+          : { background: `linear-gradient(135deg, ${primaryColor}dd, ${primaryColor})` }
+        }>
+        {bgImage && <div className="absolute inset-0 bg-black/40" />}
+        <div className="relative max-w-sm mx-auto px-6 pt-16 pb-12 text-center">
+          <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
+            <span className="text-3xl font-bold text-white">{trainer.trainerName?.[0]}</span>
+          </div>
           <h1 className="text-2xl font-bold text-white mb-1">{trainer.trainerName}</h1>
           <p className="text-white/80 text-sm mb-2">
             {JOB_LABELS[trainer.jobType] || trainer.jobType}
