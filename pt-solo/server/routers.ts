@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eq, and, desc, sql, gt, gte, lte, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb, getDashboardStats, pool } from "./db";
-import { sendVerificationEmail } from "./email";
+import { sendVerificationEmail, sendBookingNotificationEmail } from "./email";
 import {
   users,
   trainers,
@@ -3575,6 +3575,21 @@ const brandRouter = t.router({
        VALUES ($1,$2,$3,'pending',$4,$5,'브랜드 페이지 예약 신청')`,
       [input.trainerId, input.name, input.phone, today, input.interestType ?? null]
     );
+    // 트레이너 이메일 조회 후 알림 발송 (실패해도 예약은 정상 처리)
+    const trainerRow = await pool.query<{ email: string | null; trainerName: string | null }>(
+      `SELECT t.email, t."trainerName" FROM trainers t WHERE t.id=$1`,
+      [input.trainerId]
+    );
+    const trainerEmail = trainerRow.rows[0]?.email;
+    const trainerName = trainerRow.rows[0]?.trainerName ?? "트레이너";
+    if (trainerEmail) {
+      sendBookingNotificationEmail(trainerEmail, trainerName, {
+        name: input.name,
+        phone: input.phone,
+        interestType: input.interestType,
+        message: input.message,
+      });
+    }
     return { success: true };
   }),
 
