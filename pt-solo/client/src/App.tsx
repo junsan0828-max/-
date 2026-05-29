@@ -18,6 +18,7 @@ import PT from "./pages/PT";
 import Profile from "./pages/Profile";
 import TrainerSettlement from "./pages/TrainerSettlement";
 import ContractPrint from "./pages/ContractPrint";
+import EContractPage from "./pages/EContractPage";
 import AdminTrainers from "./pages/AdminTrainers";
 import AdminTrainerDetail from "./pages/AdminTrainerDetail";
 import AdminNotices from "./pages/AdminNotices";
@@ -115,10 +116,12 @@ function App() {
 
   const [brandMatch, brandParams] = useRoute("/p/:username");
   const [surveyMatch, surveyParams] = useRoute("/survey/:username");
+  const [contractMatch, contractParams] = useRoute("/contract/:token");
 
   if (reportMatch && reportParams) return <MemberReport token={reportParams.token} />;
   if (brandMatch && brandParams) return <TrainerBrandPage username={brandParams.username} />;
   if (surveyMatch && surveyParams) return <SurveyPage username={surveyParams.username} />;
+  if (contractMatch && contractParams) return <EContractPage />;
 
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;

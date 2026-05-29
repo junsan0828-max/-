@@ -629,6 +629,29 @@ async function initDatabase() {
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
 
+  // 비대면 전자계약
+  await pool.query(`CREATE TABLE IF NOT EXISTS e_contracts (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    "memberName" TEXT,
+    "memberPhone" TEXT,
+    "memberBirth" TEXT,
+    "programName" TEXT,
+    "programPrice" INTEGER,
+    "programSessions" INTEGER,
+    "programStartDate" TEXT,
+    "trainerMemo" TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    "agreedTerms" INTEGER NOT NULL DEFAULT 0,
+    "agreedPrivacy" INTEGER NOT NULL DEFAULT 0,
+    "agreedMarketing" INTEGER NOT NULL DEFAULT 0,
+    "signerName" TEXT,
+    "signaturePng" TEXT,
+    "signedAt" TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
   // 작업실 기능 잠금해제
   await pool.query(`CREATE TABLE IF NOT EXISTS workshop_unlocks (
     id SERIAL PRIMARY KEY,
@@ -745,7 +768,7 @@ async function initDatabase() {
     ["ai_insights",         "coming_soon"],
     ["survey",              "active"],
     ["contract_kakao",      "coming_soon"],
-    ["e_contract",          "coming_soon"],
+    ["e_contract",          "active"],
   ];
   for (const [featureId, status] of WS_FEATURE_DEFAULTS) {
     await pool.query(

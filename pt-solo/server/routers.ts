@@ -1754,6 +1754,132 @@ const tabBannerRouter = t.router({
     }),
 });
 
+// ─── E-Contract ───────────────────────────────────────────────────────────────
+
+const eContractRouter = t.router({
+  create: protectedProcedure
+    .input(z.object({
+      memberName: z.string().optional(),
+      memberPhone: z.string().optional(),
+      memberBirth: z.string().optional(),
+      programName: z.string().optional(),
+      programPrice: z.number().optional(),
+      programSessions: z.number().optional(),
+      programStartDate: z.string().optional(),
+      trainerMemo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = (ctx.user as any).trainerId;
+      if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      await pool.query(
+        `INSERT INTO e_contracts ("trainerId", token, "memberName", "memberPhone", "memberBirth",
+          "programName", "programPrice", "programSessions", "programStartDate", "trainerMemo")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [trainerId, token, input.memberName ?? null, input.memberPhone ?? null, input.memberBirth ?? null,
+         input.programName ?? null, input.programPrice ?? null, input.programSessions ?? null,
+         input.programStartDate ?? null, input.trainerMemo ?? null]
+      );
+      return { token };
+    }),
+
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = (ctx.user as any).trainerId;
+    if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
+    const rows = await pool.query<any>(
+      `SELECT id, token, "memberName", "memberPhone", "programName", "programPrice",
+              "programSessions", "programStartDate", status, "signedAt", "signerName", "agreedMarketing", "createdAt"
+       FROM e_contracts WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 50`,
+      [trainerId]
+    );
+    return rows.rows;
+  }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = (ctx.user as any).trainerId;
+      await pool.query(`DELETE FROM e_contracts WHERE id=$1 AND "trainerId"=$2`, [input.id, trainerId]);
+      return { success: true };
+    }),
+
+  // 공개 조회 (인증 없음)
+  getPublic: t.procedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const row = await pool.query<any>(
+        `SELECT ec.*, ts."termsOfService", ts."privacyPolicy", ts."marketingConsent",
+                t."trainerName", t."profileImage"
+         FROM e_contracts ec
+         LEFT JOIN trainers t ON t.id = ec."trainerId"
+         LEFT JOIN trainer_settings ts ON ts."trainerId" = ec."trainerId"
+         WHERE ec.token=$1`,
+        [input.token]
+      );
+      if (!row.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      const r = row.rows[0];
+      if (r.status === 'signed') throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+      return {
+        token: r.token,
+        memberName: r.memberName,
+        memberPhone: r.memberPhone,
+        memberBirth: r.memberBirth,
+        programName: r.programName,
+        programPrice: r.programPrice,
+        programSessions: r.programSessions,
+        programStartDate: r.programStartDate,
+        trainerName: r.trainerName,
+        trainerMemo: r.trainerMemo,
+        termsOfService: r.termsOfService ?? DEFAULT_TERMS_OF_SERVICE,
+        privacyPolicy: r.privacyPolicy ?? DEFAULT_PRIVACY_POLICY,
+        marketingConsent: r.marketingConsent ?? DEFAULT_MARKETING_CONSENT,
+      };
+    }),
+
+  // 서명 제출 (인증 없음)
+  submit: t.procedure
+    .input(z.object({
+      token: z.string(),
+      memberName: z.string().min(1),
+      memberPhone: z.string().min(1),
+      memberBirth: z.string().optional(),
+      agreedTerms: z.boolean(),
+      agreedPrivacy: z.boolean(),
+      agreedMarketing: z.boolean(),
+      signerName: z.string().min(1),
+      signaturePng: z.string().min(10),
+    }))
+    .mutation(async ({ input }) => {
+      if (!input.agreedTerms || !input.agreedPrivacy) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "필수 동의가 필요합니다." });
+      }
+      const check = await pool.query(`SELECT id, status FROM e_contracts WHERE token=$1`, [input.token]);
+      if (!check.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      if (check.rows[0].status === 'signed') throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+      await pool.query(
+        `UPDATE e_contracts SET status='signed', "memberName"=$2, "memberPhone"=$3, "memberBirth"=$4,
+          "agreedTerms"=$5, "agreedPrivacy"=$6, "agreedMarketing"=$7,
+          "signerName"=$8, "signaturePng"=$9, "signedAt"=now()::text WHERE token=$1`,
+        [input.token, input.memberName, input.memberPhone, input.memberBirth ?? null,
+         input.agreedTerms ? 1 : 0, input.agreedPrivacy ? 1 : 0, input.agreedMarketing ? 1 : 0,
+         input.signerName, input.signaturePng]
+      );
+      return { success: true };
+    }),
+
+  // 서명된 계약 상세 (트레이너 전용)
+  getDetail: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = (ctx.user as any).trainerId;
+      const row = await pool.query<any>(
+        `SELECT * FROM e_contracts WHERE id=$1 AND "trainerId"=$2`, [input.id, trainerId]
+      );
+      if (!row.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      return row.rows[0];
+    }),
+});
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 const adminProcedure = t.procedure.use(({ ctx, next }) => {
@@ -3780,6 +3906,7 @@ export const appRouter = t.router({
   survey: surveyRouter,
   workshop: workshopRouter,
   academy: academyRouter,
+  eContract: eContractRouter,
 });
 
 export type AppRouter = typeof appRouter;
