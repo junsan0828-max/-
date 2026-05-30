@@ -952,6 +952,80 @@ async function start() {
     console.error("양도양수 양수인 회원 자동 보정 오류:", e);
   }
 
+  // ── 중복 회원 1회 자동 병합 (동일 trainerId + 이름 + 전화번호) ──────────────
+  try {
+    const dupResult = await pool.query(`
+      SELECT
+        "trainerId",
+        name,
+        array_agg(id ORDER BY id ASC) AS ids
+      FROM members
+      WHERE length(regexp_replace(COALESCE(phone,''), '\\D', '', 'g')) >= 7
+      GROUP BY "trainerId", name, regexp_replace(COALESCE(phone,''), '\\D', '', 'g')
+      HAVING COUNT(*) > 1
+    `);
+    let merged = 0;
+    for (const row of dupResult.rows) {
+      const keepId: number = row.ids[0];
+      const deleteIds: number[] = row.ids.slice(1);
+      for (const delId of deleteIds) {
+        // 출석 — 같은 날짜 중복 제거 후 이전
+        await pool.query(`
+          DELETE FROM attendances
+          WHERE "memberId" = $1 AND "attendDate" IN (
+            SELECT "attendDate" FROM attendances WHERE "memberId" = $2
+          )`, [delId, keepId]);
+        await pool.query(`UPDATE attendances SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+
+        // 출석체크 — 같은 날짜 중복 제거 후 이전
+        await pool.query(`
+          DELETE FROM attendance_checks
+          WHERE "memberId" = $1 AND "checkDate" IN (
+            SELECT "checkDate" FROM attendance_checks WHERE "memberId" = $2
+          )`, [delId, keepId]);
+        await pool.query(`UPDATE attendance_checks SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+
+        // PAR-Q — unique 제약: 기존 있으면 삭제, 없으면 이전
+        const hasParQ = await pool.query(`SELECT id FROM par_q WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+        if (hasParQ.rows.length > 0) {
+          await pool.query(`DELETE FROM par_q WHERE "memberId" = $1`, [delId]);
+        } else {
+          await pool.query(`UPDATE par_q SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+        }
+
+        // 나머지 테이블 일괄 이전
+        for (const [tbl, col] of [
+          ["pt_packages", "memberId"],
+          ["pt_pauses", "memberId"],
+          ["schedules", "memberId"],
+          ["pt_session_logs", "memberId"],
+          ["workout_memos", "memberId"],
+          ["report_tokens", "memberId"],
+          ["health_reports", "memberId"],
+          ["pt_reports", "memberId"],
+          ["payments", "memberId"],
+          ["revenue_entries", "memberId"],
+          ["lockers", "memberId"],
+          ["uniforms", "memberId"],
+          ["access_logs", "memberId"],
+        ] as const) {
+          await pool.query(`UPDATE "${tbl}" SET "${col}" = $1 WHERE "${col}" = $2`, [keepId, delId]);
+        }
+        await pool.query(`UPDATE leads SET "registeredMemberId" = $1 WHERE "registeredMemberId" = $2`, [keepId, delId]);
+        await pool.query(`UPDATE transfer_contracts SET "transferorMemberId" = $1 WHERE "transferorMemberId" = $2`, [keepId, delId]);
+        await pool.query(`UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE "transfereeMemberId" = $2`, [keepId, delId]);
+
+        await pool.query(`DELETE FROM members WHERE id = $1`, [delId]);
+        merged++;
+        console.log(`✅ 중복 회원 병합: '${row.name}' ID ${delId} → ${keepId}`);
+      }
+    }
+    if (merged > 0) console.log(`✅ 중복 회원 총 ${merged}건 병합 완료`);
+    else console.log("✅ 중복 회원 없음");
+  } catch (e) {
+    console.error("중복 회원 병합 오류:", e);
+  }
+
   // 구글시트 자동 동기화 (5분마다)
   setInterval(async () => {
     try {
