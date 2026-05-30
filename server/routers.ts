@@ -1981,7 +1981,8 @@ const trainersRouter = t.router({
           return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
         if (l.pricePerSession) return l.pricePerSession;
         const fb = memberPkgMap[l.memberId];
-        if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0) return Math.round(fb.paymentAmount / fb.totalSessions);
+        if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
+          return Math.round(calcPricePerSession(fb.paymentAmount, fb.totalSessions, fb.paymentMethod ?? undefined) ?? 0);
         if (fb?.pricePerSession) return fb.pricePerSession;
         return memberRevenueMap[l.memberId] ?? 0;
       };
@@ -2799,7 +2800,8 @@ const adminRouter = t.router({
           return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
         if (l.pricePerSession) return l.pricePerSession;
         const fb = memberPkgMap2[l.memberId];
-        if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0) return Math.round(fb.paymentAmount / fb.totalSessions);
+        if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
+          return Math.round(calcPricePerSession(fb.paymentAmount, fb.totalSessions) ?? 0);
         if (fb?.pricePerSession) return fb.pricePerSession;
         return 0;
       };
@@ -2968,12 +2970,14 @@ const adminRouter = t.router({
         }
 
         const rate = settings[0]?.settlementRate ?? 50;
-        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
           if (l.pricePerSession) return l.pricePerSession;
-          if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+          if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
+            return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
           const fb = memberPkgMap[l.memberId];
           if (fb?.pricePerSession) return fb.pricePerSession;
-          if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0) return Math.round(fb.paymentAmount / fb.totalSessions);
+          if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
+            return Math.round(calcPricePerSession(fb.paymentAmount, fb.totalSessions) ?? 0);
           // 최후 폴백: revenue_entries 기반 회당 단가
           return memberRevenueMap[l.memberId] ?? 0;
         };

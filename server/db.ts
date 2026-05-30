@@ -57,7 +57,9 @@ export async function getDashboardStats(trainerId: number) {
     const sessionFields = {
       memberId: ptSessionLogs.memberId,
       memberNameSnapshot: ptSessionLogs.memberName,
+      isServiceSession: ptSessionLogs.isServiceSession,
       pricePerSession: ptPackages.pricePerSession,
+      serviceSessionPrice: ptPackages.serviceSessionPrice,
       paymentAmount: ptPackages.paymentAmount,
       totalSessions: ptPackages.totalSessions,
       paymentMethod: ptPackages.paymentMethod,
@@ -127,7 +129,8 @@ export async function getDashboardStats(trainerId: number) {
       }
     }
 
-    const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+    const calcPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+      if (l.isServiceSession === 1) return l.serviceSessionPrice ?? 0;
       if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
         return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);
       if (l.pricePerSession) return l.pricePerSession;
@@ -154,7 +157,8 @@ export async function getDashboardStats(trainerId: number) {
       }
     }
 
-    const calcTodayPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+    const calcTodayPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+      if (l.isServiceSession === 1) return l.serviceSessionPrice ?? 0;
       if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
         return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);
       if (l.pricePerSession) return l.pricePerSession;
