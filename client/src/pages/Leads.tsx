@@ -201,7 +201,6 @@ export default function LeadsPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editStatus, setEditStatus] = useState<string>("");
@@ -222,6 +221,8 @@ export default function LeadsPage() {
   const pendingEditIdRef = useRef<number | null>(null);
 
   // 바로등록 모달
+  const [statDetailModal, setStatDetailModal] = useState<string | null>(null);
+
   const [showDirectReg, setShowDirectReg] = useState(false);
   const [showRegModeSelect, setShowRegModeSelect] = useState(false);
   const [directRegMode, setDirectRegMode] = useState<null | "재등록">(null);
@@ -659,8 +660,7 @@ export default function LeadsPage() {
   const filtered = (leadsData ?? []).filter(row => {
     const q = search.toLowerCase();
     const matchSearch = !q || row.lead.name.toLowerCase().includes(q) || (row.lead.phone ?? "").includes(q);
-    const matchStatus = !filterStatus || row.lead.status === filterStatus;
-    return matchSearch && matchStatus;
+    return matchSearch;
   });
 
   // 월별 통계
@@ -720,8 +720,8 @@ export default function LeadsPage() {
       {/* 통계 카드 */}
       <div className="grid grid-cols-3 gap-2">
         {statCounts.map(s => (
-          <button key={s.value} onClick={() => setFilterStatus(filterStatus === s.value ? "" : s.value)}
-            className={`rounded-xl p-3 border transition-all text-center ${filterStatus === s.value ? `${s.bg} border-current ${s.color}` : "bg-card border-border"}`}>
+          <button key={s.value} onClick={() => setStatDetailModal(s.value)}
+            className={`rounded-xl p-3 border transition-all text-center bg-card border-border hover:border-primary/30`}>
             <div className={`text-lg font-bold ${s.color}`}>{s.count}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
           </button>
@@ -817,6 +817,79 @@ export default function LeadsPage() {
           })}
         </div>
       )}
+
+      {/* 통계 카드 세부내역 모달 */}
+      {statDetailModal && (() => {
+        const s = STATUS_OPTIONS.find(s => s.value === statDetailModal)!;
+        const rows = (leadsData ?? []).filter(r => r.lead.status === statDetailModal);
+        return (
+          <div className="fixed inset-0 z-[300] bg-black/70 flex items-end justify-center" onClick={() => setStatDetailModal(null)}>
+            <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "75vh" }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.color}`}>
+                    <s.icon className="h-3.5 w-3.5" />
+                    {s.label}
+                  </span>
+                  <span className="text-sm text-muted-foreground">{rows.length}명</span>
+                </div>
+                <button onClick={() => setStatDetailModal(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              {rows.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">해당 상태의 상담이 없습니다</div>
+              ) : (
+                <div className="overflow-y-auto flex-1 divide-y divide-border">
+                  {rows.map(row => {
+                    const mainTypes = row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [];
+                    return (
+                      <button
+                        key={row.lead.id}
+                        className="w-full text-left px-5 py-3.5 hover:bg-accent/30 transition-colors"
+                        onClick={() => { setStatDetailModal(null); openEdit(row); }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm text-foreground">{row.lead.name}</span>
+                              {row.lead.gender && <span className="text-xs text-muted-foreground">{row.lead.gender}</span>}
+                              {row.lead.ageGroup && <span className="text-xs text-muted-foreground">{row.lead.ageGroup}</span>}
+                            </div>
+                            {row.lead.phone && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{row.lead.phone}</p>
+                            )}
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {mainTypes.map(mt => (
+                                <span key={mt} className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{mt}</span>
+                              ))}
+                              {row.lead.interestType && (
+                                <span className="text-[10px] bg-amber-400/10 text-amber-400 px-1.5 py-0.5 rounded-full">{row.lead.interestType}</span>
+                              )}
+                              {(row.trainerName || (row as any).consultantName) && (
+                                <span className="text-[10px] bg-violet-500/10 text-violet-400 px-1.5 py-0.5 rounded-full">
+                                  {row.trainerName || (row as any).consultantName}
+                                </span>
+                              )}
+                            </div>
+                            {row.lead.consultationNote && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{row.lead.consultationNote}</p>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-xs text-muted-foreground">{row.lead.consultationDate ?? ""}</p>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground mt-1 ml-auto" />
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 계약서 모달 */}
       {showContract && (
