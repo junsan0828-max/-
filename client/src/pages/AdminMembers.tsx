@@ -181,6 +181,11 @@ export default function AdminMembers() {
 
   type StatModal = "total" | "active" | "expiringSoon" | "expired" | "paused" | "newThisMonth" | null;
   const [statModal, setStatModal] = useState<StatModal>(null);
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+
+  const duplicateGroups = useMemo(() =>
+    groupedMembers.filter(g => g.length > 1),
+  [groupedMembers]);
 
   // ── 통계 계산 ─────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -392,6 +397,26 @@ export default function AdminMembers() {
         </div>
       )}
 
+      {/* 중복 회원 알림 배너 */}
+      {duplicateGroups.length > 0 && (
+        <button
+          onClick={() => setShowDuplicatesOnly(v => !v)}
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors ${
+            showDuplicatesOnly
+              ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+              : "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/15"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">⚠ 중복 회원 {duplicateGroups.length}건</span>
+            <span className="text-xs opacity-70">
+              {duplicateGroups.map(g => g[0].name).join(", ")}
+            </span>
+          </div>
+          <span className="text-xs shrink-0">{showDuplicatesOnly ? "전체보기" : "중복만 보기"}</span>
+        </button>
+      )}
+
       {/* 검색 */}
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -423,7 +448,7 @@ export default function AdminMembers() {
         {!isLoading && (!filtered || filtered.length === 0) && (
           <p className="text-center text-muted-foreground py-8 text-sm">검색 결과가 없습니다</p>
         )}
-        {filtered?.map((group) => {
+        {(showDuplicatesOnly ? duplicateGroups : filtered)?.map((group) => {
           const primary = group.find(g => memberType(g.packages, g.status, g.hasPtRevenue) === "PT") ?? group[0];
           const types = Array.from(new Set(group.map(g => memberType(g.packages, g.status, g.hasPtRevenue))));
           const pkgLabel = group
@@ -497,6 +522,23 @@ export default function AdminMembers() {
                       {trainerNames.length > 0 && <span>{trainerNames.join(", ")}</span>}
                       {trainerNames.length > 0 && primary.membershipStart && <span>·</span>}
                       {primary.membershipStart && <span>{primary.membershipStart}</span>}
+                    </div>
+                  )}
+                  {/* 중복 상세 */}
+                  {isDuplicate && (
+                    <div className="mt-2 pt-2 border-t border-amber-500/20 space-y-1">
+                      {group.map((g, i) => (
+                        <div key={g.id} className="flex items-center gap-2 text-[11px] text-amber-400/80">
+                          <span className="font-medium">#{i + 1}</span>
+                          <span>ID {g.id}</span>
+                          <span>·</span>
+                          <span>{g.status === "active" ? "활성" : g.status === "paused" ? "정지" : "만료"}</span>
+                          <span>·</span>
+                          <span>패키지 {g.packages.length}개</span>
+                          <span>·</span>
+                          <span>등록 {g.createdAt?.slice(0, 10) ?? "-"}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
