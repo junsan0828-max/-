@@ -1265,7 +1265,7 @@ const ptRouter = t.router({
           } else {
             const normalizedPhone = log.phone ? String(log.phone).replace(/\D/g, '') : null;
             const gmRows = await db.execute(
-              sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (${normalizedPhone} IS NOT NULL AND (REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = ${normalizedPhone} OR username = ${normalizedPhone})) LIMIT 1`
+              sql`SELECT id FROM gym_plus_members WHERE "memberId" = ${log.memberId} OR (${normalizedPhone}::text IS NOT NULL AND (REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = ${normalizedPhone}::text OR username = ${normalizedPhone}::text)) LIMIT 1`
             );
             const gm = (gmRows as any).rows?.[0] ?? (gmRows as any)[0];
 
