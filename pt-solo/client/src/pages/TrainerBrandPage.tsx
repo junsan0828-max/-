@@ -23,6 +23,59 @@ const CAREER_CAT_META: Record<string, { label: string }> = {
 interface BrandBlock { id: string; type: string; visible: boolean; data: any; }
 interface Props { username: string; }
 
+// ── 간편 예약 폼 (슬롯 미설정 시 폴백) ──────────────────────────────────────
+function SimpleBookingForm({ bookingBlock, primaryColor, form, setForm, isPending, onSubmit }: {
+  bookingBlock: any; primaryColor: string;
+  form: { name: string; phone: string; interestType: string; message: string };
+  setForm: (f: any) => void; isPending: boolean; onSubmit: () => void;
+}) {
+  const programs: string[] = bookingBlock?.data?.programs ?? ["PT (퍼스널 트레이닝)", "필라테스", "기타"];
+  return (
+    <div className="space-y-4">
+      {programs.length > 0 && (
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-gray-500">관심 프로그램</label>
+          <div className="flex flex-wrap gap-2">
+            {programs.map((p: string) => (
+              <button key={p} type="button"
+                onClick={() => setForm((f: any) => ({ ...f, interestType: f.interestType === p ? "" : p }))}
+                className="px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all"
+                style={form.interestType === p
+                  ? { backgroundColor: primaryColor, borderColor: primaryColor, color: "white" }
+                  : { borderColor: `${primaryColor}40`, color: "#555" }}>
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {[
+        { label: "이름 *", key: "name", placeholder: "홍길동", type: "text" },
+        { label: "연락처 *", key: "phone", placeholder: "010-0000-0000", type: "tel" },
+      ].map(({ label, key, placeholder, type }) => (
+        <div key={key}>
+          <label className="text-xs text-gray-500 font-semibold">{label}</label>
+          <input type={type} value={(form as any)[key]}
+            onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))}
+            placeholder={placeholder}
+            className="w-full mt-1.5 border border-gray-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-blue-400 transition-colors" />
+        </div>
+      ))}
+      <div>
+        <label className="text-xs text-gray-500 font-semibold">남기실 말씀</label>
+        <textarea value={form.message} onChange={e => setForm((p: any) => ({ ...p, message: e.target.value }))}
+          placeholder="궁금한 점을 남겨주세요..." rows={2}
+          className="w-full mt-1.5 border border-gray-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-blue-400 resize-none transition-colors" />
+      </div>
+      <button disabled={!form.name || !form.phone || isPending} onClick={onSubmit}
+        className="w-full py-4 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
+        style={{ backgroundColor: primaryColor }}>
+        {isPending ? "신청 중..." : "예약 신청"}
+      </button>
+    </div>
+  );
+}
+
 // ── 월 캘린더 컴포넌트 ──────────────────────────────────────────────────────
 function BookingCalendar({ trainerId, primaryColor, onSelect }: {
   trainerId: number; primaryColor: string; onSelect: (date: string) => void;
@@ -140,6 +193,16 @@ export default function TrainerBrandPage({ username }: Props) {
   const [selectedSlot, setSelectedSlot] = useState<{ id: number; time: string } | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", interestType: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
+
+  // 슬롯 존재 여부 확인 (현재 월)
+  const today = new Date();
+  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const { data: availableDatesCheck, isLoading: slotsLoading } = trpc.booking.getAvailableDates.useQuery(
+    { trainerId: trainer?.trainerId ?? 0, month: currentMonth },
+    { enabled: !!trainer?.trainerId }
+  );
+  // 슬롯이 없으면 간편 폼 모드
+  const simpleMode = !slotsLoading && (availableDatesCheck?.length ?? 0) === 0;
 
   const submitWithSlotMutation = trpc.booking.submitWithSlot.useMutation({ onSuccess: () => setSubmitted(true) });
   const submitMutation = trpc.brand.submitBooking.useMutation({ onSuccess: () => setSubmitted(true) });
@@ -412,33 +475,37 @@ export default function TrainerBrandPage({ username }: Props) {
         </div>
       )}
 
-      {/* ── 3단계 예약 모달 ── */}
+      {/* ── 예약 모달 ── */}
       {showBooking && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center">
           <div className="bg-white w-full max-w-lg rounded-t-3xl max-h-[92vh] overflow-y-auto flex flex-col">
             {/* 헤더 */}
             <div className="px-5 pt-5 pb-4 flex-shrink-0">
               <div className="flex items-center justify-between mb-4">
-                <button onClick={() => bookingStep > 0 ? setBookingStep(s => s - 1) : (setShowBooking(false), resetBooking())}
+                <button onClick={() => !simpleMode && bookingStep > 0 ? setBookingStep(s => s - 1) : (setShowBooking(false), resetBooking())}
                   className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-                  {bookingStep > 0 ? <ChevronLeft className="h-5 w-5 text-gray-600" /> : <X className="h-5 w-5 text-gray-600" />}
+                  {!simpleMode && bookingStep > 0 ? <ChevronLeft className="h-5 w-5 text-gray-600" /> : <X className="h-5 w-5 text-gray-600" />}
                 </button>
-                <div className="flex items-center gap-1.5">
-                  {["날짜", "시간", "확인"].map((label, i) => (
-                    <div key={i} className="flex items-center gap-1.5">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors
-                        ${i < bookingStep ? "text-white" : i === bookingStep ? "text-white" : "bg-gray-200 text-gray-500"}`}
-                        style={i <= bookingStep ? { backgroundColor: primaryColor } : {}}>
-                        {i < bookingStep ? <Check className="h-3 w-3" /> : i + 1}
+                {simpleMode ? (
+                  <p className="font-bold text-gray-900 text-sm">상담 예약</p>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    {["날짜", "시간", "확인"].map((label, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors
+                          ${i < bookingStep ? "text-white" : i === bookingStep ? "text-white" : "bg-gray-200 text-gray-500"}`}
+                          style={i <= bookingStep ? { backgroundColor: primaryColor } : {}}>
+                          {i < bookingStep ? <Check className="h-3 w-3" /> : i + 1}
+                        </div>
+                        <span className={`text-[11px] font-semibold ${i === bookingStep ? "text-gray-900" : "text-gray-400"}`}>{label}</span>
+                        {i < 2 && <ChevronRight className="h-3 w-3 text-gray-300" />}
                       </div>
-                      <span className={`text-[11px] font-semibold ${i === bookingStep ? "text-gray-900" : "text-gray-400"}`}>{label}</span>
-                      {i < 2 && <ChevronRight className="h-3 w-3 text-gray-300" />}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
                 <div className="w-9" />
               </div>
-              {bookingBlock?.data?.guideText && bookingStep === 0 && (
+              {bookingBlock?.data?.guideText && (simpleMode || bookingStep === 0) && (
                 <p className="text-xs text-gray-500 bg-gray-50 rounded-2xl px-4 py-3 leading-relaxed">{bookingBlock.data.guideText}</p>
               )}
             </div>
@@ -465,6 +532,20 @@ export default function TrainerBrandPage({ username }: Props) {
                     닫기
                   </button>
                 </div>
+              ) : simpleMode ? (
+                /* ── 간편 폼 (슬롯 없을 때 폴백) ── */
+                <SimpleBookingForm
+                  bookingBlock={bookingBlock}
+                  primaryColor={primaryColor}
+                  form={form} setForm={setForm}
+                  isPending={submitMutation.isPending}
+                  onSubmit={() => submitMutation.mutate({
+                    trainerId: trainer.trainerId,
+                    name: form.name, phone: form.phone,
+                    interestType: form.interestType || undefined,
+                    message: form.message || undefined,
+                  })}
+                />
               ) : (
                 <>
                   {/* STEP 1: 날짜 선택 */}
