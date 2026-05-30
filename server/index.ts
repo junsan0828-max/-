@@ -956,12 +956,11 @@ async function start() {
   try {
     const dupResult = await pool.query(`
       SELECT
-        "trainerId",
         name,
         array_agg(id ORDER BY id ASC) AS ids
       FROM members
-      WHERE length(regexp_replace(COALESCE(phone,''), '\\D', '', 'g')) >= 7
-      GROUP BY "trainerId", name, regexp_replace(COALESCE(phone,''), '\\D', '', 'g')
+      WHERE length(regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')) >= 7
+      GROUP BY name, regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')
       HAVING COUNT(*) > 1
     `);
     let merged = 0;
