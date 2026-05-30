@@ -280,15 +280,23 @@ export default function LeadsPage() {
   const filteredReRegMembers = useMemo(() => {
     const all = allMembersList ?? [];
     const q = reRegSearch.trim().toLowerCase();
+    const qDigits = q.replace(/\D/g, "");
     const matched = q
       ? all.filter(m =>
           (m.name ?? "").toLowerCase().includes(q) ||
-          (m.phone ?? "").replace(/\D/g, "").includes(q.replace(/\D/g, ""))
+          (qDigits.length > 0 && (m.phone ?? "").replace(/\D/g, "").includes(qDigits))
         )
       : all;
-    return [...matched].sort((a, b) =>
-      (a.name ?? "").localeCompare(b.name ?? "", "ko")
-    );
+    return [...matched].sort((a, b) => {
+      if (!q) return (a.name ?? "").localeCompare(b.name ?? "", "ko");
+      const aN = (a.name ?? "").toLowerCase();
+      const bN = (b.name ?? "").toLowerCase();
+      if (aN === q && bN !== q) return -1;
+      if (bN === q && aN !== q) return 1;
+      if (aN.includes(q) && !bN.includes(q)) return -1;
+      if (bN.includes(q) && !aN.includes(q)) return 1;
+      return aN.localeCompare(bN, "ko");
+    });
   }, [allMembersList, reRegSearch]);
 
   const reRegUpdateMutation = trpc.members.update.useMutation({
