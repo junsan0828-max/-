@@ -82,16 +82,8 @@ export default function AdminMembers() {
     branchFilter ? { branchId: branchFilter } : undefined
   );
 
-  const debugContractsQuery = trpc.transfer.debugContracts.useQuery(undefined, { staleTime: Infinity });
-
   // 회원관리 페이지 열릴 때 완료된 양도양수 계약 중 회원 미생성 건 자동 보정
   useEffect(() => { fixMissingMutation.mutate(); }, []);
-
-  useEffect(() => {
-    if (debugContractsQuery.data) {
-      console.log("[양도양수 계약 목록]", debugContractsQuery.data);
-    }
-  }, [debugContractsQuery.data]);
 
   const ptMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "PT") ?? [];
   const healthMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "헬스") ?? [];
@@ -422,38 +414,6 @@ export default function AdminMembers() {
           </button>
         )}
       </div>
-
-      {/* 양도양수 진단 패널 (임시) */}
-      {debugContractsQuery.data && debugContractsQuery.data.length > 0 && (
-        <div className="border border-yellow-500 rounded-lg p-3 bg-yellow-500/10 space-y-1">
-          <p className="text-xs font-bold text-yellow-400">양도양수 계약 목록 (진단용)</p>
-          {debugContractsQuery.data.map((c: any) => (
-            <div key={c.id} className="text-xs text-yellow-200 border-t border-yellow-500/30 pt-1">
-              <span className="font-medium">{c.transferorName} → {c.transfereeName ?? "미정"}</span>
-              {" "}<span className={c.status === "completed" ? "text-green-400" : "text-orange-400"}>[{c.status}]</span>
-              {" "}양수인ID: <span className={c.transfereeMemberId ? "text-green-400" : "text-red-400"}>{c.transfereeMemberId ?? "없음"}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {debugContractsQuery.data && debugContractsQuery.data.length === 0 && (
-        <div className="border border-red-500 rounded-lg p-3 bg-red-500/10">
-          <p className="text-xs text-red-400 font-bold">양도양수 계약이 DB에 없습니다</p>
-        </div>
-      )}
-      {fixMissingMutation.data?.errors && fixMissingMutation.data.errors.length > 0 && (
-        <div className="border border-red-500 rounded-lg p-3 bg-red-500/10 space-y-1">
-          <p className="text-xs font-bold text-red-400">양수인 회원 생성 오류</p>
-          {fixMissingMutation.data.errors.map((e, i) => (
-            <p key={i} className="text-xs text-red-300">{e}</p>
-          ))}
-        </div>
-      )}
-      {fixMissingMutation.data?.fixed && fixMissingMutation.data.fixed.length > 0 && (
-        <div className="border border-green-500 rounded-lg p-3 bg-green-500/10">
-          <p className="text-xs text-green-400">✅ 자동 등록 완료: {fixMissingMutation.data.fixed.join(", ")}</p>
-        </div>
-      )}
 
       {/* 목록 */}
       <div className="space-y-2">

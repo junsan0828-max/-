@@ -282,17 +282,6 @@ export const transferRouter = t.router({
       return { success: true };
     }),
 
-  // 관리자 진단용: 모든 양도양수 계약 조회
-  debugContracts: protectedProcedure.query(async () => {
-    const result = await pool.query(
-      `SELECT id, status, "transferorName", "transferorMemberId",
-              "transfereeName", "transfereeMemberId", "transfereePhone",
-              "completedAt", "createdAt"
-       FROM transfer_contracts ORDER BY "createdAt" DESC LIMIT 50`
-    );
-    return result.rows;
-  }),
-
   // 완료된 계약 중 양수인 회원 미생성 건 즉시 보정 (회원관리 페이지 로드 시 호출)
   fixMissingTransferees: protectedProcedure.mutation(async () => {
     const fixed: string[] = [];
