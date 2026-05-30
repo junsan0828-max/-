@@ -267,6 +267,10 @@ export default function LeadsPage() {
   const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
   const [showEventPicker, setShowEventPicker] = useState<"reReg" | "direct" | null>(null);
 
+  const directLeadMutation = trpc.gym.leads.create.useMutation({
+    onSuccess: () => { utils.gym.leads.invalidate(); },
+  });
+
   const directRegMutation = trpc.members.create.useMutation({
     onSuccess: (data) => {
       toast.success("회원이 등록되었습니다.");
@@ -493,6 +497,18 @@ export default function LeadsPage() {
         subType: "신규" as const,
         primaryType: isPT ? "PT" : isHealth ? "헬스" : isOther ? "기타" : undefined,
         signatureDataUrl: sig || undefined,
+      });
+      // 상담 CRM에도 등록완료 리드 생성
+      directLeadMutation.mutate({
+        name: f.name.trim(),
+        phone: f.phone || undefined,
+        gender: f.gender || undefined,
+        status: "registered",
+        consultationDate: f.paymentDate || new Date().toISOString().substring(0, 10),
+        interestType: isPT ? "PT" : isHealth ? "헬스" : isOther ? "기타" : undefined,
+        signatureDataUrl: sig || undefined,
+        memo: f.paymentMemo || undefined,
+        branchId: f.branchId ? parseInt(f.branchId) : undefined,
       });
       return;
     }
