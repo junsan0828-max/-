@@ -993,7 +993,15 @@ async function start() {
             await pool.query(`UPDATE par_q SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
           }
 
-          // 나머지 테이블 일괄 이전 (gym_plus_members 포함)
+          // gym_plus_members — memberId unique 가능성: 기존 있으면 삭제, 없으면 이전
+          const hasGymPlus = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+          if (hasGymPlus.rows.length > 0) {
+            await pool.query(`DELETE FROM gym_plus_members WHERE "memberId" = $1`, [delId]);
+          } else {
+            await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+          }
+
+          // 나머지 테이블 일괄 이전
           for (const [tbl, col] of [
             ["pt_packages", "memberId"],
             ["pt_pauses", "memberId"],
@@ -1008,7 +1016,6 @@ async function start() {
             ["lockers", "memberId"],
             ["uniforms", "memberId"],
             ["access_logs", "memberId"],
-            ["gym_plus_members", "memberId"],
           ] as const) {
             await pool.query(`UPDATE "${tbl}" SET "${col}" = $1 WHERE "${col}" = $2`, [keepId, delId]);
           }
