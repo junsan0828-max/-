@@ -1735,16 +1735,15 @@ function BookingFeaturePanel() {
         <div className="space-y-5">
           {/* 반복 일정 */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">반복 일정</p>
-              <button onClick={() => saveRecurringMutation.mutate(recurringEdit.filter(r => r.times.length > 0))}
-                disabled={saveRecurringMutation.isPending}
-                className="text-xs font-semibold text-primary disabled:opacity-50">저장</button>
-            </div>
+            <p className="text-sm font-semibold">반복 일정 설정</p>
+            <p className="text-xs text-muted-foreground">예약 가능한 요일과 시간을 선택하세요.</p>
             <div className="space-y-2">
               {recurringEdit.map(r => (
                 <div key={r.dayOfWeek} className="border border-border rounded-xl p-3 space-y-2">
-                  <p className="text-xs font-bold">{DAYS_KO[r.dayOfWeek]}요일</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold">{DAYS_KO[r.dayOfWeek]}요일</p>
+                    {r.times.length > 0 && <span className="text-[10px] text-primary font-semibold">{r.times.length}개 선택됨</span>}
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {TIME_PRESETS.map(t => (
                       <button key={t} onClick={() => toggleRecurringTime(r.dayOfWeek, t)}
@@ -1756,15 +1755,20 @@ function BookingFeaturePanel() {
                 </div>
               ))}
             </div>
-            {/* 반복 일정 → 슬롯 생성 */}
+            {/* 저장 + 자동 생성 한 번에 */}
             <div className="flex gap-2 items-center">
               <select value={generateWeeks} onChange={e => setGenerateWeeks(Number(e.target.value))}
-                className="h-8 bg-background border border-border rounded-lg px-2 text-xs">
+                className="h-9 bg-background border border-border rounded-lg px-2 text-xs shrink-0">
                 {[1,2,4,8,12].map(w => <option key={w} value={w}>앞으로 {w}주</option>)}
               </select>
-              <Button size="sm" className="flex-1 h-8 text-xs" disabled={generateMutation.isPending}
-                onClick={() => generateMutation.mutate({ weeks: generateWeeks })}>
-                {generateMutation.isPending ? "생성 중..." : "반복 슬롯 자동 생성"}
+              <Button size="sm" className="flex-1 h-9 text-xs"
+                disabled={saveRecurringMutation.isPending || generateMutation.isPending}
+                onClick={async () => {
+                  const toSave = recurringEdit.filter(r => r.times.length > 0);
+                  await saveRecurringMutation.mutateAsync(toSave);
+                  generateMutation.mutate({ weeks: generateWeeks });
+                }}>
+                {(saveRecurringMutation.isPending || generateMutation.isPending) ? "생성 중..." : "저장 후 슬롯 자동 생성"}
               </Button>
             </div>
           </div>

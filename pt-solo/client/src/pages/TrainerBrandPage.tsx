@@ -348,13 +348,6 @@ export default function TrainerBrandPage({ username }: Props) {
               <div key={i} className="border border-gray-100 rounded-2xl p-4 hover:border-gray-200 transition-colors">
                 <p className="font-bold text-sm text-gray-900">{item.name}</p>
                 {item.desc && <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{item.desc}</p>}
-                {bookingBlock && (
-                  <button onClick={() => setShowBooking(true)}
-                    className="mt-3 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
-                    style={{ color: primaryColor, backgroundColor: `${primaryColor}14` }}>
-                    상담 문의 →
-                  </button>
-                )}
               </div>
             ))}
           </div>
