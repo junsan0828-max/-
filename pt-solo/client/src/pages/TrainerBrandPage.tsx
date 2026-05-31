@@ -197,12 +197,21 @@ export default function TrainerBrandPage({ username }: Props) {
   // 슬롯 존재 여부 확인 (현재 월)
   const today = new Date();
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const nextMonth = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
+
   const { data: availableDatesCheck, isLoading: slotsLoading } = trpc.booking.getAvailableDates.useQuery(
     { trainerId: trainer?.trainerId ?? 0, month: currentMonth },
     { enabled: !!trainer?.trainerId }
   );
-  // 슬롯이 없으면 간편 폼 모드
-  const simpleMode = !slotsLoading && (availableDatesCheck?.length ?? 0) === 0;
+  const { data: nextMonthDatesCheck, isLoading: nextSlotsLoading } = trpc.booking.getAvailableDates.useQuery(
+    { trainerId: trainer?.trainerId ?? 0, month: nextMonth },
+    { enabled: !!trainer?.trainerId }
+  );
+  // 현재 월 + 다음 월 모두 슬롯이 없을 때만 간편 폼
+  const simpleMode = !slotsLoading && !nextSlotsLoading &&
+    (availableDatesCheck?.length ?? 0) === 0 &&
+    (nextMonthDatesCheck?.length ?? 0) === 0;
 
   const submitWithSlotMutation = trpc.booking.submitWithSlot.useMutation({ onSuccess: () => setSubmitted(true) });
   const submitMutation = trpc.brand.submitBooking.useMutation({ onSuccess: () => setSubmitted(true) });
