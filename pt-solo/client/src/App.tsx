@@ -30,6 +30,7 @@ import Workshop from "./pages/Workshop";
 import Sessions from "./pages/Sessions";
 import Academy from "./pages/Academy";
 import TrainerBrandPage from "./pages/TrainerBrandPage";
+import ClassBookingPage from "./pages/ClassBookingPage";
 import SurveyPage from "./pages/SurveyPage";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
@@ -115,11 +116,13 @@ function App() {
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
   const [brandMatch, brandParams] = useRoute("/p/:username");
+  const [classMatch, classParams] = useRoute("/c/:username");
   const [surveyMatch, surveyParams] = useRoute("/survey/:username");
   const [contractMatch, contractParams] = useRoute("/contract/:token");
 
   if (reportMatch && reportParams) return <MemberReport token={reportParams.token} />;
   if (brandMatch && brandParams) return <TrainerBrandPage username={brandParams.username} />;
+  if (classMatch && classParams) return <ClassBookingPage username={classParams.username} />;
   if (surveyMatch && surveyParams) return <SurveyPage username={surveyParams.username} />;
   if (contractMatch && contractParams) return <EContractPage />;
 

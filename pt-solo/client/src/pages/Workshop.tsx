@@ -1668,10 +1668,14 @@ function BookingFeaturePanel() {
   const { data: bookingList, refetch: refetchBookings } = trpc.booking.listBookings.useQuery();
   const updateStatusMutation = trpc.booking.updateStatus.useMutation({ onSuccess: () => refetchBookings() });
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [bookingTypeFilter, setBookingTypeFilter] = useState<"class" | "consultation">("class");
 
-  const filteredBookings = (bookingList ?? []).filter((b: any) =>
-    statusFilter === "all" || b.status === statusFilter
-  );
+  const filteredBookings = (bookingList ?? []).filter((b: any) => {
+    const isClass = b.slotId != null;
+    if (bookingTypeFilter === "class" && !isClass) return false;
+    if (bookingTypeFilter === "consultation" && isClass) return false;
+    return statusFilter === "all" || b.status === statusFilter;
+  });
 
   if (brandLoading) return <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>;
 
@@ -1727,6 +1731,22 @@ function BookingFeaturePanel() {
           <Button size="sm" className="w-full" disabled={updateBrandMutation.isPending} onClick={saveSettings}>
             {updateBrandMutation.isPending ? "저장 중..." : "저장"}
           </Button>
+
+          {/* 회원 수업 예약 링크 */}
+          {brand?.username && (
+            <div className="space-y-1.5 border-t border-border pt-4">
+              <p className="text-xs font-semibold text-muted-foreground">기존 회원 수업 예약 링크</p>
+              <p className="text-[11px] text-muted-foreground">기존 회원에게 공유하는 수업 예약 전용 페이지입니다. 브랜드 페이지와 별도로 운영됩니다.</p>
+              <div className="flex gap-2 items-center bg-accent/40 rounded-xl px-3 py-2">
+                <span className="text-xs flex-1 truncate text-foreground/70 font-mono">{window.location.origin}/c/{brand.username}</span>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/c/${brand.username}`); toast.success("링크 복사됨"); }}
+                  className="text-[11px] font-semibold text-primary shrink-0 hover:underline">
+                  복사
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1860,6 +1880,15 @@ function BookingFeaturePanel() {
       {/* ── 예약 목록 탭 ── */}
       {tab === "list" && (
         <div className="space-y-3">
+          {/* 수업 / 상담 구분 */}
+          <div className="flex gap-1 bg-muted rounded-xl p-1">
+            {(["class", "consultation"] as const).map(t => (
+              <button key={t} onClick={() => setBookingTypeFilter(t)}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${bookingTypeFilter === t ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>
+                {t === "class" ? "수업 예약" : "상담 문의"}
+              </button>
+            ))}
+          </div>
           {/* 상태 필터 */}
           <div className="flex gap-1.5 flex-wrap">
             <button onClick={() => setStatusFilter("all")}
