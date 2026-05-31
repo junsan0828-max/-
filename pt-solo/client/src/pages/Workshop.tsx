@@ -2973,7 +2973,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                 <div className="p-4">
                   {feature.id === "brand_page"      && <BrandPageEditor />}
                   {feature.id === "fitstep_plus"    && <AdminFspLimitsPanel />}
-                  {feature.id === "booking"         && <BrandPageEditor bookingOnly />}
+                  {feature.id === "booking"         && <BookingFeaturePanel />}
                   {feature.id === "report_branding" && <ReportBrandingEditor />}
                   {feature.id === "templates"       && <WorkoutTemplateEditor />}
                   {feature.id === "survey"          && <SurveyBuilder />}
