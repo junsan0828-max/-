@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { Check, PenLine, RotateCcw, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Check, PenLine, RotateCcw, ChevronDown, ChevronUp, Loader2, Download } from "lucide-react";
 
 function SignatureCanvas({ onSave }: { onSave: (png: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -121,6 +121,246 @@ function TermsSection({ title, content, agreed, onToggle, required }: {
   );
 }
 
+type SubmittedInfo = {
+  memberName: string;
+  memberPhone: string;
+  memberBirth: string;
+  signerName: string;
+  signaturePng: string;
+  agreedMarketing: boolean;
+  signedAt: string;
+};
+
+function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+async function buildContractImage(
+  trainerName: string,
+  programName: string | null | undefined,
+  programPrice: number | null | undefined,
+  programSessions: number | null | undefined,
+  programStartDate: string | null | undefined,
+  trainerMemo: string | null | undefined,
+  submitted: SubmittedInfo,
+): Promise<string> {
+  const W = 794;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = 1800;
+  const ctx = canvas.getContext("2d")!;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, canvas.height);
+
+  const PAD = 52;
+  let y = 0;
+
+  // Header background
+  ctx.fillStyle = "#f9fafb";
+  ctx.fillRect(0, 0, W, 116);
+  ctx.strokeStyle = "#e5e7eb";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 116);
+  ctx.lineTo(W, 116);
+  ctx.stroke();
+
+  y = 46;
+  ctx.fillStyle = "#111827";
+  ctx.font = `bold 22px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText(`${trainerName} 트레이너`, W / 2, y);
+  y += 32;
+  ctx.font = `bold 17px sans-serif`;
+  ctx.letterSpacing = "4px";
+  ctx.fillText("회 원 계 약 서", W / 2, y);
+  ctx.letterSpacing = "0px";
+  y += 36;
+
+  // Section renderer
+  function sectionTitle(title: string) {
+    ctx.fillStyle = "#111827";
+    ctx.font = `bold 13px sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText(title, PAD, y);
+    y += 12;
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD, y);
+    ctx.lineTo(W - PAD, y);
+    ctx.stroke();
+    y += 16;
+  }
+
+  function infoRow(label: string, value: string) {
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = `11px sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText(label, PAD, y);
+    ctx.fillStyle = "#111827";
+    ctx.font = `bold 13px sans-serif`;
+    ctx.fillText(value, PAD + 120, y);
+    y += 28;
+  }
+
+  // Member info
+  sectionTitle("■  회원 정보");
+  infoRow("이름", submitted.memberName || "—");
+  infoRow("연락처", submitted.memberPhone || "—");
+  if (submitted.memberBirth) infoRow("생년월일", submitted.memberBirth);
+  y += 8;
+
+  // Program info
+  const hasProg = programName || programPrice != null || programSessions != null;
+  if (hasProg) {
+    sectionTitle("■  프로그램 정보");
+    if (programName) infoRow("프로그램명", programName);
+    if (programPrice != null) infoRow("금액", `${programPrice.toLocaleString()}원`);
+    if (programSessions != null) infoRow("횟수", `${programSessions}회`);
+    if (programStartDate) infoRow("시작일", programStartDate);
+    if (trainerMemo) infoRow("메모", trainerMemo);
+    y += 8;
+  }
+
+  // Agreements
+  sectionTitle("■  약관 동의");
+  const agreements = [
+    { label: "(필수) 이용약관 동의", agreed: true },
+    { label: "(필수) 개인정보 수집·이용 동의", agreed: true },
+    { label: "(선택) 마케팅 정보 수신 동의", agreed: submitted.agreedMarketing },
+  ];
+  for (const ag of agreements) {
+    rrect(ctx, PAD, y - 13, 16, 16, 3);
+    ctx.fillStyle = ag.agreed ? "#2563eb" : "#f3f4f6";
+    ctx.fill();
+    ctx.strokeStyle = ag.agreed ? "#2563eb" : "#d1d5db";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    if (ag.agreed) {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(PAD + 3, y - 5);
+      ctx.lineTo(PAD + 7, y - 1);
+      ctx.lineTo(PAD + 13, y - 10);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#374151";
+    ctx.font = `13px sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText(ag.label, PAD + 26, y);
+    y += 28;
+  }
+  y += 16;
+
+  // Divider
+  ctx.strokeStyle = "#d1d5db";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y);
+  ctx.lineTo(W - PAD, y);
+  ctx.stroke();
+  y += 22;
+
+  // Consent statement
+  ctx.fillStyle = "#4b5563";
+  ctx.font = `12px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText("본인은 위 약관의 내용을 충분히 읽고 이해하였으며, 이에 동의하여 서명합니다.", W / 2, y);
+  y += 34;
+
+  // Date / Signer rows
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#9ca3af";
+  ctx.font = `11px sans-serif`;
+  ctx.fillText("계약일", PAD, y);
+  ctx.fillStyle = "#111827";
+  ctx.font = `bold 13px sans-serif`;
+  ctx.fillText(submitted.signedAt, PAD + 120, y);
+  y += 28;
+
+  ctx.fillStyle = "#9ca3af";
+  ctx.font = `11px sans-serif`;
+  ctx.fillText("서명자", PAD, y);
+  ctx.fillStyle = "#111827";
+  ctx.font = `bold 13px sans-serif`;
+  ctx.fillText(submitted.signerName, PAD + 120, y);
+  y += 28;
+
+  // Signature box
+  ctx.fillStyle = "#9ca3af";
+  ctx.font = `11px sans-serif`;
+  ctx.fillText("서명", PAD, y);
+
+  const sigX = PAD + 120;
+  const sigY = y - 14;
+  const sigW = 260;
+  const sigH = 96;
+
+  if (submitted.signaturePng) {
+    await new Promise<void>((resolve) => {
+      const img = new Image();
+      img.onload = () => { ctx.drawImage(img, sigX + 4, sigY + 4, sigW - 8, sigH - 8); resolve(); };
+      img.onerror = () => resolve();
+      img.src = submitted.signaturePng;
+    });
+  }
+  rrect(ctx, sigX, sigY, sigW, sigH, 8);
+  ctx.strokeStyle = "#d1d5db";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  y += sigH + 16;
+
+  // Bottom line (trainer signature line)
+  ctx.strokeStyle = "#374151";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y);
+  ctx.lineTo(PAD + 280, y);
+  ctx.stroke();
+  y += 14;
+
+  ctx.fillStyle = "#6b7280";
+  ctx.font = `11px sans-serif`;
+  ctx.textAlign = "left";
+  ctx.fillText(`${trainerName} 트레이너 (서명/인)`, PAD, y);
+  y += 30;
+
+  // Footer
+  ctx.strokeStyle = "#f3f4f6";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y);
+  ctx.lineTo(W - PAD, y);
+  ctx.stroke();
+  y += 18;
+
+  ctx.fillStyle = "#9ca3af";
+  ctx.font = `11px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText(`FIT STEP 비대면 전자계약  ·  ${submitted.signedAt}`, W / 2, y);
+  y += 30;
+
+  // Crop to content
+  const out = document.createElement("canvas");
+  out.width = W;
+  out.height = y;
+  out.getContext("2d")!.drawImage(canvas, 0, 0);
+  return out.toDataURL("image/png");
+}
+
 export default function EContractPage() {
   const params = useParams<{ token: string }>();
   const token = params.token ?? "";
@@ -134,6 +374,8 @@ export default function EContractPage() {
   const [signerName, setSignerName] = useState("");
   const [signaturePng, setSignaturePng] = useState("");
   const [done, setDone] = useState(false);
+  const [submittedInfo, setSubmittedInfo] = useState<SubmittedInfo | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (data) {
@@ -151,14 +393,79 @@ export default function EContractPage() {
     </div>
   );
 
-  if (error?.message === "already_signed" || done) return (
+  // already_signed from server (re-visit) — no download available
+  if (error?.message === "already_signed" && !done) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
       <div className="text-center space-y-3">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
           <Check className="h-8 w-8 text-green-600" />
         </div>
-        <h1 className="text-lg font-bold text-gray-900">계약이 완료되었습니다</h1>
-        <p className="text-sm text-gray-500">서명이 완료되어 저장되었습니다.<br />이 창을 닫으셔도 됩니다.</p>
+        <h1 className="text-lg font-bold text-gray-900">이미 서명된 계약서입니다</h1>
+        <p className="text-sm text-gray-500">이미 서명이 완료된 계약서입니다.<br />이 창을 닫으셔도 됩니다.</p>
+      </div>
+    </div>
+  );
+
+  // Done after signing in this session — show download button
+  if (done && submittedInfo) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
+      <div className="w-full max-w-sm space-y-6 text-center">
+        <div className="space-y-3">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+            <Check className="h-8 w-8 text-green-600" />
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">계약이 완료되었습니다</h1>
+          <p className="text-sm text-gray-500">서명이 완료되어 저장되었습니다.</p>
+        </div>
+
+        {/* Contract summary card */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 text-left space-y-2">
+          <p className="text-xs font-bold text-gray-500 mb-3">계약 내용 요약</p>
+          {[
+            ["트레이너", data?.trainerName],
+            ["회원명", submittedInfo.memberName],
+            ["연락처", submittedInfo.memberPhone],
+            data?.programName ? ["프로그램", data.programName] : null,
+            data?.programPrice != null ? ["금액", `${data.programPrice.toLocaleString()}원`] : null,
+            data?.programSessions != null ? ["횟수", `${data.programSessions}회`] : null,
+            ["계약일", submittedInfo.signedAt],
+          ].filter((r): r is [string, string] => r !== null).map(([label, value]) => (
+            <div key={label as string} className="flex justify-between text-sm">
+              <span className="text-gray-400">{label as string}</span>
+              <span className="font-semibold text-gray-900">{value as string}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Download button */}
+        <button
+          disabled={downloading}
+          onClick={async () => {
+            setDownloading(true);
+            try {
+              const dataUrl = await buildContractImage(
+                data?.trainerName ?? "",
+                data?.programName,
+                data?.programPrice,
+                data?.programSessions,
+                data?.programStartDate,
+                data?.trainerMemo,
+                submittedInfo,
+              );
+              const a = document.createElement("a");
+              a.download = `계약서_${submittedInfo.signerName}_${submittedInfo.signedAt.replace(/\./g, "")}.png`;
+              a.href = dataUrl;
+              a.click();
+            } finally {
+              setDownloading(false);
+            }
+          }}
+          className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-60"
+        >
+          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {downloading ? "이미지 생성 중..." : "계약서 이미지 저장"}
+        </button>
+        <p className="text-xs text-gray-400">이 창을 닫으셔도 됩니다.</p>
       </div>
     </div>
   );
@@ -190,6 +497,15 @@ export default function EContractPage() {
         agreedMarketing,
         signerName,
         signaturePng,
+      });
+      setSubmittedInfo({
+        memberName: form.memberName,
+        memberPhone: form.memberPhone,
+        memberBirth: form.memberBirth,
+        signerName,
+        signaturePng,
+        agreedMarketing,
+        signedAt: new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }),
       });
       setDone(true);
     } catch (err: any) {
