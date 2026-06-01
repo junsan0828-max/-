@@ -378,8 +378,10 @@ function RevenueContent() {
 
       {/* 매출 입력 폼 */}
       {showForm && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center p-4 pb-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }}>
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center"
+          style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
+            style={{ maxHeight: 'calc(90vh - max(env(safe-area-inset-bottom), 1rem))' }}>
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
               <h2 className="font-semibold text-foreground">{editId ? "매출 수정" : "매출 입력"}</h2>
               <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">✕</button>

@@ -691,18 +691,18 @@ export default function LeadsPage() {
   return (
     <div className="space-y-4">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-foreground">상담 CRM</h1>
           <p className="text-xs text-muted-foreground">월별 상담 및 전환 관리</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setShowRegModeSelect(true)}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium"
+            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-2 rounded-lg text-sm font-medium"
           >
-            <UserCheck className="h-4 w-4" />
-            바로등록
+            <UserCheck className="h-4 w-4 shrink-0" />
+            <span className="hidden xs:inline">바로</span>등록
           </button>
           <button
             onClick={() => {
@@ -710,14 +710,13 @@ export default function LeadsPage() {
               setForm({
                 ...defaultForm,
                 consultationDate: new Date().toISOString().substring(0, 10),
-                // 트레이너: 본인 자동 배정
                 assignedTrainerId: isTrainer ? me?.trainerId ?? undefined : undefined,
               });
             }}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
+            className="flex items-center gap-1 bg-primary text-primary-foreground px-2.5 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
           >
-            <Plus className="h-4 w-4" />
-            상담 추가
+            <Plus className="h-4 w-4 shrink-0" />
+            <span className="hidden xs:inline">상담 </span>추가
           </button>
         </div>
       </div>
@@ -839,8 +838,8 @@ export default function LeadsPage() {
         const s = STATUS_OPTIONS.find(s => s.value === statDetailModal)!;
         const rows = (leadsData ?? []).filter(r => r.lead.status === statDetailModal);
         return (
-          <div className="fixed inset-0 z-[300] bg-black/70 flex items-end justify-center" onClick={() => setStatDetailModal(null)}>
-            <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "75vh" }} onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[300] bg-black/70 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setStatDetailModal(null)}>
+            <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(75vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
                 <div className="flex items-center gap-2">
                   <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.color}`}>
@@ -909,8 +908,10 @@ export default function LeadsPage() {
 
       {/* 계약서 모달 */}
       {showContract && (
-        <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
+        <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center"
+          style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
+            style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
             {/* 헤더 */}
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
               <h2 className="font-bold text-foreground">회원 계약서</h2>
@@ -1053,8 +1054,10 @@ export default function LeadsPage() {
 
       {/* 등록 상세 모달 */}
       {showRegistration && (
-        <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
+        <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center"
+          style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
+            style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
               <div>
                 <h2 className="font-bold text-foreground">등록 상세 정보</h2>
@@ -1349,8 +1352,8 @@ export default function LeadsPage() {
 
       {/* 재등록 모달 */}
       {directRegMode === "재등록" && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" onClick={() => setDirectRegMode(null)}>
-          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setDirectRegMode(null)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(90vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
                 {reRegMemberId && (
@@ -1675,8 +1678,8 @@ export default function LeadsPage() {
 
       {/* 바로등록 모달 */}
       {showDirectReg && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" onClick={() => setShowDirectReg(false)}>
-          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setShowDirectReg(false)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(90vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
               <h2 className="font-semibold text-foreground">회원 바로등록</h2>
               <button onClick={() => setShowDirectReg(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
@@ -2021,8 +2024,10 @@ export default function LeadsPage() {
 
       {/* 상담 폼 모달 */}
       {showForm && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center px-4 pb-4" style={{ paddingTop: 'max(env(safe-area-inset-top), 1rem)' }}>
-          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - 1rem)' }}>
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center px-4"
+          style={{ paddingTop: 'max(env(safe-area-inset-top), 1rem)', paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)' }}>
+          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full max-w-md flex flex-col"
+            style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
               <h2 className="font-semibold text-foreground">{editId ? "상담 수정" : "상담 일지"}</h2>
               <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">✕</button>
@@ -2290,7 +2295,8 @@ function SignatureModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center"
+      style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
       <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col gap-4 p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -2387,8 +2393,10 @@ function SignedContractModal({
   const fmt = (v: string | number) => v ? Number(v).toLocaleString() + "원" : "0원";
 
   return (
-    <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
+    <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center"
+      style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
+        style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
         {/* 헤더 */}
         <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center gap-2 shrink-0 rounded-t-2xl">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" />

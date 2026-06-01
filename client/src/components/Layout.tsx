@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
-  UserCog, Settings, User, ClipboardCheck, Download, X,
+  UserCog, Settings, User, ClipboardCheck, Download, X, ChevronLeft,
   TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, DoorOpen, BookOpen, Menu, ExternalLink, ClipboardList,
 } from "lucide-react";
 import Logo from "./Logo";
@@ -104,6 +104,50 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     : "트레이너";
 
   const gymplusUrl = localStorage.getItem(GYMPLUS_URL_KEY) ?? GYMPLUS_URL_DEFAULT;
+
+  // iOS 좌측 엣지 스와이프 뒤로가기
+  const mainRef = useRef<HTMLElement>(null);
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const [swipeDx, setSwipeDx] = useState(0);
+
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t.clientX <= 28) {
+        swipeRef.current = { x: t.clientX, y: t.clientY };
+        setSwipeDx(0);
+      }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!swipeRef.current) return;
+      const dx = e.touches[0].clientX - swipeRef.current.x;
+      if (dx > 0) setSwipeDx(Math.min(dx, 120));
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!swipeRef.current) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - swipeRef.current.x;
+      const dy = Math.abs(t.clientY - swipeRef.current.y);
+      swipeRef.current = null;
+      setSwipeDx(0);
+      if (dx > 72 && dx > dy * 1.5) window.history.back();
+    };
+    const onCancel = () => { swipeRef.current = null; setSwipeDx(0); };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: true });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    el.addEventListener("touchcancel", onCancel, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onCancel);
+    };
+  }, []);
 
   // ── 사이드바 공용 내용 ────────────────────────────────────────────────────
   const SidebarContent = () => (
@@ -239,7 +283,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* 콘텐츠 */}
-        <main className="flex-1 overflow-y-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <main ref={mainRef} className="flex-1 overflow-y-auto scroll-touch" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          {/* iOS 스와이프 뒤로가기 인디케이터 */}
+          {swipeDx > 0 && (
+            <div
+              className="fixed left-0 top-1/2 -translate-y-1/2 z-[9999] flex items-center justify-center pointer-events-none"
+              style={{ opacity: Math.min(swipeDx / 72, 1), transform: `translateX(${swipeDx - 20}px) translateY(-50%)` }}
+            >
+              <div className="bg-card/90 border border-border rounded-full p-2 shadow-lg">
+                <ChevronLeft className="h-5 w-5 text-foreground" />
+              </div>
+            </div>
+          )}
           <div className="container mx-auto px-4 py-6 max-w-3xl">
             {children}
           </div>

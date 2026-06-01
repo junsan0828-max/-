@@ -300,8 +300,8 @@ export default function MyWorkPage() {
 
       {/* 공지 상세 모달 */}
       {selectedNotice && (
-        <div className="fixed inset-0 z-[300] bg-black/60 flex items-end justify-center" onClick={() => setSelectedNotice(null)}>
-          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[300] bg-black/60 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setSelectedNotice(null)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(80vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-border shrink-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${(NOTICE_PRIORITY[selectedNotice.notice.priority] ?? NOTICE_PRIORITY.normal).style}`}>
@@ -329,8 +329,8 @@ export default function MyWorkPage() {
 
       {/* 업무 상세 모달 */}
       {selectedTask && (
-        <div className="fixed inset-0 z-[300] bg-black/60 flex items-end justify-center" onClick={() => setSelectedTask(null)}>
-          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[300] bg-black/60 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setSelectedTask(null)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(80vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-border shrink-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CAT_COLOR[selectedTask.task.category] ?? CAT_COLOR["기타"]}`}>
@@ -383,8 +383,10 @@ export default function MyWorkPage() {
 
       {/* 업무 추가 모달 */}
       {showAdd && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "85vh" }}>
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center"
+          style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
+            style={{ maxHeight: 'calc(85vh - env(safe-area-inset-bottom))' }}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
               <h2 className="font-semibold text-foreground">업무 추가</h2>
               <button onClick={() => setShowAdd(false)} className="text-muted-foreground hover:text-foreground">✕</button>

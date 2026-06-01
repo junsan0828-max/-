@@ -76,8 +76,9 @@ function FinancialDetailModal({ year, branchFilter, onClose }: { year: number; b
 
   return (
     <div className="fixed inset-0 z-[300] bg-black/80 flex flex-col">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border shrink-0">
+      {/* 헤더 - iOS 노치 safe area */}
+      <div className="flex items-center justify-between px-4 bg-card border-b border-border shrink-0"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)', paddingBottom: '0.75rem' }}>
         <div>
           <h2 className="font-bold text-foreground">경영 재무관리 대시보드</h2>
           <p className="text-xs text-muted-foreground mt-0.5">{year}년 · 연간 월별 재무 현황</p>
@@ -90,7 +91,8 @@ function FinancialDetailModal({ year, branchFilter, onClose }: { year: number; b
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center text-muted-foreground">로딩 중...</div>
       ) : (
-        <div className="flex-1 overflow-auto p-4 space-y-6">
+        <div className="flex-1 overflow-auto scroll-touch p-4 space-y-6"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)' }}>
 
           {/* ── 이번달 요약 카드 ── */}
           {(() => {

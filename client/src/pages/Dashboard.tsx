@@ -1052,8 +1052,8 @@ function TrainerDashboard() {
 
       {/* 이번달 마감 임박 회원 모달 */}
       {monthExpiringOpen && (
-        <div className="fixed inset-0 z-[200] bg-black/70 flex items-end md:items-center justify-center" onClick={() => setMonthExpiringOpen(false)}>
-          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[200] bg-black/70 flex items-end md:items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setMonthExpiringOpen(false)}>
+          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-md flex flex-col" style={{ maxHeight: 'calc(80vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
               <div>
                 <h2 className="font-semibold text-foreground">이번달 마감 임박</h2>

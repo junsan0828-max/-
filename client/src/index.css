@@ -42,4 +42,19 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+  /* iOS safe area helpers */
+  .safe-pb {
+    padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  }
+  .safe-pt {
+    padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
+  /* iOS momentum scroll */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+  }
+  /* prevent body horizontal scroll */
+  body {
+    overflow-x: hidden;
+  }
 }
