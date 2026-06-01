@@ -3427,9 +3427,16 @@ function AdminWorkshopView() {
                       <FIcon className="h-4 w-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-sm font-semibold">{f.name}</p>
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${sm.cls}`}>{sm.label}</span>
+                        {(() => {
+                          const tier = Object.entries(TIER_ITEMS).find(([, ids]) => ids.includes(f.id))?.[0];
+                          if (!tier) return null;
+                          const cfg = { free: "bg-emerald-100 text-emerald-700", pro: "bg-blue-100 text-blue-700", elite: "bg-amber-100 text-amber-700" } as Record<string, string>;
+                          const lbl = { free: "FREE", pro: "PRO", elite: "ELITE" } as Record<string, string>;
+                          return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cfg[tier]}`}>{lbl[tier]}</span>;
+                        })()}
                       </div>
                       <p className="text-[10px] text-muted-foreground">{f.catLabel}</p>
                       {f.usage ? (
