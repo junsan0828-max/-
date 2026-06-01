@@ -581,9 +581,9 @@ function ActiveWorkoutModal({
           <div className="flex items-center justify-between mb-1">
             <button
               onClick={() => { if (confirm("운동을 취소하시겠습니까? 저장되지 않습니다.")) onCancel(); }}
-              className="text-[10px] text-muted-foreground px-2 py-1 rounded-lg bg-muted/60 hover:bg-muted"
+              className="text-xs text-red-400 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 font-medium"
             >
-              취소
+              ✕ 취소
             </button>
             <p className={`text-xs font-medium ${paused ? "text-yellow-400" : "text-primary"}`}>
               {paused ? "일시정지" : "운동 중"}
@@ -670,6 +670,13 @@ function ActiveWorkoutModal({
             운동 종료 · {formatTime(elapsed)}
           </Button>
           <p className="text-xs text-muted-foreground text-center">종료하면 칼로리 리포트를 확인할 수 있어요</p>
+          <Button
+            variant="outline"
+            className="w-full h-11 text-sm font-medium text-muted-foreground border-border hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+            onClick={() => { if (confirm("운동을 취소하시겠습니까? 저장되지 않습니다.")) onCancel(); }}
+          >
+            운동 취소 (저장 안 함)
+          </Button>
         </div>
 
         {showVideo && <ExerciseVideoModal videoUrl={showVideo} onClose={() => setShowVideo(null)} />}
