@@ -966,7 +966,7 @@ async function start() {
   try {
     const dupResult = await pool.query(`
       SELECT
-        name,
+        trim(name) AS name,
         array_agg(id ORDER BY id ASC) AS ids
       FROM members
       WHERE length(regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')) >= 7

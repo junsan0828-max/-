@@ -3166,7 +3166,7 @@ const adminRouter = t.router({
       const results: { name: string; keepId: number; delId: number; status: "success" | "failed"; error?: string }[] = [];
 
       const dupResult = await pool.query(`
-        SELECT name, array_agg(id ORDER BY id ASC) AS ids
+        SELECT trim(name) AS name, array_agg(id ORDER BY id ASC) AS ids
         FROM members
         WHERE length(regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')) >= 7
         GROUP BY trim(name), regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')
