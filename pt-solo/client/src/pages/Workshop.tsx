@@ -2392,9 +2392,9 @@ const PREVIEW_FEATURES = [
 
 // ── 플랜 tier 매핑 ────────────────────────────────────────────────────────────
 const TIER_ITEMS: Record<"free" | "pro" | "elite", string[]> = {
-  free:  ["brand_page", "e_contract", "survey", "templates"],
+  free:  ["brand_page", "contract_kakao", "survey", "templates"],
   pro:   ["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal",
-          "booking", "report_branding", "contract_terms", "training_video", "contract_kakao"],
+          "booking", "report_branding", "contract_terms", "training_video", "e_contract"],
   elite: ["member_overview", "activity_stats", "data_migration", "kpi_report",
           "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis",
           "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"],
