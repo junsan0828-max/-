@@ -168,7 +168,7 @@ function TrainerList() {
                       {hasExpiring && (
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/25 font-medium">
-                            마감임박 {exp.total}명
+                            이번달 만료 {exp.total}명
                           </span>
                           {exp.rereg > 0 && (
                             <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">

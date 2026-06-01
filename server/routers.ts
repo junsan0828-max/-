@@ -3047,6 +3047,11 @@ const adminRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
+      const today = new Date();
+      const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
+
       const trainerList = await db
         .select({ id: trainers.id })
         .from(trainers);
@@ -3056,19 +3061,21 @@ const adminRouter = t.router({
           .select({
             id: members.id,
             renewalIntent: members.renewalIntent,
-            totalSessions: ptPackages.totalSessions,
-            usedSessions: ptPackages.usedSessions,
           })
           .from(members)
           .innerJoin(ptPackages, and(eq(ptPackages.memberId, members.id), eq(ptPackages.status, "active")))
-          .where(and(eq(members.trainerId, tid), eq(members.status, "active")));
+          .where(and(
+            eq(members.trainerId, tid),
+            eq(members.status, "active"),
+            sql`${ptPackages.expiryDate} >= ${monthStart}`,
+            sql`${ptPackages.expiryDate} < ${monthEnd}`,
+          ));
 
-        const expiring = rows.filter(r => (r.totalSessions - r.usedSessions) <= 8);
         return {
           trainerId: tid,
-          total: expiring.length,
-          rereg: expiring.filter(r => r.renewalIntent === "재등록예정").length,
-          churn: expiring.filter(r => r.renewalIntent === "이탈예정").length,
+          total: rows.length,
+          rereg: rows.filter(r => r.renewalIntent === "재등록예정").length,
+          churn: rows.filter(r => r.renewalIntent === "이탈예정").length,
         };
       }));
 
