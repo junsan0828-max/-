@@ -1406,11 +1406,13 @@ const ptRouter = t.router({
         ...(pkg ? { status: autoStatus } : {}),
       }).where(eq(ptPackages.id, packageId));
 
-      // paymentAmount 변경 시 연결된 revenue_entries도 갱신
-      if (fields.paymentAmount !== undefined && pkg) {
+      // paymentAmount 변경 시 연결된 revenue_entries 갱신 또는 신규 생성
+      if (fields.paymentAmount !== undefined && fields.paymentAmount > 0 && pkg) {
         const newAmount = fields.paymentAmount;
         const newUnpaid = fields.unpaidAmount ?? pkg.unpaidAmount ?? 0;
         const newPaid = Math.max(0, newAmount - newUnpaid);
+        const paymentDate = fields.paymentDate ?? pkg.paymentDate ?? new Date().toISOString().substring(0, 10);
+        const paymentMethod = fields.paymentMethod ?? pkg.paymentMethod ?? undefined;
         const existing = await db.select({ id: revenueEntries.id }).from(revenueEntries)
           .where(and(eq(revenueEntries.memberId, pkg.memberId), eq(revenueEntries.type, "PT")))
           .orderBy(desc(revenueEntries.createdAt)).limit(1);
@@ -1419,10 +1421,32 @@ const ptRouter = t.router({
             amount: newAmount,
             paidAmount: newPaid,
             unpaidAmount: newUnpaid,
-            ...(fields.paymentMethod ? { paymentMethod: fields.paymentMethod } : {}),
-            ...(fields.paymentDate ? { paymentDate: fields.paymentDate } : {}),
+            paymentMethod,
+            paymentDate,
             updatedAt: new Date().toISOString(),
           }).where(eq(revenueEntries.id, existing[0].id));
+        } else {
+          const memberRow = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId, trainerId: members.trainerId }).from(members).where(eq(members.id, pkg.memberId)).limit(1);
+          const m = memberRow[0];
+          await db.insert(revenueEntries).values({
+            memberId: pkg.memberId,
+            trainerId: pkg.trainerId ?? m?.trainerId ?? undefined,
+            createdBy: ctx.user.id,
+            branchId: m?.branchId ?? undefined,
+            customerName: m?.name,
+            phone: m?.phone,
+            programDetail: pkg.packageName ?? undefined,
+            sessions: pkg.totalSessions,
+            type: "PT",
+            subType: "재등록",
+            amount: newAmount,
+            discountAmount: 0,
+            paidAmount: newPaid,
+            unpaidAmount: newUnpaid,
+            paymentMethod,
+            paymentDate,
+            memo: pkg.paymentMemo ?? undefined,
+          });
         }
       }
 
