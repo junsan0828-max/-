@@ -377,9 +377,11 @@ interface ActiveExercise { name: string; sets: ActiveSet[]; done: boolean; video
 function ActiveWorkoutModal({
   log,
   onClose,
+  onCancel,
 }: {
   log: any;
   onClose: (durationMinutes: number, updatedExercises: Exercise[], caloriesBurned: number) => void;
+  onCancel: () => void;
 }) {
   const [step, setStep] = useState<"workout" | "result">("workout");
   const [elapsed, setElapsed] = useState(0);
@@ -576,9 +578,18 @@ function ActiveWorkoutModal({
       <DialogContent className="max-w-sm max-h-[92vh] overflow-y-auto p-0 [&>button]:hidden">
         {/* 타이머 헤더 */}
         <div className="bg-primary/10 border-b border-primary/20 px-4 py-4 text-center sticky top-0 z-10">
-          <p className={`text-xs font-medium mb-1 ${paused ? "text-yellow-400" : "text-primary"}`}>
-            {paused ? "일시정지" : "운동 중"}
-          </p>
+          <div className="flex items-center justify-between mb-1">
+            <button
+              onClick={() => { if (confirm("운동을 취소하시겠습니까? 저장되지 않습니다.")) onCancel(); }}
+              className="text-[10px] text-muted-foreground px-2 py-1 rounded-lg bg-muted/60 hover:bg-muted"
+            >
+              취소
+            </button>
+            <p className={`text-xs font-medium ${paused ? "text-yellow-400" : "text-primary"}`}>
+              {paused ? "일시정지" : "운동 중"}
+            </p>
+            <div className="w-10" />
+          </div>
           <p className={`text-4xl font-mono font-bold ${paused ? "text-yellow-400" : "text-foreground"}`}>
             {formatTime(elapsed)}
           </p>
@@ -1413,6 +1424,7 @@ export default function GymPlusWorkout() {
         <ActiveWorkoutModal
           log={activeLog}
           onClose={handleWorkoutFinish}
+          onCancel={() => setActiveLog(null)}
         />
       )}
     </div>
