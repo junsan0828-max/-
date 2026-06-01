@@ -929,7 +929,7 @@ export default function GymPlusWorkout() {
 
         {displayNotes && <p className="text-xs text-muted-foreground border-t border-border pt-2">{displayNotes}</p>}
 
-        {!isCheckIn && !isTrainerSent && parsedExercises.filter((e: any) => e.name).length > 0 && (
+        {!isCheckIn && parsedExercises.length > 0 && (
           <button
             onClick={() => setActiveLog(log)}
             className="w-full mt-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
