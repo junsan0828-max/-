@@ -78,6 +78,21 @@ export default function AdminMembers() {
     },
     onError: (e) => console.error("[fixMissingTransferees 오류]", e.message),
   });
+  const [mergeResult, setMergeResult] = useState<string | null>(null);
+  const mergeMutation = trpc.admin.mergeDuplicateMembers.useMutation({
+    onSuccess: (data) => {
+      const ok = data.results.filter(r => r.status === "success");
+      const fail = data.results.filter(r => r.status === "failed");
+      const lines = [
+        `병합 완료: ${ok.length}건`,
+        ...ok.map(r => `✅ ${r.name} (${r.delId}→${r.keepId})`),
+        ...fail.map(r => `❌ ${r.name} (${r.delId}→${r.keepId}): ${r.error}`),
+      ];
+      setMergeResult(lines.join("\n"));
+      if (ok.length > 0) utils.members.listAll.invalidate();
+    },
+    onError: (e) => setMergeResult(`오류: ${e.message}`),
+  });
   const { data: allMembers, isLoading } = trpc.members.listAll.useQuery(
     branchFilter ? { branchId: branchFilter } : undefined
   );
@@ -399,22 +414,29 @@ export default function AdminMembers() {
 
       {/* 중복 회원 알림 배너 */}
       {duplicateGroups.length > 0 && (
-        <button
-          onClick={() => setShowDuplicatesOnly(v => !v)}
-          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors ${
-            showDuplicatesOnly
-              ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-              : "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/15"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">⚠ 중복 회원 {duplicateGroups.length}건</span>
-            <span className="text-xs opacity-70">
-              {duplicateGroups.map(g => g[0].name).join(", ")}
-            </span>
+        <div className={`w-full rounded-xl border px-4 py-3 ${showDuplicatesOnly ? "bg-amber-500/20 border-amber-500/50" : "bg-amber-500/10 border-amber-500/30"}`}>
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={() => setShowDuplicatesOnly(v => !v)} className="flex items-center gap-2 flex-1 text-left text-amber-400">
+              <span className="text-sm font-semibold">⚠ 중복 회원 {duplicateGroups.length}건</span>
+              <span className="text-xs opacity-70">{duplicateGroups.map(g => g[0].name).join(", ")}</span>
+            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => { setMergeResult(null); mergeMutation.mutate(); }}
+                disabled={mergeMutation.isPending}
+                className="text-xs px-2.5 py-1 rounded-lg bg-amber-500 text-white font-medium hover:bg-amber-400 disabled:opacity-50"
+              >
+                {mergeMutation.isPending ? "병합 중..." : "통합 실행"}
+              </button>
+              <button onClick={() => setShowDuplicatesOnly(v => !v)} className="text-xs text-amber-400">
+                {showDuplicatesOnly ? "전체보기" : "중복만 보기"}
+              </button>
+            </div>
           </div>
-          <span className="text-xs shrink-0">{showDuplicatesOnly ? "전체보기" : "중복만 보기"}</span>
-        </button>
+          {mergeResult && (
+            <pre className="mt-2 text-[11px] text-amber-300/80 whitespace-pre-wrap leading-relaxed">{mergeResult}</pre>
+          )}
+        </div>
       )}
 
       {/* 검색 */}

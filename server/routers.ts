@@ -3157,6 +3157,71 @@ const adminRouter = t.router({
       return Object.fromEntries(summary.map(s => [s.trainerId, s]));
     }),
 
+  mergeDuplicateMembers: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { pool } = await import("./db");
+      const results: { name: string; keepId: number; delId: number; status: "success" | "failed"; error?: string }[] = [];
+
+      const dupResult = await pool.query(`
+        SELECT name, array_agg(id ORDER BY id ASC) AS ids
+        FROM members
+        WHERE length(regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')) >= 7
+        GROUP BY trim(name), regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')
+        HAVING COUNT(*) > 1
+      `);
+
+      for (const row of dupResult.rows) {
+        const keepId: number = row.ids[0];
+        const deleteIds: number[] = row.ids.slice(1);
+        for (const delId of deleteIds) {
+          try {
+            await pool.query(`DELETE FROM attendances WHERE "memberId" = $1 AND "attendDate" IN (SELECT "attendDate" FROM attendances WHERE "memberId" = $2)`, [delId, keepId]);
+            await pool.query(`UPDATE attendances SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+            await pool.query(`DELETE FROM attendance_checks WHERE "memberId" = $1 AND "checkDate" IN (SELECT "checkDate" FROM attendance_checks WHERE "memberId" = $2)`, [delId, keepId]);
+            await pool.query(`UPDATE attendance_checks SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+            const hasParQ = await pool.query(`SELECT id FROM par_q WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+            if (hasParQ.rows.length > 0) {
+              await pool.query(`DELETE FROM par_q WHERE "memberId" = $1`, [delId]);
+            } else {
+              await pool.query(`UPDATE par_q SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+            }
+            const gymPlusDelRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [delId]);
+            if (gymPlusDelRow.rows.length > 0) {
+              const gid = gymPlusDelRow.rows[0].id;
+              const gymPlusKeepRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+              if (gymPlusKeepRow.rows.length > 0) {
+                await pool.query(`DELETE FROM gym_plus_messages WHERE "gymPlusMemberId" = $1`, [gid]);
+                await pool.query(`DELETE FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1`, [gid]);
+                await pool.query(`DELETE FROM gym_plus_push_subscriptions WHERE "gymPlusMemberId" = $1`, [gid]);
+                await pool.query(`DELETE FROM gym_plus_members WHERE id = $1`, [gid]);
+              } else {
+                await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [keepId, gid]);
+              }
+            }
+            for (const [tbl, col] of [
+              ["pt_packages","memberId"],["pt_pauses","memberId"],["schedules","memberId"],
+              ["pt_session_logs","memberId"],["workout_memos","memberId"],["report_tokens","memberId"],
+              ["health_reports","memberId"],["pt_reports","memberId"],["payments","memberId"],
+              ["revenue_entries","memberId"],["lockers","memberId"],["uniforms","memberId"],["access_logs","memberId"],
+            ] as const) {
+              await pool.query(`UPDATE "${tbl}" SET "${col}" = $1 WHERE "${col}" = $2`, [keepId, delId]);
+            }
+            await pool.query(`UPDATE leads SET "registeredMemberId" = $1 WHERE "registeredMemberId" = $2`, [keepId, delId]);
+            await pool.query(`UPDATE transfer_contracts SET "transferorMemberId" = $1 WHERE "transferorMemberId" = $2`, [keepId, delId]);
+            await pool.query(`UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE "transfereeMemberId" = $2`, [keepId, delId]);
+            await pool.query(`DELETE FROM members WHERE id = $1`, [delId]);
+            results.push({ name: row.name, keepId, delId, status: "success" });
+          } catch (e: any) {
+            results.push({ name: row.name, keepId, delId, status: "failed", error: e?.message ?? String(e) });
+          }
+        }
+      }
+      return { total: dupResult.rows.length, results };
+    }),
+
   // 관리자: 전체 트레이너 활동 통계 비교 (월별)
   getTrainerActivityStats: protectedProcedure
     .input(z.object({ yearMonth: z.string() }))
