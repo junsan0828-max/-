@@ -2907,7 +2907,7 @@ const WS_CATALOG: WsCatDef[] = [
         tags: ["주관식·객관식", "척도 문항", "링크 공유"],
         useCases: ["상담 전 사전 정보 수집", "고객 맞춤 상담 준비", "설문 링크 배포"] },
       { id: "contract_kakao", icon: MessageCircle, name: "계약서 카카오톡 공유", shortDesc: "계약서 링크 카카오톡 전달", status: "coming_soon",
-        description: "작성된 계약서를 카카오톡으로 바로 공유하세요. 회원이 카카오톡에서 계약서를 확인하고 서명까지 완료할 수 있습니다.",
+        description: "상담실에서 작성·서명한 계약서를 카카오톡으로 회원에게 바로 전달하세요. 회원이 언제든 계약 내용을 다시 확인할 수 있습니다.",
         tags: ["카카오톡 공유", "계약서 링크", "빠른 전달"],
         useCases: ["비대면 계약 체결", "원격 회원 등록", "계약 프로세스 간소화"] },
       { id: "e_contract", icon: FileSignature, name: "비대면 전자계약", shortDesc: "원격 전자계약 및 비대면 등록", status: "active",
