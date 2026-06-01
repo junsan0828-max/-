@@ -2984,6 +2984,7 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
       case "survey":        return <SurveyBuilder />;
       case "contract_terms": return <ContractTermsEditor />;
       case "e_contract":        return <EContractManager />;
+      case "contract_kakao":    return <EContractManager />;
       case "refund_contract":   return <RefundContractManager />;
       case "transfer_contract": return <TransferContractManager />;
       default:                  return null;
@@ -3416,6 +3417,8 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                   {feature.id === "templates"         && <WorkoutTemplateEditor />}
                   {feature.id === "survey"            && <SurveyBuilder />}
                   {feature.id === "contract_terms"    && <ContractTermsEditor />}
+                  {feature.id === "e_contract"         && <EContractManager />}
+                  {feature.id === "contract_kakao"    && <EContractManager />}
                   {feature.id === "refund_contract"   && <RefundContractManager />}
                   {feature.id === "transfer_contract" && <TransferContractManager />}
                 </div>
