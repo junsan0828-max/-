@@ -481,7 +481,6 @@ function TrainingLogTab() {
 }
 
 export default function PT() {
-  const [tab, setTab] = useState<"members" | "log">("members");
   const { data: members } = trpc.members.list.useQuery();
 
   return (
@@ -489,29 +488,10 @@ export default function PT() {
       <TabBanner tabKey="pt" />
       <div>
         <h1 className="text-xl font-bold">회원관리</h1>
+        <p className="text-sm text-muted-foreground">총 {members?.length ?? 0}명</p>
       </div>
 
-      <div className="flex gap-1 bg-accent rounded-xl p-1">
-        <button
-          onClick={() => setTab("members")}
-          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-            tab === "members" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          수업 회원 관리
-          <span className="ml-1.5 text-xs opacity-60">{members?.length ?? 0}</span>
-        </button>
-        <button
-          onClick={() => setTab("log")}
-          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-            tab === "log" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          트레이닝 일지
-        </button>
-      </div>
-
-      {tab === "members" ? <MembersTab /> : <TrainingLogTab />}
+      <MembersTab />
     </div>
   );
 }
