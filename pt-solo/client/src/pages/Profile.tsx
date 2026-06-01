@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users } from "lucide-react";
+import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
+import OnboardingSurveyModal from "@/components/OnboardingSurveyModal";
 
 const TYPE_LABEL: Record<string, string> = {
   admin_grant: "관리자 지급",
@@ -102,6 +103,7 @@ export default function Profile() {
   const [showChargeForm, setShowChargeForm] = useState(false);
   const [showPointDetail, setShowPointDetail] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
+  const [showSurveyModal, setShowSurveyModal] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -563,6 +565,34 @@ export default function Profile() {
           </form>
         </CardContent>
       </Card>
+
+      {/* 성장 설문 */}
+      <Card className="bg-card border-border">
+        <CardContent className="pt-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <ClipboardList className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">30초 성장 설문</p>
+                <p className="text-xs text-muted-foreground">
+                  {(profile as any)?.onboardingSurveyDone
+                    ? "완료됨 · 다시 응답할 수 있습니다"
+                    : "미완료 · 완료 시 300P 지급"}
+                </p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setShowSurveyModal(true)}>
+              {(profile as any)?.onboardingSurveyDone ? "다시 하기" : "시작하기"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {showSurveyModal && (
+        <OnboardingSurveyModal onClose={() => setShowSurveyModal(false)} />
+      )}
     </div>
   );
 }
