@@ -839,7 +839,7 @@ export default function LeadsPage() {
         const rows = (leadsData ?? []).filter(r => r.lead.status === statDetailModal);
         return (
           <div className="fixed inset-0 z-[300] bg-black/70 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setStatDetailModal(null)}>
-            <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(75vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+            <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(75svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
                 <div className="flex items-center gap-2">
                   <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.color}`}>
@@ -911,7 +911,7 @@ export default function LeadsPage() {
         <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center"
           style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
           <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
-            style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
+            style={{ maxHeight: 'calc(100svh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
             {/* 헤더 */}
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
               <h2 className="font-bold text-foreground">회원 계약서</h2>
@@ -971,12 +971,13 @@ export default function LeadsPage() {
             </div>
 
             {/* 하단 확인 버튼 */}
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            <div className="border-t border-border shrink-0 space-y-2 bg-card"
+              style={{ padding: '0.75rem 1rem', paddingBottom: 'max(env(safe-area-inset-bottom), 0.75rem)' }}>
               <button
                 type="button"
                 onClick={confirmRegistration}
                 disabled={!agreedTerms || !agreedPrivacy}
-                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 active:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 완료
               </button>
               <button type="button" onClick={() => setShowContract(false)}
@@ -1057,7 +1058,7 @@ export default function LeadsPage() {
         <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center"
           style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
           <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
-            style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
+            style={{ maxHeight: 'calc(100svh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
               <div>
                 <h2 className="font-bold text-foreground">등록 상세 정보</h2>
@@ -1310,9 +1311,10 @@ export default function LeadsPage() {
               </div>
             </div>
 
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            <div className="border-t border-border shrink-0 space-y-2 bg-card"
+              style={{ padding: '0.75rem 1rem', paddingBottom: 'max(env(safe-area-inset-bottom), 0.75rem)' }}>
               <button type="button" onClick={saveRegistration}
-                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors">
+                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 active:bg-emerald-700 transition-colors">
                 등록 완료
               </button>
               <button type="button" onClick={() => setShowRegistration(false)}
@@ -1353,7 +1355,7 @@ export default function LeadsPage() {
       {/* 재등록 모달 */}
       {directRegMode === "재등록" && (
         <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setDirectRegMode(null)}>
-          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(90vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(90svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
                 {reRegMemberId && (
@@ -1662,10 +1664,11 @@ export default function LeadsPage() {
                   </div>
 
                   {/* 제출 버튼 */}
-                  <div className="p-4 border-t border-border shrink-0">
+                  <div className="border-t border-border shrink-0 bg-card"
+                    style={{ padding: '0.75rem 1rem', paddingBottom: 'max(env(safe-area-inset-bottom), 0.75rem)' }}>
                     <button type="button"
                       onClick={openReRegSig}
-                      className="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
+                      className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
                       전자서명 후 재등록
                     </button>
                   </div>
@@ -1679,7 +1682,7 @@ export default function LeadsPage() {
       {/* 바로등록 모달 */}
       {showDirectReg && (
         <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setShowDirectReg(false)}>
-          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(90vh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(90svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border shrink-0">
               <h2 className="font-semibold text-foreground">회원 바로등록</h2>
               <button onClick={() => setShowDirectReg(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
@@ -2011,10 +2014,11 @@ export default function LeadsPage() {
                 </div>
               )}
             </div>
-            <div className="p-4 border-t border-border shrink-0">
+            <div className="border-t border-border shrink-0 bg-card"
+              style={{ padding: '0.75rem 1rem', paddingBottom: 'max(env(safe-area-inset-bottom), 0.75rem)' }}>
               <button type="button" disabled={directRegMutation.isPending}
                 onClick={openDirectSig}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
+                className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-50">
                 {directRegMutation.isPending ? "등록 중..." : "전자서명 후 등록"}
               </button>
             </div>
@@ -2024,28 +2028,34 @@ export default function LeadsPage() {
 
       {/* 상담 폼 모달 */}
       {showForm && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center px-4"
-          style={{ paddingTop: 'max(env(safe-area-inset-top), 1rem)', paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)' }}>
-          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full max-w-md flex flex-col"
-            style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
-            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end justify-center"
+          style={{
+            paddingLeft: '3vw', paddingRight: '3vw',
+            paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-[520px] flex flex-col modal-sheet-h overflow-hidden">
+            {/* 헤더 */}
+            <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
               <h2 className="font-semibold text-foreground">{editId ? "상담 수정" : "상담 일지"}</h2>
-              <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">✕</button>
+              <button onClick={resetForm} className="text-muted-foreground hover:text-foreground p-1">✕</button>
             </div>
 
-            <div className="overflow-y-auto flex-1 p-4 space-y-4">
+            {/* 스크롤 내용 */}
+            <div className="overflow-y-auto scroll-touch flex-1 p-4 space-y-4 overscroll-contain">
 
               {/* 이름 / 연락처 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">이름 *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="홍길동"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-[16px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">연락처</label>
                   <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    inputMode="tel"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-[16px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
 
@@ -2056,7 +2066,7 @@ export default function LeadsPage() {
                   <div className="flex gap-2 mt-1">
                     {["남", "여"].map(g => (
                       <button key={g} type="button" onClick={() => setForm(f => ({ ...f, gender: f.gender === g ? "" : g }))}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.gender === g ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.gender === g ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                         {g}
                       </button>
                     ))}
@@ -2065,7 +2075,7 @@ export default function LeadsPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">연령대</label>
                   <select value={form.ageGroup} onChange={e => setForm(f => ({ ...f, ageGroup: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
                     {AGE_OPTIONS.map(a => <option key={a}>{a}</option>)}
                   </select>
@@ -2078,7 +2088,7 @@ export default function LeadsPage() {
                 <div className="flex gap-2 mt-1">
                   {MAIN_TYPES.map(t => (
                     <button key={t} type="button" onClick={() => toggleMainType(t)}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.consultationTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.consultationTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                       {t}
                     </button>
                   ))}
@@ -2093,7 +2103,7 @@ export default function LeadsPage() {
                     {INTEREST_OPTIONS.map(o => (
                       <button key={o} type="button"
                         onClick={() => setForm(f => ({ ...f, interestType: f.interestType === o ? "" : o, exercisePurposes: o !== "PT" ? [] : f.exercisePurposes }))}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.interestType === o ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.interestType === o ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                         {o}
                       </button>
                     ))}
@@ -2111,7 +2121,7 @@ export default function LeadsPage() {
                             const exists = f.exercisePurposes.includes(p);
                             return { ...f, exercisePurposes: exists ? f.exercisePurposes.filter(x => x !== p) : [...f.exercisePurposes, p] };
                           })}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${form.exercisePurposes.includes(p) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                          className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${form.exercisePurposes.includes(p) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                           {p}
                         </button>
                       ))}
@@ -2125,12 +2135,12 @@ export default function LeadsPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">상담일</label>
                   <input type="date" value={form.consultationDate} onChange={e => setForm(f => ({ ...f, consultationDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">유입 채널</label>
                   <select value={form.channelId ?? ""} onChange={e => setForm(f => ({ ...f, channelId: e.target.value ? Number(e.target.value) : undefined }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
                     {(channels ?? []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -2190,22 +2200,23 @@ export default function LeadsPage() {
 
             </div>
 
-            {/* 하단 상태 저장 버튼 */}
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            {/* 하단 버튼 — sticky + safe area */}
+            <div className="border-t border-border shrink-0 space-y-2 bg-card"
+              style={{ padding: '0.75rem 1rem', paddingBottom: 'max(env(safe-area-inset-bottom), 0.75rem)' }}>
               <p className="text-xs text-muted-foreground text-center">아래 버튼을 누르면 상담 일지가 저장됩니다</p>
               <div className="flex gap-2">
                 <button type="button" onClick={() => handleSave("followup")}
-                  className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
+                  className="flex-1 bg-blue-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-blue-600 active:bg-blue-700 transition-colors">
                   상담완료
                 </button>
                 <button type="button" onClick={editId && editHasSig ? () => handleSave("registered") : openContract}
-                  className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
+                  className="flex-1 bg-emerald-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-emerald-600 active:bg-emerald-700 transition-colors">
                   등록완료
                 </button>
               </div>
               {editId && !isSubAdmin && (
                 <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
-                  className="w-full border border-red-500/30 text-red-400 rounded-lg py-2 text-sm font-medium hover:bg-red-500/10">
+                  className="w-full border border-red-500/30 text-red-400 rounded-xl py-2.5 text-sm font-medium hover:bg-red-500/10 active:bg-red-500/20">
                   삭제
                 </button>
               )}
@@ -2396,7 +2407,7 @@ function SignedContractModal({
     <div className="fixed inset-0 z-[310] bg-black/80 flex items-center justify-center"
       style={{ padding: 'max(env(safe-area-inset-top), 1rem) 1rem max(env(safe-area-inset-bottom), 1rem)' }}>
       <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col"
-        style={{ maxHeight: 'calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
+        style={{ maxHeight: 'calc(100svh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem))' }}>
         {/* 헤더 */}
         <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center gap-2 shrink-0 rounded-t-2xl">
           <CheckCircle2 className="w-5 h-5 text-emerald-400" />

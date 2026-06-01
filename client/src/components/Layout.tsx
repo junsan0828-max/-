@@ -212,7 +212,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex bg-background overflow-hidden" style={{ height: '100dvh', minHeight: '100svh' }}>
 
       {/* 모바일 드로어 오버레이 (전체 계정) */}
       {drawerOpen && (

@@ -591,7 +591,7 @@ export default function AdminMembers() {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setStatModal(null)}>
-            <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: 'calc(75vh - env(safe-area-inset-bottom))' }} onClick={(e) => e.stopPropagation()}>
+            <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: 'calc(75svh - env(safe-area-inset-bottom))' }} onClick={(e) => e.stopPropagation()}>
               {/* 모달 헤더 */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="font-semibold text-sm">{labelMap[statModal]} <span className="text-muted-foreground font-normal">({modalMembers.length}명)</span></span>
