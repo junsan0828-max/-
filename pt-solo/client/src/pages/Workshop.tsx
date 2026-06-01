@@ -3408,13 +3408,15 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                   <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">라이브 미리보기</span>
                 </div>
                 <div className="p-4">
-                  {feature.id === "brand_page"      && <BrandPageEditor />}
-                  {feature.id === "fitstep_plus"    && <AdminFspLimitsPanel />}
-                  {feature.id === "booking"         && <BookingFeaturePanel />}
-                  {feature.id === "report_branding" && <ReportBrandingEditor />}
-                  {feature.id === "templates"       && <WorkoutTemplateEditor />}
-                  {feature.id === "survey"          && <SurveyBuilder />}
-                  {feature.id === "contract_terms"  && <ContractTermsEditor />}
+                  {feature.id === "brand_page"        && <BrandPageEditor />}
+                  {feature.id === "fitstep_plus"      && <AdminFspLimitsPanel />}
+                  {feature.id === "booking"           && <BookingFeaturePanel />}
+                  {feature.id === "report_branding"   && <ReportBrandingEditor />}
+                  {feature.id === "templates"         && <WorkoutTemplateEditor />}
+                  {feature.id === "survey"            && <SurveyBuilder />}
+                  {feature.id === "contract_terms"    && <ContractTermsEditor />}
+                  {feature.id === "refund_contract"   && <RefundContractManager />}
+                  {feature.id === "transfer_contract" && <TransferContractManager />}
                 </div>
               </div>
             )}
