@@ -1384,7 +1384,7 @@ const ptRouter = t.router({
       const { packageId, ...fields } = input;
 
       // usedSessions 변경 시 status 자동 조정
-      const pkg = (fields.totalSessions !== undefined || fields.usedSessions !== undefined || fields.paymentAmount !== undefined || fields.paymentMethod !== undefined)
+      const pkg = (fields.totalSessions !== undefined || fields.usedSessions !== undefined || fields.paymentAmount !== undefined || fields.unpaidAmount !== undefined || fields.paymentMethod !== undefined)
         ? (await db.select().from(ptPackages).where(eq(ptPackages.id, packageId)).limit(1))[0]
         : null;
 
@@ -1406,47 +1406,49 @@ const ptRouter = t.router({
         ...(pkg ? { status: autoStatus } : {}),
       }).where(eq(ptPackages.id, packageId));
 
-      // paymentAmount 변경 시 연결된 revenue_entries 갱신 또는 신규 생성
-      if (fields.paymentAmount !== undefined && fields.paymentAmount > 0 && pkg) {
-        const newAmount = fields.paymentAmount;
+      // paymentAmount 또는 unpaidAmount 변경 시 revenue_entries paidAmount 동기화
+      if ((fields.paymentAmount !== undefined || fields.unpaidAmount !== undefined) && pkg) {
+        const newAmount = fields.paymentAmount ?? pkg.paymentAmount ?? 0;
         const newUnpaid = fields.unpaidAmount ?? pkg.unpaidAmount ?? 0;
         const newPaid = Math.max(0, newAmount - newUnpaid);
         const paymentDate = fields.paymentDate ?? pkg.paymentDate ?? new Date().toISOString().substring(0, 10);
         const paymentMethod = fields.paymentMethod ?? pkg.paymentMethod ?? undefined;
-        const existing = await db.select({ id: revenueEntries.id }).from(revenueEntries)
-          .where(and(eq(revenueEntries.memberId, pkg.memberId), eq(revenueEntries.type, "PT")))
-          .orderBy(desc(revenueEntries.createdAt)).limit(1);
-        if (existing.length > 0) {
-          await db.update(revenueEntries).set({
-            amount: newAmount,
-            paidAmount: newPaid,
-            unpaidAmount: newUnpaid,
-            paymentMethod,
-            paymentDate,
-            updatedAt: new Date().toISOString(),
-          }).where(eq(revenueEntries.id, existing[0].id));
-        } else {
-          const memberRow = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId, trainerId: members.trainerId }).from(members).where(eq(members.id, pkg.memberId)).limit(1);
-          const m = memberRow[0];
-          await db.insert(revenueEntries).values({
-            memberId: pkg.memberId,
-            trainerId: pkg.trainerId ?? m?.trainerId ?? undefined,
-            createdBy: ctx.user.id,
-            branchId: m?.branchId ?? undefined,
-            customerName: m?.name,
-            phone: m?.phone,
-            programDetail: pkg.packageName ?? undefined,
-            sessions: pkg.totalSessions,
-            type: "PT",
-            subType: "재등록",
-            amount: newAmount,
-            discountAmount: 0,
-            paidAmount: newPaid,
-            unpaidAmount: newUnpaid,
-            paymentMethod,
-            paymentDate,
-            memo: pkg.paymentMemo ?? undefined,
-          });
+        if (newAmount > 0) {
+          const existing = await db.select({ id: revenueEntries.id }).from(revenueEntries)
+            .where(and(eq(revenueEntries.memberId, pkg.memberId), eq(revenueEntries.type, "PT")))
+            .orderBy(desc(revenueEntries.createdAt)).limit(1);
+          if (existing.length > 0) {
+            await db.update(revenueEntries).set({
+              amount: newAmount,
+              paidAmount: newPaid,
+              unpaidAmount: newUnpaid,
+              paymentMethod,
+              paymentDate,
+              updatedAt: new Date().toISOString(),
+            }).where(eq(revenueEntries.id, existing[0].id));
+          } else {
+            const memberRow = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId, trainerId: members.trainerId }).from(members).where(eq(members.id, pkg.memberId)).limit(1);
+            const m = memberRow[0];
+            await db.insert(revenueEntries).values({
+              memberId: pkg.memberId,
+              trainerId: pkg.trainerId ?? m?.trainerId ?? undefined,
+              createdBy: ctx.user.id,
+              branchId: m?.branchId ?? undefined,
+              customerName: m?.name,
+              phone: m?.phone,
+              programDetail: pkg.packageName ?? undefined,
+              sessions: pkg.totalSessions,
+              type: "PT",
+              subType: "재등록",
+              amount: newAmount,
+              discountAmount: 0,
+              paidAmount: newPaid,
+              unpaidAmount: newUnpaid,
+              paymentMethod,
+              paymentDate,
+              memo: pkg.paymentMemo ?? undefined,
+            });
+          }
         }
       }
 
