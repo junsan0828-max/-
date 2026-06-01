@@ -2390,6 +2390,40 @@ const PREVIEW_FEATURES = [
   },
 ];
 
+// ── 플랜 tier 매핑 ────────────────────────────────────────────────────────────
+const TIER_ITEMS: Record<"free" | "pro" | "elite", string[]> = {
+  free:  ["brand_page", "e_contract", "survey", "templates"],
+  pro:   ["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal",
+          "booking", "report_branding", "contract_terms", "training_video", "contract_kakao"],
+  elite: ["member_overview", "activity_stats", "data_migration", "kpi_report",
+          "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis",
+          "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"],
+};
+
+const TIER_META = {
+  free: {
+    emoji: "🆓", label: "FREE", limit: "최대 15명",
+    desc: "무료로 시작하는 기본 관리 도구",
+    headerCls: "bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/20",
+    badgeCls: "bg-emerald-500 text-white",
+    baseFeatures: ["회원관리", "출석 체크", "수업 관리", "상담실", "건강보고서"],
+  },
+  pro: {
+    emoji: "💙", label: "PRO", limit: "최대 30명",
+    desc: "전문가 이미지 + 회원 경험 강화",
+    headerCls: "bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20",
+    badgeCls: "bg-blue-500 text-white",
+    baseFeatures: null,
+  },
+  elite: {
+    emoji: "👑", label: "ELITE", limit: "최대 50명",
+    desc: "사업 성장을 위한 분석 & 자동화",
+    headerCls: "bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/20",
+    badgeCls: "bg-amber-500 text-white",
+    baseFeatures: null,
+  },
+} as const;
+
 // ── 작업실 기능 카탈로그 ───────────────────────────────────────────────────────
 
 type WsItemStatus = "active" | "coming_soon" | "addon_fsp" | "addon_premium";
@@ -3434,37 +3468,25 @@ function AdminWorkshopView() {
 // ── 스토어 카드 (기능 구매 탭용) ──────────────────────────────────────────────
 function WorkshopStoreCard({ item, onClick }: { item: WsItem; onClick: () => void }) {
   const Icon = item.icon;
-  const storeMeta: Record<WsItemStatus, { label: string; cls: string; action: string }> = {
-    active:        { label: "✓ 포함",   cls: "bg-green-100 text-green-700",  action: "자세히" },
-    coming_soon:   { label: "출시 예정", cls: "bg-muted text-muted-foreground", action: "미리보기" },
-    addon_fsp:     { label: "ADD-ON",   cls: "bg-blue-100 text-blue-600",    action: "구매하기" },
-    addon_premium: { label: "PREMIUM",  cls: "bg-amber-100 text-amber-600",  action: "구매하기" },
-  };
-  const sm = storeMeta[item.status];
+  const isActive = item.status === "active";
 
   return (
     <button onClick={onClick}
-      className="w-full bg-card border border-border rounded-2xl p-4 text-left hover:border-primary/30 hover:bg-primary/[0.02] active:scale-[0.98] transition-all duration-150">
-      <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.status === "active" ? "bg-primary/10" : "bg-muted/60"}`}>
-          <Icon className={`h-5 w-5 ${item.status === "active" ? "text-primary" : "text-muted-foreground"}`} />
+      className="w-full bg-card px-4 py-3.5 text-left hover:bg-accent/30 active:bg-accent/50 transition-colors">
+      <div className="flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isActive ? "bg-primary/10" : "bg-muted/50"}`}>
+          <Icon className={`h-4.5 w-4.5 h-[18px] w-[18px] ${isActive ? "text-primary" : "text-muted-foreground"}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <p className="text-sm font-semibold">{item.name}</p>
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${sm.cls}`}>{sm.label}</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{item.shortDesc}</p>
-          {(item.status === "addon_fsp" || item.status === "addon_premium") && (
-            <p className="text-[10px] text-muted-foreground/70 mt-1">별도 구매 필요</p>
-          )}
+          <p className={`text-sm font-semibold ${!isActive ? "text-foreground/60" : ""}`}>{item.name}</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-1 mt-0.5">{item.shortDesc}</p>
         </div>
-        <div className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors mt-0.5
-          ${item.status === "active" ? "bg-primary/10 text-primary hover:bg-primary/20"
-          : item.status === "coming_soon" ? "bg-muted text-muted-foreground"
-          : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
-          {sm.action}
-        </div>
+        <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          isActive ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400" :
+                     "bg-muted text-muted-foreground"
+        }`}>
+          {isActive ? "✓ 포함" : "준비 중"}
+        </span>
       </div>
     </button>
   );
@@ -3678,35 +3700,56 @@ function WorkshopContent() {
         </button>
       </div>
 
-      {/* ── 기능 구매 탭 ─────────────────────────────────────── */}
+      {/* ── 기능 구매 탭 (플랜별) ──────────────────────────────── */}
       {wsTab === "store" && (
-        <div className="space-y-6 pb-6">
-          {WS_CATALOG.map(cat => (
-            <div key={cat.key}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className={`w-6 h-6 rounded-lg ${cat.bgCls} flex items-center justify-center`}>
-                  <cat.icon className={`h-3.5 w-3.5 ${cat.iconCls}`} />
-                </div>
-                <p className="text-sm font-bold">{cat.label}</p>
-                <span className="text-[10px] text-muted-foreground ml-auto">
-                  {cat.items.filter(i => i.status === "active").length}/{cat.items.length} 이용 가능
-                </span>
-              </div>
-              <div className="space-y-2">
-                {cat.items.map(item => (
-                  <WorkshopStoreCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="space-y-5 pb-6">
+          {(["free", "pro", "elite"] as const).map(tierKey => {
+            const meta = TIER_META[tierKey];
+            const allItems = WS_CATALOG.flatMap(c => c.items);
+            const tierItemList = TIER_ITEMS[tierKey]
+              .map(id => allItems.find(i => i.id === id))
+              .filter(Boolean) as WsItem[];
 
-          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 text-center space-y-1.5">
-            <p className="text-sm font-semibold">ADD-ON · PREMIUM 기능</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              추가 기능은 FIT STEP 포인트로 구매할 수 있습니다.<br />
-              출시 시 알림을 받으려면 문의해 주세요.
-            </p>
-          </div>
+            return (
+              <div key={tierKey} className={`rounded-2xl border overflow-hidden ${meta.headerCls}`}>
+                {/* 플랜 헤더 */}
+                <div className={`px-4 py-3 border-b ${meta.headerCls}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`text-[11px] font-black px-2.5 py-1 rounded-lg ${meta.badgeCls}`}>{meta.label}</span>
+                      <div>
+                        <p className="text-sm font-bold text-foreground">{meta.emoji} {meta.desc}</p>
+                        <p className="text-[11px] text-muted-foreground">{meta.limit}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* FREE 기본 기능 chips */}
+                  {meta.baseFeatures && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      <span className="text-[10px] text-muted-foreground font-semibold self-center">기본 포함:</span>
+                      {meta.baseFeatures.map(f => (
+                        <span key={f} className="text-[11px] bg-white/70 dark:bg-card/60 border border-border/50 px-2 py-0.5 rounded-full font-medium text-foreground/80">
+                          ✓ {f}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 기능 카드 목록 */}
+                <div className="bg-card divide-y divide-border/40">
+                  {tierItemList.map(item => (
+                    <WorkshopStoreCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <p className="text-[11px] text-muted-foreground text-center">
+            준비 중 기능은 출시 시 자동으로 활성화됩니다
+          </p>
         </div>
       )}
 
