@@ -6,6 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+const PERIOD_PRICES: Record<string, number> = {
+  "1개월": 80000,
+  "3개월": 159000,
+  "6개월": 216000,
+  "12개월": 312000,
+};
+
 const membershipTypeLabel: Record<string, string> = {
   general: "일반회원",
   premium: "프리미엄",
@@ -190,7 +197,7 @@ export default function GymPlusProfile() {
 
   // 재등록 신청 모달
   const [showRenewal, setShowRenewal] = useState(false);
-  const [renewalStep, setRenewalStep] = useState<1 | 2 | 3 | 4>(1);
+  const [renewalStep, setRenewalStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [signatureData, setSignatureData] = useState<string>("");
   const [renewalForm, setRenewalForm] = useState({
     requestedPeriod: "1개월",
@@ -200,6 +207,7 @@ export default function GymPlusProfile() {
     agreedToTerms: false,
     agreedPrivacy: false,
     agreedMarketing: false,
+    paymentMethod: "",
   });
   const [contractDate, setContractDate] = useState("");
 
@@ -214,7 +222,7 @@ export default function GymPlusProfile() {
   const requestRenewal = trpc.gymPlus.requestRenewal.useMutation({
     onSuccess: () => {
       utils.gymPlus.memberMe.invalidate();
-      setRenewalStep(4);
+      setRenewalStep(5);
     },
     onError: (e) => toast.error(e.message || "신청 실패"),
   });
@@ -278,6 +286,7 @@ export default function GymPlusProfile() {
       agreedToTerms: false,
       agreedPrivacy: false,
       agreedMarketing: false,
+      paymentMethod: "",
     }));
     setContractDate(new Date().toLocaleDateString("ko-KR"));
     setSignatureData("");
@@ -297,12 +306,16 @@ export default function GymPlusProfile() {
       return;
     }
     const bonus = getRenewalBonus(daysLeft);
+    const notesWithPayment = [
+      renewalForm.paymentMethod ? `결제방법: ${renewalForm.paymentMethod}` : "",
+      renewalForm.notes,
+    ].filter(Boolean).join("\n");
     requestRenewal.mutate({
       requestedPeriod: renewalForm.requestedPeriod,
       bonusDays: bonus.days,
       memberName: renewalForm.memberName || undefined,
       memberPhone: renewalForm.memberPhone || undefined,
-      notes: renewalForm.notes || undefined,
+      notes: notesWithPayment || undefined,
       agreedToTerms: 1,
       agreedPrivacy: 1,
       agreedMarketing: renewalForm.agreedMarketing ? 1 : 0,
@@ -683,9 +696,12 @@ export default function GymPlusProfile() {
                       <div className="grid grid-cols-2 gap-2">
                         {["1개월", "3개월", "6개월", "12개월"].map(p => (
                           <button key={p} type="button"
-                            className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${renewalForm.requestedPeriod === p ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
+                            className={`py-2.5 rounded-xl border text-sm font-medium transition-colors flex flex-col items-center gap-0.5 ${renewalForm.requestedPeriod === p ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
                             onClick={() => setRenewalForm(f => ({ ...f, requestedPeriod: p }))}
-                          >{p}</button>
+                          >
+                            <span>{p}</span>
+                            <span className="text-xs font-normal">{PERIOD_PRICES[p]?.toLocaleString()}원</span>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -717,8 +733,93 @@ export default function GymPlusProfile() {
                 </>
               )}
 
-              {/* 단계 2: 약관 동의 */}
+              {/* 단계 2: 결제 방법 선택 */}
               {renewalStep === 2 && (
+                <>
+                  <DialogHeader>
+                    <h2 className="font-bold text-base">💳 결제 방법 선택</h2>
+                    <p className="text-xs text-muted-foreground">결제 금액 및 방법을 확인해 주세요</p>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-1">
+                    {/* 결제 금액 안내 */}
+                    <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-center">
+                      <p className="text-xs text-muted-foreground mb-1">{renewalForm.requestedPeriod} 이용권</p>
+                      <p className="text-2xl font-bold text-primary">{PERIOD_PRICES[renewalForm.requestedPeriod]?.toLocaleString()}원</p>
+                    </div>
+
+                    {/* 결제 방법 선택 */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">결제 방법을 선택해 주세요</Label>
+
+                      {/* 계좌이체 */}
+                      <button type="button"
+                        onClick={() => setRenewalForm(f => ({ ...f, paymentMethod: "계좌이체" }))}
+                        className={`w-full p-3 rounded-xl border text-left transition-colors ${renewalForm.paymentMethod === "계좌이체" ? "border-primary/50 bg-primary/10" : "border-border bg-card"}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">🏦</span>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold">계좌이체</p>
+                            <p className="text-xs text-muted-foreground">카카오뱅크 3333-05-2664409</p>
+                            <p className="text-xs text-muted-foreground">예금주: (자이언트짐)</p>
+                          </div>
+                          {renewalForm.paymentMethod === "계좌이체" && <span className="text-primary text-sm font-bold">✓</span>}
+                        </div>
+                      </button>
+
+                      {/* 계좌이체 선택 시 계좌번호 복사 버튼 표시 */}
+                      {renewalForm.paymentMethod === "계좌이체" && (
+                        <button type="button"
+                          onClick={() => { navigator.clipboard.writeText("333305266409"); toast.success("계좌번호가 복사되었습니다"); }}
+                          className="w-full py-2 rounded-lg bg-yellow-400/20 border border-yellow-400/30 text-yellow-500 text-xs font-semibold"
+                        >
+                          📋 계좌번호 복사하기
+                        </button>
+                      )}
+
+                      {/* 카드 결제 */}
+                      <button type="button"
+                        onClick={() => setRenewalForm(f => ({ ...f, paymentMethod: "카드" }))}
+                        className={`w-full p-3 rounded-xl border text-left transition-colors ${renewalForm.paymentMethod === "카드" ? "border-primary/50 bg-primary/10" : "border-border bg-card"}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">💳</span>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold">카드 결제</p>
+                            <p className="text-xs text-muted-foreground">센터 방문 시 결제 가능합니다</p>
+                          </div>
+                          {renewalForm.paymentMethod === "카드" && <span className="text-primary text-sm font-bold">✓</span>}
+                        </div>
+                      </button>
+
+                      {/* 지역화폐 */}
+                      <button type="button"
+                        onClick={() => setRenewalForm(f => ({ ...f, paymentMethod: "지역화폐" }))}
+                        className={`w-full p-3 rounded-xl border text-left transition-colors ${renewalForm.paymentMethod === "지역화폐" ? "border-primary/50 bg-primary/10" : "border-border bg-card"}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">🏪</span>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold">지역화폐</p>
+                            <p className="text-xs text-muted-foreground">센터 방문 시 결제 가능합니다</p>
+                          </div>
+                          {renewalForm.paymentMethod === "지역화폐" && <span className="text-primary text-sm font-bold">✓</span>}
+                        </div>
+                      </button>
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button variant="outline" className="flex-1 h-9" onClick={() => setRenewalStep(1)}>← 이전</Button>
+                      <Button className="flex-1 h-9" disabled={!renewalForm.paymentMethod} onClick={() => setRenewalStep(3)}>
+                        다음 →
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* 단계 3: 약관 동의 */}
+              {renewalStep === 3 && (
                 <>
                   <DialogHeader>
                     <h2 className="font-bold text-base">📄 약관 동의</h2>
@@ -780,11 +881,11 @@ export default function GymPlusProfile() {
                     </div>
 
                     <div className="flex gap-2 pt-1">
-                      <Button variant="outline" className="flex-1 h-9" onClick={() => setRenewalStep(1)}>← 이전</Button>
+                      <Button variant="outline" className="flex-1 h-9" onClick={() => setRenewalStep(2)}>← 이전</Button>
                       <Button
                         className="flex-1 h-9"
                         disabled={!allRequired}
-                        onClick={() => { if (allRequired) setRenewalStep(3); }}
+                        onClick={() => { if (allRequired) setRenewalStep(4); }}
                       >
                         다음 →
                       </Button>
@@ -793,8 +894,8 @@ export default function GymPlusProfile() {
                 </>
               )}
 
-              {/* 단계 3: 서명 */}
-              {renewalStep === 3 && (
+              {/* 단계 4: 서명 */}
+              {renewalStep === 4 && (
                 <>
                   <DialogHeader>
                     <h2 className="font-bold text-base">✍️ 본인 서명</h2>
@@ -803,7 +904,7 @@ export default function GymPlusProfile() {
                   <div className="space-y-4 pt-1">
                     <SignaturePad onSign={setSignatureData} signatureData={signatureData} />
                     <div className="flex gap-2 pt-1">
-                      <Button variant="outline" className="flex-1 h-9" onClick={() => { setSignatureData(""); setRenewalStep(2); }}>← 이전</Button>
+                      <Button variant="outline" className="flex-1 h-9" onClick={() => { setSignatureData(""); setRenewalStep(3); }}>← 이전</Button>
                       <Button
                         className="flex-1 h-9"
                         onClick={submitRenewal}
@@ -816,8 +917,8 @@ export default function GymPlusProfile() {
                 </>
               )}
 
-              {/* 단계 4: 완료 */}
-              {renewalStep === 4 && (
+              {/* 단계 5: 완료 */}
+              {renewalStep === 5 && (
                 <>
                   <DialogHeader>
                     <h2 className="font-bold text-base">✅ 재등록 신청 완료</h2>
@@ -835,6 +936,16 @@ export default function GymPlusProfile() {
                       <div className="flex justify-between"><span className="text-muted-foreground">계약일</span><span className="font-medium">{contractDate}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">담당자</span><span className="font-medium">본인계약</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">마케팅 수신</span><span className={renewalForm.agreedMarketing ? "text-green-400 font-medium" : "text-muted-foreground"}>{renewalForm.agreedMarketing ? "동의" : "미동의"}</span></div>
+                      {renewalForm.paymentMethod && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">결제 방법</span>
+                          <span className="font-medium">{renewalForm.paymentMethod}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">결제 금액</span>
+                        <span className="font-bold text-primary">{PERIOD_PRICES[renewalForm.requestedPeriod]?.toLocaleString()}원</span>
+                      </div>
                     </div>
 
                     {/* 서명 미리보기 */}
