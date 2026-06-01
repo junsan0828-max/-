@@ -1898,11 +1898,17 @@ const eContractRouter = t.router({
       );
       if (!row.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
       const r = row.rows[0];
+      const cType = r.contractType ?? 'standard';
+      // 양도양수계약서는 2단계 서명: pending(양도인) → transferor_signed(양수인) → signed
       if (r.status === 'signed') throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+      if (r.status === 'transferor_signed' && cType !== 'transfer') {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+      }
       const extra = (() => { try { return JSON.parse(r.extraData || '{}'); } catch { return {}; } })();
       return {
         token: r.token,
-        contractType: (r.contractType ?? 'standard') as string,
+        status: r.status as string,
+        contractType: cType as string,
         extraData: extra,
         memberName: r.memberName,
         memberPhone: r.memberPhone,
@@ -1913,6 +1919,8 @@ const eContractRouter = t.router({
         programStartDate: r.programStartDate,
         trainerName: r.trainerName,
         trainerMemo: r.trainerMemo,
+        transferorSignerName: r.transferorSignerName ?? null,
+        transferorSignaturePng: r.transferorSignaturePng ?? null,
         termsOfService: r.termsOfService ?? DEFAULT_TERMS_OF_SERVICE,
         privacyPolicy: r.privacyPolicy ?? DEFAULT_PRIVACY_POLICY,
         marketingConsent: r.marketingConsent ?? DEFAULT_MARKETING_CONSENT,
@@ -1923,8 +1931,8 @@ const eContractRouter = t.router({
   submit: t.procedure
     .input(z.object({
       token: z.string(),
-      memberName: z.string().min(1),
-      memberPhone: z.string().min(1),
+      memberName: z.string().optional(),
+      memberPhone: z.string().optional(),
       memberBirth: z.string().optional(),
       agreedTerms: z.boolean().optional(),
       agreedPrivacy: z.boolean().optional(),
@@ -1937,8 +1945,39 @@ const eContractRouter = t.router({
         `SELECT id, status, "contractType" FROM e_contracts WHERE token=$1`, [input.token]
       );
       if (!check.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
-      if (check.rows[0].status === 'signed') throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
-      const isStandard = (check.rows[0].contractType ?? 'standard') === 'standard';
+      const cType = check.rows[0].contractType ?? 'standard';
+      const status = check.rows[0].status;
+
+      // 양도양수계약서 2단계 처리
+      if (cType === 'transfer') {
+        if (status === 'pending') {
+          // 1단계: 양도인 서명
+          await pool.query(
+            `UPDATE e_contracts SET status='transferor_signed',
+              "transferorSignerName"=$2, "transferorSignaturePng"=$3, "transferorSignedAt"=now()::text
+             WHERE token=$1`,
+            [input.token, input.signerName, input.signaturePng]
+          );
+          return { success: true, step: 'transferor_signed' };
+        } else if (status === 'transferor_signed') {
+          // 2단계: 양수인 서명
+          await pool.query(
+            `UPDATE e_contracts SET status='signed',
+              "memberName"=$2, "memberPhone"=$3,
+              "signerName"=$4, "signaturePng"=$5, "signedAt"=now()::text
+             WHERE token=$1`,
+            [input.token, input.memberName ?? null, input.memberPhone ?? null,
+             input.signerName, input.signaturePng]
+          );
+          return { success: true, step: 'signed' };
+        } else {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+        }
+      }
+
+      // 일반 / 환불 계약서
+      if (status === 'signed') throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+      const isStandard = cType === 'standard';
       if (isStandard && (!input.agreedTerms || !input.agreedPrivacy)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "필수 동의가 필요합니다." });
       }
@@ -1946,11 +1985,11 @@ const eContractRouter = t.router({
         `UPDATE e_contracts SET status='signed', "memberName"=$2, "memberPhone"=$3, "memberBirth"=$4,
           "agreedTerms"=$5, "agreedPrivacy"=$6, "agreedMarketing"=$7,
           "signerName"=$8, "signaturePng"=$9, "signedAt"=now()::text WHERE token=$1`,
-        [input.token, input.memberName, input.memberPhone, input.memberBirth ?? null,
+        [input.token, input.memberName ?? null, input.memberPhone ?? null, input.memberBirth ?? null,
          input.agreedTerms ? 1 : 0, input.agreedPrivacy ? 1 : 0, input.agreedMarketing ? 1 : 0,
          input.signerName, input.signaturePng]
       );
-      return { success: true };
+      return { success: true, step: 'signed' };
     }),
 
   // 서명된 계약 상세 (트레이너 전용)

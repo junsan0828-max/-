@@ -686,6 +686,9 @@ async function initDatabase() {
   )`);
   await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "contractType" TEXT DEFAULT 'standard'`);
   await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "extraData" TEXT DEFAULT '{}'`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "transferorSignerName" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "transferorSignaturePng" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "transferorSignedAt" TEXT`);
 
   // 작업실 기능 잠금해제
   await pool.query(`CREATE TABLE IF NOT EXISTS workshop_unlocks (

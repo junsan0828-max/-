@@ -1788,8 +1788,9 @@ function TransferContractManager() {
   }
 
   const statusMeta: Record<string, { label: string; cls: string }> = {
-    pending: { label: "서명 대기", cls: "bg-amber-100 text-amber-700" },
-    signed:  { label: "서명 완료", cls: "bg-green-100 text-green-700" },
+    pending:           { label: "양도인 서명 대기",  cls: "bg-amber-100 text-amber-700" },
+    transferor_signed: { label: "양수인 서명 대기",  cls: "bg-blue-100 text-blue-700" },
+    signed:            { label: "서명 완료",          cls: "bg-green-100 text-green-700" },
   };
 
   return (

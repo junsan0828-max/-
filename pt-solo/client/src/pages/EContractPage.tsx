@@ -131,6 +131,8 @@ type SubmittedInfo = {
   signedAt: string;
 };
 
+type DoneState = 'transferor_signed' | 'complete' | null;
+
 function openContractPrint(
   data: { trainerName?: string; termsOfService?: string; privacyPolicy?: string; marketingConsent?: string } | null | undefined,
   submitted: SubmittedInfo,
@@ -154,7 +156,7 @@ function openContractPrint(
 export default function EContractPage({ token: tokenProp }: { token?: string }) {
   const params = useParams<{ token: string }>();
   const token = tokenProp ?? params.token ?? "";
-  const { data, isLoading, error } = trpc.eContract.getPublic.useQuery({ token }, { retry: false });
+  const { data, isLoading, error, refetch } = trpc.eContract.getPublic.useQuery({ token }, { retry: false });
   const submitMutation = trpc.eContract.submit.useMutation();
 
   const [form, setForm] = useState({ memberName: "", memberPhone: "", memberBirth: "" });
@@ -163,7 +165,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
   const [agreedMarketing, setAgreedMarketing] = useState(false);
   const [signerName, setSignerName] = useState("");
   const [signaturePng, setSignaturePng] = useState("");
-  const [done, setDone] = useState(false);
+  const [doneState, setDoneState] = useState<DoneState>(null);
   const [submittedInfo, setSubmittedInfo] = useState<SubmittedInfo | null>(null);
 
   useEffect(() => {
@@ -182,8 +184,8 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
     </div>
   );
 
-  // already_signed from server (re-visit) — no download available
-  if (error?.message === "already_signed" && !done) return (
+  // already_signed from server (re-visit)
+  if (error?.message === "already_signed" && !doneState) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
       <div className="text-center space-y-3">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
@@ -195,8 +197,34 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
     </div>
   );
 
-  // Done after signing in this session — show download button
-  if (done && submittedInfo) return (
+  // 양도인 서명 완료 → 양수인에게 링크 전달 안내
+  if (doneState === 'transferor_signed') return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
+      <div className="w-full max-w-sm space-y-6 text-center">
+        <div className="space-y-3">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+            <Check className="h-8 w-8 text-blue-600" />
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">양도인 서명 완료</h1>
+          <p className="text-sm text-gray-500">이제 <b className="text-gray-900">양수인</b>에게 이 링크를 전달하여<br />양수인의 서명을 받아주세요.</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 text-left">
+          <p className="text-xs text-gray-400 mb-2">계약서 링크</p>
+          <p className="text-xs font-mono text-gray-700 break-all">{window.location.href}</p>
+        </div>
+        <button
+          onClick={() => { navigator.clipboard.writeText(window.location.href); }}
+          className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm"
+        >
+          링크 복사
+        </button>
+        <p className="text-xs text-gray-400">양수인이 이 링크를 열면 서명할 수 있습니다.</p>
+      </div>
+    </div>
+  );
+
+  // 최종 완료 (양수인 서명 또는 환불/일반 계약 완료)
+  if (doneState === 'complete' && submittedInfo) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
       <div className="w-full max-w-sm space-y-6 text-center">
         <div className="space-y-3">
@@ -207,13 +235,12 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
           <p className="text-sm text-gray-500">서명이 완료되어 저장되었습니다.</p>
         </div>
 
-        {/* Contract summary card */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 text-left space-y-2">
           <p className="text-xs font-bold text-gray-500 mb-3">계약 내용 요약</p>
           {[
             ["트레이너", data?.trainerName],
-            ["회원명", submittedInfo.memberName],
-            ["연락처", submittedInfo.memberPhone],
+            submittedInfo.memberName ? ["회원명", submittedInfo.memberName] : null,
+            submittedInfo.memberPhone ? ["연락처", submittedInfo.memberPhone] : null,
             data?.programName ? ["프로그램", data.programName] : null,
             data?.programPrice != null ? ["금액", `${data.programPrice.toLocaleString()}원`] : null,
             data?.programSessions != null ? ["횟수", `${data.programSessions}회`] : null,
@@ -226,7 +253,6 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
           ))}
         </div>
 
-        {/* Open contract print view */}
         <button
           onClick={() => openContractPrint(data, submittedInfo)}
           className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm"
@@ -251,7 +277,11 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
   if (!data) return null;
 
   const contractType = data.contractType ?? 'standard';
+  const contractStatus = data.status ?? 'pending';
   const extra = data.extraData ?? {};
+  // 양도양수: 양도인 서명 단계인지 여부
+  const isTransferStep1 = contractType === 'transfer' && contractStatus === 'pending';
+  const isTransferStep2 = contractType === 'transfer' && contractStatus === 'transferor_signed';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -259,28 +289,35 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
     if (isStandard && (!agreedTerms || !agreedPrivacy)) return alert("필수 항목에 동의해주세요.");
     if (!signerName.trim()) return alert("서명자 이름을 입력해주세요.");
     if (!signaturePng) return alert("서명을 완성해주세요.");
+    if (isTransferStep2 && !form.memberName.trim()) return alert("양수인 이름을 입력해주세요.");
+    if (isTransferStep2 && !form.memberPhone.trim()) return alert("양수인 연락처를 입력해주세요.");
     try {
-      await submitMutation.mutateAsync({
+      const result = await submitMutation.mutateAsync({
         token,
-        memberName: form.memberName,
-        memberPhone: form.memberPhone,
-        memberBirth: form.memberBirth,
+        memberName: form.memberName || undefined,
+        memberPhone: form.memberPhone || undefined,
+        memberBirth: form.memberBirth || undefined,
         agreedTerms: isStandard ? agreedTerms : true,
         agreedPrivacy: isStandard ? agreedPrivacy : true,
         agreedMarketing,
         signerName,
         signaturePng,
       });
-      setSubmittedInfo({
-        memberName: form.memberName,
-        memberPhone: form.memberPhone,
-        memberBirth: form.memberBirth,
-        signerName,
-        signaturePng,
-        agreedMarketing,
-        signedAt: new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }),
-      });
-      setDone(true);
+      const now = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+      if (result.step === 'transferor_signed') {
+        setDoneState('transferor_signed');
+      } else {
+        setSubmittedInfo({
+          memberName: form.memberName,
+          memberPhone: form.memberPhone,
+          memberBirth: form.memberBirth,
+          signerName,
+          signaturePng,
+          agreedMarketing,
+          signedAt: now,
+        });
+        setDoneState('complete');
+      }
     } catch (err: any) {
       alert(err?.message ?? "제출 중 오류가 발생했습니다.");
     }
@@ -288,7 +325,8 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
 
   const headerSubtitle =
     contractType === 'refund' ? '환불 계약서' :
-    contractType === 'transfer' ? '양도양수 계약서' :
+    contractType === 'transfer' && isTransferStep1 ? '양도양수 계약서 · 양도인 서명' :
+    contractType === 'transfer' ? '양도양수 계약서 · 양수인 서명' :
     '비대면 전자계약';
 
   function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
@@ -356,6 +394,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
 
         {/* ── 양도양수 계약서 ──────────────────────────── */}
         {contractType === 'transfer' && (<>
+          {/* 공통: 양도 정보 */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
             <h2 className="text-sm font-bold text-gray-900">양도 정보</h2>
             <div className="divide-y divide-gray-100">
@@ -374,23 +413,53 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
               </div>
             )}
           </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-            <h2 className="text-sm font-bold text-gray-900">양수인 정보</h2>
-            {[
-              { label: "이름 (양수인)", key: "memberName", placeholder: "홍길동", type: "text" },
-              { label: "연락처", key: "memberPhone", placeholder: "010-0000-0000", type: "tel" },
-            ].map(({ label, key, placeholder, type }) => (
-              <div key={key} className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500">{label}</label>
-                <input type={type} placeholder={placeholder}
-                  value={(form as any)[key]}
-                  onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
+
+          {/* 1단계: 양도인 서명 안내 */}
+          {isTransferStep1 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
+              <p className="text-sm font-semibold text-blue-800">양도인 서명 단계</p>
+              <p className="text-xs text-blue-600 mt-1">위 내용을 확인한 후 아래에 서명해주세요.<br />서명 완료 후 양수인에게 링크가 전달됩니다.</p>
+            </div>
+          )}
+
+          {/* 2단계: 양도인 서명 확인 + 양수인 정보 입력 */}
+          {isTransferStep2 && (<>
+            <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+              <Check className="h-5 w-5 text-green-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-green-800">양도인 서명 완료</p>
+                <p className="text-xs text-green-600">{data.transferorSignerName} 님이 서명하였습니다.</p>
               </div>
-            ))}
-          </div>
+            </div>
+            {data.transferorSignaturePng && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-2">
+                <p className="text-xs font-semibold text-gray-500">양도인 서명</p>
+                <div className="border border-gray-100 rounded-xl overflow-hidden bg-gray-50 p-2">
+                  <img src={data.transferorSignaturePng} className="w-full h-20 object-contain" />
+                </div>
+              </div>
+            )}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+              <h2 className="text-sm font-bold text-gray-900">양수인 정보 입력</h2>
+              {[
+                { label: "이름 (양수인)", key: "memberName", placeholder: "홍길동", type: "text" },
+                { label: "연락처", key: "memberPhone", placeholder: "010-0000-0000", type: "tel" },
+              ].map(({ label, key, placeholder, type }) => (
+                <div key={key} className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500">{label}</label>
+                  <input type={type} placeholder={placeholder}
+                    value={(form as any)[key]}
+                    onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
+                </div>
+              ))}
+            </div>
+          </>)}
+
           <p className="text-xs text-gray-500 text-center px-4">
-            위 양도양수 내용을 확인하였으며, 잔여 이용권을 양도받는 데 동의하여 서명합니다.
+            {isTransferStep1
+              ? "위 양도 내용을 확인하였으며, 이에 동의하여 서명합니다."
+              : "위 양도양수 내용을 확인하였으며, 잔여 이용권을 양도받는 데 동의하여 서명합니다."}
           </p>
         </>)}
 
@@ -467,7 +536,10 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
         {/* 제출 */}
         <button type="submit" disabled={submitMutation.isPending}
           className="w-full bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-          {submitMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> 제출 중...</> : "계약 완료 및 제출"}
+          {submitMutation.isPending
+            ? <><Loader2 className="h-4 w-4 animate-spin" /> 제출 중...</>
+            : isTransferStep1 ? "양도인 서명 완료"
+            : "계약 완료 및 제출"}
         </button>
       </form>
     </div>
