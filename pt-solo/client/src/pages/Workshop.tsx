@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers, Camera } from "lucide-react";
+import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers, Camera, ReceiptText, ArrowLeftRight } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 
@@ -1570,6 +1570,366 @@ function EContractManager() {
   );
 }
 
+// ── 환불 계약서 관리 ────────────────────────────────────────────────────────────
+function RefundContractManager() {
+  const { data: list, refetch } = trpc.eContract.list.useQuery();
+  const createMutation = trpc.eContract.createRefund.useMutation({ onSuccess: () => { refetch(); setShowForm(false); resetForm(); } });
+  const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => refetch() });
+  const [showForm, setShowForm] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const { data: detail } = trpc.eContract.getDetail.useQuery({ id: detailId! }, { enabled: !!detailId });
+
+  const emptyForm = { memberName: "", memberPhone: "", programName: "", programPrice: "", programSessions: "", usedSessions: "", refundAmount: "", refundReason: "", bankName: "", accountNumber: "", accountHolder: "" };
+  const [form, setForm] = useState(emptyForm);
+  function resetForm() { setForm(emptyForm); }
+
+  const refundList = (list ?? []).filter((c: any) => c.contractType === 'refund');
+
+  function copyLink(token: string) {
+    const url = `${window.location.origin}/contract/${token}`;
+    navigator.clipboard.writeText(url).then(() => toast.success("링크 복사됨")).catch(() => toast.error("복사 실패"));
+  }
+  function openKakao(token: string) {
+    const url = `${window.location.origin}/contract/${token}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success("링크 복사됨 — 카카오톡에 붙여넣기 하세요");
+      setTimeout(() => { window.location.href = "kakaotalk://"; }, 300);
+    });
+  }
+
+  const statusMeta: Record<string, { label: string; cls: string }> = {
+    pending: { label: "서명 대기", cls: "bg-amber-100 text-amber-700" },
+    signed:  { label: "서명 완료", cls: "bg-green-100 text-green-700" },
+  };
+
+  return (
+    <div className="space-y-3 pt-3 border-t border-border/60">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-muted-foreground">환불 계약서 목록</p>
+        <button onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-1.5 text-xs font-semibold bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+          <Plus className="h-3.5 w-3.5" /> 환불 계약서 생성
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-accent/30 border border-border rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold">환불 정보 입력</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "회원 이름", key: "memberName", placeholder: "홍길동" },
+              { label: "연락처", key: "memberPhone", placeholder: "010-0000-0000" },
+              { label: "프로그램명", key: "programName", placeholder: "PT 10회" },
+              { label: "결제 금액(원)", key: "programPrice", placeholder: "500000" },
+              { label: "총 횟수", key: "programSessions", placeholder: "10" },
+              { label: "수강 횟수", key: "usedSessions", placeholder: "3" },
+              { label: "환불 금액(원)", key: "refundAmount", placeholder: "350000" },
+            ].map(({ label, key, placeholder }) => (
+              <div key={key} className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground">{label}</label>
+                <input value={(form as any)[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary" />
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-muted-foreground">환불 사유</label>
+            <textarea value={form.refundReason} onChange={e => setForm(p => ({ ...p, refundReason: e.target.value }))}
+              rows={2} placeholder="부상, 개인 사정 등"
+              className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary resize-none" />
+          </div>
+          <p className="text-[10px] font-semibold text-muted-foreground pt-1">환불 계좌 정보 (선택)</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "은행", key: "bankName", placeholder: "국민은행" },
+              { label: "예금주", key: "accountHolder", placeholder: "홍길동" },
+            ].map(({ label, key, placeholder }) => (
+              <div key={key} className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground">{label}</label>
+                <input value={(form as any)[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary" />
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-muted-foreground">계좌번호</label>
+            <input value={form.accountNumber} onChange={e => setForm(p => ({ ...p, accountNumber: e.target.value }))}
+              placeholder="000-0000-0000000"
+              className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => { setShowForm(false); resetForm(); }} className="flex-1 text-xs py-2 border border-border rounded-lg text-muted-foreground">취소</button>
+            <button disabled={createMutation.isPending} onClick={() => createMutation.mutate({
+              memberName: form.memberName || undefined,
+              memberPhone: form.memberPhone || undefined,
+              programName: form.programName || undefined,
+              programPrice: form.programPrice ? parseInt(form.programPrice) : undefined,
+              programSessions: form.programSessions ? parseInt(form.programSessions) : undefined,
+              usedSessions: form.usedSessions ? parseInt(form.usedSessions) : undefined,
+              refundAmount: form.refundAmount ? parseInt(form.refundAmount) : undefined,
+              refundReason: form.refundReason || undefined,
+              bankName: form.bankName || undefined,
+              accountNumber: form.accountNumber || undefined,
+              accountHolder: form.accountHolder || undefined,
+            })} className="flex-1 text-xs py-2 bg-primary text-primary-foreground rounded-lg font-semibold disabled:opacity-50">
+              {createMutation.isPending ? "생성 중..." : "계약서 생성 및 링크 발급"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {refundList.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-4">생성된 환불 계약서가 없습니다</p>
+      ) : (
+        <div className="space-y-2">
+          {refundList.map((c: any) => {
+            const sm = statusMeta[c.status] ?? statusMeta.pending;
+            const extra = (() => { try { return JSON.parse(c.extraData || '{}'); } catch { return {}; } })();
+            return (
+              <div key={c.id} className="bg-background border border-border rounded-xl p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold">{c.memberName || "이름 미입력"}</p>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${sm.cls}`}>{sm.label}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {c.programName && `${c.programName} · `}
+                      {extra.refundAmount ? `환불 ${Number(extra.refundAmount).toLocaleString()}원` : ""}
+                      {` · ${c.createdAt?.slice(0, 10)}`}
+                    </p>
+                  </div>
+                  <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: c.id }); }}
+                    className="p-1 rounded-lg hover:bg-muted shrink-0">
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+                <div className="flex gap-1.5">
+                  <button onClick={() => copyLink(c.token)}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold border border-border rounded-lg py-1.5 hover:bg-muted">
+                    <Copy className="h-3 w-3" /> 링크 복사
+                  </button>
+                  <button onClick={() => openKakao(c.token)}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold bg-[#FEE500] text-[#3A1D1D] rounded-lg py-1.5 hover:opacity-90">
+                    카카오톡 공유
+                  </button>
+                  {c.status === "signed" && (
+                    <button onClick={() => setDetailId(c.id)}
+                      className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold bg-primary/10 text-primary rounded-lg py-1.5 hover:bg-primary/20">
+                      서명 확인
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {detail && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDetailId(null)} />
+          <div className="relative bg-card rounded-t-3xl w-full max-h-[85vh] overflow-y-auto p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold">서명 완료 — 환불 계약서</h3>
+              <button onClick={() => setDetailId(null)}><X className="h-5 w-5" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {[
+                ["회원명", detail.memberName], ["연락처", detail.memberPhone],
+                ["프로그램", detail.programName], ["서명자", detail.signerName],
+                ["서명일시", detail.signedAt?.slice(0, 16)],
+              ].filter(r => r[1]).map(([label, value]) => (
+                <div key={label} className="bg-accent/30 rounded-lg px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground">{label}</p>
+                  <p className="font-semibold mt-0.5">{value}</p>
+                </div>
+              ))}
+            </div>
+            {detail.signaturePng && (
+              <div className="border border-border rounded-xl p-3 bg-white">
+                <img src={detail.signaturePng} className="w-full h-24 object-contain" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 양도양수 계약서 관리 ─────────────────────────────────────────────────────
+function TransferContractManager() {
+  const { data: list, refetch } = trpc.eContract.list.useQuery();
+  const createMutation = trpc.eContract.createTransfer.useMutation({ onSuccess: () => { refetch(); setShowForm(false); resetForm(); } });
+  const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => refetch() });
+  const [showForm, setShowForm] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const { data: detail } = trpc.eContract.getDetail.useQuery({ id: detailId! }, { enabled: !!detailId });
+
+  const emptyForm = { transferorName: "", transferorPhone: "", programName: "", totalSessions: "", usedSessions: "", remainingSessions: "", transferDate: "", trainerMemo: "" };
+  const [form, setForm] = useState(emptyForm);
+  function resetForm() { setForm(emptyForm); }
+
+  const transferList = (list ?? []).filter((c: any) => c.contractType === 'transfer');
+
+  function copyLink(token: string) {
+    const url = `${window.location.origin}/contract/${token}`;
+    navigator.clipboard.writeText(url).then(() => toast.success("링크 복사됨")).catch(() => toast.error("복사 실패"));
+  }
+  function openKakao(token: string) {
+    const url = `${window.location.origin}/contract/${token}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success("링크 복사됨 — 카카오톡에 붙여넣기 하세요");
+      setTimeout(() => { window.location.href = "kakaotalk://"; }, 300);
+    });
+  }
+
+  const statusMeta: Record<string, { label: string; cls: string }> = {
+    pending: { label: "서명 대기", cls: "bg-amber-100 text-amber-700" },
+    signed:  { label: "서명 완료", cls: "bg-green-100 text-green-700" },
+  };
+
+  return (
+    <div className="space-y-3 pt-3 border-t border-border/60">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-muted-foreground">양도양수 계약서 목록</p>
+        <button onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-1.5 text-xs font-semibold bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90">
+          <Plus className="h-3.5 w-3.5" /> 계약서 생성
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-accent/30 border border-border rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold">양도 정보 입력</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "양도인 이름", key: "transferorName", placeholder: "홍길동" },
+              { label: "양도인 연락처", key: "transferorPhone", placeholder: "010-0000-0000" },
+              { label: "프로그램명", key: "programName", placeholder: "PT 10회" },
+              { label: "총 횟수", key: "totalSessions", placeholder: "10" },
+              { label: "수강 횟수", key: "usedSessions", placeholder: "3" },
+              { label: "잔여 횟수", key: "remainingSessions", placeholder: "7" },
+            ].map(({ label, key, placeholder }) => (
+              <div key={key} className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground">{label}</label>
+                <input value={(form as any)[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary" />
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-muted-foreground">양도 예정일</label>
+            <input type="date" value={form.transferDate} onChange={e => setForm(p => ({ ...p, transferDate: e.target.value }))}
+              className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-muted-foreground">트레이너 메모 (선택)</label>
+            <textarea value={form.trainerMemo} onChange={e => setForm(p => ({ ...p, trainerMemo: e.target.value }))}
+              rows={2} placeholder="특이사항 등"
+              className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary resize-none" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => { setShowForm(false); resetForm(); }} className="flex-1 text-xs py-2 border border-border rounded-lg text-muted-foreground">취소</button>
+            <button disabled={createMutation.isPending} onClick={() => createMutation.mutate({
+              transferorName: form.transferorName || undefined,
+              transferorPhone: form.transferorPhone || undefined,
+              programName: form.programName || undefined,
+              totalSessions: form.totalSessions ? parseInt(form.totalSessions) : undefined,
+              usedSessions: form.usedSessions ? parseInt(form.usedSessions) : undefined,
+              remainingSessions: form.remainingSessions ? parseInt(form.remainingSessions) : undefined,
+              transferDate: form.transferDate || undefined,
+              trainerMemo: form.trainerMemo || undefined,
+            })} className="flex-1 text-xs py-2 bg-primary text-primary-foreground rounded-lg font-semibold disabled:opacity-50">
+              {createMutation.isPending ? "생성 중..." : "계약서 생성 및 링크 발급"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {transferList.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-4">생성된 양도양수 계약서가 없습니다</p>
+      ) : (
+        <div className="space-y-2">
+          {transferList.map((c: any) => {
+            const sm = statusMeta[c.status] ?? statusMeta.pending;
+            const extra = (() => { try { return JSON.parse(c.extraData || '{}'); } catch { return {}; } })();
+            return (
+              <div key={c.id} className="bg-background border border-border rounded-xl p-3 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold">{extra.transferorName || "양도인 미입력"}</p>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${sm.cls}`}>{sm.label}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {c.programName && `${c.programName} · `}
+                      {extra.remainingSessions ? `잔여 ${extra.remainingSessions}회` : ""}
+                      {` · ${c.createdAt?.slice(0, 10)}`}
+                    </p>
+                  </div>
+                  <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: c.id }); }}
+                    className="p-1 rounded-lg hover:bg-muted shrink-0">
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+                <div className="flex gap-1.5">
+                  <button onClick={() => copyLink(c.token)}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold border border-border rounded-lg py-1.5 hover:bg-muted">
+                    <Copy className="h-3 w-3" /> 링크 복사
+                  </button>
+                  <button onClick={() => openKakao(c.token)}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold bg-[#FEE500] text-[#3A1D1D] rounded-lg py-1.5 hover:opacity-90">
+                    카카오톡 공유
+                  </button>
+                  {c.status === "signed" && (
+                    <button onClick={() => setDetailId(c.id)}
+                      className="flex-1 flex items-center justify-center gap-1 text-[11px] font-semibold bg-primary/10 text-primary rounded-lg py-1.5 hover:bg-primary/20">
+                      서명 확인
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {detail && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDetailId(null)} />
+          <div className="relative bg-card rounded-t-3xl w-full max-h-[85vh] overflow-y-auto p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold">서명 완료 — 양도양수 계약서</h3>
+              <button onClick={() => setDetailId(null)}><X className="h-5 w-5" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {[
+                ["양수인 (서명자)", detail.signerName], ["양수인 연락처", detail.memberPhone],
+                ["프로그램", detail.programName], ["서명일시", detail.signedAt?.slice(0, 16)],
+              ].filter(r => r[1]).map(([label, value]) => (
+                <div key={label} className="bg-accent/30 rounded-lg px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground">{label}</p>
+                  <p className="font-semibold mt-0.5">{value}</p>
+                </div>
+              ))}
+            </div>
+            {detail.signaturePng && (
+              <div className="border border-border rounded-xl p-3 bg-white">
+                <img src={detail.signaturePng} className="w-full h-24 object-contain" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 예약 기능 패널 (수업 예약 기능 탭) ───────────────────────────────────────
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
 const STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -2392,7 +2752,7 @@ const PREVIEW_FEATURES = [
 
 // ── 플랜 tier 매핑 ────────────────────────────────────────────────────────────
 const TIER_ITEMS: Record<"free" | "pro" | "elite", string[]> = {
-  free:  ["brand_page", "contract_kakao", "survey", "templates"],
+  free:  ["brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract"],
   pro:   ["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal",
           "booking", "report_branding", "contract_terms", "training_video", "e_contract"],
   elite: ["member_overview", "activity_stats", "data_migration", "kpi_report",
@@ -2553,6 +2913,14 @@ const WS_CATALOG: WsCatDef[] = [
         description: "회원이 직접 방문하지 않아도 온라인에서 계약서 확인과 전자 서명을 완료할 수 있습니다. 비대면 회원 등록을 자동화하세요.",
         tags: ["전자계약", "비대면 등록", "온라인 서명"],
         useCases: ["원격 회원 등록", "비대면 계약 체결", "계약 자동화"] },
+      { id: "refund_contract", icon: ReceiptText, name: "환불 계약서", shortDesc: "환불 조건 확인 및 전자서명", status: "active",
+        description: "환불 금액, 수강 횟수, 환불 사유를 정리해 회원에게 링크로 전송합니다. 회원이 내용을 확인하고 전자서명하면 환불 계약이 완료됩니다.",
+        tags: ["환불 전자계약", "환불 확인서", "온라인 서명"],
+        useCases: ["환불 처리 자동화", "환불 증빙 확보", "비대면 환불 동의"] },
+      { id: "transfer_contract", icon: ArrowLeftRight, name: "양도양수계약서", shortDesc: "PT 이용권 양도양수 전자계약", status: "active",
+        description: "잔여 PT 이용권을 다른 사람에게 양도할 때 사용하는 전자계약서입니다. 양도인·양수인 정보와 잔여 횟수를 기록하고 양수인의 전자서명을 받습니다.",
+        tags: ["양도양수", "이용권 양도", "전자계약"],
+        useCases: ["PT 이용권 양도 처리", "양도 증빙 확보", "비대면 양도 동의"] },
     ],
   },
 ];
@@ -2614,8 +2982,10 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
       case "templates":     return <WorkoutTemplateEditor />;
       case "survey":        return <SurveyBuilder />;
       case "contract_terms": return <ContractTermsEditor />;
-      case "e_contract":    return <EContractManager />;
-      default:              return null;
+      case "e_contract":        return <EContractManager />;
+      case "refund_contract":   return <RefundContractManager />;
+      case "transfer_contract": return <TransferContractManager />;
+      default:                  return null;
     }
   }
 

@@ -684,6 +684,8 @@ async function initDatabase() {
     "signedAt" TEXT,
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "contractType" TEXT DEFAULT 'standard'`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "extraData" TEXT DEFAULT '{}'`);
 
   // 작업실 기능 잠금해제
   await pool.query(`CREATE TABLE IF NOT EXISTS workshop_unlocks (

@@ -250,9 +250,13 @@ export default function EContractPage() {
 
   if (!data) return null;
 
+  const contractType = data.contractType ?? 'standard';
+  const extra = data.extraData ?? {};
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!agreedTerms || !agreedPrivacy) return alert("필수 항목에 동의해주세요.");
+    const isStandard = contractType === 'standard';
+    if (isStandard && (!agreedTerms || !agreedPrivacy)) return alert("필수 항목에 동의해주세요.");
     if (!signerName.trim()) return alert("서명자 이름을 입력해주세요.");
     if (!signaturePng) return alert("서명을 완성해주세요.");
     try {
@@ -261,8 +265,8 @@ export default function EContractPage() {
         memberName: form.memberName,
         memberPhone: form.memberPhone,
         memberBirth: form.memberBirth,
-        agreedTerms,
-        agreedPrivacy,
+        agreedTerms: isStandard ? agreedTerms : true,
+        agreedPrivacy: isStandard ? agreedPrivacy : true,
         agreedMarketing,
         signerName,
         signaturePng,
@@ -282,50 +286,86 @@ export default function EContractPage() {
     }
   }
 
+  const headerSubtitle =
+    contractType === 'refund' ? '환불 계약서' :
+    contractType === 'transfer' ? '양도양수 계약서' :
+    '비대면 전자계약';
+
+  function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
+    if (value == null || value === '') return null;
+    return (
+      <div className="flex justify-between py-2.5">
+        <span className="text-xs text-gray-500">{label}</span>
+        <span className="text-xs font-semibold text-gray-900">{value}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* 헤더 */}
       <div className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
-        <p className="text-xs text-gray-400 font-medium">FIT STEP 전자계약</p>
+        <p className="text-xs text-gray-400 font-medium">FIT STEP · {headerSubtitle}</p>
         <h1 className="text-base font-bold text-gray-900 mt-0.5">{data.trainerName} 트레이너</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 pt-5 space-y-5">
 
-        {/* 회원 정보 */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-          <h2 className="text-sm font-bold text-gray-900">회원 정보</h2>
-          {[
-            { label: "이름", key: "memberName", placeholder: "홍길동", type: "text" },
-            { label: "연락처", key: "memberPhone", placeholder: "010-0000-0000", type: "tel" },
-            { label: "생년월일", key: "memberBirth", placeholder: "1990-01-01", type: "text" },
-          ].map(({ label, key, placeholder, type }) => (
-            <div key={key} className="space-y-1">
-              <label className="text-xs font-semibold text-gray-500">{label}</label>
-              <input type={type} placeholder={placeholder}
-                value={(form as any)[key]}
-                onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
-            </div>
-          ))}
-        </div>
-
-        {/* 프로그램 정보 */}
-        {(data.programName || data.programPrice || data.programSessions) && (
+        {/* ── 환불 계약서 ─────────────────────────────── */}
+        {contractType === 'refund' && (<>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-            <h2 className="text-sm font-bold text-gray-900">프로그램 정보</h2>
+            <h2 className="text-sm font-bold text-gray-900">환불 내역</h2>
             <div className="divide-y divide-gray-100">
-              {[
-                { label: "프로그램명", value: data.programName },
-                { label: "금액", value: data.programPrice != null ? `${data.programPrice.toLocaleString()}원` : null },
-                { label: "횟수", value: data.programSessions != null ? `${data.programSessions}회` : null },
-                { label: "시작일", value: data.programStartDate },
-              ].filter(r => r.value).map(({ label, value }) => (
-                <div key={label} className="flex justify-between py-2.5">
-                  <span className="text-xs text-gray-500">{label}</span>
-                  <span className="text-xs font-semibold text-gray-900">{value}</span>
-                </div>
-              ))}
+              <InfoRow label="프로그램명" value={data.programName} />
+              <InfoRow label="결제 금액" value={data.programPrice != null ? `${data.programPrice.toLocaleString()}원` : null} />
+              <InfoRow label="총 횟수" value={data.programSessions != null ? `${data.programSessions}회` : null} />
+              <InfoRow label="수강 횟수" value={extra.usedSessions != null ? `${extra.usedSessions}회` : null} />
+              <InfoRow label="환불 금액" value={extra.refundAmount != null ? `${Number(extra.refundAmount).toLocaleString()}원` : null} />
+              <InfoRow label="환불 사유" value={extra.refundReason} />
+            </div>
+          </div>
+          {(extra.bankName || extra.accountNumber) && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+              <h2 className="text-sm font-bold text-gray-900">환불 계좌 정보</h2>
+              <div className="divide-y divide-gray-100">
+                <InfoRow label="은행" value={extra.bankName} />
+                <InfoRow label="계좌번호" value={extra.accountNumber} />
+                <InfoRow label="예금주" value={extra.accountHolder} />
+              </div>
+            </div>
+          )}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-gray-900">회원 확인</h2>
+            {[
+              { label: "이름", key: "memberName", placeholder: "홍길동", type: "text" },
+              { label: "연락처", key: "memberPhone", placeholder: "010-0000-0000", type: "tel" },
+            ].map(({ label, key, placeholder, type }) => (
+              <div key={key} className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500">{label}</label>
+                <input type={type} placeholder={placeholder}
+                  value={(form as any)[key]}
+                  onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 text-center px-4">
+            위 환불 내용을 확인하였으며, 이에 동의하여 서명합니다.
+          </p>
+        </>)}
+
+        {/* ── 양도양수 계약서 ──────────────────────────── */}
+        {contractType === 'transfer' && (<>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+            <h2 className="text-sm font-bold text-gray-900">양도 정보</h2>
+            <div className="divide-y divide-gray-100">
+              <InfoRow label="양도인" value={extra.transferorName} />
+              <InfoRow label="양도인 연락처" value={extra.transferorPhone} />
+              <InfoRow label="프로그램명" value={data.programName} />
+              <InfoRow label="총 횟수" value={extra.totalSessions != null ? `${extra.totalSessions}회` : null} />
+              <InfoRow label="수강 횟수" value={extra.usedSessions != null ? `${extra.usedSessions}회` : null} />
+              <InfoRow label="잔여 횟수" value={extra.remainingSessions != null ? `${extra.remainingSessions}회` : null} />
+              <InfoRow label="양도 예정일" value={extra.transferDate} />
             </div>
             {data.trainerMemo && (
               <div className="bg-gray-50 rounded-xl px-4 py-3">
@@ -334,15 +374,68 @@ export default function EContractPage() {
               </div>
             )}
           </div>
-        )}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-gray-900">양수인 정보</h2>
+            {[
+              { label: "이름 (양수인)", key: "memberName", placeholder: "홍길동", type: "text" },
+              { label: "연락처", key: "memberPhone", placeholder: "010-0000-0000", type: "tel" },
+            ].map(({ label, key, placeholder, type }) => (
+              <div key={key} className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500">{label}</label>
+                <input type={type} placeholder={placeholder}
+                  value={(form as any)[key]}
+                  onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 text-center px-4">
+            위 양도양수 내용을 확인하였으며, 잔여 이용권을 양도받는 데 동의하여 서명합니다.
+          </p>
+        </>)}
 
-        {/* 약관 동의 */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-          <h2 className="text-sm font-bold text-gray-900">약관 동의</h2>
-          <TermsSection title="이용약관" content={data.termsOfService} agreed={agreedTerms} onToggle={() => setAgreedTerms(v => !v)} required />
-          <TermsSection title="개인정보 수집·이용 동의" content={data.privacyPolicy} agreed={agreedPrivacy} onToggle={() => setAgreedPrivacy(v => !v)} required />
-          <TermsSection title="마케팅 자료활용 동의" content={data.marketingConsent} agreed={agreedMarketing} onToggle={() => setAgreedMarketing(v => !v)} required={false} />
-        </div>
+        {/* ── 일반 전자계약 ────────────────────────────── */}
+        {contractType === 'standard' && (<>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-gray-900">회원 정보</h2>
+            {[
+              { label: "이름", key: "memberName", placeholder: "홍길동", type: "text" },
+              { label: "연락처", key: "memberPhone", placeholder: "010-0000-0000", type: "tel" },
+              { label: "생년월일", key: "memberBirth", placeholder: "1990-01-01", type: "text" },
+            ].map(({ label, key, placeholder, type }) => (
+              <div key={key} className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500">{label}</label>
+                <input type={type} placeholder={placeholder}
+                  value={(form as any)[key]}
+                  onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
+              </div>
+            ))}
+          </div>
+          {(data.programName || data.programPrice || data.programSessions) && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+              <h2 className="text-sm font-bold text-gray-900">프로그램 정보</h2>
+              <div className="divide-y divide-gray-100">
+                <InfoRow label="프로그램명" value={data.programName} />
+                <InfoRow label="금액" value={data.programPrice != null ? `${data.programPrice.toLocaleString()}원` : null} />
+                <InfoRow label="횟수" value={data.programSessions != null ? `${data.programSessions}회` : null} />
+                <InfoRow label="시작일" value={data.programStartDate} />
+              </div>
+              {data.trainerMemo && (
+                <div className="bg-gray-50 rounded-xl px-4 py-3">
+                  <p className="text-xs text-gray-500 font-semibold mb-1">트레이너 메모</p>
+                  <p className="text-xs text-gray-700 leading-relaxed">{data.trainerMemo}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+            <h2 className="text-sm font-bold text-gray-900">약관 동의</h2>
+            <TermsSection title="이용약관" content={data.termsOfService} agreed={agreedTerms} onToggle={() => setAgreedTerms(v => !v)} required />
+            <TermsSection title="개인정보 수집·이용 동의" content={data.privacyPolicy} agreed={agreedPrivacy} onToggle={() => setAgreedPrivacy(v => !v)} required />
+            <TermsSection title="마케팅 자료활용 동의" content={data.marketingConsent} agreed={agreedMarketing} onToggle={() => setAgreedMarketing(v => !v)} required={false} />
+          </div>
+        </>)}
 
         {/* 서명 */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">

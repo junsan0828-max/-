@@ -1794,13 +1794,82 @@ const eContractRouter = t.router({
       return { token };
     }),
 
+  createRefund: protectedProcedure
+    .input(z.object({
+      memberName: z.string().optional(),
+      memberPhone: z.string().optional(),
+      programName: z.string().optional(),
+      programPrice: z.number().optional(),
+      programSessions: z.number().optional(),
+      usedSessions: z.number().optional(),
+      refundAmount: z.number().optional(),
+      refundReason: z.string().optional(),
+      bankName: z.string().optional(),
+      accountNumber: z.string().optional(),
+      accountHolder: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = (ctx.user as any).trainerId;
+      if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      const extra = JSON.stringify({
+        usedSessions: input.usedSessions ?? null,
+        refundAmount: input.refundAmount ?? null,
+        refundReason: input.refundReason ?? null,
+        bankName: input.bankName ?? null,
+        accountNumber: input.accountNumber ?? null,
+        accountHolder: input.accountHolder ?? null,
+      });
+      await pool.query(
+        `INSERT INTO e_contracts ("trainerId", token, "memberName", "memberPhone",
+          "programName", "programPrice", "programSessions", "contractType", "extraData")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'refund',$8)`,
+        [trainerId, token, input.memberName ?? null, input.memberPhone ?? null,
+         input.programName ?? null, input.programPrice ?? null, input.programSessions ?? null, extra]
+      );
+      return { token };
+    }),
+
+  createTransfer: protectedProcedure
+    .input(z.object({
+      transferorName: z.string().optional(),
+      transferorPhone: z.string().optional(),
+      programName: z.string().optional(),
+      totalSessions: z.number().optional(),
+      usedSessions: z.number().optional(),
+      remainingSessions: z.number().optional(),
+      transferDate: z.string().optional(),
+      trainerMemo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = (ctx.user as any).trainerId;
+      if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      const extra = JSON.stringify({
+        transferorName: input.transferorName ?? null,
+        transferorPhone: input.transferorPhone ?? null,
+        totalSessions: input.totalSessions ?? null,
+        usedSessions: input.usedSessions ?? null,
+        remainingSessions: input.remainingSessions ?? null,
+        transferDate: input.transferDate ?? null,
+      });
+      await pool.query(
+        `INSERT INTO e_contracts ("trainerId", token, "programName", "trainerMemo",
+          "contractType", "extraData")
+         VALUES ($1,$2,$3,$4,'transfer',$5)`,
+        [trainerId, token, input.programName ?? null, input.trainerMemo ?? null, extra]
+      );
+      return { token };
+    }),
+
   list: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = (ctx.user as any).trainerId;
     if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
     const rows = await pool.query<any>(
       `SELECT id, token, "memberName", "memberPhone", "programName", "programPrice",
-              "programSessions", "programStartDate", status, "signedAt", "signerName", "agreedMarketing", "createdAt"
-       FROM e_contracts WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 50`,
+              "programSessions", "programStartDate", status, "signedAt", "signerName",
+              "agreedMarketing", "createdAt", "contractType", "extraData"
+       FROM e_contracts WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 100`,
       [trainerId]
     );
     return rows.rows;
@@ -1830,8 +1899,11 @@ const eContractRouter = t.router({
       if (!row.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
       const r = row.rows[0];
       if (r.status === 'signed') throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+      const extra = (() => { try { return JSON.parse(r.extraData || '{}'); } catch { return {}; } })();
       return {
         token: r.token,
+        contractType: (r.contractType ?? 'standard') as string,
+        extraData: extra,
         memberName: r.memberName,
         memberPhone: r.memberPhone,
         memberBirth: r.memberBirth,
@@ -1854,19 +1926,22 @@ const eContractRouter = t.router({
       memberName: z.string().min(1),
       memberPhone: z.string().min(1),
       memberBirth: z.string().optional(),
-      agreedTerms: z.boolean(),
-      agreedPrivacy: z.boolean(),
-      agreedMarketing: z.boolean(),
+      agreedTerms: z.boolean().optional(),
+      agreedPrivacy: z.boolean().optional(),
+      agreedMarketing: z.boolean().optional(),
       signerName: z.string().min(1),
       signaturePng: z.string().min(10),
     }))
     .mutation(async ({ input }) => {
-      if (!input.agreedTerms || !input.agreedPrivacy) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "필수 동의가 필요합니다." });
-      }
-      const check = await pool.query(`SELECT id, status FROM e_contracts WHERE token=$1`, [input.token]);
+      const check = await pool.query(
+        `SELECT id, status, "contractType" FROM e_contracts WHERE token=$1`, [input.token]
+      );
       if (!check.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
       if (check.rows[0].status === 'signed') throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+      const isStandard = (check.rows[0].contractType ?? 'standard') === 'standard';
+      if (isStandard && (!input.agreedTerms || !input.agreedPrivacy)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "필수 동의가 필요합니다." });
+      }
       await pool.query(
         `UPDATE e_contracts SET status='signed', "memberName"=$2, "memberPhone"=$3, "memberBirth"=$4,
           "agreedTerms"=$5, "agreedPrivacy"=$6, "agreedMarketing"=$7,
