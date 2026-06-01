@@ -436,8 +436,8 @@ const membersRouter = t.router({
         });
       }
 
-      // 매출 자동 연동 (결제 금액 또는 PT 횟수가 있을 때)
-      if (paymentAmount || ptSessions) {
+      // 매출 자동 연동 (결제 금액이 있을 때만)
+      if (paymentAmount) {
         const sessionCount = ptSessions ? parseInt(ptSessions) : undefined;
         const paid = Math.max(0, (paymentAmount ?? 0) - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
@@ -1006,6 +1006,34 @@ const ptRouter = t.router({
         paymentMemo: input.paymentMemo,
       });
 
+      // 결제금액이 있으면 매출 항목 자동 생성
+      if (input.paymentAmount) {
+        const today = new Date().toISOString().substring(0, 10);
+        const memberForRevenue = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId }).from(members).where(eq(members.id, input.memberId)).limit(1);
+        const mInfo = memberForRevenue[0];
+        const paid = Math.max(0, input.paymentAmount - (input.unpaidAmount ?? 0));
+        await db.insert(revenueEntries).values({
+          memberId: input.memberId,
+          trainerId,
+          createdBy: ctx.user.id,
+          branchId: mInfo?.branchId ?? undefined,
+          customerName: mInfo?.name,
+          phone: mInfo?.phone,
+          programDetail: input.ptProgram,
+          sessions: input.totalSessions,
+          type: "PT",
+          subType: "재등록",
+          amount: input.paymentAmount,
+          discountAmount: 0,
+          paidAmount: paid,
+          unpaidAmount: input.unpaidAmount ?? 0,
+          paymentMethod: input.paymentMethod,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.startDate,
+          memo: input.paymentMemo,
+        });
+      }
+
       // 회원권 만료일이 비어있으면 세션 수 기준으로 자동 계산 (10회=1개월)
       const memberInfo = await db.select({ membershipEnd: members.membershipEnd, membershipStart: members.membershipStart }).from(members).where(eq(members.id, input.memberId)).limit(1);
       if (memberInfo[0] && !memberInfo[0].membershipEnd) {
@@ -1377,6 +1405,27 @@ const ptRouter = t.router({
         ...(recalcPrice !== undefined ? { pricePerSession: recalcPrice } : {}),
         ...(pkg ? { status: autoStatus } : {}),
       }).where(eq(ptPackages.id, packageId));
+
+      // paymentAmount 변경 시 연결된 revenue_entries도 갱신
+      if (fields.paymentAmount !== undefined && pkg) {
+        const newAmount = fields.paymentAmount;
+        const newUnpaid = fields.unpaidAmount ?? pkg.unpaidAmount ?? 0;
+        const newPaid = Math.max(0, newAmount - newUnpaid);
+        const existing = await db.select({ id: revenueEntries.id }).from(revenueEntries)
+          .where(and(eq(revenueEntries.memberId, pkg.memberId), eq(revenueEntries.type, "PT")))
+          .orderBy(desc(revenueEntries.createdAt)).limit(1);
+        if (existing.length > 0) {
+          await db.update(revenueEntries).set({
+            amount: newAmount,
+            paidAmount: newPaid,
+            unpaidAmount: newUnpaid,
+            ...(fields.paymentMethod ? { paymentMethod: fields.paymentMethod } : {}),
+            ...(fields.paymentDate ? { paymentDate: fields.paymentDate } : {}),
+            updatedAt: new Date().toISOString(),
+          }).where(eq(revenueEntries.id, existing[0].id));
+        }
+      }
+
       return { success: true };
     }),
 
