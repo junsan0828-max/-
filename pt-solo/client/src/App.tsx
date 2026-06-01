@@ -124,7 +124,7 @@ function App() {
   if (brandMatch && brandParams) return <TrainerBrandPage username={brandParams.username} />;
   if (classMatch && classParams) return <ClassBookingPage username={classParams.username} />;
   if (surveyMatch && surveyParams) return <SurveyPage username={surveyParams.username} />;
-  if (contractMatch && contractParams) return <EContractPage />;
+  if (contractMatch && contractParams) return <EContractPage token={contractParams.token} />;
 
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;

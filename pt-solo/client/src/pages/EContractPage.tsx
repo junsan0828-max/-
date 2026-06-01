@@ -151,9 +151,9 @@ function openContractPrint(
   window.open(`/contract-print?${params.toString()}`, "_blank");
 }
 
-export default function EContractPage() {
+export default function EContractPage({ token: tokenProp }: { token?: string }) {
   const params = useParams<{ token: string }>();
-  const token = params.token ?? "";
+  const token = tokenProp ?? params.token ?? "";
   const { data, isLoading, error } = trpc.eContract.getPublic.useQuery({ token }, { retry: false });
   const submitMutation = trpc.eContract.submit.useMutation();
 
