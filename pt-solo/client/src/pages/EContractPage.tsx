@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { Check, PenLine, RotateCcw, ChevronDown, ChevronUp, Loader2, FileText } from "lucide-react";
+import { Check, PenLine, RotateCcw, ChevronDown, ChevronUp, Loader2, FileText, Share2 } from "lucide-react";
 
 function SignatureCanvas({ onSave }: { onSave: (png: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -133,6 +133,12 @@ type SubmittedInfo = {
 
 type DoneState = 'transferor_signed' | 'complete' | null;
 
+function shareKakao(url: string) {
+  navigator.clipboard.writeText(url).then(() => {
+    setTimeout(() => { window.location.href = "kakaotalk://"; }, 300);
+  });
+}
+
 function openContractPrint(
   data: { trainerName?: string; termsOfService?: string; privacyPolicy?: string; marketingConsent?: string } | null | undefined,
   submitted: SubmittedInfo,
@@ -184,18 +190,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
     </div>
   );
 
-  // already_signed from server (re-visit)
-  if (error?.message === "already_signed" && !doneState) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
-      <div className="text-center space-y-3">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-          <Check className="h-8 w-8 text-green-600" />
-        </div>
-        <h1 className="text-lg font-bold text-gray-900">이미 서명된 계약서입니다</h1>
-        <p className="text-sm text-gray-500">이미 서명이 완료된 계약서입니다.<br />이 창을 닫으셔도 됩니다.</p>
-      </div>
-    </div>
-  );
+  // (already_signed error no longer thrown — handled via data.status === 'signed' below)
 
   // 양도인 서명 완료 → 양수인에게 링크 전달 안내
   if (doneState === 'transferor_signed') return (
@@ -253,14 +248,23 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
           ))}
         </div>
 
-        <button
-          onClick={() => openContractPrint(data, submittedInfo)}
-          className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm"
-        >
-          <FileText className="h-4 w-4" />
-          계약서 저장 / 인쇄
-        </button>
-        <p className="text-xs text-gray-400">이 창을 닫으셔도 됩니다.</p>
+        <div className="space-y-2">
+          <button
+            onClick={() => openContractPrint(data, submittedInfo)}
+            className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white font-bold py-4 rounded-2xl text-sm"
+          >
+            <FileText className="h-4 w-4" />
+            계약서 저장 / 인쇄
+          </button>
+          <button
+            onClick={() => shareKakao(window.location.href)}
+            className="w-full flex items-center justify-center gap-2 bg-yellow-400 text-gray-900 font-bold py-4 rounded-2xl text-sm"
+          >
+            <Share2 className="h-4 w-4" />
+            카카오톡으로 공유
+          </button>
+        </div>
+        <p className="text-xs text-gray-400">회원이 링크를 열면 계약서를 확인할 수 있습니다.</p>
       </div>
     </div>
   );
@@ -275,6 +279,79 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
   );
 
   if (!data) return null;
+
+  // 서명 완료된 계약서 읽기 전용 조회 (회원이 링크 재접속 시)
+  if (data.status === 'signed' && !doneState) {
+    const extra = data.extraData ?? {};
+    const contractType = data.contractType ?? 'standard';
+    function InfoRowS({ label, value }: { label: string; value?: string | number | null }) {
+      if (value == null || value === '') return null;
+      return (
+        <div className="flex justify-between py-2.5">
+          <span className="text-xs text-gray-500">{label}</span>
+          <span className="text-xs font-semibold text-gray-900">{value}</span>
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-gray-50 pb-20">
+        <div className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+          <p className="text-xs text-gray-400 font-medium">FIT STEP · 서명 완료된 계약서</p>
+          <h1 className="text-base font-bold text-gray-900 mt-0.5">{data.trainerName} 트레이너</h1>
+        </div>
+        <div className="max-w-lg mx-auto px-5 pt-5 space-y-5">
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+            <Check className="h-5 w-5 text-green-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-green-800">서명 완료된 계약서입니다</p>
+              <p className="text-xs text-green-600">{data.signedAt ? `서명일: ${data.signedAt}` : "서명이 완료되었습니다."}</p>
+            </div>
+          </div>
+
+          {/* 계약서 내용 요약 */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+            <h2 className="text-sm font-bold text-gray-900">계약 정보</h2>
+            <div className="divide-y divide-gray-100">
+              <InfoRowS label="트레이너" value={data.trainerName} />
+              {contractType === 'transfer' ? (<>
+                <InfoRowS label="양도인" value={extra.transferorName ?? data.transferorSignerName} />
+                <InfoRowS label="양수인" value={data.memberName} />
+                <InfoRowS label="양수인 연락처" value={data.memberPhone} />
+              </>) : (<>
+                <InfoRowS label="회원명" value={data.memberName} />
+                <InfoRowS label="연락처" value={data.memberPhone} />
+              </>)}
+              <InfoRowS label="프로그램" value={data.programName} />
+              <InfoRowS label="금액" value={data.programPrice != null ? `${data.programPrice.toLocaleString()}원` : null} />
+              <InfoRowS label="횟수" value={data.programSessions != null ? `${data.programSessions}회` : null} />
+              {contractType === 'refund' && <InfoRowS label="환불 금액" value={extra.refundAmount != null ? `${Number(extra.refundAmount).toLocaleString()}원` : null} />}
+              <InfoRowS label="서명자" value={data.signerName} />
+              <InfoRowS label="서명일" value={data.signedAt} />
+            </div>
+          </div>
+
+          {/* 서명 이미지 */}
+          {data.signaturePng && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-2">
+              <p className="text-xs font-semibold text-gray-500">전자서명</p>
+              <div className="border border-gray-100 rounded-xl overflow-hidden bg-gray-50 p-2">
+                <img src={data.signaturePng} className="w-full h-24 object-contain" />
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => shareKakao(window.location.href)}
+            className="w-full flex items-center justify-center gap-2 bg-yellow-400 text-gray-900 font-bold py-4 rounded-2xl text-sm"
+          >
+            <Share2 className="h-4 w-4" />
+            카카오톡으로 공유
+          </button>
+          <p className="text-xs text-gray-400 text-center">이 창을 닫으셔도 됩니다.</p>
+        </div>
+      </div>
+    );
+  }
 
   const contractType = data.contractType ?? 'standard';
   const contractStatus = data.status ?? 'pending';

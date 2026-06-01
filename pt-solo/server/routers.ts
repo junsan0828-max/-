@@ -1899,8 +1899,7 @@ const eContractRouter = t.router({
       if (!row.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
       const r = row.rows[0];
       const cType = r.contractType ?? 'standard';
-      // 양도양수계약서는 2단계 서명: pending(양도인) → transferor_signed(양수인) → signed
-      if (r.status === 'signed') throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
+      // transferor_signed 상태 중 transfer 아닌 경우는 비정상
       if (r.status === 'transferor_signed' && cType !== 'transfer') {
         throw new TRPCError({ code: "BAD_REQUEST", message: "already_signed" });
       }
@@ -1921,6 +1920,9 @@ const eContractRouter = t.router({
         trainerMemo: r.trainerMemo,
         transferorSignerName: r.transferorSignerName ?? null,
         transferorSignaturePng: r.transferorSignaturePng ?? null,
+        signerName: r.signerName ?? null,
+        signaturePng: r.signaturePng ?? null,
+        signedAt: r.signedAt ?? null,
         termsOfService: r.termsOfService ?? DEFAULT_TERMS_OF_SERVICE,
         privacyPolicy: r.privacyPolicy ?? DEFAULT_PRIVACY_POLICY,
         marketingConsent: r.marketingConsent ?? DEFAULT_MARKETING_CONSENT,
