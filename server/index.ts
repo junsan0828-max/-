@@ -969,6 +969,7 @@ async function start() {
       const deleteIds: number[] = row.ids.slice(1);
       for (const delId of deleteIds) {
         try {
+          console.log(`🔄 중복 병합 시도: '${row.name}' ID ${delId} → ${keepId}`);
           // 출석 — 같은 날짜 중복 제거 후 이전
           await pool.query(`
             DELETE FROM attendances
@@ -976,6 +977,7 @@ async function start() {
               SELECT "attendDate" FROM attendances WHERE "memberId" = $2
             )`, [delId, keepId]);
           await pool.query(`UPDATE attendances SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+          console.log(`  ✓ attendances`);
 
           // 출석체크 — 같은 날짜 중복 제거 후 이전
           await pool.query(`
@@ -993,14 +995,24 @@ async function start() {
             await pool.query(`UPDATE par_q SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
           }
 
-          // gym_plus_members — memberId unique 가능성: 기존 있으면 삭제, 없으면 이전
-          const hasGymPlus = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
-          if (hasGymPlus.rows.length > 0) {
-            await pool.query(`DELETE FROM gym_plus_members WHERE "memberId" = $1`, [delId]);
-          } else {
-            await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+          // gym_plus_members — 자식 테이블 먼저 정리 후 처리
+          const gymPlusDelRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [delId]);
+          if (gymPlusDelRow.rows.length > 0) {
+            const gymPlusDelId = gymPlusDelRow.rows[0].id;
+            const gymPlusKeepRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+            if (gymPlusKeepRow.rows.length > 0) {
+              // keepId도 gym_plus 있으면 delId 쪽 자식 데이터 삭제
+              await pool.query(`DELETE FROM gym_plus_messages WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
+              await pool.query(`DELETE FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
+              await pool.query(`DELETE FROM gym_plus_push_subscriptions WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
+              await pool.query(`DELETE FROM gym_plus_members WHERE id = $1`, [gymPlusDelId]);
+            } else {
+              // keepId에 gym_plus 없으면 memberId만 변경
+              await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [keepId, gymPlusDelId]);
+            }
           }
 
+          console.log(`  ✓ gym_plus_members`);
           // 나머지 테이블 일괄 이전
           for (const [tbl, col] of [
             ["pt_packages", "memberId"],
@@ -1018,12 +1030,14 @@ async function start() {
             ["access_logs", "memberId"],
           ] as const) {
             await pool.query(`UPDATE "${tbl}" SET "${col}" = $1 WHERE "${col}" = $2`, [keepId, delId]);
+            console.log(`  ✓ ${tbl}`);
           }
           await pool.query(`UPDATE leads SET "registeredMemberId" = $1 WHERE "registeredMemberId" = $2`, [keepId, delId]);
           await pool.query(`UPDATE transfer_contracts SET "transferorMemberId" = $1 WHERE "transferorMemberId" = $2`, [keepId, delId]);
           await pool.query(`UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE "transfereeMemberId" = $2`, [keepId, delId]);
-
+          console.log(`  ✓ leads/transfer_contracts`);
           await pool.query(`DELETE FROM members WHERE id = $1`, [delId]);
+          console.log(`  ✓ members DELETE`);
           merged++;
           console.log(`✅ 중복 회원 병합: '${row.name}' ID ${delId} → ${keepId}`);
         } catch (innerErr) {
