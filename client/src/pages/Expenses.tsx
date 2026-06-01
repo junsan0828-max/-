@@ -311,12 +311,12 @@ export default function ExpensesPage() {
                   <div>
                     <label className="text-xs text-muted-foreground">금액 *</label>
                     <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0"
-                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">지출일 *</label>
                     <input type="date" value={form.expenseDate} onChange={e => setForm(f => ({ ...f, expenseDate: e.target.value }))}
-                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                   </div>
                 </div>
 
@@ -337,13 +337,13 @@ export default function ExpensesPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">거래처/공급업체</label>
                   <input value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} placeholder="거래처명"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
 
                 <div>
                   <label className="text-xs text-muted-foreground">메모</label>
                   <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
                 </div>
 
               </div>

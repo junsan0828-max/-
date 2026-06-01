@@ -923,7 +923,7 @@ export default function LeadsPage() {
               {/* 섹션 1: 이용약관 */}
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-foreground">센터 이용 약관</h3>
-                <div className="bg-background border border-border rounded-lg p-3 h-36 overflow-y-auto">
+                <div className="rounded-lg p-3 h-36 overflow-y-auto">
                   <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{CONTRACT_TERMS}</pre>
                 </div>
                 <label className="flex items-center gap-2.5 cursor-pointer">
@@ -938,7 +938,7 @@ export default function LeadsPage() {
               {/* 섹션 2: 개인정보 동의 */}
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-foreground">개인정보 수집·이용 동의서</h3>
-                <div className="bg-background border border-border rounded-lg p-3 h-36 overflow-y-auto">
+                <div className="rounded-lg p-3 h-36 overflow-y-auto">
                   <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{PRIVACY_TERMS}</pre>
                 </div>
                 <label className="flex items-center gap-2.5 cursor-pointer">
@@ -953,7 +953,7 @@ export default function LeadsPage() {
               {/* 섹션 3: 광고성 동의 */}
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-foreground">광고성 정보 수신 동의서</h3>
-                <div className="bg-background border border-border rounded-lg p-3 h-28 overflow-y-auto">
+                <div className="rounded-lg p-3 h-28 overflow-y-auto">
                   <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed">{MARKETING_TERMS}</pre>
                 </div>
                 <label className="flex items-center gap-2.5 cursor-pointer">
@@ -1113,14 +1113,14 @@ export default function LeadsPage() {
                           <input value={regForm.programCustom}
                             onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))}
                             placeholder="프로그램명 입력"
-                            className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                            className="w-full mt-2 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                         )}
                       </div>
                       {regForm.programKey === "이벤트피티" && (
                         <div>
                           <label className="text-xs text-muted-foreground">이벤트 선택</label>
                           <select
-                            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none"
                             defaultValue=""
                             onChange={e => {
                               const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
@@ -1200,7 +1200,7 @@ export default function LeadsPage() {
                       <input value={regForm.otherItem}
                         onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))}
                         placeholder="예: 락커 1개월, 운동복 등"
-                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                        className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
                     </div>
                   )}
                 </div>
@@ -1218,7 +1218,7 @@ export default function LeadsPage() {
                       setRegForm(f => ({ ...f, amount: amt, paidAmount: String(paid), unpaidAmount: "0" }));
                     }}
                     placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">할인 (원)</label>
@@ -1229,7 +1229,7 @@ export default function LeadsPage() {
                       setRegForm(f => ({ ...f, discountAmount: disc, paidAmount: String(paid) }));
                     }}
                     placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1242,14 +1242,14 @@ export default function LeadsPage() {
                       setRegForm(f => ({ ...f, paidAmount: paid, unpaidAmount: String(unpaid) }));
                     }}
                     placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">미수금 (원)</label>
                   <input type="number" value={regForm.unpaidAmount}
                     onChange={e => setRegForm(f => ({ ...f, unpaidAmount: e.target.value }))}
                     placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
 
@@ -1273,13 +1273,13 @@ export default function LeadsPage() {
                   <label className="text-xs text-muted-foreground">결제일 *</label>
                   <input type="date" value={regForm.paymentDate}
                     onChange={e => setRegForm(f => ({ ...f, paymentDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">시작일</label>
                   <input type="date" value={regForm.startDate}
                     onChange={e => setRegForm(f => ({ ...f, startDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
 
@@ -1307,7 +1307,7 @@ export default function LeadsPage() {
                 <label className="text-xs text-muted-foreground">등록 진행 내용</label>
                 <textarea value={regForm.memo} onChange={e => setRegForm(f => ({ ...f, memo: e.target.value }))} rows={2}
                   placeholder="운동 가능 시간, 날짜, 특이사항..."
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
               </div>
             </div>
 
@@ -1375,14 +1375,21 @@ export default function LeadsPage() {
             {/* Step 1: 회원 선택 */}
             {!reRegMemberId && (
               <div className="flex flex-col flex-1 overflow-hidden">
-                <div className="px-5 py-3 border-b border-border shrink-0">
-                  <input
-                    autoFocus
-                    defaultValue=""
-                    onInput={e => setReRegSearch((e.target as HTMLInputElement).value)}
-                    placeholder="이름 또는 연락처 검색..."
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
+                <div className="px-4 py-3 border-b border-border shrink-0">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/70 pointer-events-none" />
+                    <input
+                      autoFocus
+                      value={reRegSearch}
+                      onChange={e => setReRegSearch(e.target.value)}
+                      placeholder="이름 또는 연락처 검색..."
+                      className="w-full rounded-xl pl-9 pr-4 py-3 text-[16px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      style={{
+                        background: 'hsl(var(--muted))',
+                        border: '1.5px solid hsl(var(--primary) / 0.35)',
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="overflow-y-auto flex-1 divide-y divide-border">
                   {filteredReRegMembers.map(m => (
@@ -1434,12 +1441,12 @@ export default function LeadsPage() {
                             const end = calcEndDate(start, reRegForm.ptSessions);
                             setReRegForm(f => ({ ...f, membershipStart: start, membershipEnd: end }));
                           }}
-                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                          className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-xs text-muted-foreground">운동 만료일 <span className="text-primary text-xs">(자동계산)</span></label>
                         <input type="date" value={reRegForm.membershipEnd} readOnly
-                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground opacity-60 cursor-not-allowed" />
+                          className="w-full rounded-lg px-3 py-2 text-sm text-foreground opacity-60 cursor-not-allowed" />
                       </div>
                     </div>
 
@@ -1478,7 +1485,7 @@ export default function LeadsPage() {
                               {reRegForm.ptProgram === "이벤트피티" && (
                                 <div className="mt-2">
                                   <select
-                                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none"
                                     defaultValue=""
                                     onChange={e => {
                                       const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
@@ -1503,7 +1510,7 @@ export default function LeadsPage() {
                               <input value={!["케어피티","웨이트피티","이벤트피티"].includes(reRegForm.ptProgram) ? reRegForm.ptProgram : ""}
                                 onChange={e => setReRegForm(f => ({ ...f, ptProgram: e.target.value }))}
                                 placeholder="직접 입력"
-                                className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                                className="w-full mt-2 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                             </div>
                             <div>
                               <label className="text-xs text-muted-foreground">PT 횟수</label>
@@ -1519,7 +1526,7 @@ export default function LeadsPage() {
                               </div>
                               <input value={reRegForm.ptSessions} onChange={e => setReRegForm(f => ({ ...f, ptSessions: e.target.value, membershipEnd: calcEndDate(f.membershipStart, e.target.value) }))}
                                 placeholder="직접 입력" type="number" min="1"
-                                className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                                className="w-full mt-2 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                             </div>
                           </div>
                         )}
@@ -1582,7 +1589,7 @@ export default function LeadsPage() {
                                       : f.membershipEnd;
                                     return { ...f, healthServiceDays: e.target.value, membershipEnd: end };
                                   })}
-                                  className="w-14 bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                                  className="w-14 rounded-lg px-2 py-1.5 text-xs text-center text-foreground focus:outline-none focus:outline-none" />
                               </div>
                             </div>
                           </div>
@@ -1606,7 +1613,7 @@ export default function LeadsPage() {
                             <label className="text-xs text-muted-foreground">항목명</label>
                             <input value={reRegForm.otherItem} onChange={e => setReRegForm(f => ({ ...f, otherItem: e.target.value }))}
                               placeholder="예: 락커 1개월, 운동복 등"
-                              className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                              className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
                           </div>
                         )}
                       </div>
@@ -1617,18 +1624,18 @@ export default function LeadsPage() {
                       <div className="space-y-1.5">
                         <label className="text-xs text-muted-foreground">결제 금액</label>
                         <input type="number" min="0" value={reRegForm.paymentAmount} onChange={e => setReRegForm(f => ({ ...f, paymentAmount: e.target.value }))} placeholder="0"
-                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                          className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-xs text-muted-foreground">미수금 금액</label>
                         <input type="number" min="0" value={reRegForm.unpaidAmount} onChange={e => setReRegForm(f => ({ ...f, unpaidAmount: e.target.value }))} placeholder="0"
-                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                          className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs text-muted-foreground">결제방법</label>
                       <select value={reRegForm.paymentMethod} onChange={e => setReRegForm(f => ({ ...f, paymentMethod: e.target.value as any }))}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                        className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none">
                         <option value="">결제방법 선택</option>
                         {["현금영수증", "이체", "지역화폐", "카드"].map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
@@ -1636,12 +1643,12 @@ export default function LeadsPage() {
                     <div className="space-y-1.5">
                       <label className="text-xs text-muted-foreground">결제일자</label>
                       <input type="date" value={reRegForm.paymentDate} onChange={e => setReRegForm(f => ({ ...f, paymentDate: e.target.value }))}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                        className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs text-muted-foreground">결제 메모</label>
                       <input value={reRegForm.paymentMemo} onChange={e => setReRegForm(f => ({ ...f, paymentMemo: e.target.value }))} placeholder="분납 등 메모"
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                        className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                     </div>
                     {/* 지점 */}
                     {branchList && branchList.length > 0 && (
@@ -1692,19 +1699,19 @@ export default function LeadsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">이름 <span className="text-primary">*</span></label>
                 <input value={directForm.name} onChange={e => setDirectForm(f => ({ ...f, name: e.target.value }))} placeholder="홍길동"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
               </div>
               {/* 연락처 */}
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">연락처</label>
                 <input value={directForm.phone} onChange={e => setDirectForm(f => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
               </div>
               {/* 생년월일 + 만나이 */}
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">생년월일</label>
                 <input type="date" value={directForm.birthDate} onChange={e => setDirectForm(f => ({ ...f, birthDate: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 {directForm.birthDate && (() => {
                   const b = new Date(directForm.birthDate), t = new Date();
                   let age = t.getFullYear() - b.getFullYear();
@@ -1737,7 +1744,7 @@ export default function LeadsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">담당 트레이너</label>
                 <select value={directForm.trainerId} onChange={e => setDirectForm(f => ({ ...f, trainerId: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none">
                   <option value="">미배정</option>
                   {(trainers ?? []).map(t => <option key={t.id} value={t.id}>{t.trainerName}</option>)}
                 </select>
@@ -1746,7 +1753,7 @@ export default function LeadsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">유입경로</label>
                 <select value={directForm.visitRoute} onChange={e => setDirectForm(f => ({ ...f, visitRoute: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none">
                   <option value="">선택 안함</option>
                   <option value="지인 소개">지인 소개</option>
                   <option value="가족 소개">가족 소개</option>
@@ -1765,7 +1772,7 @@ export default function LeadsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">특이사항</label>
                 <textarea value={directForm.profileNote} onChange={e => setDirectForm(f => ({ ...f, profileNote: e.target.value }))} rows={2} placeholder="특이사항 입력"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
               </div>
 
               {/* 구분선 */}
@@ -1781,12 +1788,12 @@ export default function LeadsPage() {
                       const end = calcEndDate(start, directForm.ptSessions);
                       setDirectForm(f => ({ ...f, membershipStart: start, membershipEnd: end }));
                     }}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground">운동 만료일 <span className="text-primary text-xs">(자동계산)</span></label>
                   <input type="date" value={directForm.membershipEnd} readOnly
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground opacity-60 cursor-not-allowed" />
+                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground opacity-60 cursor-not-allowed" />
                 </div>
               </div>
 
@@ -1825,7 +1832,7 @@ export default function LeadsPage() {
                         {directForm.ptProgram === "이벤트피티" && (
                           <div className="mt-2">
                             <select
-                              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                              className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none"
                               defaultValue=""
                               onChange={e => {
                                 const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
@@ -1850,7 +1857,7 @@ export default function LeadsPage() {
                         <input value={!["케어피티","웨이트피티","이벤트피티"].includes(directForm.ptProgram) ? directForm.ptProgram : ""}
                           onChange={e => setDirectForm(f => ({ ...f, ptProgram: e.target.value }))}
                           placeholder="직접 입력"
-                          className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                          className="w-full mt-2 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                       </div>
                       <div>
                         <label className="text-xs text-muted-foreground">PT 횟수</label>
@@ -1866,7 +1873,7 @@ export default function LeadsPage() {
                         </div>
                         <input value={directForm.ptSessions} onChange={e => setDirectForm(f => ({ ...f, ptSessions: e.target.value, membershipEnd: calcEndDate(f.membershipStart, e.target.value) }))}
                           placeholder="직접 입력" type="number" min="1"
-                          className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                          className="w-full mt-2 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                       </div>
                     </div>
                   )}
@@ -1929,7 +1936,7 @@ export default function LeadsPage() {
                                 : f.membershipEnd;
                               return { ...f, healthServiceDays: e.target.value, membershipEnd: end };
                             })}
-                            className="w-14 bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-center text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                            className="w-14 rounded-lg px-2 py-1.5 text-xs text-center text-foreground focus:outline-none focus:outline-none" />
                         </div>
                       </div>
                       {directForm.membershipEnd && directForm.programTypes.includes("헬스") && (
@@ -1956,7 +1963,7 @@ export default function LeadsPage() {
                       <label className="text-xs text-muted-foreground">항목명</label>
                       <input value={directForm.otherItem} onChange={e => setDirectForm(f => ({ ...f, otherItem: e.target.value }))}
                         placeholder="예: 락커 1개월, 운동복 등"
-                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                        className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
                     </div>
                   )}
                 </div>
@@ -1966,19 +1973,19 @@ export default function LeadsPage() {
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground">결제 금액</label>
                   <input type="number" min="0" value={directForm.paymentAmount} onChange={e => setDirectForm(f => ({ ...f, paymentAmount: e.target.value }))} placeholder="0"
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground">미수금 금액</label>
                   <input type="number" min="0" value={directForm.unpaidAmount} onChange={e => setDirectForm(f => ({ ...f, unpaidAmount: e.target.value }))} placeholder="0"
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
               {/* 결제방법 */}
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">결제방법</label>
                 <select value={directForm.paymentMethod} onChange={e => setDirectForm(f => ({ ...f, paymentMethod: e.target.value as any }))}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none">
                   <option value="">결제방법 선택</option>
                   {["현금영수증", "이체", "지역화폐", "카드"].map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -1987,13 +1994,13 @@ export default function LeadsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">결제일자</label>
                 <input type="date" value={directForm.paymentDate} onChange={e => setDirectForm(f => ({ ...f, paymentDate: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
               </div>
               {/* 결제 메모 */}
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">결제 메모</label>
                 <input value={directForm.paymentMemo} onChange={e => setDirectForm(f => ({ ...f, paymentMemo: e.target.value }))} placeholder="분납 등 메모"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
               </div>
               {/* 지점 선택 */}
               {branchList && branchList.length > 0 && (
@@ -2049,13 +2056,13 @@ export default function LeadsPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">이름 *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="홍길동"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-[16px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2.5 text-[16px] text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">연락처</label>
                   <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000"
                     inputMode="tel"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-[16px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2.5 text-[16px] text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
 
@@ -2075,7 +2082,7 @@ export default function LeadsPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">연령대</label>
                   <select value={form.ageGroup} onChange={e => setForm(f => ({ ...f, ageGroup: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
                     {AGE_OPTIONS.map(a => <option key={a}>{a}</option>)}
                   </select>
@@ -2135,12 +2142,12 @@ export default function LeadsPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">상담일</label>
                   <input type="date" value={form.consultationDate} onChange={e => setForm(f => ({ ...f, consultationDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">유입 채널</label>
                   <select value={form.channelId ?? ""} onChange={e => setForm(f => ({ ...f, channelId: e.target.value ? Number(e.target.value) : undefined }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
                     {(channels ?? []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -2166,7 +2173,7 @@ export default function LeadsPage() {
                       else if (v.startsWith("t:")) setForm(f => ({ ...f, assignedTrainerId: Number(v.slice(2)), assignedConsultantId: undefined }));
                       else setForm(f => ({ ...f, assignedConsultantId: Number(v.slice(2)), assignedTrainerId: undefined }));
                     }}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
                     {(consultants ?? []).length > 0 && (
                       <optgroup label="프론트 컨설턴트">
@@ -2187,7 +2194,7 @@ export default function LeadsPage() {
                 <label className="text-xs text-muted-foreground">상담 내용</label>
                 <textarea value={form.consultationNote} onChange={e => setForm(f => ({ ...f, consultationNote: e.target.value }))} rows={3}
                   placeholder="상담 내용을 입력하세요..."
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
               </div>
 
               {/* 등록 진행 내용 */}
@@ -2195,7 +2202,7 @@ export default function LeadsPage() {
                 <label className="text-xs text-muted-foreground">등록 진행 내용</label>
                 <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
                   placeholder="운동 가능 시간, 날짜, 특이사항..."
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
               </div>
 
             </div>

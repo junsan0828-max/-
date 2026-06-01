@@ -394,12 +394,12 @@ function RevenueContent() {
                 <div>
                   <label className="text-xs text-muted-foreground">회원 이름 *</label>
                   <input value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} placeholder="홍길동"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">연락처</label>
                   <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="010-0000-0000"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
 
@@ -433,7 +433,7 @@ function RevenueContent() {
                   </div>
                   {form.ptProgramKey === "기타" && (
                     <input value={form.ptProgramCustom} onChange={e => setForm(f => ({ ...f, ptProgramCustom: e.target.value }))} placeholder="프로그램명 직접 입력"
-                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                      className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                   )}
                   <div>
                     <label className="text-xs text-muted-foreground">횟수</label>
@@ -457,7 +457,7 @@ function RevenueContent() {
                         placeholder="직접 입력 (회)"
                         value={form.sessions === "기타" ? "" : form.sessions}
                         onChange={(e) => setForm(f => ({ ...f, sessions: e.target.value }))}
-                        className="mt-2 w-full px-3 py-2 bg-input border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary"
+                        className="mt-2 w-full px-3 py-2 bg-input border border-border rounded-lg text-sm outline-none focus:outline-none"
                       />
                     )}
                   </div>
@@ -495,7 +495,7 @@ function RevenueContent() {
                             placeholder="직접 입력 (개월)"
                             value={form.serviceHealthDuration === "기타" ? "" : form.serviceHealthDuration}
                             onChange={e => setForm(f => ({ ...f, serviceHealthDuration: e.target.value }))}
-                            className="mt-2 w-full px-3 py-2 bg-input border border-border rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary"
+                            className="mt-2 w-full px-3 py-2 bg-input border border-border rounded-lg text-sm outline-none focus:outline-none"
                           />
                         )}
                       </div>
@@ -569,7 +569,7 @@ function RevenueContent() {
                 <div>
                   <label className="text-xs text-muted-foreground">총 금액 *</label>
                   <input type="number" value={form.amount} onChange={e => handleAmountChange(e.target.value)} placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">할인 금액</label>
@@ -578,7 +578,7 @@ function RevenueContent() {
                     const amount = parseInt(form.amount) || 0;
                     setForm(f => ({ ...f, discountAmount: e.target.value, paidAmount: String(Math.max(0, amount - discount)) }));
                   }} placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
 
@@ -586,12 +586,12 @@ function RevenueContent() {
                 <div>
                   <label className="text-xs text-muted-foreground">실 납부액 *</label>
                   <input type="number" value={form.paidAmount} onChange={e => setForm(f => ({ ...f, paidAmount: e.target.value }))} placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">미수금</label>
                   <input type="number" value={form.unpaidAmount} onChange={e => setForm(f => ({ ...f, unpaidAmount: e.target.value }))} placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
 
@@ -600,14 +600,14 @@ function RevenueContent() {
                 <div>
                   <label className="text-xs text-muted-foreground">결제 방법</label>
                   <select value={form.paymentMethod} onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     {PAYMENT_METHODS.map(m => <option key={m}>{m}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">결제일 *</label>
                   <input type="date" value={form.paymentDate} onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               </div>
 
@@ -615,7 +615,7 @@ function RevenueContent() {
                 <div>
                   <label className="text-xs text-muted-foreground">시작일</label>
                   <input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
                 <div />
               </div>
@@ -625,7 +625,7 @@ function RevenueContent() {
                 <div>
                   <label className="text-xs text-muted-foreground">트레이너</label>
                   <select value={form.trainerId ?? ""} onChange={e => setForm(f => ({ ...f, trainerId: e.target.value ? Number(e.target.value) : undefined }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
                     {(trainers ?? []).map((t: any) => <option key={t.id} value={t.id}>{t.trainerName}</option>)}
                   </select>
@@ -637,7 +637,7 @@ function RevenueContent() {
                 <div>
                   <label className="text-xs text-muted-foreground">상담담당자</label>
                   <select value={form.consultantId ?? ""} onChange={e => setForm(f => ({ ...f, consultantId: e.target.value ? Number(e.target.value) : undefined }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
                     {(trainers ?? []).length > 0 && <optgroup label="트레이너">
                       {(trainers ?? []).map((t: any) => <option key={`tr-${t.userId}`} value={t.userId}>{t.trainerName}</option>)}
@@ -650,7 +650,7 @@ function RevenueContent() {
                 <div>
                   <label className="text-xs text-muted-foreground">유입 채널</label>
                   <select value={form.channelId ?? ""} onChange={e => setForm(f => ({ ...f, channelId: e.target.value ? Number(e.target.value) : undefined }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     <option value="">선택</option>
                     {(channels ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -679,7 +679,7 @@ function RevenueContent() {
               <div>
                 <label className="text-xs text-muted-foreground">메모</label>
                 <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
               </div>
 
               </div>

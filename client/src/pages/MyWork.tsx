@@ -396,7 +396,7 @@ export default function MyWorkPage() {
                 <label className="text-xs text-muted-foreground">업무 제목 *</label>
                 <input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="예: 오늘 상담 예약 확인"
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
               </div>
 
               <div>
@@ -448,20 +448,20 @@ export default function MyWorkPage() {
                 <div>
                   <label className="text-xs text-muted-foreground">날짜</label>
                   <input type="date" value={taskForm.taskDate} onChange={e => setTaskForm(f => ({ ...f, taskDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                 </div>
               )}
 
               <div>
                 <label className="text-xs text-muted-foreground">마감 시간 (선택)</label>
                 <input type="time" value={taskForm.dueTime} onChange={e => setTaskForm(f => ({ ...f, dueTime: e.target.value }))}
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
               </div>
 
               <div>
                 <label className="text-xs text-muted-foreground">메모 (선택)</label>
                 <textarea value={taskForm.description} onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))} rows={2}
-                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
               </div>
             </div>
             <div className="p-4 border-t border-border shrink-0">
