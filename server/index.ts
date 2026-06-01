@@ -349,7 +349,24 @@ async function initDatabase() {
       UNIQUE("trainerId", "branchId")
     )`,
     `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "memberId" INTEGER`,
-  ];
+    `CREATE TABLE IF NOT EXISTS gym_plus_membership_renewals (
+      "id" SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "currentMembershipEnd" TEXT,
+      "requestedPeriod" TEXT NOT NULL,
+      "bonusDays" INTEGER DEFAULT 0 NOT NULL,
+      "memberName" TEXT,
+      "memberPhone" TEXT,
+      "notes" TEXT,
+      "agreedToTerms" INTEGER DEFAULT 0 NOT NULL,
+      "agreedPrivacy" INTEGER DEFAULT 0 NOT NULL,
+      "agreedMarketing" INTEGER DEFAULT 0 NOT NULL,
+      "trainerName" TEXT,
+      "contractDate" TEXT,
+      "signatureData" TEXT,
+      "status" TEXT DEFAULT 'pending' NOT NULL,
+      "createdAt" TEXT NOT NULL
+    )`,
   for (const stmt of alterStatements) {
     await pool.query(stmt);
   }
