@@ -668,13 +668,106 @@ export function GymPlusWorkoutLogsAdmin() {
 }
 
 // ─── 메인 어드민 짐+ 섹션 ─────────────────────────────────────────────────────
-type GymPlusTab = "members" | "videos" | "events" | "logs";
+function GymPlusRenewalsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: renewals, isLoading } = trpc.gymPlus.admin_listRenewals.useQuery({ status: "all" });
+  const [approveTarget, setApproveTarget] = useState<{ id: number; memberName: string; currentEnd: string | null } | null>(null);
+  const [newEnd, setNewEnd] = useState("");
+  const [adminNote, setAdminNote] = useState("");
+
+  const approveMutation = trpc.gymPlus.admin_approveRenewal.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listRenewals.invalidate(); setApproveTarget(null); setNewEnd(""); setAdminNote(""); toast.success("승인되었습니다."); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rejectMutation = trpc.gymPlus.admin_rejectRenewal.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listRenewals.invalidate(); toast.success("거절되었습니다."); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const pending = renewals?.filter(r => r.renewal.status === "pending") ?? [];
+  const done = renewals?.filter(r => r.renewal.status !== "pending") ?? [];
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-semibold text-muted-foreground">대기 중 {pending.length}건</p>
+      {isLoading && <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>}
+      {pending.length === 0 && !isLoading && (
+        <p className="text-sm text-muted-foreground text-center py-6">대기 중인 신청이 없습니다.</p>
+      )}
+      {pending.map(r => (
+        <div key={r.renewal.id} className="bg-card border border-yellow-500/30 rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-sm">{r.memberName ?? "-"}</p>
+              <p className="text-xs text-muted-foreground">{r.memberPhone} · 현재 만료 {r.membershipEnd?.slice(0, 10) ?? "-"}</p>
+            </div>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">대기중</span>
+          </div>
+          {r.renewal.memo && <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">메모: {r.renewal.memo}</p>}
+          <p className="text-[10px] text-muted-foreground">{r.renewal.requestedAt?.slice(0, 16).replace("T", " ")} 신청</p>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => rejectMutation.mutate({ id: r.renewal.id })} disabled={rejectMutation.isPending}
+              className="flex-1 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:text-red-400 hover:border-red-400/40">거절</button>
+            <button onClick={() => { setApproveTarget({ id: r.renewal.id, memberName: r.memberName ?? "", currentEnd: r.membershipEnd }); setNewEnd(r.membershipEnd ?? ""); }}
+              className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">승인</button>
+          </div>
+        </div>
+      ))}
+
+      {done.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <p className="text-xs text-muted-foreground font-semibold">처리 완료</p>
+          {done.map(r => (
+            <div key={r.renewal.id} className="bg-card border border-border rounded-xl p-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">{r.memberName}</p>
+                <p className="text-xs text-muted-foreground">{r.renewal.processedAt?.slice(0, 10)}</p>
+              </div>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full border ${r.renewal.status === "approved" ? "bg-green-500/10 text-green-400 border-green-500/30" : "bg-red-500/10 text-red-400 border-red-500/30"}`}>
+                {r.renewal.status === "approved" ? `승인 (→${r.renewal.newMembershipEnd?.slice(0, 10)})` : "거절"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 승인 다이얼로그 */}
+      <Dialog open={!!approveTarget} onOpenChange={(o) => { if (!o) setApproveTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{approveTarget?.memberName} — 재등록 승인</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">연장 후 만료일</Label>
+              <Input type="date" value={newEnd} onChange={e => setNewEnd(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">관리자 메모 (선택)</Label>
+              <Input value={adminNote} onChange={e => setAdminNote(e.target.value)} placeholder="메모 입력" className="h-8 text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setApproveTarget(null)}>취소</Button>
+              <Button className="flex-1 h-8 text-sm" disabled={!newEnd || approveMutation.isPending}
+                onClick={() => approveMutation.mutate({ id: approveTarget!.id, newMembershipEnd: newEnd, adminNote: adminNote || undefined })}>
+                {approveMutation.isPending ? "승인 중..." : "승인"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+type GymPlusTab = "members" | "renewals" | "videos" | "events" | "logs";
 
 export default function GymPlusAdminSection() {
   const [activeTab, setActiveTab] = useState<GymPlusTab>("members");
+  const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery({ status: "pending" });
+  const pendingCount = pendingRenewals?.length ?? 0;
 
   const tabs: { key: GymPlusTab; label: string }[] = [
     { key: "members", label: "회원" },
+    { key: "renewals", label: "재등록 신청" },
     { key: "videos", label: "운동영상" },
     { key: "events", label: "이벤트/공지" },
     { key: "logs", label: "운동기록" },
@@ -682,21 +775,25 @@ export default function GymPlusAdminSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 bg-muted p-1 rounded-xl">
+      <div className="flex gap-1 bg-muted p-1 rounded-xl overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+            className={`relative flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
               activeTab === tab.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
             }`}
           >
             {tab.label}
+            {tab.key === "renewals" && pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{pendingCount}</span>
+            )}
           </button>
         ))}
       </div>
 
       {activeTab === "members" && <GymPlusMembersAdmin />}
+      {activeTab === "renewals" && <GymPlusRenewalsAdmin />}
       {activeTab === "videos" && <GymPlusVideosAdmin />}
       {activeTab === "events" && <GymPlusEventsAdmin />}
       {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}

@@ -608,6 +608,17 @@ export const gymPlusPushSubscriptions = pgTable("gym_plus_push_subscriptions", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  status: text("status").default("pending").notNull(), // pending | approved | rejected
+  memo: text("memo"),           // 회원 메모
+  adminNote: text("adminNote"), // 관리자 메모
+  requestedAt: text("requestedAt").notNull(),
+  processedAt: text("processedAt"),
+  newMembershipEnd: text("newMembershipEnd"), // 승인 시 연장된 만료일
+});
+
 // 양도양수 계약서
 export const transferContracts = pgTable("transfer_contracts", {
   id: serial("id").primaryKey(),

@@ -662,6 +662,16 @@ async function initDatabase() {
       content TEXT NOT NULL,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_membership_renewals (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      memo TEXT,
+      "adminNote" TEXT,
+      "requestedAt" TEXT NOT NULL,
+      "processedAt" TEXT,
+      "newMembershipEnd" TEXT
+    )`,
   ];
   for (const stmt of accessTables) {
     await pool.query(stmt);

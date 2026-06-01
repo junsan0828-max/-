@@ -40,6 +40,7 @@ import {
   gymPlusWorkoutLogs,
   gymPlusMessages,
   gymPlusPushSubscriptions,
+  gymPlusMembershipRenewals,
 } from "../drizzle/schema";
 import webpush from "web-push";
 
@@ -4597,6 +4598,91 @@ const gymPlusRouter = t.router({
 
   // 관리자용 VAPID 공개키 조회
   getVapidPublicKey: publicProcedure.query(() => VAPID_PUBLIC),
+
+  // ── 재등록 신청 ─────────────────────────────────────────────────────────────
+
+  // 회원: 재등록 신청
+  requestRenewal: t.procedure
+    .input(z.object({ gymPlusMemberId: z.number(), memo: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 이미 pending 신청이 있으면 중복 불가
+      const existing = await db.select().from(gymPlusMembershipRenewals)
+        .where(and(eq(gymPlusMembershipRenewals.gymPlusMemberId, input.gymPlusMemberId), eq(gymPlusMembershipRenewals.status, "pending")))
+        .limit(1);
+      if (existing.length > 0) throw new TRPCError({ code: "BAD_REQUEST", message: "이미 처리 대기 중인 재등록 신청이 있습니다." });
+      await db.insert(gymPlusMembershipRenewals).values({
+        gymPlusMemberId: input.gymPlusMemberId,
+        status: "pending",
+        memo: input.memo,
+        requestedAt: new Date().toISOString(),
+      });
+      return { success: true };
+    }),
+
+  // 회원: 내 재등록 신청 목록
+  myRenewals: t.procedure
+    .input(z.object({ gymPlusMemberId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      return db.select().from(gymPlusMembershipRenewals)
+        .where(eq(gymPlusMembershipRenewals.gymPlusMemberId, input.gymPlusMemberId))
+        .orderBy(desc(gymPlusMembershipRenewals.requestedAt));
+    }),
+
+  // 관리자: 전체 재등록 신청 목록
+  admin_listRenewals: adminOnlyGymPlus
+    .input(z.object({ status: z.enum(["pending", "approved", "rejected", "all"]).default("pending") }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({
+        renewal: gymPlusMembershipRenewals,
+        memberName: gymPlusMembers.name,
+        memberPhone: gymPlusMembers.phone,
+        membershipEnd: gymPlusMembers.membershipEnd,
+      })
+        .from(gymPlusMembershipRenewals)
+        .leftJoin(gymPlusMembers, eq(gymPlusMembershipRenewals.gymPlusMemberId, gymPlusMembers.id))
+        .where(input.status === "all" ? undefined : eq(gymPlusMembershipRenewals.status, input.status))
+        .orderBy(desc(gymPlusMembershipRenewals.requestedAt));
+      return rows;
+    }),
+
+  // 관리자: 재등록 승인
+  admin_approveRenewal: adminOnlyGymPlus
+    .input(z.object({ id: z.number(), newMembershipEnd: z.string(), adminNote: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const renewal = await db.select().from(gymPlusMembershipRenewals).where(eq(gymPlusMembershipRenewals.id, input.id)).limit(1);
+      if (!renewal[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      await db.update(gymPlusMembershipRenewals).set({
+        status: "approved",
+        newMembershipEnd: input.newMembershipEnd,
+        adminNote: input.adminNote,
+        processedAt: new Date().toISOString(),
+      }).where(eq(gymPlusMembershipRenewals.id, input.id));
+      await db.update(gymPlusMembers).set({ membershipEnd: input.newMembershipEnd })
+        .where(eq(gymPlusMembers.id, renewal[0].gymPlusMemberId));
+      return { success: true };
+    }),
+
+  // 관리자: 재등록 거절
+  admin_rejectRenewal: adminOnlyGymPlus
+    .input(z.object({ id: z.number(), adminNote: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(gymPlusMembershipRenewals).set({
+        status: "rejected",
+        adminNote: input.adminNote,
+        processedAt: new Date().toISOString(),
+      }).where(eq(gymPlusMembershipRenewals.id, input.id));
+      return { success: true };
+    }),
 });
 // ─── Event Programs ────────────────────────────────────────────────────────────
 const eventProgramsRouter = t.router({
