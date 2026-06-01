@@ -662,7 +662,7 @@ export default function LeadsPage() {
                 }
               </div>
             </div>
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={confirmRegistration} disabled={!agreedTerms || !agreedPrivacy || !signatureData}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 진행
@@ -965,7 +965,7 @@ export default function LeadsPage() {
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
             </div>
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={saveRegistration}
                 disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50">
@@ -982,14 +982,18 @@ export default function LeadsPage() {
 
       {/* ── 상담 폼 모달 ── */}
       {showForm && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center p-4 pb-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }}>
-            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-              <h2 className="font-semibold text-foreground">{editId ? "상담 수정" : "상담 일지"}</h2>
-              <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">✕</button>
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center pt-safe">
+          <div className="bg-card border border-border rounded-t-3xl md:rounded-2xl w-full max-w-[520px] mx-auto flex flex-col max-h-modal">
+            {/* 모바일 drag handle */}
+            <div className="md:hidden flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="w-9 h-1 rounded-full bg-border" />
             </div>
-            <div className="overflow-y-auto flex-1 p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 md:rounded-t-2xl">
+              <h2 className="font-semibold text-foreground">{editId ? "상담 수정" : "상담 일지"}</h2>
+              <button onClick={resetForm} className="text-muted-foreground hover:text-foreground p-1">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">이름 *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="홍길동"
@@ -1001,7 +1005,7 @@ export default function LeadsPage() {
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">성별</label>
                   <div className="flex gap-2 mt-1">
@@ -1065,7 +1069,7 @@ export default function LeadsPage() {
                   />
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">상담일</label>
                   <input type="date" value={form.consultationDate} onChange={e => setForm(f => ({ ...f, consultationDate: e.target.value }))}
@@ -1093,7 +1097,7 @@ export default function LeadsPage() {
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
             </div>
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
               {editId ? (
                 // 기존 상담 수정: 등록완료(계약서) or 확인(저장)
                 <>

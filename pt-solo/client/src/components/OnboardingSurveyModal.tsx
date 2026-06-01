@@ -136,7 +136,7 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
 
   if (step === "done") {
     return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 pt-safe backdrop-blur-sm">
         <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden">
           <div className="bg-gradient-to-br from-primary to-primary/70 p-8 text-white text-center space-y-3">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto">
@@ -163,7 +163,7 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
 
   if (step === "intro") {
     return (
-      <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity ${exiting ? "opacity-0" : "opacity-100"}`}>
+      <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 pt-safe backdrop-blur-sm transition-opacity ${exiting ? "opacity-0" : "opacity-100"}`}>
         <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden">
           <div className="flex justify-end p-4 pb-0">
             <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
@@ -213,8 +213,8 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
   }
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity ${exiting ? "opacity-0" : "opacity-100"}`}>
-      <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 pt-safe backdrop-blur-sm transition-opacity ${exiting ? "opacity-0" : "opacity-100"}`}>
+      <div className="w-full max-w-md bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-modal">
         {/* 헤더 */}
         <div className="shrink-0 px-5 pt-5 pb-3 space-y-3">
           <div className="flex items-center justify-between">
@@ -267,7 +267,7 @@ export default function OnboardingSurveyModal({ onClose }: { onClose: () => void
         </div>
 
         {/* 하단 버튼 */}
-        <div className="shrink-0 flex items-center gap-3 px-5 py-4 border-t border-border bg-card">
+        <div className="shrink-0 flex items-center gap-3 px-5 pt-4 pb-safe-4 border-t border-border bg-card">
           <button
             onClick={prev}
             disabled={current === 0}

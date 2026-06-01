@@ -562,7 +562,7 @@ export default function TrainerBrandPage({ username }: Props) {
 
       {/* ── 하단 고정 CTA ── */}
       {bookingBlock && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 px-4 pb-6 pt-3"
+        <div className="fixed bottom-0 left-0 right-0 z-30 px-4 pt-3 pb-safe-6"
           style={{ background: "linear-gradient(to top, #f5f5f7 70%, transparent)" }}>
           <button onClick={() => { setShowBooking(true); setBookingStep(0); }}
             className="w-full max-w-lg mx-auto flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-base text-white shadow-xl active:scale-[0.98] transition-all"

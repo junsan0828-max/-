@@ -27,8 +27,8 @@ export default function BasicInfoModal({ currentName, onClose }: { currentName: 
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm pt-safe">
+      <div className="w-full max-w-md bg-card rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden pb-safe">
         <div className="bg-gradient-to-br from-primary to-primary/70 px-6 py-6 text-white text-center space-y-1">
           <p className="text-lg font-bold">기본 정보를 입력해주세요</p>
           <p className="text-sm text-white/80">실명과 연락처를 등록하면 회원 관리가 편해집니다.</p>

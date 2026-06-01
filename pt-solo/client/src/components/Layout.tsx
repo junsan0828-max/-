@@ -99,7 +99,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-dvh bg-background overflow-hidden">
       {/* 데스크탑 사이드바 */}
       <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
         <div className="px-5 py-4 border-b border-border">

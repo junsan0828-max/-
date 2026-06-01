@@ -18,9 +18,9 @@ export default function PointSpendConfirm({ open, onClose, onConfirm, featureNam
   const hasEnough = (balance?.balance ?? 0) >= cost;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center md:items-center">
+    <div className="fixed inset-0 z-[200] flex items-end justify-center md:items-center pt-safe">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-sm mx-4 mb-6 md:mb-0 bg-card rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm mx-4 pb-safe md:pb-0 md:mb-0 bg-card rounded-t-2xl md:rounded-2xl shadow-2xl overflow-hidden">
         <div className="px-5 pt-5 pb-3">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">

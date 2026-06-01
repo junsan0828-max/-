@@ -1363,7 +1363,7 @@ function AddBlockSheet({ existingTypes, onAdd, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card rounded-t-3xl w-full max-h-[70vh] overflow-y-auto shadow-2xl">
+      <div className="relative bg-card rounded-t-3xl w-full max-h-modal-sm overflow-y-auto shadow-2xl">
         <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-card/95 z-10">
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
@@ -2992,7 +2992,7 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative bg-card rounded-t-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
+      <div className="relative bg-card rounded-t-3xl w-full max-h-modal overflow-y-auto shadow-2xl pb-safe">
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-2 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
           <div className="w-10 h-1 rounded-full bg-border" />
@@ -3272,7 +3272,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative bg-card rounded-t-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
+      <div className="relative bg-card rounded-t-3xl w-full max-h-modal overflow-y-auto shadow-2xl">
         <div className="flex justify-center pt-3 pb-2 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>

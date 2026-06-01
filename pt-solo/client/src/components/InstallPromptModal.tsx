@@ -62,9 +62,9 @@ export default function InstallPromptModal({ deferredPrompt, onClear }: Props) {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center md:items-center pt-safe">
       <div className="absolute inset-0 bg-black/50" onClick={() => dismiss(false)} />
-      <div className="relative w-full max-w-sm mx-4 mb-6 md:mb-0 bg-card rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm mx-4 pb-safe md:pb-0 md:mb-0 bg-card rounded-t-2xl md:rounded-2xl shadow-2xl overflow-hidden">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-3">
