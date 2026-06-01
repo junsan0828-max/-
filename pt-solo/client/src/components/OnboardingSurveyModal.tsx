@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ChevronRight, ChevronLeft, X, Sparkles, TrendingUp } from "lucide-react";
+import { ChevronRight, ChevronLeft, X, Sparkles, TrendingUp, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Question = {
@@ -85,16 +85,19 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-export default function OnboardingSurveyModal({ onClose, required = false }: { onClose: () => void; required?: boolean }) {
+export default function OnboardingSurveyModal({ onClose }: { onClose: () => void }) {
   const utils = trpc.useUtils();
   const [step, setStep] = useState<"intro" | "survey" | "done">("intro");
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [exiting, setExiting] = useState(false);
+  const [pointsGranted, setPointsGranted] = useState(false);
 
   const submitMutation = trpc.trainers.submitOnboardingSurvey.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.trainers.getMyProfile.invalidate();
+      utils.fitPoints.getBalance.invalidate();
+      setPointsGranted(data.pointsGranted ?? false);
       setStep("done");
     },
     onError: (e) => toast.error(e.message),
@@ -127,7 +130,6 @@ export default function OnboardingSurveyModal({ onClose, required = false }: { o
   }
 
   function handleClose() {
-    if (required) return; // 필수 설문은 닫기 불가
     setExiting(true);
     setTimeout(onClose, 200);
   }
@@ -145,6 +147,12 @@ export default function OnboardingSurveyModal({ onClose, required = false }: { o
               소중한 응답 감사합니다.<br />맞춤형 교육 콘텐츠와 기능으로 성장을 도와드릴게요.
             </p>
           </div>
+          {pointsGranted && (
+            <div className="flex items-center justify-center gap-2 bg-amber-50 border-b border-amber-100 px-6 py-3">
+              <Coins className="h-4 w-4 text-amber-500" />
+              <p className="text-sm font-bold text-amber-700">+300 FIT POINT 지급 완료!</p>
+            </div>
+          )}
           <div className="p-6">
             <Button className="w-full" onClick={handleClose}>FIT STEP 시작하기</Button>
           </div>
@@ -157,15 +165,11 @@ export default function OnboardingSurveyModal({ onClose, required = false }: { o
     return (
       <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity ${exiting ? "opacity-0" : "opacity-100"}`}>
         <div className="w-full max-w-md bg-card rounded-3xl shadow-2xl overflow-hidden">
-          {/* 닫기 — 필수 모드에서는 숨김 */}
-          {!required && (
-            <div className="flex justify-end p-4 pb-0">
-              <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-          )}
-          {required && <div className="pt-6" />}
+          <div className="flex justify-end p-4 pb-0">
+            <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
 
           <div className="px-6 pb-6 pt-2 space-y-5 text-center">
             {/* 아이콘 */}
@@ -183,11 +187,14 @@ export default function OnboardingSurveyModal({ onClose, required = false }: { o
             </div>
 
             {/* 포인트 안내 */}
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm">
-              <p className="font-semibold text-amber-800">📊 데이터 활용 목적</p>
-              <p className="text-amber-700 text-xs mt-1 leading-relaxed">
-                이 설문은 교육 상품 기획, 앱 기능 우선순위, 시장 분석에 활용됩니다. 개인 식별 정보는 수집하지 않습니다.
-              </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+              <Coins className="h-6 w-6 text-amber-500 shrink-0" />
+              <div>
+                <p className="font-bold text-amber-800 text-sm">완료 시 300 FIT POINT 즉시 지급</p>
+                <p className="text-amber-700 text-xs mt-0.5 leading-relaxed">
+                  응답 결과는 교육 콘텐츠 기획 및 앱 기능 개선에만 활용됩니다.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2 pt-1">
@@ -195,11 +202,9 @@ export default function OnboardingSurveyModal({ onClose, required = false }: { o
                 <Sparkles className="h-4 w-4" />
                 설문 시작하기 (10문항)
               </Button>
-              {!required && (
-                <button onClick={handleClose} className="w-full text-xs text-muted-foreground py-2 hover:text-foreground transition-colors">
-                  나중에 하기
-                </button>
-              )}
+              <button onClick={handleClose} className="w-full text-xs text-muted-foreground py-2 hover:text-foreground transition-colors">
+                나중에 하기
+              </button>
             </div>
           </div>
         </div>
@@ -219,11 +224,9 @@ export default function OnboardingSurveyModal({ onClose, required = false }: { o
               </span>
               <span className="text-xs text-muted-foreground">30초 성장 설문</span>
             </div>
-            {!required && (
-              <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
-                <X className="h-4 w-4" />
-              </button>
-            )}
+            <button onClick={handleClose} className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted transition-colors">
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
           {/* 프로그레스 바 */}

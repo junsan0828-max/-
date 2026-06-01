@@ -1256,6 +1256,12 @@ const trainersRouter = t.router({
     }))
     .mutation(async ({ ctx, input }) => {
       if (!ctx.user.trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      // 이미 완료한 경우 중복 처리 방지
+      const existing = await pool.query<{ onboardingSurveyDone: number }>(
+        `SELECT "onboardingSurveyDone" FROM trainers WHERE id=$1`, [ctx.user.trainerId]
+      );
+      if (existing.rows[0]?.onboardingSurveyDone === 1) return { ok: true, pointsGranted: false };
+
       const updates: string[] = [`"onboardingSurveyData"=$1`, `"onboardingSurveyDone"=1`];
       const values: any[] = [JSON.stringify(input.answers), ctx.user.trainerId];
       if (input.trainerName) {
@@ -1270,7 +1276,12 @@ const trainersRouter = t.router({
         `UPDATE trainers SET ${updates.join(", ")} WHERE id=$${values.length}`,
         values
       );
-      return { ok: true };
+      // 설문 완료 300P 지급
+      await pool.query(
+        `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,300,'survey_bonus','성장 설문 완료 보너스','completed')`,
+        [ctx.user.trainerId]
+      );
+      return { ok: true, pointsGranted: true };
     }),
 });
 

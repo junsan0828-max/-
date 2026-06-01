@@ -31,7 +31,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [surveyDone, setSurveyDone] = useState(false);
+  const [surveyDone, setSurveyDone] = useState(
+    () => !!sessionStorage.getItem("onboarding-survey-dismissed")
+  );
   const [basicInfoDone, setBasicInfoDone] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
@@ -220,7 +222,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             onClose={() => setBasicInfoDone(true)}
           />
         )}
-        {showSurvey && <OnboardingSurveyModal required onClose={() => setSurveyDone(true)} />}
+        {showSurvey && <OnboardingSurveyModal onClose={() => { sessionStorage.setItem("onboarding-survey-dismissed", "1"); setSurveyDone(true); }} />}
       </div>
     </div>
   );
