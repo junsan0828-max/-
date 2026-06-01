@@ -15,10 +15,15 @@ const STEPS = [
   { icon: MapPin,    label: "활동지역",   desc: "주로 활동하는 지역" },
 ];
 
-export default function ProfileSetupModal() {
+export default function ProfileSetupModal({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const { data: profile, isSuccess } = trpc.trainers.getMyProfile.useQuery();
+
+  const setOpenWithCb = (v: boolean) => {
+    setOpen(v);
+    onOpenChange?.(v);
+  };
 
   useEffect(() => {
     if (!isSuccess) return;
@@ -26,13 +31,13 @@ export default function ProfileSetupModal() {
     if (profile.profileBonusGranted) return;          // 이미 완성
     if (sessionStorage.getItem(SESSION_KEY)) return;  // 이번 세션 이미 봄
     // 약간 딜레이 후 표시 (화면 로드 후)
-    const t = setTimeout(() => setOpen(true), 600);
+    const t = setTimeout(() => setOpenWithCb(true), 600);
     return () => clearTimeout(t);
   }, [isSuccess, profile]);
 
   const dismiss = () => {
     sessionStorage.setItem(SESSION_KEY, "1");
-    setOpen(false);
+    setOpenWithCb(false);
   };
 
   const goProfile = () => {
@@ -41,7 +46,7 @@ export default function ProfileSetupModal() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) dismiss(); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) dismiss(); }} modal={true}>
       <DialogContent className="max-w-sm p-0 overflow-hidden border-border bg-card gap-0 [&>button]:hidden">
         {/* 헤더 배경 */}
         <div className="relative bg-gradient-to-br from-primary/30 via-primary/10 to-background px-6 pt-8 pb-6 text-center">

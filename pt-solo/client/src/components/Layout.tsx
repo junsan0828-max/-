@@ -33,6 +33,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [surveyDone, setSurveyDone] = useState(false);
   const [basicInfoDone, setBasicInfoDone] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   const needsBasicInfo = user?.role === "trainer"
     && profile !== undefined
@@ -211,8 +212,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
-        {user && !showSurvey && !needsBasicInfo && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
-        {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal />}
+        {user && !showSurvey && !needsBasicInfo && !profileModalOpen && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
+        {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal onOpenChange={setProfileModalOpen} />}
         {needsBasicInfo && (
           <BasicInfoModal
             currentName={(profile as any)?.trainerName ?? ""}
