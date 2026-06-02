@@ -749,6 +749,7 @@ async function initDatabase() {
   )`);
   // 기존 테이블에 courseType 컬럼 추가 (없을 경우)
   await pool.query(`ALTER TABLE academy_courses ADD COLUMN IF NOT EXISTS "courseType" TEXT NOT NULL DEFAULT 'online'`);
+  await pool.query(`ALTER TABLE academy_courses ADD COLUMN IF NOT EXISTS "timerSeconds" INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`CREATE TABLE IF NOT EXISTS academy_completions (
     id SERIAL PRIMARY KEY,
     "courseId" INTEGER NOT NULL,
