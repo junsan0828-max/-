@@ -3116,6 +3116,9 @@ ${dataContext}
       parqSubmittedAt: z.string().optional(),
       bodyAnalysisRequested: z.number().optional(),
       bodyAnalysisRequestedAt: z.string().optional(),
+      gymRulesAgreed: z.number().optional(),
+      appGuideConfirmed: z.number().optional(),
+      parqJson: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();

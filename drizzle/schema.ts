@@ -473,6 +473,10 @@ export const gymPlusMemberHealth = pgTable("gym_plus_member_health", {
   // 체형분석 신청
   bodyAnalysisRequested: integer("bodyAnalysisRequested").default(0).notNull(),
   bodyAnalysisRequestedAt: text("bodyAnalysisRequestedAt"),
+  // 미션 (이용규정 동의, 이용방법 확인, PAR-Q JSON)
+  gymRulesAgreed: integer("gymRulesAgreed").default(0),
+  appGuideConfirmed: integer("appGuideConfirmed").default(0),
+  parqJson: text("parqJson"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

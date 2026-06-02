@@ -25,15 +25,68 @@ const membershipTypeBadge: Record<string, string> = {
   vip: "bg-purple-500/10 text-purple-400 border-purple-500/30",
 };
 
-const PARQ_QUESTIONS = [
-  "의사로부터 심장 관련 질환이 있어 의사가 권고하는 신체 활동만 해야 한다는 말을 들은 적이 있습니까?",
-  "신체 활동 시 가슴 통증을 느낀 적이 있습니까?",
-  "지난 한 달 동안 신체 활동을 하지 않을 때 가슴 통증을 느낀 적이 있습니까?",
-  "어지럼증으로 균형을 잃거나 의식을 잃은 적이 있습니까?",
-  "신체 활동의 변화로 악화될 수 있는 뼈 또는 관절 문제가 있습니까?",
-  "현재 혈압이나 심장 질환으로 약을 복용하고 있습니까?",
-  "신체 활동을 하면 안 되는 다른 이유가 있습니까?",
+const GOAL_OPTIONS = ["선택 안함", "체중감량", "근력증가", "다이어트", "체형교정", "건강관리", "재활/부상회복", "스포츠퍼포먼스", "스트레스해소", "기타"];
+
+const BODY_PARTS = [
+  "목관절", "흉추", "요추", "골반/천골",
+  "어깨(RT)", "어깨(LT)", "팔꿈치(RT)", "팔꿈치(LT)",
+  "손목/손(RT)", "손목/손(LT)", "고관절(RT)", "고관절(LT)",
+  "무릎(RT)", "무릎(LT)",
 ];
+
+const POSTURE_ROWS_FRONT = [
+  "목", "어깨", "쇄골/흉골", "흉부", "상완(팔)",
+  "전완/팔꿈치", "손목/손", "복부(상)", "복부(하)/요추",
+  "골반", "고관절", "허벅지", "무릎", "발목/발",
+];
+
+const POSTURE_ROWS_BACK = [
+  "후두부/목", "어깨/승모", "흉추(상)", "흉추(하)/견갑", "상완(팔)",
+  "전완/팔꿈치", "손목/손", "등(상)", "등(하)/요추",
+  "골반/천골", "고관절", "허벅지(후)", "무릎(후)/종아리", "발목/발",
+];
+
+const DIAGNOSES = ["해당없음", "대사증후군", "고혈압", "당뇨", "당뇨병2형", "고지혈증", "비만", "골다공증", "근감소증"];
+
+const LIFESTYLE = {
+  diet: ["A. 식사불규칙", "B. 단백질부족", "C. 폭식/과식", "D. 야식"],
+  drinking: ["A. 주3회이상", "B. 과음", "C. 스트레스음주", "D. 회식컨디션저하"],
+  sleep: ["A. 자주깸", "B. 피로", "C. 잠드는데30분이상", "D. 6시간미만"],
+  activity: ["A. 5000보미만", "B. 앉아있는시간6시간이상", "C. 주2회미만운동", "D. 기본활동숨참"],
+};
+
+type ParqData = {
+  birthYear: string; birthMonth: string; birthDay: string;
+  height: string; weight: string;
+  occupation: string; workEnvironment: string; exerciseExperience: string;
+  goal1: string; goal2: string; goal3: string;
+  dietHabits: string[]; drinkingHabits: string[]; sleepHabits: string[]; activityHabits: string[];
+  diagnoses: string[];
+  systolicBP: string; diastolicBP: string; waistCircumference: string;
+  totalCholesterol: string; hdl: string; ldl: string; triglycerides: string;
+  fastingGlucose: string; postMealGlucose: string; hba1c: string; boneDensity: string;
+  imbalanceAreas: string[]; acuteInjuryAreas: string[]; chronicPainAreas: string[];
+  postureFrontRT: string[]; postureFrontLT: string[];
+  postureBackRT: string[]; postureBackLT: string[];
+};
+
+const defaultParqData: ParqData = {
+  birthYear: "", birthMonth: "", birthDay: "", height: "", weight: "",
+  occupation: "", workEnvironment: "", exerciseExperience: "",
+  goal1: "선택 안함", goal2: "선택 안함", goal3: "선택 안함",
+  dietHabits: [], drinkingHabits: [], sleepHabits: [], activityHabits: [],
+  diagnoses: [],
+  systolicBP: "", diastolicBP: "", waistCircumference: "",
+  totalCholesterol: "", hdl: "", ldl: "", triglycerides: "",
+  fastingGlucose: "", postMealGlucose: "", hba1c: "", boneDensity: "",
+  imbalanceAreas: [], acuteInjuryAreas: [], chronicPainAreas: [],
+  postureFrontRT: [], postureFrontLT: [],
+  postureBackRT: [], postureBackLT: [],
+};
+
+function toggleArr(arr: string[], item: string): string[] {
+  return arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
+}
 
 function daysUntil(dateStr: string | null | undefined) {
   if (!dateStr) return null;
@@ -63,16 +116,28 @@ function MissionCard({
           : "border-border bg-card hover:border-primary/50"
       }`}
     >
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${
-        done ? "bg-green-500/20" : "bg-muted"
-      }`}>{icon}</div>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${done ? "bg-green-500/20" : "bg-muted"}`}>{icon}</div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-sm">{title}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
-      <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-        done ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"
-      }`}>{done ? "완료" : "미완료"}</span>
+      <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${done ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
+        {done ? "완료" : "미완료"}
+      </span>
+    </button>
+  );
+}
+
+function ToggleChip({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+        checked ? "border-primary/50 bg-primary/15 text-primary" : "border-border text-muted-foreground hover:border-primary/30"
+      }`}
+    >
+      {label}
     </button>
   );
 }
@@ -191,9 +256,11 @@ export default function GymPlusProfile() {
   const [pwExpanded, setPwExpanded] = useState(false);
 
   // 미션 모달 상태
-  const [showBodyInfo, setShowBodyInfo] = useState(false);
+  const [showGymRules, setShowGymRules] = useState(false);
+  const [gymRulesChecked, setGymRulesChecked] = useState(false);
+  const [showAppGuide, setShowAppGuide] = useState(false);
   const [showParq, setShowParq] = useState(false);
-  const [showBodyAnalysis, setShowBodyAnalysis] = useState(false);
+  const [parqData, setParqData] = useState<ParqData>(defaultParqData);
 
   // 재등록 신청 모달
   const [showRenewal, setShowRenewal] = useState(false);
@@ -210,14 +277,6 @@ export default function GymPlusProfile() {
     paymentMethod: "",
   });
   const [contractDate, setContractDate] = useState("");
-
-  // 신체정보 폼
-  const [bodyForm, setBodyForm] = useState({ height: "", weight: "", birthYear: "", gender: "" });
-
-  // PAR-Q 폼
-  const [parqAnswers, setParqAnswers] = useState<Record<string, string>>({
-    parq1: "", parq2: "", parq3: "", parq4: "", parq5: "", parq6: "", parq7: "",
-  });
 
   const requestRenewal = trpc.gymPlus.requestRenewal.useMutation({
     onSuccess: () => {
@@ -269,7 +328,6 @@ export default function GymPlusProfile() {
     changePassword.mutate({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword });
   };
 
-  // 갱신 혜택 계산
   function getRenewalBonus(days: number | null): { days: number; label: string; desc: string; color: string } {
     if (days === null) return { days: 0, label: "", desc: "", color: "" };
     if (days >= 30) return { days: 14, label: "2주 서비스 혜택", desc: "만료 1개월 전 등록 시", color: "text-green-400" };
@@ -301,10 +359,7 @@ export default function GymPlusProfile() {
   };
 
   const submitRenewal = () => {
-    if (!signatureData) {
-      toast.error("서명을 완료해 주세요.");
-      return;
-    }
+    if (!signatureData) { toast.error("서명을 완료해 주세요."); return; }
     const bonus = getRenewalBonus(daysLeft);
     const notesWithPayment = [
       renewalForm.paymentMethod ? `결제방법: ${renewalForm.paymentMethod}` : "",
@@ -350,56 +405,41 @@ export default function GymPlusProfile() {
     }
   };
 
-  // 신체정보 모달 열기
-  const openBodyInfo = () => {
-    setBodyForm({
-      height: health?.height ?? "",
-      weight: health?.weight ?? "",
-      birthYear: health?.birthYear ?? "",
-      gender: health?.gender ?? "",
-    });
-    setShowBodyInfo(true);
-  };
-
-  const submitBodyInfo = () => {
-    if (!bodyForm.height || !bodyForm.weight) { toast.error("키와 몸무게는 필수 입력 항목입니다."); return; }
-    upsertHealth.mutate(bodyForm, {
-      onSuccess: () => { setShowBodyInfo(false); toast.success("신체정보가 저장되었습니다."); },
+  // 미션 핸들러
+  const submitGymRules = () => {
+    if (!gymRulesChecked) { toast.error("이용규정에 동의해 주세요."); return; }
+    upsertHealth.mutate({ gymRulesAgreed: 1 }, {
+      onSuccess: () => { setShowGymRules(false); toast.success("센터 이용규정 동의가 완료되었습니다."); },
     });
   };
 
-  // PAR-Q 모달 열기
+  const submitAppGuide = () => {
+    upsertHealth.mutate({ appGuideConfirmed: 1 }, {
+      onSuccess: () => { setShowAppGuide(false); toast.success("이용방법 안내 확인이 완료되었습니다."); },
+    });
+  };
+
   const openParq = () => {
-    setParqAnswers({
-      parq1: health?.parq1 ?? "",
-      parq2: health?.parq2 ?? "",
-      parq3: health?.parq3 ?? "",
-      parq4: health?.parq4 ?? "",
-      parq5: health?.parq5 ?? "",
-      parq6: health?.parq6 ?? "",
-      parq7: health?.parq7 ?? "",
-    });
+    if (health?.parqJson) {
+      try { setParqData(JSON.parse(health.parqJson)); } catch { setParqData(defaultParqData); }
+    } else {
+      setParqData(defaultParqData);
+    }
     setShowParq(true);
   };
 
   const submitParq = () => {
-    const allAnswered = Object.values(parqAnswers).every(v => v === "예" || v === "아니오");
-    if (!allAnswered) { toast.error("모든 항목에 답변해 주세요."); return; }
-    upsertHealth.mutate({ ...parqAnswers, parqSubmittedAt: new Date().toISOString() }, {
-      onSuccess: () => { setShowParq(false); toast.success("사전 건강검사가 저장되었습니다."); },
+    upsertHealth.mutate({ parqJson: JSON.stringify(parqData) }, {
+      onSuccess: () => { setShowParq(false); toast.success("PAR-Q 건강설문이 완료되었습니다."); },
     });
   };
 
-  const submitBodyAnalysis = () => {
-    upsertHealth.mutate({ bodyAnalysisRequested: 1, bodyAnalysisRequestedAt: new Date().toISOString() }, {
-      onSuccess: () => { setShowBodyAnalysis(false); toast.success("체형분석 신청이 완료되었습니다. 트레이너가 확인 후 연락드립니다."); },
-    });
-  };
+  const setPD = (key: keyof ParqData, value: any) => setParqData(p => ({ ...p, [key]: value }));
 
   // 미션 완료 여부
-  const mission1Done = !!(health?.height && health?.weight);
-  const mission2Done = !!(health?.parqSubmittedAt);
-  const mission3Done = !!(health?.bodyAnalysisRequested);
+  const mission1Done = !!(health?.gymRulesAgreed);
+  const mission2Done = !!(health?.appGuideConfirmed);
+  const mission3Done = !!(health?.parqJson);
   const allMissionsDone = mission1Done && mission2Done && mission3Done;
 
   const daysLeft = daysUntil(member?.membershipEnd);
@@ -462,7 +502,7 @@ export default function GymPlusProfile() {
         })()}
       </div>
 
-      {/* 미션 */}
+      {/* 추천 운동 활성화 미션 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -482,25 +522,25 @@ export default function GymPlusProfile() {
 
         <div className="space-y-2">
           <MissionCard
-            icon="📏"
-            title="신체정보 입력"
-            description={mission1Done ? `${health?.height}cm / ${health?.weight}kg` : "키, 몸무게, 출생연도, 성별 입력"}
+            icon="📋"
+            title="센터 이용규정 안내 동의"
+            description={mission1Done ? "이용규정 동의 완료" : "자이언트짐+ 센터 이용규정을 확인하고 동의하세요"}
             done={mission1Done}
-            onPress={openBodyInfo}
+            onPress={() => setShowGymRules(true)}
+          />
+          <MissionCard
+            icon="📱"
+            title="자이언트짐+ 이용방법 안내 확인"
+            description={mission2Done ? "이용방법 안내 확인 완료" : "앱 사용법 및 센터 이용 안내를 확인하세요"}
+            done={mission2Done}
+            onPress={() => setShowAppGuide(true)}
           />
           <MissionCard
             icon="🩺"
-            title="사전 건강검사 (PAR-Q)"
-            description={mission2Done ? "건강검사 완료" : "운동 전 필수 건강 설문 7문항"}
-            done={mission2Done}
-            onPress={openParq}
-          />
-          <MissionCard
-            icon="📊"
-            title="체형분석 데이터 신청"
-            description={mission3Done ? "신청 완료 — 트레이너 확인 중" : "트레이너에게 체형분석 데이터 신청"}
+            title="PAR-Q 완료"
+            description={mission3Done ? "사전 건강설문 완료" : "운동 시작 전 건강 상태를 알려주세요"}
             done={mission3Done}
-            onPress={() => !mission3Done && setShowBodyAnalysis(true)}
+            onPress={openParq}
           />
         </div>
       </div>
@@ -574,91 +614,462 @@ export default function GymPlusProfile() {
         {pwMsg && <p className={`text-xs mt-2 ${pwMsg.includes("변경") ? "text-green-400" : "text-red-400"}`}>{pwMsg}</p>}
       </div>
 
-      {/* 신체정보 입력 모달 */}
-      {showBodyInfo && (
-        <Dialog open onOpenChange={(o) => { if (!o) setShowBodyInfo(false); }}>
-          <DialogContent className="max-w-sm">
+      {/* 센터 이용규정 모달 */}
+      {showGymRules && (
+        <Dialog open onOpenChange={(o) => { if (!o) setShowGymRules(false); }}>
+          <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <h2 className="font-bold text-base">📏 신체정보 입력</h2>
-              <p className="text-xs text-muted-foreground">맞춤 운동 추천을 위한 기본 정보입니다</p>
+              <h2 className="font-bold text-base">📋 센터 이용규정 안내</h2>
+              <p className="text-xs text-muted-foreground">아래 이용규정을 확인하고 동의해 주세요</p>
             </DialogHeader>
-            <div className="space-y-3 pt-1">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">키 (cm) *</Label>
-                  <Input value={bodyForm.height} onChange={(e) => setBodyForm(p => ({ ...p, height: e.target.value }))} placeholder="예: 175" type="number" className="bg-input border-border h-9 text-sm" />
+            <div className="space-y-4 pt-1">
+              <div className="bg-muted/20 border border-border rounded-xl p-4 text-[11px] text-muted-foreground leading-relaxed space-y-3 max-h-72 overflow-y-auto">
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제1조 (목적)</p>
+                  <p>본 규정은 자이언트짐+(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.</p>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">몸무게 (kg) *</Label>
-                  <Input value={bodyForm.weight} onChange={(e) => setBodyForm(p => ({ ...p, weight: e.target.value }))} placeholder="예: 70" type="number" className="bg-input border-border h-9 text-sm" />
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제2조 (회원의 의무)</p>
+                  <p>① 회원은 센터의 시설 및 기구를 타인에게 피해가 가지 않도록 올바르게 사용하여야 합니다.</p>
+                  <p>② 회원은 센터 내에서 타인을 방해하거나 불쾌감을 주는 행위를 해서는 안 됩니다.</p>
+                  <p>③ 운동 후 사용한 기구는 반드시 제자리에 정리하여야 합니다.</p>
+                  <p>④ 센터 내 음식물 반입은 허용되지 않으며, 음료는 개인 물병만 허용합니다.</p>
+                  <p>⑤ 적절한 운동복을 착용하고 입장하여야 합니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제3조 (이용 시간 및 시설)</p>
+                  <p>① 센터의 운영 시간은 별도 공지에 따릅니다.</p>
+                  <p>② 회원은 운영 시간 내에만 센터를 이용할 수 있습니다.</p>
+                  <p>③ 시설 이용 시 안전사고 예방을 위해 주의사항을 준수하여야 합니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제4조 (이용권 및 환불)</p>
+                  <p>① 이용권은 계약 시작일로부터 효력이 발생합니다.</p>
+                  <p>② 이용권의 환불은 관련 법령 및 센터 환불 규정에 따릅니다.</p>
+                  <p>③ 개인 사정으로 인한 중도 해지 시 잔여 기간에 따라 환불이 이루어집니다.</p>
+                  <p>④ 부상·질병 등 불가피한 사유가 있을 경우 이용 정지 신청이 가능합니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제5조 (자이언트짐+ 앱 이용)</p>
+                  <p>① 회원은 자이언트짐+ 앱을 통해 트레이닝 일지 및 운동 기록을 관리할 수 있습니다.</p>
+                  <p>② 앱 내 개인정보는 회원 본인만 열람 가능하며, 제3자에게 제공되지 않습니다.</p>
+                  <p>③ 앱 이용 중 발생하는 기술적 문제는 센터 담당자에게 문의하여 주시기 바랍니다.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground mb-1">제6조 (면책 조항)</p>
+                  <p>① 센터는 회원이 센터 내에서 발생한 사고에 대해 센터의 과실이 없는 경우 책임을 지지 않습니다.</p>
+                  <p>② 개인 소지품 분실에 대해 센터는 책임을 지지 않습니다.</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">출생연도</Label>
-                  <Input value={bodyForm.birthYear} onChange={(e) => setBodyForm(p => ({ ...p, birthYear: e.target.value }))} placeholder="예: 1990" type="number" className="bg-input border-border h-9 text-sm" />
+
+              <button
+                type="button"
+                onClick={() => setGymRulesChecked(v => !v)}
+                className="flex items-center gap-3 w-full p-3 rounded-xl border border-border hover:border-primary/50 transition-colors"
+              >
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${gymRulesChecked ? "bg-primary border-primary" : "border-border"}`}>
+                  {gymRulesChecked && <span className="text-[10px] text-primary-foreground font-bold">✓</span>}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">성별</Label>
-                  <div className="flex gap-2 h-9 items-center">
-                    {["남성", "여성"].map(g => (
-                      <button key={g} type="button"
-                        className={`flex-1 h-full rounded-lg border text-xs font-medium transition-colors ${bodyForm.gender === g ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
-                        onClick={() => setBodyForm(p => ({ ...p, gender: g }))}
-                      >{g}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1 h-9" onClick={() => setShowBodyInfo(false)}>취소</Button>
-                <Button className="flex-1 h-9" onClick={submitBodyInfo} disabled={upsertHealth.isPending}>저장</Button>
+                <span className={`text-sm font-medium ${gymRulesChecked ? "text-foreground" : "text-muted-foreground"}`}>위 이용규정을 모두 읽었으며 동의합니다</span>
+              </button>
+
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 h-10" onClick={() => setShowGymRules(false)}>닫기</Button>
+                <Button className="flex-1 h-10" disabled={!gymRulesChecked || upsertHealth.isPending} onClick={submitGymRules}>
+                  {upsertHealth.isPending ? "처리 중..." : "동의 완료"}
+                </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* PAR-Q 모달 */}
-      {showParq && (
-        <Dialog open onOpenChange={(o) => { if (!o) setShowParq(false); }}>
+      {/* 자이언트짐+ 이용방법 안내 모달 */}
+      {showAppGuide && (
+        <Dialog open onOpenChange={(o) => { if (!o) setShowAppGuide(false); }}>
           <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <h2 className="font-bold text-base">🩺 사전 건강검사 (PAR-Q)</h2>
-              <p className="text-xs text-muted-foreground">운동 시작 전 필수 건강 확인 항목입니다. 각 질문에 예/아니오로 답해 주세요.</p>
+              <h2 className="font-bold text-base">📱 자이언트짐+ 이용방법 안내</h2>
+              <p className="text-xs text-muted-foreground">앱 사용법 및 센터 이용 방법을 확인해 주세요</p>
             </DialogHeader>
             <div className="space-y-4 pt-1">
-              {PARQ_QUESTIONS.map((q, i) => {
-                const key = `parq${i + 1}` as keyof typeof parqAnswers;
-                return (
-                  <div key={i} className="space-y-2">
-                    <p className="text-xs text-foreground leading-relaxed">{i + 1}. {q}</p>
-                    <div className="flex gap-2">
-                      {["예", "아니오"].map(ans => (
-                        <button key={ans} type="button"
-                          className={`flex-1 py-2 rounded-lg border text-xs font-medium transition-colors ${parqAnswers[key] === ans ? (ans === "예" ? "bg-red-500/20 border-red-500/40 text-red-400" : "bg-green-500/20 border-green-500/40 text-green-400") : "border-border text-muted-foreground"}`}
-                          onClick={() => setParqAnswers(p => ({ ...p, [key]: ans }))}
-                        >{ans}</button>
+
+              <div className="space-y-3">
+                {[
+                  {
+                    icon: "🏋️",
+                    title: "트레이닝 일지 확인",
+                    desc: "트레이너가 전송한 운동 프로그램을 '운동' 탭에서 확인하세요. 운동 시작 버튼을 눌러 실시간으로 세트/횟수/무게를 기록할 수 있습니다.",
+                  },
+                  {
+                    icon: "▶️",
+                    title: "운동 시작하기",
+                    desc: "트레이닝 일지에서 '▶ 운동 시작' 버튼을 탭하면 운동 타이머와 세트 기록 화면이 열립니다. 각 세트 완료 후 체크하고 운동을 기록하세요.",
+                  },
+                  {
+                    icon: "📊",
+                    title: "운동 기록 관리",
+                    desc: "완료된 운동은 자동으로 기록되며, 날짜별로 이력을 확인할 수 있습니다. 체중·컨디션·수면 정보도 함께 기록해 보세요.",
+                  },
+                  {
+                    icon: "🎯",
+                    title: "추천 운동 활성화",
+                    desc: "3가지 미션(이용규정 동의, 이용방법 확인, PAR-Q)을 완료하면 맞춤형 추천 운동이 활성화됩니다.",
+                  },
+                  {
+                    icon: "🔔",
+                    title: "센터 출입 확인",
+                    desc: "센터 방문 시 QR코드 또는 앱을 통해 출입을 확인할 수 있습니다.",
+                  },
+                  {
+                    icon: "📅",
+                    title: "회원권 재등록",
+                    desc: "'내 정보' 탭에서 회원권 만료일을 확인하고 온라인으로 재등록 신청을 할 수 있습니다. 만료 전 재등록 시 추가 혜택이 있습니다.",
+                  },
+                ].map(item => (
+                  <div key={item.title} className="flex gap-3 p-3 rounded-xl bg-muted/20 border border-border">
+                    <span className="text-xl flex-shrink-0">{item.icon}</span>
+                    <div>
+                      <p className="text-sm font-semibold">{item.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-3">
+                <p className="text-xs text-primary font-semibold">💡 문의 및 도움말</p>
+                <p className="text-xs text-muted-foreground mt-0.5">앱 사용 중 궁금한 점은 센터 담당 트레이너에게 문의해 주세요.</p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 h-10" onClick={() => setShowAppGuide(false)}>닫기</Button>
+                <Button className="flex-1 h-10" disabled={upsertHealth.isPending} onClick={submitAppGuide}>
+                  {upsertHealth.isPending ? "처리 중..." : "확인 완료"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* PAR-Q 건강설문 모달 */}
+      {showParq && (
+        <Dialog open onOpenChange={(o) => { if (!o) setShowParq(false); }}>
+          <DialogContent className="max-w-sm max-h-[92vh] overflow-y-auto">
+            <DialogHeader>
+              <h2 className="font-bold text-base">🩺 PAR-Q 건강설문</h2>
+              <p className="text-xs text-muted-foreground">운동 시작 전 건강 상태를 알려주세요. 더 안전하고 효과적인 운동 계획 수립에 활용됩니다.</p>
+            </DialogHeader>
+
+            <div className="space-y-5 pt-1">
+
+              {/* 기본 정보 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">기본 정보</p>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">생년월일</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={parqData.birthYear}
+                      onChange={e => setPD("birthYear", e.target.value)}
+                      className="bg-input border border-border rounded-lg px-2 py-2 text-xs"
+                    >
+                      <option value="">년도</option>
+                      {Array.from({ length: 80 }, (_, i) => 2010 - i).map(y => (
+                        <option key={y} value={String(y)}>{y}년</option>
+                      ))}
+                    </select>
+                    <select
+                      value={parqData.birthMonth}
+                      onChange={e => setPD("birthMonth", e.target.value)}
+                      className="bg-input border border-border rounded-lg px-2 py-2 text-xs"
+                    >
+                      <option value="">월</option>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                        <option key={m} value={String(m)}>{m}월</option>
+                      ))}
+                    </select>
+                    <select
+                      value={parqData.birthDay}
+                      onChange={e => setPD("birthDay", e.target.value)}
+                      className="bg-input border border-border rounded-lg px-2 py-2 text-xs"
+                    >
+                      <option value="">일</option>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                        <option key={d} value={String(d)}>{d}일</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">키 (cm)</Label>
+                    <select
+                      value={parqData.height}
+                      onChange={e => setPD("height", e.target.value)}
+                      className="w-full bg-input border border-border rounded-lg px-2 py-2 text-xs"
+                    >
+                      <option value="">선택</option>
+                      {Array.from({ length: 121 }, (_, i) => i + 100).map(h => (
+                        <option key={h} value={String(h)}>{h}cm</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">체중 (kg)</Label>
+                    <select
+                      value={parqData.weight}
+                      onChange={e => setPD("weight", e.target.value)}
+                      className="w-full bg-input border border-border rounded-lg px-2 py-2 text-xs"
+                    >
+                      <option value="">선택</option>
+                      {Array.from({ length: 121 }, (_, i) => i + 30).map(w => (
+                        <option key={w} value={String(w)}>{w}kg</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 생활 정보 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">생활 정보</p>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">직업</Label>
+                  <Input value={parqData.occupation} onChange={e => setPD("occupation", e.target.value)} placeholder="예: 회사원, 학생, 자영업" className="bg-input border-border h-9 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">근무환경</Label>
+                  <Input value={parqData.workEnvironment} onChange={e => setPD("workEnvironment", e.target.value)} placeholder="예: 사무직, 현장직, 재택" className="bg-input border-border h-9 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">운동경험</Label>
+                  <Input value={parqData.exerciseExperience} onChange={e => setPD("exerciseExperience", e.target.value)} placeholder="예: 헬스 1년, 처음, 수영 경험 있음" className="bg-input border-border h-9 text-sm" />
+                </div>
+              </div>
+
+              {/* 운동 목적 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">운동 목적</p>
+                {(["goal1", "goal2", "goal3"] as const).map((key, i) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">목적 {i + 1}</Label>
+                    <select
+                      value={parqData[key]}
+                      onChange={e => setPD(key, e.target.value)}
+                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm"
+                    >
+                      {GOAL_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              {/* 생활 습관 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">생활 습관 <span className="text-xs text-muted-foreground font-normal">(해당 항목 모두 선택)</span></p>
+                {([
+                  { key: "dietHabits" as const, label: "식단", items: LIFESTYLE.diet },
+                  { key: "drinkingHabits" as const, label: "음주", items: LIFESTYLE.drinking },
+                  { key: "sleepHabits" as const, label: "수면", items: LIFESTYLE.sleep },
+                  { key: "activityHabits" as const, label: "활동", items: LIFESTYLE.activity },
+                ]).map(({ key, label, items }) => (
+                  <div key={key} className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map(item => (
+                        <ToggleChip
+                          key={item}
+                          label={item}
+                          checked={(parqData[key] as string[]).includes(item)}
+                          onToggle={() => setPD(key, toggleArr(parqData[key] as string[], item))}
+                        />
                       ))}
                     </div>
                   </div>
-                );
-              })}
-              {Object.values(parqAnswers).some(v => v === "예") && (
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
-                  <p className="text-xs text-yellow-400">⚠️ '예'로 답한 항목이 있습니다. 운동 시작 전 의사와 상담을 권장합니다.</p>
+                ))}
+              </div>
+
+              {/* 병원 진단 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">병원 진단 <span className="text-xs text-muted-foreground font-normal">(해당 항목 선택)</span></p>
+                <div className="flex flex-wrap gap-1.5">
+                  {DIAGNOSES.map(d => (
+                    <ToggleChip
+                      key={d}
+                      label={d}
+                      checked={parqData.diagnoses.includes(d)}
+                      onToggle={() => setPD("diagnoses", toggleArr(parqData.diagnoses, d))}
+                    />
+                  ))}
                 </div>
-              )}
-              <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1 h-9" onClick={() => setShowParq(false)}>취소</Button>
-                <Button className="flex-1 h-9" onClick={submitParq} disabled={upsertHealth.isPending}>제출</Button>
+              </div>
+
+              {/* 질환 정보 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">질환 정보 <span className="text-xs text-muted-foreground font-normal">(수치 또는 이상없음 선택)</span></p>
+                {([
+                  { key: "systolicBP" as const, label: "수축기혈압", unit: "mmHg" },
+                  { key: "diastolicBP" as const, label: "이완기혈압", unit: "mmHg" },
+                  { key: "waistCircumference" as const, label: "허리둘레", unit: "cm" },
+                  { key: "totalCholesterol" as const, label: "총콜레스테롤", unit: "mg/dL" },
+                  { key: "hdl" as const, label: "HDL콜레스테롤", unit: "mg/dL" },
+                  { key: "ldl" as const, label: "LDL콜레스테롤", unit: "mg/dL" },
+                  { key: "triglycerides" as const, label: "중성지방", unit: "mg/dL" },
+                  { key: "fastingGlucose" as const, label: "공복혈당", unit: "mg/dL" },
+                  { key: "postMealGlucose" as const, label: "식후2h혈당", unit: "mg/dL" },
+                  { key: "hba1c" as const, label: "HbA1c", unit: "%" },
+                  { key: "boneDensity" as const, label: "골밀도 T-score", unit: "" },
+                ]).map(({ key, label, unit }) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground w-28 flex-shrink-0">{label}</Label>
+                    <Input
+                      value={parqData[key] === "이상없음" ? "" : parqData[key]}
+                      onChange={e => setPD(key, e.target.value)}
+                      disabled={parqData[key] === "이상없음"}
+                      placeholder={unit}
+                      className="bg-input border-border h-8 text-xs flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPD(key, parqData[key] === "이상없음" ? "" : "이상없음")}
+                      className={`px-2 py-1 rounded-lg border text-[10px] font-medium flex-shrink-0 transition-colors ${
+                        parqData[key] === "이상없음" ? "border-green-500/50 bg-green-500/15 text-green-400" : "border-border text-muted-foreground"
+                      }`}
+                    >
+                      이상없음
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* 근골격계 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">근골격계 <span className="text-xs text-muted-foreground font-normal">(해당 부위 선택)</span></p>
+                {([
+                  { key: "imbalanceAreas" as const, label: "불균형 부위" },
+                  { key: "acuteInjuryAreas" as const, label: "급성통증/외상 부위" },
+                  { key: "chronicPainAreas" as const, label: "만성통증 부위" },
+                ]).map(({ key, label }) => (
+                  <div key={key} className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {BODY_PARTS.map(part => (
+                        <ToggleChip
+                          key={part}
+                          label={part}
+                          checked={(parqData[key] as string[]).includes(part)}
+                          onToggle={() => setPD(key, toggleArr(parqData[key] as string[], part))}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 체형 문제 - 전면 */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">체형 문제 - 전면</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr>
+                        <th className="text-left text-muted-foreground font-medium py-1 pr-2 w-28">부위</th>
+                        <th className="text-center text-muted-foreground font-medium py-1 px-2">RT</th>
+                        <th className="text-center text-muted-foreground font-medium py-1 px-2">LT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {POSTURE_ROWS_FRONT.map(row => (
+                        <tr key={row} className="border-t border-border/30">
+                          <td className="py-1.5 pr-2 text-muted-foreground">{row}</td>
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setPD("postureFrontRT", toggleArr(parqData.postureFrontRT, row))}
+                              className={`w-6 h-6 rounded border-2 flex items-center justify-center mx-auto transition-colors ${
+                                parqData.postureFrontRT.includes(row) ? "bg-primary border-primary" : "border-border"
+                              }`}
+                            >
+                              {parqData.postureFrontRT.includes(row) && <span className="text-[9px] text-primary-foreground font-bold">✓</span>}
+                            </button>
+                          </td>
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setPD("postureFrontLT", toggleArr(parqData.postureFrontLT, row))}
+                              className={`w-6 h-6 rounded border-2 flex items-center justify-center mx-auto transition-colors ${
+                                parqData.postureFrontLT.includes(row) ? "bg-primary border-primary" : "border-border"
+                              }`}
+                            >
+                              {parqData.postureFrontLT.includes(row) && <span className="text-[9px] text-primary-foreground font-bold">✓</span>}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 체형 문제 - 후면 */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold border-b border-border pb-1.5">체형 문제 - 후면</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr>
+                        <th className="text-left text-muted-foreground font-medium py-1 pr-2 w-28">부위</th>
+                        <th className="text-center text-muted-foreground font-medium py-1 px-2">RT</th>
+                        <th className="text-center text-muted-foreground font-medium py-1 px-2">LT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {POSTURE_ROWS_BACK.map(row => (
+                        <tr key={row} className="border-t border-border/30">
+                          <td className="py-1.5 pr-2 text-muted-foreground">{row}</td>
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setPD("postureBackRT", toggleArr(parqData.postureBackRT, row))}
+                              className={`w-6 h-6 rounded border-2 flex items-center justify-center mx-auto transition-colors ${
+                                parqData.postureBackRT.includes(row) ? "bg-primary border-primary" : "border-border"
+                              }`}
+                            >
+                              {parqData.postureBackRT.includes(row) && <span className="text-[9px] text-primary-foreground font-bold">✓</span>}
+                            </button>
+                          </td>
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setPD("postureBackLT", toggleArr(parqData.postureBackLT, row))}
+                              className={`w-6 h-6 rounded border-2 flex items-center justify-center mx-auto transition-colors ${
+                                parqData.postureBackLT.includes(row) ? "bg-primary border-primary" : "border-border"
+                              }`}
+                            >
+                              {parqData.postureBackLT.includes(row) && <span className="text-[9px] text-primary-foreground font-bold">✓</span>}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1 pb-2">
+                <Button variant="outline" className="flex-1 h-10" onClick={() => setShowParq(false)}>취소</Button>
+                <Button className="flex-1 h-10" onClick={submitParq} disabled={upsertHealth.isPending}>
+                  {upsertHealth.isPending ? "저장 중..." : "PAR-Q 제출"}
+                </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* 회원권 재등록 신청 모달 (4단계) */}
+      {/* 회원권 재등록 신청 모달 (5단계) */}
       {showRenewal && (() => {
         const bonus = getRenewalBonus(daysLeft);
         const allRequired = renewalForm.agreedToTerms && renewalForm.agreedPrivacy;
@@ -674,7 +1085,6 @@ export default function GymPlusProfile() {
                     <p className="text-xs text-muted-foreground">아래 내용을 확인하고 재등록을 신청하세요</p>
                   </DialogHeader>
                   <div className="space-y-4 pt-1">
-                    {/* 현재 회원권 정보 */}
                     <div className="bg-muted/30 rounded-xl p-3 space-y-1.5 text-xs">
                       <div className="flex justify-between"><span className="text-muted-foreground">회원명</span><span className="font-medium">{member?.name}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">현재 만료일</span><span className="font-medium">{formatDate(member?.membershipEnd)}</span></div>
@@ -682,7 +1092,6 @@ export default function GymPlusProfile() {
                       <div className="flex justify-between"><span className="text-muted-foreground">담당자</span><span className="font-medium">본인계약</span></div>
                     </div>
 
-                    {/* 혜택 안내 */}
                     {bonus.days > 0 && (
                       <div className={`rounded-xl p-3 border ${bonus.color === "text-green-400" ? "bg-green-500/10 border-green-500/30" : bonus.color === "text-blue-400" ? "bg-blue-500/10 border-blue-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
                         <p className={`text-xs font-semibold ${bonus.color}`}>🎁 {bonus.label} 적용!</p>
@@ -690,7 +1099,6 @@ export default function GymPlusProfile() {
                       </div>
                     )}
 
-                    {/* 재등록 기간 선택 */}
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">재등록 기간 선택</Label>
                       <div className="grid grid-cols-2 gap-2">
@@ -706,7 +1114,6 @@ export default function GymPlusProfile() {
                       </div>
                     </div>
 
-                    {/* 신청자 정보 */}
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">이름</Label>
                       <Input value={renewalForm.memberName} onChange={(e) => setRenewalForm(f => ({ ...f, memberName: e.target.value }))} placeholder="이름" className="bg-input border-border h-9 text-sm" />
@@ -741,17 +1148,14 @@ export default function GymPlusProfile() {
                     <p className="text-xs text-muted-foreground">결제 금액 및 방법을 확인해 주세요</p>
                   </DialogHeader>
                   <div className="space-y-4 pt-1">
-                    {/* 결제 금액 안내 */}
                     <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-center">
                       <p className="text-xs text-muted-foreground mb-1">{renewalForm.requestedPeriod} 이용권</p>
                       <p className="text-2xl font-bold text-primary">{PERIOD_PRICES[renewalForm.requestedPeriod]?.toLocaleString()}원</p>
                     </div>
 
-                    {/* 결제 방법 선택 */}
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">결제 방법을 선택해 주세요</Label>
 
-                      {/* 계좌이체 */}
                       <button type="button"
                         onClick={() => setRenewalForm(f => ({ ...f, paymentMethod: "계좌이체" }))}
                         className={`w-full p-3 rounded-xl border text-left transition-colors ${renewalForm.paymentMethod === "계좌이체" ? "border-primary/50 bg-primary/10" : "border-border bg-card"}`}
@@ -767,7 +1171,6 @@ export default function GymPlusProfile() {
                         </div>
                       </button>
 
-                      {/* 계좌이체 선택 시 계좌번호 복사 버튼 표시 */}
                       {renewalForm.paymentMethod === "계좌이체" && (
                         <button type="button"
                           onClick={() => { navigator.clipboard.writeText("333305266409"); toast.success("계좌번호가 복사되었습니다"); }}
@@ -777,7 +1180,6 @@ export default function GymPlusProfile() {
                         </button>
                       )}
 
-                      {/* 카드 결제 */}
                       <button type="button"
                         onClick={() => setRenewalForm(f => ({ ...f, paymentMethod: "카드" }))}
                         className={`w-full p-3 rounded-xl border text-left transition-colors ${renewalForm.paymentMethod === "카드" ? "border-primary/50 bg-primary/10" : "border-border bg-card"}`}
@@ -792,7 +1194,6 @@ export default function GymPlusProfile() {
                         </div>
                       </button>
 
-                      {/* 지역화폐 */}
                       <button type="button"
                         onClick={() => setRenewalForm(f => ({ ...f, paymentMethod: "지역화폐" }))}
                         className={`w-full p-3 rounded-xl border text-left transition-colors ${renewalForm.paymentMethod === "지역화폐" ? "border-primary/50 bg-primary/10" : "border-border bg-card"}`}
@@ -827,7 +1228,6 @@ export default function GymPlusProfile() {
                   </DialogHeader>
                   <div className="space-y-4 pt-1">
 
-                    {/* 전체 동의 */}
                     <button
                       type="button"
                       className={`w-full flex items-center gap-2 p-3 rounded-xl border transition-colors ${allRequired && renewalForm.agreedMarketing ? "border-primary/50 bg-primary/5" : "border-border"}`}
@@ -842,7 +1242,6 @@ export default function GymPlusProfile() {
                       <span className="text-sm font-semibold">전체 동의</span>
                     </button>
 
-                    {/* 약관 1: 센터 이용약관 */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold">센터 이용약관 <span className="text-red-400">(필수)</span></span>
@@ -856,7 +1255,6 @@ export default function GymPlusProfile() {
                       </button>
                     </div>
 
-                    {/* 약관 2: 개인정보수집이용 */}
                     <div className="space-y-2">
                       <span className="text-xs font-semibold">개인정보 수집·이용 동의 <span className="text-red-400">(필수)</span></span>
                       <div className="bg-muted/20 border border-border rounded-lg p-3 h-28 overflow-y-auto text-[10px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{`수집하는 개인정보 항목\n- 필수항목: 성명, 연락처, 성별, 생년월일\n- 선택항목: 이메일 주소, 건강 정보(운동 목적, 부상 이력 등)\n\n개인정보의 수집 및 이용 목적\n① 피트니스 서비스 제공 및 회원 관리\n② PT 프로그램 안내 및 일정 관리\n③ 결제 및 환불 처리\n④ 고객 상담 및 민원 처리\n⑤ 서비스 개선을 위한 통계 분석\n\n개인정보의 보유 및 이용 기간\n- 회원 탈퇴 시 또는 이용 목적 달성 후 즉시 파기\n- 단, 관련 법령에 따라 보존 의무가 있는 경우 해당 기간 보관\n\n개인정보의 제3자 제공\n- 원칙적으로 외부에 제공하지 않으며, 법령의 규정에 의한 경우 또는 이용자가 사전에 동의한 경우에 한해 제공합니다.\n\n귀하는 개인정보 제공에 동의하지 않을 권리가 있습니다.`}</div>
@@ -868,7 +1266,6 @@ export default function GymPlusProfile() {
                       </button>
                     </div>
 
-                    {/* 약관 3: 광고성 정보 수신 (선택) */}
                     <div className="space-y-2">
                       <span className="text-xs font-semibold">광고성 정보 수신 동의 <span className="text-muted-foreground">(선택)</span></span>
                       <div className="bg-muted/20 border border-border rounded-lg p-3 h-20 overflow-y-auto text-[10px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{`이용 목적: 신규 프로그램 및 이벤트 안내, 할인 혜택 및 프로모션 정보 제공\n광고성 정보 발송 채널: 문자메시지(SMS/MMS), 카카오 알림톡, 이메일\n보유 및 이용 기간: 동의일로부터 회원 탈퇴 또는 수신 거부 시까지\n수신 거부 안내: 언제든지 센터에 수신 거부 의사를 표시할 수 있으며, 수신 거부 후에도 서비스 이용에는 제한이 없습니다.`}</div>
@@ -929,7 +1326,6 @@ export default function GymPlusProfile() {
                       <p className="text-muted-foreground">트레이너가 확인 후 최종 처리해 드립니다.</p>
                     </div>
 
-                    {/* 계약 요약 */}
                     <div className="bg-muted/30 rounded-xl p-3 space-y-1.5 text-xs">
                       <div className="flex justify-between"><span className="text-muted-foreground">회원명</span><span className="font-medium">{renewalForm.memberName}</span></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">재등록 기간</span><span className="font-medium">{renewalForm.requestedPeriod}</span></div>
@@ -948,7 +1344,6 @@ export default function GymPlusProfile() {
                       </div>
                     </div>
 
-                    {/* 서명 미리보기 */}
                     {signatureData && (
                       <div className="space-y-1">
                         <p className="text-[10px] text-muted-foreground">서명</p>
@@ -958,7 +1353,6 @@ export default function GymPlusProfile() {
                       </div>
                     )}
 
-                    {/* 계약서 공유 버튼 */}
                     <div className="space-y-2">
                       <button
                         type="button"
@@ -986,27 +1380,6 @@ export default function GymPlusProfile() {
         );
       })()}
 
-      {/* 체형분석 신청 모달 */}
-      {showBodyAnalysis && (
-        <Dialog open onOpenChange={(o) => { if (!o) setShowBodyAnalysis(false); }}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <h2 className="font-bold text-base">📊 체형분석 데이터 신청</h2>
-            </DialogHeader>
-            <div className="space-y-4 pt-1">
-              <div className="bg-muted/30 rounded-xl p-4 space-y-2 text-sm text-muted-foreground">
-                <p>• 트레이너가 직접 체형을 분석하고 데이터를 입력해 드립니다.</p>
-                <p>• 신청 후 트레이너가 확인하여 연락드립니다.</p>
-                <p>• 체형분석 완료 시 더 정확한 운동 추천이 가능합니다.</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 h-9" onClick={() => setShowBodyAnalysis(false)}>취소</Button>
-                <Button className="flex-1 h-9" onClick={submitBodyAnalysis} disabled={upsertHealth.isPending}>신청하기</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
