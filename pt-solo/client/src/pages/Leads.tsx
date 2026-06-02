@@ -197,7 +197,14 @@ export default function LeadsPage() {
   });
 
   const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
+  const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
   const autoPoints = useAutoPoints();
+
+  // 기능별 비용/활성화 여부 헬퍼
+  function featureInfo(feature: string) {
+    const rule = featureCosts?.[feature];
+    return { cost: rule?.cost ?? 50, enabled: rule?.enabled ?? true };
+  }
 
   const addPackageMutation = trpc.pt.addPackage.useMutation({
     onSuccess: () => {
@@ -568,7 +575,7 @@ export default function LeadsPage() {
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                     >
                       <FileText className="h-3.5 w-3.5" />
-                      계약서 PDF 출력 <span className="text-primary/70">-50P</span>
+                      계약서 PDF 출력{featureInfo("contract_pdf").enabled ? <span className="text-primary/70"> -{featureInfo("contract_pdf").cost}P</span> : null}
                     </button>
                   </div>
                   {/* PAR-Q */}
@@ -725,7 +732,13 @@ export default function LeadsPage() {
                 <p className="text-xs text-muted-foreground">이름 입력 후 전자계약 화면으로 이동합니다.</p>
                 <div className="flex gap-2">
                   <button onClick={() => setShowQuickModal(false)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
-                  <button onClick={() => { if (!quickName.trim()) return toast.error("이름을 입력해주세요"); setShowNewContractConfirm(true); }} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-bold hover:bg-primary/90">전자계약 진행 (-50P)</button>
+                  <button onClick={() => {
+                    if (!quickName.trim()) return toast.error("이름을 입력해주세요");
+                    if (!featureInfo("new_contract").enabled) { startQuickNew(); return; }
+                    setShowNewContractConfirm(true);
+                  }} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-bold hover:bg-primary/90">
+                    전자계약 진행{featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}
+                  </button>
                 </div>
               </div>
             )}
@@ -969,7 +982,7 @@ export default function LeadsPage() {
               <button type="button" onClick={saveRegistration}
                 disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50">
-                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : "등록 완료 및 회원 생성 (-50P)"}
+                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : `등록 완료 및 회원 생성${featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}`}
               </button>
               <button type="button" onClick={() => setShowRegistration(false)}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
@@ -1142,6 +1155,7 @@ export default function LeadsPage() {
         open={showNewContractConfirm}
         onClose={() => setShowNewContractConfirm(false)}
         featureName="신규 전자계약"
+        cost={featureInfo("new_contract").cost}
         loading={spendFeatureMutation.isPending}
         onConfirm={() => {
           spendFeatureMutation.mutate({ feature: "new_contract" }, {
@@ -1159,6 +1173,7 @@ export default function LeadsPage() {
         open={showPdfConfirm}
         onClose={() => setShowPdfConfirm(false)}
         featureName="계약서 PDF 전달"
+        cost={featureInfo("contract_pdf").cost}
         loading={spendFeatureMutation.isPending}
         onConfirm={() => {
           spendFeatureMutation.mutate({ feature: "contract_pdf" }, {

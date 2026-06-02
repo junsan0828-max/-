@@ -2848,6 +2848,16 @@ const fitPointsRouter = t.router({
     return Object.fromEntries(result.rows.map(r => [r.event, r.amount])) as Record<string, number>;
   }),
 
+  // 기능별 포인트 차감 규칙 (트레이너도 조회 가능 — UI 표시용)
+  getFeatureCosts: protectedProcedure.query(async () => {
+    const rows = await pool.query<{ feature: string; cost: number; isEnabled: number }>(
+      `SELECT feature, cost, "isEnabled" FROM feature_cost_rules`
+    );
+    return Object.fromEntries(
+      rows.rows.map(r => [r.feature, { cost: r.cost, enabled: !!r.isEnabled }])
+    ) as Record<string, { cost: number; enabled: boolean }>;
+  }),
+
   getBalance: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
