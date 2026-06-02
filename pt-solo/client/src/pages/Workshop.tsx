@@ -3421,9 +3421,24 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                   {feature.id === "contract_terms"    && <ContractTermsEditor />}
                   {feature.id === "e_contract"         && <EContractManager />}
                   {feature.id === "contract_kakao"    && <EContractManager />}
-                  {feature.id === "refund_contract"   && <RefundContractManager />}
-                  {feature.id === "transfer_contract" && <TransferContractManager />}
-                  {feature.id === "unpaid"            && <UnpaidManager />}
+                  {feature.id === "refund_contract"        && <RefundContractManager />}
+                  {feature.id === "transfer_contract"      && <TransferContractManager />}
+                  {feature.id === "unpaid"                 && <UnpaidManager />}
+                  {feature.id === "consult_conversion"     && <ConsultConversionPreview />}
+                  {feature.id === "member_overview"        && <MemberOverviewPreview />}
+                  {feature.id === "activity_stats"         && <ActivityStatsPreview />}
+                  {feature.id === "monthly_pnl"            && <MonthlyPnlPreview />}
+                  {feature.id === "sales_analysis"         && <SalesAnalysisPreview />}
+                  {feature.id === "renewal_analysis"       && <RenewalAnalysisPreview />}
+                  {feature.id === "channel_analysis"       && <ChannelAnalysisPreview />}
+                  {feature.id === "marketing_analysis"     && <MarketingAnalysisPreview />}
+                  {feature.id === "kpi_report"             && <KpiReportPreview />}
+                  {feature.id === "fitstep_videos"         && <VideoSection trainerId={0} />}
+                  {feature.id === "ai_insights"            && <ComingSoonPreview title="AI 운영 인사이트" desc="운영 데이터를 AI가 분석해 개선 포인트를 제안합니다. 준비 중입니다." />}
+                  {feature.id === "data_migration"         && <ComingSoonPreview title="데이터 이전" desc="기존 센터 데이터를 업로드해 간편하게 이전할 수 있습니다. 준비 중입니다." />}
+                  {feature.id === "training_video"         && <ComingSoonPreview title="트레이닝 일지 + 영상 연결" desc="회원별 운동 일지에 영상을 직접 연결해 피드백을 제공합니다. 준비 중입니다." />}
+                  {feature.id === "fitstep_rec"            && <ComingSoonPreview title="맞춤 운동 추천" desc="회원의 목표와 상태를 기반으로 개인화된 운동을 추천합니다. 준비 중입니다." />}
+                  {feature.id === "fitstep_diet"           && <ComingSoonPreview title="맞춤 식단 관리" desc="회원의 식단과 생활습관을 관리하고 피드백을 제공합니다. 준비 중입니다." />}
                 </div>
               </div>
             )}
@@ -3469,6 +3484,251 @@ function UnpaidManager() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── ELITE/ADD-ON 기능 미리보기 컴포넌트들 ────────────────────────────────────
+
+function ConsultConversionPreview() {
+  const { data: leadList = [] } = trpc.leads.list.useQuery();
+  const total = leadList.length;
+  const registered = leadList.filter((l: any) => l.status === "registered").length;
+  const rate = total > 0 ? Math.round((registered / total) * 100) : 0;
+  const statCls = "bg-background border border-border rounded-xl p-3 text-center";
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-2">
+        <div className={statCls}><p className="text-xl font-black">{total}</p><p className="text-[10px] text-muted-foreground mt-0.5">총 상담</p></div>
+        <div className={statCls}><p className="text-xl font-black text-green-600">{registered}</p><p className="text-[10px] text-muted-foreground mt-0.5">등록 완료</p></div>
+        <div className={statCls}><p className="text-xl font-black text-primary">{rate}%</p><p className="text-[10px] text-muted-foreground mt-0.5">전환율</p></div>
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-muted-foreground">전환율</span>
+          <span className="font-bold text-primary">{rate}%</span>
+        </div>
+        <div className="w-full bg-muted rounded-full h-2.5">
+          <div className="h-2.5 rounded-full bg-primary transition-all" style={{ width: `${rate}%` }} />
+        </div>
+      </div>
+      {[
+        { label: "대기 중", status: "pending", cls: "bg-yellow-100 text-yellow-700" },
+        { label: "상담 완료", status: "consulted", cls: "bg-blue-100 text-blue-700" },
+        { label: "등록 완료", status: "registered", cls: "bg-green-100 text-green-700" },
+        { label: "미등록", status: "not_registered", cls: "bg-muted text-muted-foreground" },
+      ].map(({ label, status, cls }) => {
+        const cnt = leadList.filter((l: any) => l.status === status).length;
+        return (
+          <div key={status} className="flex items-center justify-between">
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cls}`}>{label}</span>
+            <span className="text-sm font-bold">{cnt}명</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MemberOverviewPreview() {
+  const { data: memberList = [] } = trpc.members.list.useQuery();
+  const { data: stats } = trpc.trainers.getMyStats.useQuery();
+  const active = memberList.filter((m: any) => m.status === "active").length;
+  const paused = memberList.filter((m: any) => m.status === "paused").length;
+  const total = memberList.length;
+  const statCls = "bg-background border border-border rounded-xl p-3 text-center";
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        <div className={statCls}><p className="text-xl font-black">{total}</p><p className="text-[10px] text-muted-foreground mt-0.5">전체 회원</p></div>
+        <div className={statCls}><p className="text-xl font-black text-green-600">{active}</p><p className="text-[10px] text-muted-foreground mt-0.5">활성</p></div>
+        <div className={statCls}><p className="text-xl font-black text-muted-foreground">{paused}</p><p className="text-[10px] text-muted-foreground mt-0.5">일시정지</p></div>
+      </div>
+      {stats && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className={statCls}><p className="text-lg font-black">{stats.totalSessions}</p><p className="text-[10px] text-muted-foreground mt-0.5">누적 수업</p></div>
+          <div className={statCls}><p className="text-lg font-black text-orange-500">{stats.reregRate}%</p><p className="text-[10px] text-muted-foreground mt-0.5">재등록률</p></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityStatsPreview() {
+  const { data: chartData = [] } = trpc.dashboard.getMonthlyChart.useQuery();
+  const maxAtt = Math.max(1, ...chartData.map((d: any) => d["출석"] ?? 0));
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground">최근 6개월 출석 현황</p>
+      <div className="flex items-end gap-1.5 h-20">
+        {chartData.map((d: any) => {
+          const h = Math.round(((d["출석"] ?? 0) / maxAtt) * 100);
+          return (
+            <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
+              <div className="w-full rounded-t-sm bg-primary transition-all" style={{ height: `${h}%`, minHeight: d["출석"] > 0 ? "4px" : "0" }} />
+              <span className="text-[9px] text-muted-foreground">{d.month}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {chartData.slice(-1).map((d: any) => (
+          <div key="last" className="contents">
+            <div className="bg-background border border-border rounded-xl p-3 text-center">
+              <p className="text-lg font-black text-green-600">{d["신규회원"]}</p>
+              <p className="text-[10px] text-muted-foreground">이번 달 신규</p>
+            </div>
+            <div className="bg-background border border-border rounded-xl p-3 text-center">
+              <p className="text-lg font-black text-blue-600">{d["재등록"]}</p>
+              <p className="text-[10px] text-muted-foreground">이번 달 재등록</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MonthlyPnlPreview() {
+  const { data: revenueData = [] } = trpc.dashboard.getMonthlyRevenue.useQuery();
+  const maxRev = Math.max(1, ...revenueData.map((d: any) => d["매출"] ?? 0));
+  const thisMonth = revenueData[revenueData.length - 1];
+  return (
+    <div className="space-y-3">
+      {thisMonth && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-background border border-border rounded-xl p-3 text-center">
+            <p className="text-base font-black">{((thisMonth["매출"] ?? 0) / 10000).toFixed(0)}만원</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">이번 달 매출</p>
+          </div>
+          <div className="bg-background border border-border rounded-xl p-3 text-center">
+            <p className="text-base font-black text-green-600">{((thisMonth["정산"] ?? 0) / 10000).toFixed(0)}만원</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">이번 달 정산</p>
+          </div>
+        </div>
+      )}
+      <p className="text-xs font-semibold text-muted-foreground">최근 6개월 매출</p>
+      <div className="flex items-end gap-1.5 h-16">
+        {revenueData.map((d: any) => {
+          const h = Math.round(((d["매출"] ?? 0) / maxRev) * 100);
+          return (
+            <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
+              <div className="w-full rounded-t-sm bg-green-400 transition-all" style={{ height: `${h}%`, minHeight: d["매출"] > 0 ? "4px" : "0" }} />
+              <span className="text-[9px] text-muted-foreground">{d.month}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SalesAnalysisPreview() {
+  return <MonthlyPnlPreview />;
+}
+
+function RenewalAnalysisPreview() {
+  const { data: chartData = [] } = trpc.dashboard.getMonthlyChart.useQuery();
+  const { data: stats } = trpc.trainers.getMyStats.useQuery();
+  const maxVal = Math.max(1, ...chartData.flatMap((d: any) => [d["신규회원"] ?? 0, d["재등록"] ?? 0]));
+  return (
+    <div className="space-y-3">
+      {stats && (
+        <div className="bg-background border border-border rounded-xl p-3 text-center">
+          <p className="text-2xl font-black text-primary">{stats.reregRate}%</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">재등록률</p>
+        </div>
+      )}
+      <p className="text-xs font-semibold text-muted-foreground">신규 vs 재등록</p>
+      <div className="space-y-2">
+        {chartData.slice(-3).map((d: any) => (
+          <div key={d.month} className="space-y-1">
+            <p className="text-[10px] text-muted-foreground">{d.month}</p>
+            <div className="flex gap-1 h-3">
+              <div className="bg-primary rounded-full transition-all" style={{ width: `${Math.round((d["신규회원"] / maxVal) * 100)}%` }} />
+              <div className="bg-blue-400 rounded-full transition-all" style={{ width: `${Math.round((d["재등록"] / maxVal) * 100)}%` }} />
+            </div>
+            <div className="flex gap-3 text-[9px] text-muted-foreground">
+              <span>● 신규 {d["신규회원"]}</span><span>● 재등록 {d["재등록"]}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChannelAnalysisPreview() {
+  const { data: leadList = [] } = trpc.leads.list.useQuery();
+  const byChannel: Record<string, number> = {};
+  for (const l of leadList as any[]) {
+    const name = l.channelName ?? "직접 입력";
+    byChannel[name] = (byChannel[name] ?? 0) + 1;
+  }
+  const sorted = Object.entries(byChannel).sort((a, b) => b[1] - a[1]);
+  const total = leadList.length;
+  return (
+    <div className="space-y-3">
+      <div className="bg-background border border-border rounded-xl p-3 text-center">
+        <p className="text-2xl font-black">{total}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">총 유입 상담</p>
+      </div>
+      {sorted.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-2">유입 데이터가 없습니다</p>
+      ) : (
+        <div className="space-y-2">
+          {sorted.map(([name, cnt]) => (
+            <div key={name} className="space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-medium">{name}</span>
+                <span className="font-bold">{cnt}명 ({total > 0 ? Math.round((cnt / total) * 100) : 0}%)</span>
+              </div>
+              <div className="w-full bg-muted rounded-full h-1.5">
+                <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${total > 0 ? (cnt / total) * 100 : 0}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KpiReportPreview() {
+  const { data: stats } = trpc.trainers.getMyStats.useQuery();
+  if (!stats) return <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>;
+  const kpis = [
+    { label: "전체 회원", value: stats.totalMembers, unit: "명", cls: "text-primary" },
+    { label: "누적 수업", value: stats.totalSessions, unit: "회", cls: "text-blue-600" },
+    { label: "재등록률", value: stats.reregRate, unit: "%", cls: "text-green-600" },
+    { label: "월평균 신규", value: stats.avgMonthlyNewMembers, unit: "명", cls: "text-orange-500" },
+    { label: "노쇼 횟수", value: stats.totalNoShow, unit: "회", cls: "text-red-500" },
+    { label: "잔여 PT", value: stats.remainingPt, unit: "회", cls: "text-muted-foreground" },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {kpis.map(({ label, value, unit, cls }) => (
+        <div key={label} className="bg-background border border-border rounded-xl p-3 text-center">
+          <p className={`text-xl font-black ${cls}`}>{value}{unit}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MarketingAnalysisPreview() {
+  return <ChannelAnalysisPreview />;
+}
+
+function ComingSoonPreview({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="text-center py-6 space-y-2">
+      <div className="w-12 h-12 rounded-2xl bg-muted/60 flex items-center justify-center mx-auto">
+        <Brain className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <p className="text-sm font-semibold text-muted-foreground">{title}</p>
+      <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
     </div>
   );
 }
