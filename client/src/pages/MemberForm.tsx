@@ -53,6 +53,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     paymentDate: "",
     paymentMemo: "",
     adminTrainerId: defaultTrainerId ? String(defaultTrainerId) : "",
+    serviceSessions: "",
+    serviceSessionPrice: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -60,6 +62,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: trainerList } = trpc.trainers.list.useQuery();
   const { data: allMembers = [] } = trpc.members.list.useQuery();
+  const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
   const { data: existingMember } = trpc.members.getById.useQuery(
     { id: memberId! },
     { enabled: isEdit }
@@ -141,6 +144,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       paymentDate: form.paymentDate || undefined,
       paymentMemo: form.paymentMemo || undefined,
       adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
+      serviceSessions: form.serviceSessions ? parseInt(form.serviceSessions) : undefined,
+      serviceSessionPrice: form.serviceSessionPrice ? parseInt(form.serviceSessionPrice) : undefined,
       subType: "재등록" as const,
     };
 
@@ -372,7 +377,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                       <button
                         key={preset}
                         type="button"
-                        onClick={() => setForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
+                        onClick={() => setForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset, serviceSessions: "", serviceSessionPrice: "" }))}
                         className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
                           form.ptProgram === preset
                             ? "bg-primary text-primary-foreground border-primary"
@@ -383,6 +388,25 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                       </button>
                     ))}
                   </div>
+                  {form.ptProgram === "이벤트피티" && (
+                    <div className="mt-1">
+                      <select
+                        className="w-full h-9 rounded-lg px-3 text-sm text-foreground focus:outline-none bg-input border border-border"
+                        defaultValue=""
+                        onChange={e => {
+                          const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
+                          if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0) }));
+                        }}>
+                        <option value="" disabled>이벤트 선택...</option>
+                        {(ptEvents ?? []).map((ev: any) => (
+                          <option key={ev.id} value={String(ev.id)}>
+                            {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
+                          </option>
+                        ))}
+                      </select>
+                      {(ptEvents ?? []).length === 0 && <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

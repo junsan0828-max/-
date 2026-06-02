@@ -384,6 +384,7 @@ function TrainerDashboard() {
   const { data: chartData } = trpc.dashboard.getMonthlyChart.useQuery();
   const { data: revenueData } = trpc.dashboard.getMonthlyRevenue.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
+  const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
 
   const [journalOpen, setJournalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
@@ -441,7 +442,7 @@ function TrainerDashboard() {
   const [reregForm, setReregForm] = useState({
     ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
     paymentAmount: "", unpaidAmount: "", paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
-    paymentMemo: "",
+    paymentMemo: "", serviceSessions: "", serviceSessionPrice: "",
   });
 
   const addPackageMutation = trpc.pt.addPackage.useMutation({
@@ -449,7 +450,7 @@ function TrainerDashboard() {
       toast.success("재등록 완료");
       setReregisterOpen(false);
       setReregMemberId("");
-      setReregForm({ ptProgram: "", totalSessions: "", startDate: "", expiryDate: "", paymentAmount: "", unpaidAmount: "", paymentMethod: "", paymentMemo: "" });
+      setReregForm({ ptProgram: "", totalSessions: "", startDate: "", expiryDate: "", paymentAmount: "", unpaidAmount: "", paymentMethod: "", paymentMemo: "", serviceSessions: "", serviceSessionPrice: "" });
       utils.dashboard.getStats.invalidate();
       utils.pt.list.invalidate();
       utils.pt.listByMember.invalidate();
@@ -970,11 +971,30 @@ function TrainerDashboard() {
               <div className="flex gap-1.5 flex-wrap">
                 {["케어피티", "웨이트피티", "이벤트피티"].map(preset => (
                   <button key={preset} type="button"
-                    onClick={() => setReregForm(p => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
+                    onClick={() => setReregForm(p => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset, serviceSessions: "", serviceSessionPrice: "" }))}
                     className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.ptProgram === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
                   >{preset}</button>
                 ))}
               </div>
+              {reregForm.ptProgram === "이벤트피티" && (
+                <div className="mt-1.5">
+                  <select
+                    className="w-full h-9 rounded-lg px-3 text-sm text-foreground focus:outline-none"
+                    defaultValue=""
+                    onChange={e => {
+                      const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
+                      if (ev) setReregForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0) }));
+                    }}>
+                    <option value="" disabled>이벤트 선택...</option>
+                    {(ptEvents ?? []).map((ev: any) => (
+                      <option key={ev.id} value={String(ev.id)}>
+                        {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
+                      </option>
+                    ))}
+                  </select>
+                  {(ptEvents ?? []).length === 0 && <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">총 세션 수 *</label>
@@ -1040,6 +1060,8 @@ function TrainerDashboard() {
                     unpaidAmount: reregForm.unpaidAmount ? Number(reregForm.unpaidAmount) : undefined,
                     paymentMethod: reregForm.paymentMethod || undefined,
                     paymentMemo: reregForm.paymentMemo || undefined,
+                    serviceSessions: reregForm.serviceSessions ? Number(reregForm.serviceSessions) : undefined,
+                    serviceSessionPrice: reregForm.serviceSessionPrice ? Number(reregForm.serviceSessionPrice) : undefined,
                   });
                 }}
               >
