@@ -370,10 +370,21 @@ export default function ParQ({ memberId }: Props) {
     }
   }, [existing]);
 
+  const updateMemberMutation = trpc.members.update.useMutation();
+
   const upsertMutation = trpc.parQ.upsert.useMutation({
     onSuccess: () => { toast.success("저장되었습니다."); setLocation(`/members/${memberId}`); },
     onError: (err) => toast.error(err.message || "저장 실패"),
   });
+
+  const handleSave = async () => {
+    // birthDate가 변경된 경우 members 테이블에도 저장
+    const originalBirth = member?.birthDate?.substring(0, 10) ?? "";
+    if (birthDateInput && birthDateInput !== originalBirth) {
+      await updateMemberMutation.mutateAsync({ id: memberId, birthDate: birthDateInput });
+    }
+    upsertMutation.mutate({ memberId, ...form });
+  };
 
   const set = (key: keyof FormState) => (v: string) => setForm(p => ({ ...p, [key]: v }));
 
@@ -597,10 +608,10 @@ export default function ParQ({ memberId }: Props) {
 
       {/* 저장 버튼 */}
       <div className="flex gap-3 pt-2">
-        <button onClick={() => upsertMutation.mutate({ memberId, ...form })}
-          disabled={upsertMutation.isPending}
+        <button onClick={handleSave}
+          disabled={upsertMutation.isPending || updateMemberMutation.isPending}
           className="flex-1 bg-primary text-primary-foreground rounded-xl py-3 text-sm font-bold disabled:opacity-50 hover:bg-primary/90 transition-colors">
-          {upsertMutation.isPending ? "저장 중..." : "저장"}
+          {(upsertMutation.isPending || updateMemberMutation.isPending) ? "저장 중..." : "저장"}
         </button>
         <button onClick={() => setLocation(`/members/${memberId}`)}
           className="flex-1 border border-border text-muted-foreground rounded-xl py-3 text-sm font-medium hover:bg-muted/30">
