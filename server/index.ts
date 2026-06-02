@@ -319,6 +319,29 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_member_health (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL UNIQUE,
+      height TEXT,
+      weight TEXT,
+      "birthYear" TEXT,
+      gender TEXT,
+      parq1 TEXT,
+      parq2 TEXT,
+      parq3 TEXT,
+      parq4 TEXT,
+      parq5 TEXT,
+      parq6 TEXT,
+      parq7 TEXT,
+      "parqSubmittedAt" TEXT,
+      "bodyAnalysisRequested" INTEGER DEFAULT 0 NOT NULL,
+      "bodyAnalysisRequestedAt" TEXT,
+      "gymRulesAgreed" INTEGER DEFAULT 0,
+      "appGuideConfirmed" INTEGER DEFAULT 0,
+      "parqJson" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
 
   for (const sql of tables) {
