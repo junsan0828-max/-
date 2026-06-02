@@ -261,6 +261,7 @@ export default function GymPlusProfile() {
   const [showAppGuide, setShowAppGuide] = useState(false);
   const [showParq, setShowParq] = useState(false);
   const [parqData, setParqData] = useState<ParqData>(defaultParqData);
+  const pendingHealthAction = useRef<"gymRules" | "appGuide" | "parq" | null>(null);
 
   // 재등록 신청 모달
   const [showRenewal, setShowRenewal] = useState(false);
@@ -287,7 +288,18 @@ export default function GymPlusProfile() {
   });
 
   const upsertHealth = trpc.gymPlus.upsertHealth.useMutation({
-    onSuccess: () => { refetchHealth(); },
+    onSuccess: () => {
+      refetchHealth();
+      const action = pendingHealthAction.current;
+      pendingHealthAction.current = null;
+      if (action === "gymRules") { setShowGymRules(false); toast.success("센터 이용규정 동의가 완료되었습니다."); }
+      else if (action === "appGuide") { setShowAppGuide(false); toast.success("이용방법 안내 확인이 완료되었습니다."); }
+      else if (action === "parq") { setShowParq(false); toast.success("PAR-Q 건강설문이 완료되었습니다."); }
+    },
+    onError: (e) => {
+      pendingHealthAction.current = null;
+      toast.error(e.message || "저장에 실패했습니다. 다시 시도해 주세요.");
+    },
   });
 
   const updateProfile = trpc.gymPlus.updateProfile.useMutation({
@@ -408,15 +420,13 @@ export default function GymPlusProfile() {
   // 미션 핸들러
   const submitGymRules = () => {
     if (!gymRulesChecked) { toast.error("이용규정에 동의해 주세요."); return; }
-    upsertHealth.mutate({ gymRulesAgreed: 1 }, {
-      onSuccess: () => { setShowGymRules(false); toast.success("센터 이용규정 동의가 완료되었습니다."); },
-    });
+    pendingHealthAction.current = "gymRules";
+    upsertHealth.mutate({ gymRulesAgreed: 1 });
   };
 
   const submitAppGuide = () => {
-    upsertHealth.mutate({ appGuideConfirmed: 1 }, {
-      onSuccess: () => { setShowAppGuide(false); toast.success("이용방법 안내 확인이 완료되었습니다."); },
-    });
+    pendingHealthAction.current = "appGuide";
+    upsertHealth.mutate({ appGuideConfirmed: 1 });
   };
 
   const openParq = () => {
@@ -429,9 +439,8 @@ export default function GymPlusProfile() {
   };
 
   const submitParq = () => {
-    upsertHealth.mutate({ parqJson: JSON.stringify(parqData) }, {
-      onSuccess: () => { setShowParq(false); toast.success("PAR-Q 건강설문이 완료되었습니다."); },
-    });
+    pendingHealthAction.current = "parq";
+    upsertHealth.mutate({ parqJson: JSON.stringify(parqData) });
   };
 
   const setPD = (key: keyof ParqData, value: any) => setParqData(p => ({ ...p, [key]: value }));
