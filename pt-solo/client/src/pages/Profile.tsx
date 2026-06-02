@@ -66,18 +66,18 @@ function ProfileCompletionBanner({ profile }: { profile: { jobType?: string | nu
   const pct = Math.round((filled / total) * 100);
   if (profile.profileBonusGranted) return null;
   return (
-    <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-4 flex items-start gap-3">
-      <Gift className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
+    <div className="rounded-xl border border-amber-400/50 bg-amber-50/80 dark:bg-amber-900/20 dark:border-amber-500/30 p-4 flex items-start gap-3">
+      <Gift className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-yellow-300">트레이너 프로필 완성 시 <span className="text-yellow-400">+200P</span> 지급!</p>
-        <p className="text-xs text-muted-foreground mt-0.5">직무, 경력, 활동지역을 모두 입력하면 FIT POINT 200P를 드립니다.</p>
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">트레이너 프로필 완성 시 <span className="text-amber-600 dark:text-amber-400">+200P</span> 지급!</p>
+        <p className="text-xs text-amber-700/80 dark:text-amber-400/70 mt-0.5">직무, 경력, 활동지역을 모두 입력하면 FIT POINT 200P를 드립니다.</p>
         <div className="mt-2">
-          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+          <div className="flex justify-between text-xs text-amber-700/70 dark:text-amber-400/70 mb-1">
             <span>프로필 완성도</span>
-            <span className="text-yellow-400 font-medium">{filled}/{total} ({pct}%)</span>
+            <span className="text-amber-600 dark:text-amber-400 font-medium">{filled}/{total} ({pct}%)</span>
           </div>
-          <div className="h-1.5 bg-border rounded-full overflow-hidden">
-            <div className="h-full bg-yellow-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="h-1.5 bg-amber-200/60 dark:bg-amber-800/40 rounded-full overflow-hidden">
+            <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
         </div>
       </div>
