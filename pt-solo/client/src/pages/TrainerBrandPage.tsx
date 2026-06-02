@@ -300,21 +300,24 @@ export default function TrainerBrandPage({ username }: Props) {
   const { data: trainer, isLoading, error } = trpc.brand.getPublicProfile.useQuery({ username });
   const [showBooking, setShowBooking] = useState(false);
   const [showAllCareer, setShowAllCareer] = useState(false);
-  // 3단계 예약 상태
-  const [bookingStep, setBookingStep] = useState(0); // 0=날짜 1=시간 2=확인
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<{ id: number; time: string } | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", interestType: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
 
-  // 브랜드 페이지는 신규 상담 전용 — 항상 간편 폼 사용
-  const simpleMode = true;
+  const monthStr = new Date().toISOString().slice(0, 7);
+  const { data: availableDates = [] } = trpc.booking.getAvailableDates.useQuery(
+    { trainerId: trainer?.trainerId ?? 0, month: monthStr },
+    { enabled: !!trainer?.trainerId }
+  );
+  // 슬롯이 등록되어 있으면 달력 모드, 없으면 간편 폼
+  const simpleMode = availableDates.length === 0;
 
   const submitWithSlotMutation = trpc.booking.submitWithSlot.useMutation({ onSuccess: () => setSubmitted(true) });
   const submitMutation = trpc.brand.submitBooking.useMutation({ onSuccess: () => setSubmitted(true) });
 
   function resetBooking() {
-    setBookingStep(0); setSelectedDate(""); setSelectedSlot(null);
+    setSelectedDate(""); setSelectedSlot(null);
     setForm({ name: "", phone: "", interestType: "", message: "" });
     setSubmitted(false);
   }
@@ -564,7 +567,7 @@ export default function TrainerBrandPage({ username }: Props) {
       {bookingBlock && (
         <div className="fixed bottom-0 left-0 right-0 z-30 px-4 pt-3 pb-safe-6"
           style={{ background: "linear-gradient(to top, #f5f5f7 70%, transparent)" }}>
-          <button onClick={() => { setShowBooking(true); setBookingStep(0); }}
+          <button onClick={() => { setShowBooking(true); }}
             className="w-full max-w-lg mx-auto flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-base text-white shadow-xl active:scale-[0.98] transition-all"
             style={{ backgroundColor: primaryColor, display: "flex" }}>
             <Calendar className="h-5 w-5" />
