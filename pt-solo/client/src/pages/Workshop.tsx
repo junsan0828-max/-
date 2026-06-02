@@ -2977,8 +2977,9 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
     if (!showForm) return null;
     switch (item.id) {
       case "brand_page":    return <BrandPageEditor />;
-      case "fitstep_plus":  return isAdmin ? <AdminFspLimitsPanel /> : trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : null;
-      case "booking":       return <BookingFeaturePanel />;
+      case "fitstep_plus":      return isAdmin ? <AdminFspLimitsPanel /> : trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : null;
+      case "fitstep_personal":  return <WorkoutLogSection />;
+      case "booking":           return <BookingFeaturePanel />;
       case "report_branding": return <ReportBrandingEditor />;
       case "templates":     return <WorkoutTemplateEditor />;
       case "survey":        return <SurveyBuilder />;
@@ -4127,7 +4128,8 @@ function WorkshopContent() {
                 {/* 기능 카드 목록 */}
                 <div className="bg-card divide-y divide-border/40">
                   {tierItemList.map(item => (
-                    <WorkshopStoreCard key={item.id} item={item} effectiveStatus={getEffectiveStatus(item)} onClick={() => setSelectedItem(item)} />
+                    <WorkshopStoreCard key={item.id} item={item} effectiveStatus={getEffectiveStatus(item)}
+                      onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} />
                   ))}
                 </div>
               </div>
@@ -4147,7 +4149,7 @@ function WorkshopContent() {
             현재 이용 가능한 기능 {activeItems.length}개 · 설정 및 관리하세요
           </p>
           {activeItems.map(item => (
-            <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+            <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} />
           ))}
           <div className="mt-4 bg-muted/30 border border-border/40 rounded-2xl p-4 text-center">
             <p className="text-xs text-muted-foreground">추가 기능은 <button className="text-primary font-semibold underline-offset-2 hover:underline" onClick={() => setWsTab("store")}>기능 구매</button> 탭에서 확인하세요</p>
