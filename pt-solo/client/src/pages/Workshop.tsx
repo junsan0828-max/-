@@ -3721,99 +3721,52 @@ function MarketingAnalysisPreview() {
   return <ChannelAnalysisPreview />;
 }
 
-// ── 식품 DB (분류/음식명/음식량/kcal/탄수화물/단백질/지방) ─────────────────────
-const FOOD_DB: { cat: string; name: string; amount: string; kcal: number; carb: number; prot: number; fat: number }[] = [
-  // 탄수화물
-  { cat: "탄수화물", name: "흰쌀밥", amount: "210g(1공기)", kcal: 313, carb: 69, prot: 5, fat: 1 },
-  { cat: "탄수화물", name: "잡곡밥", amount: "210g(1공기)", kcal: 290, carb: 62, prot: 7, fat: 2 },
-  { cat: "탄수화물", name: "고구마", amount: "100g", kcal: 128, carb: 30, prot: 1, fat: 0 },
-  { cat: "탄수화물", name: "감자", amount: "100g", kcal: 66, carb: 15, prot: 2, fat: 0 },
-  { cat: "탄수화물", name: "오트밀", amount: "40g(1인분)", kcal: 152, carb: 27, prot: 5, fat: 3 },
-  { cat: "탄수화물", name: "통밀빵", amount: "30g(1조각)", kcal: 73, carb: 14, prot: 3, fat: 1 },
-  { cat: "탄수화물", name: "바나나", amount: "100g", kcal: 89, carb: 23, prot: 1, fat: 0 },
-  { cat: "탄수화물", name: "사과", amount: "150g(1개)", kcal: 78, carb: 21, prot: 0, fat: 0 },
-  // 단백질
-  { cat: "단백질", name: "닭가슴살(삶은)", amount: "100g", kcal: 165, carb: 0, prot: 31, fat: 4 },
-  { cat: "단백질", name: "달걀", amount: "55g(1개)", kcal: 75, carb: 0, prot: 6, fat: 5 },
-  { cat: "단백질", name: "두부", amount: "100g", kcal: 76, carb: 2, prot: 8, fat: 4 },
-  { cat: "단백질", name: "연어", amount: "100g", kcal: 208, carb: 0, prot: 20, fat: 13 },
-  { cat: "단백질", name: "참치캔(물)", amount: "100g", kcal: 96, carb: 0, prot: 22, fat: 1 },
-  { cat: "단백질", name: "소고기(안심)", amount: "100g", kcal: 198, carb: 0, prot: 26, fat: 10 },
-  { cat: "단백질", name: "돼지고기(안심)", amount: "100g", kcal: 143, carb: 0, prot: 22, fat: 6 },
-  { cat: "단백질", name: "저지방우유", amount: "200ml", kcal: 93, carb: 12, prot: 7, fat: 2 },
-  { cat: "단백질", name: "그릭요거트(무지방)", amount: "100g", kcal: 59, carb: 4, prot: 10, fat: 0 },
-  { cat: "단백질", name: "프로틴쉐이크", amount: "30g(1스쿱)", kcal: 120, carb: 3, prot: 24, fat: 2 },
-  // 지방
-  { cat: "지방", name: "아몬드", amount: "30g(한줌)", kcal: 173, carb: 6, prot: 6, fat: 15 },
-  { cat: "지방", name: "아보카도", amount: "100g", kcal: 160, carb: 9, prot: 2, fat: 15 },
-  { cat: "지방", name: "올리브오일", amount: "10g(1큰술)", kcal: 88, carb: 0, prot: 0, fat: 10 },
-  { cat: "지방", name: "견과류 믹스", amount: "30g(한줌)", kcal: 180, carb: 6, prot: 5, fat: 16 },
-  // 채소
-  { cat: "채소", name: "브로콜리", amount: "100g", kcal: 35, carb: 7, prot: 2, fat: 0 },
-  { cat: "채소", name: "시금치", amount: "100g", kcal: 23, carb: 4, prot: 3, fat: 0 },
-  { cat: "채소", name: "양배추", amount: "100g", kcal: 25, carb: 6, prot: 1, fat: 0 },
-  { cat: "채소", name: "오이", amount: "100g", kcal: 16, carb: 4, prot: 1, fat: 0 },
-  { cat: "채소", name: "당근", amount: "100g", kcal: 41, carb: 10, prot: 1, fat: 0 },
-  { cat: "채소", name: "토마토", amount: "150g(1개)", kcal: 27, carb: 6, prot: 1, fat: 0 },
-  { cat: "채소", name: "양상추", amount: "60g(1컵)", kcal: 9, carb: 2, prot: 1, fat: 0 },
-];
+// 구글 시트에서 실시간으로 식품 DB를 가져옴 (브라우저 fetch)
+const FOOD_SHEET_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRk0OlJXvZha8RRaMK4OXQ-C2OWhhmPVHxLbxiUnPZZfy64fd8muHWuz_QbhNXjLDkqscnrbRQ-AzME/pub?gid=287813752&single=true&output=csv";
 
-type Meal = { label: string; items: typeof FOOD_DB; note?: string };
-type DietPlan = { tdee: number; goal: string; meals: Meal[] };
+type MealOption = { mealType: string; name: string; amount: string; kcal: number; carb: number; prot: number; fat: number };
+type DietResult = { tdee: number; goalLabel: string; meals: { mealType: string; picked: MealOption; alt: MealOption[] }[] };
 
-function calcBmrTdee(gender: string, weightKg: number, heightCm: number, ageYears: number, activity: string) {
-  // Mifflin-St Jeor
-  const bmr = gender === "female"
-    ? 10 * weightKg + 6.25 * heightCm - 5 * ageYears - 161
-    : 10 * weightKg + 6.25 * heightCm - 5 * ageYears + 5;
-  const actFactor: Record<string, number> = {
-    sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725,
-  };
-  const tdee = Math.round(bmr * (actFactor[activity] ?? 1.375));
-  return { bmr: Math.round(bmr), tdee };
+function parseFoodCSV(csvText: string): MealOption[] {
+  const MEAL_TYPES = new Set(["아침", "점심", "저녁", "간식"]);
+  const options: MealOption[] = [];
+  const rows = csvText.split("\n");
+  for (let i = 4; i < rows.length; i++) {
+    const cols: string[] = [];
+    let inQ = false, cur = "";
+    for (const ch of rows[i]) {
+      if (ch === '"') inQ = !inQ;
+      else if (ch === "," && !inQ) { cols.push(cur.trim()); cur = ""; }
+      else cur += ch;
+    }
+    cols.push(cur.trim());
+    const cat = cols[0] ?? "";
+    const name = cols[1] ?? "";
+    if (!MEAL_TYPES.has(cat) || !name) continue;
+    const kcal = parseFloat(cols[3]) || 0;
+    if (kcal === 0) continue;
+    options.push({ mealType: cat, name, amount: cols[2] ?? "", kcal, carb: parseFloat(cols[4]) || 0, prot: parseFloat(cols[5]) || 0, fat: parseFloat(cols[6]) || 0 });
+  }
+  return options;
 }
 
-function generateDietPlan(tdee: number, goalType: string): DietPlan {
-  const targetKcal = goalType === "loss" ? Math.round(tdee * 0.8) : goalType === "gain" ? Math.round(tdee * 1.1) : tdee;
+function calcTdee(gender: string, kg: number, cm: number, age: number, activity: string) {
+  const bmr = gender === "female" ? 10 * kg + 6.25 * cm - 5 * age - 161 : 10 * kg + 6.25 * cm - 5 * age + 5;
+  const af: Record<string, number> = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725 };
+  return Math.round(bmr * (af[activity] ?? 1.375));
+}
 
-  // 아침: 단백질 + 탄수화물 + 채소
-  const breakfast: typeof FOOD_DB = [
-    FOOD_DB.find(f => f.name === "오트밀")!,
-    FOOD_DB.find(f => f.name === "달걀")!,
-    FOOD_DB.find(f => f.name === "그릭요거트(무지방)")!,
-    FOOD_DB.find(f => f.name === "바나나")!,
-  ];
-
-  // 점심: 탄수화물 + 고단백 + 채소
-  const lunch: typeof FOOD_DB = [
-    FOOD_DB.find(f => f.name === "잡곡밥")!,
-    FOOD_DB.find(f => f.name === "닭가슴살(삶은)")!,
-    FOOD_DB.find(f => f.name === "브로콜리")!,
-    FOOD_DB.find(f => f.name === "시금치")!,
-  ];
-
-  // 저녁 (감량이면 탄수 줄임)
-  const dinner: typeof FOOD_DB = goalType === "loss"
-    ? [FOOD_DB.find(f => f.name === "두부")!, FOOD_DB.find(f => f.name === "달걀")!, FOOD_DB.find(f => f.name === "브로콜리")!, FOOD_DB.find(f => f.name === "오이")!]
-    : [FOOD_DB.find(f => f.name === "잡곡밥")!, FOOD_DB.find(f => f.name === "연어")!, FOOD_DB.find(f => f.name === "시금치")!, FOOD_DB.find(f => f.name === "토마토")!];
-
-  // 간식
-  const snack: typeof FOOD_DB = goalType === "gain"
-    ? [FOOD_DB.find(f => f.name === "프로틴쉐이크")!, FOOD_DB.find(f => f.name === "바나나")!, FOOD_DB.find(f => f.name === "아몬드")!]
-    : [FOOD_DB.find(f => f.name === "아몬드")!, FOOD_DB.find(f => f.name === "사과")!];
-
-  const goalLabel = goalType === "loss" ? "체중 감량" : goalType === "gain" ? "근육 증량" : "체중 유지";
-
-  return {
-    tdee: targetKcal,
-    goal: goalLabel,
-    meals: [
-      { label: "아침", items: breakfast },
-      { label: "점심", items: lunch },
-      { label: "저녁", items: dinner },
-      { label: "간식", items: snack },
-    ],
-  };
+function buildDietPlan(options: MealOption[], tdee: number, goal: string): DietResult {
+  const targetKcal = goal === "loss" ? Math.round(tdee * 0.8) : goal === "gain" ? Math.round(tdee * 1.1) : tdee;
+  const ratios: Record<string, number> = { 아침: 0.25, 점심: 0.35, 저녁: 0.30, 간식: 0.10 };
+  const meals = ["아침", "점심", "저녁", "간식"].map(mealType => {
+    const pool = options.filter(o => o.mealType === mealType);
+    const target = targetKcal * (ratios[mealType] ?? 0.25);
+    const sorted = [...pool].sort((a, b) => Math.abs(a.kcal - target) - Math.abs(b.kcal - target));
+    return { mealType, picked: sorted[0], alt: sorted.slice(1, 5) };
+  }).filter(m => m.picked);
+  const goalLabel = goal === "loss" ? "체중 감량" : goal === "gain" ? "근육 증량" : "체중 유지";
+  return { tdee: targetKcal, goalLabel, meals };
 }
 
 function TrainerDietManager() {
@@ -3821,31 +3774,65 @@ function TrainerDietManager() {
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [goal, setGoal] = useState<"loss" | "maintain" | "gain">("maintain");
   const [activity, setActivity] = useState("light");
-  const [plan, setPlan] = useState<DietPlan | null>(null);
+  const [plan, setPlan] = useState<DietResult | null>(null);
+  const [foodOptions, setFoodOptions] = useState<MealOption[]>([]);
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [sheetError, setSheetError] = useState(false);
+  const [altIdx, setAltIdx] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setSheetLoading(true);
+    fetch(FOOD_SHEET_CSV)
+      .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+      .then(text => { setFoodOptions(parseFoodCSV(text)); setSheetLoading(false); })
+      .catch(() => { setSheetError(true); setSheetLoading(false); });
+  }, []);
 
   const selectedMember = (memberList as any[]).find((m: any) => m.id === selectedMemberId);
-  const { data: parQData } = trpc.parQ.get.useQuery(
-    { memberId: selectedMemberId! },
-    { enabled: !!selectedMemberId }
-  );
+  const { data: parQData } = trpc.parQ.get.useQuery({ memberId: selectedMemberId! }, { enabled: !!selectedMemberId });
 
   const heightCm = parseFloat(parQData?.height ?? "0");
   const weightKg = parseFloat(parQData?.weight ?? "0");
   const gender = selectedMember?.gender ?? "male";
   const birthDate = selectedMember?.birthDate ?? "";
-  const ageYears = birthDate ? (new Date().getFullYear() - parseInt(birthDate.slice(0, 4))) : 30;
+  const ageYears = birthDate ? new Date().getFullYear() - parseInt(birthDate.slice(0, 4)) : 30;
   const hasBodyData = heightCm > 0 && weightKg > 0;
 
   function handleGenerate() {
-    if (!hasBodyData) return;
-    const { tdee } = calcBmrTdee(gender, weightKg, heightCm, ageYears, activity);
-    setPlan(generateDietPlan(tdee, goal));
+    if (!hasBodyData || foodOptions.length === 0) return;
+    setPlan(buildDietPlan(foodOptions, calcTdee(gender, weightKg, heightCm, ageYears, activity), goal));
+    setAltIdx({});
   }
 
-  const totalKcal = plan?.meals.flatMap(m => m.items).reduce((s, f) => s + f.kcal, 0) ?? 0;
-  const totalCarb = plan?.meals.flatMap(m => m.items).reduce((s, f) => s + f.carb, 0) ?? 0;
-  const totalProt = plan?.meals.flatMap(m => m.items).reduce((s, f) => s + f.prot, 0) ?? 0;
-  const totalFat = plan?.meals.flatMap(m => m.items).reduce((s, f) => s + f.fat, 0) ?? 0;
+  function shuffleMeal(mealType: string) {
+    if (!plan) return;
+    const meal = plan.meals.find(m => m.mealType === mealType);
+    if (!meal || meal.alt.length === 0) return;
+    setAltIdx(prev => ({ ...prev, [mealType]: ((prev[mealType] ?? -1) + 1) % meal.alt.length }));
+  }
+
+  function getItem(meal: DietResult["meals"][0]) {
+    const idx = altIdx[meal.mealType];
+    return idx !== undefined ? meal.alt[idx] : meal.picked;
+  }
+
+  const totalKcal = plan?.meals.reduce((s, m) => s + getItem(m).kcal, 0) ?? 0;
+  const totalCarb = plan?.meals.reduce((s, m) => s + getItem(m).carb, 0) ?? 0;
+  const totalProt = plan?.meals.reduce((s, m) => s + getItem(m).prot, 0) ?? 0;
+  const totalFat  = plan?.meals.reduce((s, m) => s + getItem(m).fat,  0) ?? 0;
+
+  if (sheetLoading) return (
+    <div className="text-center py-10">
+      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+      <p className="text-xs text-muted-foreground">식품 DB 불러오는 중...</p>
+    </div>
+  );
+  if (sheetError) return (
+    <div className="text-center py-6 space-y-1">
+      <p className="text-sm text-red-400 font-semibold">식품 DB를 불러오지 못했습니다.</p>
+      <p className="text-xs text-muted-foreground">구글 시트 웹 게시 설정을 확인해주세요.</p>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -3859,34 +3846,28 @@ function TrainerDietManager() {
         >
           <option value="">-- 회원을 선택하세요 --</option>
           {(memberList as any[]).map((m: any) => (
-            <option key={m.id} value={m.id}>{m.name} {m.gender === "female" ? "(여)" : m.gender === "male" ? "(남)" : ""}</option>
+            <option key={m.id} value={m.id}>{m.name}{m.gender === "female" ? " (여)" : m.gender === "male" ? " (남)" : ""}</option>
           ))}
         </select>
       </div>
 
       {/* 신체 정보 */}
       {selectedMemberId && (
-        <div className={`rounded-xl border px-4 py-3 text-sm space-y-1 ${hasBodyData ? "border-border bg-card" : "border-amber-500/30 bg-amber-50/30"}`}>
+        <div className={`rounded-xl border px-4 py-3 text-sm ${hasBodyData ? "border-border bg-card" : "border-amber-500/30 bg-amber-50/30"}`}>
           {hasBodyData ? (
             <>
-              <p className="font-semibold text-xs text-muted-foreground mb-1">신체 정보 (PAR-Q)</p>
+              <p className="font-semibold text-xs text-muted-foreground mb-2">신체 정보 (PAR-Q)</p>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-primary/5 rounded-lg py-2">
-                  <p className="text-[10px] text-muted-foreground">키</p>
-                  <p className="font-bold text-sm">{heightCm}cm</p>
-                </div>
-                <div className="bg-primary/5 rounded-lg py-2">
-                  <p className="text-[10px] text-muted-foreground">몸무게</p>
-                  <p className="font-bold text-sm">{weightKg}kg</p>
-                </div>
-                <div className="bg-primary/5 rounded-lg py-2">
-                  <p className="text-[10px] text-muted-foreground">나이</p>
-                  <p className="font-bold text-sm">{ageYears}세</p>
-                </div>
+                {[["키", `${heightCm}cm`], ["몸무게", `${weightKg}kg`], ["나이", `${ageYears}세`]].map(([label, val]) => (
+                  <div key={label} className="bg-primary/5 rounded-lg py-2">
+                    <p className="text-[10px] text-muted-foreground">{label}</p>
+                    <p className="font-bold text-sm">{val}</p>
+                  </div>
+                ))}
               </div>
             </>
           ) : (
-            <p className="text-xs text-amber-700">이 회원의 PAR-Q에 키/몸무게가 입력되지 않았습니다. PAR-Q를 먼저 작성해주세요.</p>
+            <p className="text-xs text-amber-700">PAR-Q에 키/몸무게가 없습니다. PAR-Q를 먼저 작성해주세요.</p>
           )}
         </div>
       )}
@@ -3905,7 +3886,6 @@ function TrainerDietManager() {
               ))}
             </div>
           </div>
-
           <div>
             <p className="text-xs font-semibold text-muted-foreground mb-1.5">활동량</p>
             <div className="grid grid-cols-2 gap-2">
@@ -3917,13 +3897,10 @@ function TrainerDietManager() {
               ))}
             </div>
           </div>
-
-          <button
-            onClick={handleGenerate}
-            className="w-full py-3 rounded-2xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2"
-          >
+          <button onClick={handleGenerate}
+            className="w-full py-3 rounded-2xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2">
             <Sparkles className="h-4 w-4" />
-            맞춤 식단 생성하기
+            맞춤 식단 생성 ({foodOptions.length}개 메뉴 DB)
           </button>
         </>
       )}
@@ -3931,13 +3908,12 @@ function TrainerDietManager() {
       {/* 식단 결과 */}
       {plan && (
         <div className="space-y-3">
-          {/* 요약 */}
           <div className="bg-card border border-border rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <p className="font-bold text-sm">{selectedMember?.name}님 맞춤 식단</p>
-              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{plan.goal}</span>
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{plan.goalLabel}</span>
             </div>
-            <p className="text-xs text-muted-foreground">목표 섭취량 <span className="font-bold text-foreground">{plan.tdee.toLocaleString()} kcal</span></p>
+            <p className="text-xs text-muted-foreground">목표 <span className="font-bold text-foreground">{plan.tdee.toLocaleString()} kcal</span></p>
             <div className="grid grid-cols-4 gap-1.5 pt-1">
               {[["총 칼로리", `${totalKcal}kcal`, "text-orange-500"], ["탄수화물", `${totalCarb}g`, "text-amber-500"], ["단백질", `${totalProt}g`, "text-blue-500"], ["지방", `${totalFat}g`, "text-green-500"]].map(([label, val, cls]) => (
                 <div key={label} className="bg-muted/40 rounded-xl py-2 text-center">
@@ -3948,28 +3924,30 @@ function TrainerDietManager() {
             </div>
           </div>
 
-          {/* 식사별 */}
           {plan.meals.map(meal => {
-            const mealKcal = meal.items.reduce((s, f) => s + f.kcal, 0);
+            const item = getItem(meal);
             return (
-              <div key={meal.label} className="border border-border rounded-2xl overflow-hidden">
+              <div key={meal.mealType} className="border border-border rounded-2xl overflow-hidden">
                 <div className="bg-muted/30 px-4 py-2.5 flex items-center justify-between">
-                  <p className="text-sm font-bold">{meal.label}</p>
-                  <span className="text-xs text-muted-foreground">{mealKcal} kcal</span>
+                  <p className="text-sm font-bold">{meal.mealType}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{item.kcal} kcal</span>
+                    {meal.alt.length > 0 && (
+                      <button onClick={() => shuffleMeal(meal.mealType)} title="다른 메뉴"
+                        className="text-muted-foreground hover:text-primary transition-colors">
+                        <ArrowLeftRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="divide-y divide-border">
-                  {meal.items.map(food => (
-                    <div key={food.name} className="px-4 py-2.5 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">{food.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{food.amount} · {food.cat}</p>
-                      </div>
-                      <div className="text-right text-[11px] text-muted-foreground">
-                        <p className="font-semibold text-foreground">{food.kcal} kcal</p>
-                        <p>C {food.carb}g · P {food.prot}g · F {food.fat}g</p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="px-4 py-3">
+                  <p className="text-sm font-semibold">{item.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{item.amount}</p>
+                  <div className="flex gap-3 mt-2 text-[11px]">
+                    <span className="text-amber-500">탄 {item.carb}g</span>
+                    <span className="text-blue-500">단 {item.prot}g</span>
+                    <span className="text-green-500">지 {item.fat}g</span>
+                  </div>
                 </div>
               </div>
             );
