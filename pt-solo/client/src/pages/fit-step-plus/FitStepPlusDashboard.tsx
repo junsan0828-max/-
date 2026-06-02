@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ChevronRight, Lock, Star, RefreshCw, Sparkles, X } from "lucide-react";
+import { ChevronRight, Lock, Star, RefreshCw, Sparkles, X, Video } from "lucide-react";
 
 const CONDITION_EMOJI = ["😴", "😑", "😐", "☺️", "💪"];
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];

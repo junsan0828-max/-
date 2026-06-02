@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
-import { GripVertical, Trash2, Plus, X } from "lucide-react";
+import { GripVertical, Trash2, Plus, X, Video } from "lucide-react";
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -44,7 +44,7 @@ function energyToIntensity(e: string | undefined): string | undefined {
   return undefined;
 }
 
-function parseLogExercises(json: string | null | undefined): { name: string; detail: string }[] {
+function parseLogExercises(json: string | null | undefined): { name: string; detail: string; videoUrl?: string }[] {
   if (!json) return [];
   try {
     const arr = JSON.parse(json) as any[];
@@ -56,13 +56,13 @@ function parseLogExercises(json: string | null | undefined): { name: string; det
           .filter((s) => s.reps || s.weight)
           .map((s) => `${s.reps || "-"}회${s.weight ? ` × ${s.weight}kg` : ""}`)
           .join(", ");
-        return { name: ex.name, detail };
+        return { name: ex.name, detail, videoUrl: ex.videoUrl ?? undefined };
       }
       const parts: string[] = [];
       if (ex.sets) parts.push(`${ex.sets}세트`);
       if (ex.reps) parts.push(`${ex.reps}회`);
       if (ex.weight) parts.push(`${ex.weight}kg`);
-      return { name: ex.name, detail: parts.join(" × ") };
+      return { name: ex.name, detail: parts.join(" × "), videoUrl: ex.videoUrl ?? undefined };
     });
   } catch {
     return [];
@@ -541,11 +541,19 @@ export default function FitStepPlusWorkout() {
                     </div>
                   )}
                   {exList.length > 0 && (
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       {exList.map((ex, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="text-foreground font-medium">{ex.name}</span>
-                          {ex.detail && <span>{ex.detail}</span>}
+                        <div key={i} className="space-y-0.5">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="text-foreground font-medium">{ex.name}</span>
+                            {ex.detail && <span>{ex.detail}</span>}
+                          </div>
+                          {ex.videoUrl && (
+                            <a href={ex.videoUrl} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-primary font-medium ml-0.5">
+                              <Video className="h-3 w-3" />영상 보기
+                            </a>
+                          )}
                         </div>
                       ))}
                     </div>

@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Search, Plus, ChevronDown, ChevronUp, Trash2, X, LayoutTemplate,
-  PlusCircle, ChevronsDown, Send, Save, Dumbbell,
+  PlusCircle, ChevronsDown, Send, Save, Dumbbell, Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +88,7 @@ export default function Sessions() {
   const [liveDate, setLiveDate] = useState("");
   const [liveExercises, setLiveExercises] = useState<Exercise[]>([]);
   const [liveMemberId, setLiveMemberId] = useState<number | null>(null);
+  const [liveVideoOpenIdx, setLiveVideoOpenIdx] = useState<number | null>(null);
 
   const selectedMember = allMembers?.find(m => m.id === selectedMemberId);
 
@@ -211,8 +212,13 @@ export default function Sessions() {
     setLiveExercises(prev => prev.map((ex, i) => i !== idx ? ex : { ...ex, name }));
   }
 
+  function updateLiveVideoUrl(idx: number, videoUrl: string) {
+    setLiveExercises(prev => prev.map((ex, i) => i !== idx ? ex : { ...ex, videoUrl: videoUrl || undefined }));
+  }
+
   function removeLiveExercise(idx: number) {
     setLiveExercises(prev => prev.filter((_, i) => i !== idx));
+    if (liveVideoOpenIdx === idx) setLiveVideoOpenIdx(null);
   }
 
   function saveLive() {
@@ -361,13 +367,21 @@ export default function Sessions() {
                       <p className="text-xs font-medium text-muted-foreground mb-1">운동 종목</p>
                       <div className="space-y-1">
                         {exercises.map((ex, i) => (
-                          <div key={i} className="text-sm flex items-start gap-2">
-                            <span className="text-muted-foreground">·</span>
-                            <span>{ex.name}</span>
-                            {ex.sets && ex.sets.length > 0 && (
-                              <span className="text-xs text-muted-foreground">
-                                {ex.sets.map((s: any) => `${s.reps ?? ""}회${s.weight ? ` ${s.weight}kg` : ""}`).join(", ")}
-                              </span>
+                          <div key={i} className="text-sm space-y-0.5">
+                            <div className="flex items-start gap-2">
+                              <span className="text-muted-foreground">·</span>
+                              <span>{ex.name}</span>
+                              {ex.sets && ex.sets.length > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {ex.sets.map((s: any) => `${s.reps ?? ""}회${s.weight ? ` ${s.weight}kg` : ""}`).join(", ")}
+                                </span>
+                              )}
+                            </div>
+                            {ex.videoUrl && (
+                              <a href={ex.videoUrl} target="_blank" rel="noreferrer"
+                                className="ml-4 inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+                                <Video className="h-3 w-3" />영상 보기
+                              </a>
                             )}
                           </div>
                         ))}
@@ -501,10 +515,33 @@ export default function Sessions() {
                     placeholder="운동명"
                     className="flex-1 bg-transparent text-sm font-medium focus:outline-none placeholder:text-muted-foreground/40 min-w-0"
                   />
+                  <button
+                    onClick={() => setLiveVideoOpenIdx(liveVideoOpenIdx === exIdx ? null : exIdx)}
+                    title="운동 영상 연결"
+                    className={`shrink-0 p-1 rounded-lg transition-colors ${ex.videoUrl ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+                  >
+                    <Video className="h-3.5 w-3.5" />
+                  </button>
                   <button onClick={() => removeLiveExercise(exIdx)} className="text-muted-foreground hover:text-red-400 shrink-0">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
+                {liveVideoOpenIdx === exIdx && (
+                  <div className="px-3 py-2 border-b border-border bg-primary/5 flex items-center gap-2">
+                    <Video className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <input
+                      value={ex.videoUrl ?? ""}
+                      onChange={e => updateLiveVideoUrl(exIdx, e.target.value)}
+                      placeholder="유튜브 링크 붙여넣기"
+                      className="flex-1 bg-transparent text-xs focus:outline-none placeholder:text-muted-foreground/50 min-w-0"
+                    />
+                    {ex.videoUrl && (
+                      <button onClick={() => updateLiveVideoUrl(exIdx, "")} className="text-muted-foreground hover:text-red-400 shrink-0">
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div className="px-3 pt-2 pb-1 space-y-1.5">
                   {ex.sets.map((s, setIdx) => (
