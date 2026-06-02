@@ -2979,6 +2979,7 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
       case "brand_page":    return <BrandPageEditor />;
       case "fitstep_plus":      return isAdmin ? <AdminFspLimitsPanel /> : trainerId ? <FitStepPlusPanel trainerId={trainerId} /> : null;
       case "fitstep_personal":  return <WorkoutLogSection />;
+      case "fitstep_diet":      return <TrainerDietManager />;
       case "booking":           return <BookingFeaturePanel />;
       case "report_branding": return <ReportBrandingEditor />;
       case "templates":     return <WorkoutTemplateEditor />;
