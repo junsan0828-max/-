@@ -3560,14 +3560,18 @@ const workshopRouter = t.router({
   // 작업실 상태 조회 (미오픈 / 체험중 / 유예 / 잠금 / 활성화)
   getStatus: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
-    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null };
+    const cfgRows = await pool.query<{ featureId: string; status: string }>(`SELECT "featureId", status FROM workshop_feature_config`);
+    const featureConfigs: Record<string, string> = {};
+    for (const row of cfgRows.rows) featureConfigs[row.featureId] = row.status;
+
+    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs };
 
     // 코인 활성화 여부 확인
     const activated = await pool.query(
       `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature='workshop_access'`,
       [trainerId]
     );
-    if (activated.rows.length > 0) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null };
+    if (activated.rows.length > 0) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs };
 
     // 트라이얼 시작일 확인
     const settings = await pool.query<{ workshopTrialStartedAt: string | null }>(
@@ -3575,19 +3579,19 @@ const workshopRouter = t.router({
       [trainerId]
     );
     const trialStartedAt = settings.rows[0]?.workshopTrialStartedAt ?? null;
-    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null };
+    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs };
 
     const started = new Date(trialStartedAt);
     const now = new Date();
     const daysSince = Math.floor((now.getTime() - started.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysSince <= WORKSHOP_TRIAL_DAYS) {
-      return { status: "trial", daysRemaining: WORKSHOP_TRIAL_DAYS - daysSince, trialStartedAt };
+      return { status: "trial", daysRemaining: WORKSHOP_TRIAL_DAYS - daysSince, trialStartedAt, featureConfigs };
     }
     if (daysSince <= WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS) {
-      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt };
+      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs };
     }
-    return { status: "locked", daysRemaining: 0, trialStartedAt };
+    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs };
   }),
 
   // 무료 체험 시작

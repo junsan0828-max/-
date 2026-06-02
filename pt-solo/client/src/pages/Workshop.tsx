@@ -3849,9 +3849,9 @@ function AdminWorkshopView() {
 }
 
 // ── 스토어 카드 (기능 구매 탭용) ──────────────────────────────────────────────
-function WorkshopStoreCard({ item, onClick }: { item: WsItem; onClick: () => void }) {
+function WorkshopStoreCard({ item, effectiveStatus, onClick }: { item: WsItem; effectiveStatus?: string; onClick: () => void }) {
   const Icon = item.icon;
-  const isActive = item.status === "active";
+  const isActive = (effectiveStatus ?? item.status) === "active";
 
   return (
     <button onClick={onClick}
@@ -4016,9 +4016,12 @@ function WorkshopContent() {
   }
 
   // ── 체험 중 / 유예 / 활성화 → 두 탭 표시 ────────────────────────────────────
+  const featureConfigs = wsStatus?.featureConfigs ?? {};
+  const getEffectiveStatus = (item: WsItem) => featureConfigs[item.id] ?? item.status;
+
   const activeItems = WS_CATALOG.flatMap(cat =>
     cat.items
-      .filter(item => item.status === "active")
+      .filter(item => getEffectiveStatus(item) === "active")
       .map(item => ({ ...item, catKey: cat.key, catLabel: cat.label }))
   );
 
@@ -4123,7 +4126,7 @@ function WorkshopContent() {
                 {/* 기능 카드 목록 */}
                 <div className="bg-card divide-y divide-border/40">
                   {tierItemList.map(item => (
-                    <WorkshopStoreCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+                    <WorkshopStoreCard key={item.id} item={item} effectiveStatus={getEffectiveStatus(item)} onClick={() => setSelectedItem(item)} />
                   ))}
                 </div>
               </div>
