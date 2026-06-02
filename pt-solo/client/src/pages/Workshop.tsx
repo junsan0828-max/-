@@ -3246,7 +3246,7 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   const updateStatusMutation = trpc.admin.updateWorkshopFeatureConfig.useMutation({
-    onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); toast.success("상태가 변경되었습니다."); },
+    onSuccess: () => { utils.admin.getWorkshopConsole.invalidate(); utils.workshop.getStatus.invalidate(); toast.success("상태가 변경되었습니다."); },
     onError: () => toast.error("상태 변경 실패"),
   });
 
@@ -4034,6 +4034,7 @@ function AdminWorkshopView() {
   const bulkUpdateMutation = trpc.admin.bulkUpdateWorkshopFeatureConfig.useMutation({
     onSuccess: (data) => {
       utils.admin.getWorkshopConsole.invalidate();
+      utils.workshop.getStatus.invalidate();
       toast.success(`${data.updated}개 기능 상태가 변경되었습니다.`);
       setSelectedFeatureIds(new Set());
       setBulkMode(false);
@@ -4448,7 +4449,7 @@ function WorkshopContent() {
   const trainerId = (user as any)?.trainerId as number | undefined;
   const isAdmin = (user as any)?.role === "admin";
 
-  const { data: wsStatus, isLoading } = trpc.workshop.getStatus.useQuery();
+  const { data: wsStatus, isLoading } = trpc.workshop.getStatus.useQuery(undefined, { refetchInterval: 60 * 1000 });
   const startTrialMutation = trpc.workshop.startTrial.useMutation({
     onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("30일 무료 체험이 시작되었습니다!"); },
     onError: (e) => toast.error(e.message),
