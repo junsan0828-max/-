@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
-import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+
+// ─── 연락처 설정 (변경 시 여기만 수정) ───────────────────────────────────────
+const NAVER_PLACE_URL = "https://booking.naver.com/booking/13/bizes/YOUR_ID"; // 네이버 플레이스 예약 URL
+const KAKAO_CHANNEL_URL = "https://pf.kakao.com/_YOUR_ID"; // 카카오 채널 URL
+const PHONE_NUMBER = "010-0000-0000"; // 전화번호
 
 // ─── Scroll helper ─────────────────────────────────────────────────────────────
 function scrollTo(id: string) {
@@ -59,12 +63,14 @@ function Nav() {
                 {link.label}
               </button>
             ))}
-            <button
-              onClick={() => scrollTo("contact")}
-              className="px-4 py-2 bg-[#0B1D3A] text-white text-sm font-semibold rounded-lg hover:bg-[#162d5a] transition-colors"
+            <a
+              href={NAVER_PLACE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-[#03C75A] text-white text-sm font-semibold rounded-lg hover:bg-[#02b350] transition-colors"
             >
               상담신청
-            </button>
+            </a>
           </nav>
 
           {/* Mobile Hamburger */}
@@ -90,12 +96,15 @@ function Nav() {
                 {link.label}
               </button>
             ))}
-            <button
-              onClick={() => { scrollTo("contact"); setMenuOpen(false); }}
-              className="mt-2 px-4 py-2 bg-[#0B1D3A] text-white text-sm font-semibold rounded-lg"
+            <a
+              href={NAVER_PLACE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
+              className="mt-2 px-4 py-2.5 bg-[#03C75A] text-white text-sm font-semibold rounded-lg text-center"
             >
-              상담신청
-            </button>
+              상담신청 (네이버 예약)
+            </a>
           </div>
         )}
       </div>
@@ -865,163 +874,57 @@ function LocationSection() {
 
 // ─── Section 12: Contact Form ─────────────────────────────────────────────────
 function ContactSection() {
-  const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    purpose: "",
-    message: "",
-  });
-  const [submitted, setSubmitted] = useState(false);
-
-  const submitMutation = trpc.landing.submitInquiry.useMutation({
-    onSuccess: () => {
-      setSubmitted(true);
-      toast.success("신청이 완료되었습니다!");
-    },
-    onError: () => {
-      toast.error("신청 중 오류가 발생했습니다. 다시 시도해주세요.");
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name.trim()) { toast.error("이름을 입력해주세요."); return; }
-    if (!formData.phone.trim()) { toast.error("연락처를 입력해주세요."); return; }
-    submitMutation.mutate({
-      name: formData.name,
-      phone: formData.phone,
-      purpose: formData.purpose || undefined,
-      message: formData.message || undefined,
-    });
-  };
-
   return (
-    <section id="contact" className="py-20 bg-[#0B1D3A]">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-4">
-            회원권 등록 전에
-            <br />
-            <span className="text-blue-300">내 몸 상태부터 확인해보세요.</span>
-          </h2>
-          <p className="text-white/70 font-light text-base">
-            무료 체형분석 및 상담을 통해 운동 방향을 먼저 확인할 수 있습니다.
-          </p>
-        </div>
+    <section id="contact" className="py-24 bg-[#0B1D3A]">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+        <p className="text-blue-300 text-sm font-semibold tracking-widest uppercase mb-4">무료 상담 예약</p>
+        <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-4">
+          회원권 등록 전에
+          <br />
+          <span className="text-blue-300">내 몸 상태부터 확인해보세요.</span>
+        </h2>
+        <p className="text-white/60 font-light text-base mb-10">
+          무료 체형분석 및 상담을 통해 운동 방향을 먼저 확인할 수 있습니다.
+          <br />
+          네이버 플레이스에서 간편하게 예약하세요.
+        </p>
 
-        {/* Form card */}
-        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-2xl mb-6">
-          {submitted ? (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-4">✅</div>
-              <h3 className="text-xl font-bold text-[#0B1D3A] mb-2">신청이 완료되었습니다!</h3>
-              <p className="text-gray-500 font-light">
-                빠른 시일 내 연락드리겠습니다.
-              </p>
-              <button
-                onClick={() => setSubmitted(false)}
-                className="mt-6 px-6 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-              >
-                다시 신청하기
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    이름 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="홍길동"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    연락처 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="010-0000-0000"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
-                </div>
-              </div>
+        {/* Primary CTA — Naver Place */}
+        <a
+          href={NAVER_PLACE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-3 w-full sm:w-auto sm:px-16 py-5 bg-[#03C75A] hover:bg-[#02b350] text-white font-black text-lg rounded-2xl transition-all hover:scale-[1.02] shadow-lg shadow-green-900/30 mb-4"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 flex-shrink-0">
+            <path d="M16.273 12.845 7.376 0H0v24h7.727V11.155L16.624 24H24V0h-7.727z"/>
+          </svg>
+          네이버 플레이스 예약하기
+        </a>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">운동 목적</label>
-                <select
-                  value={formData.purpose}
-                  onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all bg-white"
-                >
-                  <option value="">선택해주세요</option>
-                  <option value="체형교정">체형교정</option>
-                  <option value="다이어트">다이어트</option>
-                  <option value="근력향상">근력향상</option>
-                  <option value="통증관리">통증관리</option>
-                  <option value="재활">재활</option>
-                  <option value="운동습관형성">운동습관형성</option>
-                  <option value="건강관리">건강관리</option>
-                  <option value="기타">기타</option>
-                </select>
-              </div>
+        <p className="text-white/40 text-xs mb-10">네이버 플레이스에서 원하는 날짜와 시간을 선택하세요</p>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  문의 내용 <span className="text-gray-400 font-normal text-xs">(선택)</span>
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="궁금하신 점이나 현재 불편한 부분을 적어주세요."
-                  value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all resize-none"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitMutation.isPending}
-                className="w-full py-4 bg-[#0B1D3A] hover:bg-[#162d5a] text-white font-bold rounded-xl text-base transition-all disabled:opacity-60 hover:scale-[1.01]"
-              >
-                {submitMutation.isPending ? "신청 중..." : "무료 체형분석 예약 신청"}
-              </button>
-            </form>
-          )}
-        </div>
-
-        {/* Action buttons */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* Secondary CTAs */}
+        <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
           <a
-            href="#"
-            className="py-3.5 bg-yellow-400 hover:bg-yellow-500 text-gray-800 font-semibold rounded-xl text-sm text-center transition-all"
-          >
-            💬 카카오톡 상담
-          </a>
-          <a
-            href="tel:010-0000-0000"
-            className="py-3.5 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl text-sm text-center transition-all"
-          >
-            📞 전화 상담
-          </a>
-          <a
-            href="#"
+            href={KAKAO_CHANNEL_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="py-3.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-sm text-center transition-all"
+            className="py-4 bg-[#FEE500] hover:bg-yellow-300 text-[#3C1E1E] font-bold rounded-xl text-sm text-center transition-all flex flex-col items-center gap-1"
           >
-            📅 네이버 예약
+            <span className="text-xl">💬</span>
+            카카오톡 상담
+          </a>
+          <a
+            href={`tel:${PHONE_NUMBER}`}
+            className="py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-sm text-center transition-all flex flex-col items-center gap-1 border border-white/20"
+          >
+            <span className="text-xl">📞</span>
+            전화 상담
           </a>
         </div>
+
+        <p className="text-white/30 text-xs mt-6">{PHONE_NUMBER}</p>
       </div>
     </section>
   );
@@ -1032,23 +935,27 @@ function MobileFloatingCTA() {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-200 shadow-lg">
       <div className="grid grid-cols-3 gap-0">
-        <button
-          onClick={() => scrollTo("contact")}
-          className="py-3.5 bg-[#0B1D3A] text-white text-xs font-semibold flex flex-col items-center gap-0.5"
+        <a
+          href={NAVER_PLACE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="py-3.5 bg-[#03C75A] text-white text-xs font-semibold flex flex-col items-center gap-0.5"
         >
           <span className="text-sm">📋</span>
           <span>체형분석 예약</span>
-        </button>
+        </a>
         <a
-          href="#"
-          className="py-3.5 bg-yellow-400 text-gray-800 text-xs font-semibold flex flex-col items-center gap-0.5"
+          href={KAKAO_CHANNEL_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="py-3.5 bg-[#FEE500] text-[#3C1E1E] text-xs font-semibold flex flex-col items-center gap-0.5"
         >
           <span className="text-sm">💬</span>
           <span>카카오 상담</span>
         </a>
         <a
-          href="tel:010-0000-0000"
-          className="py-3.5 bg-green-500 text-white text-xs font-semibold flex flex-col items-center gap-0.5"
+          href={`tel:${PHONE_NUMBER}`}
+          className="py-3.5 bg-[#0B1D3A] text-white text-xs font-semibold flex flex-col items-center gap-0.5"
         >
           <span className="text-sm">📞</span>
           <span>전화 상담</span>
@@ -1071,7 +978,7 @@ function Footer() {
           <div className="text-sm font-light space-y-1">
             <p>경기도 시흥시 정왕동</p>
             <p>평일 08:00 ~ 23:00 | 토 10:00 ~ 17:00 | 일 휴무</p>
-            <p>Tel: 010-0000-0000</p>
+            <p>Tel: {PHONE_NUMBER}</p>
           </div>
         </div>
         <div className="border-t border-white/10 mt-8 pt-6 text-xs text-center text-white/30">
