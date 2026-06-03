@@ -5,7 +5,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { getDb, getDashboardStats } from "./db";
+import { getDb, getDashboardStats, pool } from "./db";
 import {
   users,
   trainers,
