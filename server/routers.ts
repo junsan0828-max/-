@@ -4,7 +4,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, sql, lte, gte, gt, isNull, or } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { getDb, getDashboardStats } from "./db";
+import { getDb, getDashboardStats, pool } from "./db";
 import {
   users,
   trainers,
@@ -3894,6 +3894,86 @@ ${dataContext}
   }),
 });
 
+// ─── Landing ──────────────────────────────────────────────────────────────────
+const landingRouter = t.router({
+  submitInquiry: publicProcedure
+    .input(z.object({
+      name: z.string(),
+      phone: z.string(),
+      purpose: z.string().optional(),
+      message: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await pool.query(
+        `INSERT INTO landing_inquiries (name, phone, purpose, message, "createdAt") VALUES ($1, $2, $3, $4, $5)`,
+        [input.name, input.phone, input.purpose || null, input.message || null, new Date().toISOString()]
+      );
+      return { success: true };
+    }),
+
+  getEvents: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    try {
+      const result = await pool.query(`SELECT * FROM landing_events WHERE active = 1 ORDER BY id DESC`);
+      return result.rows;
+    } catch {
+      return [];
+    }
+  }),
+
+  getReviews: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    try {
+      const result = await pool.query(`SELECT * FROM landing_reviews WHERE active = 1 ORDER BY id DESC`);
+      return result.rows;
+    } catch {
+      return [];
+    }
+  }),
+
+  listInquiries: protectedProcedure.query(async () => {
+    const result = await pool.query(`SELECT * FROM landing_inquiries ORDER BY "createdAt" DESC`);
+    return result.rows;
+  }),
+
+  updateInquiryStatus: protectedProcedure
+    .input(z.object({ id: z.number(), status: z.string() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`UPDATE landing_inquiries SET status = $1 WHERE id = $2`, [input.status, input.id]);
+      return { success: true };
+    }),
+
+  upsertEvent: protectedProcedure
+    .input(z.object({ id: z.number().optional(), icon: z.string(), title: z.string(), description: z.string(), active: z.number().default(1) }))
+    .mutation(async ({ input }) => {
+      if (input.id) {
+        await pool.query(`UPDATE landing_events SET icon=$1, title=$2, description=$3, active=$4 WHERE id=$5`,
+          [input.icon, input.title, input.description, input.active, input.id]);
+      } else {
+        await pool.query(`INSERT INTO landing_events (icon, title, description, active, "createdAt") VALUES ($1,$2,$3,$4,$5)`,
+          [input.icon, input.title, input.description, input.active, new Date().toISOString()]);
+      }
+      return { success: true };
+    }),
+
+  upsertReview: protectedProcedure
+    .input(z.object({ id: z.number().optional(), reviewer: z.string(), rating: z.number(), content: z.string(), active: z.number().default(1) }))
+    .mutation(async ({ input }) => {
+      if (input.id) {
+        await pool.query(`UPDATE landing_reviews SET reviewer=$1, rating=$2, content=$3, active=$4 WHERE id=$5`,
+          [input.reviewer, input.rating, input.content, input.active, input.id]);
+      } else {
+        await pool.query(`INSERT INTO landing_reviews (reviewer, rating, content, active, "createdAt") VALUES ($1,$2,$3,$4,$5)`,
+          [input.reviewer, input.rating, input.content, input.active, new Date().toISOString()]);
+      }
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({
   auth: authRouter,
@@ -3910,6 +3990,7 @@ export const appRouter = t.router({
   schedules: schedulesRouter,
   gym: gymRouter,
   gymPlus: gymPlusRouter,
+  landing: landingRouter,
 });
 
 export type AppRouter = typeof appRouter;

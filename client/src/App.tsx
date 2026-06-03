@@ -43,6 +43,7 @@ import SettlementReport from "./pages/SettlementReport";
 import TrainerSettlement from "./pages/TrainerSettlement";
 import LeadsPage from "./pages/Leads";
 import ContractPrint from "./pages/ContractPrint";
+import Landing from "./pages/Landing";
 import MyWorkPage from "./pages/MyWork";
 import RevenuePage from "./pages/Revenue";
 import ExpensesPage from "./pages/Expenses";
@@ -108,6 +109,11 @@ function App() {
   const [reportMatch, reportParams] = useRoute("/report/:token");
   const [location] = useLocation();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
+
+  // 랜딩 페이지 (공개, 인증 불필요)
+  if (location === "/landing") {
+    return <Landing />;
+  }
 
   // ZIANTGYM+ 회원앱 (Layout 밖에서 독립 렌더)
   if (location.startsWith("/gym-plus")) {

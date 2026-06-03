@@ -393,6 +393,31 @@ async function initDatabase() {
       "status" TEXT DEFAULT 'pending' NOT NULL,
       "createdAt" TEXT NOT NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS landing_inquiries (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      purpose TEXT,
+      message TEXT,
+      status TEXT DEFAULT 'new' NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS landing_events (
+      id SERIAL PRIMARY KEY,
+      icon TEXT NOT NULL DEFAULT '🎁',
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      active INTEGER DEFAULT 1 NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS landing_reviews (
+      id SERIAL PRIMARY KEY,
+      reviewer TEXT NOT NULL,
+      rating INTEGER DEFAULT 5 NOT NULL,
+      content TEXT NOT NULL,
+      active INTEGER DEFAULT 1 NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
