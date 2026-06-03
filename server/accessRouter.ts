@@ -663,4 +663,35 @@ export const accessRouter = t.router({
       await db.delete(uniforms).where(eq(uniforms.id, input.id));
       return { ok: true };
     }),
+
+  // 회원별 프로그램 조회 (락커·운동복·헬스권)
+  getMemberPrograms: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [memberLockers, memberUniforms, healthRevenues] = await Promise.all([
+        db.select().from(lockers).where(eq(lockers.memberId, input.memberId)),
+        db.select().from(uniforms).where(eq(uniforms.memberId, input.memberId)),
+        pool.query(
+          `SELECT id, type, "subType", amount, "paidAmount", "unpaidAmount", "paymentDate", memo, "programDetail", "startDate", "endDate", "serviceSessions", "serviceHealthDuration", "createdAt"
+           FROM revenue_entries
+           WHERE "memberId" = $1 AND type IN ('헬스','기타')
+           ORDER BY "createdAt" DESC`,
+          [input.memberId]
+        ),
+      ]);
+      return {
+        lockers: memberLockers,
+        uniforms: memberUniforms,
+        healthRevenues: healthRevenues.rows as Array<{
+          id: number; type: string; subType: string; amount: number;
+          paidAmount: number; unpaidAmount: number; paymentDate: string;
+          memo: string | null; programDetail: string | null;
+          startDate: string | null; endDate: string | null;
+          serviceSessions: number | null; serviceHealthDuration: number | null;
+          createdAt: string;
+        }>,
+      };
+    }),
 });

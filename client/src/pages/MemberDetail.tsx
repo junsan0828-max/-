@@ -350,6 +350,7 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: pauses, refetch: refetchPauses } = trpc.pt.listPauses.useQuery({ memberId });
   const { data: leadInfo } = trpc.gym.leads.getByMemberId.useQuery({ memberId });
   const { data: parQData } = trpc.parQ.get.useQuery({ memberId });
+  const { data: memberPrograms } = trpc.access.getMemberPrograms.useQuery({ memberId });
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -754,7 +755,7 @@ export default function MemberDetail({ memberId }: Props) {
         <div className="overflow-x-auto scrollbar-none -mx-4 px-4">
           <TabsList className="flex w-max min-w-full">
             <TabsTrigger value="info" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[72px]">기본정보</TabsTrigger>
-            <TabsTrigger value="pt" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[72px]">PT정보</TabsTrigger>
+            <TabsTrigger value="pt" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[72px]">프로그램</TabsTrigger>
             <TabsTrigger value="stats" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[60px]">통계</TabsTrigger>
             <TabsTrigger value="training" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[80px]">트레이닝</TabsTrigger>
             <TabsTrigger value="attendance" className="text-xs px-4 whitespace-nowrap flex-1 min-w-[60px]">출석</TabsTrigger>
@@ -1043,25 +1044,28 @@ export default function MemberDetail({ memberId }: Props) {
           </Card>
         </TabsContent>
 
-        {/* ── PT 프로그램 탭 ── */}
-        <TabsContent value="pt" className="mt-4">
+        {/* ── 프로그램 탭 ── */}
+        <TabsContent value="pt" className="mt-4 space-y-4">
+
+          {/* PT 패키지 */}
           <Card className="bg-card border-border">
-            <CardHeader className="px-4 sm:px-6">
-              <CardTitle className="text-base">PT 프로그램</CardTitle>
+            <CardHeader className="px-4 sm:px-6 pb-2">
+              <CardTitle className="text-base">PT</CardTitle>
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
               {!ptPackages?.length ? (
-                <p className="text-muted-foreground text-sm text-center py-8">등록된 PT 프로그램이 없습니다.</p>
+                <p className="text-muted-foreground text-sm text-center py-6">등록된 PT 프로그램이 없습니다.</p>
               ) : (
                 <div className="space-y-3">
                   {ptPackages.map((pkg) => {
                     const remaining = pkg.totalSessions - pkg.usedSessions;
                     const isActive = pkg.status === "active" && remaining > 0;
+                    const svcSessions = (pkg as any).serviceSessions ?? 0;
                     return (
                       <div key={pkg.id} className="p-3 sm:p-4 rounded-lg bg-accent/20 border border-border">
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-foreground text-sm truncate">
                                 {pkg.packageName || "PT 프로그램"}
                               </p>
@@ -1074,6 +1078,11 @@ export default function MemberDetail({ memberId }: Props) {
                               }`}>
                                 {pkg.status === "active" ? "진행중" : pkg.status === "completed" ? "완료" : "만료"}
                               </span>
+                              {svcSessions > 0 && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                  서비스 {svcSessions}회
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {fmtDate(pkg.startDate, "yyyy.MM.dd")}{" "}~{" "}
@@ -1252,6 +1261,137 @@ export default function MemberDetail({ memberId }: Props) {
               )}
             </CardContent>
           </Card>
+
+          {/* 헬스권 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 sm:px-6 pb-2">
+              <CardTitle className="text-base">헬스권</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              {!memberPrograms?.healthRevenues.filter(r => r.type === "헬스").length ? (
+                <p className="text-muted-foreground text-sm text-center py-6">등록된 헬스권이 없습니다.</p>
+              ) : (
+                <div className="space-y-3">
+                  {memberPrograms!.healthRevenues.filter(r => r.type === "헬스").map(r => {
+                    const isService = r.paidAmount === 0;
+                    return (
+                      <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm text-foreground">헬스권</p>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
+                          {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {(r.startDate || r.endDate) && (
+                            <div className="col-span-2">{r.startDate ?? "-"} ~ {r.endDate ?? "-"}</div>
+                          )}
+                          <div>결제 <span className="text-foreground font-medium">{r.paidAmount.toLocaleString()}원</span></div>
+                          {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
+                          {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
+                          {r.memo && <div className="col-span-2 text-muted-foreground/70">{r.memo}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 기타 (운동복·락커 등 revenue_entries) */}
+          {(memberPrograms?.healthRevenues.filter(r => r.type === "기타").length ?? 0) > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader className="px-4 sm:px-6 pb-2">
+                <CardTitle className="text-base">기타 서비스</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 sm:px-6">
+                <div className="space-y-3">
+                  {memberPrograms!.healthRevenues.filter(r => r.type === "기타").map(r => {
+                    const isService = r.paidAmount === 0;
+                    const detail = r.programDetail ?? r.memo ?? "기타";
+                    return (
+                      <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm text-foreground">{detail}</p>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
+                          {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <div>결제 <span className="text-foreground font-medium">{r.paidAmount.toLocaleString()}원</span></div>
+                          {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 락커 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 sm:px-6 pb-2">
+              <CardTitle className="text-base">락커</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              {!memberPrograms?.lockers.length ? (
+                <p className="text-muted-foreground text-sm text-center py-6">배정된 락커가 없습니다.</p>
+              ) : (
+                <div className="space-y-3">
+                  {memberPrograms!.lockers.map(locker => (
+                    <div key={locker.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm text-foreground">락커 {locker.lockerNumber}</p>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full border ${locker.isOccupied ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
+                          {locker.isOccupied ? "사용중" : "미사용"}
+                        </span>
+                        {locker.lockerType && locker.lockerType !== "personal" && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">{locker.lockerType}</span>
+                        )}
+                      </div>
+                      {(locker.startDate || locker.endDate) && (
+                        <p className="mt-1 text-xs text-muted-foreground">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</p>
+                      )}
+                      {locker.memo && <p className="mt-1 text-xs text-muted-foreground/70">{locker.memo}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 운동복 */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 sm:px-6 pb-2">
+              <CardTitle className="text-base">운동복</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              {!memberPrograms?.uniforms.length ? (
+                <p className="text-muted-foreground text-sm text-center py-6">대여중인 운동복이 없습니다.</p>
+              ) : (
+                <div className="space-y-3">
+                  {memberPrograms!.uniforms.map(u => (
+                    <div key={u.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm text-foreground">운동복{u.size ? ` (${u.size})` : ""}</p>
+                        {(u.quantity ?? 1) > 1 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">×{u.quantity}</span>
+                        )}
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full border ${u.isActive ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
+                          {u.isActive ? "대여중" : "반납"}
+                        </span>
+                      </div>
+                      {(u.startDate || u.endDate) && (
+                        <p className="mt-1 text-xs text-muted-foreground">{u.startDate ?? "-"} ~ {u.endDate ?? "-"}</p>
+                      )}
+                      {u.memo && <p className="mt-1 text-xs text-muted-foreground/70">{u.memo}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
         </TabsContent>
 
         {/* ── 통계 탭 ── */}
