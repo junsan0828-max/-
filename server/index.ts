@@ -678,6 +678,39 @@ async function initDatabase() {
   }
   console.log("✅ 출입 관리 테이블 준비 완료");
 
+  // ── 랜딩 페이지 테이블 ──────────────────────────────────────────────────────
+  const landingTables = [
+    `CREATE TABLE IF NOT EXISTS landing_inquiries (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      purpose TEXT,
+      message TEXT,
+      status TEXT DEFAULT 'new' NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS landing_events (
+      id SERIAL PRIMARY KEY,
+      icon TEXT NOT NULL DEFAULT '🎉',
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS landing_reviews (
+      id SERIAL PRIMARY KEY,
+      reviewer TEXT NOT NULL,
+      rating INTEGER NOT NULL DEFAULT 5,
+      content TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+  ];
+  for (const stmt of landingTables) {
+    await pool.query(stmt);
+  }
+  console.log("✅ 랜딩 페이지 테이블 준비 완료");
+
   console.log("✅ 테이블 준비 완료");
 
   // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────

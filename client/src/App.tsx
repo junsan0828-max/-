@@ -68,6 +68,7 @@ import GymPlusMembership from "./pages/gym-plus/GymPlusMembership";
 import GymPlusProfile from "./pages/gym-plus/GymPlusProfile";
 import GymPlusAdminPage from "./pages/GymPlusAdminPage";
 import GymPlusMessages from "./pages/gym-plus/GymPlusMessages";
+import Landing from "./pages/Landing";
 
 // ZIANTGYM+ 회원앱 (통합관리 시스템과 완전 분리)
 function GymPlusApp() {
@@ -148,15 +149,22 @@ function App() {
     );
   }
 
+  // 랜딩 페이지
+  if (location === "/landing" || (!user && !isLoading && (location === "/" || location === ""))) {
+    return <Landing />;
+  }
+
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
-    return <Login />;
+    if (window.location.pathname === "/login") return <Login />;
+    return <Landing />;
   }
 
   return (
     <Layout>
       <ErrorBoundary>
       <Switch>
+        <Route path="/landing">{() => <Landing />}</Route>
         <Route path="/">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <GymDashboard /> : user?.role === "consultant" ? <LeadsPage /> : <Dashboard />}</Route>
         <Route path="/gym-dashboard">{() => <GymDashboard />}</Route>
         <Route path="/my-work">{() => <MyWorkPage />}</Route>
