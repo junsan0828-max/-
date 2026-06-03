@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { trpc } from "@/lib/trpc";
 
-// ─── 연락처 설정 (변경 시 여기만 수정) ───────────────────────────────────────
-const NAVER_PLACE_URL = "https://booking.naver.com/booking/13/bizes/YOUR_ID"; // 네이버 플레이스 예약 URL
-const KAKAO_CHANNEL_URL = "https://pf.kakao.com/_YOUR_ID"; // 카카오 채널 URL
-const PHONE_NUMBER = "010-0000-0000"; // 전화번호
+// ─── 설정 컨텍스트 (DB에서 로드, 없으면 기본값 사용) ────────────────────────
+const SettingsCtx = createContext<Record<string, string>>({});
+function useSetting(key: string, fallback: string) {
+  const s = useContext(SettingsCtx);
+  return s[key] ?? fallback;
+}
 
 // ─── Scroll helper ─────────────────────────────────────────────────────────────
 function scrollTo(id: string) {
@@ -14,6 +16,7 @@ function scrollTo(id: string) {
 
 // ─── Nav ───────────────────────────────────────────────────────────────────────
 function Nav() {
+  const naverPlaceUrl = useSetting("naver_place_url", "https://booking.naver.com/booking/13/bizes/YOUR_ID");
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -64,7 +67,7 @@ function Nav() {
               </button>
             ))}
             <a
-              href={NAVER_PLACE_URL}
+              href={naverPlaceUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2 bg-[#03C75A] text-white text-sm font-semibold rounded-lg hover:bg-[#02b350] transition-colors"
@@ -108,7 +111,7 @@ function Nav() {
             ))}
             <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-gray-100">
               <a
-                href={NAVER_PLACE_URL}
+                href={naverPlaceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMenuOpen(false)}
@@ -350,11 +353,15 @@ function WhyBodyAnalysisSection() {
 
 // ─── Section 4: 헬스 이용권 ───────────────────────────────────────────────────
 function GymPricingSection() {
+  const gymPrice1m = useSetting("gym_price_1m", "80,000원");
+  const gymPrice3m = useSetting("gym_price_3m", "159,000원");
+  const gymPrice6m = useSetting("gym_price_6m", "216,000원");
+  const gymPrice12m = useSetting("gym_price_12m", "312,000원");
   const plans = [
-    { period: "1개월", price: "80,000원" },
-    { period: "3개월", price: "159,000원" },
-    { period: "6개월", price: "216,000원" },
-    { period: "12개월", price: "312,000원" },
+    { period: "1개월", price: gymPrice1m },
+    { period: "3개월", price: gymPrice3m },
+    { period: "6개월", price: gymPrice6m },
+    { period: "12개월", price: gymPrice12m },
   ];
   const targets = ["운동 초보", "혼자 운동 가능한 회원", "건강관리 목적", "체중감량 목적"];
   const includes = ["헬스장 이용", "체성분 측정", "운동 상담"];
@@ -422,6 +429,8 @@ function GymPricingSection() {
 
 // ─── Section 5: 개인 맞춤 PT ──────────────────────────────────────────────────
 function PtPricingSection() {
+  const ptPrice10 = useSetting("pt_price_10", "500,000원");
+  const ptPrice20 = useSetting("pt_price_20", "960,000원");
   const targets = ["허리통증", "목·어깨통증", "체형교정", "다이어트", "근력향상", "운동초보"];
   const steps = [
     "체형평가",
@@ -480,8 +489,8 @@ function PtPricingSection() {
         {/* Pricing */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 max-w-md mx-auto">
           {[
-            { sessions: "10회", price: "500,000원" },
-            { sessions: "20회", price: "960,000원" },
+            { sessions: "10회", price: ptPrice10 },
+            { sessions: "20회", price: ptPrice20 },
           ].map((plan) => (
             <div
               key={plan.sessions}
@@ -803,6 +812,12 @@ function FacilitySection() {
 
 // ─── Section 11: 오시는 길 ────────────────────────────────────────────────────
 function LocationSection() {
+  const address = useSetting("address", "경기도 시흥시 정왕동");
+  const mapUrl = useSetting("map_url", "https://map.naver.com/v5/search/자이언트짐");
+  const hoursWeekday = useSetting("hours_weekday", "평일 08:00 ~ 23:00");
+  const hoursSaturday = useSetting("hours_saturday", "토요일 10:00 ~ 17:00");
+  const phoneNumber = useSetting("phone_number", "010-0000-0000");
+  const kakaoChannelUrl = useSetting("kakao_channel_url", "https://pf.kakao.com/_YOUR_ID");
   return (
     <section id="location" className="py-20 bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
@@ -819,9 +834,9 @@ function LocationSection() {
                 <span className="text-xl flex-shrink-0">📍</span>
                 <div>
                   <p className="font-semibold text-[#0B1D3A] mb-1">주소</p>
-                  <p className="text-gray-600 text-sm font-light">경기도 시흥시 정왕동</p>
+                  <p className="text-gray-600 text-sm font-light">{address}</p>
                   <a
-                    href="https://map.naver.com/v5/search/자이언트짐"
+                    href={mapUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 text-sm hover:underline mt-1 inline-block"
@@ -837,8 +852,8 @@ function LocationSection() {
                 <span className="text-xl flex-shrink-0">🕐</span>
                 <div>
                   <p className="font-semibold text-[#0B1D3A] mb-1">운영시간</p>
-                  <p className="text-gray-600 text-sm font-light">평일 08:00 ~ 23:00</p>
-                  <p className="text-gray-600 text-sm font-light">토요일 10:00 ~ 17:00</p>
+                  <p className="text-gray-600 text-sm font-light">{hoursWeekday}</p>
+                  <p className="text-gray-600 text-sm font-light">{hoursSaturday}</p>
                   <p className="text-gray-500 text-sm font-light">일요일 휴무</p>
                 </div>
               </div>
@@ -859,7 +874,7 @@ function LocationSection() {
           {/* Map placeholder */}
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm min-h-[280px] flex flex-col">
             <a
-              href="https://map.naver.com/v5/search/자이언트짐"
+              href={mapUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 flex flex-col items-center justify-center gap-3 hover:from-blue-50 hover:to-blue-100 transition-colors group min-h-[240px]"
@@ -872,13 +887,15 @@ function LocationSection() {
             </a>
             <div className="p-4 flex gap-3">
               <a
-                href="tel:010-0000-0000"
+                href={`tel:${phoneNumber}`}
                 className="flex-1 py-2.5 bg-green-500 text-white text-sm font-semibold rounded-xl text-center hover:bg-green-600 transition-colors"
               >
                 📞 전화 문의
               </a>
               <a
-                href="#"
+                href={kakaoChannelUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex-1 py-2.5 bg-yellow-400 text-gray-800 text-sm font-semibold rounded-xl text-center hover:bg-yellow-500 transition-colors"
               >
                 💬 카카오 문의
@@ -893,6 +910,9 @@ function LocationSection() {
 
 // ─── Section 12: Contact Form ─────────────────────────────────────────────────
 function ContactSection() {
+  const naverPlaceUrl = useSetting("naver_place_url", "https://booking.naver.com/booking/13/bizes/YOUR_ID");
+  const kakaoChannelUrl = useSetting("kakao_channel_url", "https://pf.kakao.com/_YOUR_ID");
+  const phoneNumber = useSetting("phone_number", "010-0000-0000");
   return (
     <section id="contact" className="py-24 bg-[#0B1D3A]">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
@@ -910,7 +930,7 @@ function ContactSection() {
 
         {/* Primary CTA — Naver Place */}
         <a
-          href={NAVER_PLACE_URL}
+          href={naverPlaceUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center justify-center gap-3 w-full sm:w-auto sm:px-16 py-5 bg-[#03C75A] hover:bg-[#02b350] text-white font-black text-lg rounded-2xl transition-all hover:scale-[1.02] shadow-lg shadow-green-900/30 mb-4"
@@ -926,7 +946,7 @@ function ContactSection() {
         {/* Secondary CTAs */}
         <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
           <a
-            href={KAKAO_CHANNEL_URL}
+            href={kakaoChannelUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="py-4 bg-[#FEE500] hover:bg-yellow-300 text-[#3C1E1E] font-bold rounded-xl text-sm text-center transition-all flex flex-col items-center gap-1"
@@ -935,7 +955,7 @@ function ContactSection() {
             카카오톡 상담
           </a>
           <a
-            href={`tel:${PHONE_NUMBER}`}
+            href={`tel:${phoneNumber}`}
             className="py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-sm text-center transition-all flex flex-col items-center gap-1 border border-white/20"
           >
             <span className="text-xl">📞</span>
@@ -943,7 +963,7 @@ function ContactSection() {
           </a>
         </div>
 
-        <p className="text-white/30 text-xs mt-6">{PHONE_NUMBER}</p>
+        <p className="text-white/30 text-xs mt-6">{phoneNumber}</p>
       </div>
     </section>
   );
@@ -951,11 +971,14 @@ function ContactSection() {
 
 // ─── Mobile Floating CTA ──────────────────────────────────────────────────────
 function MobileFloatingCTA() {
+  const naverPlaceUrl = useSetting("naver_place_url", "https://booking.naver.com/booking/13/bizes/YOUR_ID");
+  const kakaoChannelUrl = useSetting("kakao_channel_url", "https://pf.kakao.com/_YOUR_ID");
+  const phoneNumber = useSetting("phone_number", "010-0000-0000");
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-200 shadow-lg">
       <div className="grid grid-cols-3 gap-0">
         <a
-          href={NAVER_PLACE_URL}
+          href={naverPlaceUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="py-3.5 bg-[#03C75A] text-white text-xs font-semibold flex flex-col items-center gap-0.5"
@@ -964,7 +987,7 @@ function MobileFloatingCTA() {
           <span>체형분석 예약</span>
         </a>
         <a
-          href={KAKAO_CHANNEL_URL}
+          href={kakaoChannelUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="py-3.5 bg-[#FEE500] text-[#3C1E1E] text-xs font-semibold flex flex-col items-center gap-0.5"
@@ -973,7 +996,7 @@ function MobileFloatingCTA() {
           <span>카카오 상담</span>
         </a>
         <a
-          href={`tel:${PHONE_NUMBER}`}
+          href={`tel:${phoneNumber}`}
           className="py-3.5 bg-[#0B1D3A] text-white text-xs font-semibold flex flex-col items-center gap-0.5"
         >
           <span className="text-sm">📞</span>
@@ -986,6 +1009,8 @@ function MobileFloatingCTA() {
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
 function Footer() {
+  const address = useSetting("address", "경기도 시흥시 정왕동");
+  const phoneNumber = useSetting("phone_number", "010-0000-0000");
   return (
     <footer className="bg-gray-900 text-white/60 pb-20 lg:pb-0">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
@@ -995,9 +1020,9 @@ function Footer() {
             <p className="text-sm font-light">자이언트짐 — 정왕동 맞춤운동센터</p>
           </div>
           <div className="text-sm font-light space-y-1">
-            <p>경기도 시흥시 정왕동</p>
+            <p>{address}</p>
             <p>평일 08:00 ~ 23:00 | 토 10:00 ~ 17:00 | 일 휴무</p>
-            <p>Tel: {PHONE_NUMBER}</p>
+            <p>Tel: {phoneNumber}</p>
           </div>
         </div>
         <div className="border-t border-white/10 mt-8 pt-6 text-xs text-center text-white/30 flex flex-col gap-2">
@@ -1015,7 +1040,8 @@ function Footer() {
 
 // ─── Main Landing Page ────────────────────────────────────────────────────────
 export default function Landing() {
-  // Set smooth scroll on mount
+  const { data: settings } = trpc.landing.getSettings.useQuery(undefined, { staleTime: 60_000 });
+
   useEffect(() => {
     document.documentElement.style.scrollBehavior = "smooth";
     return () => {
@@ -1024,22 +1050,24 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen">
-      <Nav />
-      <HeroSection />
-      <WorkoutTypeSection />
-      <WhyBodyAnalysisSection />
-      <GymPricingSection />
-      <PtPricingSection />
-      <GymPlusSection />
-      <EventsSection />
-      <ReviewsSection />
-      <BeforeAfterSection />
-      <FacilitySection />
-      <LocationSection />
-      <ContactSection />
-      <Footer />
-      <MobileFloatingCTA />
-    </div>
+    <SettingsCtx.Provider value={settings ?? {}}>
+      <div className="min-h-screen">
+        <Nav />
+        <HeroSection />
+        <WorkoutTypeSection />
+        <WhyBodyAnalysisSection />
+        <GymPricingSection />
+        <PtPricingSection />
+        <GymPlusSection />
+        <EventsSection />
+        <ReviewsSection />
+        <BeforeAfterSection />
+        <FacilitySection />
+        <LocationSection />
+        <ContactSection />
+        <Footer />
+        <MobileFloatingCTA />
+      </div>
+    </SettingsCtx.Provider>
   );
 }

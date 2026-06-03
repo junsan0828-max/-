@@ -672,6 +672,12 @@ async function initDatabase() {
       "processedAt" TEXT,
       "newMembershipEnd" TEXT
     )`,
+    `CREATE TABLE IF NOT EXISTS landing_settings (
+      id SERIAL PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      value TEXT NOT NULL,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of accessTables) {
     await pool.query(stmt);

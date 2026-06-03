@@ -4838,6 +4838,36 @@ const landingRouter = t.router({
       }
       return { success: true };
     }),
+
+  getSettings: publicProcedure.query(async () => {
+    try {
+      const result = await pool.query(`SELECT key, value FROM landing_settings`);
+      const settings: Record<string, string> = {};
+      for (const row of result.rows) {
+        settings[row.key] = row.value;
+      }
+      return settings;
+    } catch {
+      return {} as Record<string, string>;
+    }
+  }),
+
+  saveSettings: protectedProcedure
+    .input(z.record(z.string()))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const now = new Date().toISOString();
+      for (const [key, value] of Object.entries(input)) {
+        await pool.query(
+          `INSERT INTO landing_settings (key, value, "updatedAt") VALUES ($1, $2, $3)
+           ON CONFLICT (key) DO UPDATE SET value = $2, "updatedAt" = $3`,
+          [key, value, now]
+        );
+      }
+      return { success: true };
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
