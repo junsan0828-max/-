@@ -1163,7 +1163,7 @@ export default function MemberDetail({ memberId }: Props) {
                               </button>
                             );
                           })}
-                          <button onClick={() => { setPauseForm(p => ({ ...p, packageId: pkg.id })); setPauseOpen(true); }}
+                          <button onClick={() => { setPauseForm({ packageId: pkg.id, pauseStart: "", pauseEnd: "", reason: "" }); setPauseOpen(true); }}
                             className="px-2 py-0.5 rounded-full text-xs border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-1">
                             <PauseCircle className="h-3 w-3" />정지 추가
                           </button>
@@ -1498,7 +1498,7 @@ export default function MemberDetail({ memberId }: Props) {
                   onChange={e => setMemoSearch(e.target.value)}
                   className="h-9 text-sm flex-1"
                 />
-                <Dialog open={memoOpen} onOpenChange={setMemoOpen}>
+                <Dialog open={memoOpen} onOpenChange={(v) => { setMemoOpen(v); if (!v) setMemoForm({ memoDate: new Date().toISOString().split("T")[0], content: "" }); }}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="gap-1.5 text-xs shrink-0">
                       <Plus className="h-3.5 w-3.5" />

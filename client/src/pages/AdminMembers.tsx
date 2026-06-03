@@ -253,7 +253,11 @@ export default function AdminMembers() {
     const ageMap: Record<string, number> = {};
     for (const m of activeMembers) {
       if (!m.birthDate) { ageMap["미등록"] = (ageMap["미등록"] ?? 0) + 1; continue; }
-      const age = today.getFullYear() - parseInt(m.birthDate.slice(0, 4));
+      const birthYear = parseInt(m.birthDate.slice(0, 4));
+      const birthMonth = parseInt(m.birthDate.slice(5, 7)) - 1;
+      const birthDay = parseInt(m.birthDate.slice(8, 10));
+      let age = today.getFullYear() - birthYear;
+      if (today.getMonth() < birthMonth || (today.getMonth() === birthMonth && today.getDate() < birthDay)) age--;
       const decade = Math.floor(age / 10) * 10;
       const label = decade <= 9 ? "10대 미만" : `${decade}대`;
       ageMap[label] = (ageMap[label] ?? 0) + 1;
