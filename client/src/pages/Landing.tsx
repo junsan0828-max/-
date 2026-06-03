@@ -71,6 +71,16 @@ function Nav() {
             >
               상담신청
             </a>
+            <a
+              href="/gym-plus"
+              className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                scrolled
+                  ? "border-[#0B1D3A] text-[#0B1D3A] hover:bg-[#0B1D3A] hover:text-white"
+                  : "border-white/60 text-white hover:bg-white/10"
+              }`}
+            >
+              짐플러스 로그인
+            </a>
           </nav>
 
           {/* Mobile Hamburger */}
@@ -96,15 +106,24 @@ function Nav() {
                 {link.label}
               </button>
             ))}
-            <a
-              href={NAVER_PLACE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setMenuOpen(false)}
-              className="mt-2 px-4 py-2.5 bg-[#03C75A] text-white text-sm font-semibold rounded-lg text-center"
-            >
-              상담신청 (네이버 예약)
-            </a>
+            <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-gray-100">
+              <a
+                href={NAVER_PLACE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuOpen(false)}
+                className="px-4 py-2.5 bg-[#03C75A] text-white text-sm font-semibold rounded-lg text-center"
+              >
+                📋 상담신청 (네이버 예약)
+              </a>
+              <a
+                href="/gym-plus"
+                onClick={() => setMenuOpen(false)}
+                className="px-4 py-2.5 bg-[#0B1D3A] text-white text-sm font-semibold rounded-lg text-center"
+              >
+                🏋️ 짐플러스 회원 로그인
+              </a>
+            </div>
           </div>
         )}
       </div>
@@ -981,8 +1000,13 @@ function Footer() {
             <p>Tel: {PHONE_NUMBER}</p>
           </div>
         </div>
-        <div className="border-t border-white/10 mt-8 pt-6 text-xs text-center text-white/30">
-          © {new Date().getFullYear()} ZIANTGYM+. All rights reserved.
+        <div className="border-t border-white/10 mt-8 pt-6 text-xs text-center text-white/30 flex flex-col gap-2">
+          <p>© {new Date().getFullYear()} ZIANTGYM+. All rights reserved.</p>
+          <div className="flex items-center justify-center gap-4">
+            <a href="/gym-plus" className="hover:text-white/60 transition-colors">짐플러스 회원 로그인</a>
+            <span>·</span>
+            <a href="/login" className="hover:text-white/60 transition-colors">관리자 로그인</a>
+          </div>
         </div>
       </div>
     </footer>

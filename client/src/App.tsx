@@ -110,8 +110,8 @@ function App() {
   const [location] = useLocation();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
-  // 랜딩 페이지 (공개, 인증 불필요)
-  if (location === "/landing") {
+  // 랜딩 페이지 (공개) — 비로그인 루트 또는 /landing 직접 접근
+  if (location === "/landing" || (!user && !isLoading && location === "/")) {
     return <Landing />;
   }
 
@@ -143,7 +143,9 @@ function App() {
 
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
-    return <Login />;
+    // /login 명시적 접근 시 로그인 페이지, 그 외는 랜딩으로
+    if (window.location.pathname === "/login") return <Login />;
+    return <Landing />;
   }
 
   return (
