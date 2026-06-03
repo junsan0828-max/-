@@ -69,7 +69,6 @@ import GymPlusProfile from "./pages/gym-plus/GymPlusProfile";
 import GymPlusAdminPage from "./pages/GymPlusAdminPage";
 import GymPlusMessages from "./pages/gym-plus/GymPlusMessages";
 import Landing from "./pages/Landing";
-import LandingPageAdmin from "./pages/LandingPageAdmin";
 
 // ZIANTGYM+ 회원앱 (통합관리 시스템과 완전 분리)
 function GymPlusApp() {
@@ -210,7 +209,6 @@ function App() {
         <Route path="/training-manual/:id">{(params) => <TrainingManualDetail id={parseInt(params.id!)} />}</Route>
         <Route path="/training-manual">{() => <TrainingManual />}</Route>
         <Route path="/work-management">{() => <WorkManagementPage />}</Route>
-        <Route path="/landing-admin">{() => <LandingPageAdmin />}</Route>
         <Route path="/admin">{() => <Admin />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
