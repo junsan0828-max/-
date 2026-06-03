@@ -160,6 +160,12 @@ function App() {
     return <Landing />;
   }
 
+  // 로그인된 어드민/트레이너는 통합운영 시스템으로 리다이렉트
+  if (location === "/" || location === "") {
+    window.location.replace("https://remarkable-tenderness-production.up.railway.app/");
+    return null;
+  }
+
   return (
     <Layout>
       <ErrorBoundary>
