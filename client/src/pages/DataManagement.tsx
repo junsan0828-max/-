@@ -411,7 +411,7 @@ function MarketingTab() {
 // ── 센터 운영 탭 ──────────────────────────────────────────────────────────────
 function OperationsTab() {
   const { data: trainerList } = trpc.trainers.list.useQuery();
-  const { data: lockers } = trpc.access.getLockers.useQuery({});
+  const { data: lockers } = trpc.access.getLockers.useQuery();
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
   const { data: hourStats } = trpc.access.getAccessHourStats.useQuery();
 
