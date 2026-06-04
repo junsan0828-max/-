@@ -655,9 +655,10 @@ const revenueRouter = t.router({
 
       const byChannel: Record<string, { channelId: number | null; channelName: string; total: number; count: number }> = {};
       for (const row of rows) {
-        const key = String(row.entry.channelId ?? "none");
+        if (!row.channelName) continue;
+        const key = String(row.entry.channelId);
         if (!byChannel[key]) {
-          byChannel[key] = { channelId: row.entry.channelId, channelName: row.channelName ?? "채널 미상", total: 0, count: 0 };
+          byChannel[key] = { channelId: row.entry.channelId, channelName: row.channelName, total: 0, count: 0 };
         }
         byChannel[key].total += row.entry.paidAmount;
         byChannel[key].count += 1;
@@ -691,7 +692,8 @@ const revenueRouter = t.router({
       }
 
       for (const row of rows) {
-        const chName = row.channelName ?? "채널 미상";
+        if (!row.channelName) continue;
+        const chName = row.channelName;
         const m = parseInt(row.entry.paymentDate?.substring(5, 7) ?? "0");
         if (!m) continue;
         if (!result[chName]) { result[chName] = { name: chName, months: {} }; for (let i = 1; i <= 12; i++) result[chName].months[i] = { revenue: 0, count: 0, leads: 0, registered: 0 }; }
@@ -705,7 +707,8 @@ const revenueRouter = t.router({
         if (!d.startsWith(prefix)) continue;
         const m = parseInt(d.substring(5, 7));
         const ch = channelList.find(c => c.id === lead.channelId);
-        const chName = ch?.name ?? "채널 미상";
+        if (!ch) continue;
+        const chName = ch.name;
         if (!result[chName]) { result[chName] = { name: chName, months: {} }; for (let i = 1; i <= 12; i++) result[chName].months[i] = { revenue: 0, count: 0, leads: 0, registered: 0 }; }
         result[chName].months[m].leads += 1;
         if (lead.status === "registered") result[chName].months[m].registered += 1;
