@@ -141,6 +141,12 @@ function App() {
     return <TransferPage token={transferMatch[1]} />;
   }
 
+  // ziantgym.com 도메인은 항상 랜딩페이지
+  const hostname = window.location.hostname;
+  if (hostname === "ziantgym.com" || hostname === "www.ziantgym.com") {
+    return <Landing />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
@@ -149,7 +155,7 @@ function App() {
     );
   }
 
-  // 랜딩 페이지 (/landing 경로에서만)
+  // /landing 경로 직접 접근
   if (location === "/landing") {
     return <Landing />;
   }
@@ -157,12 +163,6 @@ function App() {
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
     return <Login />;
-  }
-
-  // 로그인된 어드민/트레이너는 통합운영 시스템으로 리다이렉트
-  if (location === "/" || location === "") {
-    window.location.replace("https://remarkable-tenderness-production.up.railway.app/");
-    return null;
   }
 
   return (
