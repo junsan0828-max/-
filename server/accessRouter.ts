@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, desc, and, like, sql } from "drizzle-orm";
 import { getDb, pool } from "./db";
-import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories, uniforms } from "../drizzle/schema";
+import { members, lockers, accessLogs, ptPackages, branches, kioskBanners, lockerCategories, uniforms, revenueEntries } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
 
@@ -629,11 +629,34 @@ export const accessRouter = t.router({
       isPaid: z.number().optional(),
       paymentAmount: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const now = new Date().toISOString();
       const [row] = await db.insert(uniforms).values({ ...input, isActive: 1, createdAt: now, updatedAt: now }).returning();
+
+      // 결제 대여 시 장부 자동 연동
+      if (input.rentalType === "paid" && input.isPaid === 1 && input.paymentAmount && input.paymentAmount > 0) {
+        const today = now.substring(0, 10);
+        await db.insert(revenueEntries).values({
+          memberId: input.memberId ?? null,
+          trainerId: null,
+          createdBy: ctx.user.id,
+          customerName: input.memberName ?? null,
+          phone: input.memberPhone ?? null,
+          programDetail: "운동복 대여",
+          type: "기타",
+          subType: "신규",
+          amount: input.paymentAmount,
+          discountAmount: 0,
+          paidAmount: input.paymentAmount,
+          unpaidAmount: 0,
+          paymentDate: today,
+          startDate: input.startDate ?? null,
+          memo: input.memo ?? null,
+        });
+      }
+
       return row;
     }),
 

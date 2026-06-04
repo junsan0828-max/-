@@ -493,14 +493,58 @@ const membersRouter = t.router({
         visitRoute: z.string().optional(),
         trainerId: z.number().optional(),
         signatureDataUrl: z.string().optional(),
+        // 재등록 결제 정보 (장부 자동 연동용)
+        ptProgram: z.string().optional(),
+        ptSessions: z.union([z.string(), z.number()]).optional(),
+        paymentAmount: z.number().optional(),
+        unpaidAmount: z.number().optional(),
+        paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
+        paymentDate: z.string().optional(),
+        paymentMemo: z.string().optional(),
+        subType: z.enum(["신규", "재등록"]).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const { id, ...data } = input;
-      await db.update(members).set(data).where(eq(members.id, id));
+      const {
+        id,
+        ptProgram, ptSessions, paymentAmount, unpaidAmount,
+        paymentMethod, paymentDate, paymentMemo, subType,
+        ...memberData
+      } = input;
+
+      await db.update(members).set(memberData).where(eq(members.id, id));
+
+      // 장부 자동 연동 (결제 금액이 있을 때만)
+      if (paymentAmount) {
+        const sessionCount = ptSessions ? parseInt(String(ptSessions)) : undefined;
+        const paid = Math.max(0, paymentAmount - (unpaidAmount ?? 0));
+        const today = new Date().toISOString().substring(0, 10);
+        const revenueType = sessionCount ? "PT" : "기타";
+        const [member] = await db.select().from(members).where(eq(members.id, id));
+        await db.insert(revenueEntries).values({
+          memberId: id,
+          trainerId: member?.trainerId ?? null,
+          createdBy: ctx.user.id,
+          customerName: member?.name ?? memberData.name,
+          phone: member?.phone ?? memberData.phone,
+          programDetail: ptProgram || (sessionCount ? `PT ${sessionCount}회` : undefined),
+          sessions: sessionCount,
+          type: revenueType,
+          subType: subType ?? "재등록",
+          amount: paymentAmount,
+          discountAmount: 0,
+          paidAmount: paid,
+          unpaidAmount: unpaidAmount ?? 0,
+          paymentMethod,
+          paymentDate: paymentDate ?? today,
+          startDate: memberData.membershipStart,
+          memo: paymentMemo,
+        });
+      }
+
       return { success: true };
     }),
 
