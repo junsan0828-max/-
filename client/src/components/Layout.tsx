@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   UserCog, Settings, User, ClipboardCheck, Download, X, ChevronLeft,
-  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, BookOpen, Menu, ExternalLink, ClipboardList, Globe, ClipboardPlus, UsersRound,
+  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, BookOpen, Menu, ExternalLink, ClipboardList, ClipboardPlus, UsersRound, Database,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -57,16 +57,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const adminNavItems = [
     { path: "/", label: "KPI 대시보드", icon: LayoutDashboard },
-    { path: "/revenue", label: "매출/지출", icon: TrendingUp },
+    { path: "/revenue", label: "장부관리", icon: TrendingUp },
     { path: "/trainers", label: "트레이너", icon: UserCog },
-    { path: "/members", label: "회원관리", icon: Users },
-    { path: "/leads", label: "상담관리", icon: UserPlus },
-    { path: "/registration", label: "등록관리", icon: ClipboardPlus },
+    { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/leads", label: "상담 관리", icon: UserPlus },
+    { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
     { path: "/work-management", label: "업무 관리", icon: ClipboardList },
-    { path: "/marketing", label: "마케팅", icon: Megaphone },
-    { path: "/ai-analysis", label: "AI 분석", icon: BrainCircuit },
-    { path: "/team-management", label: "팀관리", icon: UsersRound },
-    { path: "/landing-admin", label: "랜딩페이지 관리", icon: Globe },
+    { path: "/data-management", label: "데이터 관리", icon: Database },
+    { path: "/marketing", label: "마케팅 관리", icon: Megaphone },
+    { path: "/team-management", label: "팀 관리", icon: UsersRound },
+    { path: "/ai-analysis", label: "AI 분석 기능", icon: BrainCircuit },
     { path: "/admin", label: "관리자 설정", icon: Settings },
   ];
 

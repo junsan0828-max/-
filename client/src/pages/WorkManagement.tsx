@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bell, Plus, ClipboardList, CheckCircle2, Clock, ChevronDown, ChevronUp, Trash2, Zap } from "lucide-react";
 import AccessManagement from "./AccessManagement";
+import LandingPageAdmin from "./LandingPageAdmin";
 
 const WORK_CATEGORIES = ["상담", "수업", "회원관리", "청소/정리", "마케팅", "매출/등록", "교육", "기타"];
 
@@ -585,12 +586,12 @@ function EventManagementSection() {
 }
 
 export default function WorkManagementPage() {
-  const [tab, setTab] = useState<"events" | "access">("events");
+  const [tab, setTab] = useState<"events" | "access" | "landing">("events");
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">업무 관리</h1>
       <div className="flex gap-1 bg-accent/20 p-1 rounded-lg">
-        {([["events","이벤트 관리"],["access","출입 관리"]] as const).map(([key, label]) => (
+        {([["events","이벤트 관리"],["access","출입 관리"],["landing","랜딩페이지"]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 py-2 text-sm rounded-md transition-colors font-medium ${tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
             {label}
@@ -599,6 +600,7 @@ export default function WorkManagementPage() {
       </div>
       {tab === "events" && <EventManagementSection />}
       {tab === "access" && <AccessManagement hideTitle />}
+      {tab === "landing" && <LandingPageAdmin />}
     </div>
   );
 }
