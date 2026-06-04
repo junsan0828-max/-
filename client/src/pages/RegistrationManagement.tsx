@@ -106,6 +106,8 @@ export default function RegistrationManagement() {
   });
   const activeMembershipsQuery = trpc.access.getActiveMemberships.useQuery(undefined, { enabled: tab === "services" });
   const activePtQuery = trpc.access.getActivePtPackages.useQuery(undefined, { enabled: tab === "services" });
+  const serviceLockerQuery = trpc.access.getServiceLockers.useQuery(undefined, { enabled: tab === "services" });
+  const serviceHealthQuery = trpc.access.getServiceHealthMemberships.useQuery(undefined, { enabled: tab === "services" });
 
   const branches = (branchesQuery.data ?? []) as Branch[];
   const categories = (categoriesQuery.data ?? []) as LockerCategory[];
@@ -1166,6 +1168,8 @@ export default function RegistrationManagement() {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const allUniforms = (uniformsQuery.data ?? []) as any[];
         const activePtPackages = (activePtQuery.data ?? []);
+        const serviceLockers = (serviceLockerQuery.data ?? []) as any[];
+        const serviceHealths = (serviceHealthQuery.data ?? []) as any[];
 
         const servicePt = activePtPackages.filter((p: any) => !p.paymentAmount || p.paymentAmount === 0);
         const serviceUniforms = allUniforms.filter((u: any) => u.isActive === 1 && u.rentalType === "service");
@@ -1190,7 +1194,7 @@ export default function RegistrationManagement() {
           return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">D-{d}</span>;
         }
 
-        const total = servicePt.length + serviceUniforms.length;
+        const total = servicePt.length + serviceUniforms.length + serviceLockers.length + serviceHealths.length;
 
         return (
           <div className="space-y-5">
@@ -1198,6 +1202,32 @@ export default function RegistrationManagement() {
             <p className="text-sm text-muted-foreground">
               총 <span className="text-foreground font-semibold">{total}명</span>이 무료 서비스 이용 중
             </p>
+
+            {/* 서비스 헬스권 */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <span className="text-emerald-400">◆</span> 서비스 헬스권
+                <span className="text-xs text-muted-foreground font-normal">({serviceHealths.length}명)</span>
+              </h3>
+              {serviceHealths.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">서비스 헬스권 이용자가 없습니다</p>
+              ) : (
+                <div className="space-y-2">
+                  {serviceHealths.map((h: any) => (
+                    <div key={h.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{h.memberName ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {h.startDate ?? "-"} ~ {h.endDate}
+                          <> · {h.serviceHealthDuration}개월</>
+                        </p>
+                      </div>
+                      <DDay endDate={h.endDate} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* 서비스 PT */}
             <div>
@@ -1231,6 +1261,36 @@ export default function RegistrationManagement() {
               )}
             </div>
 
+            {/* 서비스 락커 */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <Key className="h-4 w-4 text-amber-400" /> 서비스 락커
+                <span className="text-xs text-muted-foreground font-normal">({serviceLockers.length}명)</span>
+              </h3>
+              {serviceLockers.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">서비스 락커 이용자가 없습니다</p>
+              ) : (
+                <div className="space-y-2">
+                  {serviceLockers.map((l: any) => (
+                    <div key={l.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium text-foreground">{l.memberName ?? "—"}</p>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">#{l.lockerNumber}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {l.startDate ?? "-"}
+                          {l.endDate && <> ~ {l.endDate}</>}
+                          {l.startDate && l.endDate && (() => { const lbl = durationLabel(l.startDate, l.endDate); return lbl ? <> · {lbl}</> : null; })()}
+                        </p>
+                      </div>
+                      <DDay endDate={l.endDate} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* 서비스 운동복 */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
@@ -1248,7 +1308,7 @@ export default function RegistrationManagement() {
                         <p className="text-xs text-muted-foreground">
                           {u.startDate ?? "-"}
                           {u.endDate && <> ~ {u.endDate}</>}
-                          {u.startDate && u.endDate && (() => { const l = durationLabel(u.startDate, u.endDate); return l ? <> · {l}</> : null; })()}
+                          {u.startDate && u.endDate && (() => { const lbl = durationLabel(u.startDate, u.endDate); return lbl ? <> · {lbl}</> : null; })()}
                         </p>
                       </div>
                       <DDay endDate={u.endDate} />

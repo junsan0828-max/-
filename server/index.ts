@@ -614,6 +614,7 @@ async function initDatabase() {
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE lockers ADD COLUMN IF NOT EXISTS "categoryId" INTEGER`,
+    `ALTER TABLE lockers ADD COLUMN IF NOT EXISTS "rentalType" TEXT`,
     `CREATE TABLE IF NOT EXISTS access_logs (
       id SERIAL PRIMARY KEY,
       "memberId" INTEGER,

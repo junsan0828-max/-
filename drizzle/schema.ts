@@ -466,6 +466,7 @@ export const lockers = pgTable("lockers", {
   memberName: text("memberName"),
   memberPhone: text("memberPhone"),
   lockerType: text("lockerType").default("personal").notNull(),
+  rentalType: text("rentalType"),
   isOccupied: integer("isOccupied").default(0).notNull(),
   startDate: text("startDate"),
   endDate: text("endDate"),

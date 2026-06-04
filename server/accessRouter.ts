@@ -361,6 +361,7 @@ export const accessRouter = t.router({
         memberPhone: z.string().optional(),
         startDate: z.string().optional(),
         endDate: z.string().optional(),
+        rentalType: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -375,6 +376,7 @@ export const accessRouter = t.router({
           isOccupied: 1,
           startDate: input.startDate,
           endDate: input.endDate,
+          rentalType: input.rentalType ?? "service",
           updatedAt: new Date().toISOString(),
         })
         .where(eq(lockers.id, input.lockerId))
@@ -405,6 +407,7 @@ export const accessRouter = t.router({
         isOccupied: 1,
         startDate: input.startDate,
         endDate: input.endDate,
+        rentalType: "paid",
         updatedAt: new Date().toISOString(),
       }).where(eq(lockers.id, input.lockerId)).returning();
       await db.insert(revenueEntries).values({
@@ -803,6 +806,50 @@ export const accessRouter = t.router({
         packageName: string | null; totalSessions: number; usedSessions: number;
         startDate: string | null; expiryDate: string | null; status: string;
         paymentAmount: number | null;
+      }>;
+    }),
+
+  // 서비스 락커 (rentalType = 'service', 현재 점유 중)
+  getServiceLockers: protectedProcedure
+    .query(async () => {
+      const today = new Date().toISOString().substring(0, 10);
+      const result = await pool.query(
+        `SELECT id, "lockerNumber", "lockerType", "memberId", "memberName", "memberPhone",
+                "startDate", "endDate", memo, "branchId", "categoryId"
+         FROM lockers
+         WHERE "isOccupied" = 1
+           AND ("rentalType" = 'service' OR "rentalType" IS NULL)
+           AND ("endDate" IS NULL OR "endDate" >= $1)
+         ORDER BY "endDate" ASC NULLS LAST`,
+        [today]
+      );
+      return result.rows as Array<{
+        id: number; lockerNumber: string; lockerType: string;
+        memberId: number | null; memberName: string | null; memberPhone: string | null;
+        startDate: string | null; endDate: string | null; memo: string | null;
+        branchId: number | null; categoryId: number | null;
+      }>;
+    }),
+
+  // 서비스 헬스권 (PT 등록 시 서비스로 제공된 헬스 기간, serviceHealthDuration > 0)
+  getServiceHealthMemberships: protectedProcedure
+    .query(async () => {
+      const today = new Date().toISOString().substring(0, 10);
+      const result = await pool.query(
+        `SELECT r.id, r."memberId", r."customerName" as "memberName", r.phone as "memberPhone",
+                r."startDate", r."serviceHealthDuration",
+                (r."startDate"::date + (r."serviceHealthDuration" || ' months')::interval)::date AS "endDate"
+         FROM revenue_entries r
+         WHERE r."serviceHealthDuration" > 0
+           AND r.type = 'PT'
+           AND r."startDate" IS NOT NULL
+           AND (r."startDate"::date + (r."serviceHealthDuration" || ' months')::interval)::date >= $1::date
+         ORDER BY (r."startDate"::date + (r."serviceHealthDuration" || ' months')::interval)::date ASC`,
+        [today]
+      );
+      return result.rows as Array<{
+        id: number; memberId: number | null; memberName: string | null; memberPhone: string | null;
+        startDate: string; serviceHealthDuration: number; endDate: string;
       }>;
     }),
 });
