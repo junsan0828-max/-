@@ -328,7 +328,10 @@ export default function RegistrationManagement() {
 
       {/* 탭 헤더 */}
       <div className="flex gap-0 rounded-lg overflow-hidden border border-border overflow-x-auto">
-        {(["members", "lockers", "uniforms", ...(isTrainer ? [] : ["services"])] as const).map((t, i, arr) => (
+        {(isTrainer
+          ? (["members", "lockers", "uniforms"] as const)
+          : (["members", "lockers", "uniforms", "services"] as const)
+        ).map((t, i, arr) => (
           <button
             key={t}
             onClick={() => setTab(t)}
