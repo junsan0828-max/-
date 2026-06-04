@@ -140,7 +140,7 @@ function KioskFontSettings() {
   );
 }
 
-export default function AccessManagement() {
+export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } = {}) {
   const [tab, setTab] = useState<"logs" | "lockers" | "uniforms" | "banners">("logs"); // lockers/uniforms → 등록관리로 이전
   const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
@@ -362,20 +362,34 @@ export default function AccessManagement() {
   return (
     <div className="p-4 max-w-4xl mx-auto space-y-4">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <DoorOpen className="h-5 w-5 text-primary" />
-          출입 관리
-        </h1>
-        <a
-          href="/kiosk"
-          target="_blank"
-          className="flex items-center gap-1.5 text-sm bg-primary/20 text-primary px-3 py-1.5 rounded-lg hover:bg-primary/30 transition-colors"
-        >
-          <LogIn className="h-4 w-4" />
-          키오스크 열기
-        </a>
-      </div>
+      {!hideTitle && (
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <DoorOpen className="h-5 w-5 text-primary" />
+            출입 관리
+          </h1>
+          <a
+            href="/kiosk"
+            target="_blank"
+            className="flex items-center gap-1.5 text-sm bg-primary/20 text-primary px-3 py-1.5 rounded-lg hover:bg-primary/30 transition-colors"
+          >
+            <LogIn className="h-4 w-4" />
+            키오스크 열기
+          </a>
+        </div>
+      )}
+      {hideTitle && (
+        <div className="flex justify-end">
+          <a
+            href="/kiosk"
+            target="_blank"
+            className="flex items-center gap-1.5 text-sm bg-primary/20 text-primary px-3 py-1.5 rounded-lg hover:bg-primary/30 transition-colors"
+          >
+            <LogIn className="h-4 w-4" />
+            키오스크 열기
+          </a>
+        </div>
+      )}
 
       {/* 지점 필터 */}
       {branches.length > 0 && (

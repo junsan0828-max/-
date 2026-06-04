@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bell, Plus, ClipboardList, CheckCircle2, Clock, ChevronDown, ChevronUp, Trash2, Zap } from "lucide-react";
+import AccessManagement from "./AccessManagement";
 
 const WORK_CATEGORIES = ["상담", "수업", "회원관리", "청소/정리", "마케팅", "매출/등록", "교육", "기타"];
 
@@ -584,22 +585,20 @@ function EventManagementSection() {
 }
 
 export default function WorkManagementPage() {
-  const [tab, setTab] = useState<"tasks" | "notices" | "events">("tasks");
+  const [tab, setTab] = useState<"events" | "access">("events");
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">업무 관리</h1>
-      {/* Tab nav */}
       <div className="flex gap-1 bg-accent/20 p-1 rounded-lg">
-        {([["tasks","업무 관리"],["notices","공지사항 관리"],["events","이벤트 관리"]] as const).map(([key, label]) => (
+        {([["events","이벤트 관리"],["access","출입 관리"]] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`flex-1 py-2 text-sm rounded-md transition-colors font-medium ${tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
             {label}
           </button>
         ))}
       </div>
-      {tab === "tasks" && <WorkManagementSection />}
-      {tab === "notices" && <NoticeManagementSection />}
       {tab === "events" && <EventManagementSection />}
+      {tab === "access" && <AccessManagement hideTitle />}
     </div>
   );
 }
