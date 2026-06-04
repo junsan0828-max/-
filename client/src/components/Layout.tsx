@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
   UserCog, Settings, User, ClipboardCheck, Download, X, ChevronLeft,
-  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, DoorOpen, BookOpen, Menu, ExternalLink, ClipboardList, Globe,
+  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, DoorOpen, BookOpen, Menu, ExternalLink, ClipboardList, Globe, ClipboardPlus,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -61,6 +61,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/trainers", label: "트레이너", icon: UserCog },
     { path: "/members", label: "회원관리", icon: Users },
     { path: "/leads", label: "상담관리", icon: UserPlus },
+    { path: "/registration", label: "등록관리", icon: ClipboardPlus },
     { path: "/access", label: "출입관리", icon: DoorOpen },
     { path: "/marketing", label: "마케팅", icon: Megaphone },
     { path: "/ai-analysis", label: "AI 분석", icon: BrainCircuit },
