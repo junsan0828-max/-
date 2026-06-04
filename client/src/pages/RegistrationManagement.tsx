@@ -74,7 +74,7 @@ export default function RegistrationManagement() {
   const [uniformMemberSearch, setUniformMemberSearch] = useState("");
 
   // 서비스 관리 세부 카테고리
-  const [serviceCategory, setServiceCategory] = useState<"all" | "pt" | "gym" | "locker" | "uniform">("all");
+  const [serviceCategory, setServiceCategory] = useState<"all" | "pt" | "gym" | "locker" | "uniform" | "service">("all");
 
   // 간편 등록 state
   type QuickModal = null | "locker" | "uniform" | "daypass";
@@ -1168,6 +1168,11 @@ export default function RegistrationManagement() {
         const activeMemberships = (activeMembershipsQuery.data ?? []);
         const activePtPackages = (activePtQuery.data ?? []);
 
+        // 서비스(0원) 필터
+        const servicePtPackages = activePtPackages.filter((p: any) => !p.paymentAmount || p.paymentAmount === 0);
+        const serviceUniforms = activeUniforms.filter((u: any) => u.rentalType === "service");
+        const isServiceView = serviceCategory === "service";
+
         function daysLeft(endDate: string | null) {
           if (!endDate) return null;
           const end = new Date(endDate); end.setHours(0, 0, 0, 0);
@@ -1194,12 +1199,13 @@ export default function RegistrationManagement() {
           { key: "gym" as const, label: "헬스권", count: activeMemberships.length },
           { key: "locker" as const, label: "락커", count: activeLockers.length },
           { key: "uniform" as const, label: "운동복", count: activeUniforms.length },
+          { key: "service" as const, label: "서비스", count: servicePtPackages.length + serviceUniforms.length },
         ];
 
-        const showPt = serviceCategory === "all" || serviceCategory === "pt";
-        const showGym = serviceCategory === "all" || serviceCategory === "gym";
-        const showLocker = serviceCategory === "all" || serviceCategory === "locker";
-        const showUniform = serviceCategory === "all" || serviceCategory === "uniform";
+        const showPt = !isServiceView && (serviceCategory === "all" || serviceCategory === "pt");
+        const showGym = !isServiceView && (serviceCategory === "all" || serviceCategory === "gym");
+        const showLocker = !isServiceView && (serviceCategory === "all" || serviceCategory === "locker");
+        const showUniform = !isServiceView && (serviceCategory === "all" || serviceCategory === "uniform");
 
         return (
           <div className="space-y-4">
@@ -1349,6 +1355,74 @@ export default function RegistrationManagement() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 서비스(0원) 뷰 */}
+            {isServiceView && (
+              <div className="space-y-4">
+                {/* 서비스 PT */}
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                    <span className="text-blue-400">◆</span> 서비스 PT
+                    <span className="text-xs text-muted-foreground font-normal">({servicePtPackages.length}명)</span>
+                  </h3>
+                  {servicePtPackages.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">서비스 PT 항목이 없습니다</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {servicePtPackages.map((p: any) => {
+                        const remaining = (p.totalSessions ?? 0) - (p.usedSessions ?? 0);
+                        return (
+                          <div key={p.id} className="flex items-center justify-between bg-card border border-blue-500/20 rounded-xl px-3 py-2.5 gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-medium text-foreground">{p.memberName}</p>
+                                {p.packageName && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">{p.packageName}</span>}
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">서비스</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                잔여 <span className="text-blue-400 font-semibold">{remaining}회</span> / {p.totalSessions}회
+                                {p.expiryDate && <> · 만료 {p.expiryDate}</>}
+                              </p>
+                            </div>
+                            <DDay endDate={p.expiryDate} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 서비스 운동복 */}
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                    <Shirt className="h-4 w-4 text-purple-400" /> 서비스 운동복
+                    <span className="text-xs text-muted-foreground font-normal">({serviceUniforms.length}명)</span>
+                  </h3>
+                  {serviceUniforms.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">서비스 운동복 항목이 없습니다</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {serviceUniforms.map((u: any) => (
+                        <div key={u.id} className="flex items-center justify-between bg-card border border-purple-500/20 rounded-xl px-3 py-2.5 gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-medium text-foreground">{u.memberName ?? "—"}</p>
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">서비스</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {u.startDate ?? "-"}
+                              {u.endDate && <> ~ {u.endDate}</>}
+                              {u.startDate && u.endDate && <> · {durationLabel(u.startDate, u.endDate)}</>}
+                            </p>
+                          </div>
+                          <DDay endDate={u.endDate} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

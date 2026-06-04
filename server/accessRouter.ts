@@ -791,7 +791,7 @@ export const accessRouter = t.router({
       const result = await pool.query(
         `SELECT p.id, p."memberId", m.name as "memberName", m.phone as "memberPhone",
                 p."packageName", p."totalSessions", p."usedSessions",
-                p."startDate", p."expiryDate", p.status
+                p."startDate", p."expiryDate", p.status, p."paymentAmount"
          FROM pt_packages p
          JOIN members m ON m.id = p."memberId"
          WHERE p.status = 'active' AND (p."expiryDate" IS NULL OR p."expiryDate" >= $1)
@@ -802,6 +802,7 @@ export const accessRouter = t.router({
         id: number; memberId: number; memberName: string; memberPhone: string | null;
         packageName: string | null; totalSessions: number; usedSessions: number;
         startDate: string | null; expiryDate: string | null; status: string;
+        paymentAmount: number | null;
       }>;
     }),
 });
