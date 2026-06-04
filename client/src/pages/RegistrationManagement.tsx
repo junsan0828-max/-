@@ -7,12 +7,12 @@ import {
   Unlock,
   Plus,
   Trash2,
-  Users,
   XCircle,
   Pencil,
   Shirt,
   UserPlus,
   RefreshCw,
+  Gift,
 } from "lucide-react";
 
 type Branch = { id: number; name: string };
@@ -44,7 +44,7 @@ type Member = { id: number; name: string; phone: string | null };
 
 export default function RegistrationManagement() {
   const [, setLocation] = useLocation();
-  const [tab, setTab] = useState<"members" | "lockers" | "uniforms">("members");
+  const [tab, setTab] = useState<"members" | "lockers" | "uniforms" | "services">("members");
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
 
   // 락커 관리 state
@@ -213,12 +213,12 @@ export default function RegistrationManagement() {
       )}
 
       {/* 탭 헤더 */}
-      <div className="flex gap-0 rounded-lg overflow-hidden border border-border">
-        {(["members", "lockers", "uniforms"] as const).map((t, i, arr) => (
+      <div className="flex gap-0 rounded-lg overflow-hidden border border-border overflow-x-auto">
+        {(["members", "lockers", "uniforms", "services"] as const).map((t, i, arr) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 min-w-max py-2.5 px-2 text-sm font-medium transition-colors whitespace-nowrap ${
               tab === t
                 ? "bg-primary/20 text-primary"
                 : "text-muted-foreground hover:bg-accent"
@@ -232,9 +232,13 @@ export default function RegistrationManagement() {
               <span className="flex items-center justify-center gap-1.5">
                 <Lock className="h-3.5 w-3.5" /> 락커 관리 ({occupiedCount}/{lockers.length})
               </span>
-            ) : (
+            ) : t === "uniforms" ? (
               <span className="flex items-center justify-center gap-1.5">
                 <Shirt className="h-3.5 w-3.5" /> 운동복 관리
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-1.5">
+                <Gift className="h-3.5 w-3.5" /> 서비스 관리
               </span>
             )}
           </button>
@@ -244,8 +248,8 @@ export default function RegistrationManagement() {
       {/* 탭 1: 회원 등록 */}
       {tab === "members" && (
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">회원 등록 및 상담 등록을 진행합니다.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <p className="text-sm text-muted-foreground">회원 등록을 진행합니다.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               onClick={() => setLocation("/members/new")}
               className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
@@ -266,17 +270,6 @@ export default function RegistrationManagement() {
               </div>
               <span className="text-base font-semibold text-foreground">재등록</span>
               <span className="text-xs text-muted-foreground text-center">기존 회원을 재등록합니다</span>
-            </button>
-
-            <button
-              onClick={() => setLocation("/leads")}
-              className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
-            >
-              <div className="p-4 rounded-full bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
-                <Users className="h-8 w-8 text-blue-500" />
-              </div>
-              <span className="text-base font-semibold text-foreground">상담 등록</span>
-              <span className="text-xs text-muted-foreground text-center">상담 내역을 등록합니다</span>
             </button>
           </div>
         </div>
@@ -734,6 +727,98 @@ export default function RegistrationManagement() {
                 </div>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* 탭 4: 서비스 관리 */}
+      {tab === "services" && (() => {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const activeLockers = lockers.filter(l => l.isOccupied === 1);
+        const allUniforms = (uniformsQuery.data ?? []) as any[];
+        const activeUniforms = allUniforms.filter((u: any) => u.isActive === 1);
+
+        function daysLeft(endDate: string | null) {
+          if (!endDate) return null;
+          const end = new Date(endDate); end.setHours(0, 0, 0, 0);
+          return Math.ceil((end.getTime() - today.getTime()) / 86400000);
+        }
+        function durationLabel(start: string | null, end: string | null) {
+          if (!start || !end) return "기간 없음";
+          const days = Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / 86400000);
+          if (days >= 28) return `${Math.round(days / 30)}개월`;
+          return `${days}일`;
+        }
+        function DDay({ endDate }: { endDate: string | null }) {
+          const d = daysLeft(endDate);
+          if (d === null) return <span className="text-xs text-muted-foreground">무기한</span>;
+          if (d < 0) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">{Math.abs(d)}일 초과</span>;
+          if (d === 0) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">오늘 만료</span>;
+          if (d <= 7) return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">D-{d}</span>;
+          return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">D-{d}</span>;
+        }
+
+        return (
+          <div className="space-y-5">
+            {/* 락커 서비스 */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <Lock className="h-4 w-4 text-primary" /> 락커 서비스
+                <span className="text-xs text-muted-foreground font-normal">({activeLockers.length}명)</span>
+              </h3>
+              {activeLockers.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">배정된 락커가 없습니다</p>
+              ) : (
+                <div className="space-y-2">
+                  {activeLockers.map(l => (
+                    <div key={l.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{l.memberName ?? "—"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          락커 {l.lockerNumber}
+                          {l.startDate && <> · {l.startDate}</>}
+                          {l.endDate && <> ~ {l.endDate}</>}
+                          {l.startDate && l.endDate && <> · {durationLabel(l.startDate, l.endDate)}</>}
+                        </p>
+                      </div>
+                      <DDay endDate={l.endDate} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 운동복 서비스 */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <Shirt className="h-4 w-4 text-primary" /> 운동복 서비스
+                <span className="text-xs text-muted-foreground font-normal">({activeUniforms.length}명)</span>
+              </h3>
+              {activeUniforms.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">착용 중인 운동복이 없습니다</p>
+              ) : (
+                <div className="space-y-2">
+                  {activeUniforms.map((u: any) => (
+                    <div key={u.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium text-foreground">{u.memberName ?? "—"}</p>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${u.rentalType === "service" ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"}`}>
+                            {u.rentalType === "service" ? "서비스" : "결제대여"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {u.startDate ?? "-"}
+                          {u.endDate && <> ~ {u.endDate}</>}
+                          {u.startDate && u.endDate && <> · {durationLabel(u.startDate, u.endDate)}</>}
+                        </p>
+                      </div>
+                      <DDay endDate={u.endDate} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         );
       })()}

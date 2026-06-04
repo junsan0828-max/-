@@ -698,13 +698,6 @@ export default function LeadsPage() {
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button
-            onClick={() => setShowRegModeSelect(true)}
-            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-2 rounded-lg text-sm font-medium"
-          >
-            <UserCheck className="h-4 w-4 shrink-0" />
-            <span className="hidden xs:inline">바로</span>등록
-          </button>
-          <button
             onClick={() => {
               setShowForm(true); setEditId(null);
               setForm({
