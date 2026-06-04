@@ -61,7 +61,7 @@ export function WorkManagementSection() {
     }
   }
 
-  const staff = (staffList ?? []).filter((s: any) => s.role !== "admin");
+  const staff = (staffList ?? []).filter((s: any) => s.role === "trainer");
 
   return (
     <Card>
@@ -97,7 +97,7 @@ export function WorkManagementSection() {
                     <option value="consultant">컨설턴트 전체</option>
                   </optgroup>
                   <optgroup label="── 개인 ──">
-                    {staff.map((s: any) => <option key={s.id} value={s.id}>{s.username} ({s.role === "trainer" ? "트레이너" : "컨설턴트"})</option>)}
+                    {staff.map((s: any) => <option key={s.id} value={s.id}>{s.trainerName ?? s.username} (트레이너)</option>)}
                   </optgroup>
                 </select>
               </div>

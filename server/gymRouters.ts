@@ -1972,8 +1972,9 @@ const tasksWorkRouter = t.router({
   listStaff: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    return db.select({ id: users.id, username: users.username, role: users.role })
+    return db.select({ id: users.id, username: users.username, role: users.role, trainerName: trainers.trainerName })
       .from(users)
+      .leftJoin(trainers, eq(users.id, trainers.userId))
       .orderBy(users.role, users.username);
   }),
 
