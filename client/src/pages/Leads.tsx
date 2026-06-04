@@ -1188,12 +1188,26 @@ export default function LeadsPage() {
                     {regForm.itemTypes.includes("기타") && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
                   </button>
                   {regForm.itemTypes.includes("기타") && (
-                    <div className="px-4 pb-4 border-t border-amber-500/20">
-                      <label className="text-xs text-muted-foreground block pt-3">항목명</label>
-                      <input value={regForm.otherItem}
-                        onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))}
-                        placeholder="예: 락커 1개월, 운동복 등"
-                        className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    <div className="px-4 pb-4 border-t border-amber-500/20 pt-3 space-y-2">
+                      <div className="flex gap-2">
+                        {["락커", "운동복"].map(item => {
+                          const selected = regForm.otherItem.split(",").map(s => s.trim()).includes(item);
+                          return (
+                            <button key={item} type="button"
+                              onClick={() => {
+                                const items = regForm.otherItem.split(",").map(s => s.trim()).filter(Boolean);
+                                const next = items.includes(item) ? items.filter(x => x !== item) : [...items, item];
+                                setRegForm(f => ({ ...f, otherItem: next.join(", ") }));
+                              }}
+                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${selected ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                              {item}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-amber-400/70">
+                        개월 수는 헬스 등록 기간{regForm.duration ? ` (${regForm.duration}개월)` : ""}과 동일하게 적용됩니다
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1602,11 +1616,26 @@ export default function LeadsPage() {
                           {reRegForm.programTypes.includes("기타") && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
                         </button>
                         {reRegForm.programTypes.includes("기타") && (
-                          <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
-                            <label className="text-xs text-muted-foreground">항목명</label>
-                            <input value={reRegForm.otherItem} onChange={e => setReRegForm(f => ({ ...f, otherItem: e.target.value }))}
-                              placeholder="예: 락커 1개월, 운동복 등"
-                              className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                          <div className="px-4 pb-4 border-t border-amber-500/20 pt-3 space-y-2">
+                            <div className="flex gap-2">
+                              {["락커", "운동복"].map(item => {
+                                const selected = reRegForm.otherItem.split(",").map(s => s.trim()).includes(item);
+                                return (
+                                  <button key={item} type="button"
+                                    onClick={() => {
+                                      const items = reRegForm.otherItem.split(",").map(s => s.trim()).filter(Boolean);
+                                      const next = items.includes(item) ? items.filter(x => x !== item) : [...items, item];
+                                      setReRegForm(f => ({ ...f, otherItem: next.join(", ") }));
+                                    }}
+                                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${selected ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                                    {item}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <p className="text-xs text-amber-400/70">
+                              개월 수는 헬스 등록 기간{reRegForm.healthDuration ? ` (${reRegForm.healthDuration}개월)` : ""}과 동일하게 적용됩니다
+                            </p>
                           </div>
                         )}
                       </div>
@@ -1952,11 +1981,26 @@ export default function LeadsPage() {
                     {directForm.programTypes.includes("기타") && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
                   </button>
                   {directForm.programTypes.includes("기타") && (
-                    <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
-                      <label className="text-xs text-muted-foreground">항목명</label>
-                      <input value={directForm.otherItem} onChange={e => setDirectForm(f => ({ ...f, otherItem: e.target.value }))}
-                        placeholder="예: 락커 1개월, 운동복 등"
-                        className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    <div className="px-4 pb-4 border-t border-amber-500/20 pt-3 space-y-2">
+                      <div className="flex gap-2">
+                        {["락커", "운동복"].map(item => {
+                          const selected = directForm.otherItem.split(",").map(s => s.trim()).includes(item);
+                          return (
+                            <button key={item} type="button"
+                              onClick={() => {
+                                const items = directForm.otherItem.split(",").map(s => s.trim()).filter(Boolean);
+                                const next = items.includes(item) ? items.filter(x => x !== item) : [...items, item];
+                                setDirectForm(f => ({ ...f, otherItem: next.join(", ") }));
+                              }}
+                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${selected ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                              {item}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-amber-400/70">
+                        개월 수는 헬스 등록 기간{directForm.healthDuration ? ` (${directForm.healthDuration}개월)` : ""}과 동일하게 적용됩니다
+                      </p>
                     </div>
                   )}
                 </div>
