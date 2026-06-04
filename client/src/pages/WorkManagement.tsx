@@ -6,7 +6,7 @@ import { Bell, Plus, ClipboardList, CheckCircle2, Clock, ChevronDown, ChevronUp,
 
 const WORK_CATEGORIES = ["상담", "수업", "회원관리", "청소/정리", "마케팅", "매출/등록", "교육", "기타"];
 
-function WorkManagementSection() {
+export function WorkManagementSection() {
   const utils = trpc.useUtils();
   const { data: staffList } = trpc.gym.work.tasks.listStaff.useQuery();
   const { data: overview } = trpc.gym.work.tasks.staffOverview.useQuery();
@@ -195,7 +195,7 @@ function NoticeReadPanel({ noticeId }: { noticeId: number }) {
   );
 }
 
-function NoticeManagementSection() {
+export function NoticeManagementSection() {
   const utils = trpc.useUtils();
   const { data: noticeList } = trpc.gym.work.notices.list.useQuery();
   const [showAdd, setShowAdd] = useState(false);
