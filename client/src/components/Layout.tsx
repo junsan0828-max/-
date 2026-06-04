@@ -57,7 +57,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const adminNavItems = [
     { path: "/", label: "KPI 대시보드", icon: LayoutDashboard },
-    { path: "/revenue", label: "장부관리", icon: TrendingUp },
+    { path: "/revenue", label: "장부 관리", icon: TrendingUp },
     { path: "/trainers", label: "트레이너", icon: UserCog },
     { path: "/members", label: "회원 관리", icon: Users },
     { path: "/leads", label: "상담 관리", icon: UserPlus },
