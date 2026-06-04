@@ -149,15 +149,14 @@ function App() {
     );
   }
 
-  // 랜딩 페이지
-  if (location === "/landing" || (!user && !isLoading && (location === "/" || location === ""))) {
+  // 랜딩 페이지 (/landing 경로에서만)
+  if (location === "/landing") {
     return <Landing />;
   }
 
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
-    if (window.location.pathname === "/login") return <Login />;
-    return <Landing />;
+    return <Login />;
   }
 
   // 로그인된 어드민/트레이너는 통합운영 시스템으로 리다이렉트
