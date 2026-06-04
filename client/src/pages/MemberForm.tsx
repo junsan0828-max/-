@@ -13,14 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Dumbbell, Activity } from "lucide-react";
 
 interface Props {
   memberId?: number;
   defaultTrainerId?: number;
 }
 
-function calcEndDate(start: string, sessions: string): string {
+function calcEndDateByPT(start: string, sessions: string): string {
   if (!start || !sessions) return "";
   const n = parseInt(sessions);
   if (!n) return "";
@@ -29,9 +29,19 @@ function calcEndDate(start: string, sessions: string): string {
   return d.toISOString().substring(0, 10);
 }
 
+function calcEndDateByMonths(start: string, months: number): string {
+  if (!start || !months) return "";
+  const d = new Date(start);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().substring(0, 10);
+}
+
 export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!memberId;
+
+  const [regType, setRegType] = useState<"" | "health" | "pt">("");
+  const [healthMonths, setHealthMonths] = useState<number | "">(1);
 
   const [form, setForm] = useState({
     name: "",
@@ -107,6 +117,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
     if (currentUser?.role === "admin" && !isEdit && !form.adminTrainerId) newErrors.adminTrainerId = "담당 트레이너를 선택해주세요.";
+    if (!isEdit && !regType) newErrors.regType = "등록 유형을 선택해주세요.";
     if (!isEdit && form.name.trim() && form.phone.trim()) {
       const dup = allMembers.find(
         m => m.name.trim() === form.name.trim() && m.phone?.trim() === form.phone.trim()
@@ -126,10 +137,12 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     }
     setErrors({});
 
+    const isHealth = regType === "health";
+
     const payload = {
       ...form,
-      ptSessions: form.ptSessions ? (form.ptSessions as any) : undefined,
-      ptProgram: form.ptProgram || undefined,
+      ptSessions: (!isHealth && form.ptSessions) ? (form.ptSessions as any) : undefined,
+      ptProgram: (!isHealth && form.ptProgram) ? form.ptProgram : undefined,
       gender: form.gender || undefined,
       birthDate: form.birthDate || undefined,
       membershipStart: form.membershipStart || undefined,
@@ -144,8 +157,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       paymentDate: form.paymentDate || undefined,
       paymentMemo: form.paymentMemo || undefined,
       adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
-      serviceSessions: form.serviceSessions ? parseInt(form.serviceSessions) : undefined,
-      serviceSessionPrice: form.serviceSessionPrice ? parseInt(form.serviceSessionPrice) : undefined,
+      serviceSessions: (!isHealth && form.serviceSessions) ? parseInt(form.serviceSessions) : undefined,
+      serviceSessionPrice: (!isHealth && form.serviceSessionPrice) ? parseInt(form.serviceSessionPrice) : undefined,
       subType: "재등록" as const,
     };
 
@@ -177,7 +190,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             <CardTitle className="text-base font-semibold">기본 정보</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* 관리자: 담당 트레이너 선택 */}
             {currentUser?.role === "admin" && !isEdit && (
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">
@@ -215,9 +227,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                 {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="phone" className="text-sm text-muted-foreground">
-                  연락처
-                </Label>
+                <Label htmlFor="phone" className="text-sm text-muted-foreground">연락처</Label>
                 <Input
                   id="phone"
                   value={form.phone}
@@ -230,9 +240,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="birthDate" className="text-sm text-muted-foreground">
-                  생년월일
-                </Label>
+                <Label htmlFor="birthDate" className="text-sm text-muted-foreground">생년월일</Label>
                 <Input
                   id="birthDate"
                   type="date"
@@ -251,10 +259,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">성별</Label>
-                <Select
-                  value={form.gender}
-                  onValueChange={(v) => setForm((p) => ({ ...p, gender: v as any }))}
-                >
+                <Select value={form.gender} onValueChange={(v) => setForm((p) => ({ ...p, gender: v as any }))}>
                   <SelectTrigger className="bg-input border-border">
                     <SelectValue placeholder="선택" />
                   </SelectTrigger>
@@ -269,13 +274,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">등급</Label>
-                <Select
-                  value={form.grade}
-                  onValueChange={(v) => setForm((p) => ({ ...p, grade: v as any }))}
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={form.grade} onValueChange={(v) => setForm((p) => ({ ...p, grade: v as any }))}>
+                  <SelectTrigger className="bg-input border-border"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="basic">기본</SelectItem>
                     <SelectItem value="vip">VIP</SelectItem>
@@ -284,13 +284,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">상태</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm((p) => ({ ...p, status: v as any }))}
-                >
-                  <SelectTrigger className="bg-input border-border">
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v as any }))}>
+                  <SelectTrigger className="bg-input border-border"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">활성</SelectItem>
                     <SelectItem value="paused">정지</SelectItem>
@@ -325,195 +320,263 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           </CardContent>
         </Card>
 
-        {/* 운동 기간 정보 */}
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold">운동 기간</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="membershipStart" className="text-sm text-muted-foreground">
-                  운동 시작일
-                </Label>
-                <Input
-                  id="membershipStart"
-                  type="date"
-                  value={form.membershipStart}
-                  onChange={(e) => {
-                    const start = e.target.value;
-                    const end = calcEndDate(start, form.ptSessions);
-                    setForm((p) => ({ ...p, membershipStart: start, membershipEnd: end }));
+        {/* 등록 유형 선택 (신규 등록 시만) */}
+        {!isEdit && (
+          <Card className={`bg-card border-2 ${errors.regType ? "border-red-500" : "border-border"}`}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">등록 유형 선택 <span className="text-primary">*</span></CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegType("health");
+                    setForm(p => ({ ...p, ptProgram: "", ptSessions: "", serviceSessions: "", serviceSessionPrice: "" }));
                   }}
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">
-                  운동 만료일 <span className="text-primary text-xs">(자동계산)</span>
-                </Label>
-                <Input
-                  id="membershipEnd"
-                  type="date"
-                  value={form.membershipEnd}
-                  readOnly
-                  className="bg-input border-border opacity-60 cursor-not-allowed"
-                />
-              </div>
-            </div>
-
-            {!isEdit && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">프로그램명</Label>
-                  <Input
-                    value={form.ptProgram}
-                    onChange={(e) => setForm((p) => ({ ...p, ptProgram: e.target.value }))}
-                    placeholder="프로그램명 직접 입력"
-                    className="bg-input border-border"
-                  />
-                  <div className="flex gap-1.5 flex-wrap">
-                    {["케어피티", "웨이트피티", "이벤트피티"].map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => setForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset, serviceSessions: "", serviceSessionPrice: "" }))}
-                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                          form.ptProgram === preset
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "border-border text-muted-foreground hover:border-primary/40"
-                        }`}
-                      >
-                        {preset}
-                      </button>
-                    ))}
+                  className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${
+                    regType === "health"
+                      ? "border-emerald-500 bg-emerald-500/10"
+                      : "border-border hover:border-emerald-500/40 hover:bg-accent"
+                  }`}
+                >
+                  <div className={`p-3 rounded-full ${regType === "health" ? "bg-emerald-500/20" : "bg-muted"}`}>
+                    <Activity className={`h-6 w-6 ${regType === "health" ? "text-emerald-400" : "text-muted-foreground"}`} />
                   </div>
-                  {form.ptProgram === "이벤트피티" && (
-                    <div className="mt-1">
-                      <select
-                        className="w-full h-9 rounded-lg px-3 text-sm text-foreground focus:outline-none bg-input border border-border"
-                        defaultValue=""
-                        onChange={e => {
-                          const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
-                          if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0) }));
-                        }}>
-                        <option value="" disabled>이벤트 선택...</option>
-                        {(ptEvents ?? []).map((ev: any) => (
-                          <option key={ev.id} value={String(ev.id)}>
-                            {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
-                          </option>
-                        ))}
-                      </select>
-                      {(ptEvents ?? []).length === 0 && <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>}
-                    </div>
-                  )}
-                </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-semibold ${regType === "health" ? "text-emerald-400" : "text-foreground"}`}>헬스권</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">헬스 이용 등록</p>
+                  </div>
+                </button>
 
+                <button
+                  type="button"
+                  onClick={() => setRegType("pt")}
+                  className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${
+                    regType === "pt"
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:border-primary/40 hover:bg-accent"
+                  }`}
+                >
+                  <div className={`p-3 rounded-full ${regType === "pt" ? "bg-primary/20" : "bg-muted"}`}>
+                    <Dumbbell className={`h-6 w-6 ${regType === "pt" ? "text-primary" : "text-muted-foreground"}`} />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-semibold ${regType === "pt" ? "text-primary" : "text-foreground"}`}>PT 등록</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">PT + 헬스 포함</p>
+                  </div>
+                </button>
+              </div>
+              {errors.regType && <p className="text-xs text-red-500 mt-2">{errors.regType}</p>}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 운동 기간 / 결제 정보 (등록 유형이 선택됐거나 수정 모드일 때) */}
+        {(isEdit || regType !== "") && (
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold">
+                {regType === "health" ? "헬스 기간 및 결제" : regType === "pt" ? "PT 및 헬스 기간·결제" : "운동 기간"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* 운동 시작일 */}
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">PT 횟수</Label>
+                  <Label htmlFor="membershipStart" className="text-sm text-muted-foreground">운동 시작일</Label>
                   <Input
-                    type="number"
-                    min="1"
-                    value={form.ptSessions}
+                    id="membershipStart"
+                    type="date"
+                    value={form.membershipStart}
                     onChange={(e) => {
-                      const s = e.target.value;
-                      setForm((p) => ({ ...p, ptSessions: s, membershipEnd: calcEndDate(p.membershipStart, s) }));
+                      const start = e.target.value;
+                      let end = form.membershipEnd;
+                      if (regType === "health" && healthMonths) {
+                        end = calcEndDateByMonths(start, Number(healthMonths));
+                      } else if (regType === "pt") {
+                        end = calcEndDateByPT(start, form.ptSessions);
+                      }
+                      setForm((p) => ({ ...p, membershipStart: start, membershipEnd: end }));
                     }}
-                    placeholder="횟수 직접 입력"
                     className="bg-input border-border"
                   />
-                  <div className="flex gap-1.5 flex-wrap">
-                    {["10", "20", "30", "40", "50"].map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => setForm((p) => {
-                          const next = p.ptSessions === preset ? "" : preset;
-                          return { ...p, ptSessions: next, membershipEnd: calcEndDate(p.membershipStart, next) };
-                        })}
-                        className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                          form.ptSessions === preset
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "border-border text-muted-foreground hover:border-primary/40"
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">
+                    운동 만료일
+                    {regType === "pt" && <span className="text-primary text-xs ml-1">(자동계산)</span>}
+                  </Label>
+                  <Input
+                    id="membershipEnd"
+                    type="date"
+                    value={form.membershipEnd}
+                    readOnly={regType === "pt"}
+                    onChange={(e) => regType !== "pt" && setForm((p) => ({ ...p, membershipEnd: e.target.value }))}
+                    className={`bg-input border-border ${regType === "pt" ? "opacity-60 cursor-not-allowed" : ""}`}
+                  />
+                </div>
+              </div>
+
+              {/* 헬스권: 이용 기간 선택 */}
+              {(regType === "health" || isEdit) && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-muted-foreground">이용 기간</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {[1, 3, 6, 12].map(m => (
+                      <button key={m} type="button"
+                        onClick={() => {
+                          setHealthMonths(m);
+                          if (form.membershipStart) {
+                            setForm(p => ({ ...p, membershipEnd: calcEndDateByMonths(p.membershipStart, m) }));
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                          healthMonths === m
+                            ? "bg-emerald-500 text-white border-emerald-500"
+                            : "border-border text-muted-foreground hover:bg-accent"
                         }`}
                       >
-                        {preset}회
+                        {m}개월
                       </button>
                     ))}
                   </div>
                 </div>
+              )}
 
-                {/* 결제 정보 */}
-                <div className="grid grid-cols-2 gap-4">
+              {/* PT 등록: 프로그램명 + PT 횟수 */}
+              {!isEdit && regType === "pt" && (
+                <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="paymentAmount" className="text-sm text-muted-foreground">
-                      결제 금액
-                    </Label>
+                    <Label className="text-sm text-muted-foreground">프로그램명</Label>
                     <Input
-                      id="paymentAmount"
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={form.paymentAmount}
-                      onChange={(e) => setForm((p) => ({ ...p, paymentAmount: e.target.value }))}
+                      value={form.ptProgram}
+                      onChange={(e) => setForm((p) => ({ ...p, ptProgram: e.target.value }))}
+                      placeholder="프로그램명 직접 입력"
                       className="bg-input border-border"
                     />
+                    <div className="flex gap-1.5 flex-wrap">
+                      {["케어피티", "웨이트피티", "이벤트피티"].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset, serviceSessions: "", serviceSessionPrice: "" }))}
+                          className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                            form.ptProgram === preset
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "border-border text-muted-foreground hover:border-primary/40"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                    {form.ptProgram === "이벤트피티" && (
+                      <div className="mt-1">
+                        <select
+                          className="w-full h-9 rounded-lg px-3 text-sm text-foreground focus:outline-none bg-input border border-border"
+                          defaultValue=""
+                          onChange={e => {
+                            const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
+                            if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0) }));
+                          }}>
+                          <option value="" disabled>이벤트 선택...</option>
+                          {(ptEvents ?? []).map((ev: any) => (
+                            <option key={ev.id} value={String(ev.id)}>
+                              {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
+                            </option>
+                          ))}
+                        </select>
+                        {(ptEvents ?? []).length === 0 && <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>}
+                      </div>
+                    )}
                   </div>
+
                   <div className="space-y-1.5">
-                    <Label htmlFor="unpaidAmount" className="text-sm text-muted-foreground">
-                      미수금 금액
-                    </Label>
+                    <Label className="text-sm text-muted-foreground">PT 횟수</Label>
                     <Input
-                      id="unpaidAmount"
                       type="number"
-                      min="0"
-                      placeholder="0"
-                      value={form.unpaidAmount}
-                      onChange={(e) => setForm((p) => ({ ...p, unpaidAmount: e.target.value }))}
+                      min="1"
+                      value={form.ptSessions}
+                      onChange={(e) => {
+                        const s = e.target.value;
+                        setForm((p) => ({ ...p, ptSessions: s, membershipEnd: calcEndDateByPT(p.membershipStart, s) }));
+                      }}
+                      placeholder="횟수 직접 입력"
                       className="bg-input border-border"
                     />
+                    <div className="flex gap-1.5 flex-wrap">
+                      {["10", "20", "30", "40", "50"].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setForm((p) => {
+                            const next = p.ptSessions === preset ? "" : preset;
+                            return { ...p, ptSessions: next, membershipEnd: calcEndDateByPT(p.membershipStart, next) };
+                          })}
+                          className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                            form.ptSessions === preset
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "border-border text-muted-foreground hover:border-primary/40"
+                          }`}
+                        >
+                          {preset}회
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </>
+              )}
 
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">결제방법</Label>
-                  <Select
-                    value={form.paymentMethod}
-                    onValueChange={(v) => setForm((p) => ({ ...p, paymentMethod: v as any }))}
-                  >
-                    <SelectTrigger className="bg-input border-border">
-                      <SelectValue placeholder="결제방법 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="현금영수증">현금영수증</SelectItem>
-                      <SelectItem value="이체">이체</SelectItem>
-                      <SelectItem value="지역화폐">지역화폐</SelectItem>
-                      <SelectItem value="카드">카드</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* 결제 정보 (신규 등록 시) */}
+              {!isEdit && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="paymentAmount" className="text-sm text-muted-foreground">결제 금액</Label>
+                      <Input id="paymentAmount" type="number" min="0" placeholder="0" value={form.paymentAmount}
+                        onChange={(e) => setForm((p) => ({ ...p, paymentAmount: e.target.value }))} className="bg-input border-border" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="unpaidAmount" className="text-sm text-muted-foreground">미수금 금액</Label>
+                      <Input id="unpaidAmount" type="number" min="0" placeholder="0" value={form.unpaidAmount}
+                        onChange={(e) => setForm((p) => ({ ...p, unpaidAmount: e.target.value }))} className="bg-input border-border" />
+                    </div>
+                  </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="paymentDate" className="text-sm text-muted-foreground">결제일자</Label>
-                  <Input id="paymentDate" type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} className="bg-input border-border"/>
-                </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm text-muted-foreground">결제방법</Label>
+                    <Select value={form.paymentMethod} onValueChange={(v) => setForm((p) => ({ ...p, paymentMethod: v as any }))}>
+                      <SelectTrigger className="bg-input border-border">
+                        <SelectValue placeholder="결제방법 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="현금영수증">현금영수증</SelectItem>
+                        <SelectItem value="이체">이체</SelectItem>
+                        <SelectItem value="지역화폐">지역화폐</SelectItem>
+                        <SelectItem value="카드">카드</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="paymentMemo" className="text-sm text-muted-foreground">결제 메모</Label>
-                  <Input id="paymentMemo" type="text" placeholder="분납 등 메모" value={form.paymentMemo} onChange={(e) => setForm((p) => ({ ...p, paymentMemo: e.target.value }))} className="bg-input border-border"/>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="paymentDate" className="text-sm text-muted-foreground">결제일자</Label>
+                    <Input id="paymentDate" type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} className="bg-input border-border"/>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="paymentMemo" className="text-sm text-muted-foreground">결제 메모</Label>
+                    <Input id="paymentMemo" type="text" placeholder="분납 등 메모" value={form.paymentMemo} onChange={(e) => setForm((p) => ({ ...p, paymentMemo: e.target.value }))} className="bg-input border-border"/>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex gap-3 pb-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1"
-            onClick={() => setLocation(isEdit ? `/members/${memberId}` : "/members")}
-          >
+          <Button type="button" variant="outline" className="flex-1"
+            onClick={() => setLocation(isEdit ? `/members/${memberId}` : "/members")}>
             취소
           </Button>
           <Button type="submit" className="flex-1" disabled={isPending}>
