@@ -626,6 +626,9 @@ export const accessRouter = t.router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       memo: z.string().optional(),
+      memberType: z.string().optional(),
+      rentalType: z.string().optional(),
+      isPaid: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -645,6 +648,9 @@ export const accessRouter = t.router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       memo: z.string().optional(),
+      memberType: z.string().optional(),
+      rentalType: z.string().optional(),
+      isPaid: z.number().optional(),
       isActive: z.number().optional(),
     }))
     .mutation(async ({ input }) => {

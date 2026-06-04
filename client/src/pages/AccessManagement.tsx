@@ -170,6 +170,7 @@ export default function AccessManagement() {
   const [uniformForm, setUniformForm] = useState({
     memberName: "", memberPhone: "", size: "", quantity: "1",
     startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "",
+    memberType: "existing", rentalType: "paid", isPaid: "1",
   });
 
   const utils = trpc.useUtils();
@@ -254,7 +255,7 @@ export default function AccessManagement() {
   });
 
   function resetUniformForm() {
-    setUniformForm({ memberName: "", memberPhone: "", size: "", quantity: "1", startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "" });
+    setUniformForm({ memberName: "", memberPhone: "", size: "", quantity: "1", startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "", memberType: "existing", rentalType: "paid", isPaid: "1" });
   }
   function openEditUniform(u: any) {
     setEditingUniform(u);
@@ -262,6 +263,7 @@ export default function AccessManagement() {
       memberName: u.memberName ?? "", memberPhone: u.memberPhone ?? "",
       size: u.size ?? "", quantity: String(u.quantity ?? 1),
       startDate: u.startDate ?? "", endDate: u.endDate ?? "", memo: u.memo ?? "",
+      memberType: u.memberType ?? "existing", rentalType: u.rentalType ?? "paid", isPaid: String(u.isPaid ?? 1),
     });
     setShowUniformForm(true);
   }
@@ -274,6 +276,9 @@ export default function AccessManagement() {
       startDate: uniformForm.startDate || undefined,
       endDate: uniformForm.endDate || undefined,
       memo: uniformForm.memo || undefined,
+      memberType: uniformForm.memberType || undefined,
+      rentalType: uniformForm.rentalType || undefined,
+      isPaid: uniformForm.rentalType === "service" ? 1 : parseInt(uniformForm.isPaid) || 0,
     };
     if (editingUniform) {
       updateUniform.mutate({ id: editingUniform.id, ...payload });
@@ -801,8 +806,17 @@ export default function AccessManagement() {
                             <span className="font-medium text-sm text-foreground">{u.memberName || "—"}</span>
                             {u.size && <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium">{u.size}</span>}
                             {u.quantity > 1 && <span className="text-xs text-muted-foreground">×{u.quantity}</span>}
+                            {u.memberType === "new" && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">신규</span>}
+                            {u.memberType === "existing" && <span className="text-xs px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 font-medium">기존</span>}
+                            {u.rentalType === "service" ? (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-medium">서비스</span>
+                            ) : u.isPaid === 1 ? (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-medium">결제완료</span>
+                            ) : (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 font-medium">미결제</span>
+                            )}
                             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${isActive ? (isExpired ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400") : "bg-muted text-muted-foreground"}`}>
-                              {isActive ? (isExpired ? "기간 만료" : "사용 중") : "반납"}
+                              {isActive ? (isExpired ? "기간 만료" : "착용 중") : "반납"}
                             </span>
                           </div>
                           {u.memberPhone && <div className="text-xs text-muted-foreground">{u.memberPhone}</div>}
@@ -851,6 +865,47 @@ export default function AccessManagement() {
                     <h3 className="font-semibold text-foreground">{editingUniform ? "운동복 수정" : "운동복 추가"}</h3>
                     <button onClick={() => { setShowUniformForm(false); setEditingUniform(null); }} className="text-muted-foreground hover:text-foreground">✕</button>
                   </div>
+                  {/* 회원 구분 */}
+                  <div>
+                    <label className="text-xs text-muted-foreground">회원 구분</label>
+                    <div className="flex gap-2 mt-1">
+                      {[{ v: "existing", label: "기존회원" }, { v: "new", label: "신규회원" }].map(opt => (
+                        <button key={opt.v} type="button"
+                          onClick={() => setUniformForm(f => ({ ...f, memberType: opt.v }))}
+                          className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.memberType === opt.v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* 대여 유형 */}
+                  <div>
+                    <label className="text-xs text-muted-foreground">대여 유형</label>
+                    <div className="flex gap-2 mt-1">
+                      {[{ v: "paid", label: "결제 대여" }, { v: "service", label: "서비스 제공" }].map(opt => (
+                        <button key={opt.v} type="button"
+                          onClick={() => setUniformForm(f => ({ ...f, rentalType: opt.v, isPaid: opt.v === "service" ? "1" : f.isPaid }))}
+                          className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.rentalType === opt.v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* 결제 여부 (결제 대여일 때만) */}
+                  {uniformForm.rentalType === "paid" && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">결제 여부</label>
+                      <div className="flex gap-2 mt-1">
+                        {[{ v: "1", label: "결제 완료" }, { v: "0", label: "미결제" }].map(opt => (
+                          <button key={opt.v} type="button"
+                            onClick={() => setUniformForm(f => ({ ...f, isPaid: opt.v }))}
+                            className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.isPaid === opt.v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs text-muted-foreground">이름</label>

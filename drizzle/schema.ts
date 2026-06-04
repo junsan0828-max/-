@@ -485,6 +485,9 @@ export const uniforms = pgTable("uniforms", {
   startDate: text("startDate"),
   endDate: text("endDate"),
   memo: text("memo"),
+  memberType: text("memberType"),  // 'new' | 'existing'
+  rentalType: text("rentalType"),  // 'service' | 'paid'
+  isPaid: integer("isPaid").default(0), // 1=결제완료, 0=미결제
   isActive: integer("isActive").default(1).notNull(), // 1=사용중, 0=반납
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
