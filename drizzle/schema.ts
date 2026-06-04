@@ -655,3 +655,26 @@ export const transferTerms = pgTable("transfer_terms", {
   content: text("content").notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
+
+// 컨설턴트 월간 데이터 기록
+export const consultantRecords = pgTable("consultant_records", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  branchId: integer("branchId"),
+  createdBy: integer("createdBy"),
+  // 마케팅 콘텐츠
+  blogPosts: integer("blogPosts").default(0),
+  instagramPosts: integer("instagramPosts").default(0),
+  youtubeVideos: integer("youtubeVideos").default(0),
+  offlineEvents: integer("offlineEvents").default(0),
+  referralCount: integer("referralCount").default(0),
+  snsFollowers: integer("snsFollowers"),
+  adSpend: integer("adSpend").default(0),
+  // 운영
+  churnCount: integer("churnCount").default(0),
+  churnReasons: text("churnReasons"),  // JSON 배열 문자열
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});

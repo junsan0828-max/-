@@ -1,6 +1,7 @@
 import { gymRouter } from "./gymRouters";
 import { accessRouter } from "./accessRouter";
 import { transferRouter } from "./transferRouter";
+import { consultantRecordsRouter } from "./consultantRecordsRouter";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
@@ -4930,6 +4931,7 @@ export const appRouter = t.router({
   transfer: transferRouter,
   eventPrograms: eventProgramsRouter,
   landing: landingRouter,
+  consultantRecords: consultantRecordsRouter,
 });
 
 export type AppRouter = typeof appRouter;

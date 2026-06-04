@@ -722,6 +722,31 @@ async function initDatabase() {
   }
   console.log("✅ 랜딩 페이지 테이블 준비 완료");
 
+  // 컨설턴트 데이터 기록 테이블
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS consultant_records (
+      id SERIAL PRIMARY KEY,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      "branchId" INTEGER,
+      "createdBy" INTEGER,
+      "blogPosts" INTEGER DEFAULT 0,
+      "instagramPosts" INTEGER DEFAULT 0,
+      "youtubeVideos" INTEGER DEFAULT 0,
+      "offlineEvents" INTEGER DEFAULT 0,
+      "referralCount" INTEGER DEFAULT 0,
+      "snsFollowers" INTEGER,
+      "adSpend" INTEGER DEFAULT 0,
+      "churnCount" INTEGER DEFAULT 0,
+      "churnReasons" TEXT,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text,
+      UNIQUE(year, month, "branchId", "createdBy")
+    )
+  `);
+  console.log("✅ 컨설턴트 기록 테이블 준비 완료");
+
   console.log("✅ 테이블 준비 완료");
 
   // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────

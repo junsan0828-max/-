@@ -318,6 +318,7 @@ function MarketingTab() {
 
   const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, month });
   const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
+  const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
 
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
@@ -404,16 +405,61 @@ function MarketingTab() {
           </div>
         </div>
       )}
+
+      {/* 컨설턴트 기록: 콘텐츠 실적 */}
+      {consultantData && consultantData.length > 0 && (() => {
+        const agg = consultantData.reduce((s: any, r: any) => ({
+          blogPosts: s.blogPosts + (r.blogPosts ?? 0),
+          instagramPosts: s.instagramPosts + (r.instagramPosts ?? 0),
+          youtubeVideos: s.youtubeVideos + (r.youtubeVideos ?? 0),
+          offlineEvents: s.offlineEvents + (r.offlineEvents ?? 0),
+          referralCount: s.referralCount + (r.referralCount ?? 0),
+          adSpend: s.adSpend + (r.adSpend ?? 0),
+          snsFollowers: Math.max(s.snsFollowers ?? 0, r.snsFollowers ?? 0),
+        }), { blogPosts: 0, instagramPosts: 0, youtubeVideos: 0, offlineEvents: 0, referralCount: 0, adSpend: 0, snsFollowers: 0 });
+
+        const items = [
+          { label: "블로그 포스팅", value: agg.blogPosts, unit: "건" },
+          { label: "인스타그램 게시물", value: agg.instagramPosts, unit: "건" },
+          { label: "유튜브 영상", value: agg.youtubeVideos, unit: "건" },
+          { label: "오프라인 이벤트", value: agg.offlineEvents, unit: "건" },
+          { label: "지인 추천", value: agg.referralCount, unit: "건" },
+          { label: "광고 집행", value: agg.adSpend.toLocaleString(), unit: "원" },
+          ...(agg.snsFollowers > 0 ? [{ label: "SNS 팔로워", value: agg.snsFollowers.toLocaleString(), unit: "명" }] : []),
+        ].filter(i => Number(String(i.value).replace(/,/g, "")) > 0);
+
+        if (!items.length) return null;
+        return (
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+              <Megaphone className="h-4 w-4 text-violet-400" /> 콘텐츠 · 마케팅 실적
+              <span className="text-xs text-muted-foreground font-normal">(컨설턴트 기록)</span>
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {items.map(i => (
+                <div key={i.label} className="bg-card border border-border rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground mb-1">{i.label}</p>
+                  <p className="text-lg font-bold text-violet-400">{i.value}<span className="text-xs font-normal ml-1">{i.unit}</span></p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
 // ── 센터 운영 탭 ──────────────────────────────────────────────────────────────
 function OperationsTab() {
+  const now = new Date();
+  const [year] = useState(now.getFullYear());
+  const [month] = useState(now.getMonth() + 1);
   const { data: trainerList } = trpc.trainers.list.useQuery();
   const { data: lockers } = trpc.access.getLockers.useQuery();
   const { data: uniforms } = trpc.access.getUniforms.useQuery({ activeOnly: true });
   const { data: hourStats } = trpc.access.getAccessHourStats.useQuery();
+  const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
 
   const allLockers = (lockers ?? []) as any[];
   const occupied = allLockers.filter(l => l.isOccupied === 1);
@@ -540,6 +586,47 @@ function OperationsTab() {
           </div>
         )}
       </div>
+
+      {/* 컨설턴트 기록: 해지 현황 */}
+      {consultantData && consultantData.length > 0 && (() => {
+        const totalChurn = consultantData.reduce((s: number, r: any) => s + (r.churnCount ?? 0), 0);
+        const allReasons = consultantData.flatMap((r: any) => r.churnReasons ?? []);
+        const reasonCounts: Record<string, number> = {};
+        allReasons.forEach((reason: string) => { reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1; });
+        const memos = consultantData.filter((r: any) => r.memo).map((r: any) => ({ name: r.creatorName, memo: r.memo }));
+        if (totalChurn === 0 && !memos.length) return null;
+        return (
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+              <Activity className="h-4 w-4 text-amber-400" /> 해지 현황
+              <span className="text-xs text-muted-foreground font-normal">(컨설턴트 기록)</span>
+            </h3>
+            {totalChurn > 0 && (
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">해지 상담 건수</span>
+                  <span className="text-lg font-bold text-red-400">{totalChurn}건</span>
+                </div>
+                {Object.keys(reasonCounts).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]).map(([r, c]) => (
+                      <span key={r} className="text-xs px-2.5 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">
+                        {r} {c > 1 ? `×${c}` : ""}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {memos.map((m: any, i: number) => (
+              <div key={i} className="bg-card border border-border rounded-xl px-4 py-3">
+                <p className="text-xs text-muted-foreground mb-1">{m.name} · 메모</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{m.memo}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
