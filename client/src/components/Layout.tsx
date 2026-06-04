@@ -8,6 +8,7 @@ import {
   TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, BookOpen, Menu, ExternalLink, ClipboardList, ClipboardPlus, UsersRound, Database, PenLine,
 } from "lucide-react";
 import Logo from "./Logo";
+import NoticeLoginPopup from "./NoticeLoginPopup";
 
 const GYMPLUS_URL_KEY = "ziantgym_gymplus_url";
 const GYMPLUS_URL_DEFAULT = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
@@ -302,6 +303,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </main>
+        <NoticeLoginPopup />
 
       </div>
     </div>
