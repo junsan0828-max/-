@@ -64,7 +64,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
     { path: "/work-management", label: "업무 관리", icon: ClipboardList },
     { path: "/data-management", label: "데이터 관리", icon: Database },
-    { path: "/marketing", label: "마케팅 관리", icon: Megaphone },
     { path: "/team-management", label: "팀 관리", icon: UsersRound },
     { path: "/ai-analysis", label: "AI 분석 기능", icon: BrainCircuit },
     { path: "/admin", label: "관리자 설정", icon: Settings },
