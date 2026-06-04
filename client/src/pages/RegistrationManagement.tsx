@@ -13,6 +13,8 @@ import {
   UserPlus,
   RefreshCw,
   Gift,
+  CalendarDays,
+  Key,
 } from "lucide-react";
 
 type Branch = { id: number; name: string };
@@ -70,6 +72,26 @@ export default function RegistrationManagement() {
     memberType: "existing", rentalType: "paid", isPaid: "1", paymentAmount: "",
   });
   const [uniformMemberSearch, setUniformMemberSearch] = useState("");
+
+  // 간편 등록 state
+  type QuickModal = null | "locker" | "uniform" | "daypass";
+  const [quickModal, setQuickModal] = useState<QuickModal>(null);
+  const todayStr = new Date().toISOString().substring(0, 10);
+  const [lockerForm, setLockerForm] = useState({
+    memberId: "", memberName: "", memberPhone: "",
+    memberSearch: "", lockerId: "",
+    months: 1, customAmount: false, amount: 5000,
+    paymentMethod: "카드", startDate: todayStr,
+  });
+  const [uniformQForm, setUniformQForm] = useState({
+    memberId: "", memberName: "", memberPhone: "",
+    memberSearch: "",
+    months: 1, customAmount: false, amount: 10000,
+    paymentMethod: "카드", startDate: todayStr,
+  });
+  const [dayPassForm, setDayPassForm] = useState({
+    name: "", phone: "", amount: "", paymentMethod: "카드",
+  });
 
   const utils = trpc.useUtils();
 
@@ -136,6 +158,91 @@ export default function RegistrationManagement() {
   const returnUniform = trpc.access.updateUniform.useMutation({
     onSuccess: () => { utils.access.getUniforms.invalidate(); toast.success("반납 처리 완료"); },
   });
+
+  const purchaseLockerMutation = trpc.access.purchaseLocker.useMutation({
+    onSuccess: () => {
+      utils.access.getLockers.invalidate();
+      setQuickModal(null);
+      setLockerForm({ memberId: "", memberName: "", memberPhone: "", memberSearch: "", lockerId: "", months: 1, customAmount: false, amount: 5000, paymentMethod: "카드", startDate: new Date().toISOString().substring(0, 10) });
+      toast.success("락커 구매 완료");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const createUniformQuickMutation = trpc.access.createUniform.useMutation({
+    onSuccess: () => {
+      utils.access.getUniforms.invalidate();
+      setQuickModal(null);
+      setUniformQForm({ memberId: "", memberName: "", memberPhone: "", memberSearch: "", months: 1, customAmount: false, amount: 10000, paymentMethod: "카드", startDate: new Date().toISOString().substring(0, 10) });
+      toast.success("운동복 대여 완료");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const createDayPassMutation = trpc.gym.revenue.create.useMutation({
+    onSuccess: () => {
+      setQuickModal(null);
+      setDayPassForm({ name: "", phone: "", amount: "", paymentMethod: "카드" });
+      toast.success("1일권 등록 완료");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function addMonths(dateStr: string, months: number): string {
+    const d = new Date(dateStr);
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().substring(0, 10);
+  }
+
+  function submitLockerPurchase() {
+    if (!lockerForm.memberId) { toast.error("회원을 선택하세요"); return; }
+    if (!lockerForm.lockerId) { toast.error("락커를 선택하세요"); return; }
+    if (!lockerForm.amount) { toast.error("금액을 입력하세요"); return; }
+    purchaseLockerMutation.mutate({
+      lockerId: parseInt(lockerForm.lockerId),
+      memberId: parseInt(lockerForm.memberId),
+      memberName: lockerForm.memberName,
+      memberPhone: lockerForm.memberPhone || undefined,
+      months: lockerForm.months,
+      amount: lockerForm.amount,
+      paymentMethod: lockerForm.paymentMethod || undefined,
+      startDate: lockerForm.startDate,
+      endDate: addMonths(lockerForm.startDate, lockerForm.months),
+    });
+  }
+
+  function submitUniformQuick() {
+    if (!uniformQForm.memberId) { toast.error("회원을 선택하세요"); return; }
+    if (!uniformQForm.amount) { toast.error("금액을 입력하세요"); return; }
+    createUniformQuickMutation.mutate({
+      memberId: parseInt(uniformQForm.memberId),
+      memberName: uniformQForm.memberName,
+      memberPhone: uniformQForm.memberPhone || undefined,
+      memberType: "existing",
+      rentalType: "paid",
+      isPaid: 1,
+      paymentAmount: uniformQForm.amount,
+      startDate: uniformQForm.startDate,
+      endDate: addMonths(uniformQForm.startDate, uniformQForm.months),
+      branchId: selectedBranch ?? undefined,
+    });
+  }
+
+  function submitDayPass() {
+    if (!dayPassForm.name.trim()) { toast.error("이름을 입력하세요"); return; }
+    if (!dayPassForm.amount) { toast.error("금액을 입력하세요"); return; }
+    createDayPassMutation.mutate({
+      customerName: dayPassForm.name.trim(),
+      phone: dayPassForm.phone || undefined,
+      programDetail: "1일권",
+      type: "기타",
+      subType: "신규",
+      amount: parseInt(dayPassForm.amount),
+      discountAmount: 0,
+      paidAmount: parseInt(dayPassForm.amount),
+      unpaidAmount: 0,
+      paymentMethod: dayPassForm.paymentMethod || undefined,
+      paymentDate: new Date().toISOString().substring(0, 10),
+    });
+  }
 
   // 운동복 헬퍼
   function resetUniformForm() {
@@ -247,31 +354,347 @@ export default function RegistrationManagement() {
 
       {/* 탭 1: 회원 등록 */}
       {tab === "members" && (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">회원 등록을 진행합니다.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button
-              onClick={() => setLocation("/members/new")}
-              className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
-            >
-              <div className="p-4 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                <UserPlus className="h-8 w-8 text-primary" />
-              </div>
-              <span className="text-base font-semibold text-foreground">신규 회원 등록</span>
-              <span className="text-xs text-muted-foreground text-center">새로운 회원을 등록합니다</span>
-            </button>
-
-            <button
-              onClick={() => setLocation("/members/re-register")}
-              className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
-            >
-              <div className="p-4 rounded-full bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
-                <RefreshCw className="h-8 w-8 text-green-500" />
-              </div>
-              <span className="text-base font-semibold text-foreground">재등록</span>
-              <span className="text-xs text-muted-foreground text-center">기존 회원을 재등록합니다</span>
-            </button>
+        <div className="space-y-6">
+          {/* 회원 등록 */}
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-foreground">회원 등록</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                onClick={() => setLocation("/members/new")}
+                className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
+              >
+                <div className="p-4 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  <UserPlus className="h-8 w-8 text-primary" />
+                </div>
+                <span className="text-base font-semibold text-foreground">신규 회원 등록</span>
+                <span className="text-xs text-muted-foreground text-center">새로운 회원을 등록합니다</span>
+              </button>
+              <button
+                onClick={() => setLocation("/members/re-register")}
+                className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
+              >
+                <div className="p-4 rounded-full bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                  <RefreshCw className="h-8 w-8 text-green-500" />
+                </div>
+                <span className="text-base font-semibold text-foreground">재등록</span>
+                <span className="text-xs text-muted-foreground text-center">기존 회원을 재등록합니다</span>
+              </button>
+            </div>
           </div>
+
+          {/* 간편 등록 */}
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-foreground">간편 등록</p>
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={() => { setQuickModal("locker"); setLockerForm(f => ({ ...f, startDate: new Date().toISOString().substring(0, 10) })); }}
+                className="flex flex-col items-center justify-center gap-2 p-5 bg-card border border-border rounded-2xl hover:bg-accent hover:border-amber-500/50 transition-all group"
+              >
+                <div className="p-3 rounded-full bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
+                  <Key className="h-6 w-6 text-amber-500" />
+                </div>
+                <span className="text-sm font-semibold text-foreground">락커 구매</span>
+                <span className="text-xs text-muted-foreground text-center">5,000원/월</span>
+              </button>
+              <button
+                onClick={() => { setQuickModal("uniform"); setUniformQForm(f => ({ ...f, startDate: new Date().toISOString().substring(0, 10) })); }}
+                className="flex flex-col items-center justify-center gap-2 p-5 bg-card border border-border rounded-2xl hover:bg-accent hover:border-purple-500/50 transition-all group"
+              >
+                <div className="p-3 rounded-full bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">
+                  <Shirt className="h-6 w-6 text-purple-500" />
+                </div>
+                <span className="text-sm font-semibold text-foreground">운동복 대여</span>
+                <span className="text-xs text-muted-foreground text-center">10,000원/월</span>
+              </button>
+              <button
+                onClick={() => setQuickModal("daypass")}
+                className="flex flex-col items-center justify-center gap-2 p-5 bg-card border border-border rounded-2xl hover:bg-accent hover:border-blue-500/50 transition-all group"
+              >
+                <div className="p-3 rounded-full bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+                  <CalendarDays className="h-6 w-6 text-blue-500" />
+                </div>
+                <span className="text-sm font-semibold text-foreground">1일권 구매</span>
+                <span className="text-xs text-muted-foreground text-center">직접 입력</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 락커 구매 모달 */}
+          {quickModal === "locker" && (
+            <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setQuickModal(null)}>
+              <div className="bg-card border border-border rounded-2xl w-full max-w-md space-y-4 p-5" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2"><Key className="h-4 w-4 text-amber-500" />락커 구매</h3>
+                  <button onClick={() => setQuickModal(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+                </div>
+
+                {/* 회원 검색 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">회원 검색 *</label>
+                  <input
+                    value={lockerForm.memberSearch}
+                    onChange={e => setLockerForm(f => ({ ...f, memberSearch: e.target.value, memberId: "", memberName: "", memberPhone: "" }))}
+                    placeholder="이름 또는 전화번호"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm"
+                  />
+                  {lockerForm.memberSearch.length >= 1 && !lockerForm.memberId && (() => {
+                    const q = lockerForm.memberSearch.toLowerCase();
+                    const filtered = members.filter(m => m.name.toLowerCase().includes(q) || (m.phone ?? "").includes(q)).slice(0, 6);
+                    return filtered.length > 0 ? (
+                      <div className="mt-1 border border-border rounded-lg overflow-hidden bg-background">
+                        {filtered.map(m => (
+                          <button key={m.id} type="button"
+                            onClick={() => setLockerForm(f => ({ ...f, memberId: String(m.id), memberName: m.name, memberPhone: m.phone ?? "", memberSearch: m.name }))}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent border-b border-border last:border-0">
+                            {m.name} {m.phone && <span className="text-xs text-muted-foreground">{m.phone}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-muted-foreground mt-1 px-1">검색 결과 없음</p>;
+                  })()}
+                  {lockerForm.memberName && <p className="text-xs text-primary mt-1">선택됨: {lockerForm.memberName}</p>}
+                </div>
+
+                {/* 락커 선택 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">락커 선택 *</label>
+                  <select
+                    value={lockerForm.lockerId}
+                    onChange={e => setLockerForm(f => ({ ...f, lockerId: e.target.value }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">-- 사용 가능한 락커 선택 --</option>
+                    {(() => {
+                      const available = lockers.filter(l => !l.isOccupied && (!selectedBranch || l.branchId === selectedBranch));
+                      const grouped = available.reduce((acc, l) => {
+                        const cat = categories.find(c => c.id === l.categoryId);
+                        const key = cat ? `${cat.name}` : "미분류";
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(l);
+                        return acc;
+                      }, {} as Record<string, Locker[]>);
+                      return Object.entries(grouped).map(([catName, items]) => (
+                        <optgroup key={catName} label={`── ${catName} (${items.length}개)`}>
+                          {items.map(l => <option key={l.id} value={l.id}>락커 {l.lockerNumber}</option>)}
+                        </optgroup>
+                      ));
+                    })()}
+                  </select>
+                </div>
+
+                {/* 사용 기간 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">사용 기간</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {[1, 3, 6, 12].map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setLockerForm(f => ({ ...f, months: m, amount: f.customAmount ? f.amount : m * 5000 }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${lockerForm.months === m && !lockerForm.customAmount ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
+                        {m}개월
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 금액 */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-muted-foreground">결제 금액</label>
+                    <button type="button" onClick={() => setLockerForm(f => ({ ...f, customAmount: !f.customAmount, amount: !f.customAmount ? f.amount : f.months * 5000 }))}
+                      className="text-xs text-primary underline">
+                      {lockerForm.customAmount ? "자동 계산" : "직접 입력"}
+                    </button>
+                  </div>
+                  {lockerForm.customAmount ? (
+                    <input type="number" value={lockerForm.amount} onChange={e => setLockerForm(f => ({ ...f, amount: parseInt(e.target.value) || 0 }))}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" placeholder="0" />
+                  ) : (
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 text-sm font-semibold text-amber-400">
+                      {(lockerForm.months * 5000).toLocaleString()}원 ({lockerForm.months}개월 × 5,000원)
+                    </div>
+                  )}
+                </div>
+
+                {/* 결제 방법 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">결제 방법</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {["카드", "현금영수증", "이체", "지역화폐"].map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setLockerForm(f => ({ ...f, paymentMethod: m }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${lockerForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 시작일 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">시작일</label>
+                  <input type="date" value={lockerForm.startDate} onChange={e => setLockerForm(f => ({ ...f, startDate: e.target.value }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setQuickModal(null)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
+                  <button onClick={submitLockerPurchase} disabled={purchaseLockerMutation.isPending}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50">
+                    {purchaseLockerMutation.isPending ? "처리 중..." : "락커 구매"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 운동복 대여 모달 */}
+          {quickModal === "uniform" && (
+            <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setQuickModal(null)}>
+              <div className="bg-card border border-border rounded-2xl w-full max-w-md space-y-4 p-5" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2"><Shirt className="h-4 w-4 text-purple-500" />운동복 대여</h3>
+                  <button onClick={() => setQuickModal(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+                </div>
+
+                {/* 회원 검색 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">회원 검색 *</label>
+                  <input
+                    value={uniformQForm.memberSearch}
+                    onChange={e => setUniformQForm(f => ({ ...f, memberSearch: e.target.value, memberId: "", memberName: "", memberPhone: "" }))}
+                    placeholder="이름 또는 전화번호"
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm"
+                  />
+                  {uniformQForm.memberSearch.length >= 1 && !uniformQForm.memberId && (() => {
+                    const q = uniformQForm.memberSearch.toLowerCase();
+                    const filtered = members.filter(m => m.name.toLowerCase().includes(q) || (m.phone ?? "").includes(q)).slice(0, 6);
+                    return filtered.length > 0 ? (
+                      <div className="mt-1 border border-border rounded-lg overflow-hidden bg-background">
+                        {filtered.map(m => (
+                          <button key={m.id} type="button"
+                            onClick={() => setUniformQForm(f => ({ ...f, memberId: String(m.id), memberName: m.name, memberPhone: m.phone ?? "", memberSearch: m.name }))}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent border-b border-border last:border-0">
+                            {m.name} {m.phone && <span className="text-xs text-muted-foreground">{m.phone}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-muted-foreground mt-1 px-1">검색 결과 없음</p>;
+                  })()}
+                  {uniformQForm.memberName && <p className="text-xs text-primary mt-1">선택됨: {uniformQForm.memberName}</p>}
+                </div>
+
+                {/* 사용 기간 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">사용 기간</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {[1, 3, 6, 12].map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setUniformQForm(f => ({ ...f, months: m, amount: f.customAmount ? f.amount : m * 10000 }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformQForm.months === m && !uniformQForm.customAmount ? "bg-purple-500 text-white border-purple-500" : "border-border text-muted-foreground"}`}>
+                        {m}개월
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 금액 */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-muted-foreground">결제 금액</label>
+                    <button type="button" onClick={() => setUniformQForm(f => ({ ...f, customAmount: !f.customAmount, amount: !f.customAmount ? f.amount : f.months * 10000 }))}
+                      className="text-xs text-primary underline">
+                      {uniformQForm.customAmount ? "자동 계산" : "직접 입력"}
+                    </button>
+                  </div>
+                  {uniformQForm.customAmount ? (
+                    <input type="number" value={uniformQForm.amount} onChange={e => setUniformQForm(f => ({ ...f, amount: parseInt(e.target.value) || 0 }))}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm" placeholder="0" />
+                  ) : (
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-2 text-sm font-semibold text-purple-400">
+                      {(uniformQForm.months * 10000).toLocaleString()}원 ({uniformQForm.months}개월 × 10,000원)
+                    </div>
+                  )}
+                </div>
+
+                {/* 결제 방법 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">결제 방법</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {["카드", "현금영수증", "이체", "지역화폐"].map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setUniformQForm(f => ({ ...f, paymentMethod: m }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformQForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 시작일 */}
+                <div>
+                  <label className="text-xs text-muted-foreground">시작일</label>
+                  <input type="date" value={uniformQForm.startDate} onChange={e => setUniformQForm(f => ({ ...f, startDate: e.target.value }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setQuickModal(null)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
+                  <button onClick={submitUniformQuick} disabled={createUniformQuickMutation.isPending}
+                    className="flex-1 bg-purple-600 hover:bg-purple-500 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50">
+                    {createUniformQuickMutation.isPending ? "처리 중..." : "운동복 대여"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 1일권 모달 */}
+          {quickModal === "daypass" && (
+            <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setQuickModal(null)}>
+              <div className="bg-card border border-border rounded-2xl w-full max-w-md space-y-4 p-5" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2"><CalendarDays className="h-4 w-4 text-blue-500" />1일권 구매</h3>
+                  <button onClick={() => setQuickModal(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted-foreground">이름 *</label>
+                  <input value={dayPassForm.name} onChange={e => setDayPassForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="홍길동" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">연락처</label>
+                  <input value={dayPassForm.phone} onChange={e => setDayPassForm(f => ({ ...f, phone: e.target.value }))}
+                    placeholder="010-0000-0000" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">금액 *</label>
+                  <input type="number" value={dayPassForm.amount} onChange={e => setDayPassForm(f => ({ ...f, amount: e.target.value }))}
+                    placeholder="0" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">결제 방법</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {["카드", "현금영수증", "이체", "지역화폐"].map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setDayPassForm(f => ({ ...f, paymentMethod: m }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${dayPassForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setQuickModal(null)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
+                  <button onClick={submitDayPass} disabled={createDayPassMutation.isPending}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50">
+                    {createDayPassMutation.isPending ? "처리 중..." : "1일권 등록"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

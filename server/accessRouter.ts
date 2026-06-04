@@ -382,6 +382,51 @@ export const accessRouter = t.router({
       return updated;
     }),
 
+  // 락커 구매 (배정 + 장부 자동 생성)
+  purchaseLocker: protectedProcedure
+    .input(z.object({
+      lockerId: z.number(),
+      memberId: z.number(),
+      memberName: z.string(),
+      memberPhone: z.string().optional(),
+      months: z.number(),
+      amount: z.number(),
+      paymentMethod: z.string().optional(),
+      startDate: z.string(),
+      endDate: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [updated] = await db.update(lockers).set({
+        memberId: input.memberId,
+        memberName: input.memberName,
+        memberPhone: input.memberPhone,
+        isOccupied: 1,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(lockers.id, input.lockerId)).returning();
+      await db.insert(revenueEntries).values({
+        memberId: input.memberId,
+        trainerId: null,
+        createdBy: ctx.user.id,
+        customerName: input.memberName,
+        phone: input.memberPhone ?? null,
+        programDetail: `락커 ${input.months}개월`,
+        type: "기타",
+        subType: "신규",
+        amount: input.amount,
+        discountAmount: 0,
+        paidAmount: input.amount,
+        unpaidAmount: 0,
+        paymentMethod: input.paymentMethod ?? undefined,
+        paymentDate: input.startDate,
+        startDate: input.startDate,
+      });
+      return updated;
+    }),
+
   // 락커 반납
   releaseLocker: protectedProcedure
     .input(z.object({ lockerId: z.number() }))
