@@ -498,33 +498,38 @@ function MarketingTab() {
           )}
 
           {/* 채널별 상담 전환 */}
-          {monthStats && Object.keys(monthStats.byChannel ?? {}).length > 0 && (
+          {channels && channels.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
                 <Target className="h-4 w-4 text-violet-400" /> 채널별 상담 전환
               </h3>
               <div className="space-y-1.5">
-                {Object.values(monthStats.byChannel).map((ch: any) => (
-                  <div key={ch.name} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
-                    <p className="text-sm font-medium text-foreground">{ch.name}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">상담 {ch.count}건</span>
-                      <span className="text-xs font-semibold text-emerald-400">등록 {ch.registered}건</span>
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400">
-                        {ch.count > 0 ? Math.round((ch.registered / ch.count) * 100) : 0}%
-                      </span>
+                {channels.map((ch: any) => {
+                  const stat = monthStats?.byChannel?.[ch.id];
+                  const count = stat?.count ?? 0;
+                  const registered = stat?.registered ?? 0;
+                  return (
+                    <div key={ch.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
+                      <p className="text-sm font-medium text-foreground">{ch.name}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">상담 {count}건</span>
+                        <span className="text-xs font-semibold text-emerald-400">등록 {registered}건</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400">
+                          {count > 0 ? Math.round((registered / count) * 100) : 0}%
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* 채널별 상세 */}
-          {channelData.some(c => c.leads > 0 || c.revenue > 0) && (
+          {/* 채널별 성과 */}
+          {channelData.length > 0 && (
             <div className="space-y-2">
-              <h2 className="text-sm font-semibold text-foreground">채널별 상세</h2>
-              {channelData.filter(c => c.leads > 0 || c.revenue > 0).map(ch => {
+              <h2 className="text-sm font-semibold text-foreground">채널별 성과</h2>
+              {channelData.map(ch => {
                 const convRate = ch.leads > 0 ? Math.round((ch.registered / ch.leads) * 100) : 0;
                 return (
                   <div key={ch.id} className="bg-card border border-border rounded-xl p-4">
