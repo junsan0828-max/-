@@ -1698,7 +1698,18 @@ const trainersRouter = t.router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    return db.select().from(trainers).orderBy(trainers.trainerName);
+    const trainerList = await db.select().from(trainers).orderBy(trainers.trainerName);
+    return Promise.all(trainerList.map(async (t) => {
+      const [memberCountResult, settingsResult] = await Promise.all([
+        db.select({ count: sql`COUNT(*)` }).from(members).where(eq(members.trainerId, t.id)),
+        db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, t.id)).limit(1),
+      ]);
+      return {
+        ...t,
+        memberCount: Number((memberCountResult[0] as any)?.count ?? 0),
+        settlementRate: settingsResult[0]?.settlementRate ?? 50,
+      };
+    }));
   }),
 
   getById: protectedProcedure
