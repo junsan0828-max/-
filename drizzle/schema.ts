@@ -480,15 +480,16 @@ export const uniforms = pgTable("uniforms", {
   memberId: integer("memberId"),
   memberName: text("memberName"),
   memberPhone: text("memberPhone"),
-  size: text("size"),           // S / M / L / XL / XXL
+  size: text("size"),
   quantity: integer("quantity").default(1).notNull(),
   startDate: text("startDate"),
   endDate: text("endDate"),
   memo: text("memo"),
-  memberType: text("memberType"),  // 'new' | 'existing'
-  rentalType: text("rentalType"),  // 'service' | 'paid'
+  memberType: text("memberType"),       // 'new' | 'existing'
+  rentalType: text("rentalType"),       // 'service' | 'paid'
   isPaid: integer("isPaid").default(0), // 1=결제완료, 0=미결제
-  isActive: integer("isActive").default(1).notNull(), // 1=사용중, 0=반납
+  paymentAmount: integer("paymentAmount").default(0), // 결제금액
+  isActive: integer("isActive").default(1).notNull(), // 1=착용중, 0=반납
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

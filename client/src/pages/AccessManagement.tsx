@@ -168,10 +168,11 @@ export default function AccessManagement() {
   const [uniformSearch, setUniformSearch] = useState("");
   const [uniformActiveOnly, setUniformActiveOnly] = useState(true);
   const [uniformForm, setUniformForm] = useState({
-    memberName: "", memberPhone: "", size: "", quantity: "1",
+    memberId: "", memberName: "", memberPhone: "",
     startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "",
-    memberType: "existing", rentalType: "paid", isPaid: "1",
+    memberType: "existing", rentalType: "paid", isPaid: "1", paymentAmount: "",
   });
+  const [uniformMemberSearch, setUniformMemberSearch] = useState("");
 
   const utils = trpc.useUtils();
 
@@ -255,30 +256,38 @@ export default function AccessManagement() {
   });
 
   function resetUniformForm() {
-    setUniformForm({ memberName: "", memberPhone: "", size: "", quantity: "1", startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "", memberType: "existing", rentalType: "paid", isPaid: "1" });
+    setUniformForm({ memberId: "", memberName: "", memberPhone: "", startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "", memberType: "existing", rentalType: "paid", isPaid: "1", paymentAmount: "" });
+    setUniformMemberSearch("");
   }
   function openEditUniform(u: any) {
     setEditingUniform(u);
     setUniformForm({
-      memberName: u.memberName ?? "", memberPhone: u.memberPhone ?? "",
-      size: u.size ?? "", quantity: String(u.quantity ?? 1),
+      memberId: String(u.memberId ?? ""), memberName: u.memberName ?? "", memberPhone: u.memberPhone ?? "",
       startDate: u.startDate ?? "", endDate: u.endDate ?? "", memo: u.memo ?? "",
-      memberType: u.memberType ?? "existing", rentalType: u.rentalType ?? "paid", isPaid: String(u.isPaid ?? 1),
+      memberType: u.memberType ?? "existing", rentalType: u.rentalType ?? "paid",
+      isPaid: String(u.isPaid ?? 1), paymentAmount: String(u.paymentAmount ?? ""),
     });
+    setUniformMemberSearch(u.memberName ?? "");
     setShowUniformForm(true);
   }
   function saveUniform() {
+    if (uniformForm.memberType === "existing" && !uniformForm.memberId && !uniformForm.memberName) {
+      toast.error("회원을 선택하세요"); return;
+    }
+    if (uniformForm.memberType === "new" && !uniformForm.memberName) {
+      toast.error("이름을 입력하세요"); return;
+    }
     const payload = {
+      memberId: uniformForm.memberId ? parseInt(uniformForm.memberId) : undefined,
       memberName: uniformForm.memberName || undefined,
       memberPhone: uniformForm.memberPhone || undefined,
-      size: uniformForm.size || undefined,
-      quantity: parseInt(uniformForm.quantity) || 1,
       startDate: uniformForm.startDate || undefined,
       endDate: uniformForm.endDate || undefined,
       memo: uniformForm.memo || undefined,
-      memberType: uniformForm.memberType || undefined,
-      rentalType: uniformForm.rentalType || undefined,
+      memberType: uniformForm.memberType,
+      rentalType: uniformForm.rentalType,
       isPaid: uniformForm.rentalType === "service" ? 1 : parseInt(uniformForm.isPaid) || 0,
+      paymentAmount: uniformForm.rentalType === "paid" && uniformForm.paymentAmount ? parseInt(uniformForm.paymentAmount) : 0,
     };
     if (editingUniform) {
       updateUniform.mutate({ id: editingUniform.id, ...payload });
@@ -871,73 +880,95 @@ export default function AccessManagement() {
                     <div className="flex gap-2 mt-1">
                       {[{ v: "existing", label: "기존회원" }, { v: "new", label: "신규회원" }].map(opt => (
                         <button key={opt.v} type="button"
-                          onClick={() => setUniformForm(f => ({ ...f, memberType: opt.v }))}
+                          onClick={() => { setUniformForm(f => ({ ...f, memberType: opt.v, memberId: "", memberName: "", memberPhone: "" })); setUniformMemberSearch(""); }}
                           className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.memberType === opt.v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
                           {opt.label}
                         </button>
                       ))}
                     </div>
                   </div>
+
+                  {/* 기존회원: 검색 선택 */}
+                  {uniformForm.memberType === "existing" ? (
+                    <div>
+                      <label className="text-xs text-muted-foreground">회원 검색</label>
+                      <input
+                        value={uniformMemberSearch}
+                        onChange={e => { setUniformMemberSearch(e.target.value); setUniformForm(f => ({ ...f, memberId: "", memberName: "", memberPhone: "" })); }}
+                        placeholder="이름 또는 전화번호"
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm"
+                      />
+                      {uniformMemberSearch.length >= 1 && !uniformForm.memberId && (() => {
+                        const q = uniformMemberSearch.toLowerCase();
+                        const filtered = members.filter(m => m.name.toLowerCase().includes(q) || (m.phone ?? "").includes(q)).slice(0, 6);
+                        return filtered.length > 0 ? (
+                          <div className="mt-1 border border-border rounded-lg overflow-hidden bg-background">
+                            {filtered.map(m => (
+                              <button key={m.id} type="button"
+                                onClick={() => { setUniformForm(f => ({ ...f, memberId: String(m.id), memberName: m.name, memberPhone: m.phone ?? "" })); setUniformMemberSearch(m.name); }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-accent border-b border-border last:border-0">
+                                {m.name} {m.phone ? <span className="text-muted-foreground text-xs">{m.phone}</span> : null}
+                              </button>
+                            ))}
+                          </div>
+                        ) : <p className="text-xs text-muted-foreground mt-1 px-1">검색 결과 없음</p>;
+                      })()}
+                      {uniformForm.memberName && (
+                        <p className="text-xs text-primary mt-1 px-1">선택됨: {uniformForm.memberName} {uniformForm.memberPhone}</p>
+                      )}
+                    </div>
+                  ) : (
+                    /* 신규회원: 직접 입력 */
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">이름</label>
+                        <input value={uniformForm.memberName} onChange={e => setUniformForm(f => ({ ...f, memberName: e.target.value }))}
+                          placeholder="홍길동" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">연락처</label>
+                        <input value={uniformForm.memberPhone} onChange={e => setUniformForm(f => ({ ...f, memberPhone: e.target.value }))}
+                          placeholder="010-0000-0000" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+                  )}
+
                   {/* 대여 유형 */}
                   <div>
                     <label className="text-xs text-muted-foreground">대여 유형</label>
                     <div className="flex gap-2 mt-1">
                       {[{ v: "paid", label: "결제 대여" }, { v: "service", label: "서비스 제공" }].map(opt => (
                         <button key={opt.v} type="button"
-                          onClick={() => setUniformForm(f => ({ ...f, rentalType: opt.v, isPaid: opt.v === "service" ? "1" : f.isPaid }))}
+                          onClick={() => setUniformForm(f => ({ ...f, rentalType: opt.v }))}
                           className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.rentalType === opt.v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
                           {opt.label}
                         </button>
                       ))}
                     </div>
                   </div>
-                  {/* 결제 여부 (결제 대여일 때만) */}
+
+                  {/* 결제 대여일 때: 결제여부 + 금액 */}
                   {uniformForm.rentalType === "paid" && (
-                    <div>
-                      <label className="text-xs text-muted-foreground">결제 여부</label>
-                      <div className="flex gap-2 mt-1">
-                        {[{ v: "1", label: "결제 완료" }, { v: "0", label: "미결제" }].map(opt => (
-                          <button key={opt.v} type="button"
-                            onClick={() => setUniformForm(f => ({ ...f, isPaid: opt.v }))}
-                            className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.isPaid === opt.v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                            {opt.label}
-                          </button>
-                        ))}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">결제 여부</label>
+                        <div className="flex gap-1 mt-1">
+                          {[{ v: "1", label: "완료" }, { v: "0", label: "미결제" }].map(opt => (
+                            <button key={opt.v} type="button"
+                              onClick={() => setUniformForm(f => ({ ...f, isPaid: opt.v }))}
+                              className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.isPaid === opt.v ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">결제 금액</label>
+                        <input type="number" min="0" value={uniformForm.paymentAmount} onChange={e => setUniformForm(f => ({ ...f, paymentAmount: e.target.value }))}
+                          placeholder="0" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">이름</label>
-                      <input value={uniformForm.memberName} onChange={e => setUniformForm(f => ({ ...f, memberName: e.target.value }))}
-                        placeholder="홍길동" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">연락처</label>
-                      <input value={uniformForm.memberPhone} onChange={e => setUniformForm(f => ({ ...f, memberPhone: e.target.value }))}
-                        placeholder="010-0000-0000" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">사이즈</label>
-                    <div className="flex gap-2 mt-1">
-                      {SIZES.map(s => (
-                        <button key={s} type="button"
-                          onClick={() => setUniformForm(f => ({ ...f, size: f.size === s ? "" : s }))}
-                          className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformForm.size === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">수량</label>
-                      <input type="number" min="1" value={uniformForm.quantity} onChange={e => setUniformForm(f => ({ ...f, quantity: e.target.value }))}
-                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                    </div>
-                    <div />
-                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs text-muted-foreground">시작일</label>
