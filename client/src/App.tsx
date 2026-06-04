@@ -55,6 +55,7 @@ import TransferPage from "./pages/TransferPage";
 import TrainingManual, { TrainingManualWrite, TrainingManualDetail } from "./pages/TrainingManual";
 import MemberReRegister from "./pages/MemberReRegister";
 import WorkManagementPage from "./pages/WorkManagement";
+import RegistrationManagement from "./pages/RegistrationManagement";
 import Layout from "./components/Layout";
 import GymPlusLogin from "./pages/gym-plus/GymPlusLogin";
 import GymPlusLayout from "./pages/gym-plus/GymPlusLayout";
@@ -208,6 +209,7 @@ function App() {
         <Route path="/training-manual/:id">{(params) => <TrainingManualDetail id={parseInt(params.id!)} />}</Route>
         <Route path="/training-manual">{() => <TrainingManual />}</Route>
         <Route path="/work-management">{() => <WorkManagementPage />}</Route>
+        <Route path="/registration">{() => <RegistrationManagement />}</Route>
         <Route path="/admin">{() => <Admin />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>

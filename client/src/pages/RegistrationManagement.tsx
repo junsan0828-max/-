@@ -1,24 +1,18 @@
 import { useState } from "react";
-import { trpc } from "../lib/trpc";
+import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  DoorOpen,
   Lock,
   Unlock,
   Plus,
   Trash2,
-  RefreshCw,
-  CalendarDays,
   Users,
-  CheckCircle2,
   XCircle,
-  AlertCircle,
-  LogIn,
-  Image,
-  Eye,
-  EyeOff,
   Pencil,
   Shirt,
+  UserPlus,
+  RefreshCw,
 } from "lucide-react";
 
 type Branch = { id: number; name: string };
@@ -46,104 +40,14 @@ type Locker = {
   categoryId: number | null;
 };
 
-type AccessLog = {
-  id: number;
-  memberName: string | null;
-  phone: string;
-  accessResult: string;
-  membershipType: string | null;
-  membershipEnd: string | null;
-  lockerNumber: string | null;
-  accessedAt: string;
-  branchId: number | null;
-};
-
 type Member = { id: number; name: string; phone: string | null };
 
-type KioskBanner = {
-  id: number;
-  title: string;
-  body: string | null;
-  imageUrl: string | null;
-  bgColor: string;
-  textColor: string;
-  isActive: number;
-  sortOrder: number;
-  startDate: string | null;
-  endDate: string | null;
-  textAlign?: string;
-  textVAlign?: string;
-  titleFontSize?: number;
-  bodyFontSize?: number;
-  branchId?: number | null;
-  hasUploadedImage?: boolean;
-  createdAt: string;
-};
-
-function resultLabel(r: string) {
-  switch (r) {
-    case "allowed": return { label: "입장", color: "text-green-400", icon: CheckCircle2 };
-    case "expired": return { label: "만료", color: "text-yellow-400", icon: AlertCircle };
-    case "not_found": return { label: "미등록", color: "text-gray-400", icon: XCircle };
-    case "blocked": return { label: "차단", color: "text-red-400", icon: XCircle };
-    default: return { label: r, color: "text-gray-400", icon: XCircle };
-  }
-}
-
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
-}
-
-function KioskFontSettings() {
-  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(v)));
-  const readF   = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseFloat(s) : def; } catch { return def; } };
-  const readPt  = (key: string, def: number) => { try { const s = localStorage.getItem(key); return s ? parseInt(s) : def; } catch { return def; } };
-
-  const [bannerScale, setBannerScale] = useState(() => readF("kiosk_banner_scale", 1));
-  const [uiBase, setUiBase] = useState(() => readPt("kiosk_ui_base", 80));
-
-  const saveBanner = (val: number) => {
-    const c = Math.max(0.5, Math.min(2.5, Math.round(val * 10) / 10));
-    setBannerScale(c);
-    try { localStorage.setItem("kiosk_banner_scale", String(c)); } catch {}
-  };
-  const saveUi = (val: number) => {
-    const c = clamp(val, 20, 140);
-    setUiBase(c);
-    try {
-      localStorage.setItem("kiosk_ui_base", String(c));
-      localStorage.setItem("kiosk_font_scale", String(c / 80));
-    } catch {}
-  };
-
-  return (
-    <div className="border border-border rounded-xl p-4 bg-card">
-      <label className="text-xs text-muted-foreground mb-2 block">키오스크 글씨 크기</label>
-      <div className="flex gap-6">
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">배너</span>
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveBanner(bannerScale - 0.1)}>-</button>
-          <span className="w-14 text-center text-sm border border-border rounded bg-background py-1">{Math.round(bannerScale * 100)}%</span>
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveBanner(bannerScale + 0.1)}>+</button>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground mr-1 whitespace-nowrap">팝업 이름</span>
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveUi(uiBase - 2)}>-</button>
-          <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={20} max={140} value={uiBase} onChange={(e) => saveUi(Number(e.target.value))} />
-          <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => saveUi(uiBase + 2)}>+</button>
-          <span className="text-xs text-muted-foreground">pt</span>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground mt-2">키오스크 화면을 새로고침하면 적용됩니다.</p>
-    </div>
-  );
-}
-
-export default function AccessManagement() {
-  const [tab, setTab] = useState<"logs" | "lockers" | "uniforms" | "banners">("logs"); // lockers/uniforms → 등록관리로 이전
-  const [logDate, setLogDate] = useState(new Date().toISOString().substring(0, 10));
+export default function RegistrationManagement() {
+  const [, setLocation] = useLocation();
+  const [tab, setTab] = useState<"members" | "lockers" | "uniforms">("members");
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
+
+  // 락커 관리 state
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -153,14 +57,7 @@ export default function AccessManagement() {
   const [showDeleteRange, setShowDeleteRange] = useState(false);
   const [deleteRangeFrom, setDeleteRangeFrom] = useState("");
   const [deleteRangeTo, setDeleteRangeTo] = useState("");
-  const [showBannerForm, setShowBannerForm] = useState(false);
-  const [editingBanner, setEditingBanner] = useState<KioskBanner | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null | "uncat">(null);
-  const [bannerForm, setBannerForm] = useState({
-    title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", titleFontSize: 22, bodyFontSize: 15, branchId: null as number | null,
-  });
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadedBannerId, setUploadedBannerId] = useState<number | null>(null);
 
   // 운동복 관리 state
   const [showUniformForm, setShowUniformForm] = useState(false);
@@ -177,18 +74,25 @@ export default function AccessManagement() {
   const utils = trpc.useUtils();
 
   const branchesQuery = trpc.access.getBranches.useQuery();
-  const todayStats = trpc.access.todayStats.useQuery();
-  const accessLogs = trpc.access.getAccessLogs.useQuery({ date: logDate, limit: 200 });
   const lockersQuery = trpc.access.getLockers.useQuery();
   const membersQuery = trpc.access.getMembersForLocker.useQuery();
-  const bannersQuery = trpc.access.getAllBanners.useQuery();
   const categoriesQuery = trpc.access.getLockerCategories.useQuery();
   const uniformsQuery = trpc.access.getUniforms.useQuery({
     branchId: selectedBranch ?? undefined,
   });
 
+  const branches = (branchesQuery.data ?? []) as Branch[];
   const categories = (categoriesQuery.data ?? []) as LockerCategory[];
+  const allLockers = (lockersQuery.data ?? []) as Locker[];
+  const members = (membersQuery.data ?? []) as Member[];
 
+  const lockers = selectedBranch
+    ? allLockers.filter((l) => l.branchId === selectedBranch)
+    : allLockers;
+
+  const occupiedCount = lockers.filter((l) => l.isOccupied).length;
+
+  // 락커 mutations
   const releaseLocker = trpc.access.releaseLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 반납 완료"); },
   });
@@ -216,30 +120,8 @@ export default function AccessManagement() {
   const setLockerCategory = trpc.access.setLockerCategory.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); setMovingLockerId(null); },
   });
-  const createBanner = trpc.access.createBanner.useMutation({
-    onSuccess: () => { utils.access.getAllBanners.invalidate(); setShowBannerForm(false); resetBannerForm(); toast.success("배너 추가 완료"); },
-  });
-  const updateBanner = trpc.access.updateBanner.useMutation({
-    onSuccess: () => { utils.access.getAllBanners.invalidate(); setEditingBanner(null); resetBannerForm(); toast.success("배너 수정 완료"); },
-  });
-  const deleteBanner = trpc.access.deleteBanner.useMutation({
-    onSuccess: () => { utils.access.getAllBanners.invalidate(); toast.success("배너 삭제 완료"); },
-  });
-  const uploadBannerImage = trpc.access.uploadBannerImage.useMutation({
-    onSuccess: (data, vars) => {
-      utils.access.getAllBanners.invalidate();
-      // 타임스탬프 붙여 브라우저 캐시 즉시 무효화
-      setBannerForm((f) => ({ ...f, imageUrl: `${data.imageUrl}?t=${Date.now()}` }));
-      setUploadedBannerId(vars.id);
-      setUploadingImage(false);
-      toast.success("이미지 업로드 완료");
-    },
-    onError: () => { setUploadingImage(false); toast.error("이미지 업로드 실패"); },
-  });
-  const clearBannerImage = trpc.access.clearBannerImage.useMutation({
-    onSuccess: () => { utils.access.getAllBanners.invalidate(); setBannerForm((f) => ({ ...f, imageUrl: "" })); toast.success("이미지 삭제 완료"); },
-  });
 
+  // 운동복 mutations
   const createUniform = trpc.access.createUniform.useMutation({
     onSuccess: () => { utils.access.getUniforms.invalidate(); setShowUniformForm(false); resetUniformForm(); toast.success("운동복 추가 완료"); },
     onError: (e) => toast.error(e.message),
@@ -255,6 +137,7 @@ export default function AccessManagement() {
     onSuccess: () => { utils.access.getUniforms.invalidate(); toast.success("반납 처리 완료"); },
   });
 
+  // 운동복 헬퍼
   function resetUniformForm() {
     setUniformForm({ memberId: "", memberName: "", memberPhone: "", startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "", memberType: "existing", rentalType: "paid", isPaid: "1", paymentAmount: "" });
     setUniformMemberSearch("");
@@ -296,86 +179,9 @@ export default function AccessManagement() {
     }
   }
 
-  function resetBannerForm() {
-    setBannerForm({ title: "", body: "", imageUrl: "", bgColor: "#1a3a6e", textColor: "#ffffff", sortOrder: 0, startDate: "", endDate: "", textAlign: "center", textVAlign: "center", titleFontSize: 22, bodyFontSize: 15, branchId: null });
-    setUploadedBannerId(null);
-  }
-  function openEditBanner(b: KioskBanner) {
-    setEditingBanner(b);
-    setBannerForm({
-      title: b.title, body: b.body ?? "", imageUrl: b.imageUrl ?? "",
-      bgColor: b.bgColor, textColor: b.textColor, sortOrder: b.sortOrder,
-      startDate: b.startDate ?? "", endDate: b.endDate ?? "",
-      textAlign: (b as any).textAlign ?? "center",
-      textVAlign: (b as any).textVAlign ?? "center",
-      titleFontSize: (b as any).titleFontSize ?? 22,
-      bodyFontSize: (b as any).bodyFontSize ?? 15,
-      branchId: (b as any).branchId ?? null,
-    });
-  }
-  function saveBanner() {
-    const payload = {
-      title: bannerForm.title,
-      body: bannerForm.body || undefined,
-      imageUrl: bannerForm.imageUrl || undefined,
-      bgColor: bannerForm.bgColor,
-      textColor: bannerForm.textColor,
-      sortOrder: bannerForm.sortOrder,
-      startDate: bannerForm.startDate || undefined,
-      endDate: bannerForm.endDate || undefined,
-      textAlign: bannerForm.textAlign,
-      textVAlign: bannerForm.textVAlign,
-      titleFontSize: bannerForm.titleFontSize,
-      bodyFontSize: bannerForm.bodyFontSize,
-      branchId: bannerForm.branchId,
-    };
-    if (editingBanner) {
-      updateBanner.mutate({ id: editingBanner.id, ...payload });
-    } else {
-      createBanner.mutate(payload);
-    }
-  }
-
-  const branches = (branchesQuery.data ?? []) as Branch[];
-  const allLockers = (lockersQuery.data ?? []) as Locker[];
-  const allLogs = (accessLogs.data ?? []) as AccessLog[];
-  const members = (membersQuery.data ?? []) as Member[];
-
-  const lockers = selectedBranch
-    ? allLockers.filter((l) => l.branchId === selectedBranch)
-    : allLockers;
-  const logs = selectedBranch
-    ? allLogs.filter((l) => l.branchId === selectedBranch)
-    : allLogs;
-
-  const occupiedCount = lockers.filter((l) => l.isOccupied).length;
-
-  // 지점 필터가 걸린 경우 해당 지점 통계를 logs에서 계산
-  const stats = selectedBranch
-    ? {
-        total: logs.length,
-        allowed: logs.filter((l) => l.accessResult === "allowed").length,
-        denied: logs.filter((l) => l.accessResult !== "allowed").length,
-      }
-    : todayStats.data ?? { total: 0, allowed: 0, denied: 0 };
-
   return (
-    <div className="p-4 max-w-4xl mx-auto space-y-4">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <DoorOpen className="h-5 w-5 text-primary" />
-          출입 관리
-        </h1>
-        <a
-          href="/kiosk"
-          target="_blank"
-          className="flex items-center gap-1.5 text-sm bg-primary/20 text-primary px-3 py-1.5 rounded-lg hover:bg-primary/30 transition-colors"
-        >
-          <LogIn className="h-4 w-4" />
-          키오스크 열기
-        </a>
-      </div>
+    <div className="p-4 space-y-4">
+      <h1 className="text-xl font-bold text-foreground">등록 관리</h1>
 
       {/* 지점 필터 */}
       {branches.length > 0 && (
@@ -406,136 +212,77 @@ export default function AccessManagement() {
         </div>
       )}
 
-      {/* 오늘 통계 */}
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard
-          label={selectedBranch ? `${branches.find(b => b.id === selectedBranch)?.name} 출입` : "오늘 총 출입"}
-          value={stats.total}
-          icon={<Users className="h-4 w-4" />}
-          color="text-primary"
-        />
-        <StatCard
-          label="입장 허가"
-          value={stats.allowed}
-          icon={<CheckCircle2 className="h-4 w-4" />}
-          color="text-green-400"
-        />
-        <StatCard
-          label="입장 거부"
-          value={stats.denied}
-          icon={<XCircle className="h-4 w-4" />}
-          color="text-red-400"
-        />
-      </div>
-
-      {/* 탭 (락커·운동복은 등록관리로 이전) */}
+      {/* 탭 헤더 */}
       <div className="flex gap-0 rounded-lg overflow-hidden border border-border">
-        {(["logs", "banners"] as const).map((t, i, arr) => (
+        {(["members", "lockers", "uniforms"] as const).map((t, i, arr) => (
           <button
             key={t}
-            onClick={() => setTab(t as any)}
+            onClick={() => setTab(t)}
             className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
               tab === t
                 ? "bg-primary/20 text-primary"
                 : "text-muted-foreground hover:bg-accent"
             } ${i < arr.length - 1 ? "border-r border-border" : ""}`}
           >
-            {t === "logs" ? (
+            {t === "members" ? (
               <span className="flex items-center justify-center gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5" /> 출입 로그
+                <UserPlus className="h-3.5 w-3.5" /> 회원 등록
+              </span>
+            ) : t === "lockers" ? (
+              <span className="flex items-center justify-center gap-1.5">
+                <Lock className="h-3.5 w-3.5" /> 락커 관리 ({occupiedCount}/{lockers.length})
               </span>
             ) : (
               <span className="flex items-center justify-center gap-1.5">
-                <Image className="h-3.5 w-3.5" /> 배너 관리
+                <Shirt className="h-3.5 w-3.5" /> 운동복 관리
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {/* 출입 로그 */}
-      {tab === "logs" && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={logDate}
-              onChange={(e) => setLogDate(e.target.value)}
-              className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background"
-            />
+      {/* 탭 1: 회원 등록 */}
+      {tab === "members" && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">회원 등록 및 상담 등록을 진행합니다.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button
-              onClick={() => utils.access.getAccessLogs.invalidate()}
-              className="p-2 rounded-lg hover:bg-accent transition-colors"
+              onClick={() => setLocation("/members/new")}
+              className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
             >
-              <RefreshCw className="h-4 w-4 text-muted-foreground" />
+              <div className="p-4 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                <UserPlus className="h-8 w-8 text-primary" />
+              </div>
+              <span className="text-base font-semibold text-foreground">신규 회원 등록</span>
+              <span className="text-xs text-muted-foreground text-center">새로운 회원을 등록합니다</span>
             </button>
-            <span className="text-sm text-muted-foreground">{logs.length}건</span>
-          </div>
 
-          <div className="rounded-xl border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left px-3 py-2.5 text-muted-foreground font-medium">시간</th>
-                  <th className="text-left px-3 py-2.5 text-muted-foreground font-medium">이름</th>
-                  <th className="text-left px-3 py-2.5 text-muted-foreground font-medium hidden sm:table-cell">전화번호</th>
-                  <th className="text-left px-3 py-2.5 text-muted-foreground font-medium">결과</th>
-                  <th className="text-left px-3 py-2.5 text-muted-foreground font-medium hidden sm:table-cell">회원권</th>
-                  {branches.length > 0 && (
-                    <th className="text-left px-3 py-2.5 text-muted-foreground font-medium hidden md:table-cell">지점</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {logs.length === 0 ? (
-                  <tr>
-                    <td colSpan={branches.length > 0 ? 6 : 5} className="text-center py-10 text-muted-foreground">
-                      출입 기록이 없습니다.
-                    </td>
-                  </tr>
-                ) : (
-                  logs.map((log) => {
-                    const res = resultLabel(log.accessResult);
-                    const ResIcon = res.icon;
-                    const branchName = branches.find((b) => b.id === log.branchId)?.name;
-                    return (
-                      <tr key={log.id} className="border-t border-border hover:bg-accent/30 transition-colors">
-                        <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">
-                          {formatTime(log.accessedAt)}
-                        </td>
-                        <td className="px-3 py-2.5 font-medium">
-                          {log.memberName ?? <span className="text-muted-foreground text-xs">미등록</span>}
-                        </td>
-                        <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell">{log.phone}</td>
-                        <td className="px-3 py-2.5">
-                          <span className={`flex items-center gap-1 ${res.color}`}>
-                            <ResIcon className="h-3.5 w-3.5" />
-                            {res.label}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-muted-foreground hidden sm:table-cell">
-                          {log.membershipType ?? "-"}
-                        </td>
-                        {branches.length > 0 && (
-                          <td className="px-3 py-2.5 text-muted-foreground hidden md:table-cell">
-                            {branchName ? (
-                              <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary font-medium">
-                                {branchName}
-                              </span>
-                            ) : "-"}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+            <button
+              onClick={() => setLocation("/members/re-register")}
+              className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
+            >
+              <div className="p-4 rounded-full bg-green-500/10 group-hover:bg-green-500/20 transition-colors">
+                <RefreshCw className="h-8 w-8 text-green-500" />
+              </div>
+              <span className="text-base font-semibold text-foreground">재등록</span>
+              <span className="text-xs text-muted-foreground text-center">기존 회원을 재등록합니다</span>
+            </button>
+
+            <button
+              onClick={() => setLocation("/leads")}
+              className="flex flex-col items-center justify-center gap-3 p-8 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all group"
+            >
+              <div className="p-4 rounded-full bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+                <Users className="h-8 w-8 text-blue-500" />
+              </div>
+              <span className="text-base font-semibold text-foreground">상담 등록</span>
+              <span className="text-xs text-muted-foreground text-center">상담 내역을 등록합니다</span>
+            </button>
           </div>
         </div>
       )}
 
-      {/* 락커 관리 */}
+      {/* 탭 2: 락커 관리 */}
       {tab === "lockers" && (
         <div className="space-y-3">
           {/* 카테고리 관리 바 */}
@@ -747,17 +494,16 @@ export default function AccessManagement() {
         </div>
       )}
 
-      {/* 운동복 관리 */}
+      {/* 탭 3: 운동복 관리 */}
       {tab === "uniforms" && (() => {
-        const SIZES = ["S", "M", "L", "XL", "XXL"];
         const allUniforms = uniformsQuery.data ?? [];
-        const filteredUniforms = allUniforms.filter(u => {
+        const filteredUniforms = allUniforms.filter((u: any) => {
           const q = uniformSearch.toLowerCase();
           const matchSearch = !q || (u.memberName ?? "").toLowerCase().includes(q) || (u.memberPhone ?? "").toLowerCase().includes(q);
           const matchActive = !uniformActiveOnly || u.isActive === 1;
           return matchSearch && matchActive;
         });
-        const activeCount = allUniforms.filter(u => u.isActive === 1).length;
+        const activeCount = allUniforms.filter((u: any) => u.isActive === 1).length;
 
         return (
           <div className="space-y-3">
@@ -795,7 +541,7 @@ export default function AccessManagement() {
               <div className="text-center py-12 text-muted-foreground text-sm">운동복 이용자가 없습니다</div>
             ) : (
               <div className="space-y-2">
-                {filteredUniforms.map(u => {
+                {filteredUniforms.map((u: any) => {
                   const isActive = u.isActive === 1;
                   const daysLeft = u.endDate ? Math.ceil((new Date(u.endDate).getTime() - Date.now()) / 86400000) : null;
                   const isExpired = daysLeft !== null && daysLeft < 0;
@@ -992,308 +738,6 @@ export default function AccessManagement() {
         );
       })()}
 
-      {/* 배너 관리 */}
-      {tab === "banners" && (
-        <div className="space-y-3">
-          {/* 키오스크 글씨 크기 설정 */}
-          <KioskFontSettings />
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              키오스크 상단에 표시되는 이벤트/공지 배너입니다.
-            </p>
-            <button
-              onClick={() => { resetBannerForm(); setEditingBanner(null); setShowBannerForm(true); }}
-              className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="h-4 w-4" /> 배너 추가
-            </button>
-          </div>
-
-          {/* 배너 등록/수정 폼 */}
-          {(showBannerForm || editingBanner) && (
-            <div className="border border-border rounded-xl p-4 bg-card space-y-3">
-              <h3 className="font-semibold text-sm">{editingBanner ? "배너 수정" : "새 배너 추가"}</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">제목 *</label>
-                  <input
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    placeholder="예: 🎉 5월 특별 이벤트"
-                    value={bannerForm.title}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, title: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">노출 지점</label>
-                  <select
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    value={bannerForm.branchId ?? ""}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, branchId: e.target.value === "" ? null : Number(e.target.value) }))}
-                  >
-                    <option value="">전체 (모든 지점)</option>
-                    {branches.map((br) => (
-                      <option key={br.id} value={br.id}>{br.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">내용 (선택)</label>
-                  <textarea
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none"
-                    rows={2}
-                    placeholder="예: 신규 회원 등록 시 PT 3회 무료 증정"
-                    value={bannerForm.body}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, body: e.target.value }))}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">이미지</label>
-                  {/* 파일 직접 업로드 (수정 모드에서만) */}
-                  {editingBanner ? (
-                    <div className="flex items-center gap-2">
-                      <label className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-border bg-background cursor-pointer hover:bg-muted transition-colors">
-                        <Image className="h-4 w-4" />
-                        {uploadingImage ? "업로드 중..." : "파일 업로드"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploadingImage}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !editingBanner) return;
-                            setUploadingImage(true);
-                            const canvas = document.createElement("canvas");
-                            const img = new window.Image();
-                            img.onload = () => {
-                              const maxW = 1080, maxH = 600;
-                              let w = img.naturalWidth, h = img.naturalHeight;
-                              if (w > maxW || h > maxH) {
-                                const ratio = Math.min(maxW / w, maxH / h);
-                                w = Math.round(w * ratio); h = Math.round(h * ratio);
-                              }
-                              canvas.width = w; canvas.height = h;
-                              canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
-                              const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-                              uploadBannerImage.mutate({ id: editingBanner.id, imageData: dataUrl });
-                            };
-                            img.src = URL.createObjectURL(file);
-                            e.target.value = "";
-                          }}
-                        />
-                      </label>
-                      {(editingBanner.hasUploadedImage || bannerForm.imageUrl?.startsWith("/api/banner-image/") || uploadedBannerId === editingBanner.id) && (
-                        <button
-                          type="button"
-                          className="px-3 py-2 text-xs rounded-lg border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
-                          onClick={() => clearBannerImage.mutate({ id: editingBanner.id })}
-                        >
-                          이미지 삭제
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-amber-500">파일 업로드는 배너 저장 후 수정 화면에서 가능합니다</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">배경색 (이미지 없을 때)</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      className="w-10 h-9 rounded border border-border bg-background cursor-pointer"
-                      value={bannerForm.bgColor}
-                      onChange={(e) => setBannerForm((f) => ({ ...f, bgColor: e.target.value }))}
-                    />
-                    <input
-                      className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                      value={bannerForm.bgColor}
-                      onChange={(e) => setBannerForm((f) => ({ ...f, bgColor: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">글자색</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      className="w-10 h-9 rounded border border-border bg-background cursor-pointer"
-                      value={bannerForm.textColor}
-                      onChange={(e) => setBannerForm((f) => ({ ...f, textColor: e.target.value }))}
-                    />
-                    <input
-                      className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                      value={bannerForm.textColor}
-                      onChange={(e) => setBannerForm((f) => ({ ...f, textColor: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                {/* 노출 시작일 + 종료일 같은 줄 */}
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">노출 시작일 (선택)</label>
-                  <input type="date" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    value={bannerForm.startDate}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, startDate: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">노출 종료일 (선택)</label>
-                  <input type="date" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    value={bannerForm.endDate}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, endDate: e.target.value }))}
-                  />
-                </div>
-                {/* 글씨 크기 */}
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-2 block">글씨 크기</label>
-                  <div className="flex gap-6">
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground w-6">제목</span>
-                      <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, titleFontSize: Math.max(10, f.titleFontSize - 1) }))}>-</button>
-                      <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={10} max={60} value={bannerForm.titleFontSize} onChange={(e) => setBannerForm((f) => ({ ...f, titleFontSize: Number(e.target.value) }))} />
-                      <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, titleFontSize: Math.min(60, f.titleFontSize + 1) }))}>+</button>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground w-6">내용</span>
-                      <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, bodyFontSize: Math.max(10, f.bodyFontSize - 1) }))}>-</button>
-                      <input type="number" className="w-14 border border-border rounded px-2 py-1 text-sm bg-background text-center" min={10} max={60} value={bannerForm.bodyFontSize} onChange={(e) => setBannerForm((f) => ({ ...f, bodyFontSize: Number(e.target.value) }))} />
-                      <button type="button" className="w-7 h-7 rounded border border-border bg-muted text-sm hover:bg-accent" onClick={() => setBannerForm((f) => ({ ...f, bodyFontSize: Math.min(60, f.bodyFontSize + 1) }))}>+</button>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">순서</label>
-                  <input type="number" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                    value={bannerForm.sortOrder}
-                    onChange={(e) => setBannerForm((f) => ({ ...f, sortOrder: Number(e.target.value) }))}
-                  />
-                </div>
-                {/* 텍스트 위치 피커 */}
-                <div>
-                  <label className="text-xs text-muted-foreground mb-2 block">텍스트 위치</label>
-                  <div className="grid grid-cols-3 gap-1.5" style={{ width: 108 }}>
-                    {(["top","center","bottom"] as const).map((v) =>
-                      (["left","center","right"] as const).map((h) => {
-                        const active = bannerForm.textVAlign === v && bannerForm.textAlign === h;
-                        return (
-                          <button
-                            key={`${v}-${h}`}
-                            type="button"
-                            onClick={() => setBannerForm((f) => ({ ...f, textAlign: h, textVAlign: v }))}
-                            className={`rounded flex items-center justify-center transition-colors ${active ? "bg-primary" : "bg-muted hover:bg-accent border border-border"}`}
-                            style={{ width: 32, height: 32 }}
-                          >
-                            <div className={`rounded-sm ${active ? "bg-white" : "bg-muted-foreground/50"}`}
-                              style={{
-                                width: 14, height: 10,
-                                alignSelf: v === "top" ? "flex-start" : v === "bottom" ? "flex-end" : "center",
-                                marginLeft: h === "left" ? 2 : h === "right" ? "auto" : "auto",
-                                marginRight: h === "right" ? 2 : h === "left" ? "auto" : "auto",
-                              }}
-                            />
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              </div>
-              {/* 미리보기 */}
-              <div
-                className="rounded-xl relative overflow-hidden"
-                style={{
-                  height: 120,
-                  background: bannerForm.imageUrl
-                    ? `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.55)), url(${bannerForm.imageUrl}) center/cover`
-                    : bannerForm.bgColor,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: bannerForm.textAlign === "left" ? "flex-start" : bannerForm.textAlign === "right" ? "flex-end" : "center",
-                  justifyContent: bannerForm.textVAlign === "top" ? "flex-start" : bannerForm.textVAlign === "bottom" ? "flex-end" : "center",
-                  padding: 16,
-                }}
-              >
-                <p className="font-bold" style={{ color: bannerForm.textColor, textAlign: bannerForm.textAlign as any, fontSize: bannerForm.titleFontSize }}>{bannerForm.title || "제목 미리보기"}</p>
-                {bannerForm.body && <p className="mt-1 opacity-80" style={{ color: bannerForm.textColor, textAlign: bannerForm.textAlign as any, fontSize: bannerForm.bodyFontSize }}>{bannerForm.body}</p>}
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => { setShowBannerForm(false); setEditingBanner(null); resetBannerForm(); }}
-                  className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-accent"
-                >취소</button>
-                <button
-                  onClick={saveBanner}
-                  disabled={!bannerForm.title || createBanner.isPending || updateBanner.isPending}
-                  className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
-                >{editingBanner ? "수정 완료" : "추가"}</button>
-              </div>
-            </div>
-          )}
-
-          {/* 배너 목록 */}
-          <div className="space-y-2">
-            {(bannersQuery.data ?? []).length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm">등록된 배너가 없습니다.</div>
-            ) : (
-              (bannersQuery.data as KioskBanner[] ?? []).map((b) => (
-                <div key={b.id} className="flex items-center gap-3 border border-border rounded-xl p-3 bg-card">
-                  {/* 미니 배너 미리보기 */}
-                  <div
-                    className="shrink-0 rounded-lg flex items-end p-2"
-                    style={{
-                      width: 80, height: 52,
-                      background: b.imageUrl
-                        ? `linear-gradient(to bottom,rgba(0,0,0,0.1),rgba(0,0,0,0.55)),url(${b.imageUrl}) center/cover`
-                        : b.bgColor,
-                    }}
-                  >
-                    <p className="text-xs font-semibold truncate" style={{ color: b.textColor }}>{b.title}</p>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{b.title}</p>
-                    {b.body && <p className="text-xs text-muted-foreground truncate">{b.body}</p>}
-                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
-                      <span>{b.startDate && `${b.startDate} ~`} {b.endDate && b.endDate}{!b.startDate && !b.endDate && "항상 표시"}</span>
-                      {(b as any).branchId
-                        ? <span className="px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8" }}>
-                            {branches.find((br) => br.id === (b as any).branchId)?.name ?? `지점 ${(b as any).branchId}`}
-                          </span>
-                        : <span className="px-1.5 py-0.5 rounded text-xs text-muted-foreground/60" style={{ background: "rgba(255,255,255,0.05)" }}>전체</span>
-                      }
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => updateBanner.mutate({ id: b.id, isActive: b.isActive === 0 })}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors border ${
-                        b.isActive
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
-                          : "bg-muted text-muted-foreground border-border hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30"
-                      }`}
-                      title={b.isActive ? "클릭하면 끄기" : "클릭하면 켜기"}
-                    >
-                      {b.isActive ? <><Eye className="h-3 w-3" />노출 중</> : <><EyeOff className="h-3 w-3" />숨김</>}
-                    </button>
-                    <button
-                      onClick={() => { openEditBanner(b); setShowBannerForm(false); }}
-                      className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => { if (confirm("배너를 삭제하시겠습니까?")) deleteBanner.mutate({ id: b.id }); }}
-                      className="p-1.5 rounded-lg hover:bg-accent text-red-400"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
       {/* 락커 추가 모달 */}
       {showAddLocker && (
         <AddLockerModal
@@ -1313,28 +757,6 @@ export default function AccessManagement() {
           onAssigned={() => { utils.access.getLockers.invalidate(); setShowAssign(null); }}
         />
       )}
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  icon,
-  color,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  color: string;
-}) {
-  return (
-    <div className="bg-card border border-border rounded-xl p-3">
-      <div className={`flex items-center gap-1.5 ${color} mb-1`}>
-        {icon}
-        <span className="text-xs font-medium">{label}</span>
-      </div>
-      <p className="text-2xl font-bold">{value}</p>
     </div>
   );
 }
@@ -1451,6 +873,30 @@ function LockerCard({
   );
 }
 
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-5">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function AddLockerModal({
   branches,
   defaultBranchId,
@@ -1494,7 +940,7 @@ function AddLockerModal({
           await createLocker.mutateAsync({ lockerNumber: String(i), lockerType: type, memo, branchId: bid, categoryId: cid });
           created++;
         } catch {
-          skipped++; // 이미 존재하는 번호는 건너뜀
+          skipped++;
         }
       }
       toast.success(`${created}개 추가 완료${skipped > 0 ? ` (${skipped}개 이미 존재해 건너뜀)` : ""}`);
@@ -1686,29 +1132,5 @@ function AssignLockerModal({
         </button>
       </div>
     </Modal>
-  );
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-5">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            ✕
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
