@@ -766,4 +766,42 @@ export const accessRouter = t.router({
         }>,
       };
     }),
+
+  // 활성 헬스 회원권 목록 (서비스 관리 - 헬스권 탭)
+  getActiveMemberships: protectedProcedure
+    .query(async () => {
+      const today = new Date().toISOString().substring(0, 10);
+      const result = await pool.query(
+        `SELECT id, name, phone, "membershipStart", "membershipEnd"
+         FROM members
+         WHERE status = 'active' AND "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1
+         ORDER BY "membershipEnd" ASC`,
+        [today]
+      );
+      return result.rows as Array<{
+        id: number; name: string; phone: string | null;
+        membershipStart: string | null; membershipEnd: string | null;
+      }>;
+    }),
+
+  // 활성 PT 패키지 목록 (서비스 관리 - PT권 탭)
+  getActivePtPackages: protectedProcedure
+    .query(async () => {
+      const today = new Date().toISOString().substring(0, 10);
+      const result = await pool.query(
+        `SELECT p.id, p."memberId", m.name as "memberName", m.phone as "memberPhone",
+                p."packageName", p."totalSessions", p."usedSessions",
+                p."startDate", p."expiryDate", p.status
+         FROM pt_packages p
+         JOIN members m ON m.id = p."memberId"
+         WHERE p.status = 'active' AND (p."expiryDate" IS NULL OR p."expiryDate" >= $1)
+         ORDER BY p."expiryDate" ASC NULLS LAST`,
+        [today]
+      );
+      return result.rows as Array<{
+        id: number; memberId: number; memberName: string; memberPhone: string | null;
+        packageName: string | null; totalSessions: number; usedSessions: number;
+        startDate: string | null; expiryDate: string | null; status: string;
+      }>;
+    }),
 });

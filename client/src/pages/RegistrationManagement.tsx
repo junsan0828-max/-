@@ -73,6 +73,9 @@ export default function RegistrationManagement() {
   });
   const [uniformMemberSearch, setUniformMemberSearch] = useState("");
 
+  // 서비스 관리 세부 카테고리
+  const [serviceCategory, setServiceCategory] = useState<"all" | "pt" | "gym" | "locker" | "uniform">("all");
+
   // 간편 등록 state
   type QuickModal = null | "locker" | "uniform" | "daypass";
   const [quickModal, setQuickModal] = useState<QuickModal>(null);
@@ -102,6 +105,8 @@ export default function RegistrationManagement() {
   const uniformsQuery = trpc.access.getUniforms.useQuery({
     branchId: selectedBranch ?? undefined,
   });
+  const activeMembershipsQuery = trpc.access.getActiveMemberships.useQuery(undefined, { enabled: tab === "services" });
+  const activePtQuery = trpc.access.getActivePtPackages.useQuery(undefined, { enabled: tab === "services" });
 
   const branches = (branchesQuery.data ?? []) as Branch[];
   const categories = (categoriesQuery.data ?? []) as LockerCategory[];
@@ -1160,6 +1165,8 @@ export default function RegistrationManagement() {
         const activeLockers = lockers.filter(l => l.isOccupied === 1);
         const allUniforms = (uniformsQuery.data ?? []) as any[];
         const activeUniforms = allUniforms.filter((u: any) => u.isActive === 1);
+        const activeMemberships = (activeMembershipsQuery.data ?? []);
+        const activePtPackages = (activePtQuery.data ?? []);
 
         function daysLeft(endDate: string | null) {
           if (!endDate) return null;
@@ -1181,67 +1188,169 @@ export default function RegistrationManagement() {
           return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">D-{d}</span>;
         }
 
+        const categories = [
+          { key: "all" as const, label: "전체", count: activePtPackages.length + activeMemberships.length + activeLockers.length + activeUniforms.length },
+          { key: "pt" as const, label: "PT권", count: activePtPackages.length },
+          { key: "gym" as const, label: "헬스권", count: activeMemberships.length },
+          { key: "locker" as const, label: "락커", count: activeLockers.length },
+          { key: "uniform" as const, label: "운동복", count: activeUniforms.length },
+        ];
+
+        const showPt = serviceCategory === "all" || serviceCategory === "pt";
+        const showGym = serviceCategory === "all" || serviceCategory === "gym";
+        const showLocker = serviceCategory === "all" || serviceCategory === "locker";
+        const showUniform = serviceCategory === "all" || serviceCategory === "uniform";
+
         return (
-          <div className="space-y-5">
-            {/* 락커 서비스 */}
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <Lock className="h-4 w-4 text-primary" /> 락커 서비스
-                <span className="text-xs text-muted-foreground font-normal">({activeLockers.length}명)</span>
-              </h3>
-              {activeLockers.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">배정된 락커가 없습니다</p>
-              ) : (
-                <div className="space-y-2">
-                  {activeLockers.map(l => (
-                    <div key={l.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{l.memberName ?? "—"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          락커 {l.lockerNumber}
-                          {l.startDate && <> · {l.startDate}</>}
-                          {l.endDate && <> ~ {l.endDate}</>}
-                          {l.startDate && l.endDate && <> · {durationLabel(l.startDate, l.endDate)}</>}
-                        </p>
-                      </div>
-                      <DDay endDate={l.endDate} />
-                    </div>
-                  ))}
-                </div>
-              )}
+          <div className="space-y-4">
+            {/* 세부 카테고리 필터 */}
+            <div className="flex gap-2 flex-wrap">
+              {categories.map(cat => (
+                <button
+                  key={cat.key}
+                  onClick={() => setServiceCategory(cat.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                    serviceCategory === cat.key
+                      ? "bg-primary/20 text-primary border-primary/40"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {cat.label}
+                  <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${serviceCategory === cat.key ? "bg-primary/30" : "bg-muted"}`}>
+                    {cat.count}
+                  </span>
+                </button>
+              ))}
             </div>
 
-            {/* 운동복 서비스 */}
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <Shirt className="h-4 w-4 text-primary" /> 운동복 서비스
-                <span className="text-xs text-muted-foreground font-normal">({activeUniforms.length}명)</span>
-              </h3>
-              {activeUniforms.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">착용 중인 운동복이 없습니다</p>
-              ) : (
-                <div className="space-y-2">
-                  {activeUniforms.map((u: any) => (
-                    <div key={u.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-sm font-medium text-foreground">{u.memberName ?? "—"}</p>
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${u.rentalType === "service" ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"}`}>
-                            {u.rentalType === "service" ? "서비스" : "결제대여"}
-                          </span>
+            {/* PT권 */}
+            {showPt && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                  <span className="text-blue-400">◆</span> PT권
+                  <span className="text-xs text-muted-foreground font-normal">({activePtPackages.length}명)</span>
+                </h3>
+                {activePtPackages.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">활성 PT 회원이 없습니다</p>
+                ) : (
+                  <div className="space-y-2">
+                    {activePtPackages.map((p: any) => {
+                      const remaining = (p.totalSessions ?? 0) - (p.usedSessions ?? 0);
+                      return (
+                        <div key={p.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-medium text-foreground">{p.memberName}</p>
+                              {p.packageName && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">{p.packageName}</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              잔여 <span className="text-blue-400 font-semibold">{remaining}회</span> / {p.totalSessions}회
+                              {p.expiryDate && <> · 만료 {p.expiryDate}</>}
+                            </p>
+                          </div>
+                          <DDay endDate={p.expiryDate} />
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {u.startDate ?? "-"}
-                          {u.endDate && <> ~ {u.endDate}</>}
-                          {u.startDate && u.endDate && <> · {durationLabel(u.startDate, u.endDate)}</>}
-                        </p>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 헬스권 */}
+            {showGym && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                  <span className="text-green-400">◆</span> 헬스권
+                  <span className="text-xs text-muted-foreground font-normal">({activeMemberships.length}명)</span>
+                </h3>
+                {activeMemberships.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">활성 헬스 회원이 없습니다</p>
+                ) : (
+                  <div className="space-y-2">
+                    {activeMemberships.map((m: any) => (
+                      <div key={m.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{m.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {m.membershipStart && <>{m.membershipStart} ~ </>}
+                            {m.membershipEnd}
+                            {m.membershipStart && m.membershipEnd && <> · {durationLabel(m.membershipStart, m.membershipEnd)}</>}
+                          </p>
+                        </div>
+                        <DDay endDate={m.membershipEnd} />
                       </div>
-                      <DDay endDate={u.endDate} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 락커 서비스 */}
+            {showLocker && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                  <Lock className="h-4 w-4 text-amber-400" /> 락커
+                  <span className="text-xs text-muted-foreground font-normal">({activeLockers.length}명)</span>
+                </h3>
+                {activeLockers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">배정된 락커가 없습니다</p>
+                ) : (
+                  <div className="space-y-2">
+                    {activeLockers.map(l => (
+                      <div key={l.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{l.memberName ?? "—"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            락커 {l.lockerNumber}
+                            {l.startDate && <> · {l.startDate}</>}
+                            {l.endDate && <> ~ {l.endDate}</>}
+                            {l.startDate && l.endDate && <> · {durationLabel(l.startDate, l.endDate)}</>}
+                          </p>
+                        </div>
+                        <DDay endDate={l.endDate} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 운동복 서비스 */}
+            {showUniform && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                  <Shirt className="h-4 w-4 text-purple-400" /> 운동복
+                  <span className="text-xs text-muted-foreground font-normal">({activeUniforms.length}명)</span>
+                </h3>
+                {activeUniforms.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">착용 중인 운동복이 없습니다</p>
+                ) : (
+                  <div className="space-y-2">
+                    {activeUniforms.map((u: any) => (
+                      <div key={u.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-medium text-foreground">{u.memberName ?? "—"}</p>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${u.rentalType === "service" ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"}`}>
+                              {u.rentalType === "service" ? "서비스" : "결제대여"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {u.startDate ?? "-"}
+                            {u.endDate && <> ~ {u.endDate}</>}
+                            {u.startDate && u.endDate && <> · {durationLabel(u.startDate, u.endDate)}</>}
+                          </p>
+                        </div>
+                        <DDay endDate={u.endDate} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })()}
