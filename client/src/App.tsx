@@ -57,6 +57,7 @@ import MemberReRegister from "./pages/MemberReRegister";
 import WorkManagementPage from "./pages/WorkManagement";
 import RegistrationManagement from "./pages/RegistrationManagement";
 import TeamManagementPage from "./pages/TeamManagement";
+import LandingPageAdmin from "./pages/LandingPageAdmin";
 import Layout from "./components/Layout";
 import GymPlusLogin from "./pages/gym-plus/GymPlusLogin";
 import GymPlusLayout from "./pages/gym-plus/GymPlusLayout";
@@ -212,6 +213,7 @@ function App() {
         <Route path="/work-management">{() => <WorkManagementPage />}</Route>
         <Route path="/registration">{() => <RegistrationManagement />}</Route>
         <Route path="/team-management">{() => <TeamManagementPage />}</Route>
+        <Route path="/landing-admin">{() => <LandingPageAdmin />}</Route>
         <Route path="/admin">{() => <Admin />}</Route>
         <Route path="/settlement">{() => <SettlementReport />}</Route>
         <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
