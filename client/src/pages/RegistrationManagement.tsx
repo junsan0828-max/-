@@ -46,6 +46,8 @@ type Member = { id: number; name: string; phone: string | null };
 
 export default function RegistrationManagement() {
   const [, setLocation] = useLocation();
+  const { data: currentUser } = trpc.auth.me.useQuery();
+  const isTrainer = currentUser?.role === "trainer";
   const [tab, setTab] = useState<"members" | "lockers" | "uniforms" | "services">("members");
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
 
@@ -326,7 +328,7 @@ export default function RegistrationManagement() {
 
       {/* 탭 헤더 */}
       <div className="flex gap-0 rounded-lg overflow-hidden border border-border overflow-x-auto">
-        {(["members", "lockers", "uniforms", "services"] as const).map((t, i, arr) => (
+        {(["members", "lockers", "uniforms", ...(isTrainer ? [] : ["services"])] as const).map((t, i, arr) => (
           <button
             key={t}
             onClick={() => setTab(t)}
