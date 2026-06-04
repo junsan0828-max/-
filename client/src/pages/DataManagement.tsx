@@ -3,9 +3,19 @@ import { trpc } from "@/lib/trpc";
 import {
   Database, TrendingUp, Users, Megaphone, Building2,
   ChevronLeft, ChevronRight, AlertCircle, UserX, Clock,
-  Dumbbell, Lock, Shirt, UserCog, PhoneCall, BarChart3,
-  RefreshCw, Activity, Target,
+  Dumbbell, Lock, Shirt, UserCog, Activity, Target,
+  DollarSign, Percent,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts";
+
+const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4", "#6b7280", "#f97316"];
+
+function fmtWon(v: number) {
+  if (v >= 100000000) return `${(v / 100000000).toFixed(1)}억`;
+  if (v >= 10000000) return `${(v / 10000000).toFixed(1)}천만`;
+  if (v >= 10000) return `${Math.round(v / 10000)}만`;
+  return v.toLocaleString();
+}
 
 // ── 재무 탭 ──────────────────────────────────────────────────────────────────
 function FinanceTab() {
@@ -311,141 +321,497 @@ function CustomerTab() {
 }
 
 // ── 마케팅 탭 ─────────────────────────────────────────────────────────────────
+const CHANNEL_TYPE_LABELS: Record<string, string> = {
+  online: "온라인", sns: "SNS", referral: "소개", offline: "오프라인",
+};
+
 function MarketingTab() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [tab, setTab] = useState<"month" | "annual">("month");
 
+  const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, month });
-  const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
+  const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
+  const { data: annualData } = trpc.gym.revenue.channelAnnual.useQuery({ year });
+  const { data: programStats } = trpc.gym.revenue.programStats.useQuery({ year, month });
+  const { data: programAnnual } = trpc.gym.revenue.programAnnual.useQuery({ year });
   const { data: consultantData } = trpc.consultantRecords.listAll.useQuery({ year, month });
 
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
 
+  const channelData = (channels ?? []).map((ch, i) => {
+    const leadStat = monthStats?.byChannel[ch.id];
+    const revData = channelRevSummary?.find(r => r.channelName === ch.name);
+    return {
+      id: ch.id, name: ch.name, type: ch.type,
+      leads: leadStat?.count ?? 0,
+      registered: leadStat?.registered ?? 0,
+      revenue: revData?.total ?? 0,
+      color: COLORS[i % COLORS.length],
+    };
+  }).sort((a, b) => b.revenue - a.revenue);
+
+  const totalLeads = monthStats?.total ?? 0;
+  const totalRevenue = channelRevSummary?.reduce((s, r) => s + r.total, 0) ?? 0;
+  const conversionRate = monthStats?.conversionRate ?? 0;
+
+  const annualLineData = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const mt = annualData?.monthTotals[m];
+    return { name: `${m}월`, 매출: Math.round((mt?.revenue ?? 0) / 10000), 리드: mt?.leads ?? 0, 등록: mt?.registered ?? 0 };
+  });
+
+  const annualTotalRevenue = annualData?.channels.reduce((s, c) => s + c.totalRevenue, 0) ?? 0;
+  const annualTotalLeads = annualData?.channels.reduce((s, c) => s + c.totalLeads, 0) ?? 0;
+  const annualTotalReg = annualData?.channels.reduce((s, c) => s + c.totalRegistered, 0) ?? 0;
+
   return (
     <div className="space-y-5">
-      {/* 월 선택 */}
-      <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-fit">
-        <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></button>
-        <span className="text-sm font-semibold w-20 text-center">{year}년 {month}월</span>
-        <button onClick={nextMonth} className="text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+      {/* 월별 / 연간 탭 */}
+      <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
+        <button onClick={() => setTab("month")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "month" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+          월별 통계
+        </button>
+        <button onClick={() => setTab("annual")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "annual" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+          연간 누적
+        </button>
       </div>
 
-      {/* 상담 현황 요약 */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <PhoneCall className="h-4 w-4 text-violet-400" /> 상담 현황
-        </h3>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { label: "총 상담", value: monthStats?.total ?? 0, unit: "건", color: "text-foreground" },
-            { label: "등록 전환", value: monthStats?.registered ?? 0, unit: "건", color: "text-emerald-400" },
-            { label: "전환율", value: monthStats?.conversionRate ?? 0, unit: "%", color: "text-violet-400" },
-            { label: "팔로업 대기", value: monthStats?.followup ?? 0, unit: "건", color: "text-amber-400" },
-          ].map(c => (
-            <div key={c.label} className="bg-card border border-border rounded-xl p-3">
-              <p className="text-xs text-muted-foreground mb-1">{c.label}</p>
-              <p className={`text-lg font-bold ${c.color}`}>{c.value}<span className="text-xs font-normal ml-1">{c.unit}</span></p>
+      {/* ── 월별 ── */}
+      {tab === "month" && (
+        <>
+          <div className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-2.5">
+            <button onClick={prevMonth} className="p-1 text-muted-foreground hover:text-foreground"><ChevronLeft className="w-5 h-5" /></button>
+            <span className="font-semibold text-foreground">{year}년 {month}월</span>
+            <button onClick={nextMonth} className="p-1 text-muted-foreground hover:text-foreground"><ChevronRight className="w-5 h-5" /></button>
+          </div>
+
+          {/* 요약 카드 */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-card border border-border rounded-xl p-3 text-center">
+              <Users className="h-4 w-4 text-blue-400 mx-auto mb-1" />
+              <div className="text-lg font-bold text-foreground">{totalLeads}</div>
+              <div className="text-xs text-muted-foreground">총 리드</div>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="bg-card border border-border rounded-xl p-3 text-center">
+              <Percent className="h-4 w-4 text-emerald-400 mx-auto mb-1" />
+              <div className="text-lg font-bold text-foreground">{conversionRate}%</div>
+              <div className="text-xs text-muted-foreground">전환율</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-3 text-center">
+              <DollarSign className="h-4 w-4 text-amber-400 mx-auto mb-1" />
+              <div className="text-lg font-bold text-foreground">{fmtWon(totalRevenue)}</div>
+              <div className="text-xs text-muted-foreground">채널 매출</div>
+            </div>
+          </div>
 
-      {/* 채널별 유입 */}
-      <div>
-        <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <BarChart3 className="h-4 w-4 text-violet-400" /> 채널별 매출 유입
-        </h3>
-        {!channelSummary?.length ? (
-          <p className="text-xs text-muted-foreground text-center py-4">이번달 채널 데이터가 없습니다</p>
-        ) : (
-          <div className="space-y-1.5">
-            {channelSummary.map((ch: any) => {
-              const total = channelSummary.reduce((s: number, c: any) => s + c.total, 0);
-              const pct = total > 0 ? Math.round((ch.total / total) * 100) : 0;
-              return (
-                <div key={ch.channelId ?? "none"} className="bg-card border border-border rounded-xl px-3 py-2.5">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-sm font-medium text-foreground">{ch.channelName}</p>
-                    <div className="text-right">
-                      <span className="text-sm font-semibold text-violet-400">{ch.total.toLocaleString()}원</span>
-                      <span className="text-xs text-muted-foreground ml-1.5">{ch.count}건</span>
+          {/* 전환 퍼널 */}
+          {monthStats && monthStats.total > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-4">전환 퍼널</h2>
+              <div className="space-y-2">
+                {[
+                  { label: "총 리드", count: monthStats.total, color: "#6366f1", pct: 100 },
+                  { label: "상담 완료", count: monthStats.consulted + monthStats.registered, color: "#8b5cf6", pct: Math.round(((monthStats.consulted + monthStats.registered) / monthStats.total) * 100) },
+                  { label: "등록 완료", count: monthStats.registered, color: "#10b981", pct: Math.round((monthStats.registered / monthStats.total) * 100) },
+                ].map(stage => (
+                  <div key={stage.label} className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">{stage.label}</span>
+                      <span className="font-medium text-foreground">{stage.count}명 ({stage.pct}%)</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-3">
+                      <div className="h-3 rounded-full transition-all" style={{ width: `${stage.pct}%`, backgroundColor: stage.color }} />
                     </div>
                   </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-violet-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* 채널별 상담 */}
-      {monthStats && Object.keys(monthStats.byChannel ?? {}).length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-            <Target className="h-4 w-4 text-violet-400" /> 채널별 상담 전환
-          </h3>
-          <div className="space-y-1.5">
-            {Object.values(monthStats.byChannel).map((ch: any) => (
-              <div key={ch.name} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
-                <p className="text-sm font-medium text-foreground">{ch.name}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">상담 {ch.count}건</span>
-                  <span className="text-xs font-semibold text-emerald-400">등록 {ch.registered}건</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400">
-                    {ch.count > 0 ? Math.round((ch.registered / ch.count) * 100) : 0}%
-                  </span>
+          {/* 채널별 리드 & 등록 차트 */}
+          {channelData.some(c => c.leads > 0 || c.revenue > 0) && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-4">채널별 리드 & 등록</h2>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={channelData.filter(c => c.leads > 0 || c.revenue > 0).map(c => ({
+                  name: c.name.length > 6 ? c.name.slice(0, 6) + "…" : c.name,
+                  리드: c.leads, 등록: c.registered,
+                }))} barSize={14}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#9ca3af" }} />
+                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
+                  <Bar dataKey="리드" fill="#6366f1" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="등록" fill="#10b981" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* PT 프로그램별 현황 */}
+          {programStats && programStats.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-3">PT 프로그램별 현황</h2>
+              <div className="space-y-2">
+                {programStats.map((prog, i) => {
+                  const isEvent = prog.name.includes("이벤트");
+                  const maxRev = programStats[0].revenue;
+                  const pct = maxRev > 0 ? Math.round((prog.revenue / maxRev) * 100) : 0;
+                  return (
+                    <div key={prog.name}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-1.5 py-0.5 rounded-full font-medium ${isEvent ? "bg-amber-400/15 text-amber-400" : "bg-primary/10 text-primary"}`}>{prog.name}</span>
+                          <span className="text-muted-foreground">{prog.count}건</span>
+                          <span className="text-muted-foreground text-[10px]">(신규 {prog.newCount} / 재등록 {prog.renewalCount})</span>
+                        </div>
+                        <span className="font-semibold text-foreground">{fmtWon(prog.revenue)}</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, backgroundColor: isEvent ? "#f59e0b" : COLORS[i % COLORS.length] }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {(() => {
+                const evList = programStats.filter(p => p.name.includes("이벤트"));
+                if (!evList.length) return null;
+                const evTotal = evList.reduce((s, p) => s + p.revenue, 0);
+                const evCount = evList.reduce((s, p) => s + p.count, 0);
+                const totalRev = programStats.reduce((s, p) => s + p.revenue, 0);
+                const evPct = totalRev > 0 ? Math.round((evTotal / totalRev) * 100) : 0;
+                return (
+                  <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
+                    <span className="text-amber-400 font-medium">이벤트피티 합계</span>
+                    <span className="text-foreground font-semibold">{evCount}건 · {fmtWon(evTotal)} ({evPct}%)</span>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* 채널별 상담 전환 */}
+          {monthStats && Object.keys(monthStats.byChannel ?? {}).length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <Target className="h-4 w-4 text-violet-400" /> 채널별 상담 전환
+              </h3>
+              <div className="space-y-1.5">
+                {Object.values(monthStats.byChannel).map((ch: any) => (
+                  <div key={ch.name} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5">
+                    <p className="text-sm font-medium text-foreground">{ch.name}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">상담 {ch.count}건</span>
+                      <span className="text-xs font-semibold text-emerald-400">등록 {ch.registered}건</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400">
+                        {ch.count > 0 ? Math.round((ch.registered / ch.count) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 채널별 상세 */}
+          {channelData.some(c => c.leads > 0 || c.revenue > 0) && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold text-foreground">채널별 상세</h2>
+              {channelData.filter(c => c.leads > 0 || c.revenue > 0).map(ch => {
+                const convRate = ch.leads > 0 ? Math.round((ch.registered / ch.leads) * 100) : 0;
+                return (
+                  <div key={ch.id} className="bg-card border border-border rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ch.color }} />
+                      <span className="font-medium text-foreground">{ch.name}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{CHANNEL_TYPE_LABELS[ch.type] ?? ch.type}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="text-center">
+                        <div className="font-semibold text-foreground">{ch.leads}</div>
+                        <div className="text-muted-foreground">리드</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-semibold text-emerald-400">{convRate}%</div>
+                        <div className="text-muted-foreground">전환율</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-semibold text-primary">{fmtWon(ch.revenue)}</div>
+                        <div className="text-muted-foreground">매출</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 컨설턴트 기록: 콘텐츠 실적 */}
+          {consultantData && consultantData.length > 0 && (() => {
+            const agg = consultantData.reduce((s: any, r: any) => ({
+              blogPosts: s.blogPosts + (r.blogPosts ?? 0),
+              instagramPosts: s.instagramPosts + (r.instagramPosts ?? 0),
+              youtubeVideos: s.youtubeVideos + (r.youtubeVideos ?? 0),
+              offlineEvents: s.offlineEvents + (r.offlineEvents ?? 0),
+              referralCount: s.referralCount + (r.referralCount ?? 0),
+              adSpend: s.adSpend + (r.adSpend ?? 0),
+              snsFollowers: Math.max(s.snsFollowers ?? 0, r.snsFollowers ?? 0),
+            }), { blogPosts: 0, instagramPosts: 0, youtubeVideos: 0, offlineEvents: 0, referralCount: 0, adSpend: 0, snsFollowers: 0 });
+            const items = [
+              { label: "블로그 포스팅", value: agg.blogPosts, unit: "건" },
+              { label: "인스타그램 게시물", value: agg.instagramPosts, unit: "건" },
+              { label: "유튜브 영상", value: agg.youtubeVideos, unit: "건" },
+              { label: "오프라인 이벤트", value: agg.offlineEvents, unit: "건" },
+              { label: "지인 추천", value: agg.referralCount, unit: "건" },
+              { label: "광고 집행", value: agg.adSpend.toLocaleString(), unit: "원" },
+              ...(agg.snsFollowers > 0 ? [{ label: "SNS 팔로워", value: agg.snsFollowers.toLocaleString(), unit: "명" }] : []),
+            ].filter(i => Number(String(i.value).replace(/,/g, "")) > 0);
+            if (!items.length) return null;
+            return (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                  <Megaphone className="h-4 w-4 text-violet-400" /> 콘텐츠 · 마케팅 실적
+                  <span className="text-xs text-muted-foreground font-normal">(컨설턴트 기록)</span>
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {items.map(i => (
+                    <div key={i.label} className="bg-card border border-border rounded-xl p-3">
+                      <p className="text-xs text-muted-foreground mb-1">{i.label}</p>
+                      <p className="text-lg font-bold text-violet-400">{i.value}<span className="text-xs font-normal ml-1">{i.unit}</span></p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            );
+          })()}
+        </>
       )}
 
-      {/* 컨설턴트 기록: 콘텐츠 실적 */}
-      {consultantData && consultantData.length > 0 && (() => {
-        const agg = consultantData.reduce((s: any, r: any) => ({
-          blogPosts: s.blogPosts + (r.blogPosts ?? 0),
-          instagramPosts: s.instagramPosts + (r.instagramPosts ?? 0),
-          youtubeVideos: s.youtubeVideos + (r.youtubeVideos ?? 0),
-          offlineEvents: s.offlineEvents + (r.offlineEvents ?? 0),
-          referralCount: s.referralCount + (r.referralCount ?? 0),
-          adSpend: s.adSpend + (r.adSpend ?? 0),
-          snsFollowers: Math.max(s.snsFollowers ?? 0, r.snsFollowers ?? 0),
-        }), { blogPosts: 0, instagramPosts: 0, youtubeVideos: 0, offlineEvents: 0, referralCount: 0, adSpend: 0, snsFollowers: 0 });
+      {/* ── 연간 누적 ── */}
+      {tab === "annual" && (
+        <>
+          <div className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-2.5">
+            <button onClick={() => setYear(y => y - 1)} className="p-1 text-muted-foreground hover:text-foreground"><ChevronLeft className="w-5 h-5" /></button>
+            <span className="font-semibold text-foreground">{year}년 연간 통계</span>
+            <button onClick={() => setYear(y => y + 1)} className="p-1 text-muted-foreground hover:text-foreground"><ChevronRight className="w-5 h-5" /></button>
+          </div>
 
-        const items = [
-          { label: "블로그 포스팅", value: agg.blogPosts, unit: "건" },
-          { label: "인스타그램 게시물", value: agg.instagramPosts, unit: "건" },
-          { label: "유튜브 영상", value: agg.youtubeVideos, unit: "건" },
-          { label: "오프라인 이벤트", value: agg.offlineEvents, unit: "건" },
-          { label: "지인 추천", value: agg.referralCount, unit: "건" },
-          { label: "광고 집행", value: agg.adSpend.toLocaleString(), unit: "원" },
-          ...(agg.snsFollowers > 0 ? [{ label: "SNS 팔로워", value: agg.snsFollowers.toLocaleString(), unit: "명" }] : []),
-        ].filter(i => Number(String(i.value).replace(/,/g, "")) > 0);
-
-        if (!items.length) return null;
-        return (
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <Megaphone className="h-4 w-4 text-violet-400" /> 콘텐츠 · 마케팅 실적
-              <span className="text-xs text-muted-foreground font-normal">(컨설턴트 기록)</span>
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {items.map(i => (
-                <div key={i.label} className="bg-card border border-border rounded-xl p-3">
-                  <p className="text-xs text-muted-foreground mb-1">{i.label}</p>
-                  <p className="text-lg font-bold text-violet-400">{i.value}<span className="text-xs font-normal ml-1">{i.unit}</span></p>
-                </div>
-              ))}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-card border border-border rounded-xl p-3 text-center">
+              <Users className="h-4 w-4 text-blue-400 mx-auto mb-1" />
+              <div className="text-lg font-bold text-foreground">{annualTotalLeads}</div>
+              <div className="text-xs text-muted-foreground">연간 리드</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-3 text-center">
+              <Percent className="h-4 w-4 text-emerald-400 mx-auto mb-1" />
+              <div className="text-lg font-bold text-foreground">
+                {annualTotalLeads > 0 ? Math.round((annualTotalReg / annualTotalLeads) * 100) : 0}%
+              </div>
+              <div className="text-xs text-muted-foreground">연간 전환율</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-3 text-center">
+              <TrendingUp className="h-4 w-4 text-amber-400 mx-auto mb-1" />
+              <div className="text-lg font-bold text-foreground">{fmtWon(annualTotalRevenue)}</div>
+              <div className="text-xs text-muted-foreground">연간 매출</div>
             </div>
           </div>
-        );
-      })()}
+
+          <div className="bg-card border border-border rounded-xl p-4">
+            <h2 className="text-sm font-semibold text-foreground mb-4">월별 매출 추이 (만원)</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={annualLineData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#9ca3af" }} />
+                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
+                <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
+                <Line type="monotone" dataKey="매출" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-4">
+            <h2 className="text-sm font-semibold text-foreground mb-4">월별 리드 & 등록</h2>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={annualLineData} barSize={10}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#9ca3af" }} />
+                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
+                <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
+                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                <Bar dataKey="리드" fill="#6366f1" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="등록" fill="#10b981" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* 채널별 연간 누적 테이블 */}
+          {annualData && annualData.channels.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-3">채널별 연간 누적</h2>
+              <div className="overflow-x-auto -mx-2">
+                <table className="w-full text-xs min-w-[560px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left text-muted-foreground py-2 pl-2 pr-1 font-medium w-20">채널</th>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <th key={i} className="text-center text-muted-foreground py-2 px-0.5 font-medium">{i + 1}월</th>
+                      ))}
+                      <th className="text-center text-muted-foreground py-2 pl-1 pr-2 font-medium">합계</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {annualData.channels.map((ch, idx) => (
+                      <tr key={ch.name} className={idx % 2 === 0 ? "bg-muted/20" : ""}>
+                        <td className="py-2 pl-2 pr-1 font-medium text-foreground truncate max-w-[72px]">{ch.name}</td>
+                        {Array.from({ length: 12 }, (_, i) => {
+                          const m = ch.months[i + 1];
+                          return (
+                            <td key={i} className="text-center py-2 px-0.5">
+                              {m.revenue > 0 ? (
+                                <div>
+                                  <div className="text-primary font-semibold">{fmtWon(m.revenue)}</div>
+                                  {m.leads > 0 && <div className="text-muted-foreground">{m.leads}건</div>}
+                                </div>
+                              ) : <span className="text-muted-foreground/30">—</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="text-center py-2 pl-1 pr-2">
+                          <div className="font-bold text-foreground">{fmtWon(ch.totalRevenue)}</div>
+                          <div className="text-muted-foreground">{ch.totalLeads}건</div>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-border font-semibold">
+                      <td className="py-2 pl-2 pr-1 text-foreground">합계</td>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const mt = annualData.monthTotals[i + 1];
+                        return (
+                          <td key={i} className="text-center py-2 px-0.5">
+                            {mt.revenue > 0 ? (
+                              <div>
+                                <div className="text-primary">{fmtWon(mt.revenue)}</div>
+                                {mt.leads > 0 && <div className="text-muted-foreground">{mt.leads}건</div>}
+                              </div>
+                            ) : <span className="text-muted-foreground/30">—</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="text-center py-2 pl-1 pr-2">
+                        <div className="text-primary font-bold">{fmtWon(annualTotalRevenue)}</div>
+                        <div className="text-muted-foreground">{annualTotalLeads}건</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* PT 프로그램별 월별 등록 건수 */}
+          {programAnnual && programAnnual.programs.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-1">PT 프로그램별 월별 등록 건수</h2>
+              <p className="text-xs text-muted-foreground mb-4">이벤트피티 포함 프로그램별 월별 추이</p>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={programAnnual.monthlyData} barSize={8}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#9ca3af" }} />
+                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }}
+                    formatter={(value: any, name: any) => [String(value) + "건", String(name).replace("_count", "")]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "10px" }} formatter={(v: any) => String(v).replace("_count", "")} />
+                  {programAnnual.programs.map((prog, i) => (
+                    <Bar key={prog} dataKey={prog + "_count"} name={prog + "_count"}
+                      fill={prog.includes("이벤트") ? "#f59e0b" : COLORS[i % COLORS.length]}
+                      radius={[2, 2, 0, 0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* 프로그램별 월별 매출 요약 테이블 */}
+          {programAnnual && programAnnual.programs.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <h2 className="text-sm font-semibold text-foreground mb-3">프로그램별 월별 매출 요약</h2>
+              <div className="overflow-x-auto -mx-2">
+                <table className="w-full text-xs min-w-[500px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left text-muted-foreground py-2 pl-2 pr-1 font-medium w-20">프로그램</th>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <th key={i} className="text-center text-muted-foreground py-2 px-0.5 font-medium">{i + 1}월</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {programAnnual.programs.map((prog, idx) => {
+                      const isEvent = prog.includes("이벤트");
+                      return (
+                        <tr key={prog} className={idx % 2 === 0 ? "bg-muted/20" : ""}>
+                          <td className={`py-2 pl-2 pr-1 font-medium truncate max-w-[72px] ${isEvent ? "text-amber-400" : "text-foreground"}`}>{prog}</td>
+                          {programAnnual.monthlyData.map((m) => {
+                            const rev = m[prog + "_revenue"] as number ?? 0;
+                            const cnt = m[prog + "_count"] as number ?? 0;
+                            return (
+                              <td key={m.month} className="text-center py-2 px-0.5">
+                                {cnt > 0 ? (
+                                  <div>
+                                    <div className={`font-semibold ${isEvent ? "text-amber-400" : "text-primary"}`}>{cnt}건</div>
+                                    <div className="text-muted-foreground">{fmtWon(rev)}</div>
+                                  </div>
+                                ) : <span className="text-muted-foreground/30">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 채널별 연간 성과 순위 */}
+          {annualData && annualData.channels.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <h2 className="text-sm font-semibold text-foreground">채널별 연간 성과 순위</h2>
+              {annualData.channels.map((ch, i) => {
+                const maxRev = annualData.channels[0].totalRevenue;
+                const pct = maxRev > 0 ? Math.round((ch.totalRevenue / maxRev) * 100) : 0;
+                const convRate = ch.totalLeads > 0 ? Math.round((ch.totalRegistered / ch.totalLeads) * 100) : 0;
+                return (
+                  <div key={ch.name}>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground w-4">{i + 1}</span>
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                        <span className="text-sm font-medium text-foreground">{ch.name}</span>
+                        <span className="text-xs text-muted-foreground">({ch.totalLeads}리드 · {convRate}%전환)</span>
+                      </div>
+                      <span className="text-sm font-bold text-primary">{fmtWon(ch.totalRevenue)}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div className="h-2 rounded-full" style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
