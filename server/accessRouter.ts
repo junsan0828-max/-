@@ -852,4 +852,72 @@ export const accessRouter = t.router({
         startDate: string; serviceHealthDuration: number; endDate: string;
       }>;
     }),
+
+  // 관리자용 전체 회원 통계
+  getAdminMemberStats: protectedProcedure
+    .query(async () => {
+      const today = new Date().toISOString().substring(0, 10);
+      const in30 = new Date(Date.now() + 30 * 86400000).toISOString().substring(0, 10);
+      const result = await pool.query(`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+          COUNT(*) FILTER (WHERE status != 'active')::int AS inactive,
+          COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" >= $1 AND "membershipEnd" <= $2)::int AS expiring30,
+          COUNT(*) FILTER (WHERE status = 'active' AND "membershipEnd" < $1)::int AS expired_but_active,
+          (SELECT COUNT(*)::int FROM pt_packages WHERE status = 'active') AS active_pt_packages,
+          (SELECT COALESCE(SUM("unpaidAmount"),0)::int FROM pt_packages WHERE "unpaidAmount" > 0) AS total_unpaid,
+          COUNT(*) FILTER (WHERE gender = '남')::int AS male,
+          COUNT(*) FILTER (WHERE gender = '여')::int AS female
+        FROM members
+      `, [today, in30]);
+      return result.rows[0] as {
+        total: number; active: number; inactive: number; expiring30: number;
+        expired_but_active: number; active_pt_packages: number; total_unpaid: number;
+        male: number; female: number;
+      };
+    }),
+
+  // 관리자용 만료 임박 회원 목록 (N일 이내)
+  getAdminExpiringMembers: protectedProcedure
+    .input(z.object({ days: z.number().default(30) }))
+    .query(async ({ input }) => {
+      const today = new Date().toISOString().substring(0, 10);
+      const future = new Date(Date.now() + input.days * 86400000).toISOString().substring(0, 10);
+      const result = await pool.query(
+        `SELECT m.id, m.name, m.phone, m."membershipEnd",
+                t."trainerName",
+                (m."membershipEnd"::date - $1::date)::int AS days_left
+         FROM members m
+         LEFT JOIN trainers t ON t.id = m."trainerId"
+         WHERE m.status = 'active'
+           AND m."membershipEnd" IS NOT NULL
+           AND m."membershipEnd" >= $1
+           AND m."membershipEnd" <= $2
+         ORDER BY m."membershipEnd" ASC`,
+        [today, future]
+      );
+      return result.rows as Array<{
+        id: number; name: string; phone: string | null; membershipEnd: string;
+        trainerName: string | null; days_left: number;
+      }>;
+    }),
+
+  // 시간대별 방문 통계 (이번달 access_logs 기준)
+  getAccessHourStats: protectedProcedure
+    .query(async () => {
+      const prefix = new Date().toISOString().substring(0, 7); // YYYY-MM
+      const result = await pool.query(
+        `SELECT
+           EXTRACT(HOUR FROM "accessedAt"::timestamptz)::int AS hour,
+           COUNT(*)::int AS count
+         FROM access_logs
+         WHERE "accessedAt" LIKE $1
+           AND "accessResult" = 'allowed'
+         GROUP BY hour
+         ORDER BY hour`,
+        [`${prefix}%`]
+      );
+      return result.rows as Array<{ hour: number; count: number }>;
+    }),
 });
