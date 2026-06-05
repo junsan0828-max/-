@@ -844,10 +844,11 @@ const revenueRouter = t.router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     await db.execute(sql`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
     const result = await db.execute(sql`
-      SELECT re.id, re."customerName", re."serviceItems", re."paymentDate", re."startDate", m.name AS "memberName"
+      SELECT re.id, re."customerName", re."phone", re."serviceItems", re."programDetail", re."paymentDate", re."startDate", m.name AS "memberName"
       FROM revenue_entries re
       LEFT JOIN members m ON m.id = re."memberId"
-      WHERE re."serviceItems" IS NOT NULL AND re."serviceItems" != ''
+      WHERE (re."serviceItems" IS NOT NULL AND re."serviceItems" != '')
+         OR (re."programDetail" ILIKE '%운동복%' OR re."programDetail" ILIKE '%유니폼%' OR re."programDetail" ILIKE '%uniform%')
       ORDER BY re."paymentDate" DESC
     `);
     return (result as any).rows ?? [];

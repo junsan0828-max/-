@@ -952,21 +952,32 @@ export default function RegistrationManagement() {
         const allUniforms = uniformsQuery.data ?? [];
         const serviceItemsList = (serviceItemsQuery.data ?? []) as any[];
 
-        // serviceItems에서 운동복 항목 파싱
-        const uniformFromServiceItems = serviceItemsList.flatMap((entry: any) =>
-          (entry.serviceItems ?? "").split(",").filter((s: string) => s.startsWith("운동복"))
-            .map(() => ({
-              id: `si-${entry.id}`,
-              memberName: entry.customerName ?? entry.memberName ?? "—",
-              memberPhone: entry.phone ?? "",
-              rentalType: "service",
-              isActive: 1,
-              startDate: entry.paymentDate ?? null,
-              endDate: null,
-              memo: "서비스 내역 기반",
-              size: null, quantity: 1, memberType: null, isPaid: 1,
-            }))
-        );
+        // serviceItems 또는 programDetail에서 운동복 항목 파싱
+        const seenIds = new Set<string>();
+        const uniformFromServiceItems = serviceItemsList.flatMap((entry: any) => {
+          const memberName = entry.customerName ?? entry.memberName ?? "—";
+          const memberPhone = entry.phone ?? "";
+          const base = {
+            id: `si-${entry.id}`,
+            memberName,
+            memberPhone,
+            rentalType: "service",
+            isActive: 1,
+            startDate: entry.paymentDate ?? null,
+            endDate: null,
+            memo: "서비스 내역 기반",
+            size: null, quantity: 1, memberType: null, isPaid: 1,
+          };
+          // serviceItems에 "운동복"이 있는 경우
+          const siHasUniform = (entry.serviceItems ?? "").split(",").some((s: string) => s.startsWith("운동복"));
+          // programDetail 자체가 운동복인 경우
+          const pdHasUniform = /운동복|유니폼|uniform/i.test(entry.programDetail ?? "");
+          if ((siHasUniform || pdHasUniform) && !seenIds.has(`si-${entry.id}`)) {
+            seenIds.add(`si-${entry.id}`);
+            return [base];
+          }
+          return [];
+        });
 
         const allCombined = [...uniformFromServiceItems, ...allUniforms];
         const filteredUniforms = allCombined.filter((u: any) => {
