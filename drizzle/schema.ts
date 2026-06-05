@@ -492,6 +492,7 @@ export const uniforms = pgTable("uniforms", {
   isPaid: integer("isPaid").default(0), // 1=결제완료, 0=미결제
   paymentAmount: integer("paymentAmount").default(0), // 결제금액
   isActive: integer("isActive").default(1).notNull(), // 1=착용중, 0=반납
+  paymentDate: text("paymentDate"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

@@ -676,16 +676,18 @@ export const accessRouter = t.router({
       rentalType: z.string().optional(),
       isPaid: z.number().optional(),
       paymentAmount: z.number().optional(),
+      paymentDate: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.execute(sql`ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "paymentDate" TEXT`);
       const now = new Date().toISOString();
       const [row] = await db.insert(uniforms).values({ ...input, isActive: 1, createdAt: now, updatedAt: now }).returning();
 
       // 결제 대여 시 장부 자동 연동
       if (input.rentalType === "paid" && input.isPaid === 1 && input.paymentAmount && input.paymentAmount > 0) {
-        const today = now.substring(0, 10);
+        const resolvedPaymentDate = input.paymentDate ?? now.substring(0, 10);
         await db.insert(revenueEntries).values({
           memberId: input.memberId ?? null,
           trainerId: null,
@@ -699,7 +701,7 @@ export const accessRouter = t.router({
           discountAmount: 0,
           paidAmount: input.paymentAmount,
           unpaidAmount: 0,
-          paymentDate: today,
+          paymentDate: resolvedPaymentDate,
           startDate: input.startDate ?? null,
           memo: input.memo ?? null,
         });

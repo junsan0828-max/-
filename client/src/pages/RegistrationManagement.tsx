@@ -89,7 +89,7 @@ export default function RegistrationManagement() {
     memberId: "", memberName: "", memberPhone: "",
     memberSearch: "",
     months: 1, customAmount: false, amount: 10000,
-    paymentMethod: "카드", startDate: todayStr,
+    paymentMethod: "카드", startDate: todayStr, paymentDate: todayStr,
   });
   const [dayPassForm, setDayPassForm] = useState({
     name: "", phone: "", amount: "", paymentMethod: "카드",
@@ -179,7 +179,7 @@ export default function RegistrationManagement() {
     onSuccess: () => {
       utils.access.getUniforms.invalidate();
       setQuickModal(null);
-      setUniformQForm({ memberId: "", memberName: "", memberPhone: "", memberSearch: "", months: 1, customAmount: false, amount: 10000, paymentMethod: "카드", startDate: new Date().toISOString().substring(0, 10) });
+      setUniformQForm({ memberId: "", memberName: "", memberPhone: "", memberSearch: "", months: 1, customAmount: false, amount: 10000, paymentMethod: "카드", startDate: new Date().toISOString().substring(0, 10), paymentDate: new Date().toISOString().substring(0, 10) });
       toast.success("운동복 대여 완료");
     },
     onError: (e) => toast.error(e.message),
@@ -227,6 +227,8 @@ export default function RegistrationManagement() {
       rentalType: "paid",
       isPaid: 1,
       paymentAmount: uniformQForm.amount,
+      paymentMethod: uniformQForm.paymentMethod || undefined,
+      paymentDate: uniformQForm.paymentDate || undefined,
       startDate: uniformQForm.startDate,
       endDate: addMonths(uniformQForm.startDate, uniformQForm.months),
       branchId: selectedBranch ?? undefined,
@@ -640,11 +642,18 @@ export default function RegistrationManagement() {
                   </div>
                 </div>
 
-                {/* 시작일 */}
-                <div>
-                  <label className="text-xs text-muted-foreground">시작일</label>
-                  <input type="date" value={uniformQForm.startDate} onChange={e => setUniformQForm(f => ({ ...f, startDate: e.target.value }))}
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                {/* 시작일 + 결제 일자 */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">시작일</label>
+                    <input type="date" value={uniformQForm.startDate} onChange={e => setUniformQForm(f => ({ ...f, startDate: e.target.value }))}
+                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">결제 일자</label>
+                    <input type="date" value={uniformQForm.paymentDate} onChange={e => setUniformQForm(f => ({ ...f, paymentDate: e.target.value }))}
+                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-1">
