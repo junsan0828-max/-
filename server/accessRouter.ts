@@ -752,9 +752,9 @@ export const accessRouter = t.router({
         db.select().from(lockers).where(eq(lockers.memberId, input.memberId)),
         db.select().from(uniforms).where(eq(uniforms.memberId, input.memberId)),
         pool.query(
-          `SELECT id, type, "subType", amount, "paidAmount", "unpaidAmount", "paymentDate", memo, "programDetail", "startDate", "endDate", "serviceSessions", "serviceHealthDuration", "createdAt"
+          `SELECT id, type, "subType", amount, "paidAmount", "unpaidAmount", "paymentDate", memo, "programDetail", "startDate", "endDate", "serviceSessions", "serviceHealthDuration", "createdAt", "serviceItems"
            FROM revenue_entries
-           WHERE "memberId" = $1 AND type IN ('헬스','기타')
+           WHERE "memberId" = $1
            ORDER BY "createdAt" DESC`,
           [input.memberId]
         ),
@@ -768,7 +768,7 @@ export const accessRouter = t.router({
           memo: string | null; programDetail: string | null;
           startDate: string | null; endDate: string | null;
           serviceSessions: number | null; serviceHealthDuration: number | null;
-          createdAt: string;
+          createdAt: string; serviceItems: string | null;
         }>,
       };
     }),

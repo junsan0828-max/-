@@ -1318,135 +1318,197 @@ export default function MemberDetail({ memberId }: Props) {
             </CardContent>
           </Card>
 
-          {/* 헬스권 */}
-          <Card className="bg-card border-border">
-            <CardHeader className="px-4 sm:px-6 pb-2">
-              <CardTitle className="text-base">헬스권</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 sm:px-6">
-              {!memberPrograms?.healthRevenues.filter(r => r.type === "헬스").length ? (
-                <p className="text-muted-foreground text-sm text-center py-6">등록된 헬스권이 없습니다.</p>
-              ) : (
-                <div className="space-y-3">
-                  {memberPrograms!.healthRevenues.filter(r => r.type === "헬스").map(r => {
-                    const isService = r.paidAmount === 0;
-                    return (
-                      <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm text-foreground">헬스권</p>
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
-                          {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
-                        </div>
-                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          {(r.startDate || r.endDate) && (
-                            <div className="col-span-2">{r.startDate ?? "-"} ~ {r.endDate ?? "-"}</div>
-                          )}
-                          <div>결제 <span className="text-foreground font-medium">{r.paidAmount.toLocaleString()}원</span></div>
-                          {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
-                          {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
-                          {r.memo && <div className="col-span-2 text-muted-foreground/70">{r.memo}</div>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* serviceItems 파싱 (결제 기록에서 서비스 항목 추출) */}
+          {(() => {
+            const allRevs = memberPrograms?.healthRevenues ?? [];
+            const siEntries = allRevs.filter(r => r.serviceItems);
+            const parseItems = (prefix: string) =>
+              siEntries.flatMap(r =>
+                (r.serviceItems ?? "").split(",").filter(s => s.startsWith(prefix)).map(item => ({
+                  key: `si-${r.id}-${item}`,
+                  detail: item,
+                  paymentDate: r.paymentDate,
+                  subType: r.subType,
+                }))
+              );
+            const siHealth = parseItems("헬스");
+            const siLocker = parseItems("락커");
+            const siUniform = parseItems("운동복");
 
-          {/* 기타 (운동복·락커 등 revenue_entries) */}
-          {(memberPrograms?.healthRevenues.filter(r => r.type === "기타").length ?? 0) > 0 && (
-            <Card className="bg-card border-border">
-              <CardHeader className="px-4 sm:px-6 pb-2">
-                <CardTitle className="text-base">기타 서비스</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 sm:px-6">
-                <div className="space-y-3">
-                  {memberPrograms!.healthRevenues.filter(r => r.type === "기타").map(r => {
-                    const isService = r.paidAmount === 0;
-                    const detail = r.programDetail ?? r.memo ?? "기타";
-                    return (
-                      <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm text-foreground">{detail}</p>
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
-                          {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
-                        </div>
-                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <div>결제 <span className="text-foreground font-medium">{r.paidAmount.toLocaleString()}원</span></div>
-                          {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+            const healthRevs = allRevs.filter(r => r.type === "헬스");
+            const etcRevs = allRevs.filter(r => r.type === "기타");
+            const hasHealth = healthRevs.length > 0 || siHealth.length > 0;
+            const hasLocker = (memberPrograms?.lockers.length ?? 0) > 0 || siLocker.length > 0;
+            const hasUniform = (memberPrograms?.uniforms.length ?? 0) > 0 || siUniform.length > 0;
 
-          {/* 락커 */}
-          <Card className="bg-card border-border">
-            <CardHeader className="px-4 sm:px-6 pb-2">
-              <CardTitle className="text-base">락커</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 sm:px-6">
-              {!memberPrograms?.lockers.length ? (
-                <p className="text-muted-foreground text-sm text-center py-6">배정된 락커가 없습니다.</p>
-              ) : (
-                <div className="space-y-3">
-                  {memberPrograms!.lockers.map(locker => (
-                    <div key={locker.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm text-foreground">락커 {locker.lockerNumber}</p>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full border ${locker.isOccupied ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
-                          {locker.isOccupied ? "사용중" : "미사용"}
-                        </span>
-                        {locker.lockerType && locker.lockerType !== "personal" && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">{locker.lockerType}</span>
-                        )}
+            return (
+              <>
+                {/* 헬스권 */}
+                <Card className="bg-card border-border">
+                  <CardHeader className="px-4 sm:px-6 pb-2">
+                    <CardTitle className="text-base">헬스권</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 sm:px-6">
+                    {!hasHealth ? (
+                      <p className="text-muted-foreground text-sm text-center py-6">등록된 헬스권이 없습니다.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* serviceItems 기반 헬스 서비스 */}
+                        {siHealth.map(item => (
+                          <div key={item.key} className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-foreground">{item.detail}</p>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">서비스</span>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
+                          </div>
+                        ))}
+                        {/* 결제 기록 기반 헬스권 */}
+                        {healthRevs.map(r => {
+                          const isService = r.paidAmount === 0;
+                          return (
+                            <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-sm text-foreground">헬스권</p>
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
+                                {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                {(r.startDate || r.endDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {r.endDate ?? "-"}</div>}
+                                <div>결제 <span className="text-foreground font-medium">{r.paidAmount.toLocaleString()}원</span></div>
+                                {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
+                                {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
+                                {r.memo && <div className="col-span-2 text-muted-foreground/70">{r.memo}</div>}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      {(locker.startDate || locker.endDate) && (
-                        <p className="mt-1 text-xs text-muted-foreground">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</p>
-                      )}
-                      {locker.memo && <p className="mt-1 text-xs text-muted-foreground/70">{locker.memo}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    )}
+                  </CardContent>
+                </Card>
 
-          {/* 운동복 */}
-          <Card className="bg-card border-border">
-            <CardHeader className="px-4 sm:px-6 pb-2">
-              <CardTitle className="text-base">운동복</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 sm:px-6">
-              {!memberPrograms?.uniforms.length ? (
-                <p className="text-muted-foreground text-sm text-center py-6">대여중인 운동복이 없습니다.</p>
-              ) : (
-                <div className="space-y-3">
-                  {memberPrograms!.uniforms.map(u => (
-                    <div key={u.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm text-foreground">운동복{u.size ? ` (${u.size})` : ""}</p>
-                        {(u.quantity ?? 1) > 1 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">×{u.quantity}</span>
-                        )}
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full border ${u.isActive ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
-                          {u.isActive ? "대여중" : "반납"}
-                        </span>
+                {/* 기타 서비스 */}
+                {etcRevs.length > 0 && (
+                  <Card className="bg-card border-border">
+                    <CardHeader className="px-4 sm:px-6 pb-2">
+                      <CardTitle className="text-base">기타 서비스</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 sm:px-6">
+                      <div className="space-y-3">
+                        {etcRevs.map(r => {
+                          const isService = r.paidAmount === 0;
+                          const detail = r.programDetail ?? r.memo ?? "기타";
+                          return (
+                            <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-sm text-foreground">{detail}</p>
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
+                                {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
+                              </div>
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                <span>결제 <span className="text-foreground font-medium">{r.paidAmount.toLocaleString()}원</span></span>
+                                {r.unpaidAmount > 0 && <span className="ml-3">미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></span>}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      {(u.startDate || u.endDate) && (
-                        <p className="mt-1 text-xs text-muted-foreground">{u.startDate ?? "-"} ~ {u.endDate ?? "-"}</p>
-                      )}
-                      {u.memo && <p className="mt-1 text-xs text-muted-foreground/70">{u.memo}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* 락커 */}
+                <Card className="bg-card border-border">
+                  <CardHeader className="px-4 sm:px-6 pb-2">
+                    <CardTitle className="text-base">락커</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 sm:px-6">
+                    {!hasLocker ? (
+                      <p className="text-muted-foreground text-sm text-center py-6">배정된 락커가 없습니다.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* serviceItems 기반 락커 서비스 */}
+                        {siLocker.map(item => (
+                          <div key={item.key} className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-foreground">{item.detail}</p>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
+                          </div>
+                        ))}
+                        {/* 실제 락커 배정 기록 */}
+                        {memberPrograms!.lockers.map(locker => (
+                          <div key={locker.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-foreground">락커 {locker.lockerNumber}</p>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${locker.isOccupied ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
+                                {locker.isOccupied ? "사용중" : "미사용"}
+                              </span>
+                              {locker.lockerType && locker.lockerType !== "personal" && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">{locker.lockerType}</span>
+                              )}
+                            </div>
+                            {(locker.startDate || locker.endDate) && (
+                              <p className="mt-1 text-xs text-muted-foreground">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</p>
+                            )}
+                            {locker.memo && <p className="mt-1 text-xs text-muted-foreground/70">{locker.memo}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* 운동복 */}
+                <Card className="bg-card border-border">
+                  <CardHeader className="px-4 sm:px-6 pb-2">
+                    <CardTitle className="text-base">운동복</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 sm:px-6">
+                    {!hasUniform ? (
+                      <p className="text-muted-foreground text-sm text-center py-6">대여중인 운동복이 없습니다.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* serviceItems 기반 운동복 서비스 */}
+                        {siUniform.map(item => (
+                          <div key={item.key} className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-foreground">운동복</p>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">서비스</span>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
+                          </div>
+                        ))}
+                        {/* 실제 운동복 대여 기록 */}
+                        {memberPrograms!.uniforms.map(u => (
+                          <div key={u.id} className="p-3 rounded-lg bg-accent/20 border border-border">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-foreground">운동복{u.size ? ` (${u.size})` : ""}</p>
+                              {(u.quantity ?? 1) > 1 && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">×{u.quantity}</span>
+                              )}
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${u.isActive ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
+                                {u.isActive ? "대여중" : "반납"}
+                              </span>
+                            </div>
+                            {(u.startDate || u.endDate) && (
+                              <p className="mt-1 text-xs text-muted-foreground">{u.startDate ?? "-"} ~ {u.endDate ?? "-"}</p>
+                            )}
+                            {u.memo && <p className="mt-1 text-xs text-muted-foreground/70">{u.memo}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            );
+          })()}
 
         </TabsContent>
 
