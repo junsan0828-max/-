@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, Plus, ClipboardList, CheckCircle2, Clock, ChevronDown, ChevronUp, Trash2, Zap, X } from "lucide-react";
+import { Bell, Plus, ClipboardList, CheckCircle2, Clock, ChevronDown, ChevronUp, Trash2, Zap, X, TableProperties, Pencil, Check } from "lucide-react";
 import AccessManagement from "./AccessManagement";
 import LandingPageAdmin from "./LandingPageAdmin";
 
@@ -618,6 +618,132 @@ function EventManagementSection() {
           <button onClick={openNew} className="w-full py-2 rounded-md border border-dashed border-primary/40 text-sm text-primary hover:bg-primary/5 transition-colors">
             + 이벤트 추가
           </button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function DataFieldManagementSection() {
+  const utils = trpc.useUtils();
+  const [section, setSection] = useState<"daily" | "weekly">("daily");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newField, setNewField] = useState({ name: "", unit: "건" });
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editValues, setEditValues] = useState({ name: "", unit: "" });
+
+  const { data: fields } = trpc.consultantData.listFields.useQuery({ section });
+
+  const createMutation = trpc.consultantData.createField.useMutation({
+    onSuccess: () => {
+      toast.success("항목이 추가됐습니다");
+      utils.consultantData.invalidate();
+      setShowAdd(false);
+      setNewField({ name: "", unit: "건" });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const updateMutation = trpc.consultantData.updateField.useMutation({
+    onSuccess: () => { utils.consultantData.invalidate(); setEditId(null); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteMutation = trpc.consultantData.deleteField.useMutation({
+    onSuccess: () => { toast.success("삭제됐습니다"); utils.consultantData.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TableProperties className="h-4 w-4 text-primary" />데이터 항목 관리
+          </CardTitle>
+          <button onClick={() => setShowAdd(v => !v)}
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90">
+            <Plus className="h-3.5 w-3.5" />항목 추가
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">컨설턴트가 입력할 일일/주간 데이터 항목을 관리합니다</p>
+        <div className="flex gap-2 mt-2">
+          {(["daily", "weekly"] as const).map(s => (
+            <button key={s} onClick={() => setSection(s)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${section === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}>
+              {s === "daily" ? "일일 항목" : "주간 항목"}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {showAdd && (
+          <div className="bg-background border border-border rounded-xl p-3 space-y-2 mb-3">
+            <div className="flex gap-2">
+              <input
+                value={newField.name}
+                onChange={e => setNewField(f => ({ ...f, name: e.target.value }))}
+                placeholder="항목명 (예: 블로그 포스팅)"
+                className="flex-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <input
+                value={newField.unit}
+                onChange={e => setNewField(f => ({ ...f, unit: e.target.value }))}
+                placeholder="단위"
+                className="w-20 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowAdd(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent">취소</button>
+              <button
+                onClick={() => { if (!newField.name.trim()) return toast.error("항목명을 입력하세요"); createMutation.mutate({ name: newField.name.trim(), unit: newField.unit || "건", section }); }}
+                className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90">
+                추가
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(!fields || fields.length === 0) ? (
+          <p className="text-sm text-muted-foreground text-center py-4">등록된 항목이 없습니다</p>
+        ) : (
+          fields.map((f: any) => (
+            <div key={f.id} className="bg-background border border-border rounded-xl px-3 py-2.5 flex items-center gap-2">
+              {editId === f.id ? (
+                <>
+                  <input value={editValues.name} onChange={e => setEditValues(v => ({ ...v, name: e.target.value }))}
+                    className="flex-1 bg-card border border-border rounded-lg px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  <input value={editValues.unit} onChange={e => setEditValues(v => ({ ...v, unit: e.target.value }))}
+                    className="w-16 bg-card border border-border rounded-lg px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                  <button onClick={() => updateMutation.mutate({ id: f.id, name: editValues.name, unit: editValues.unit })}
+                    className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors">
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => setEditId(null)} className="p-1.5 text-muted-foreground hover:bg-accent rounded-lg transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${f.isActive ? "bg-emerald-400" : "bg-muted-foreground/40"}`} />
+                  <span className="text-sm text-foreground flex-1 truncate">{f.name}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{f.unit}</span>
+                  <button onClick={() => { setEditId(f.id); setEditValues({ name: f.name, unit: f.unit ?? "건" }); }}
+                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => updateMutation.mutate({ id: f.id, isActive: !f.isActive })}
+                    className={`text-xs px-2 py-1 rounded-md transition-colors ${f.isActive ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-muted text-muted-foreground hover:bg-accent"}`}>
+                    {f.isActive ? "활성" : "비활성"}
+                  </button>
+                  <button onClick={() => { if (confirm(`"${f.name}" 항목을 삭제하시겠습니까?\n입력된 데이터도 함께 삭제됩니다.`)) deleteMutation.mutate({ id: f.id }); }}
+                    className="p-1.5 text-red-400/70 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          ))
         )}
       </CardContent>
     </Card>
