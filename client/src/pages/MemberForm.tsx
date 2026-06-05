@@ -571,7 +571,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="현금영수증">현금영수증</SelectItem>
-                        <SelectItem value="이체">이체</SelectItem>
+                        <SelectItem value="이체">계좌이체</SelectItem>
                         <SelectItem value="지역화폐">지역화폐</SelectItem>
                         <SelectItem value="카드">카드</SelectItem>
                       </SelectContent>

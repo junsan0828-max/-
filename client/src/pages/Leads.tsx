@@ -37,7 +37,8 @@ const EXERCISE_PURPOSES = [
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 const PT_SESSIONS = [10, 20, 30, 40, 50];
 const DURATIONS = [1, 3, 6, 12];
-const PAYMENT_METHODS_REG = ["카드", "현금", "계좌이체", "지역화폐"];
+const PAYMENT_METHODS_REG = ["카드", "현금영수증", "이체", "지역화폐"];
+const PAYMENT_METHOD_LABELS: Record<string, string> = { "이체": "계좌이체" };
 
 type RegForm = {
   itemTypes: string[];     // 복수 선택: PT / 헬스 / 기타
@@ -1314,7 +1315,7 @@ export default function LeadsPage() {
                     <button key={m} type="button"
                       onClick={() => setRegForm(f => ({ ...f, paymentMethod: f.paymentMethod === m ? "" : m }))}
                       className={`py-2 rounded-lg text-xs font-medium border transition-colors ${regForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {m}
+                      {PAYMENT_METHOD_LABELS[m] ?? m}
                     </button>
                   ))}
                 </div>

@@ -1162,7 +1162,7 @@ export default function MemberDetail({ memberId }: Props) {
                                     expiryDate: pkg.expiryDate ?? "",
                                     paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
                                     unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
-                                    paymentMethod: (pkg.paymentMethod ?? "") as any,
+                                    paymentMethod: ((pkg.paymentMethod === "계좌이체" ? "이체" : pkg.paymentMethod) ?? "") as any,
                                     paymentDate: (pkg as any).paymentDate ?? "",
                                     paymentMemo: pkg.paymentMemo ?? "",
                                   });
@@ -1298,7 +1298,7 @@ export default function MemberDetail({ memberId }: Props) {
                               {pkg.paymentMethod ? (
                                 <div>
                                   <p className="text-muted-foreground">결제방법</p>
-                                  <p className="font-medium">{pkg.paymentMethod}</p>
+                                  <p className="font-medium">{pkg.paymentMethod === "이체" ? "계좌이체" : pkg.paymentMethod}</p>
                                 </div>
                               ) : null}
                               {pkg.paymentMemo ? (
@@ -1953,7 +1953,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <SelectContent>
                   <SelectItem value="__none">선택 안함</SelectItem>
                   <SelectItem value="현금영수증">현금영수증</SelectItem>
-                  <SelectItem value="이체">이체</SelectItem>
+                  <SelectItem value="이체">계좌이체</SelectItem>
                   <SelectItem value="지역화폐">지역화폐</SelectItem>
                   <SelectItem value="카드">카드</SelectItem>
                 </SelectContent>
