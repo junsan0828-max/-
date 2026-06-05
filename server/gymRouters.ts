@@ -410,13 +410,42 @@ const revenueRouter = t.router({
         if (tr?.branchId) resolvedBranchId = tr.branchId;
       }
 
-      const [row] = await db.insert(revenueEntries).values({
-        ...input,
-        ...trainerAutoFields,
-        branchId: resolvedBranchId ?? null,
-        createdBy: ctx.user!.id,
-        updatedAt: new Date().toISOString(),
-      }).returning();
+      // leadId가 있으면 이미 등록된 매출이 있는지 확인 → 중복 방지
+      let row: typeof revenueEntries.$inferSelect;
+      if (input.leadId) {
+        const existing = await db.select().from(revenueEntries)
+          .where(eq(revenueEntries.leadId, input.leadId))
+          .orderBy(desc(revenueEntries.createdAt))
+          .limit(1);
+        if (existing[0]) {
+          // 기존 항목 업데이트 (재등록 방지)
+          const [updated] = await db.update(revenueEntries).set({
+            ...input,
+            ...trainerAutoFields,
+            branchId: resolvedBranchId ?? null,
+            updatedAt: new Date().toISOString(),
+          }).where(eq(revenueEntries.id, existing[0].id)).returning();
+          row = updated;
+        } else {
+          const [inserted] = await db.insert(revenueEntries).values({
+            ...input,
+            ...trainerAutoFields,
+            branchId: resolvedBranchId ?? null,
+            createdBy: ctx.user!.id,
+            updatedAt: new Date().toISOString(),
+          }).returning();
+          row = inserted;
+        }
+      } else {
+        const [inserted] = await db.insert(revenueEntries).values({
+          ...input,
+          ...trainerAutoFields,
+          branchId: resolvedBranchId ?? null,
+          createdBy: ctx.user!.id,
+          updatedAt: new Date().toISOString(),
+        }).returning();
+        row = inserted;
+      }
 
       // 리드가 있으면 상태 registered로 업데이트
       if (input.leadId) {
