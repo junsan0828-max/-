@@ -83,6 +83,7 @@ export default function RegistrationManagement() {
   const [uniformActiveOnly, setUniformActiveOnly] = useState(true);
   const [uniformForm, setUniformForm] = useState({
     memberId: "", memberName: "", memberPhone: "",
+    paymentDate: new Date().toISOString().substring(0, 10),
     startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "",
     memberType: "existing", rentalType: "paid", isPaid: "1", paymentAmount: "",
   });
@@ -268,13 +269,14 @@ export default function RegistrationManagement() {
 
   // 운동복 헬퍼
   function resetUniformForm() {
-    setUniformForm({ memberId: "", memberName: "", memberPhone: "", startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "", memberType: "existing", rentalType: "paid", isPaid: "1", paymentAmount: "" });
+    setUniformForm({ memberId: "", memberName: "", memberPhone: "", paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10), endDate: "", memo: "", memberType: "existing", rentalType: "paid", isPaid: "1", paymentAmount: "" });
     setUniformMemberSearch("");
   }
   function openEditUniform(u: any) {
     setEditingUniform(u);
     setUniformForm({
       memberId: String(u.memberId ?? ""), memberName: u.memberName ?? "", memberPhone: u.memberPhone ?? "",
+      paymentDate: u.paymentDate ?? new Date().toISOString().substring(0, 10),
       startDate: u.startDate ?? "", endDate: u.endDate ?? "", memo: u.memo ?? "",
       memberType: u.memberType ?? "existing", rentalType: u.rentalType ?? "paid",
       isPaid: String(u.isPaid ?? 1), paymentAmount: String(u.paymentAmount ?? ""),
@@ -293,6 +295,7 @@ export default function RegistrationManagement() {
       memberId: uniformForm.memberId ? parseInt(uniformForm.memberId) : undefined,
       memberName: uniformForm.memberName || undefined,
       memberPhone: uniformForm.memberPhone || undefined,
+      paymentDate: uniformForm.paymentDate || undefined,
       startDate: uniformForm.startDate || undefined,
       endDate: uniformForm.endDate || undefined,
       memo: uniformForm.memo || undefined,
@@ -1157,13 +1160,13 @@ export default function RegistrationManagement() {
                   )}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-xs text-muted-foreground">시작일</label>
-                      <input type="date" value={uniformForm.startDate} onChange={e => setUniformForm(f => ({ ...f, startDate: e.target.value }))}
+                      <label className="text-xs text-muted-foreground">결제일</label>
+                      <input type="date" value={uniformForm.paymentDate} onChange={e => setUniformForm(f => ({ ...f, paymentDate: e.target.value }))}
                         className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">종료일</label>
-                      <input type="date" value={uniformForm.endDate} onChange={e => setUniformForm(f => ({ ...f, endDate: e.target.value }))}
+                      <label className="text-xs text-muted-foreground">시작일</label>
+                      <input type="date" value={uniformForm.startDate} onChange={e => setUniformForm(f => ({ ...f, startDate: e.target.value }))}
                         className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                     </div>
                   </div>
