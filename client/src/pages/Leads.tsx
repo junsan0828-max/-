@@ -61,7 +61,11 @@ type RegForm = {
   startDate: string;
   memo: string;
   branchId?: number;
-  serviceItems: string[];  // 서비스 제공 항목: PT / 헬스 / 락커 / 운동복
+  serviceItems: string[];       // 서비스 제공 항목: PT / 헬스 / 락커 / 운동복
+  servicePtCount?: number;      // 서비스 PT 횟수
+  serviceHealthMonths?: number; // 서비스 헬스 개월 수
+  serviceHealthMonthsCustom: string; // 직접 입력
+  serviceLockerNum: string;     // 서비스 락커 번호
 };
 
 const defaultRegForm: RegForm = {
@@ -83,6 +87,10 @@ const defaultRegForm: RegForm = {
   memo: "",
   branchId: undefined,
   serviceItems: [],
+  servicePtCount: undefined,
+  serviceHealthMonths: undefined,
+  serviceHealthMonthsCustom: "",
+  serviceLockerNum: "",
 };
 
 type LeadForm = {
@@ -266,6 +274,7 @@ export default function LeadsPage() {
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const { data: allLockers } = trpc.access.getLockers.useQuery();
   const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
   const [showEventPicker, setShowEventPicker] = useState<"reReg" | "direct" | null>(null);
 
@@ -393,6 +402,10 @@ export default function LeadsPage() {
       memo: directForm.paymentMemo || "",
       branchId: directForm.branchId ? parseInt(directForm.branchId) : undefined,
       serviceItems: [],
+      servicePtCount: undefined,
+      serviceHealthMonths: undefined,
+      serviceHealthMonthsCustom: "",
+      serviceLockerNum: "",
     });
     setSigContext("direct");
     setSignatureDataUrl(null);
@@ -425,6 +438,10 @@ export default function LeadsPage() {
       memo: reRegForm.paymentMemo || "",
       branchId: reRegForm.branchId ? parseInt(reRegForm.branchId) : undefined,
       serviceItems: [],
+      servicePtCount: undefined,
+      serviceHealthMonths: undefined,
+      serviceHealthMonthsCustom: "",
+      serviceLockerNum: "",
     });
     setSigContext("rereg");
     setSignatureDataUrl(null);
@@ -597,7 +614,15 @@ export default function LeadsPage() {
       startDate: reg.startDate || undefined,
       memo: reg.memo || undefined,
       branchId: reg.branchId ?? undefined,
-      serviceItems: reg.serviceItems.length > 0 ? reg.serviceItems.join(",") : undefined,
+      serviceItems: reg.serviceItems.length > 0 ? reg.serviceItems.map(item => {
+        if (item === "PT" && reg.servicePtCount) return `PT(${reg.servicePtCount}회)`;
+        if (item === "헬스") {
+          const months = reg.serviceHealthMonths ?? (reg.serviceHealthMonthsCustom ? parseInt(reg.serviceHealthMonthsCustom) : undefined);
+          return months ? `헬스(${months}개월)` : "헬스";
+        }
+        if (item === "락커" && reg.serviceLockerNum) return `락커(${reg.serviceLockerNum})`;
+        return item;
+      }).join(",") : undefined,
     });
   }
 
@@ -1338,40 +1363,152 @@ export default function LeadsPage() {
               </div>
 
               {/* 서비스 내역 */}
-              <div>
-                <label className="text-xs text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목 선택)</span></label>
-                <div className="grid grid-cols-4 gap-2 mt-1">
-                  {(["PT", "헬스", "락커", "운동복"] as const).map(item => {
-                    const selected = regForm.serviceItems.includes(item);
-                    const style = selected
-                      ? item === "PT" ? "bg-blue-500 text-white border-blue-500"
-                      : item === "헬스" ? "bg-emerald-500 text-white border-emerald-500"
-                      : item === "락커" ? "bg-amber-500 text-white border-amber-500"
-                      : "bg-purple-500 text-white border-purple-500"
-                      : "bg-background border-border text-muted-foreground";
-                    return (
-                      <button key={item} type="button"
-                        onClick={() => setRegForm(f => ({
-                          ...f,
-                          serviceItems: selected ? f.serviceItems.filter(s => s !== item) : [...f.serviceItems, item],
-                        }))}
-                        className={`py-2 rounded-lg text-xs font-medium border transition-colors ${style}`}>
-                        {item}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목)</span></label>
+
+                {/* PT 서비스 — PT 구매 시에만 표시 */}
+                {regForm.itemTypes.includes("PT") && (() => {
+                  const selected = regForm.serviceItems.includes("PT");
+                  const paid = Number(regForm.paidAmount) || 0;
+                  const total = (regForm.sessions ?? 0) + (regForm.serviceSessions ?? 0);
+                  const unitPrice = total > 0 ? Math.round(paid / total) : 0;
+                  return (
+                    <div className={`rounded-xl border transition-colors ${selected ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "PT") : [...f.serviceItems, "PT"], servicePtCount: undefined }))}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={selected ? "text-blue-400" : "text-muted-foreground"}>PT 서비스 제공</span>
+                        {unitPrice > 0 && <span className="text-[10px] text-muted-foreground">단가 {unitPrice.toLocaleString()}원/회</span>}
                       </button>
-                    );
-                  })}
-                </div>
+                      {selected && (
+                        <div className="px-4 pb-4 border-t border-blue-500/20 pt-3 space-y-2">
+                          <label className="text-xs text-muted-foreground">제공 횟수</label>
+                          <div className="flex gap-2">
+                            {[1, 2, 3].map(n => (
+                              <button key={n} type="button"
+                                onClick={() => setRegForm(f => ({ ...f, servicePtCount: f.servicePtCount === n ? undefined : n }))}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.servicePtCount === n ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground"}`}>
+                                +{n}회
+                              </button>
+                            ))}
+                            <input
+                              type="number"
+                              min={1}
+                              value={regForm.servicePtCount && ![1,2,3].includes(regForm.servicePtCount) ? regForm.servicePtCount : ""}
+                              onChange={e => setRegForm(f => ({ ...f, servicePtCount: e.target.value ? parseInt(e.target.value) : undefined }))}
+                              placeholder="직접"
+                              className="flex-1 py-2 px-2 rounded-lg text-sm text-foreground border border-border bg-background text-center focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          </div>
+                          {regForm.servicePtCount && unitPrice > 0 && (
+                            <p className="text-xs text-blue-400">서비스 금액 ≈ {(regForm.servicePtCount * unitPrice).toLocaleString()}원 상당</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 헬스 서비스 — 헬스 구매 시에만 표시 */}
+                {regForm.itemTypes.includes("헬스") && (() => {
+                  const selected = regForm.serviceItems.includes("헬스");
+                  return (
+                    <div className={`rounded-xl border transition-colors ${selected ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "헬스") : [...f.serviceItems, "헬스"], serviceHealthMonths: undefined, serviceHealthMonthsCustom: "" }))}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={selected ? "text-emerald-400" : "text-muted-foreground"}>헬스 서비스 제공</span>
+                      </button>
+                      {selected && (
+                        <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
+                          <label className="text-xs text-muted-foreground">제공 개월 수</label>
+                          <div className="flex gap-2 flex-wrap">
+                            {[1, 3, 6, 12].map(m => (
+                              <button key={m} type="button"
+                                onClick={() => setRegForm(f => ({ ...f, serviceHealthMonths: f.serviceHealthMonths === m ? undefined : m, serviceHealthMonthsCustom: "" }))}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                {m}개월
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            type="number"
+                            min={1}
+                            value={regForm.serviceHealthMonthsCustom}
+                            onChange={e => setRegForm(f => ({ ...f, serviceHealthMonthsCustom: e.target.value, serviceHealthMonths: undefined }))}
+                            placeholder="직접 입력 (개월)"
+                            className="w-full py-2 px-3 rounded-lg text-sm text-foreground border border-border bg-background focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 락커 서비스 — 항상 표시 */}
+                {(() => {
+                  const selected = regForm.serviceItems.includes("락커");
+                  const availableLockers = (allLockers ?? []).filter((l: any) =>
+                    !l.isOccupied && (!regForm.branchId || l.branchId === regForm.branchId || !l.branchId)
+                  );
+                  return (
+                    <div className={`rounded-xl border transition-colors ${selected ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "락커") : [...f.serviceItems, "락커"], serviceLockerNum: "" }))}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={selected ? "text-amber-400" : "text-muted-foreground"}>락커 서비스 제공</span>
+                        {availableLockers.length > 0 && <span className="text-[10px] text-muted-foreground">사용 가능 {availableLockers.length}개</span>}
+                      </button>
+                      {selected && (
+                        <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
+                          <label className="text-xs text-muted-foreground">락커 번호</label>
+                          <select
+                            value={regForm.serviceLockerNum}
+                            onChange={e => setRegForm(f => ({ ...f, serviceLockerNum: e.target.value }))}
+                            className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground border border-border bg-background focus:outline-none focus:ring-1 focus:ring-amber-500">
+                            <option value="">락커 선택...</option>
+                            {availableLockers.map((l: any) => (
+                              <option key={l.id} value={l.lockerNumber}>
+                                {l.lockerNumber}{l.lockerType && l.lockerType !== "personal" ? ` (${l.lockerType})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          {availableLockers.length === 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 운동복 서비스 — 항상 표시 */}
+                {(() => {
+                  const selected = regForm.serviceItems.includes("운동복");
+                  return (
+                    <button type="button"
+                      onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "운동복") : [...f.serviceItems, "운동복"] }))}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${selected ? "border-purple-500/60 bg-purple-500/5 text-purple-400" : "border-border text-muted-foreground"}`}>
+                      운동복 서비스 제공
+                      {selected && <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                    </button>
+                  );
+                })()}
+
+                {/* 선택된 서비스 배지 */}
                 {regForm.serviceItems.length > 0 && (
-                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                  <div className="flex gap-1.5 mt-1 flex-wrap">
                     {regForm.serviceItems.map(item => {
+                      let label = `🎁 서비스 ${item}`;
+                      if (item === "PT" && regForm.servicePtCount) label = `🎁 PT +${regForm.servicePtCount}회`;
+                      else if (item === "헬스") {
+                        const m = regForm.serviceHealthMonths ?? (regForm.serviceHealthMonthsCustom ? parseInt(regForm.serviceHealthMonthsCustom) : 0);
+                        if (m) label = `🎁 헬스 +${m}개월`;
+                      } else if (item === "락커" && regForm.serviceLockerNum) label = `🎁 락커 #${regForm.serviceLockerNum}`;
                       const badgeStyle = item === "PT" ? "bg-blue-500/20 text-blue-400"
                         : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
                         : item === "락커" ? "bg-amber-500/20 text-amber-400"
                         : "bg-purple-500/20 text-purple-400";
                       return (
-                        <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeStyle}`}>
-                          🎁 서비스 {item}
-                        </span>
+                        <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeStyle}`}>{label}</span>
                       );
                     })}
                   </div>
