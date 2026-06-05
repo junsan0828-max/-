@@ -565,6 +565,9 @@ const membersRouter = t.router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 회원을 삭제할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 

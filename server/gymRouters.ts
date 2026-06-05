@@ -194,10 +194,18 @@ const leadsRouter = t.router({
       memo: z.string().optional(),
       signatureDataUrl: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, ...data } = input;
+      // 트레이너는 본인 담당 상담 건만 수정 가능
+      if (ctx.user?.role === "trainer") {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+        if (!lead) throw new TRPCError({ code: "NOT_FOUND" });
+        if (lead.assignedTrainerId !== ctx.user.trainerId && lead.assignedConsultantId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "본인이 담당한 상담 건만 수정할 수 있습니다." });
+        }
+      }
       const [row] = await db.update(leads).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(leads.id, id)).returning();
       return row;
     }),
@@ -208,6 +216,13 @@ const leadsRouter = t.router({
       if (ctx.user?.role === "sub_admin") throw new TRPCError({ code: "FORBIDDEN", message: "부관리자는 삭제 권한이 없습니다." });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // 트레이너/컨설턴트는 본인 상담 건만 삭제 가능
+      if (ctx.user?.role === "trainer" || ctx.user?.role === "consultant") {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, input.id)).limit(1);
+        if (!lead) throw new TRPCError({ code: "NOT_FOUND" });
+        const isOwner = lead.assignedTrainerId === ctx.user.trainerId || lead.assignedConsultantId === ctx.user.id;
+        if (!isOwner) throw new TRPCError({ code: "FORBIDDEN", message: "본인이 담당한 상담 건만 삭제할 수 있습니다." });
+      }
       await db.delete(leads).where(eq(leads.id, input.id));
       return { success: true };
     }),
@@ -633,7 +648,10 @@ const revenueRouter = t.router({
 
   trainerSummary: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number(), branchId: z.number().optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 트레이너별 매출 요약을 조회할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -901,7 +919,10 @@ const revenueRouter = t.router({
 const expenseRouter = t.router({
   list: protectedProcedure
     .input(z.object({ year: z.number().optional(), month: z.number().optional(), category: z.string().optional(), branchId: z.number().optional() }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 지출 내역을 조회할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
@@ -935,7 +956,10 @@ const expenseRouter = t.router({
       expenseDate: z.string(),
       memo: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 지출을 등록할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [row] = await db.insert(expenseEntries).values(input).returning();
@@ -953,7 +977,10 @@ const expenseRouter = t.router({
       expenseDate: z.string().optional(),
       memo: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 지출을 수정할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { id, ...data } = input;
@@ -963,7 +990,10 @@ const expenseRouter = t.router({
 
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 지출을 삭제할 수 있습니다." });
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(expenseEntries).where(eq(expenseEntries.id, input.id));
@@ -1162,20 +1192,25 @@ const kpiRouter = t.router({
       };
     }),
 
-  recentActivity: protectedProcedure.query(async () => {
+  recentActivity: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const isTrainer = ctx.user?.role === "trainer";
+    const trainerId = ctx.user?.trainerId;
 
     const [recentRevenue, recentLeads] = await Promise.all([
       db.select({ entry: revenueEntries, trainerName: trainers.trainerName, memberName: members.name })
         .from(revenueEntries)
         .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
         .leftJoin(members, eq(revenueEntries.memberId, members.id))
+        .where(isTrainer && trainerId ? eq(revenueEntries.trainerId, trainerId) : undefined)
         .orderBy(desc(revenueEntries.createdAt))
         .limit(10),
       db.select({ lead: leads, channelName: channels.name })
         .from(leads)
         .leftJoin(channels, eq(leads.channelId, channels.id))
+        .where(isTrainer && trainerId ? eq(leads.assignedTrainerId, trainerId) : undefined)
         .orderBy(desc(leads.createdAt))
         .limit(10),
     ]);

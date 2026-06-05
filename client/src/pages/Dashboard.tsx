@@ -1144,6 +1144,6 @@ function LoadingSkeleton() {
 
 export default function Dashboard() {
   const { data: user } = trpc.auth.me.useQuery();
-  if (user?.role === "admin") return <AdminDashboard />;
+  if (user?.role === "admin" || user?.role === "sub_admin") return <AdminDashboard />;
   return <TrainerDashboard />;
 }

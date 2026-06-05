@@ -77,16 +77,18 @@ function RevenueContent() {
 
   const { data: me } = trpc.auth.me.useQuery();
   const isConsultant = me?.role === "consultant";
+  const isTrainer = me?.role === "trainer";
+  const isAdminView = !isConsultant && !isTrainer;
 
   const { data: entries, isLoading } = trpc.gym.revenue.list.useQuery({ year, month });
-  const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month }, { enabled: !isConsultant });
+  const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month }, { enabled: isAdminView });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.gym.staff.listConsultants.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: kpi, error: kpiError } = trpc.gym.kpi.overview.useQuery(
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) },
-    { enabled: !isConsultant }
+    { enabled: isAdminView }
   );
   const kpiForbidden = (kpiError as any)?.data?.code === "FORBIDDEN";
 
@@ -220,7 +222,7 @@ function RevenueContent() {
       </div>
 
       {/* 지점 필터 */}
-      {!isConsultant && branchList && branchList.length > 0 && (
+      {isAdminView && branchList && branchList.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setBranchFilter(null)}
             className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${branchFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
@@ -235,8 +237,8 @@ function RevenueContent() {
         </div>
       )}
 
-      {/* 월 선택 - 컨설턴트는 숨김 */}
-      {!isConsultant && (
+      {/* 월 선택 - 컨설턴트/트레이너는 숨김 */}
+      {isAdminView && (
         <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
           <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
             <ChevronLeft className="h-5 w-5" />
@@ -248,14 +250,14 @@ function RevenueContent() {
         </div>
       )}
 
-      {/* 요약 카드 - 컨설턴트는 숨김 */}
-      {!isConsultant && kpiForbidden && (
+      {/* 요약 카드 - 관리자만 표시 */}
+      {isAdminView && kpiForbidden && (
         <div className="flex items-center gap-3 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3">
           <Lock className="h-4 w-4 text-red-400 shrink-0" />
           <p className="text-sm text-red-400 font-medium">접근 권한이 없습니다</p>
         </div>
       )}
-      {!isConsultant && !kpiForbidden && (
+      {isAdminView && !kpiForbidden && (
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-card border border-border rounded-xl p-3">
             <div className="text-xs text-muted-foreground mb-1">이번달 매출</div>
@@ -273,8 +275,8 @@ function RevenueContent() {
         </div>
       )}
 
-      {/* 트레이너별 매출 - 컨설턴트는 숨김 */}
-      {!isConsultant && (trainerSummary ?? []).length > 0 && (
+      {/* 트레이너별 매출 - 관리자만 표시 */}
+      {isAdminView && (trainerSummary ?? []).length > 0 && (
         <div className="bg-card border border-border rounded-xl p-4">
           <h3 className="text-sm font-semibold text-foreground mb-3">트레이너별 매출</h3>
           <div className="space-y-2">
@@ -319,8 +321,8 @@ function RevenueContent() {
       ) : (
         <div className="space-y-2">
           {filtered.map(row => (
-            <div key={row.entry.id} onClick={() => openEdit(row)}
-              className="bg-card border border-border rounded-xl p-4 cursor-pointer hover:border-primary/30 transition-colors">
+            <div key={row.entry.id} onClick={() => { if (!isConsultant) openEdit(row); }}
+              className={`bg-card border border-border rounded-xl p-4 transition-colors ${!isConsultant ? "cursor-pointer hover:border-primary/30" : ""}`}>
               <div className="flex items-start justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
@@ -684,7 +686,7 @@ function RevenueContent() {
 
               </div>
               <div className="flex gap-2 p-4 border-t border-border shrink-0">
-                {editId && !isConsultant && (
+                {editId && isAdminView && (
                   <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
                     className="flex-1 border border-red-500/30 text-red-400 rounded-lg py-2.5 text-sm font-medium hover:bg-red-500/10">
                     삭제
