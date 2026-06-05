@@ -436,61 +436,58 @@ const revenueRouter = t.router({
         }
       }
 
-      // PT 등록 시 회원 자동 생성
-      if (input.type === "PT" && resolvedTrainerId && input.customerName && !input.memberId && input.subType !== "이전") {
+      // 회원 자동 생성 헬퍼: 이름+전화번호로 기존 회원 조회 후 없을 때만 생성
+      const linkOrCreateMember = async (extraFields: Record<string, any>): Promise<number | null> => {
+        if (!input.customerName) return null;
+        // 기존 회원 중복 확인
+        if (input.phone) {
+          const existing = await db.select({ id: members.id })
+            .from(members)
+            .where(and(eq(members.name, input.customerName), eq(members.phone, input.phone)))
+            .limit(1);
+          if (existing[0]) {
+            await db.update(revenueEntries).set({ memberId: existing[0].id }).where(eq(revenueEntries.id, row.id));
+            if (input.leadId) await db.update(leads).set({ registeredMemberId: existing[0].id }).where(eq(leads.id, input.leadId));
+            return existing[0].id;
+          }
+        }
         const now = new Date().toISOString();
         const [newMember] = await db.insert(members).values({
-          trainerId: resolvedTrainerId,
-          branchId: resolvedBranchId ?? null,
           name: input.customerName,
           phone: input.phone ?? undefined,
           gender: leadGender ?? undefined,
           visitRoute: leadVisitRoute ?? undefined,
           status: "active",
           grade: "basic",
-          membershipStart: input.startDate ?? undefined,
+          branchId: resolvedBranchId ?? null,
           createdAt: now,
           updatedAt: now,
+          ...extraFields,
         }).returning({ id: members.id });
         if (newMember) {
           await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, row.id));
-          row.memberId = newMember.id;
-          if (input.leadId) {
-            await db.update(leads).set({ registeredMemberId: newMember.id }).where(eq(leads.id, input.leadId));
-          }
+          if (input.leadId) await db.update(leads).set({ registeredMemberId: newMember.id }).where(eq(leads.id, input.leadId));
+          return newMember.id;
         }
+        return null;
+      };
+
+      // PT 등록 시 회원 자동 생성
+      if (input.type === "PT" && resolvedTrainerId && input.customerName && !input.memberId && input.subType !== "이전") {
+        const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId, membershipStart: input.startDate ?? undefined });
+        if (newId) row.memberId = newId;
       }
 
       // 헬스 등록 시 회원 자동 생성
       if (input.type === "헬스" && input.customerName && !input.memberId && input.subType !== "이전") {
-        const now = new Date().toISOString();
         let membershipEnd: string | undefined;
         if (input.startDate && input.duration) {
           const end = new Date(input.startDate);
           end.setMonth(end.getMonth() + input.duration);
           membershipEnd = end.toISOString().substring(0, 10);
         }
-        const [newMember] = await db.insert(members).values({
-          trainerId: resolvedTrainerId ?? null,
-          branchId: resolvedBranchId ?? null,
-          name: input.customerName,
-          phone: input.phone ?? undefined,
-          gender: leadGender ?? undefined,
-          visitRoute: leadVisitRoute ?? undefined,
-          status: "active",
-          grade: "basic",
-          membershipStart: input.startDate ?? undefined,
-          membershipEnd: membershipEnd ?? undefined,
-          createdAt: now,
-          updatedAt: now,
-        }).returning({ id: members.id });
-        if (newMember) {
-          await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, row.id));
-          row.memberId = newMember.id;
-          if (input.leadId) {
-            await db.update(leads).set({ registeredMemberId: newMember.id }).where(eq(leads.id, input.leadId));
-          }
-        }
+        const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId ?? null, membershipStart: input.startDate ?? undefined, membershipEnd: membershipEnd ?? undefined });
+        if (newId) row.memberId = newId;
       }
 
       return row;

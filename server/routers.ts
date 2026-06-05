@@ -386,7 +386,7 @@ const membersRouter = t.router({
         adminTrainerId: z.number().optional(),
         branchId: z.number().optional(),
         primaryType: z.enum(["PT", "헬스", "기타"]).optional(),
-        subType: z.enum(["신규", "재등록"]).default("재등록"),
+        subType: z.enum(["신규", "재등록"]).default("신규"),
         signatureDataUrl: z.string().optional(),
         serviceItems: z.string().optional(),
       })

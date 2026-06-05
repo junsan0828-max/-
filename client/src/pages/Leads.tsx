@@ -615,6 +615,8 @@ export default function LeadsPage() {
       paymentDate: reg.paymentDate,
       startDate: reg.startDate || undefined,
       memo: reg.memo || undefined,
+      trainerId: form.assignedTrainerId ?? undefined,
+      consultantId: form.assignedConsultantId ?? undefined,
       branchId: reg.branchId ?? undefined,
       serviceItems: reg.serviceItems.length > 0 ? reg.serviceItems.map(item => {
         if (item === "PT" && reg.servicePtCount) return `PT(${reg.servicePtCount}회)`;

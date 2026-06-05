@@ -169,7 +169,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
       serviceSessions: (!isHealth && form.serviceSessions) ? parseInt(form.serviceSessions) : undefined,
       serviceSessionPrice: (!isHealth && form.serviceSessionPrice) ? parseInt(form.serviceSessionPrice) : undefined,
-      subType: "재등록" as const,
+      subType: (isEdit ? "재등록" : "신규") as "신규" | "재등록",
       serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
         if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
         if (item === "헬스") {
