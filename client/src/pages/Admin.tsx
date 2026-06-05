@@ -308,7 +308,6 @@ export default function Admin() {
   const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery(undefined, { enabled: isAdmin });
   const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery(undefined, { enabled: isAdmin });
   const { data: unassignedMembers, refetch: refetchUnassigned } = trpc.admin.listUnassignedMembers.useQuery(undefined, { enabled: !!user });
-  const { data: unassignedRevenue, refetch: refetchUnassignedRevenue } = trpc.admin.listUnassignedRevenue.useQuery(undefined, { enabled: !!user });
   const { data: unclassifiedMembers, refetch: refetchUnclassified } = trpc.members.listUnclassified.useQuery();
   const { data: unassignedBranchMembers, refetch: refetchUnassignedBranch } = trpc.admin.listUnassignedBranchMembers.useQuery(undefined, { enabled: isAdmin });
   const { data: unassignedBranchRevenue, refetch: refetchUnassignedBranchRevenue } = trpc.admin.listUnassignedBranchRevenue.useQuery(undefined, { enabled: isAdmin });
@@ -320,8 +319,6 @@ export default function Admin() {
   const [assignBranchMemberBranchId, setAssignBranchMemberBranchId] = useState("");
   const [selectedRevenueIds, setSelectedRevenueIds] = useState<Set<number>>(new Set());
   const [bulkRevenueBranchId, setBulkRevenueBranchId] = useState("");
-  const [assigningRevenueId, setAssigningRevenueId] = useState<number | null>(null);
-  const [assignRevenueTrainerId, setAssignRevenueTrainerId] = useState("");
 
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [dbRestoring, setDbRestoring] = useState(false);
@@ -440,17 +437,6 @@ export default function Admin() {
       setAssigningMemberId(null);
       setAssignMemberTrainerId("");
       refetchUnassigned();
-    },
-    onError: (err) => toast.error(err.message || "배정 실패"),
-  });
-
-  const assignTrainerToRevenueMutation = trpc.admin.assignTrainerToRevenue.useMutation({
-    onSuccess: () => {
-      toast.success("트레이너가 배정되었습니다.");
-      setAssigningRevenueId(null);
-      setAssignRevenueTrainerId("");
-      refetchUnassignedRevenue();
-      utils.gym.revenue.list.invalidate();
     },
     onError: (err) => toast.error(err.message || "배정 실패"),
   });
@@ -725,71 +711,6 @@ export default function Admin() {
           </CardContent>
         )}
       </Card>
-
-      {/* ── 미배정 매출 건 (revenue_entries.trainerId NULL) ── */}
-      {unassignedRevenue && unassignedRevenue.length > 0 && (
-        <Card className="bg-card border-orange-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4 text-orange-400" />
-              <span className="text-orange-400">트레이너 미배정 매출</span>
-              <span className="ml-auto text-xs font-normal text-muted-foreground">{unassignedRevenue.length}건</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {unassignedRevenue.map((r) => (
-              <div key={r.id} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm">{r.customerName ?? "-"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.type} · {r.subType}
-                      {r.programDetail && ` · ${r.programDetail}`}
-                      {r.sessions ? ` · ${r.sessions}회` : ""}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.paymentDate} · {r.paidAmount?.toLocaleString()}원
-                    </p>
-                  </div>
-                </div>
-                {assigningRevenueId === r.id ? (
-                  <div className="flex gap-2">
-                    <Select value={assignRevenueTrainerId} onValueChange={setAssignRevenueTrainerId}>
-                      <SelectTrigger className="h-8 text-xs flex-1">
-                        <SelectValue placeholder="트레이너 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {trainers?.map((t) => (
-                          <SelectItem key={t.id} value={String(t.id)} className="text-xs">{t.trainerName}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      size="sm"
-                      disabled={!assignRevenueTrainerId || assignTrainerToRevenueMutation.isPending}
-                      onClick={() => assignTrainerToRevenueMutation.mutate({ revenueId: r.id, trainerId: parseInt(assignRevenueTrainerId) })}
-                    >
-                      배정
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => { setAssigningRevenueId(null); setAssignRevenueTrainerId(""); }}>
-                      취소
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-xs h-7 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
-                    onClick={() => { setAssigningRevenueId(r.id); setAssignRevenueTrainerId(""); }}
-                  >
-                    트레이너 배정
-                  </Button>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {/* ── 실제 미배정 회원 (members 테이블 trainerId NULL) ── */}
       {unassignedMembers && unassignedMembers.length > 0 && (
