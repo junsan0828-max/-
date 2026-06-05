@@ -1449,6 +1449,18 @@ export default function LeadsPage() {
                   const availableLockers = (allLockers ?? []).filter((l: any) =>
                     !l.isOccupied && (!regForm.branchId || l.branchId === regForm.branchId || !l.branchId)
                   );
+                  // 지점별 그룹핑
+                  const groups: { branchId: number | null; branchName: string; lockers: any[] }[] = [];
+                  for (const l of availableLockers) {
+                    const bid = l.branchId ?? null;
+                    let g = groups.find(g => g.branchId === bid);
+                    if (!g) {
+                      const branch = (branchList ?? []).find((b: any) => b.id === bid);
+                      g = { branchId: bid, branchName: branch?.name ?? "지점 미지정", lockers: [] };
+                      groups.push(g);
+                    }
+                    g.lockers.push(l);
+                  }
                   return (
                     <div className={`rounded-xl border transition-colors ${selected ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
                       <button type="button"
@@ -1460,19 +1472,24 @@ export default function LeadsPage() {
                       {selected && (
                         <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
                           <label className="text-xs text-muted-foreground">락커 번호</label>
-                          <select
-                            value={regForm.serviceLockerNum}
-                            onChange={e => setRegForm(f => ({ ...f, serviceLockerNum: e.target.value }))}
-                            className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground border border-border bg-background focus:outline-none focus:ring-1 focus:ring-amber-500">
-                            <option value="">락커 선택...</option>
-                            {availableLockers.map((l: any) => (
-                              <option key={l.id} value={l.lockerNumber}>
-                                {l.lockerNumber}{l.lockerType && l.lockerType !== "personal" ? ` (${l.lockerType})` : ""}
-                              </option>
-                            ))}
-                          </select>
-                          {availableLockers.length === 0 && (
+                          {availableLockers.length === 0 ? (
                             <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>
+                          ) : (
+                            <select
+                              value={regForm.serviceLockerNum}
+                              onChange={e => setRegForm(f => ({ ...f, serviceLockerNum: e.target.value }))}
+                              className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground border border-border bg-background focus:outline-none focus:ring-1 focus:ring-amber-500">
+                              <option value="">락커 선택...</option>
+                              {groups.map(g => (
+                                <optgroup key={g.branchId ?? "none"} label={g.branchName}>
+                                  {g.lockers.map((l: any) => (
+                                    <option key={l.id} value={l.lockerNumber}>
+                                      {l.lockerNumber}{l.lockerType && l.lockerType !== "personal" ? ` (${l.lockerType})` : ""}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
                           )}
                         </div>
                       )}
