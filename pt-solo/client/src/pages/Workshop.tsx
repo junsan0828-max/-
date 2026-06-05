@@ -2958,6 +2958,13 @@ function WorkshopItemCard({ item, onClick }: { item: WsItem; onClick: () => void
   );
 }
 
+// 관리 패널(renderForm)이 구현된 기능 ID 목록
+const FORM_IDS = new Set([
+  "brand_page","fitstep_plus","fitstep_personal","fitstep_diet",
+  "booking","report_branding","templates","survey","contract_terms",
+  "e_contract","contract_kakao","refund_contract","transfer_contract",
+]);
+
 // ── 기능 하단 시트 ────────────────────────────────────────────────────────────
 function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
   item: WsItem; trainerId?: number; isAdmin: boolean; onClose: () => void;
@@ -3038,9 +3045,9 @@ function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
             ))}
           </div>
 
-          {item.status === "active" && (
+          {item.status === "active" && FORM_IDS.has(item.id) && (
             !showForm ? (
-              <Button className="w-full" onClick={() => setShowForm(true)}>설정하기</Button>
+              <Button className="w-full" onClick={() => setShowForm(true)}>관리하기</Button>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
@@ -4418,7 +4425,11 @@ function WorkshopStoreCard({ item, effectiveStatus, onClick }: { item: WsItem; e
 // ── 내 작업실 기능 행 ──────────────────────────────────────────────────────────
 function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: string }; onClick: () => void }) {
   const Icon = item.icon;
-  const hasSettings = ["brand_page","fitstep_plus","booking","report_branding","templates","survey","contract_terms"].includes(item.id);
+  const hasSettings = [
+    "brand_page","fitstep_plus","booking","report_branding",
+    "templates","survey","contract_terms",
+    "e_contract","refund_contract","transfer_contract",
+  ].includes(item.id);
 
   return (
     <button onClick={onClick}
@@ -4432,8 +4443,8 @@ function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: str
           <p className="text-[11px] text-muted-foreground mt-0.5">{item.catLabel}</p>
         </div>
         <div className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg
-          ${hasSettings ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-          {hasSettings ? "설정하기" : "사용 중"}
+          ${hasSettings ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground"}`}>
+          {hasSettings ? "관리하기" : "사용 중"}
         </div>
       </div>
     </button>
