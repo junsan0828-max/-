@@ -5,6 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users, ClipboardList } from "lucide-react";
+
+const CHARGE_PACKAGES = [
+  { krw: 10000,  points: 10000, bonus: 0 },
+  { krw: 30000,  points: 35000, bonus: 5000 },
+  { krw: 50000,  points: 70000, bonus: 20000 },
+  { krw: 100000, points: 130000, bonus: 30000 },
+];
+const KAKAO_ACCOUNT = "3333-37-4826334";
+const KAKAO_HOLDER  = "피트니스텝";
 import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
 import OnboardingSurveyModal from "@/components/OnboardingSurveyModal";
@@ -98,10 +107,11 @@ export default function Profile() {
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [infoMsg, setInfoMsg] = useState("");
   const [pwMsg, setPwMsg] = useState("");
-  const [chargeAmount, setChargeAmount] = useState("");
-  const [chargeMemo, setChargeMemo] = useState("");
   const [showChargeForm, setShowChargeForm] = useState(false);
   const [showPointDetail, setShowPointDetail] = useState(false);
+  const [selectedPkg, setSelectedPkg] = useState<typeof CHARGE_PACKAGES[number] | null>(null);
+  const [depositor, setDepositor] = useState("");
+  const [acctCopied, setAcctCopied] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
 
@@ -144,12 +154,27 @@ export default function Profile() {
 
   const requestCharge = trpc.fitPoints.requestCharge.useMutation({
     onSuccess: () => {
-      toast.success("충전 신청이 완료되었습니다.");
-      setChargeAmount(""); setChargeMemo(""); setShowChargeForm(false);
+      toast.success("충전 신청이 완료되었습니다. 관리자 확인 후 포인트가 지급됩니다.");
+      setSelectedPkg(null); setDepositor(""); setShowChargeForm(false);
       utils.fitPoints.getHistory.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
+
+  function handleCopyAcct() {
+    navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, ""));
+    setAcctCopied(true);
+    setTimeout(() => setAcctCopied(false), 2000);
+  }
+
+  function handleChargeSubmit() {
+    if (!selectedPkg) { toast.error("충전 패키지를 선택해주세요."); return; }
+    if (!depositor.trim()) { toast.error("입금자명을 입력해주세요."); return; }
+    requestCharge.mutate({
+      amount: selectedPkg.points,
+      memo: `${selectedPkg.krw.toLocaleString()}원 입금 | 입금자: ${depositor.trim()}`,
+    });
+  }
 
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,7 +253,7 @@ export default function Profile() {
           {!showChargeForm && (
             <button onClick={() => setShowChargeForm(true)}
               className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/20 px-2.5 py-1.5 rounded-lg hover:bg-primary/30 transition-colors shrink-0">
-              <Plus className="h-3.5 w-3.5" />충전 신청
+              <Plus className="h-3.5 w-3.5" />충전하기
             </button>
           )}
         </CardContent>
@@ -264,24 +289,84 @@ export default function Profile() {
         )}
 
         {showChargeForm && (
-          <CardContent className="pt-0 space-y-3">
-            <div className="flex gap-2">
-              <Input type="number" placeholder="충전 포인트" value={chargeAmount}
-                onChange={e => setChargeAmount(e.target.value)}
-                className="h-9 text-sm bg-background/50 border-primary/30" />
-              <Input placeholder="메모 (선택)" value={chargeMemo}
-                onChange={e => setChargeMemo(e.target.value)}
-                className="h-9 text-sm bg-background/50 border-primary/30 flex-1" />
+          <CardContent className="pt-0 space-y-4">
+            {/* 패키지 선택 */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">충전 패키지</p>
+              <div className="grid grid-cols-2 gap-2">
+                {CHARGE_PACKAGES.map(pkg => {
+                  const isSel = selectedPkg?.krw === pkg.krw;
+                  return (
+                    <button key={pkg.krw} onClick={() => setSelectedPkg(pkg)}
+                      className={`relative rounded-2xl border-2 p-3 text-left transition-all ${
+                        isSel ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/40"
+                      }`}>
+                      {pkg.bonus > 0 && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">
+                          +{(pkg.bonus / 1000).toFixed(0)}천P
+                        </span>
+                      )}
+                      <p className="text-[11px] text-muted-foreground">{pkg.krw.toLocaleString()}원</p>
+                      <p className={`text-sm font-black mt-0.5 ${isSel ? "text-primary" : "text-foreground"}`}>
+                        {pkg.points.toLocaleString()} P
+                      </p>
+                      {pkg.bonus > 0 && (
+                        <p className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                          보너스 {pkg.bonus.toLocaleString()}P
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* 카카오뱅크 계좌 */}
+            <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2.5">
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
+                  <span className="text-[9px] font-black text-white">K</span>
+                </div>
+                <p className="text-xs font-semibold text-yellow-800">카카오뱅크 입금 계좌</p>
+              </div>
+              <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
+                <div>
+                  <p className="text-sm font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{KAKAO_HOLDER}</p>
+                </div>
+                <button onClick={handleCopyAcct}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
+                  {acctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {acctCopied ? "복사됨" : "복사"}
+                </button>
+              </div>
+              {selectedPkg && (
+                <div className="flex items-center justify-between text-xs px-0.5">
+                  <span className="text-yellow-700">입금 금액</span>
+                  <span className="font-black text-yellow-900">{selectedPkg.krw.toLocaleString()}원</span>
+                </div>
+              )}
+            </div>
+
+            {/* 입금자명 */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground">입금자명</p>
+              <Input placeholder="실제 입금 시 표시되는 이름" value={depositor}
+                onChange={e => setDepositor(e.target.value)} className="h-9 text-sm bg-background/50 border-primary/30" />
+            </div>
+
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowChargeForm(false)}>취소</Button>
+              <Button variant="outline" size="sm" className="flex-1"
+                onClick={() => { setShowChargeForm(false); setSelectedPkg(null); setDepositor(""); }}>
+                취소
+              </Button>
               <Button size="sm" className="flex-1"
-                disabled={!chargeAmount || requestCharge.isPending}
-                onClick={() => requestCharge.mutate({ amount: Number(chargeAmount), memo: chargeMemo || undefined })}>
-                {requestCharge.isPending ? "신청 중..." : "신청"}
+                disabled={!selectedPkg || !depositor.trim() || requestCharge.isPending}
+                onClick={handleChargeSubmit}>
+                {requestCharge.isPending ? "신청 중..." : "신청하기"}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">관리자 승인 후 포인트가 지급됩니다.</p>
+            <p className="text-[11px] text-muted-foreground text-center">입금 확인 후 관리자가 포인트를 지급합니다 (보통 1시간 이내)</p>
           </CardContent>
         )}
       </Card>
