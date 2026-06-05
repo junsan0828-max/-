@@ -79,6 +79,44 @@ import {
 } from "lucide-react";
 import { TransferModal, type MemberBasic } from "./TransferModal";
 
+const ISSUE_ITEMS: Record<string, string[]> = {
+  diet: [
+    "하루 식사 시간이 일정하지 않거나 끼니를 자주 거른다.",
+    "하루 단백질 섭취량이 부족하거나 식단 구성이 한쪽으로 치우친다.",
+    "스트레스나 감정 변화로 인해 폭식 또는 과식을 경험한다.",
+    "저녁 9시 이후 야식 또는 고칼로리 간식을 자주 섭취한다.",
+  ],
+  alcohol: [
+    "주 3회 이상 음주하거나 1회 음주량이 평균 3잔 이상이다.",
+    "한 번 술을 마시면 마무리가 잘 안 되어 과음하는 경우가 있다.",
+    "스트레스 해소를 술에 의존하는 편이다.",
+    "회식·약속 등으로 인해 운동 다음 날 컨디션이 떨어지는 경우가 잦다.",
+  ],
+  sleep: [
+    "밤에 자주 깨거나(2회 이상) 수면 중단이 반복된다.",
+    "아침에 일어나도 개운하지 않고 지속적으로 피곤하다.",
+    "잠드는 데 30분 이상 걸리거나 누워도 쉽게 잠들지 못한다.",
+    "수면 시간이 일정하지 않거나 6시간 미만으로 자는 날이 많다.",
+  ],
+  activity: [
+    "하루 활동량(걸음 수)이 5,000보 미만인 날이 많다.",
+    "하루 중 앉아 있는 시간이 6시간 이상으로 길다.",
+    "주 2회 이상 규칙적인 운동(근력 또는 유산소)을 하지 않는다.",
+    "계단 오르기 / 짧은 거리 이동 등 기본 활동에서도 숨이 차거나 피로를 느낀다.",
+  ],
+};
+
+function expandIssues(raw: string, type: keyof typeof ISSUE_ITEMS): { letter: string; text: string }[] {
+  if (!raw) return [];
+  const letters = ["A", "B", "C", "D"];
+  const items = ISSUE_ITEMS[type];
+  return raw.split(",").filter(Boolean).map(l => {
+    const letter = l.trim().toUpperCase();
+    const idx = letters.indexOf(letter);
+    return { letter, text: idx >= 0 ? items[idx] : l };
+  });
+}
+
 interface Props {
   memberId: number;
 }
@@ -867,12 +905,30 @@ export default function MemberDetail({ memberId }: Props) {
                   {/* 이슈 */}
                   {(parQData.dietIssues || parQData.alcoholIssues || parQData.sleepIssues || parQData.activityIssues) && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1.5">생활 이슈</p>
-                      <div className="space-y-1">
-                        {parQData.dietIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">식이</span><span className="text-xs text-foreground">{parQData.dietIssues}</span></div>}
-                        {parQData.alcoholIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">음주</span><span className="text-xs text-foreground">{parQData.alcoholIssues}</span></div>}
-                        {parQData.sleepIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">수면</span><span className="text-xs text-foreground">{parQData.sleepIssues}</span></div>}
-                        {parQData.activityIssues && <div className="flex gap-2"><span className="text-xs text-muted-foreground w-16 shrink-0">활동</span><span className="text-xs text-foreground">{parQData.activityIssues}</span></div>}
+                      <p className="text-xs font-medium text-muted-foreground mb-2">생활 이슈</p>
+                      <div className="space-y-2.5">
+                        {([
+                          { key: "diet", label: "식이", raw: parQData.dietIssues },
+                          { key: "alcohol", label: "음주", raw: parQData.alcoholIssues },
+                          { key: "sleep", label: "수면", raw: parQData.sleepIssues },
+                          { key: "activity", label: "활동", raw: parQData.activityIssues },
+                        ] as const).map(({ key, label, raw }) => {
+                          const items = expandIssues(raw ?? "", key);
+                          if (!items.length) return null;
+                          return (
+                            <div key={key}>
+                              <span className="text-xs font-semibold text-muted-foreground">{label}</span>
+                              <ul className="mt-1 space-y-1">
+                                {items.map(({ letter, text }) => (
+                                  <li key={letter} className="text-xs text-foreground flex items-start gap-1.5 pl-1">
+                                    <span className="text-primary shrink-0 font-semibold w-4">{letter}.</span>
+                                    <span className="leading-relaxed">{text}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
