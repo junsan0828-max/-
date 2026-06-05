@@ -548,6 +548,7 @@ const revenueRouter = t.router({
       startDate: z.string().optional(),
       installments: z.number().optional(),
       memo: z.string().optional(),
+      serviceItems: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();

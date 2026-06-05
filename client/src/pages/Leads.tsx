@@ -1616,6 +1616,15 @@ export default function LeadsPage() {
                     startDate: reg.startDate || undefined,
                     memo: reg.memo || undefined,
                     branchId: reg.branchId ?? undefined,
+                    serviceItems: reg.serviceItems.length > 0 ? reg.serviceItems.map((item: string) => {
+                      if (item === "PT" && reg.servicePtCount) return `PT(${reg.servicePtCount}회)`;
+                      if (item === "헬스") {
+                        const months = reg.serviceHealthMonths ?? (reg.serviceHealthMonthsCustom ? parseInt(reg.serviceHealthMonthsCustom) : undefined);
+                        return months ? `헬스(${months}개월)` : "헬스";
+                      }
+                      if (item === "락커" && reg.serviceLockerNum) return `락커(${reg.serviceLockerNum})`;
+                      return item;
+                    }).join(",") : undefined,
                   });
                 } else {
                   saveRegistration();
