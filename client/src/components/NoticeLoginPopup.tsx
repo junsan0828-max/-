@@ -9,8 +9,6 @@ const PRIORITY: Record<string, { label: string; style: string }> = {
   normal:    { label: "일반", style: "bg-blue-500/20 text-blue-400 border border-blue-500/30" },
 };
 
-const DASHBOARD_PATHS = ["/", "/my-work"];
-
 export default function NoticeLoginPopup() {
   const utils = trpc.useUtils();
   const [location] = useLocation();
@@ -28,23 +26,22 @@ export default function NoticeLoginPopup() {
 
   const isAdmin = me?.role === "admin" || me?.role === "sub_admin";
   const unread = (noticeList ?? []).filter((n: any) => !n.isCompleted);
-  const isOnDashboard = DASHBOARD_PATHS.includes(location);
 
-  // Reset shown flag when user leaves the dashboard so the popup re-triggers on return
+  // Reset shown flag on every tab navigation
   useEffect(() => {
-    if (!isOnDashboard) shownForVisitRef.current = false;
-  }, [isOnDashboard]);
+    shownForVisitRef.current = false;
+  }, [location]);
 
-  // Show popup when user arrives on dashboard with uncompleted notices
+  // Show popup after navigation if there are uncompleted notices
   useEffect(() => {
     if (isAdmin || !me || noticeList === undefined) return;
-    if (!isOnDashboard || shownForVisitRef.current) return;
+    if (shownForVisitRef.current) return;
     if (unread.length > 0) {
       shownForVisitRef.current = true;
       setIndex(0);
       setVisible(true);
     }
-  }, [isOnDashboard, me, noticeList, isAdmin]);
+  }, [location, me, noticeList, isAdmin]);
 
   if (!visible || index >= unread.length) return null;
 
