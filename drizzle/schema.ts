@@ -329,6 +329,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   startDate: text("startDate"),
   installments: integer("installments").default(1).notNull(),
   memo: text("memo"),
+  serviceItems: text("serviceItems"), // 서비스 제공 항목 (쉼표 구분: "PT,헬스,락커,운동복")
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

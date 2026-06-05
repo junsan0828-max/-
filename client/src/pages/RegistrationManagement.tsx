@@ -108,6 +108,7 @@ export default function RegistrationManagement() {
   const activePtQuery = trpc.access.getActivePtPackages.useQuery(undefined, { enabled: tab === "services" });
   const serviceLockerQuery = trpc.access.getServiceLockers.useQuery(undefined, { enabled: tab === "services" });
   const serviceHealthQuery = trpc.access.getServiceHealthMemberships.useQuery(undefined, { enabled: tab === "services" });
+  const serviceItemsQuery = trpc.gym.revenue.listServiceItems.useQuery(undefined, { enabled: tab === "services" });
 
   const branches = (branchesQuery.data ?? []) as Branch[];
   const categories = (categoriesQuery.data ?? []) as LockerCategory[];
@@ -1170,6 +1171,14 @@ export default function RegistrationManagement() {
         const activePtPackages = (activePtQuery.data ?? []);
         const serviceLockers = (serviceLockerQuery.data ?? []) as any[];
         const serviceHealths = (serviceHealthQuery.data ?? []) as any[];
+        const serviceItemsList = (serviceItemsQuery.data ?? []) as any[];
+
+        const SERVICE_BADGE_STYLE: Record<string, string> = {
+          "PT": "bg-blue-500/20 text-blue-400",
+          "헬스": "bg-emerald-500/20 text-emerald-400",
+          "락커": "bg-amber-500/20 text-amber-400",
+          "운동복": "bg-purple-500/20 text-purple-400",
+        };
 
         const servicePt = activePtPackages.filter((p: any) => !p.paymentAmount || p.paymentAmount === 0);
         const serviceUniforms = allUniforms.filter((u: any) => u.isActive === 1 && u.rentalType === "service");
@@ -1202,6 +1211,37 @@ export default function RegistrationManagement() {
             <p className="text-sm text-muted-foreground">
               총 <span className="text-foreground font-semibold">{total}명</span>이 무료 서비스 이용 중
             </p>
+
+            {/* 서비스 내역 (등록 시 체크된 항목) */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <Gift className="h-4 w-4 text-violet-400" /> 서비스 내역
+                <span className="text-xs text-muted-foreground font-normal">({serviceItemsList.length}건)</span>
+              </h3>
+              {serviceItemsList.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">서비스 내역이 없습니다</p>
+              ) : (
+                <div className="space-y-2">
+                  {serviceItemsList.map((entry: any) => (
+                    <div key={entry.id} className="bg-card border border-border rounded-xl px-3 py-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">{entry.customerName ?? entry.memberName ?? "—"}</p>
+                          <div className="flex gap-1 flex-wrap mt-1">
+                            {(entry.serviceItems ?? "").split(",").filter(Boolean).map((item: string) => (
+                              <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${SERVICE_BADGE_STYLE[item] ?? "bg-muted text-muted-foreground"}`}>
+                                🎁 {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">{entry.paymentDate}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* 서비스 헬스권 */}
             <div>

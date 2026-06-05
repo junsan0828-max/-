@@ -105,6 +105,7 @@ const leadsRouter = t.router({
         channelName: channels.name,
         trainerName: trainers.trainerName,
         consultantName: consultantAlias.username,
+        serviceItems: sql<string | null>`(SELECT "serviceItems" FROM revenue_entries WHERE "leadId" = ${leads.id} ORDER BY id DESC LIMIT 1)`,
       })
         .from(leads)
         .leftJoin(channels, eq(leads.channelId, channels.id))
@@ -389,10 +390,12 @@ const revenueRouter = t.router({
       startDate: z.string().optional(),
       installments: z.number().min(1).default(1),
       memo: z.string().optional(),
+      serviceItems: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.execute(sql`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
       // 트레이너: trainerId, consultantId 자동 설정
       const trainerAutoFields = ctx.user?.role === "trainer" ? {
         trainerId: input.trainerId ?? ctx.user.trainerId ?? undefined,
@@ -837,6 +840,21 @@ const revenueRouter = t.router({
 
       return { programs: programList, monthlyData };
     }),
+
+  listServiceItems: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    await db.execute(sql`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
+    const result = await db.execute(sql`
+      SELECT re.id, re."customerName", re."serviceItems", re."paymentDate", re."startDate", m.name AS "memberName"
+      FROM revenue_entries re
+      LEFT JOIN members m ON m.id = re."memberId"
+      WHERE re."serviceItems" IS NOT NULL AND re."serviceItems" != ''
+      ORDER BY re."paymentDate" DESC
+    `);
+    return (result as any).rows ?? [];
+  }),
 });
 
 // ─── Expense Entries (지출 장부) ──────────────────────────────────────────────

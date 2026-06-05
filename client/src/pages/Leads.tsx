@@ -61,6 +61,7 @@ type RegForm = {
   startDate: string;
   memo: string;
   branchId?: number;
+  serviceItems: string[];  // 서비스 제공 항목: PT / 헬스 / 락커 / 운동복
 };
 
 const defaultRegForm: RegForm = {
@@ -81,6 +82,7 @@ const defaultRegForm: RegForm = {
   startDate: new Date().toISOString().substring(0, 10),
   memo: "",
   branchId: undefined,
+  serviceItems: [],
 };
 
 type LeadForm = {
@@ -593,6 +595,7 @@ export default function LeadsPage() {
       startDate: reg.startDate || undefined,
       memo: reg.memo || undefined,
       branchId: reg.branchId ?? undefined,
+      serviceItems: reg.serviceItems.length > 0 ? reg.serviceItems.join(",") : undefined,
     });
   }
 
@@ -813,6 +816,21 @@ export default function LeadsPage() {
                 </div>
                 {row.lead.consultationNote && (
                   <p className="text-xs text-muted-foreground line-clamp-2">{row.lead.consultationNote}</p>
+                )}
+                {(row as any).serviceItems && (row as any).serviceItems.split(",").filter(Boolean).length > 0 && (
+                  <div className="flex gap-1 flex-wrap">
+                    {(row as any).serviceItems.split(",").filter(Boolean).map((item: string) => {
+                      const badgeStyle = item === "PT" ? "bg-blue-500/20 text-blue-400"
+                        : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
+                        : item === "락커" ? "bg-amber-500/20 text-amber-400"
+                        : "bg-purple-500/20 text-purple-400";
+                      return (
+                        <span key={item} className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${badgeStyle}`}>
+                          🎁 서비스 {item}
+                        </span>
+                      );
+                    })}
+                  </div>
                 )}
                 {row.lead.status === "registered" && (
                   <ContractPdfButton lead={row.lead} />
@@ -1315,6 +1333,47 @@ export default function LeadsPage() {
                 <textarea value={regForm.memo} onChange={e => setRegForm(f => ({ ...f, memo: e.target.value }))} rows={2}
                   placeholder="운동 가능 시간, 날짜, 특이사항..."
                   className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none resize-none" />
+              </div>
+
+              {/* 서비스 내역 */}
+              <div>
+                <label className="text-xs text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목 선택)</span></label>
+                <div className="grid grid-cols-4 gap-2 mt-1">
+                  {(["PT", "헬스", "락커", "운동복"] as const).map(item => {
+                    const selected = regForm.serviceItems.includes(item);
+                    const style = selected
+                      ? item === "PT" ? "bg-blue-500 text-white border-blue-500"
+                      : item === "헬스" ? "bg-emerald-500 text-white border-emerald-500"
+                      : item === "락커" ? "bg-amber-500 text-white border-amber-500"
+                      : "bg-purple-500 text-white border-purple-500"
+                      : "bg-background border-border text-muted-foreground";
+                    return (
+                      <button key={item} type="button"
+                        onClick={() => setRegForm(f => ({
+                          ...f,
+                          serviceItems: selected ? f.serviceItems.filter(s => s !== item) : [...f.serviceItems, item],
+                        }))}
+                        className={`py-2 rounded-lg text-xs font-medium border transition-colors ${style}`}>
+                        {item}
+                      </button>
+                    );
+                  })}
+                </div>
+                {regForm.serviceItems.length > 0 && (
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {regForm.serviceItems.map(item => {
+                      const badgeStyle = item === "PT" ? "bg-blue-500/20 text-blue-400"
+                        : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
+                        : item === "락커" ? "bg-amber-500/20 text-amber-400"
+                        : "bg-purple-500/20 text-purple-400";
+                      return (
+                        <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeStyle}`}>
+                          🎁 서비스 {item}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
