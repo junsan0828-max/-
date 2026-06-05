@@ -120,11 +120,6 @@ function App() {
     return <GymPlusApp />;
   }
 
-  // ZIANTGYM+ 어드민 (Layout 밖에서 독립 렌더)
-  if (location === "/admin/gymplus") {
-    return <GymPlusAdminPage />;
-  }
-
   // 공개 보고서 / 계약서 페이지 - 인증 불필요
   if (reportMatch && reportParams) {
     return <MemberReport token={reportParams.token} />;
@@ -143,9 +138,14 @@ function App() {
 
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
-    // /login 명시적 접근 시 로그인 페이지, 그 외는 랜딩으로
     if (window.location.pathname === "/login") return <Login />;
     return <Landing />;
+  }
+
+  // ZIANTGYM+ 어드민 — 로그인 후 admin/sub_admin만 접근 가능
+  if (location === "/admin/gymplus") {
+    if (user.role !== "admin" && user.role !== "sub_admin") return <Redirect to="/" />;
+    return <GymPlusAdminPage />;
   }
 
   return (
@@ -156,10 +156,10 @@ function App() {
         <Route path="/gym-dashboard">{() => <GymDashboard />}</Route>
         <Route path="/my-work">{() => <MyWorkPage />}</Route>
         <Route path="/leads">{() => <LeadsPage />}</Route>
-        <Route path="/revenue">{() => <RevenuePage />}</Route>
-        <Route path="/expenses">{() => <ExpensesPage />}</Route>
-        <Route path="/marketing">{() => <MarketingPage />}</Route>
-        <Route path="/ai-analysis">{() => <AiAnalysisPage />}</Route>
+        <Route path="/revenue">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <RevenuePage /> : <Redirect to="/" />}</Route>
+        <Route path="/expenses">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <ExpensesPage /> : <Redirect to="/" />}</Route>
+        <Route path="/marketing">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <MarketingPage /> : <Redirect to="/" />}</Route>
+        <Route path="/ai-analysis">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <AiAnalysisPage /> : <Redirect to="/" />}</Route>
         <Route path="/members">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <AdminMembers /> : <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
         <Route path="/trainers/:id/members/new">
@@ -183,9 +183,9 @@ function App() {
         <Route path="/trainers/:id">
           {(params) => <TrainerDetail trainerId={parseInt(params.id!)} />}
         </Route>
-        <Route path="/admin">{() => <Admin />}</Route>
-        <Route path="/settlement">{() => <SettlementReport />}</Route>
-        <Route path="/trainer-settlement">{() => <TrainerSettlement />}</Route>
+        <Route path="/admin">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <Admin /> : <Redirect to="/" />}</Route>
+        <Route path="/settlement">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <SettlementReport /> : <Redirect to="/" />}</Route>
+        <Route path="/trainer-settlement">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <TrainerSettlement /> : <Redirect to="/" />}</Route>
         <Route path="/profile">{() => <Profile />}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
       </Switch>
