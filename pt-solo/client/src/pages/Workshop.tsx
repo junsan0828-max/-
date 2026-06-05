@@ -548,14 +548,14 @@ function AdminFspLimitsPanel() {
   const [free, setFree] = useState("");
   const [pro, setPro] = useState("");
   const [elite, setElite] = useState("");
-  const [inited, setInited] = useState(false);
 
-  if (!isLoading && limits && !inited) {
-    setFree(String(limits.free));
-    setPro(String(limits.pro));
-    setElite(String(limits.elite));
-    setInited(true);
-  }
+  useEffect(() => {
+    if (limits) {
+      setFree(String(limits.free));
+      setPro(String(limits.pro));
+      setElite(String(limits.elite));
+    }
+  }, [limits]);
 
   const memberCountMap = new Map(
     (overview?.memberCounts ?? []).map((mc) => [mc.trainerId, Number(mc.count)])
@@ -658,14 +658,14 @@ function ContractTermsEditor() {
   const [termsOfService, setTermsOfService] = useState("");
   const [privacyPolicy, setPrivacyPolicy] = useState("");
   const [marketingConsent, setMarketingConsent] = useState("");
-  const [initialized, setInitialized] = useState(false);
 
-  if (terms && !initialized) {
-    setTermsOfService(terms.termsOfService ?? "");
-    setPrivacyPolicy(terms.privacyPolicy ?? "");
-    setMarketingConsent(terms.marketingConsent ?? "");
-    setInitialized(true);
-  }
+  useEffect(() => {
+    if (terms) {
+      setTermsOfService(terms.termsOfService ?? "");
+      setPrivacyPolicy(terms.privacyPolicy ?? "");
+      setMarketingConsent(terms.marketingConsent ?? "");
+    }
+  }, [terms]);
 
   return (
     <div className="space-y-4">
@@ -1401,9 +1401,11 @@ function AddBlockSheet({ existingTypes, onAdd, onClose }: {
 
 // ── 비대면 전자계약 관리 ─────────────────────────────────────────────────────
 function EContractManager() {
-  const { data: list, refetch } = trpc.eContract.list.useQuery();
-  const createMutation = trpc.eContract.create.useMutation({ onSuccess: () => { refetch(); setShowForm(false); resetForm(); } });
-  const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => refetch() });
+  const utils = trpc.useUtils();
+  const { data: list } = trpc.eContract.list.useQuery();
+  const invalidate = () => utils.eContract.list.invalidate();
+  const createMutation = trpc.eContract.create.useMutation({ onSuccess: () => { invalidate(); setShowForm(false); resetForm(); } });
+  const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => invalidate() });
   const [showForm, setShowForm] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const { data: detail } = trpc.eContract.getDetail.useQuery({ id: detailId! }, { enabled: !!detailId });
@@ -1572,9 +1574,11 @@ function EContractManager() {
 
 // ── 환불 계약서 관리 ────────────────────────────────────────────────────────────
 function RefundContractManager() {
-  const { data: list, refetch } = trpc.eContract.list.useQuery();
-  const createMutation = trpc.eContract.createRefund.useMutation({ onSuccess: () => { refetch(); setShowForm(false); resetForm(); } });
-  const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => refetch() });
+  const utils = trpc.useUtils();
+  const { data: list } = trpc.eContract.list.useQuery();
+  const invalidate = () => utils.eContract.list.invalidate();
+  const createMutation = trpc.eContract.createRefund.useMutation({ onSuccess: () => { invalidate(); setShowForm(false); resetForm(); } });
+  const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => invalidate() });
   const [showForm, setShowForm] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const { data: detail } = trpc.eContract.getDetail.useQuery({ id: detailId! }, { enabled: !!detailId });
@@ -1762,9 +1766,11 @@ function RefundContractManager() {
 
 // ── 양도양수 계약서 관리 ─────────────────────────────────────────────────────
 function TransferContractManager() {
-  const { data: list, refetch } = trpc.eContract.list.useQuery();
-  const createMutation = trpc.eContract.createTransfer.useMutation({ onSuccess: () => { refetch(); setShowForm(false); resetForm(); } });
-  const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => refetch() });
+  const utils = trpc.useUtils();
+  const { data: list } = trpc.eContract.list.useQuery();
+  const invalidate = () => utils.eContract.list.invalidate();
+  const createMutation = trpc.eContract.createTransfer.useMutation({ onSuccess: () => { invalidate(); setShowForm(false); resetForm(); } });
+  const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => invalidate() });
   const [showForm, setShowForm] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const { data: detail } = trpc.eContract.getDetail.useQuery({ id: detailId! }, { enabled: !!detailId });
@@ -3421,32 +3427,32 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                 <div className="p-4">
                   {feature.id === "brand_page"        && <BrandPageEditor />}
                   {feature.id === "fitstep_plus"      && <AdminFspLimitsPanel />}
-                  {feature.id === "fitstep_personal"  && <WorkoutLogSection />}
+                  {feature.id === "fitstep_personal"  && <AdminPreviewNotice name="개인 운동 기록 관리" />}
                   {feature.id === "booking"           && <BookingFeaturePanel />}
                   {feature.id === "report_branding"   && <ReportBrandingEditor />}
                   {feature.id === "templates"         && <WorkoutTemplateEditor />}
                   {feature.id === "survey"            && <SurveyBuilder />}
                   {feature.id === "contract_terms"    && <ContractTermsEditor />}
-                  {feature.id === "e_contract"         && <EContractManager />}
+                  {feature.id === "e_contract"        && <EContractManager />}
                   {feature.id === "contract_kakao"    && <EContractManager />}
-                  {feature.id === "refund_contract"        && <RefundContractManager />}
-                  {feature.id === "transfer_contract"      && <TransferContractManager />}
-                  {feature.id === "unpaid"                 && <UnpaidManager />}
-                  {feature.id === "consult_conversion"     && <ConsultConversionPreview />}
-                  {feature.id === "member_overview"        && <MemberOverviewPreview />}
-                  {feature.id === "activity_stats"         && <ActivityStatsPreview />}
-                  {feature.id === "monthly_pnl"            && <MonthlyPnlPreview />}
-                  {feature.id === "sales_analysis"         && <SalesAnalysisPreview />}
-                  {feature.id === "renewal_analysis"       && <RenewalAnalysisPreview />}
-                  {feature.id === "channel_analysis"       && <ChannelAnalysisPreview />}
-                  {feature.id === "marketing_analysis"     && <MarketingAnalysisPreview />}
-                  {feature.id === "kpi_report"             && <KpiReportPreview />}
-                  {feature.id === "fitstep_videos"         && <VideoSection trainerId={0} />}
-                  {feature.id === "ai_insights"            && <ComingSoonPreview title="AI 운영 인사이트" desc="운영 데이터를 AI가 분석해 개선 포인트를 제안합니다. 준비 중입니다." />}
-                  {feature.id === "data_migration"         && <ComingSoonPreview title="데이터 이전" desc="기존 센터 데이터를 업로드해 간편하게 이전할 수 있습니다. 준비 중입니다." />}
-                  {feature.id === "training_video"         && <ComingSoonPreview title="트레이닝 일지 + 영상 연결" desc="회원별 운동 일지에 영상을 직접 연결해 피드백을 제공합니다. 준비 중입니다." />}
-                  {feature.id === "fitstep_rec"            && <ComingSoonPreview title="맞춤 운동 추천" desc="회원의 목표와 상태를 기반으로 개인화된 운동을 추천합니다. 준비 중입니다." />}
-                  {feature.id === "fitstep_diet"           && <TrainerDietManager />}
+                  {feature.id === "refund_contract"   && <RefundContractManager />}
+                  {feature.id === "transfer_contract" && <TransferContractManager />}
+                  {feature.id === "unpaid"            && <UnpaidManager />}
+                  {feature.id === "consult_conversion"    && <ConsultConversionPreview />}
+                  {feature.id === "member_overview"       && <MemberOverviewPreview />}
+                  {feature.id === "activity_stats"        && <ActivityStatsPreview />}
+                  {feature.id === "monthly_pnl"           && <MonthlyPnlPreview />}
+                  {feature.id === "sales_analysis"        && <SalesAnalysisPreview />}
+                  {feature.id === "renewal_analysis"      && <RenewalAnalysisPreview />}
+                  {feature.id === "channel_analysis"      && <ChannelAnalysisPreview />}
+                  {feature.id === "marketing_analysis"    && <MarketingAnalysisPreview />}
+                  {feature.id === "kpi_report"            && <KpiReportPreview />}
+                  {feature.id === "fitstep_videos"        && <AdminPreviewNotice name="운동 영상 라이브러리" />}
+                  {feature.id === "fitstep_diet"          && <AdminPreviewNotice name="맞춤 식단 관리" />}
+                  {feature.id === "ai_insights"           && <ComingSoonPreview title="AI 운영 인사이트" desc="운영 데이터를 AI가 분석해 개선 포인트를 제안합니다. 준비 중입니다." />}
+                  {feature.id === "data_migration"        && <ComingSoonPreview title="데이터 이전" desc="기존 센터 데이터를 업로드해 간편하게 이전할 수 있습니다. 준비 중입니다." />}
+                  {feature.id === "training_video"        && <ComingSoonPreview title="트레이닝 일지 + 영상 연결" desc="회원별 운동 일지에 영상을 직접 연결해 피드백을 제공합니다. 준비 중입니다." />}
+                  {feature.id === "fitstep_rec"           && <ComingSoonPreview title="맞춤 운동 추천" desc="회원의 목표와 상태를 기반으로 개인화된 운동을 추천합니다. 준비 중입니다." />}
                 </div>
               </div>
             )}
@@ -3962,6 +3968,20 @@ function TrainerDietManager() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminPreviewNotice({ name }: { name: string }) {
+  return (
+    <div className="text-center py-6 space-y-2">
+      <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto">
+        <Users className="h-6 w-6 text-blue-400" />
+      </div>
+      <p className="text-sm font-semibold text-foreground">{name}</p>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        이 기능은 트레이너 계정의 회원 데이터를 사용합니다.<br />실제 사용은 트레이너 작업실에서 확인하세요.
+      </p>
     </div>
   );
 }
