@@ -1253,19 +1253,34 @@ export default function RegistrationManagement() {
           return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">D-{d}</span>;
         }
 
-        // serviceItems(결제 기록) 파싱 → 카테고리별 분류
-        // entry.serviceItems 예: "PT(10회),헬스(3개월),락커(45),운동복"
+        // serviceItems + programDetail(결제 기록) 파싱 → 카테고리별 분류
         type ParsedServiceItem = { entryId: number; name: string; phone: string; detail: string; paymentDate: string; category: string };
         const parsedItems: ParsedServiceItem[] = serviceItemsList.flatMap((entry: any) => {
           const name = entry.customerName ?? entry.memberName ?? "—";
           const phone = entry.phone ?? "";
-          return (entry.serviceItems ?? "").split(",").filter(Boolean).map((raw: string) => {
+          const items: ParsedServiceItem[] = [];
+
+          // serviceItems에서 파싱
+          const siParts = (entry.serviceItems ?? "").split(",").filter(Boolean);
+          for (const raw of siParts) {
             const cat = raw.startsWith("PT") ? "PT"
               : raw.startsWith("헬스") ? "헬스"
               : raw.startsWith("락커") ? "락커"
               : raw.startsWith("운동복") ? "운동복" : "기타";
-            return { entryId: entry.id, name, phone, detail: raw, paymentDate: entry.paymentDate ?? "", category: cat };
-          });
+            items.push({ entryId: entry.id, name, phone, detail: raw, paymentDate: entry.paymentDate ?? "", category: cat });
+          }
+
+          // serviceItems가 없고 programDetail로만 등록된 경우 (예: programDetail="운동복")
+          if (siParts.length === 0 && entry.programDetail) {
+            const pd: string = entry.programDetail;
+            const cat = /운동복|유니폼|uniform/i.test(pd) ? "운동복"
+              : /락커/i.test(pd) ? "락커"
+              : /헬스/i.test(pd) ? "헬스"
+              : /PT/i.test(pd) ? "PT" : null;
+            if (cat) items.push({ entryId: entry.id, name, phone, detail: pd, paymentDate: entry.paymentDate ?? "", category: cat });
+          }
+
+          return items;
         });
 
         // 검색 필터
