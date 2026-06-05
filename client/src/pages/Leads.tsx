@@ -230,6 +230,7 @@ export default function LeadsPage() {
   const [regForm, setRegForm] = useState<RegForm>(defaultRegForm);
   const regPendingRef = useRef<RegForm | null>(null);
   const pendingEditIdRef = useRef<number | null>(null);
+  const [editingRevenueId, setEditingRevenueId] = useState<number | null>(null);
 
   // 바로등록 모달
   const [statDetailModal, setStatDetailModal] = useState<string | null>(null);
@@ -338,6 +339,17 @@ export default function LeadsPage() {
     onError: (e) => { toast.error("매출 저장 실패: " + e.message); resetForm(); },
   });
 
+  const updateRevenueMutation = trpc.gym.revenue.update.useMutation({
+    onSuccess: () => { toast.success("등록 내용이 수정되었습니다"); utils.gym.leads.invalidate(); utils.gym.revenue.invalidate(); resetForm(); },
+    onError: (e) => toast.error("수정 실패: " + e.message),
+  });
+
+  // 등록완료 상태에서 매출 항목 조회 (등록 수정용)
+  const { data: existingRevenue } = trpc.gym.revenue.byLead.useQuery(
+    { leadId: editId ?? 0 },
+    { enabled: !!editId && editStatus === "registered" }
+  );
+
   const createMutation = trpc.gym.leads.create.useMutation({
     onSuccess: (data) => {
       if (regPendingRef.current) {
@@ -370,7 +382,7 @@ export default function LeadsPage() {
     setShowForm(false); setEditId(null); setEditStatus(""); setEditHasSig(false); setForm(defaultForm);
     setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
     setShowSignature(false); setSignatureDataUrl(null); setShowSignedContract(false);
-    setShowRegistration(false); setRegForm(defaultRegForm);
+    setShowRegistration(false); setRegForm(defaultRegForm); setEditingRevenueId(null);
     regPendingRef.current = null; pendingEditIdRef.current = null;
   }
 
@@ -448,6 +460,45 @@ export default function LeadsPage() {
     setSigContext("rereg");
     setSignatureDataUrl(null);
     setShowSignature(true);
+  }
+
+  function openRegEdit(revenue: any) {
+    if (!revenue) return toast.error("등록된 매출 내역이 없습니다");
+    const si = (revenue.serviceItems ?? "").split(",").filter(Boolean) as string[];
+    const siCategories = si.map((s: string) =>
+      s.startsWith("PT") ? "PT" : s.startsWith("헬스") ? "헬스" : s.startsWith("락커") ? "락커" : s.startsWith("운동복") ? "운동복" : s
+    );
+    const servicePtMatch = si.find((s: string) => s.startsWith("PT("))?.match(/PT\((\d+)회\)/);
+    const serviceHealthMatch = si.find((s: string) => s.startsWith("헬스("))?.match(/헬스\((\d+)개월\)/);
+    const serviceLockerMatch = si.find((s: string) => s.startsWith("락커("))?.match(/락커\(([^)]+)\)/);
+
+    setRegForm({
+      ...defaultRegForm,
+      itemTypes: [revenue.type as string],
+      subType: (revenue.subType ?? "신규") as "신규" | "재등록",
+      programKey: "기타",
+      programCustom: revenue.programDetail ?? "",
+      sessions: revenue.sessions ?? undefined,
+      serviceSessions: revenue.serviceSessions ?? 0,
+      duration: revenue.duration ?? undefined,
+      amount: String(revenue.amount ?? ""),
+      discountAmount: String(revenue.discountAmount ?? "0"),
+      paidAmount: String(revenue.paidAmount ?? ""),
+      unpaidAmount: String(revenue.unpaidAmount ?? "0"),
+      paymentMethod: (revenue.paymentMethod ?? "") as any,
+      paymentDate: revenue.paymentDate ?? new Date().toISOString().substring(0, 10),
+      startDate: revenue.startDate ?? "",
+      endDate: revenue.endDate ?? "",
+      memo: revenue.memo ?? "",
+      branchId: revenue.branchId ?? undefined,
+      serviceItems: siCategories,
+      servicePtCount: servicePtMatch ? servicePtMatch[1] : "",
+      serviceHealthMonths: serviceHealthMatch ? parseInt(serviceHealthMatch[1]) : undefined,
+      serviceLockerNum: serviceLockerMatch ? serviceLockerMatch[1] : "",
+    });
+    setEditingRevenueId(revenue.id);
+    setShowForm(false);
+    setShowRegistration(true);
   }
 
   function confirmRegistration() {
@@ -1540,11 +1591,46 @@ export default function LeadsPage() {
 
             <div className="border-t border-border shrink-0 space-y-2 bg-card"
               style={{ padding: '0.75rem 1rem', paddingBottom: 'max(env(safe-area-inset-bottom), 0.75rem)' }}>
-              <button type="button" onClick={saveRegistration}
-                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 active:bg-emerald-700 transition-colors">
-                등록 완료
+              <button type="button" onClick={() => {
+                if (editingRevenueId) {
+                  // 수정 모드: 서명 없이 바로 저장
+                  const reg = regForm;
+                  if (!reg.paymentDate) return toast.error("결제일을 입력해주세요");
+                  const parts: string[] = [];
+                  if (reg.itemTypes.includes("PT") && reg.programKey) {
+                    parts.push(reg.programKey === "기타" ? (reg.programCustom || "기타PT") : reg.programKey);
+                  }
+                  if (reg.itemTypes.includes("헬스") && reg.duration) parts.push(`헬스 ${reg.duration}개월`);
+                  if (reg.itemTypes.includes("기타") && reg.otherItem) parts.push(reg.otherItem);
+                  updateRevenueMutation.mutate({
+                    id: editingRevenueId,
+                    type: reg.itemTypes.includes("PT") ? "PT" : reg.itemTypes.includes("헬스") ? "헬스" : "기타",
+                    subType: reg.subType,
+                    programDetail: parts.length > 0 ? parts.join(" + ") : undefined,
+                    sessions: reg.itemTypes.includes("PT") ? reg.sessions : undefined,
+                    serviceSessions: reg.itemTypes.includes("PT") ? (reg.serviceSessions ?? 0) : undefined,
+                    amount: Number(reg.amount) || 0,
+                    discountAmount: Number(reg.discountAmount) || 0,
+                    paidAmount: Number(reg.paidAmount) || 0,
+                    unpaidAmount: Number(reg.unpaidAmount) || 0,
+                    paymentMethod: reg.paymentMethod || undefined,
+                    paymentDate: reg.paymentDate,
+                    startDate: reg.startDate || undefined,
+                    memo: reg.memo || undefined,
+                    branchId: reg.branchId ?? undefined,
+                  });
+                } else {
+                  saveRegistration();
+                }
+              }}
+                disabled={updateRevenueMutation.isPending}
+                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 active:bg-emerald-700 transition-colors disabled:opacity-50">
+                {editingRevenueId ? "수정 저장" : "등록 완료"}
               </button>
-              <button type="button" onClick={() => setShowRegistration(false)}
+              <button type="button" onClick={() => {
+                setShowRegistration(false);
+                if (editingRevenueId) { setEditingRevenueId(null); setShowForm(true); }
+              }}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
               </button>
@@ -2478,6 +2564,12 @@ export default function LeadsPage() {
                   등록완료
                 </button>
               </div>
+              {editStatus === "registered" && (
+                <button type="button" onClick={() => openRegEdit(existingRevenue)}
+                  className="w-full border border-emerald-500/40 text-emerald-400 rounded-xl py-2.5 text-sm font-medium hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors">
+                  ✏️ 등록 내용 수정
+                </button>
+              )}
               {editId && !isSubAdmin && (
                 <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
                   className="w-full border border-red-500/30 text-red-400 rounded-xl py-2.5 text-sm font-medium hover:bg-red-500/10 active:bg-red-500/20">
