@@ -124,7 +124,7 @@ export default function RegistrationManagement() {
   const activePtQuery = trpc.access.getActivePtPackages.useQuery(undefined, { enabled: tab === "services" });
   const serviceLockerQuery = trpc.access.getServiceLockers.useQuery(undefined, { enabled: tab === "services" });
   const serviceHealthQuery = trpc.access.getServiceHealthMemberships.useQuery(undefined, { enabled: tab === "services" });
-  const serviceItemsQuery = trpc.gym.revenue.listServiceItems.useQuery(undefined, { enabled: tab === "services" });
+  const serviceItemsQuery = trpc.gym.revenue.listServiceItems.useQuery(undefined, { enabled: tab === "services" || tab === "uniforms" });
 
   const branches = (branchesQuery.data ?? []) as Branch[];
   const categories = (categoriesQuery.data ?? []) as LockerCategory[];
@@ -950,20 +950,39 @@ export default function RegistrationManagement() {
       {/* 탭 3: 운동복 관리 */}
       {tab === "uniforms" && (() => {
         const allUniforms = uniformsQuery.data ?? [];
-        const filteredUniforms = allUniforms.filter((u: any) => {
+        const serviceItemsList = (serviceItemsQuery.data ?? []) as any[];
+
+        // serviceItems에서 운동복 항목 파싱
+        const uniformFromServiceItems = serviceItemsList.flatMap((entry: any) =>
+          (entry.serviceItems ?? "").split(",").filter((s: string) => s.startsWith("운동복"))
+            .map(() => ({
+              id: `si-${entry.id}`,
+              memberName: entry.customerName ?? entry.memberName ?? "—",
+              memberPhone: entry.phone ?? "",
+              rentalType: "service",
+              isActive: 1,
+              startDate: entry.paymentDate ?? null,
+              endDate: null,
+              memo: "서비스 내역 기반",
+              size: null, quantity: 1, memberType: null, isPaid: 1,
+            }))
+        );
+
+        const allCombined = [...uniformFromServiceItems, ...allUniforms];
+        const filteredUniforms = allCombined.filter((u: any) => {
           const q = uniformSearch.toLowerCase();
           const matchSearch = !q || (u.memberName ?? "").toLowerCase().includes(q) || (u.memberPhone ?? "").toLowerCase().includes(q);
           const matchActive = !uniformActiveOnly || u.isActive === 1;
           return matchSearch && matchActive;
         });
-        const activeCount = allUniforms.filter((u: any) => u.isActive === 1).length;
+        const activeCount = allCombined.filter((u: any) => u.isActive === 1).length;
 
         return (
           <div className="space-y-3">
             {/* 요약 + 버튼 */}
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
-                사용 중 <span className="text-foreground font-semibold">{activeCount}</span>개 / 전체 {allUniforms.length}개
+                사용 중 <span className="text-foreground font-semibold">{activeCount}</span>개 / 전체 {allCombined.length}개
               </span>
               <button
                 onClick={() => { setEditingUniform(null); resetUniformForm(); setShowUniformForm(true); }}
