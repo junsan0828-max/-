@@ -344,10 +344,10 @@ export default function LeadsPage() {
     onError: (e) => toast.error("수정 실패: " + e.message),
   });
 
-  // 등록완료 상태에서 매출 항목 조회 (등록 수정용)
+  // 매출 항목 조회 (등록 수정용) — editId 있으면 항상 조회
   const { data: existingRevenue } = trpc.gym.revenue.byLead.useQuery(
     { leadId: editId ?? 0 },
-    { enabled: !!editId && editStatus === "registered" }
+    { enabled: !!editId }
   );
 
   const createMutation = trpc.gym.leads.create.useMutation({
@@ -2562,7 +2562,7 @@ export default function LeadsPage() {
                   등록완료
                 </button>
               </div>
-              {editStatus === "registered" && (
+              {existingRevenue && (
                 <button type="button" onClick={() => openRegEdit(existingRevenue)}
                   className="w-full border border-emerald-500/40 text-emerald-400 rounded-xl py-2.5 text-sm font-medium hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors">
                   ✏️ 등록 내용 수정
