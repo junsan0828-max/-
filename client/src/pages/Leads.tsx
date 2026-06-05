@@ -275,6 +275,7 @@ export default function LeadsPage() {
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: allLockers } = trpc.access.getLockers.useQuery();
+  const { data: gymSettings } = trpc.gym.settings.get.useQuery();
   const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
   const [showEventPicker, setShowEventPicker] = useState<"reReg" | "direct" | null>(null);
 
@@ -1371,7 +1372,8 @@ export default function LeadsPage() {
                   const selected = regForm.serviceItems.includes("PT");
                   const paid = Number(regForm.paidAmount) || 0;
                   const total = (regForm.sessions ?? 0) + (regForm.serviceSessions ?? 0);
-                  const unitPrice = total > 0 ? Math.round(paid / total) : 0;
+                  const calcPrice = total > 0 ? Math.round(paid / total) : 0;
+                  const unitPrice = calcPrice > 0 ? calcPrice : (gymSettings?.servicePtUnitPrice ?? 0);
                   return (
                     <div className={`rounded-xl border transition-colors ${selected ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
                       <button type="button"

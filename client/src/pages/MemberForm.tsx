@@ -82,6 +82,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
   const { data: allLockers } = trpc.access.getLockers.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const { data: gymSettings } = trpc.gym.settings.get.useQuery();
   const { data: existingMember } = trpc.members.getById.useQuery(
     { id: memberId! },
     { enabled: isEdit }
@@ -599,7 +600,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     const sel = serviceItems.includes("PT");
                     const paid = Number(form.paymentAmount) || 0;
                     const sessions = parseInt(form.ptSessions) || 0;
-                    const unitPrice = sessions > 0 ? Math.round(paid / sessions) : 0;
+                    const calcPrice = sessions > 0 ? Math.round(paid / sessions) : 0;
+                    const unitPrice = calcPrice > 0 ? calcPrice : (gymSettings?.servicePtUnitPrice ?? 0);
                     return (
                       <div className={`rounded-xl border transition-colors ${sel ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
                         <button type="button"

@@ -35,6 +35,7 @@ export default function MemberReRegister() {
   const { data: members = [] } = trpc.members.list.useQuery();
   const { data: allLockers } = trpc.access.getLockers.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
+  const { data: gymSettings } = trpc.gym.settings.get.useQuery();
 
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [regType, setRegType] = useState<"" | "health" | "pt">("");
@@ -430,7 +431,8 @@ export default function MemberReRegister() {
                   const sel = serviceItems.includes("PT");
                   const paid = Number(form.paymentAmount) || 0;
                   const sessions = parseInt(form.ptSessions) || 0;
-                  const unitPrice = sessions > 0 ? Math.round(paid / sessions) : 0;
+                  const calcPrice = sessions > 0 ? Math.round(paid / sessions) : 0;
+                  const unitPrice = calcPrice > 0 ? calcPrice : (gymSettings?.servicePtUnitPrice ?? 0);
                   return (
                     <div className={`rounded-xl border transition-colors ${sel ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
                       <button type="button"

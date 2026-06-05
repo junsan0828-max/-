@@ -517,6 +517,24 @@ export default function Admin() {
 
   const [adminTab, setAdminTab] = useState<"data" | "staff">("data");
 
+  // 서비스 단가 설정
+  const { data: gymSettings, refetch: refetchGymSettings } = trpc.gym.settings.get.useQuery();
+  const [settingsForm, setSettingsForm] = useState({ servicePtUnitPrice: "", serviceHealthUnitPrice: "", serviceLockUnitPrice: "", serviceUniformUnitPrice: "" });
+  useEffect(() => {
+    if (gymSettings) {
+      setSettingsForm({
+        servicePtUnitPrice: gymSettings.servicePtUnitPrice > 0 ? String(gymSettings.servicePtUnitPrice) : "",
+        serviceHealthUnitPrice: gymSettings.serviceHealthUnitPrice > 0 ? String(gymSettings.serviceHealthUnitPrice) : "",
+        serviceLockUnitPrice: gymSettings.serviceLockUnitPrice > 0 ? String(gymSettings.serviceLockUnitPrice) : "",
+        serviceUniformUnitPrice: gymSettings.serviceUniformUnitPrice > 0 ? String(gymSettings.serviceUniformUnitPrice) : "",
+      });
+    }
+  }, [gymSettings]);
+  const updateGymSettings = trpc.gym.settings.update.useMutation({
+    onSuccess: () => { toast.success("서비스 단가 설정이 저장되었습니다."); refetchGymSettings(); },
+    onError: (err) => toast.error(err.message || "저장 실패"),
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -543,6 +561,59 @@ export default function Admin() {
       {(<>
 
       {adminTab === "data" && (<>
+
+      {/* ── 서비스 단가 설정 ── */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            서비스 횟수 미배정 단가
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">등록 시 서비스 제공 항목의 기준 단가를 설정합니다. 미입력 시 결제금액 ÷ 횟수로 자동 계산됩니다.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">PT 단가 (원/회)</Label>
+              <Input type="number" min="0" placeholder="예: 60000"
+                value={settingsForm.servicePtUnitPrice}
+                onChange={e => setSettingsForm(f => ({ ...f, servicePtUnitPrice: e.target.value }))}
+                className="bg-input border-border mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">헬스 단가 (원/개월)</Label>
+              <Input type="number" min="0" placeholder="예: 50000"
+                value={settingsForm.serviceHealthUnitPrice}
+                onChange={e => setSettingsForm(f => ({ ...f, serviceHealthUnitPrice: e.target.value }))}
+                className="bg-input border-border mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">락커 단가 (원/개월)</Label>
+              <Input type="number" min="0" placeholder="예: 5000"
+                value={settingsForm.serviceLockUnitPrice}
+                onChange={e => setSettingsForm(f => ({ ...f, serviceLockUnitPrice: e.target.value }))}
+                className="bg-input border-border mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">운동복 단가 (원/개월)</Label>
+              <Input type="number" min="0" placeholder="예: 10000"
+                value={settingsForm.serviceUniformUnitPrice}
+                onChange={e => setSettingsForm(f => ({ ...f, serviceUniformUnitPrice: e.target.value }))}
+                className="bg-input border-border mt-1" />
+            </div>
+          </div>
+          <Button
+            onClick={() => updateGymSettings.mutate({
+              servicePtUnitPrice: settingsForm.servicePtUnitPrice ? parseInt(settingsForm.servicePtUnitPrice) : 0,
+              serviceHealthUnitPrice: settingsForm.serviceHealthUnitPrice ? parseInt(settingsForm.serviceHealthUnitPrice) : 0,
+              serviceLockUnitPrice: settingsForm.serviceLockUnitPrice ? parseInt(settingsForm.serviceLockUnitPrice) : 0,
+              serviceUniformUnitPrice: settingsForm.serviceUniformUnitPrice ? parseInt(settingsForm.serviceUniformUnitPrice) : 0,
+            })}
+            disabled={updateGymSettings.isPending}
+            className="w-full">
+            {updateGymSettings.isPending ? "저장 중..." : "단가 설정 저장"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* ── 구글시트 자동 동기화 설정 ── */}
       <Card className="bg-card border-border">

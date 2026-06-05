@@ -2273,6 +2273,59 @@ const staffRouter = t.router({
   }),
 });
 
+// ─── Gym Settings ─────────────────────────────────────────────────────────────
+async function ensureGymSettings(db: any) {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS gym_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      "servicePtUnitPrice" INTEGER DEFAULT 0,
+      "serviceHealthUnitPrice" INTEGER DEFAULT 0,
+      "serviceLockUnitPrice" INTEGER DEFAULT 0,
+      "serviceUniformUnitPrice" INTEGER DEFAULT 0
+    )
+  `);
+  await db.execute(sql`INSERT INTO gym_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+}
+
+const gymSettingsRouter = t.router({
+  get: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    await ensureGymSettings(db);
+    const rows = await db.execute(sql`SELECT * FROM gym_settings WHERE id = 1`);
+    const row = (rows as any).rows?.[0] ?? {};
+    return {
+      servicePtUnitPrice: Number(row.servicePtUnitPrice ?? 0),
+      serviceHealthUnitPrice: Number(row.serviceHealthUnitPrice ?? 0),
+      serviceLockUnitPrice: Number(row.serviceLockUnitPrice ?? 0),
+      serviceUniformUnitPrice: Number(row.serviceUniformUnitPrice ?? 0),
+    };
+  }),
+
+  update: protectedProcedure
+    .input(z.object({
+      servicePtUnitPrice: z.number().min(0).optional(),
+      serviceHealthUnitPrice: z.number().min(0).optional(),
+      serviceLockUnitPrice: z.number().min(0).optional(),
+      serviceUniformUnitPrice: z.number().min(0).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await ensureGymSettings(db);
+      const sets: string[] = [];
+      if (input.servicePtUnitPrice !== undefined) sets.push(`"servicePtUnitPrice" = ${input.servicePtUnitPrice}`);
+      if (input.serviceHealthUnitPrice !== undefined) sets.push(`"serviceHealthUnitPrice" = ${input.serviceHealthUnitPrice}`);
+      if (input.serviceLockUnitPrice !== undefined) sets.push(`"serviceLockUnitPrice" = ${input.serviceLockUnitPrice}`);
+      if (input.serviceUniformUnitPrice !== undefined) sets.push(`"serviceUniformUnitPrice" = ${input.serviceUniformUnitPrice}`);
+      if (sets.length > 0) {
+        await db.execute(sql.raw(`UPDATE gym_settings SET ${sets.join(", ")} WHERE id = 1`));
+      }
+      return { success: true };
+    }),
+});
+
 export const gymRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
@@ -2282,6 +2335,7 @@ export const gymRouter = t.router({
   ai: aiRouter,
   work: workRouter,
   staff: staffRouter,
+  settings: gymSettingsRouter,
 });
 
 export type GymRouter = typeof gymRouter;
