@@ -392,6 +392,7 @@ export default function LeadsPage() {
       startDate: directForm.membershipStart || new Date().toISOString().substring(0, 10),
       memo: directForm.paymentMemo || "",
       branchId: directForm.branchId ? parseInt(directForm.branchId) : undefined,
+      serviceItems: [],
     });
     setSigContext("direct");
     setSignatureDataUrl(null);
@@ -423,6 +424,7 @@ export default function LeadsPage() {
       startDate: reRegForm.membershipStart || new Date().toISOString().substring(0, 10),
       memo: reRegForm.paymentMemo || "",
       branchId: reRegForm.branchId ? parseInt(reRegForm.branchId) : undefined,
+      serviceItems: [],
     });
     setSigContext("rereg");
     setSignatureDataUrl(null);

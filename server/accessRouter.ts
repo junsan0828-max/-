@@ -676,6 +676,7 @@ export const accessRouter = t.router({
       rentalType: z.string().optional(),
       isPaid: z.number().optional(),
       paymentAmount: z.number().optional(),
+      paymentMethod: z.string().optional(),
       paymentDate: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
