@@ -1366,8 +1366,8 @@ export default function LeadsPage() {
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목)</span></label>
 
-                {/* PT 서비스 — PT 구매 시에만 표시 */}
-                {regForm.itemTypes.includes("PT") && (() => {
+                {/* PT 서비스 — 항상 표시 */}
+                {(() => {
                   const selected = regForm.serviceItems.includes("PT");
                   const paid = Number(regForm.paidAmount) || 0;
                   const total = (regForm.sessions ?? 0) + (regForm.serviceSessions ?? 0);
@@ -1377,7 +1377,7 @@ export default function LeadsPage() {
                       <button type="button"
                         onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "PT") : [...f.serviceItems, "PT"], servicePtCount: undefined }))}
                         className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                        <span className={selected ? "text-blue-400" : "text-muted-foreground"}>PT 서비스 제공</span>
+                        <span className={selected ? "text-blue-400" : "text-muted-foreground"}>PT</span>
                         {unitPrice > 0 && <span className="text-[10px] text-muted-foreground">단가 {unitPrice.toLocaleString()}원/회</span>}
                       </button>
                       {selected && (
@@ -1408,15 +1408,15 @@ export default function LeadsPage() {
                   );
                 })()}
 
-                {/* 헬스 서비스 — 헬스 구매 시에만 표시 */}
-                {regForm.itemTypes.includes("헬스") && (() => {
+                {/* 헬스 서비스 — 항상 표시 */}
+                {(() => {
                   const selected = regForm.serviceItems.includes("헬스");
                   return (
                     <div className={`rounded-xl border transition-colors ${selected ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
                       <button type="button"
                         onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "헬스") : [...f.serviceItems, "헬스"], serviceHealthMonths: undefined, serviceHealthMonthsCustom: "" }))}
                         className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                        <span className={selected ? "text-emerald-400" : "text-muted-foreground"}>헬스 서비스 제공</span>
+                        <span className={selected ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
                       </button>
                       {selected && (
                         <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
@@ -1454,7 +1454,7 @@ export default function LeadsPage() {
                       <button type="button"
                         onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "락커") : [...f.serviceItems, "락커"], serviceLockerNum: "" }))}
                         className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                        <span className={selected ? "text-amber-400" : "text-muted-foreground"}>락커 서비스 제공</span>
+                        <span className={selected ? "text-amber-400" : "text-muted-foreground"}>락커</span>
                         {availableLockers.length > 0 && <span className="text-[10px] text-muted-foreground">사용 가능 {availableLockers.length}개</span>}
                       </button>
                       {selected && (
@@ -1487,7 +1487,7 @@ export default function LeadsPage() {
                     <button type="button"
                       onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "운동복") : [...f.serviceItems, "운동복"] }))}
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${selected ? "border-purple-500/60 bg-purple-500/5 text-purple-400" : "border-border text-muted-foreground"}`}>
-                      운동복 서비스 제공
+                      운동복
                       {selected && <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
                     </button>
                   );
