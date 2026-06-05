@@ -1318,9 +1318,11 @@ export default function MemberDetail({ memberId }: Props) {
             </CardContent>
           </Card>
 
-          {/* serviceItems 파싱 (결제 기록에서 서비스 항목 추출) */}
+          {/* serviceItems / programDetail 파싱 (결제 기록에서 서비스 항목 추출) */}
           {(() => {
             const allRevs = memberPrograms?.healthRevenues ?? [];
+
+            // serviceItems 기반 파싱
             const siEntries = allRevs.filter(r => r.serviceItems);
             const parseItems = (prefix: string) =>
               siEntries.flatMap(r =>
@@ -1329,17 +1331,37 @@ export default function MemberDetail({ memberId }: Props) {
                   detail: item,
                   paymentDate: r.paymentDate,
                   subType: r.subType,
+                  fromEntry: r.id,
                 }))
               );
             const siHealth = parseItems("헬스");
             const siLocker = parseItems("락커");
             const siUniform = parseItems("운동복");
 
+            // serviceItems가 없지만 programDetail에 해당 카테고리가 있는 항목
+            const siEntryIds = new Set(siEntries.map(r => r.id));
+            const pdUniform = allRevs.filter(r =>
+              !siEntryIds.has(r.id) && /운동복|유니폼|uniform/i.test(r.programDetail ?? "")
+            ).map(r => ({ key: `pd-${r.id}`, detail: r.programDetail ?? "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
+
+            const pdLocker = allRevs.filter(r =>
+              !siEntryIds.has(r.id) && /락커/i.test(r.programDetail ?? "")
+            ).map(r => ({ key: `pd-${r.id}`, detail: r.programDetail ?? "락커", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
+
+            const allUniformItems = [...siUniform, ...pdUniform];
+            const allLockerItems = [...siLocker, ...pdLocker];
+
+            // 기타 서비스: 위에서 분류된 항목 제외
+            const classifiedIds = new Set([
+              ...pdUniform.map(x => x.fromEntry),
+              ...pdLocker.map(x => x.fromEntry),
+            ]);
             const healthRevs = allRevs.filter(r => r.type === "헬스");
-            const etcRevs = allRevs.filter(r => r.type === "기타");
+            const etcRevs = allRevs.filter(r => r.type === "기타" && !classifiedIds.has(r.id));
+
             const hasHealth = healthRevs.length > 0 || siHealth.length > 0;
-            const hasLocker = (memberPrograms?.lockers.length ?? 0) > 0 || siLocker.length > 0;
-            const hasUniform = (memberPrograms?.uniforms.length ?? 0) > 0 || siUniform.length > 0;
+            const hasLocker = (memberPrograms?.lockers.length ?? 0) > 0 || allLockerItems.length > 0;
+            const hasUniform = (memberPrograms?.uniforms.length ?? 0) > 0 || allUniformItems.length > 0;
 
             return (
               <>
@@ -1429,8 +1451,8 @@ export default function MemberDetail({ memberId }: Props) {
                       <p className="text-muted-foreground text-sm text-center py-6">배정된 락커가 없습니다.</p>
                     ) : (
                       <div className="space-y-3">
-                        {/* serviceItems 기반 락커 서비스 */}
-                        {siLocker.map(item => (
+                        {/* serviceItems/programDetail 기반 락커 서비스 */}
+                        {allLockerItems.map(item => (
                           <div key={item.key} className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-foreground">{item.detail}</p>
@@ -1473,11 +1495,11 @@ export default function MemberDetail({ memberId }: Props) {
                       <p className="text-muted-foreground text-sm text-center py-6">대여중인 운동복이 없습니다.</p>
                     ) : (
                       <div className="space-y-3">
-                        {/* serviceItems 기반 운동복 서비스 */}
-                        {siUniform.map(item => (
+                        {/* serviceItems/programDetail 기반 운동복 서비스 */}
+                        {allUniformItems.map(item => (
                           <div key={item.key} className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-foreground">운동복</p>
+                              <p className="font-medium text-sm text-foreground">{item.detail}</p>
                               <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">서비스</span>
                               <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>
                             </div>
