@@ -15,6 +15,7 @@ import {
   Gift,
   CalendarDays,
   Key,
+  Search,
 } from "lucide-react";
 
 type Branch = { id: number; name: string };
@@ -58,6 +59,7 @@ export default function RegistrationManagement() {
   const isTrainer = currentUser?.role === "trainer";
   const [tab, setTab] = useState<"members" | "lockers" | "uniforms" | "services">("members");
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
+  const [serviceSearch, setServiceSearch] = useState("");
   const [serviceModal, setServiceModal] = useState<ServiceModal>(null);
   const { data: memberRevenue, isLoading: memberRevenueLoading } = trpc.gym.revenue.getByMember.useQuery(
     { memberId: serviceModal?.memberId ?? 0 },
@@ -1198,13 +1200,6 @@ export default function RegistrationManagement() {
         const serviceHealths = (serviceHealthQuery.data ?? []) as any[];
         const serviceItemsList = (serviceItemsQuery.data ?? []) as any[];
 
-        const SERVICE_BADGE_STYLE: Record<string, string> = {
-          "PT": "bg-blue-500/20 text-blue-400",
-          "헬스": "bg-emerald-500/20 text-emerald-400",
-          "락커": "bg-amber-500/20 text-amber-400",
-          "운동복": "bg-purple-500/20 text-purple-400",
-        };
-
         const servicePt = activePtPackages.filter((p: any) => !p.paymentAmount || p.paymentAmount === 0);
         const serviceUniforms = allUniforms.filter((u: any) => u.isActive === 1 && u.rentalType === "service");
 
@@ -1228,64 +1223,85 @@ export default function RegistrationManagement() {
           return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">D-{d}</span>;
         }
 
-        const total = servicePt.length + serviceUniforms.length + serviceLockers.length + serviceHealths.length;
+        // serviceItems(결제 기록) 파싱 → 카테고리별 분류
+        // entry.serviceItems 예: "PT(10회),헬스(3개월),락커(45),운동복"
+        type ParsedServiceItem = { entryId: number; name: string; phone: string; detail: string; paymentDate: string; category: string };
+        const parsedItems: ParsedServiceItem[] = serviceItemsList.flatMap((entry: any) => {
+          const name = entry.customerName ?? entry.memberName ?? "—";
+          const phone = entry.phone ?? "";
+          return (entry.serviceItems ?? "").split(",").filter(Boolean).map((raw: string) => {
+            const cat = raw.startsWith("PT") ? "PT"
+              : raw.startsWith("헬스") ? "헬스"
+              : raw.startsWith("락커") ? "락커"
+              : raw.startsWith("운동복") ? "운동복" : "기타";
+            return { entryId: entry.id, name, phone, detail: raw, paymentDate: entry.paymentDate ?? "", category: cat };
+          });
+        });
+
+        // 검색 필터
+        const sq = serviceSearch.trim().toLowerCase();
+        const match = (name: string, phone: string) =>
+          !sq || name.toLowerCase().includes(sq) || (phone ?? "").replace(/\D/g, "").includes(sq.replace(/\D/g, ""));
+
+        const filteredHealthItems = parsedItems.filter(i => i.category === "헬스" && match(i.name, i.phone));
+        const filteredLockerItems = parsedItems.filter(i => i.category === "락커" && match(i.name, i.phone));
+        const filteredUniformItems = parsedItems.filter(i => i.category === "운동복" && match(i.name, i.phone));
+        const filteredPtItems = parsedItems.filter(i => i.category === "PT" && match(i.name, i.phone));
+
+        const filteredServiceHealths = serviceHealths.filter((h: any) => match(h.memberName ?? "", h.memberPhone ?? ""));
+        const filteredServicePt = servicePt.filter((p: any) => match(p.memberName ?? "", p.memberPhone ?? ""));
+        const filteredServiceLockers = serviceLockers.filter((l: any) => match(l.memberName ?? "", l.memberPhone ?? ""));
+        const filteredServiceUniforms = serviceUniforms.filter((u: any) => match(u.memberName ?? "", u.memberPhone ?? ""));
+
+        const totalHealth = filteredHealthItems.length + filteredServiceHealths.length;
+        const totalLocker = filteredLockerItems.length + filteredServiceLockers.length;
+        const totalUniform = filteredUniformItems.length + filteredServiceUniforms.length;
+        const totalPt = filteredPtItems.length + filteredServicePt.length;
 
         return (
           <div className="space-y-5">
-            {/* 요약 */}
-            <p className="text-sm text-muted-foreground">
-              총 <span className="text-foreground font-semibold">{total}명</span>이 무료 서비스 이용 중
-            </p>
+            {/* 검색 */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="이름, 전화번호 검색..."
+                value={serviceSearch}
+                onChange={e => setServiceSearch(e.target.value)}
+                className="w-full bg-input border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
 
-            {/* 서비스 내역 (등록 시 체크된 항목) */}
+            {/* 서비스 헬스 */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <Gift className="h-4 w-4 text-violet-400" /> 서비스 내역
-                <span className="text-xs text-muted-foreground font-normal">({serviceItemsList.length}건)</span>
+                <span className="text-emerald-400">◆</span> 서비스 헬스
+                <span className="text-xs text-muted-foreground font-normal">({totalHealth}건)</span>
               </h3>
-              {serviceItemsList.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">서비스 내역이 없습니다</p>
+              {totalHealth === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
               ) : (
                 <div className="space-y-2">
-                  {serviceItemsList.map((entry: any) => (
-                    <div key={entry.id} className="bg-card border border-border rounded-xl px-3 py-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">{entry.customerName ?? entry.memberName ?? "—"}</p>
-                          <div className="flex gap-1 flex-wrap mt-1">
-                            {(entry.serviceItems ?? "").split(",").filter(Boolean).map((item: string) => (
-                              <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${SERVICE_BADGE_STYLE[item] ?? "bg-muted text-muted-foreground"}`}>
-                                🎁 {item}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <span className="text-xs text-muted-foreground shrink-0">{entry.paymentDate}</span>
+                  {filteredHealthItems.map((item, idx) => (
+                    <div key={`hi-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">{item.phone || "—"}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">🎁 {item.detail}</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
                       </div>
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-
-            {/* 서비스 헬스권 */}
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <span className="text-emerald-400">◆</span> 서비스 헬스권
-                <span className="text-xs text-muted-foreground font-normal">({serviceHealths.length}명)</span>
-              </h3>
-              {serviceHealths.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">서비스 헬스권 이용자가 없습니다</p>
-              ) : (
-                <div className="space-y-2">
-                  {serviceHealths.map((h: any) => (
-                    <button key={h.id} type="button" onClick={() => setServiceModal({ memberId: h.memberId, memberName: h.memberName ?? "—", memberPhone: h.memberPhone, serviceType: "서비스 헬스", details: `${h.startDate ?? "-"} ~ ${h.endDate} · ${h.serviceHealthDuration}개월` })}
-                      className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-primary/40 hover:bg-accent/30 transition-colors text-left">
+                  {filteredServiceHealths.map((h: any) => (
+                    <button key={`sh-${h.id}`} type="button"
+                      onClick={() => setServiceModal({ memberId: h.memberId, memberName: h.memberName ?? "—", memberPhone: h.memberPhone, serviceType: "서비스 헬스", details: `${h.startDate ?? "-"} ~ ${h.endDate} · ${h.serviceHealthDuration}개월` })}
+                      className="w-full flex items-start justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-emerald-500/40 hover:bg-accent/30 transition-colors text-left">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground">{h.memberName ?? "—"}</p>
                         <p className="text-xs text-muted-foreground">
-                          {h.startDate ?? "-"} ~ {h.endDate}
-                          <> · {h.serviceHealthDuration}개월</>
+                          {h.startDate ?? "-"} ~ {h.endDate} · {h.serviceHealthDuration}개월
                         </p>
                       </div>
                       <DDay endDate={h.endDate} />
@@ -1295,61 +1311,40 @@ export default function RegistrationManagement() {
               )}
             </div>
 
-            {/* 서비스 PT */}
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <span className="text-blue-400">◆</span> 서비스 PT
-                <span className="text-xs text-muted-foreground font-normal">({servicePt.length}명)</span>
-              </h3>
-              {servicePt.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">서비스 PT 이용자가 없습니다</p>
-              ) : (
-                <div className="space-y-2">
-                  {servicePt.map((p: any) => {
-                    const remaining = (p.totalSessions ?? 0) - (p.usedSessions ?? 0);
-                    return (
-                      <button key={p.id} type="button" onClick={() => setServiceModal({ memberId: p.memberId, memberName: p.memberName, memberPhone: p.memberPhone, serviceType: "서비스 PT", details: `${p.packageName ?? ""} · 잔여 ${remaining}회 / ${p.totalSessions}회${p.expiryDate ? ` · 만료 ${p.expiryDate}` : ""}` })}
-                        className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-primary/40 hover:bg-accent/30 transition-colors text-left">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-sm font-medium text-foreground">{p.memberName}</p>
-                            {p.packageName && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">{p.packageName}</span>}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            잔여 <span className="text-blue-400 font-semibold">{remaining}회</span> / {p.totalSessions}회
-                            {p.expiryDate && <> · 만료 {p.expiryDate}</>}
-                          </p>
-                        </div>
-                        <DDay endDate={p.expiryDate} />
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
             {/* 서비스 락커 */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
                 <Key className="h-4 w-4 text-amber-400" /> 서비스 락커
-                <span className="text-xs text-muted-foreground font-normal">({serviceLockers.length}명)</span>
+                <span className="text-xs text-muted-foreground font-normal">({totalLocker}건)</span>
               </h3>
-              {serviceLockers.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">서비스 락커 이용자가 없습니다</p>
+              {totalLocker === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
               ) : (
                 <div className="space-y-2">
-                  {serviceLockers.map((l: any) => (
-                    <button key={l.id} type="button" onClick={() => setServiceModal({ memberId: l.memberId, memberName: l.memberName ?? "—", memberPhone: l.memberPhone, serviceType: "서비스 락커", details: `#${l.lockerNumber} · ${l.startDate ?? "-"}${l.endDate ? ` ~ ${l.endDate}` : ""}` })}
-                      className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-primary/40 hover:bg-accent/30 transition-colors text-left">
+                  {filteredLockerItems.map((item, idx) => (
+                    <div key={`li-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">{item.phone || "—"}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">🎁 {item.detail}</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredServiceLockers.map((l: any) => (
+                    <button key={`sl-${l.id}`} type="button"
+                      onClick={() => setServiceModal({ memberId: l.memberId, memberName: l.memberName ?? "—", memberPhone: l.memberPhone, serviceType: "서비스 락커", details: `#${l.lockerNumber} · ${l.startDate ?? "-"}${l.endDate ? ` ~ ${l.endDate}` : ""}` })}
+                      className="w-full flex items-start justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-amber-500/40 hover:bg-accent/30 transition-colors text-left">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="text-sm font-medium text-foreground">{l.memberName ?? "—"}</p>
                           <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">#{l.lockerNumber}</span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {l.startDate ?? "-"}
-                          {l.endDate && <> ~ {l.endDate}</>}
-                          {l.startDate && l.endDate && (() => { const lbl = durationLabel(l.startDate, l.endDate); return lbl ? <> · {lbl}</> : null; })()}
+                          {l.startDate ?? "-"}{l.endDate && ` ~ ${l.endDate}`}
+                          {l.startDate && l.endDate && (() => { const lbl = durationLabel(l.startDate, l.endDate); return lbl ? ` · ${lbl}` : ""; })()}
                         </p>
                       </div>
                       <DDay endDate={l.endDate} />
@@ -1363,26 +1358,84 @@ export default function RegistrationManagement() {
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
                 <Shirt className="h-4 w-4 text-purple-400" /> 서비스 운동복
-                <span className="text-xs text-muted-foreground font-normal">({serviceUniforms.length}명)</span>
+                <span className="text-xs text-muted-foreground font-normal">({totalUniform}건)</span>
               </h3>
-              {serviceUniforms.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-6">서비스 운동복 이용자가 없습니다</p>
+              {totalUniform === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
               ) : (
                 <div className="space-y-2">
-                  {serviceUniforms.map((u: any) => (
-                    <button key={u.id} type="button" onClick={() => setServiceModal({ memberId: u.memberId ?? null, memberName: u.memberName ?? "—", memberPhone: u.memberPhone, serviceType: "서비스 운동복", details: `${u.startDate ?? "-"}${u.endDate ? ` ~ ${u.endDate}` : ""}` })}
-                      className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-primary/40 hover:bg-accent/30 transition-colors text-left">
+                  {filteredUniformItems.map((item, idx) => (
+                    <div key={`ui-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">{item.phone || "—"}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-medium">🎁 {item.detail}</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredServiceUniforms.map((u: any) => (
+                    <button key={`su-${u.id}`} type="button"
+                      onClick={() => setServiceModal({ memberId: u.memberId ?? null, memberName: u.memberName ?? "—", memberPhone: u.memberPhone, serviceType: "서비스 운동복", details: `${u.startDate ?? "-"}${u.endDate ? ` ~ ${u.endDate}` : ""}` })}
+                      className="w-full flex items-start justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-purple-500/40 hover:bg-accent/30 transition-colors text-left">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground">{u.memberName ?? "—"}</p>
                         <p className="text-xs text-muted-foreground">
-                          {u.startDate ?? "-"}
-                          {u.endDate && <> ~ {u.endDate}</>}
-                          {u.startDate && u.endDate && (() => { const lbl = durationLabel(u.startDate, u.endDate); return lbl ? <> · {lbl}</> : null; })()}
+                          {u.startDate ?? "-"}{u.endDate && ` ~ ${u.endDate}`}
+                          {u.startDate && u.endDate && (() => { const lbl = durationLabel(u.startDate, u.endDate); return lbl ? ` · ${lbl}` : ""; })()}
                         </p>
                       </div>
                       <DDay endDate={u.endDate} />
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* 서비스 PT */}
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <span className="text-blue-400">◆</span> 서비스 PT
+                <span className="text-xs text-muted-foreground font-normal">({totalPt}건)</span>
+              </h3>
+              {totalPt === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
+              ) : (
+                <div className="space-y-2">
+                  {filteredPtItems.map((item, idx) => (
+                    <div key={`pi-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">{item.phone || "—"}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">🎁 {item.detail}</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredServicePt.map((p: any) => {
+                    const remaining = (p.totalSessions ?? 0) - (p.usedSessions ?? 0);
+                    return (
+                      <button key={`sp-${p.id}`} type="button"
+                        onClick={() => setServiceModal({ memberId: p.memberId, memberName: p.memberName, memberPhone: p.memberPhone, serviceType: "서비스 PT", details: `${p.packageName ?? ""} · 잔여 ${remaining}회 / ${p.totalSessions}회${p.expiryDate ? ` · 만료 ${p.expiryDate}` : ""}` })}
+                        className="w-full flex items-start justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-blue-500/40 hover:bg-accent/30 transition-colors text-left">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-medium text-foreground">{p.memberName}</p>
+                            {p.packageName && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">{p.packageName}</span>}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            잔여 <span className="text-blue-400 font-semibold">{remaining}회</span> / {p.totalSessions}회
+                            {p.expiryDate && ` · 만료 ${p.expiryDate}`}
+                          </p>
+                        </div>
+                        <DDay endDate={p.expiryDate} />
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
