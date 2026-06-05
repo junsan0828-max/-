@@ -167,14 +167,19 @@ export function WorkManagementSection() {
 function NoticeReadPanel({ noticeId }: { noticeId: number }) {
   const { data, isLoading } = trpc.gym.work.notices.readStatus.useQuery({ noticeId });
   if (isLoading) return <div className="text-xs text-muted-foreground py-2 text-center">로딩 중...</div>;
-  const { readers = [], nonReaders = [] } = data ?? {};
-  const total = readers.length + nonReaders.length;
+  const { completed = [], readOnly = [], nonReaders = [] } = (data ?? {}) as any;
+  const total = completed.length + readOnly.length + nonReaders.length;
   return (
     <div className="mt-2 border-t border-border/50 pt-2 space-y-2">
-      <div className="flex items-center gap-3 text-xs">
+      <div className="flex items-center gap-3 text-xs flex-wrap">
         <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-          <CheckCircle2 className="h-3.5 w-3.5" />확인 {readers.length}명
+          <CheckCircle2 className="h-3.5 w-3.5" />업무완료 {completed.length}명
         </span>
+        {readOnly.length > 0 && (
+          <span className="flex items-center gap-1 text-amber-400">
+            <Clock className="h-3.5 w-3.5" />확인 {readOnly.length}명
+          </span>
+        )}
         {nonReaders.length > 0 && (
           <span className="flex items-center gap-1 text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />미확인 {nonReaders.length}명
@@ -182,19 +187,31 @@ function NoticeReadPanel({ noticeId }: { noticeId: number }) {
         )}
         {total > 0 && <span className="ml-auto text-muted-foreground">전체 {total}명</span>}
       </div>
-      {readers.length > 0 && (
+      {completed.length > 0 && (
         <div className="space-y-1">
-          {readers.map(r => (
+          {completed.map((r: any) => (
             <div key={r.userId} className="flex items-center justify-between text-xs bg-emerald-500/5 border border-emerald-500/20 rounded px-2 py-1">
-              <span className="text-emerald-400 font-medium">{r.username}</span>
-              <span className="text-muted-foreground">{r.readAt?.substring(0, 16).replace("T", " ")}</span>
+              <span className="text-emerald-400 font-medium flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />{r.username}
+              </span>
+              <span className="text-muted-foreground">{r.completedAt?.substring(0, 16).replace("T", " ")}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {readOnly.length > 0 && (
+        <div className="space-y-1">
+          {readOnly.map((r: any) => (
+            <div key={r.userId} className="flex items-center justify-between text-xs bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1">
+              <span className="text-amber-400 font-medium">{r.username}</span>
+              <span className="text-muted-foreground/60">확인만</span>
             </div>
           ))}
         </div>
       )}
       {nonReaders.length > 0 && (
         <div className="space-y-1">
-          {nonReaders.map(r => (
+          {nonReaders.map((r: any) => (
             <div key={r.userId} className="flex items-center text-xs bg-muted/30 rounded px-2 py-1">
               <Clock className="h-3 w-3 text-muted-foreground mr-1.5" />
               <span className="text-muted-foreground">{r.username}</span>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { Bell, ChevronRight, X } from "lucide-react";
+import { Bell, CheckCircle2, ChevronRight, X } from "lucide-react";
 
 const PRIORITY: Record<string, { label: string; style: string }> = {
   urgent:    { label: "긴급", style: "bg-red-500/20 text-red-400 border border-red-500/30" },
@@ -8,31 +9,42 @@ const PRIORITY: Record<string, { label: string; style: string }> = {
   normal:    { label: "일반", style: "bg-blue-500/20 text-blue-400 border border-blue-500/30" },
 };
 
+const DASHBOARD_PATHS = ["/", "/my-work"];
+
 export default function NoticeLoginPopup() {
   const utils = trpc.useUtils();
+  const [location] = useLocation();
   const { data: me } = trpc.auth.me.useQuery();
   const { data: noticeList } = trpc.gym.work.notices.list.useQuery(undefined, {
     enabled: !!(me && me.role !== "admin" && me.role !== "sub_admin"),
   });
-  const markReadMutation = trpc.gym.work.notices.markRead.useMutation({
+  const markCompleteMutation = trpc.gym.work.notices.markComplete.useMutation({
     onSuccess: () => utils.gym.work.notices.invalidate(),
   });
 
-  const hasShownRef = useRef(false);
+  const shownForVisitRef = useRef(false);
   const [visible, setVisible] = useState(false);
   const [index, setIndex] = useState(0);
 
   const isAdmin = me?.role === "admin" || me?.role === "sub_admin";
-  const unread = (noticeList ?? []).filter(n => !n.isRead);
+  const unread = (noticeList ?? []).filter((n: any) => !n.isCompleted);
+  const isOnDashboard = DASHBOARD_PATHS.includes(location);
 
+  // Reset shown flag when user leaves the dashboard so the popup re-triggers on return
   useEffect(() => {
-    if (hasShownRef.current || isAdmin || !me || noticeList === undefined) return;
-    hasShownRef.current = true;
+    if (!isOnDashboard) shownForVisitRef.current = false;
+  }, [isOnDashboard]);
+
+  // Show popup when user arrives on dashboard with uncompleted notices
+  useEffect(() => {
+    if (isAdmin || !me || noticeList === undefined) return;
+    if (!isOnDashboard || shownForVisitRef.current) return;
     if (unread.length > 0) {
+      shownForVisitRef.current = true;
       setIndex(0);
       setVisible(true);
     }
-  }, [me, noticeList]);
+  }, [isOnDashboard, me, noticeList, isAdmin]);
 
   if (!visible || index >= unread.length) return null;
 
@@ -40,8 +52,13 @@ export default function NoticeLoginPopup() {
   const pm = PRIORITY[item.notice.priority] ?? PRIORITY.normal;
   const isLast = index === unread.length - 1;
 
-  function handleConfirm() {
-    markReadMutation.mutate({ noticeId: item.notice.id });
+  function handleConfirmOnly() {
+    if (isLast) setVisible(false);
+    else setIndex(i => i + 1);
+  }
+
+  function handleComplete() {
+    markCompleteMutation.mutate({ noticeId: item.notice.id });
     if (isLast) setVisible(false);
     else setIndex(i => i + 1);
   }
@@ -83,21 +100,20 @@ export default function NoticeLoginPopup() {
         </div>
 
         {/* 버튼 */}
-        <div className="p-4 border-t border-border shrink-0 space-y-2">
+        <div className="p-4 border-t border-border shrink-0 flex gap-2">
           <button
-            onClick={handleConfirm}
-            disabled={markReadMutation.isPending}
-            className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-bold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-1.5"
+            onClick={handleConfirmOnly}
+            className="flex-1 bg-accent text-foreground rounded-xl py-3 text-sm font-medium hover:bg-accent/80 flex items-center justify-center gap-1.5"
           >
-            {markReadMutation.isPending ? "처리 중..." : isLast ? "확인 완료" : (
-              <>확인 <ChevronRight className="h-4 w-4" /> 다음 ({index + 2}/{unread.length})</>
-            )}
+            {isLast ? "확인 완료" : <><ChevronRight className="h-4 w-4" />다음 ({index + 2}/{unread.length})</>}
           </button>
           <button
-            onClick={() => setVisible(false)}
-            className="w-full text-xs text-muted-foreground py-1.5 hover:text-foreground transition-colors"
+            onClick={handleComplete}
+            disabled={markCompleteMutation.isPending}
+            className="flex-1 bg-primary text-primary-foreground rounded-xl py-3 text-sm font-bold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
-            나중에 확인
+            <CheckCircle2 className="h-4 w-4" />
+            {markCompleteMutation.isPending ? "처리 중..." : "업무 완료"}
           </button>
         </div>
       </div>
