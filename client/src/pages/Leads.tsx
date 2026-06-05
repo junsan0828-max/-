@@ -1391,14 +1391,14 @@ export default function LeadsPage() {
                                 +{n}회
                               </button>
                             ))}
-                            <input
-                              type="number"
-                              min={1}
-                              value={regForm.servicePtCount && ![1,2,3].includes(regForm.servicePtCount) ? regForm.servicePtCount : ""}
-                              onChange={e => setRegForm(f => ({ ...f, servicePtCount: e.target.value ? parseInt(e.target.value) : undefined }))}
-                              placeholder="직접"
-                              className="flex-1 py-2 px-2 rounded-lg text-sm text-foreground border border-border bg-background text-center focus:outline-none focus:ring-1 focus:ring-blue-500" />
                           </div>
+                          <input
+                            type="number"
+                            min={1}
+                            value={regForm.servicePtCount && ![1,2,3].includes(regForm.servicePtCount) ? regForm.servicePtCount : ""}
+                            onChange={e => setRegForm(f => ({ ...f, servicePtCount: e.target.value ? parseInt(e.target.value) : undefined }))}
+                            placeholder="직접 입력 (회)"
+                            className="w-full py-2 px-3 rounded-lg text-sm text-foreground border border-border bg-background focus:outline-none focus:ring-1 focus:ring-blue-500" />
                           {regForm.servicePtCount && unitPrice > 0 && (
                             <p className="text-xs text-blue-400">서비스 금액 ≈ {(regForm.servicePtCount * unitPrice).toLocaleString()}원 상당</p>
                           )}
