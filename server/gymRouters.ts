@@ -2104,13 +2104,22 @@ const noticesWorkRouter = t.router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     const role = ctx.user!.role;
     const userId = ctx.user!.id;
+
+    await db.execute(sql`ALTER TABLE notice_reads ADD COLUMN IF NOT EXISTS "completedAt" TEXT`);
+
     const allNotices = await db.select({ notice: notices, authorName: users.username })
       .from(notices).leftJoin(users, eq(notices.authorId, users.id)).orderBy(desc(notices.createdAt));
-    const reads = await db.select().from(noticeReads).where(eq(noticeReads.userId, userId));
-    const readIds = new Set(reads.map(r => r.noticeId));
+
+    const readsResult = await db.execute(sql`
+      SELECT "noticeId", "readAt", "completedAt" FROM notice_reads WHERE "userId" = ${userId}
+    `);
+    const reads: any[] = (readsResult as any).rows ?? [];
+    const completedIds = new Set(reads.filter((r: any) => r.completedAt).map((r: any) => Number(r.noticeId)));
+    const readIds = new Set(reads.map((r: any) => Number(r.noticeId)));
+
     return allNotices
       .filter(row => role === "admin" || role === "sub_admin" || row.notice.targetRole === "all" || row.notice.targetRole === role)
-      .map(row => ({ ...row, isRead: readIds.has(row.notice.id) }));
+      .map(row => ({ ...row, isRead: readIds.has(row.notice.id), isCompleted: completedIds.has(row.notice.id) }));
   }),
 
   create: protectedProcedure
@@ -2136,6 +2145,31 @@ const noticesWorkRouter = t.router({
       return { success: true };
     }),
 
+  markComplete: protectedProcedure
+    .input(z.object({ noticeId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.execute(sql`ALTER TABLE notice_reads ADD COLUMN IF NOT EXISTS "completedAt" TEXT`);
+      const now = new Date().toISOString();
+      const existingResult = await db.execute(sql`
+        SELECT id FROM notice_reads WHERE "noticeId" = ${input.noticeId} AND "userId" = ${ctx.user!.id} LIMIT 1
+      `);
+      const existing: any[] = (existingResult as any).rows ?? [];
+      if (existing.length === 0) {
+        await db.execute(sql`
+          INSERT INTO notice_reads ("noticeId", "userId", "readAt", "completedAt")
+          VALUES (${input.noticeId}, ${ctx.user!.id}, ${now}, ${now})
+        `);
+      } else {
+        await db.execute(sql`
+          UPDATE notice_reads SET "completedAt" = ${now}
+          WHERE "noticeId" = ${input.noticeId} AND "userId" = ${ctx.user!.id}
+        `);
+      }
+      return { success: true };
+    }),
+
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -2153,11 +2187,11 @@ const noticesWorkRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 이 공지의 대상(targetRole) 확인
-      const [notice] = await db.select().from(notices).where(eq(notices.id, input.noticeId));
-      if (!notice) return { readers: [], nonReaders: [] };
+      await db.execute(sql`ALTER TABLE notice_reads ADD COLUMN IF NOT EXISTS "completedAt" TEXT`);
 
-      // 대상 role에 해당하는 모든 유저 (admin 제외)
+      const [notice] = await db.select().from(notices).where(eq(notices.id, input.noticeId));
+      if (!notice) return { completed: [], readOnly: [], nonReaders: [] };
+
       const allUsers = await db.select({ id: users.id, username: users.username, role: users.role })
         .from(users)
         .where(notice.targetRole === "all"
@@ -2165,24 +2199,28 @@ const noticesWorkRouter = t.router({
           : eq(users.role, notice.targetRole)
         );
 
-      // 읽은 유저
-      const reads = await db.select({ read: noticeReads, username: users.username })
-        .from(noticeReads).leftJoin(users, eq(noticeReads.userId, users.id))
-        .where(eq(noticeReads.noticeId, input.noticeId));
+      const readsResult = await db.execute(sql`
+        SELECT nr."userId", nr."readAt", nr."completedAt", u.username
+        FROM notice_reads nr
+        LEFT JOIN users u ON u.id = nr."userId"
+        WHERE nr."noticeId" = ${input.noticeId}
+      `);
+      const reads: any[] = (readsResult as any).rows ?? [];
 
-      const readUserIds = new Set(reads.map(r => r.read.userId));
-
-      const readers = reads.map(r => ({
-        userId: r.read.userId,
-        username: r.username ?? "알 수 없음",
-        readAt: r.read.readAt,
+      const readUserIds = new Set(reads.map((r: any) => Number(r.userId)));
+      const completed = reads.filter((r: any) => r.completedAt).map((r: any) => ({
+        userId: Number(r.userId), username: r.username ?? "알 수 없음",
+        readAt: r.readAt, completedAt: r.completedAt,
       }));
-
+      const readOnly = reads.filter((r: any) => !r.completedAt).map((r: any) => ({
+        userId: Number(r.userId), username: r.username ?? "알 수 없음",
+        readAt: r.readAt,
+      }));
       const nonReaders = allUsers
         .filter(u => !readUserIds.has(u.id))
-        .map(u => ({ userId: u.id, username: u.username, role: u.role }));
+        .map(u => ({ userId: u.id, username: u.username }));
 
-      return { readers, nonReaders };
+      return { completed, readOnly, nonReaders };
     }),
 });
 
