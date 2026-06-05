@@ -44,12 +44,25 @@ type Locker = {
 
 type Member = { id: number; name: string; phone: string | null };
 
+type ServiceModal = {
+  memberId: number | null;
+  memberName: string;
+  memberPhone?: string | null;
+  serviceType: string;
+  details: string;
+} | null;
+
 export default function RegistrationManagement() {
   const [, setLocation] = useLocation();
   const { data: currentUser } = trpc.auth.me.useQuery();
   const isTrainer = currentUser?.role === "trainer";
   const [tab, setTab] = useState<"members" | "lockers" | "uniforms" | "services">("members");
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
+  const [serviceModal, setServiceModal] = useState<ServiceModal>(null);
+  const { data: memberRevenue, isLoading: memberRevenueLoading } = trpc.gym.revenue.getByMember.useQuery(
+    { memberId: serviceModal?.memberId ?? 0 },
+    { enabled: !!(serviceModal?.memberId) }
+  );
 
   // 락커 관리 state
   const [showAddLocker, setShowAddLocker] = useState(false);
@@ -1263,7 +1276,8 @@ export default function RegistrationManagement() {
               ) : (
                 <div className="space-y-2">
                   {serviceHealths.map((h: any) => (
-                    <div key={h.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                    <button key={h.id} type="button" onClick={() => setServiceModal({ memberId: h.memberId, memberName: h.memberName ?? "—", memberPhone: h.memberPhone, serviceType: "서비스 헬스", details: `${h.startDate ?? "-"} ~ ${h.endDate} · ${h.serviceHealthDuration}개월` })}
+                      className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-primary/40 hover:bg-accent/30 transition-colors text-left">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground">{h.memberName ?? "—"}</p>
                         <p className="text-xs text-muted-foreground">
@@ -1272,7 +1286,7 @@ export default function RegistrationManagement() {
                         </p>
                       </div>
                       <DDay endDate={h.endDate} />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -1291,7 +1305,8 @@ export default function RegistrationManagement() {
                   {servicePt.map((p: any) => {
                     const remaining = (p.totalSessions ?? 0) - (p.usedSessions ?? 0);
                     return (
-                      <div key={p.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                      <button key={p.id} type="button" onClick={() => setServiceModal({ memberId: p.memberId, memberName: p.memberName, memberPhone: p.memberPhone, serviceType: "서비스 PT", details: `${p.packageName ?? ""} · 잔여 ${remaining}회 / ${p.totalSessions}회${p.expiryDate ? ` · 만료 ${p.expiryDate}` : ""}` })}
+                        className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-primary/40 hover:bg-accent/30 transition-colors text-left">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="text-sm font-medium text-foreground">{p.memberName}</p>
@@ -1303,7 +1318,7 @@ export default function RegistrationManagement() {
                           </p>
                         </div>
                         <DDay endDate={p.expiryDate} />
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -1321,7 +1336,8 @@ export default function RegistrationManagement() {
               ) : (
                 <div className="space-y-2">
                   {serviceLockers.map((l: any) => (
-                    <div key={l.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                    <button key={l.id} type="button" onClick={() => setServiceModal({ memberId: l.memberId, memberName: l.memberName ?? "—", memberPhone: l.memberPhone, serviceType: "서비스 락커", details: `#${l.lockerNumber} · ${l.startDate ?? "-"}${l.endDate ? ` ~ ${l.endDate}` : ""}` })}
+                      className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-primary/40 hover:bg-accent/30 transition-colors text-left">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="text-sm font-medium text-foreground">{l.memberName ?? "—"}</p>
@@ -1334,7 +1350,7 @@ export default function RegistrationManagement() {
                         </p>
                       </div>
                       <DDay endDate={l.endDate} />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -1351,7 +1367,8 @@ export default function RegistrationManagement() {
               ) : (
                 <div className="space-y-2">
                   {serviceUniforms.map((u: any) => (
-                    <div key={u.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2">
+                    <button key={u.id} type="button" onClick={() => setServiceModal({ memberId: u.memberId ?? null, memberName: u.memberName ?? "—", memberPhone: u.memberPhone, serviceType: "서비스 운동복", details: `${u.startDate ?? "-"}${u.endDate ? ` ~ ${u.endDate}` : ""}` })}
+                      className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2.5 gap-2 hover:border-primary/40 hover:bg-accent/30 transition-colors text-left">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground">{u.memberName ?? "—"}</p>
                         <p className="text-xs text-muted-foreground">
@@ -1361,7 +1378,7 @@ export default function RegistrationManagement() {
                         </p>
                       </div>
                       <DDay endDate={u.endDate} />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -1369,6 +1386,78 @@ export default function RegistrationManagement() {
           </div>
         );
       })()}
+
+      {/* 서비스 회원 상세 모달 */}
+      {serviceModal && (
+        <div className="fixed inset-0 z-[200] bg-black/70 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setServiceModal(null)}>
+          <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(80svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+            {/* 헤더 */}
+            <div className="px-5 pt-5 pb-4 border-b border-border shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-foreground text-base">{serviceModal.memberName}</h3>
+                  {serviceModal.memberPhone && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{serviceModal.memberPhone}</p>
+                  )}
+                  <span className="inline-block mt-1.5 text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{serviceModal.serviceType}</span>
+                </div>
+                <button onClick={() => setServiceModal(null)} className="text-muted-foreground hover:text-foreground shrink-0">
+                  <XCircle className="h-5 w-5" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2 bg-muted/30 rounded-lg px-3 py-2">{serviceModal.details}</p>
+            </div>
+
+            {/* 결제 내역 */}
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">결제 내역</h4>
+              {!serviceModal.memberId ? (
+                <p className="text-xs text-muted-foreground text-center py-6">회원 ID가 없어 결제 내역을 조회할 수 없습니다</p>
+              ) : memberRevenueLoading ? (
+                <p className="text-xs text-muted-foreground text-center py-6">로딩 중...</p>
+              ) : !memberRevenue || memberRevenue.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">결제 내역이 없습니다</p>
+              ) : (
+                <>
+                  {/* 미수금 요약 */}
+                  {memberRevenue.some((r: any) => (r.unpaidAmount ?? 0) > 0) && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2.5 flex items-center gap-2">
+                      <span className="text-red-400 font-bold text-sm">미수금 있음</span>
+                      <span className="ml-auto text-red-400 font-bold">
+                        {memberRevenue.reduce((sum: number, r: any) => sum + (r.unpaidAmount ?? 0), 0).toLocaleString()}원
+                      </span>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    {memberRevenue.map((r: any) => {
+                      const hasUnpaid = (r.unpaidAmount ?? 0) > 0;
+                      return (
+                        <div key={r.id} className={`rounded-xl px-3 py-2.5 border ${hasUnpaid ? "bg-red-500/5 border-red-500/20" : "bg-background border-border"}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{r.programDetail || r.type}</p>
+                              <p className="text-xs text-muted-foreground">{r.paymentDate} · {r.subType}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-semibold text-foreground">{(r.paidAmount ?? 0).toLocaleString()}원</p>
+                              {hasUnpaid && (
+                                <p className="text-xs font-semibold text-red-400">미수 {(r.unpaidAmount).toLocaleString()}원</p>
+                              )}
+                            </div>
+                          </div>
+                          {r.discountAmount > 0 && (
+                            <p className="text-xs text-muted-foreground/70 mt-0.5">할인 {r.discountAmount.toLocaleString()}원</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 락커 추가 모달 */}
       {showAddLocker && (

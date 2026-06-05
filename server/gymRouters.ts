@@ -855,6 +855,18 @@ const revenueRouter = t.router({
     `);
     return (result as any).rows ?? [];
   }),
+
+  getByMember: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      return await db.select()
+        .from(revenueEntries)
+        .where(eq(revenueEntries.memberId, input.memberId))
+        .orderBy(desc(revenueEntries.paymentDate));
+    }),
 });
 
 // ─── Expense Entries (지출 장부) ──────────────────────────────────────────────
