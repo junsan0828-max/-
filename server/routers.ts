@@ -246,8 +246,8 @@ const membersRouter = t.router({
         .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`)),
       db.select({ memberId: lockers.memberId, lockerNumber: lockers.lockerNumber }).from(lockers)
         .where(sql`${lockers.memberId} IS NOT NULL`),
-      db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail }).from(revenueEntries)
-        .where(and(eq(revenueEntries.type, "기타"), sql`${revenueEntries.memberId} IS NOT NULL`)),
+      db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail, serviceItems: revenueEntries.serviceItems }).from(revenueEntries)
+        .where(sql`${revenueEntries.memberId} IS NOT NULL`),
     ]);
 
     const pkgMap = new Map<number, { id: number; packageName: string; totalSessions: number; usedSessions: number }[]>();
@@ -257,17 +257,24 @@ const membersRouter = t.router({
     }
     const ptRevSet = new Set(ptRevs.map((r) => r.memberId).filter(Boolean) as number[]);
 
-    // 락커 배정 map
+    // 락커 배정 map (lockers 테이블 + serviceItems)
     const lockerMap = new Map<number, string>();
     for (const l of lockerRows) {
       if (l.memberId) lockerMap.set(l.memberId, l.lockerNumber ?? "");
     }
-    // 운동복 대여 여부
+    // 운동복 대여 여부 (programDetail + serviceItems 모두 체크)
     const uniformSet = new Set<number>();
     for (const e of etcRevs) {
+      if (!e.memberId) continue;
       const d = (e.programDetail ?? "").toLowerCase();
-      if (d.includes("운동복") || d.includes("유니폼") || d.includes("uniform")) {
-        if (e.memberId) uniformSet.add(e.memberId);
+      const si = (e.serviceItems ?? "").toLowerCase();
+      if (d.includes("운동복") || d.includes("유니폼") || d.includes("uniform") || si.includes("운동복")) {
+        uniformSet.add(e.memberId);
+      }
+      // serviceItems에 락커 포함 시 lockerMap에도 추가
+      if (si.includes("락커") && !lockerMap.has(e.memberId)) {
+        const match = (e.serviceItems ?? "").match(/락커\(([^)]+)\)/);
+        lockerMap.set(e.memberId, match ? match[1] : "서비스");
       }
     }
 
