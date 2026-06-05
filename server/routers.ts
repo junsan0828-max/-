@@ -381,6 +381,7 @@ const membersRouter = t.router({
         primaryType: z.enum(["PT", "헬스", "기타"]).optional(),
         subType: z.enum(["신규", "재등록"]).default("재등록"),
         signatureDataUrl: z.string().optional(),
+        serviceItems: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -405,6 +406,7 @@ const membersRouter = t.router({
         paymentMemo,
         adminTrainerId: _,
         subType,
+        serviceItems,
         ...memberData
       } = input;
 
@@ -472,6 +474,7 @@ const membersRouter = t.router({
           paymentDate: paymentDate ?? today,
           startDate: memberData.membershipStart,
           memo: paymentMemo,
+          serviceItems: serviceItems || undefined,
         });
       }
 
@@ -504,6 +507,7 @@ const membersRouter = t.router({
         paymentDate: z.string().optional(),
         paymentMemo: z.string().optional(),
         subType: z.enum(["신규", "재등록"]).optional(),
+        serviceItems: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -513,7 +517,7 @@ const membersRouter = t.router({
       const {
         id,
         ptProgram, ptSessions, paymentAmount, unpaidAmount,
-        paymentMethod, paymentDate, paymentMemo, subType,
+        paymentMethod, paymentDate, paymentMemo, subType, serviceItems,
         ...memberData
       } = input;
 
@@ -544,6 +548,7 @@ const membersRouter = t.router({
           paymentDate: paymentDate ?? today,
           startDate: memberData.membershipStart,
           memo: paymentMemo,
+          serviceItems: serviceItems || undefined,
         });
       }
 

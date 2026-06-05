@@ -33,10 +33,19 @@ const SESSION_PRESETS = ["10", "20", "30", "40", "50"];
 export default function MemberReRegister() {
   const [, setLocation] = useLocation();
   const { data: members = [] } = trpc.members.list.useQuery();
+  const { data: allLockers } = trpc.access.getLockers.useQuery();
+  const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
 
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [regType, setRegType] = useState<"" | "health" | "pt">("");
   const [healthMonths, setHealthMonths] = useState<number | "">(1);
+
+  // 서비스 내역
+  const [serviceItems, setServiceItems] = useState<string[]>([]);
+  const [servicePtCount, setServicePtCount] = useState<number | undefined>(undefined);
+  const [serviceHealthMonths, setServiceHealthMonths] = useState<number | undefined>(undefined);
+  const [serviceHealthCustom, setServiceHealthCustom] = useState("");
+  const [serviceLockerNum, setServiceLockerNum] = useState("");
 
   const [form, setForm] = useState({
     membershipStart: "",
@@ -86,6 +95,15 @@ export default function MemberReRegister() {
       paymentDate: form.paymentDate || undefined,
       paymentMemo: memoFinal,
       subType: "재등록" as any,
+      serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
+        if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
+        if (item === "헬스") {
+          const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : undefined);
+          return m ? `헬스(${m}개월)` : "헬스";
+        }
+        if (item === "락커" && serviceLockerNum) return `락커(${serviceLockerNum})`;
+        return item;
+      }).join(",") : undefined,
     } as any);
   };
 
@@ -401,6 +419,160 @@ export default function MemberReRegister() {
                   onChange={e => setForm(p => ({ ...p, paymentMemo: e.target.value }))}
                   className="bg-input border-border"
                 />
+              </div>
+
+              {/* 서비스 내역 */}
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label className="text-sm text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목)</span></Label>
+
+                {/* PT */}
+                {(() => {
+                  const sel = serviceItems.includes("PT");
+                  const paid = Number(form.paymentAmount) || 0;
+                  const sessions = parseInt(form.ptSessions) || 0;
+                  const unitPrice = sessions > 0 ? Math.round(paid / sessions) : 0;
+                  return (
+                    <div className={`rounded-xl border transition-colors ${sel ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "PT") : [...s, "PT"]); setServicePtCount(undefined); }}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={sel ? "text-blue-400" : "text-muted-foreground"}>PT</span>
+                        {unitPrice > 0 && <span className="text-[10px] text-muted-foreground">단가 {unitPrice.toLocaleString()}원/회</span>}
+                      </button>
+                      {sel && (
+                        <div className="px-4 pb-4 border-t border-blue-500/20 pt-3 space-y-2">
+                          <Label className="text-xs text-muted-foreground">제공 횟수</Label>
+                          <div className="flex gap-2">
+                            {[1, 2, 3].map(n => (
+                              <button key={n} type="button"
+                                onClick={() => setServicePtCount(c => c === n ? undefined : n)}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${servicePtCount === n ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground"}`}>
+                                +{n}회
+                              </button>
+                            ))}
+                          </div>
+                          <Input type="number" min={1}
+                            value={servicePtCount && ![1,2,3].includes(servicePtCount) ? servicePtCount : ""}
+                            onChange={e => setServicePtCount(e.target.value ? parseInt(e.target.value) : undefined)}
+                            placeholder="직접 입력 (회)" className="bg-input border-border text-sm" />
+                          {servicePtCount && unitPrice > 0 && (
+                            <p className="text-xs text-blue-400">서비스 금액 ≈ {(servicePtCount * unitPrice).toLocaleString()}원 상당</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 헬스 */}
+                {(() => {
+                  const sel = serviceItems.includes("헬스");
+                  return (
+                    <div className={`rounded-xl border transition-colors ${sel ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "헬스") : [...s, "헬스"]); setServiceHealthMonths(undefined); setServiceHealthCustom(""); }}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={sel ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                      </button>
+                      {sel && (
+                        <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
+                          <Label className="text-xs text-muted-foreground">제공 개월 수</Label>
+                          <div className="flex gap-2">
+                            {[1, 3, 6, 12].map(m => (
+                              <button key={m} type="button"
+                                onClick={() => { setServiceHealthMonths(v => v === m ? undefined : m); setServiceHealthCustom(""); }}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                {m}개월
+                              </button>
+                            ))}
+                          </div>
+                          <Input type="number" min={1} value={serviceHealthCustom}
+                            onChange={e => { setServiceHealthCustom(e.target.value); setServiceHealthMonths(undefined); }}
+                            placeholder="직접 입력 (개월)" className="bg-input border-border text-sm" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 락커 */}
+                {(() => {
+                  const sel = serviceItems.includes("락커");
+                  const avail = (allLockers ?? []).filter((l: any) => !l.isOccupied);
+                  const groups: { branchId: number | null; name: string; lockers: any[] }[] = [];
+                  for (const l of avail) {
+                    const bid = l.branchId ?? null;
+                    let g = groups.find(g => g.branchId === bid);
+                    if (!g) {
+                      const b = (branchList ?? []).find((b: any) => b.id === bid);
+                      g = { branchId: bid, name: b?.name ?? "지점 미지정", lockers: [] };
+                      groups.push(g);
+                    }
+                    g.lockers.push(l);
+                  }
+                  return (
+                    <div className={`rounded-xl border transition-colors ${sel ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "락커") : [...s, "락커"]); setServiceLockerNum(""); }}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={sel ? "text-amber-400" : "text-muted-foreground"}>락커</span>
+                        {avail.length > 0 && <span className="text-[10px] text-muted-foreground">사용 가능 {avail.length}개</span>}
+                      </button>
+                      {sel && (
+                        <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
+                          <Label className="text-xs text-muted-foreground">락커 번호</Label>
+                          {avail.length === 0 ? (
+                            <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>
+                          ) : (
+                            <select value={serviceLockerNum} onChange={e => setServiceLockerNum(e.target.value)}
+                              className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none focus:ring-1 focus:ring-amber-500">
+                              <option value="">락커 선택...</option>
+                              {groups.map(g => (
+                                <optgroup key={g.branchId ?? "none"} label={g.name}>
+                                  {g.lockers.map((l: any) => (
+                                    <option key={l.id} value={l.lockerNumber}>{l.lockerNumber}</option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 운동복 */}
+                {(() => {
+                  const sel = serviceItems.includes("운동복");
+                  return (
+                    <button type="button"
+                      onClick={() => setServiceItems(s => sel ? s.filter(x => x !== "운동복") : [...s, "운동복"])}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${sel ? "border-purple-500/60 bg-purple-500/5 text-purple-400" : "border-border text-muted-foreground"}`}>
+                      운동복
+                      {sel && <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                    </button>
+                  );
+                })()}
+
+                {/* 배지 */}
+                {serviceItems.length > 0 && (
+                  <div className="flex gap-1.5 flex-wrap mt-1">
+                    {serviceItems.map(item => {
+                      let label = `🎁 서비스 ${item}`;
+                      if (item === "PT" && servicePtCount) label = `🎁 PT +${servicePtCount}회`;
+                      else if (item === "헬스") {
+                        const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : 0);
+                        if (m) label = `🎁 헬스 +${m}개월`;
+                      } else if (item === "락커" && serviceLockerNum) label = `🎁 락커 #${serviceLockerNum}`;
+                      const style = item === "PT" ? "bg-blue-500/20 text-blue-400"
+                        : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
+                        : item === "락커" ? "bg-amber-500/20 text-amber-400"
+                        : "bg-purple-500/20 text-purple-400";
+                      return <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${style}`}>{label}</span>;
+                    })}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
