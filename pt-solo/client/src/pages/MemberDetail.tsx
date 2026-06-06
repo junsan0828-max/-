@@ -112,7 +112,6 @@ interface Props {
 
 const membershipLabels: Record<string, string> = {
   basic: "기본",
-  premium: "프리미엄",
   vip: "VIP",
 };
 
@@ -674,21 +673,17 @@ export default function MemberDetail({ memberId }: Props) {
                   label="최초 등록일"
                   value={fmtDate(member.createdAt, "yyyy.MM.dd")}
                 />
-                {member.visitRoute && (
-                  <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
-                )}
+                <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute ?? "-"} />
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"
                   value={ptPackages ? `${ptPackages.reduce((sum, p) => sum + (p.paymentAmount ?? 0), 0).toLocaleString()}원` : "-"}
                 />
               </div>
-              {member.profileNote && (
-                <div className="mt-4 p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
-                  <p className="text-xs text-muted-foreground mb-1">특이사항</p>
-                  <p className="text-sm text-foreground whitespace-pre-wrap">{member.profileNote}</p>
-                </div>
-              )}
+              <div className="mt-4 p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
+                <p className="text-xs text-muted-foreground mb-1">특이사항</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{member.profileNote || "-"}</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
