@@ -35,7 +35,8 @@ const EXTEND_PRESETS = [30, 60, 90, 180];
 type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "지역화폐"] as const;
-const PROGRAM_OPTIONS = ["PT", "필라테스", "개인", "그룹"];
+const PROGRAM_TYPES = ["PT", "필라테스", "기타"];
+const PROGRAM_FORMATS = ["개인", "그룹"];
 const VISIT_ROUTES = ["지인 소개", "네이버플레이스", "당근광고", "인스타그램", "간판/현수막", "전단지", "재등록", "기타"];
 
 const EMPTY_FORM = {
@@ -51,6 +52,8 @@ const EMPTY_FORM = {
   profileNote: "",
   // PT·결제
   ptProgram: "",
+  ptProgramCustom: "",
+  ptFormat: "",
   ptSessions: "",
   paymentAmount: "",
   unpaidAmount: "",
@@ -91,7 +94,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
       membershipEnd: form.membershipEnd || undefined,
       visitRoute: form.visitRoute || undefined,
       profileNote: form.profileNote || undefined,
-      ptProgram: form.ptProgram || undefined,
+      ptProgram: form.ptProgram === "기타" ? (form.ptProgramCustom || undefined) : (form.ptProgram ? `${form.ptProgram}${form.ptFormat ? ` ${form.ptFormat}` : ""}` : undefined),
       ptSessions: form.ptSessions || undefined,
       paymentAmount: form.paymentAmount ? Number(form.paymentAmount) : undefined,
       unpaidAmount: form.unpaidAmount ? Number(form.unpaidAmount) : undefined,
@@ -183,13 +186,33 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
           <div className="space-y-3">
             <p className="text-xs font-semibold text-foreground">프로그램 <span className="text-muted-foreground font-normal">(선택)</span></p>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">프로그램</Label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {PROGRAM_OPTIONS.map(p => (
+              <Label className="text-xs text-muted-foreground">프로그램 종류</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {PROGRAM_TYPES.map(p => (
                   <button key={p} type="button"
-                    onClick={() => setForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p }))}
+                    onClick={() => setForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p, ptProgramCustom: "" }))}
                     className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground"}`}>
                     {p}
+                  </button>
+                ))}
+              </div>
+              {form.ptProgram === "기타" && (
+                <Input
+                  placeholder="프로그램명 직접 입력"
+                  value={form.ptProgramCustom}
+                  onChange={e => setForm(p => ({ ...p, ptProgramCustom: e.target.value }))}
+                  className="mt-1.5"
+                />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">프로그램 형태</Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {PROGRAM_FORMATS.map(f => (
+                  <button key={f} type="button"
+                    onClick={() => setForm(p => ({ ...p, ptFormat: p.ptFormat === f ? "" : f }))}
+                    className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.ptFormat === f ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground"}`}>
+                    {f}
                   </button>
                 ))}
               </div>
