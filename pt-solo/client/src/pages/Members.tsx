@@ -19,7 +19,6 @@ import { toast } from "sonner";
 
 const gradeLabels: Record<string, string> = {
   basic: "기본",
-  premium: "프리미엄",
   vip: "VIP",
 };
 
@@ -29,7 +28,7 @@ const statusColors: Record<string, string> = {
 };
 
 type StatusFilter = "all" | "active" | "paused";
-type GradeFilter = "all" | "basic" | "premium" | "vip";
+type GradeFilter = "all" | "basic" | "vip";
 type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
 const EXTEND_PRESETS = [30, 60, 90, 180];
@@ -39,7 +38,7 @@ const EMPTY_FORM = {
   phone: "",
   birthDate: "",
   gender: "" as "male" | "female" | "other" | "",
-  grade: "basic" as "basic" | "premium" | "vip",
+  grade: "basic" as "basic" | "vip",
   status: "active" as "active" | "paused",
   membershipStart: "",
   membershipEnd: "",
@@ -157,7 +156,6 @@ function RegisterSheet({
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="basic">기본</SelectItem>
-                    <SelectItem value="premium">프리미엄</SelectItem>
                     <SelectItem value="vip">VIP</SelectItem>
                   </SelectContent>
                 </Select>
@@ -442,7 +440,7 @@ export default function Members() {
           ))}
         </div>
         <div className="flex gap-1.5 flex-wrap">
-          {(["all", "basic", "premium", "vip"] as GradeFilter[]).map((g) => (
+          {(["all", "basic", "vip"] as GradeFilter[]).map((g) => (
             <button
               key={g}
               onClick={() => setGradeFilter(g)}

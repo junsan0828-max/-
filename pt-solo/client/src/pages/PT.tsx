@@ -22,7 +22,6 @@ import TabBanner from "@/components/TabBanner";
 
 const gradeLabels: Record<string, string> = {
   basic: "기본",
-  premium: "프리미엄",
   vip: "VIP",
 };
 
@@ -40,7 +39,7 @@ const EMPTY_FORM = {
   phone: "",
   birthDate: "",
   gender: "" as "male" | "female" | "other" | "",
-  grade: "basic" as "basic" | "premium" | "vip",
+  grade: "basic" as "basic" | "vip",
   status: "active" as "active" | "paused",
   membershipStart: "",
   membershipEnd: "",
@@ -141,7 +140,6 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="basic">기본</SelectItem>
-                    <SelectItem value="premium">프리미엄</SelectItem>
                     <SelectItem value="vip">VIP</SelectItem>
                   </SelectContent>
                 </Select>
