@@ -35,6 +35,8 @@ const EXTEND_PRESETS = [30, 60, 90, 180];
 type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "지역화폐"] as const;
+const PROGRAM_OPTIONS = ["PT", "필라테스", "개인", "그룹"];
+const VISIT_ROUTES = ["지인 소개", "SNS", "인터넷 검색", "간판/현수막", "전단지", "재등록", "기타"];
 
 const EMPTY_FORM = {
   name: "",
@@ -180,15 +182,21 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
           {/* 2. 프로그램 */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-foreground">프로그램 <span className="text-muted-foreground font-normal">(선택)</span></p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">프로그램명</Label>
-                <Input placeholder="예: 피티" value={form.ptProgram} onChange={e => setForm(p => ({ ...p, ptProgram: e.target.value }))} />
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">프로그램</Label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {PROGRAM_OPTIONS.map(p => (
+                  <button key={p} type="button"
+                    onClick={() => setForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p }))}
+                    className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground"}`}>
+                    {p}
+                  </button>
+                ))}
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">횟수</Label>
-                <Input type="number" placeholder="0" value={form.ptSessions} onChange={e => setForm(p => ({ ...p, ptSessions: e.target.value }))} />
-              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">횟수</Label>
+              <Input type="number" placeholder="0" value={form.ptSessions} onChange={e => setForm(p => ({ ...p, ptSessions: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -234,7 +242,12 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
             <p className="text-xs font-semibold text-foreground">기타</p>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">방문 경로</Label>
-              <Input placeholder="SNS, 지인 소개 등" value={form.visitRoute} onChange={e => setForm(p => ({ ...p, visitRoute: e.target.value }))} />
+              <Select value={form.visitRoute} onValueChange={v => setForm(p => ({ ...p, visitRoute: v }))}>
+                <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+                <SelectContent>
+                  {VISIT_ROUTES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">메모</Label>
