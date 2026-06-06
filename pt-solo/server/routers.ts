@@ -2761,7 +2761,9 @@ const leadsRouter = t.router({
       programFormat: z.string().optional(),
       programCustom: z.string().optional(),
       sessions: z.number().optional(),
-      paymentAmount: z.number(),
+      amount: z.number(),
+      discountAmount: z.number(),
+      paidAmount: z.number(),
       unpaidAmount: z.number(),
       paymentMethod: z.string().optional(),
       paymentDate: z.string(),
@@ -2781,7 +2783,6 @@ const leadsRouter = t.router({
       const [totalCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
       if (Number(totalCnt?.count ?? 0) >= contractLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${plan.toUpperCase()} 플랜은 유효회원을 최대 ${contractLimit}명까지 등록할 수 있습니다.` });
 
-      const paidAmount = Math.max(0, input.paymentAmount - input.unpaidAmount);
       const [member] = await db.insert(members).values({
         trainerId, name: input.name, phone: input.phone, gender: input.gender,
         status: "active", membershipStart: input.startDate, membershipEnd: input.endDate,
@@ -2793,13 +2794,13 @@ const leadsRouter = t.router({
         await db.insert(ptPackages).values({
           memberId: member.id, trainerId, totalSessions: input.sessions, usedSessions: 0,
           packageName: programName, startDate: input.startDate, expiryDate: input.endDate, status: "active",
-          paymentAmount: paidAmount, unpaidAmount: input.unpaidAmount,
+          paymentAmount: input.paidAmount, unpaidAmount: input.unpaidAmount,
           paymentMethod: input.paymentMethod, paymentDate: input.paymentDate, paymentMemo: input.memo,
         });
       }
-      if (paidAmount > 0) {
+      if (input.paidAmount > 0) {
         await db.insert(payments).values({
-          memberId: member.id, trainerId, amount: paidAmount,
+          memberId: member.id, trainerId, amount: input.paidAmount,
           paymentDate: input.paymentDate, paymentMethod: input.paymentMethod, memo: input.memo,
         });
       }

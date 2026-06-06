@@ -55,6 +55,8 @@ const EMPTY_FORM = {
   ptProgramCustom: "",
   ptFormat: "",
   ptSessions: "",
+  listPrice: "",
+  discountAmount: "",
   paymentAmount: "",
   unpaidAmount: "",
   paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
@@ -223,8 +225,28 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">결제금액 (원)</Label>
-                <Input type="number" placeholder="0" value={form.paymentAmount} onChange={e => setForm(p => ({ ...p, paymentAmount: e.target.value }))} />
+                <Label className="text-xs text-muted-foreground">정가 (원)</Label>
+                <Input type="number" placeholder="0" value={form.listPrice} onChange={e => {
+                  const amt = e.target.value;
+                  const disc = Number(form.discountAmount) || 0;
+                  setForm(p => ({ ...p, listPrice: amt, paymentAmount: String(Math.max(0, Number(amt) - disc)), unpaidAmount: "0" }));
+                }} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">할인 (원)</Label>
+                <Input type="number" placeholder="0" value={form.discountAmount} onChange={e => {
+                  const disc = e.target.value;
+                  setForm(p => ({ ...p, discountAmount: disc, paymentAmount: String(Math.max(0, Number(p.listPrice) - Number(disc))) }));
+                }} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">실결제 (원)</Label>
+                <Input type="number" placeholder="0" value={form.paymentAmount} onChange={e => {
+                  const paid = e.target.value;
+                  setForm(p => ({ ...p, paymentAmount: paid, unpaidAmount: String(Math.max(0, Number(p.listPrice) - Number(p.discountAmount) - Number(paid))) }));
+                }} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">미수금 (원)</Label>
