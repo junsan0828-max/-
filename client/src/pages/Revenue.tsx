@@ -6,6 +6,7 @@ import {
   Plus, ChevronLeft, ChevronRight, Search, AlertCircle,
   TrendingUp, RefreshCw, Dumbbell, Heart, MoreHorizontal, Lock,
 } from "lucide-react";
+import { parseServiceItems, SERVICE_COLORS, type ServiceType } from "@/lib/memberServices";
 
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "분할결제"];
 const CATEGORIES = ["PT", "헬스", "기타"] as const;
@@ -320,57 +321,108 @@ function RevenueContent() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(row => (
-            <div key={row.entry.id} onClick={() => { if (!isConsultant) openEdit(row); }}
-              className={`bg-card border border-border rounded-xl p-4 transition-colors ${!isConsultant ? "cursor-pointer hover:border-primary/30" : ""}`}>
-              <div className="flex items-start justify-between">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${row.entry.type === "PT" ? "bg-amber-400/10 text-amber-400" : row.entry.type === "헬스" ? "bg-teal-400/10 text-teal-400" : "bg-muted text-muted-foreground"}`}>
-                      {row.entry.type}
-                    </span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${row.entry.subType === "신규" ? "bg-blue-400/10 text-blue-400" : row.entry.subType === "이전" ? "bg-gray-400/10 text-gray-400" : "bg-violet-400/10 text-violet-400"}`}>
+          {filtered.map(row => {
+            const parsedItems = parseServiceItems((row.entry as any).serviceItems);
+            const subTypeStyle = row.entry.subType === "신규"
+              ? "bg-blue-400/10 text-blue-400 border-blue-400/30"
+              : row.entry.subType === "이전"
+              ? "bg-gray-400/10 text-gray-400 border-gray-400/30"
+              : "bg-violet-400/10 text-violet-400 border-violet-400/30";
+            const mainCol = row.entry.type === "PT" ? SERVICE_COLORS.PT
+              : row.entry.type === "헬스" ? SERVICE_COLORS.헬스
+              : SERVICE_COLORS.기타;
+            const detailServiceType: ServiceType =
+              row.entry.programDetail === "락커" ? "락커"
+              : row.entry.programDetail === "운동복" ? "운동복"
+              : "기타";
+            const detailCol = row.entry.type === "기타" && row.entry.programDetail
+              ? SERVICE_COLORS[detailServiceType] : null;
+
+            return (
+              <div key={row.entry.id} onClick={() => { if (!isConsultant) openEdit(row); }}
+                className={`bg-card border border-border rounded-xl p-4 transition-colors ${!isConsultant ? "cursor-pointer hover:border-primary/30" : ""}`}>
+
+                {/* 이름 + 신규/재등록 + 금액 */}
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="text-sm font-bold text-foreground">{row.entry.customerName || row.memberName || "—"}</span>
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded border font-semibold ${subTypeStyle}`}>
                       {row.entry.subType}
                     </span>
-                    <span className="text-sm font-medium text-foreground">{row.entry.customerName || row.memberName || "—"}</span>
-                    {row.entry.programDetail && <span className="text-xs text-muted-foreground">{row.entry.programDetail}</span>}
-                    {row.entry.duration && <span className="text-xs text-muted-foreground">{row.entry.duration}개월</span>}
-                    {(row.entry as any).serviceHealthDuration > 0 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400">헬스 {(row.entry as any).serviceHealthDuration}개월 서비스</span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-base font-bold text-foreground">{fmt(row.entry.paidAmount)}원</div>
+                    {row.entry.unpaidAmount > 0 && (
+                      <div className="text-xs text-red-400 flex items-center gap-0.5 justify-end">
+                        <AlertCircle className="h-3 w-3" />미수 {fmt(row.entry.unpaidAmount)}
+                      </div>
+                    )}
+                    {row.entry.discountAmount > 0 && (
+                      <div className="text-xs text-muted-foreground">할인 -{fmt(row.entry.discountAmount)}</div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                    {row.entry.type === "PT" && !row.entry.trainerId && (
-                      <span className="text-orange-400 font-medium">미배정</span>
-                    )}
-                    {row.entry.trainerId && <span>{row.trainerName}</span>}
-                    {(row as any).consultantName && <span>· 상담: {(row as any).consultantName}</span>}
-                    {row.channelName && <span>· {row.channelName}</span>}
-                    <span>· {row.entry.paymentDate}</span>
-                    {row.entry.paymentMethod && <span>· {row.entry.paymentMethod}</span>}
-                  </div>
+                </div>
+
+                {/* 서비스 뱃지 */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${mainCol.bg} ${mainCol.text} ${mainCol.border}`}>
+                    {row.entry.type === "PT"
+                      ? `PT${row.entry.sessions ? ` ${row.entry.sessions}회` : ""}`
+                      : row.entry.type === "헬스"
+                      ? `헬스${row.entry.duration ? ` ${row.entry.duration}개월` : ""}`
+                      : row.entry.type}
+                  </span>
+                  {row.entry.type === "PT" && row.entry.programDetail && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium border bg-muted/40 text-muted-foreground border-border">
+                      {row.entry.programDetail}
+                    </span>
+                  )}
+                  {row.entry.type === "기타" && row.entry.programDetail && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${detailCol ? `${detailCol.bg} ${detailCol.text} ${detailCol.border}` : "bg-muted/40 text-muted-foreground border-border"}`}>
+                      {row.entry.programDetail}{row.entry.duration ? ` ${row.entry.duration}개월` : ""}
+                    </span>
+                  )}
+                  {(row.entry as any).serviceHealthDuration > 0 && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>
+                      헬스 {(row.entry as any).serviceHealthDuration}개월
+                    </span>
+                  )}
+                  {parsedItems.map((item, i) => {
+                    const col = SERVICE_COLORS[item.type] ?? SERVICE_COLORS.기타;
+                    return (
+                      <span key={i} className={`text-xs px-2 py-0.5 rounded-full font-medium border ${col.bg} ${col.text} ${col.border}`}>
+                        {item.label}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {/* 결제 정보 */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                  <span>{row.entry.paymentDate}</span>
+                  {row.entry.paymentMethod && <span>· {row.entry.paymentMethod}</span>}
+                  {row.entry.type === "PT" && !row.entry.trainerId && (
+                    <span className="text-orange-400 font-medium">· 트레이너 미배정</span>
+                  )}
+                  {row.entry.trainerId && <span>· {row.trainerName}</span>}
+                  {(row as any).consultantName && <span>· {(row as any).consultantName}</span>}
+                  {row.channelName && <span>· {row.channelName}</span>}
                   {(row as any).branchName && (
-                    <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-medium">
+                    <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-medium">
                       {(row as any).branchName}
                     </span>
                   )}
                 </div>
-                <div className="text-right">
-                  <div className="text-base font-bold text-foreground">{fmt(row.entry.paidAmount)}원</div>
-                  {row.entry.unpaidAmount > 0 && (
-                    <div className="text-xs text-red-400 flex items-center gap-0.5 justify-end">
-                      <AlertCircle className="h-3 w-3" />
-                      미수 {fmt(row.entry.unpaidAmount)}
-                    </div>
-                  )}
-                  {row.entry.discountAmount > 0 && (
-                    <div className="text-xs text-muted-foreground">할인 -{fmt(row.entry.discountAmount)}</div>
-                  )}
-                </div>
+
+                {/* 메모 */}
+                {row.entry.memo && (
+                  <p className="text-xs text-muted-foreground mt-1.5 pt-1.5 border-t border-border/50">
+                    {row.entry.memo}
+                  </p>
+                )}
               </div>
-              {row.entry.memo && <p className="text-xs text-muted-foreground mt-2">{row.entry.memo}</p>}
-            </div>
-          ))}
+            );
+          })}
           <div className="bg-card border border-border rounded-xl p-3 flex justify-between text-sm font-semibold">
             <span className="text-foreground">합계 ({filtered.length}건)</span>
             <span className="text-emerald-400">{fmt(monthTotal)}원</span>
