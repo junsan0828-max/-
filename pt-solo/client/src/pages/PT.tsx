@@ -34,6 +34,8 @@ const EXTEND_PRESETS = [30, 60, 90, 180];
 
 type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
+const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "지역화폐"] as const;
+
 const EMPTY_FORM = {
   name: "",
   phone: "",
@@ -45,6 +47,14 @@ const EMPTY_FORM = {
   membershipEnd: "",
   visitRoute: "",
   profileNote: "",
+  // PT·결제
+  ptProgram: "",
+  ptSessions: "",
+  paymentAmount: "",
+  unpaidAmount: "",
+  paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+  paymentDate: new Date().toISOString().substring(0, 10),
+  paymentMemo: "",
 };
 
 function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -63,6 +73,8 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
     onError: (e) => toast.error(e.message || "등록 실패"),
   });
 
+  const hasPt = !!form.ptSessions;
+
   function handleSubmit() {
     if (!form.name.trim()) { setNameError("이름을 입력해주세요."); return; }
     setNameError("");
@@ -77,6 +89,13 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
       membershipEnd: form.membershipEnd || undefined,
       visitRoute: form.visitRoute || undefined,
       profileNote: form.profileNote || undefined,
+      ptProgram: form.ptProgram || undefined,
+      ptSessions: form.ptSessions || undefined,
+      paymentAmount: form.paymentAmount ? Number(form.paymentAmount) : undefined,
+      unpaidAmount: form.unpaidAmount ? Number(form.unpaidAmount) : undefined,
+      paymentMethod: form.paymentMethod || undefined,
+      paymentDate: hasPt ? form.paymentDate : undefined,
+      paymentMemo: form.paymentMemo || undefined,
     });
   }
 
@@ -91,7 +110,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
         </div>
         <div className="px-5 pt-1 pb-4 flex items-center justify-between shrink-0 border-b border-border">
           <div>
-            <h2 className="text-base font-bold">신규 회원 등록</h2>
+            <h2 className="text-base font-bold">회원 등록</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">결제 없이 등록 · 매출에 미포함</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted">
@@ -183,8 +202,50 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-muted/50 border border-border text-xs text-muted-foreground">
-            이 화면에서 등록한 회원은 PT 패키지·결제 정보가 없어 매출 통계에 포함되지 않습니다.
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground">PT 패키지 · 결제 <span className="text-muted-foreground font-normal">(선택)</span></p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">프로그램명</Label>
+                <Input placeholder="예: 피티" value={form.ptProgram} onChange={e => setForm(p => ({ ...p, ptProgram: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">횟수</Label>
+                <Input type="number" placeholder="0" value={form.ptSessions} onChange={e => setForm(p => ({ ...p, ptSessions: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">결제금액 (원)</Label>
+                <Input type="number" placeholder="0" value={form.paymentAmount} onChange={e => setForm(p => ({ ...p, paymentAmount: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">미수금 (원)</Label>
+                <Input type="number" placeholder="0" value={form.unpaidAmount} onChange={e => setForm(p => ({ ...p, unpaidAmount: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">결제 방법</Label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {PAYMENT_METHODS.map(m => (
+                  <button key={m} type="button"
+                    onClick={() => setForm(p => ({ ...p, paymentMethod: p.paymentMethod === m ? "" : m as any }))}
+                    className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground"}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">결제일</Label>
+              <Input type="date" value={form.paymentDate} onChange={e => setForm(p => ({ ...p, paymentDate: e.target.value }))} />
+            </div>
+          </div>
+
+          <div className={`p-3 rounded-xl border text-xs ${hasPt ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-muted/50 border-border text-muted-foreground"}`}>
+            {hasPt
+              ? "PT 패키지 정보가 입력되어 매출 통계에 반영됩니다."
+              : "PT 횟수를 입력하면 매출 통계에 반영됩니다. 입력하지 않으면 미포함입니다."}
           </div>
 
           <Button className="w-full" disabled={createMutation.isPending} onClick={handleSubmit}>
