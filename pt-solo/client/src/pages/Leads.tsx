@@ -30,6 +30,8 @@ const CONSULT_TYPES: Record<string, string[]> = {
 };
 const MAIN_TYPES = Object.keys(CONSULT_TYPES);
 const INTEREST_OPTIONS = ["PT", "필라테스", "기타"];
+const PROGRAM_FORMATS = ["개인", "그룹"];
+const VISIT_ROUTES = ["지인 소개", "네이버플레이스", "당근광고", "인스타그램", "간판/현수막", "전단지", "재등록", "기타"];
 const AGE_OPTIONS = ["10대", "20대", "30대", "40대", "50대이상"];
 const EXERCISE_PURPOSES = [
   "다이어트 (체중 감량)", "체형교정 (자세 개선)", "통증 개선 (목/허리/무릎 등)",
@@ -125,12 +127,18 @@ type LeadForm = {
 };
 
 type RegForm = {
-  itemTypes: string[];
-  subType: "신규" | "재등록";
-  programKey: string; programCustom: string;
-  sessions?: number; duration?: number; otherItem: string;
-  amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string;
-  paymentMethod: string; paymentDate: string; startDate: string; memo: string;
+  programType: string;
+  programFormat: string;
+  programCustom: string;
+  sessions: string;
+  paymentAmount: string;
+  unpaidAmount: string;
+  paymentMethod: string;
+  paymentDate: string;
+  startDate: string;
+  endDate: string;
+  visitRoute: string;
+  memo: string;
 };
 
 const defaultForm: LeadForm = {
@@ -141,11 +149,10 @@ const defaultForm: LeadForm = {
 };
 
 const defaultReg: RegForm = {
-  itemTypes: [], subType: "신규", programKey: "", programCustom: "",
-  sessions: undefined, duration: undefined, otherItem: "",
-  amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0",
+  programType: "", programFormat: "", programCustom: "",
+  sessions: "", paymentAmount: "", unpaidAmount: "0",
   paymentMethod: "", paymentDate: new Date().toISOString().substring(0, 10),
-  startDate: new Date().toISOString().substring(0, 10), memo: "",
+  startDate: new Date().toISOString().substring(0, 10), endDate: "", visitRoute: "", memo: "",
 };
 
 export default function LeadsPage() {
@@ -248,13 +255,17 @@ export default function LeadsPage() {
           registerMutation.mutate({
             leadId: data.id,
             name: quickName.trim(), phone: quickPhone || undefined,
-            itemTypes: regForm.itemTypes,
-            programKey: regForm.programKey || undefined, programCustom: regForm.programCustom || undefined,
-            sessions: regForm.sessions, duration: regForm.duration, subType: regForm.subType,
-            amount: Number(regForm.amount), discountAmount: Number(regForm.discountAmount),
-            paidAmount: Number(regForm.paidAmount), unpaidAmount: Number(regForm.unpaidAmount),
+            programType: regForm.programType || undefined,
+            programFormat: regForm.programFormat || undefined,
+            programCustom: regForm.programCustom || undefined,
+            sessions: regForm.sessions ? parseInt(regForm.sessions) : undefined,
+            paymentAmount: Number(regForm.paymentAmount),
+            unpaidAmount: Number(regForm.unpaidAmount),
             paymentMethod: regForm.paymentMethod || undefined,
-            paymentDate: regForm.paymentDate, startDate: regForm.startDate || undefined,
+            paymentDate: regForm.paymentDate,
+            startDate: regForm.startDate || undefined,
+            endDate: regForm.endDate || undefined,
+            visitRoute: regForm.visitRoute || undefined,
             memo: regForm.memo || undefined,
           });
         }
@@ -420,8 +431,8 @@ export default function LeadsPage() {
     if (!signatureData) return toast.error("서명을 해주세요");
     sessionStorage.setItem("contractSignature", signatureData);
     setShowContract(false);
-    const preTypes = INTEREST_OPTIONS.includes(form.interestType) ? [form.interestType] : [];
-    setRegForm({ ...defaultReg, itemTypes: preTypes, paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10) });
+    const preType = INTEREST_OPTIONS.includes(form.interestType) ? form.interestType : "";
+    setRegForm({ ...defaultReg, programType: preType, paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10) });
     // 등록 모달 즉시 오픈 (API 응답 기다리지 않음)
     setShowRegistration(true);
     if (editId) {
@@ -437,7 +448,6 @@ export default function LeadsPage() {
     if (isQuickReg) {
       if (!quickName.trim()) return toast.error("이름을 입력해주세요");
       if (!regForm.paymentDate) return toast.error("결제일을 입력해주세요");
-      if (!Number(regForm.amount)) return toast.error("금액을 입력해주세요");
       pendingLeadIdRef.current = -1;
       createMutation.mutate({
         name: quickName.trim(), phone: quickPhone || undefined,
@@ -447,20 +457,22 @@ export default function LeadsPage() {
       return;
     }
     const leadId = pendingLeadIdRef.current;
-    // leadId가 아직 -1/-2면 API 처리 중이므로 잠시 대기
     if (!leadId || leadId < 0) return toast.error("잠시 후 다시 시도해주세요 (처리 중)");
     if (!regForm.paymentDate) return toast.error("결제일을 입력해주세요");
-    if (!Number(regForm.amount)) return toast.error("금액을 입력해주세요");
     registerMutation.mutate({
       leadId,
       name: form.name, phone: form.phone || undefined, gender: form.gender || undefined,
-      itemTypes: regForm.itemTypes,
-      programKey: regForm.programKey || undefined, programCustom: regForm.programCustom || undefined,
-      sessions: regForm.sessions, duration: regForm.duration, subType: regForm.subType,
-      amount: Number(regForm.amount), discountAmount: Number(regForm.discountAmount),
-      paidAmount: Number(regForm.paidAmount), unpaidAmount: Number(regForm.unpaidAmount),
+      programType: regForm.programType || undefined,
+      programFormat: regForm.programFormat || undefined,
+      programCustom: regForm.programCustom || undefined,
+      sessions: regForm.sessions ? parseInt(regForm.sessions) : undefined,
+      paymentAmount: Number(regForm.paymentAmount),
+      unpaidAmount: Number(regForm.unpaidAmount),
       paymentMethod: regForm.paymentMethod || undefined,
-      paymentDate: regForm.paymentDate, startDate: regForm.startDate || undefined,
+      paymentDate: regForm.paymentDate,
+      startDate: regForm.startDate || undefined,
+      endDate: regForm.endDate || undefined,
+      visitRoute: regForm.visitRoute || undefined,
       memo: regForm.memo || undefined,
     });
   }
@@ -890,104 +902,49 @@ export default function LeadsPage() {
                   </div>
                 </div>
               )}
+              {/* 프로그램 종류 */}
               <div>
-                <label className="text-xs text-muted-foreground">구분</label>
-                <div className="flex gap-2 mt-1">
-                  <button type="button"
-                    className="flex-1 py-2 rounded-lg text-sm font-medium border bg-primary text-primary-foreground border-primary">
-                    신규
-                  </button>
-                  <button type="button" disabled
-                    className="flex-1 py-2 rounded-lg text-sm font-medium border bg-background border-border text-muted-foreground/40 cursor-not-allowed">
-                    재등록
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">프로그램 유형 (복수 선택)</label>
-                <div className="flex gap-2 mt-1">
+                <label className="text-xs text-muted-foreground">프로그램 종류</label>
+                <div className="grid grid-cols-3 gap-2 mt-1">
                   {["PT", "필라테스", "기타"].map(t => (
                     <button key={t} type="button"
-                      onClick={() => setRegForm(f => ({ ...f, itemTypes: f.itemTypes.includes(t) ? f.itemTypes.filter(x => x !== t) : [...f.itemTypes, t] }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.itemTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      onClick={() => setRegForm(f => ({ ...f, programType: f.programType === t ? "" : t, programCustom: "" }))}
+                      className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programType === t ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
                       {t}
                     </button>
                   ))}
                 </div>
+                {regForm.programType === "기타" && (
+                  <input value={regForm.programCustom} onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))}
+                    placeholder="예: 요가, 수영, 크로스핏, 골프 등"
+                    className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                )}
               </div>
-              {regForm.itemTypes.includes("PT") && (
-                <div className="space-y-3 pl-3 border-l-2 border-primary/40">
-                  <div>
-                    <label className="text-xs text-muted-foreground">PT 프로그램</label>
-                    <input
-                      value={regForm.programCustom || regForm.programKey}
-                      onChange={e => setRegForm(f => ({ ...f, programKey: "", programCustom: e.target.value }))}
-                      placeholder="예: 피티"
-                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">PT 횟수</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <input
-                        type="number"
-                        min={1}
-                        value={regForm.sessions ?? ""}
-                        onChange={e => setRegForm(f => ({ ...f, sessions: e.target.value ? parseInt(e.target.value) : undefined }))}
-                        placeholder="횟수 직접 입력"
-                        className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <span className="text-sm text-muted-foreground shrink-0">회</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {regForm.itemTypes.includes("필라테스") && (
-                <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">필라테스 이용 기간</label>
-                  <div className="flex gap-2 mt-1">
-                    {DURATIONS.map(d => (
-                      <button key={d} type="button" onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                        {d}개월
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {regForm.itemTypes.includes("기타") && (
-                <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">기타 프로그램명</label>
-                  <input value={regForm.otherItem} onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))} placeholder="예: 요가, 수영, 크로스핏, 골프 등"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground">정가 (원)</label>
-                  <input type="number" value={regForm.amount} onChange={e => {
-                    const amt = e.target.value;
-                    const disc = Number(regForm.discountAmount) || 0;
-                    setRegForm(f => ({ ...f, amount: amt, paidAmount: String(Math.max(0, Number(amt) - disc)), unpaidAmount: "0" }));
-                  }} placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">할인 (원)</label>
-                  <input type="number" value={regForm.discountAmount} onChange={e => {
-                    const disc = e.target.value;
-                    setRegForm(f => ({ ...f, discountAmount: disc, paidAmount: String(Math.max(0, Number(f.amount) - Number(disc))) }));
-                  }} placeholder="0"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              {/* 프로그램 형태 */}
+              <div>
+                <label className="text-xs text-muted-foreground">프로그램 형태</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {PROGRAM_FORMATS.map(f => (
+                    <button key={f} type="button"
+                      onClick={() => setRegForm(r => ({ ...r, programFormat: r.programFormat === f ? "" : f }))}
+                      className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programFormat === f ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      {f}
+                    </button>
+                  ))}
                 </div>
               </div>
+              {/* 횟수 */}
+              <div>
+                <label className="text-xs text-muted-foreground">횟수</label>
+                <input type="number" min={1} value={regForm.sessions} onChange={e => setRegForm(f => ({ ...f, sessions: e.target.value }))}
+                  placeholder="0"
+                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 결제금액 / 미수금 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted-foreground">실결제 (원)</label>
-                  <input type="number" value={regForm.paidAmount} onChange={e => {
-                    const paid = e.target.value;
-                    setRegForm(f => ({ ...f, paidAmount: paid, unpaidAmount: String(Math.max(0, Number(f.amount) - Number(f.discountAmount) - Number(paid))) }));
-                  }} placeholder="0"
+                  <label className="text-xs text-muted-foreground">결제금액 (원)</label>
+                  <input type="number" value={regForm.paymentAmount} onChange={e => setRegForm(f => ({ ...f, paymentAmount: e.target.value }))} placeholder="0"
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div>
@@ -996,6 +953,7 @@ export default function LeadsPage() {
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
+              {/* 결제 방법 */}
               <div>
                 <label className="text-xs text-muted-foreground">결제 방법</label>
                 <div className="grid grid-cols-4 gap-2 mt-1">
@@ -1007,9 +965,10 @@ export default function LeadsPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {/* 결제일 / 시작일 / 종료일 */}
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-muted-foreground">결제일 *</label>
+                  <label className="text-xs text-muted-foreground">결제일</label>
                   <input type="date" value={regForm.paymentDate} onChange={e => setRegForm(f => ({ ...f, paymentDate: e.target.value }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
@@ -1018,11 +977,26 @@ export default function LeadsPage() {
                   <input type="date" value={regForm.startDate} onChange={e => setRegForm(f => ({ ...f, startDate: e.target.value }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">종료일</label>
+                  <input type="date" value={regForm.endDate} onChange={e => setRegForm(f => ({ ...f, endDate: e.target.value }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
               </div>
+              {/* 방문경로 */}
               <div>
-                <label className="text-xs text-muted-foreground">등록 진행 내용</label>
+                <label className="text-xs text-muted-foreground">방문 경로</label>
+                <select value={regForm.visitRoute} onChange={e => setRegForm(f => ({ ...f, visitRoute: e.target.value }))}
+                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">선택</option>
+                  {VISIT_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              {/* 메모 */}
+              <div>
+                <label className="text-xs text-muted-foreground">메모</label>
                 <textarea value={regForm.memo} onChange={e => setRegForm(f => ({ ...f, memo: e.target.value }))} rows={2}
-                  placeholder="운동 가능 시간, 날짜, 특이사항..."
+                  placeholder="특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
             </div>
