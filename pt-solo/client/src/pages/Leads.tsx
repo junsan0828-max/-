@@ -184,6 +184,7 @@ export default function LeadsPage() {
   const [quickStep, setQuickStep] = useState<"select" | "new" | "rereg">("select");
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
+  const [isQuickReg, setIsQuickReg] = useState(false);
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
   const [showReregiConfirm, setShowReregiConfirm] = useState(false);
@@ -218,10 +219,12 @@ export default function LeadsPage() {
   });
 
   function openQuickModal() {
-    setQuickStep("select");
     setQuickName("");
     setQuickPhone("");
-    setShowQuickModal(true);
+    setIsQuickReg(true);
+    setRegForm({ ...defaultReg, paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10) });
+    pendingLeadIdRef.current = null;
+    setShowRegistration(true);
   }
 
   function startQuickNew() {
@@ -240,7 +243,22 @@ export default function LeadsPage() {
       if (pendingLeadIdRef.current === -1) {
         pendingLeadIdRef.current = data.id;
         setShowForm(false);
-        // 등록 모달은 confirmRegistration에서 이미 열었음
+        if (isQuickReg) {
+          // 바로등록: lead 생성 완료 후 즉시 registerMutation 호출
+          registerMutation.mutate({
+            leadId: data.id,
+            name: quickName.trim(), phone: quickPhone || undefined,
+            itemTypes: regForm.itemTypes,
+            programKey: regForm.programKey || undefined, programCustom: regForm.programCustom || undefined,
+            sessions: regForm.sessions, duration: regForm.duration, subType: regForm.subType,
+            amount: Number(regForm.amount), discountAmount: Number(regForm.discountAmount),
+            paidAmount: Number(regForm.paidAmount), unpaidAmount: Number(regForm.unpaidAmount),
+            paymentMethod: regForm.paymentMethod || undefined,
+            paymentDate: regForm.paymentDate, startDate: regForm.startDate || undefined,
+            memo: regForm.memo || undefined,
+          });
+        }
+        // 등록 모달은 confirmRegistration에서 이미 열었음 (일반 계약 흐름)
       } else {
         toast.success("상담이 등록되었습니다");
         resetForm();
@@ -275,6 +293,7 @@ export default function LeadsPage() {
     setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
     setSignatureData("");
     setShowRegistration(false); setRegForm(defaultReg);
+    setIsQuickReg(false); setQuickName(""); setQuickPhone("");
     pendingLeadIdRef.current = null;
   }
 
@@ -415,6 +434,18 @@ export default function LeadsPage() {
   }
 
   function saveRegistration() {
+    if (isQuickReg) {
+      if (!quickName.trim()) return toast.error("이름을 입력해주세요");
+      if (!regForm.paymentDate) return toast.error("결제일을 입력해주세요");
+      if (!Number(regForm.amount)) return toast.error("금액을 입력해주세요");
+      pendingLeadIdRef.current = -1;
+      createMutation.mutate({
+        name: quickName.trim(), phone: quickPhone || undefined,
+        consultationDate: new Date().toISOString().substring(0, 10),
+        status: "registered",
+      } as any);
+      return;
+    }
     const leadId = pendingLeadIdRef.current;
     // leadId가 아직 -1/-2면 API 처리 중이므로 잠시 대기
     if (!leadId || leadId < 0) return toast.error("잠시 후 다시 시도해주세요 (처리 중)");
@@ -836,12 +867,29 @@ export default function LeadsPage() {
           <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
               <div>
-                <h2 className="font-bold text-foreground">등록 상세 정보</h2>
-                <p className="text-xs text-muted-foreground">{form.name} · {form.interestType || "기타"}</p>
+                <h2 className="font-bold text-foreground">{isQuickReg ? "바로등록" : "등록 상세 정보"}</h2>
+                <p className="text-xs text-muted-foreground">{isQuickReg ? "신규 회원 등록" : `${form.name} · ${form.interestType || "기타"}`}</p>
               </div>
-              <button onClick={() => setShowRegistration(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+              <button onClick={() => { setShowRegistration(false); setIsQuickReg(false); }} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="overflow-y-auto flex-1 p-4 space-y-4">
+              {isQuickReg && (
+                <div className="space-y-3 pb-2 border-b border-border">
+                  <p className="text-xs font-semibold text-muted-foreground">회원 정보</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">이름 *</label>
+                      <input value={quickName} onChange={e => setQuickName(e.target.value)} placeholder="홍길동"
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">연락처</label>
+                      <input value={quickPhone} onChange={e => setQuickPhone(e.target.value)} placeholder="010-0000-0000"
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-muted-foreground">구분</label>
                 <div className="flex gap-2 mt-1">
@@ -984,7 +1032,7 @@ export default function LeadsPage() {
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50">
                 {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : `등록 완료 및 회원 생성${featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}`}
               </button>
-              <button type="button" onClick={() => setShowRegistration(false)}
+              <button type="button" onClick={() => { setShowRegistration(false); setIsQuickReg(false); }}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
               </button>
