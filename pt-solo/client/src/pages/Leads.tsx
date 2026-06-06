@@ -1181,7 +1181,7 @@ export default function LeadsPage() {
                     </button>
                     <button type="button" onClick={openContract}
                       className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
-                      등록완료
+                      계약서 작성 진행
                     </button>
                   </div>
                   <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
@@ -1198,7 +1198,7 @@ export default function LeadsPage() {
                   </button>
                   <button type="button" onClick={openContract}
                     className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
-                    등록완료
+                    계약서 작성 진행
                   </button>
                 </div>
               )}
