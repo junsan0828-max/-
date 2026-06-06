@@ -444,10 +444,17 @@ export default function Sessions() {
             {selectedMemberId ? "작성된 트레이닝 일지가 없습니다" : "회원을 선택하거나 전체 일지를 확인하세요"}
           </div>
         ) : logs.map(log => {
-          const rawExercises = parseExercisesJson(log.exercisesJson);
-          const isPilatesLog = rawExercises[0]?._type === "pilates";
-          const pilatesPrograms = isPilatesLog ? rawExercises.slice(1) : [];
-          const weightExercises = isPilatesLog ? [] : rawExercises;
+          let isPilatesLog = false;
+          let pilatesPrograms: any[] = [];
+          let weightExercises = parseExercisesJson(log.exercisesJson);
+          try {
+            const rawArr = log.exercisesJson ? JSON.parse(log.exercisesJson) : [];
+            if (Array.isArray(rawArr) && rawArr[0]?._type === "pilates") {
+              isPilatesLog = true;
+              pilatesPrograms = rawArr.slice(1);
+              weightExercises = [];
+            }
+          } catch { /* keep weightExercises */ }
           const isPending = log.sessionDate === "미정";
           const isFuture = !isPending && log.sessionDate > new Date().toISOString().slice(0, 10);
 
