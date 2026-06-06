@@ -104,6 +104,7 @@ export default function Profile() {
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
   const [ext, setExt] = useState({ jobType: "", careerRange: "", activityArea: "", profileImage: "", educationNeeds: "" });
+  const [journalType, setJournalTypeState] = useState<"weight" | "pilates">("weight");
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [infoMsg, setInfoMsg] = useState("");
   const [pwMsg, setPwMsg] = useState("");
@@ -125,6 +126,7 @@ export default function Profile() {
         profileImage: (profile as any).profileImage ?? "",
         educationNeeds: (profile as any).educationNeeds ?? "",
       });
+      setJournalTypeState(((profile as any).journalType ?? "weight") as "weight" | "pilates");
     }
   }, [profile]);
 
@@ -619,6 +621,41 @@ export default function Profile() {
               {updateProfile.isPending ? "저장 중..." : "저장"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* 트레이닝 일지 유형 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-primary" />트레이닝 일지 유형
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">선택한 유형에 따라 트레이닝 일지 입력 화면이 변경됩니다.</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: "weight", label: "웨이트 / PT", desc: "종목·세트·횟수·중량" },
+              { value: "pilates", label: "필라테스", desc: "수업목적·기구·메모" },
+            ] as const).map(({ value, label, desc }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setJournalTypeState(value);
+                  updateExtended.mutate({ journalType: value });
+                }}
+                className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-colors ${
+                  journalType === value
+                    ? "bg-primary/15 border-primary"
+                    : "bg-card border-border hover:border-primary/40"
+                }`}
+              >
+                <span className={`text-sm font-semibold ${journalType === value ? "text-primary" : "text-foreground"}`}>{label}</span>
+                <span className="text-[11px] text-muted-foreground">{desc}</span>
+              </button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

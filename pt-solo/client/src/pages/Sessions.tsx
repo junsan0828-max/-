@@ -86,8 +86,43 @@ const emptyForm = (): JournalForm => ({
   feedback: "",
 });
 
+// ─── 필라테스 폼 ───
+const CLASS_PURPOSES = ["체형교정","통증관리","코어강화","다이어트","근력강화","산전·산후","자세개선","밸런스향상","기타"];
+const FOCUS_PARTS = ["경추","흉추","요추","골반","어깨","고관절","무릎","발목","코어","전신"];
+const PILATES_LEVELS = ["초급","중급","상급"];
+const PILATES_EQUIPMENT = ["매트","리포머","캐딜락","체어","바렐","소도구"];
+const NEXT_GOALS = ["코어 활성화","흉추 신전","고관절 안정화","호흡 재교육","밸런스 향상","기타"];
+
+type PilatesProgram = { name: string; level: string; equipment: string; duration: string };
+type PilatesForm = {
+  sessionDate: string;
+  purposes: string[];   // 수업목적 (max 2)
+  focusParts: string[]; // 중점부위 (max 3)
+  programs: PilatesProgram[];
+  memo: string;
+  nextGoals: string[];  // 다음 수업 목표
+};
+
+const emptyPilatesForm = (): PilatesForm => ({
+  sessionDate: new Date().toISOString().split("T")[0],
+  purposes: [],
+  focusParts: [],
+  programs: [{ name: "", level: "", equipment: "", duration: "" }],
+  memo: "",
+  nextGoals: [],
+});
+
+function toggleArr<T>(arr: T[], item: T, max?: number): T[] {
+  return arr.includes(item)
+    ? arr.filter(x => x !== item)
+    : max && arr.length >= max ? arr : [...arr, item];
+}
+
 export default function Sessions() {
   const utils = trpc.useUtils();
+  const { data: profile } = trpc.trainers.getMyProfile.useQuery();
+  const journalType: "weight" | "pilates" = ((profile as any)?.journalType ?? "weight") as "weight" | "pilates";
+
   const { data: allMembers } = trpc.members.list.useQuery();
   const [chosungFilter, setChosungFilter] = useState<string>("전체");
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
@@ -96,6 +131,7 @@ export default function Sessions() {
   // 작성 모달
   const [journalOpen, setJournalOpen] = useState(false);
   const [journalForm, setJournalForm] = useState<JournalForm>(emptyForm());
+  const [pilatesForm, setPilatesForm] = useState<PilatesForm>(emptyPilatesForm());
 
   // 라이브 트레이닝 모달
   const [liveOpen, setLiveOpen] = useState(false);
@@ -174,8 +210,28 @@ export default function Sessions() {
   }).filter(Boolean));
 
   function openCreate() {
-    setJournalForm(emptyForm());
+    if (journalType === "pilates") {
+      setPilatesForm(emptyPilatesForm());
+    } else {
+      setJournalForm(emptyForm());
+    }
     setJournalOpen(true);
+  }
+
+  function submitPilates() {
+    if (!selectedMemberId) return toast.error("회원을 선택해주세요");
+    const pilatesPrograms = pilatesForm.programs.filter(p => p.name.trim());
+    createMutation.mutate({
+      memberId: selectedMemberId,
+      sessionDate: pilatesForm.sessionDate,
+      goal: pilatesForm.purposes.join(",") || undefined,
+      bodyPart: pilatesForm.focusParts.join(",") || undefined,
+      exercisesJson: pilatesPrograms.length > 0
+        ? JSON.stringify([{ _type: "pilates" }, ...pilatesPrograms])
+        : JSON.stringify([{ _type: "pilates" }]),
+      notes: pilatesForm.memo || undefined,
+      feedback: pilatesForm.nextGoals.join(",") || undefined,
+    });
   }
 
   function submitCreate() {
@@ -371,7 +427,7 @@ export default function Sessions() {
       {/* 새 일지 작성 버튼 */}
       <Button onClick={openCreate} className="w-full gap-2" disabled={!selectedMemberId}>
         <Plus className="h-4 w-4" />
-        트레이닝 일지 작성
+        {journalType === "pilates" ? "필라테스 일지 작성" : "트레이닝 일지 작성"}
       </Button>
 
       {/* 일지 목록 */}
@@ -388,11 +444,15 @@ export default function Sessions() {
             {selectedMemberId ? "작성된 트레이닝 일지가 없습니다" : "회원을 선택하거나 전체 일지를 확인하세요"}
           </div>
         ) : logs.map(log => {
-          const exercises = parseExercisesJson(log.exercisesJson);
+          const rawExercises = parseExercisesJson(log.exercisesJson);
+          const isPilatesLog = rawExercises[0]?._type === "pilates";
+          const pilatesPrograms = isPilatesLog ? rawExercises.slice(1) : [];
+          const weightExercises = isPilatesLog ? [] : rawExercises;
           const isPending = log.sessionDate === "미정";
           const isFuture = !isPending && log.sessionDate > new Date().toISOString().slice(0, 10);
+
           return (
-            <div key={log.id} className={`border rounded-xl bg-card overflow-hidden ${isPending ? "border-amber-500/30" : "border-border"}`}>
+            <div key={log.id} className={`border rounded-xl bg-card overflow-hidden ${isPending ? "border-amber-500/30" : isPilatesLog ? "border-purple-500/30" : "border-border"}`}>
               <button
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/50 transition-colors text-left"
                 onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
@@ -400,21 +460,23 @@ export default function Sessions() {
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-sm font-semibold ${isPending ? "text-amber-500" : ""}`}>{log.sessionDate}</span>
-                    {isPending && (
-                      <span className="text-[10px] bg-amber-500/15 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-medium">날짜 미정</span>
-                    )}
-                    {isFuture && (
-                      <span className="text-[10px] bg-blue-500/15 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded-full font-medium">예정</span>
-                    )}
-                    {log.bodyPart && log.bodyPart.split(",").map(bp => (
+                    {isPilatesLog && <span className="text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-full font-medium">필라테스</span>}
+                    {isPending && <span className="text-[10px] bg-amber-500/15 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-medium">날짜 미정</span>}
+                    {isFuture && <span className="text-[10px] bg-blue-500/15 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded-full font-medium">예정</span>}
+                    {log.bodyPart && log.bodyPart.split(",").filter(Boolean).map(bp => (
                       <span key={bp} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{bp.trim()}</span>
                     ))}
                     {!selectedMemberId && log.memberName && (
                       <span className="text-xs text-muted-foreground">{log.memberName}</span>
                     )}
                   </div>
-                  {exercises.length > 0 && (
-                    <p className="text-xs text-muted-foreground">{exercises.map(e => e.name).filter(Boolean).join(" · ")}</p>
+                  {/* 미리보기: 웨이트는 종목명, 필라테스는 목적+프로그램명 */}
+                  {isPilatesLog ? (
+                    <p className="text-xs text-muted-foreground">
+                      {[log.goal, pilatesPrograms.map((p: any) => p.name).filter(Boolean).join(" · ")].filter(Boolean).join(" | ")}
+                    </p>
+                  ) : weightExercises.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{weightExercises.map(e => e.name).filter(Boolean).join(" · ")}</p>
                   )}
                 </div>
                 {expandedId === log.id
@@ -424,64 +486,114 @@ export default function Sessions() {
 
               {expandedId === log.id && (
                 <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                  {log.goal && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">목표</p>
-                      <p className="text-sm">{log.goal}</p>
-                    </div>
-                  )}
-                  {exercises.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">운동 종목</p>
-                      <div className="space-y-1">
-                        {exercises.map((ex, i) => (
-                          <div key={i} className="text-sm space-y-0.5">
-                            <div className="flex items-start gap-2">
-                              <span className="text-muted-foreground">·</span>
-                              <span>{ex.name}</span>
-                              {ex.sets && ex.sets.length > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                  {ex.sets.map((s: any) => `${s.reps ?? ""}회${s.weight ? ` ${s.weight}kg` : ""}`).join(", ")}
-                                </span>
-                              )}
-                            </div>
-                            {ex.videoUrl && (
-                              <a href={ex.videoUrl} target="_blank" rel="noreferrer"
-                                className="ml-4 inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
-                                <Video className="h-3 w-3" />영상 보기
-                              </a>
-                            )}
+                  {isPilatesLog ? (
+                    // ─ 필라테스 일지 상세 ─
+                    <>
+                      {log.goal && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5">수업 목적</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {log.goal.split(",").filter(Boolean).map(p => (
+                              <span key={p} className="text-xs bg-purple-500/15 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">{p}</span>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {log.feedback && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">피드백</p>
-                      <p className="text-sm whitespace-pre-wrap">{log.feedback}</p>
-                    </div>
-                  )}
-                  {log.notes && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">메모</p>
-                      <p className="text-sm whitespace-pre-wrap">{log.notes}</p>
-                    </div>
+                        </div>
+                      )}
+                      {pilatesPrograms.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5">프로그램</p>
+                          <div className="space-y-1.5">
+                            {pilatesPrograms.map((p: any, i: number) => (
+                              <div key={i} className="flex items-center gap-2 text-sm flex-wrap">
+                                <span className="font-medium">{p.name}</span>
+                                {p.level && <span className="text-xs bg-accent px-1.5 py-0.5 rounded">{p.level}</span>}
+                                {p.equipment && <span className="text-xs text-muted-foreground">{p.equipment}</span>}
+                                {p.duration && <span className="text-xs text-muted-foreground">{p.duration}분</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {log.notes && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">수업 메모</p>
+                          <p className="text-sm whitespace-pre-wrap">{log.notes}</p>
+                        </div>
+                      )}
+                      {log.feedback && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5">다음 수업 목표</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {log.feedback.split(",").filter(Boolean).map(g => (
+                              <span key={g} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{g}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    // ─ 웨이트/PT 일지 상세 ─
+                    <>
+                      {log.goal && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">목표</p>
+                          <p className="text-sm">{log.goal}</p>
+                        </div>
+                      )}
+                      {weightExercises.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">운동 종목</p>
+                          <div className="space-y-1">
+                            {weightExercises.map((ex, i) => (
+                              <div key={i} className="text-sm space-y-0.5">
+                                <div className="flex items-start gap-2">
+                                  <span className="text-muted-foreground">·</span>
+                                  <span>{ex.name}</span>
+                                  {ex.sets && ex.sets.length > 0 && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {ex.sets.map((s: any) => `${s.reps ?? ""}회${s.weight ? ` ${s.weight}kg` : ""}`).join(", ")}
+                                    </span>
+                                  )}
+                                </div>
+                                {ex.videoUrl && (
+                                  <a href={ex.videoUrl} target="_blank" rel="noreferrer"
+                                    className="ml-4 inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+                                    <Video className="h-3 w-3" />영상 보기
+                                  </a>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {log.feedback && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">피드백</p>
+                          <p className="text-sm whitespace-pre-wrap">{log.feedback}</p>
+                        </div>
+                      )}
+                      {log.notes && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">메모</p>
+                          <p className="text-sm whitespace-pre-wrap">{log.notes}</p>
+                        </div>
+                      )}
+                    </>
                   )}
                   <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={() => openLive(log)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 text-xs text-primary hover:bg-primary/10 transition-colors"
-                    >
-                      <Dumbbell className="h-3.5 w-3.5" />
-                      라이브
-                    </button>
+                    {!isPilatesLog && (
+                      <button
+                        onClick={() => openLive(log)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 text-xs text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <Dumbbell className="h-3.5 w-3.5" />라이브
+                      </button>
+                    )}
                     <button
                       onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: log.id }); }}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-red-500 hover:border-red-300 transition-colors"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      삭제
+                      <Trash2 className="h-3.5 w-3.5" />삭제
                     </button>
                   </div>
                 </div>
@@ -495,65 +607,173 @@ export default function Sessions() {
       <Dialog open={journalOpen} onOpenChange={setJournalOpen}>
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>트레이닝 일지 작성</DialogTitle>
-            <DialogDescription>{selectedMember?.name}님의 트레이닝 기록을 작성합니다.</DialogDescription>
+            <DialogTitle>{journalType === "pilates" ? "필라테스 일지 작성" : "트레이닝 일지 작성"}</DialogTitle>
+            <DialogDescription>{selectedMember?.name}님의 수업 기록을 작성합니다.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            {/* 날짜 미정 체크박스 */}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={journalForm.datePending}
-                onChange={e => setJournalForm(p => ({
-                  ...p,
-                  datePending: e.target.checked,
-                  sessionDate: e.target.checked ? "미정" : new Date().toISOString().split("T")[0],
-                }))}
-                className="w-4 h-4 accent-primary"
-              />
-              <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
-            </label>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">날짜</Label>
-              <Input
-                type={journalForm.datePending ? "text" : "date"}
-                value={journalForm.datePending ? "" : journalForm.sessionDate}
-                placeholder={journalForm.datePending ? "미정" : ""}
-                disabled={journalForm.datePending}
-                onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))}
-                className="h-9 text-sm disabled:opacity-50"
-              />
+          {journalType === "pilates" ? (
+            /* ── 필라테스 폼 ── */
+            <div className="space-y-5">
+              <div className="space-y-1.5">
+                <Label className="text-xs">날짜</Label>
+                <Input type="date" value={pilatesForm.sessionDate}
+                  onChange={e => setPilatesForm(p => ({ ...p, sessionDate: e.target.value }))}
+                  className="h-9 text-sm" />
+              </div>
+
+              {/* 수업 목적 */}
+              <div className="space-y-2">
+                <Label className="text-xs">수업 목적 <span className="text-muted-foreground font-normal">(최대 2개)</span></Label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {CLASS_PURPOSES.map(p => (
+                    <button key={p} type="button"
+                      onClick={() => setPilatesForm(f => ({ ...f, purposes: toggleArr(f.purposes, p, 2) }))}
+                      className={`py-1.5 rounded-lg text-xs border transition-colors ${pilatesForm.purposes.includes(p) ? "bg-purple-500/20 text-purple-400 border-purple-500/40" : "bg-card border-border text-muted-foreground hover:border-primary/40"}`}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 중점 부위 */}
+              <div className="space-y-2">
+                <Label className="text-xs">중점 부위 <span className="text-muted-foreground font-normal">(최대 3개)</span></Label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {FOCUS_PARTS.map(p => (
+                    <button key={p} type="button"
+                      onClick={() => setPilatesForm(f => ({ ...f, focusParts: toggleArr(f.focusParts, p, 3) }))}
+                      className={`py-1.5 rounded-lg text-xs border transition-colors ${pilatesForm.focusParts.includes(p) ? "bg-primary/20 text-primary border-primary/40" : "bg-card border-border text-muted-foreground hover:border-primary/40"}`}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 프로그램 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">프로그램</Label>
+                  <button type="button"
+                    onClick={() => setPilatesForm(p => ({ ...p, programs: [...p.programs, { name: "", level: "", equipment: "", duration: "" }] }))}
+                    className="text-xs text-primary flex items-center gap-1">
+                    <Plus className="h-3.5 w-3.5" />추가
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {pilatesForm.programs.map((prog, i) => (
+                    <div key={i} className="p-3 rounded-xl border border-border bg-accent/20 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input placeholder="운동명" value={prog.name}
+                          onChange={e => setPilatesForm(f => ({ ...f, programs: f.programs.map((p, j) => j === i ? { ...p, name: e.target.value } : p) }))}
+                          className="h-8 text-sm flex-1" />
+                        {pilatesForm.programs.length > 1 && (
+                          <button type="button" onClick={() => setPilatesForm(f => ({ ...f, programs: f.programs.filter((_, j) => j !== i) }))}
+                            className="text-muted-foreground hover:text-red-400 shrink-0"><X className="h-3.5 w-3.5" /></button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {PILATES_LEVELS.map(lv => (
+                          <button key={lv} type="button"
+                            onClick={() => setPilatesForm(f => ({ ...f, programs: f.programs.map((p, j) => j === i ? { ...p, level: p.level === lv ? "" : lv } : p) }))}
+                            className={`py-1 rounded-lg text-xs border transition-colors ${prog.level === lv ? "bg-primary/20 text-primary border-primary/40" : "bg-card border-border text-muted-foreground"}`}>
+                            {lv}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {PILATES_EQUIPMENT.map(eq => (
+                          <button key={eq} type="button"
+                            onClick={() => setPilatesForm(f => ({ ...f, programs: f.programs.map((p, j) => j === i ? { ...p, equipment: p.equipment === eq ? "" : eq } : p) }))}
+                            className={`py-1 rounded-lg text-xs border transition-colors ${prog.equipment === eq ? "bg-primary/20 text-primary border-primary/40" : "bg-card border-border text-muted-foreground"}`}>
+                            {eq}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input type="number" placeholder="시간(분)" value={prog.duration}
+                          onChange={e => setPilatesForm(f => ({ ...f, programs: f.programs.map((p, j) => j === i ? { ...p, duration: e.target.value } : p) }))}
+                          className="h-8 text-sm w-28" />
+                        <span className="text-xs text-muted-foreground">분</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 수업 메모 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">수업 메모</Label>
+                <Textarea value={pilatesForm.memo}
+                  onChange={e => setPilatesForm(p => ({ ...p, memo: e.target.value }))}
+                  placeholder="수업 내용, 특이사항..."
+                  rows={2} className="text-sm resize-none" />
+              </div>
+
+              {/* 다음 수업 목표 */}
+              <div className="space-y-2">
+                <Label className="text-xs">다음 수업 목표</Label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {NEXT_GOALS.map(g => (
+                    <button key={g} type="button"
+                      onClick={() => setPilatesForm(f => ({ ...f, nextGoals: toggleArr(f.nextGoals, g) }))}
+                      className={`py-1.5 rounded-lg text-xs border transition-colors text-left px-2.5 ${pilatesForm.nextGoals.includes(g) ? "bg-primary/20 text-primary border-primary/40" : "bg-card border-border text-muted-foreground hover:border-primary/40"}`}>
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
+                <Button className="flex-1" disabled={createMutation.isPending} onClick={submitPilates}>
+                  {createMutation.isPending ? "저장 중..." : "저장"}
+                </Button>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">운동 부위 (최대 3개)</Label>
-              <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
+          ) : (
+            /* ── 웨이트/PT 폼 ── */
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={journalForm.datePending}
+                  onChange={e => setJournalForm(p => ({
+                    ...p, datePending: e.target.checked,
+                    sessionDate: e.target.checked ? "미정" : new Date().toISOString().split("T")[0],
+                  }))}
+                  className="w-4 h-4 accent-primary" />
+                <span className="text-xs text-muted-foreground">날짜 미정 — 나중에 확정</span>
+              </label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">날짜</Label>
+                <Input type={journalForm.datePending ? "text" : "date"}
+                  value={journalForm.datePending ? "" : journalForm.sessionDate}
+                  placeholder={journalForm.datePending ? "미정" : ""}
+                  disabled={journalForm.datePending}
+                  onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))}
+                  className="h-9 text-sm disabled:opacity-50" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">운동 부위 (최대 3개)</Label>
+                <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
+              </div>
+              <div className="space-y-1.5">
+                <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
+                <Label className="text-xs">운동 종목</Label>
+                <ExerciseEditor exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">메모 (선택)</Label>
+                <Textarea value={journalForm.notes}
+                  onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="특이사항..." rows={2} className="text-sm resize-none" />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
+                <Button className="flex-1" disabled={createMutation.isPending} onClick={submitCreate}>
+                  {createMutation.isPending ? "저장 중..." : journalForm.datePending ? "임시 저장" : "저장"}
+                </Button>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
-              <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor
-                exercises={journalForm.exercises}
-                onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">메모 (선택)</Label>
-              <Textarea
-                value={journalForm.notes}
-                onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))}
-                placeholder="특이사항..."
-                rows={2}
-                className="text-sm resize-none"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
-              <Button className="flex-1" disabled={createMutation.isPending} onClick={submitCreate}>
-                {createMutation.isPending ? "저장 중..." : journalForm.datePending ? "임시 저장" : "저장"}
-              </Button>
-            </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 
