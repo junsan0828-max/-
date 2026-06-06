@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers, Camera, ReceiptText, ArrowLeftRight } from "lucide-react";
-import TabBanner from "@/components/TabBanner";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 
 
@@ -4131,14 +4130,14 @@ function AdminWorkshopView() {
   };
 
   if (isLoading) return (
-    <div className="space-y-4"><TabBanner tabKey="workshop" />
+    <div className="space-y-4">
       <p className="text-center text-sm text-muted-foreground py-8">로딩 중...</p>
     </div>
   );
 
   return (
     <div className="space-y-5 pb-10">
-      <TabBanner tabKey="workshop" />
+      
 
       {/* 헤더 */}
       <div>
@@ -4493,7 +4492,7 @@ function WorkshopContent() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <TabBanner tabKey="workshop" />
+        
         <div className="flex items-center justify-center py-20">
           <p className="text-sm text-muted-foreground">로딩 중...</p>
         </div>
@@ -4508,7 +4507,7 @@ function WorkshopContent() {
   if (status === "unopened") {
     return (
       <div className="space-y-5 pb-6">
-        <TabBanner tabKey="workshop" />
+        
         <div className="flex flex-col items-center text-center space-y-5 pt-2 px-2">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
             <Wrench className="h-8 w-8 text-primary" />
@@ -4546,7 +4545,7 @@ function WorkshopContent() {
   if (status === "locked") {
     return (
       <div className="space-y-4 pb-6">
-        <TabBanner tabKey="workshop" />
+        
         <h1 className="text-xl font-bold">작업실</h1>
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 space-y-4">
           <div className="flex items-center gap-2">
@@ -4598,7 +4597,7 @@ function WorkshopContent() {
 
   return (
     <div className="space-y-4">
-      <TabBanner tabKey="workshop" />
+      
 
       {status === "trial" && daysRemaining > 7 && (
         <div className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5 flex items-center justify-between">

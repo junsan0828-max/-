@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import TabBanner from "@/components/TabBanner";
 
 type CourseType = "online" | "offline";
 
@@ -361,7 +360,7 @@ export default function Academy() {
 
   return (
     <div className="space-y-5">
-      <TabBanner tabKey="academy" />
+      
 
       {/* 헤더 */}
       <div className="rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-5 text-white space-y-2">
