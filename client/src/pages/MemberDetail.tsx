@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { MEMBER_STATUS, SERVICE_COLORS, PT_STATUS, ATTENDANCE_STATUS, STAFF_LABELS, STATUS_COLORS } from "@/lib/memberServices";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -1015,7 +1016,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <div className="flex items-start gap-3">
                   <div className="text-muted-foreground mt-0.5"><User className="h-4 w-4" /></div>
                   <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">담당 트레이너</p>
+                    <p className="text-xs text-muted-foreground">{STAFF_LABELS.trainer}</p>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-foreground">{trainer?.trainerName ?? "-"}</p>
                       {currentUser?.role === "admin" && (
@@ -1125,15 +1126,14 @@ export default function MemberDetail({ memberId }: Props) {
                               <p className="font-medium text-foreground text-sm truncate">
                                 {pkg.packageName || "PT 프로그램"}
                               </p>
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
-                                pkg.status === "active"
-                                  ? "bg-green-500/20 text-green-400 border-green-500/30"
-                                  : pkg.status === "completed"
-                                  ? "bg-gray-500/20 text-gray-400 border-gray-500/30"
-                                  : "bg-red-500/20 text-red-400 border-red-500/30"
-                              }`}>
-                                {pkg.status === "active" ? "진행중" : pkg.status === "completed" ? "완료" : "만료"}
-                              </span>
+                              {(() => {
+                                const s = PT_STATUS[pkg.status] ?? PT_STATUS.expired;
+                                return (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
+                                    {s.label}
+                                  </span>
+                                );
+                              })()}
                               {svcSessions > 0 && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
                                   서비스 {svcSessions}회
@@ -1377,11 +1377,11 @@ export default function MemberDetail({ memberId }: Props) {
                       <div className="space-y-3">
                         {/* serviceItems 기반 헬스 서비스 */}
                         {siHealth.map(item => (
-                          <div key={item.key} className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                          <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.헬스.faint} border ${SERVICE_COLORS.헬스.border}`}>
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-foreground">{item.detail}</p>
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">서비스</span>
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>
+                              {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
                           </div>
@@ -1393,8 +1393,8 @@ export default function MemberDetail({ memberId }: Props) {
                             <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-sm text-foreground">헬스권</p>
-                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>
-                                {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
+                                {r.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>}
+                                {isService && <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>}
                               </div>
                               <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                 {(r.startDate || r.endDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {r.endDate ?? "-"}</div>}
@@ -1453,11 +1453,11 @@ export default function MemberDetail({ memberId }: Props) {
                       <div className="space-y-3">
                         {/* serviceItems/programDetail 기반 락커 서비스 */}
                         {allLockerItems.map(item => (
-                          <div key={item.key} className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                          <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.락커.faint} border ${SERVICE_COLORS.락커.border}`}>
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-foreground">{item.detail}</p>
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.락커.bg} ${SERVICE_COLORS.락커.text} ${SERVICE_COLORS.락커.border}`}>서비스</span>
+                              {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
                           </div>
@@ -1467,8 +1467,8 @@ export default function MemberDetail({ memberId }: Props) {
                           <div key={locker.id} className="p-3 rounded-lg bg-accent/20 border border-border">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-foreground">락커 {locker.lockerNumber}</p>
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${locker.isOccupied ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
-                                {locker.isOccupied ? "사용중" : "미사용"}
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${locker.isOccupied ? `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}` : `${STATUS_COLORS.completed.bg} ${STATUS_COLORS.completed.text} ${STATUS_COLORS.completed.border}`}`}>
+                                {locker.isOccupied ? "이용중" : "미사용"}
                               </span>
                               {locker.lockerType && locker.lockerType !== "personal" && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">{locker.lockerType}</span>
@@ -1497,11 +1497,11 @@ export default function MemberDetail({ memberId }: Props) {
                       <div className="space-y-3">
                         {/* serviceItems/programDetail 기반 운동복 서비스 */}
                         {allUniformItems.map(item => (
-                          <div key={item.key} className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
+                          <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.운동복.faint} border ${SERVICE_COLORS.운동복.border}`}>
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-foreground">{item.detail}</p>
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">서비스</span>
-                              <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.운동복.bg} ${SERVICE_COLORS.운동복.text} ${SERVICE_COLORS.운동복.border}`}>서비스</span>
+                              {item.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{item.subType}</span>}
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">{item.paymentDate}</p>
                           </div>
@@ -1514,8 +1514,8 @@ export default function MemberDetail({ memberId }: Props) {
                               {(u.quantity ?? 1) > 1 && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-accent text-muted-foreground border border-border">×{u.quantity}</span>
                               )}
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${u.isActive ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-gray-500/20 text-gray-400 border-gray-500/30"}`}>
-                                {u.isActive ? "대여중" : "반납"}
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${u.isActive ? `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}` : `${STATUS_COLORS.completed.bg} ${STATUS_COLORS.completed.text} ${STATUS_COLORS.completed.border}`}`}>
+                                {u.isActive ? "이용중" : "반납"}
                               </span>
                             </div>
                             {(u.startDate || u.endDate) && (

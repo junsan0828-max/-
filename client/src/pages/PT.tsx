@@ -6,12 +6,7 @@ import { ko } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Search, ChevronRight } from "lucide-react";
-
-const statusLabels: Record<string, { label: string; color: string }> = {
-  active:    { label: "진행중", color: "bg-green-500/20 text-green-400 border-green-500/30" },
-  completed: { label: "완료",   color: "bg-gray-500/20 text-gray-400 border-gray-500/30" },
-  expired:   { label: "만료",   color: "bg-red-500/20 text-red-400 border-red-500/30" },
-};
+import { PT_STATUS } from "@/lib/memberServices";
 
 export default function PT() {
   const [, setLocation] = useLocation();
@@ -67,7 +62,7 @@ export default function PT() {
                 : "bg-accent text-muted-foreground hover:text-foreground"
             }`}
           >
-            {s === "all" ? "전체" : statusLabels[s].label}
+            {s === "all" ? "전체" : (PT_STATUS[s]?.label ?? s)}
             <span className="ml-1.5 opacity-70">{counts[s]}</span>
           </button>
         ))}
@@ -89,7 +84,7 @@ export default function PT() {
           {filtered.map((pkg) => {
             const remaining = pkg.totalSessions - pkg.usedSessions;
             const pct = Math.min((pkg.usedSessions / pkg.totalSessions) * 100, 100);
-            const st = statusLabels[pkg.status] ?? statusLabels.active;
+            const st = PT_STATUS[pkg.status] ?? PT_STATUS.expired;
 
             return (
               <button
@@ -102,7 +97,7 @@ export default function PT() {
                     {/* 회원 이름 + 상태 배지 */}
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm">{pkg.memberName}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full border ${st.color}`}>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full border ${st.bg} ${st.text} ${st.border}`}>
                         {st.label}
                       </span>
                       {pkg.unpaidAmount && pkg.unpaidAmount > 0 ? (

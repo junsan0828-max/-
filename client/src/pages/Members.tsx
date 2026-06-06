@@ -12,16 +12,12 @@ import {
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
+import { MEMBER_STATUS, SERVICE_COLORS } from "@/lib/memberServices";
 
 const gradeLabels: Record<string, string> = {
   basic: "기본",
   premium: "프리미엄",
   vip: "VIP",
-};
-
-const statusColors: Record<string, string> = {
-  active: "bg-green-500/20 text-green-400 border-green-500/30",
-  paused: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
 };
 
 type StatusFilter = "all" | "active" | "paused";
@@ -364,43 +360,60 @@ export default function Members() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-medium text-foreground">{member.name}</p>
-                        <span
-                          className={`text-xs px-1.5 py-0.5 rounded-full border ${
-                            statusColors[member.status] ?? ""
-                          }`}
-                        >
-                          {member.status === "active" ? "활성" : "정지"}
-                        </span>
+                        {/* 회원 상태 */}
+                        {(() => {
+                          const s = MEMBER_STATUS[member.status as "active" | "paused"];
+                          return s ? (
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
+                              {s.label}
+                            </span>
+                          ) : null;
+                        })()}
                         <span className="text-xs text-muted-foreground">
                           {gradeLabels[member.grade]}
                         </span>
-                        {isExpiringSoon && (
+                        {/* 만료 관련 뱃지 */}
+                        {isExpiringSoon && !isExpired && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
                             D-{daysLeft}
                           </span>
                         )}
                         {isExpired && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-                            종료
+                            만료
                           </span>
                         )}
+                        {/* PT 미수금 */}
                         {hasUnpaid && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
                             미수금
                           </span>
                         )}
+                        {/* PT 잔여 회수 */}
                         {isLowSessions && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.PT.bg} ${SERVICE_COLORS.PT.text} ${SERVICE_COLORS.PT.border}`}>
                             PT {remainingSessions}회
+                          </span>
+                        )}
+                        {/* 락커 뱃지 */}
+                        {(member as any).lockerNumber && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.락커.bg} ${SERVICE_COLORS.락커.text} ${SERVICE_COLORS.락커.border}`}>
+                            락커 {(member as any).lockerNumber}
+                          </span>
+                        )}
+                        {/* 운동복 뱃지 */}
+                        {(member as any).hasUniform && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.운동복.bg} ${SERVICE_COLORS.운동복.text} ${SERVICE_COLORS.운동복.border}`}>
+                            운동복
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <p className="text-xs text-muted-foreground truncate">
-                          {member.phone ?? member.email ?? "연락처 없음"}
+                          {member.phone ?? (member as any).email ?? "연락처 없음"}
                         </p>
                         {remainingSessions !== undefined && !isLowSessions && (
-                          <span className="text-xs text-primary shrink-0">
+                          <span className={`text-xs shrink-0 ${SERVICE_COLORS.PT.text}`}>
                             PT {remainingSessions}회
                           </span>
                         )}

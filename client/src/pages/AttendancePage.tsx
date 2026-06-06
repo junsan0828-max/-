@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { CheckCircle, XCircle, Clock, ChevronRight, ChevronLeft } from "lucide-react";
+import { ATTENDANCE_STATUS } from "@/lib/memberServices";
 
 function todayStr() {
   return new Date().toISOString().split("T")[0];
@@ -26,10 +27,11 @@ function nextDay(dateStr: string) {
   return d.toISOString().split("T")[0];
 }
 
-const STATUS_CONFIG = {
-  attended:  { icon: CheckCircle, label: "출석",  color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/30" },
-  noshow:    { icon: XCircle,     label: "노쇼",  color: "text-red-400",     bg: "bg-red-400/10",     border: "border-red-400/30"     },
-  cancelled: { icon: Clock,       label: "캔슬",  color: "text-yellow-400",  bg: "bg-yellow-400/10",  border: "border-yellow-400/30"  },
+// 출석 상태 아이콘은 로컬에서만 필요
+const STATUS_ICON = {
+  attended:  CheckCircle,
+  noshow:    XCircle,
+  cancelled: Clock,
 } as const;
 
 export default function AttendancePage() {
@@ -93,8 +95,8 @@ export default function AttendancePage() {
           <div className="divide-y divide-border">
             {members.map((m) => {
               const st = (m.check?.status ?? null) as "attended" | "noshow" | "cancelled" | null;
-              const cfg = st ? STATUS_CONFIG[st] : null;
-              const Icon = cfg?.icon ?? null;
+              const cfg = st ? ATTENDANCE_STATUS[st] : null;
+              const Icon = st ? STATUS_ICON[st] : null;
 
               return (
                 <button
@@ -104,10 +106,7 @@ export default function AttendancePage() {
                 >
                   {/* 아바타 */}
                   <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${
-                    st === "attended" ? "bg-emerald-500/20 text-emerald-400" :
-                    st === "noshow"   ? "bg-red-500/20 text-red-400" :
-                    st === "cancelled"? "bg-yellow-500/20 text-yellow-400" :
-                    "bg-primary/20 text-primary"
+                    st ? `${cfg!.bg} ${cfg!.text}` : "bg-primary/20 text-primary"
                   }`}>
                     {m.name.charAt(0)}
                   </div>
@@ -124,7 +123,7 @@ export default function AttendancePage() {
 
                   {/* 출석 상태 / 출석하기 */}
                   {cfg && Icon ? (
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
                       <Icon className="h-3.5 w-3.5" />
                       {cfg.label}
                     </div>

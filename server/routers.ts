@@ -167,14 +167,42 @@ const membersRouter = t.router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
     const { role, trainerId } = ctx.user;
+    if (role === "trainer" && !trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
-    if (role === "trainer") {
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-      return db.select().from(members).where(eq(members.trainerId, trainerId)).orderBy(desc(members.createdAt));
+    const whereClause = role === "trainer" ? eq(members.trainerId, trainerId!) : undefined;
+
+    // 회원 + 서비스 데이터를 병렬 조회해 통합 반환
+    const [memberRows, lockerRows, serviceRevs] = await Promise.all([
+      db.select().from(members).where(whereClause).orderBy(desc(members.createdAt)),
+      db.select({ memberId: lockers.memberId, lockerNumber: lockers.lockerNumber })
+        .from(lockers).where(sql`${lockers.memberId} IS NOT NULL`),
+      db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail, serviceItems: revenueEntries.serviceItems })
+        .from(revenueEntries).where(sql`${revenueEntries.memberId} IS NOT NULL`),
+    ]);
+
+    const lockerMap = new Map<number, string>();
+    for (const l of lockerRows) {
+      if (l.memberId) lockerMap.set(l.memberId, l.lockerNumber ?? "");
+    }
+    const uniformSet = new Set<number>();
+    for (const e of serviceRevs) {
+      if (!e.memberId) continue;
+      const d = (e.programDetail ?? "").toLowerCase();
+      const si = (e.serviceItems ?? "").toLowerCase();
+      if (d.includes("운동복") || d.includes("유니폼") || d.includes("uniform") || si.includes("운동복")) {
+        uniformSet.add(e.memberId);
+      }
+      if (si.includes("락커") && !lockerMap.has(e.memberId)) {
+        const match = (e.serviceItems ?? "").match(/락커\(([^)]+)\)/);
+        lockerMap.set(e.memberId, match ? match[1] : "서비스");
+      }
     }
 
-    // admin, sub_admin, consultant: 전체 회원 반환
-    return db.select().from(members).orderBy(desc(members.createdAt));
+    return memberRows.map(m => ({
+      ...m,
+      lockerNumber: lockerMap.get(m.id) ?? null,
+      hasUniform: uniformSet.has(m.id),
+    }));
   }),
 
   listAll: protectedProcedure
