@@ -36,7 +36,7 @@ type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired"
 
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "지역화폐"] as const;
 const PROGRAM_OPTIONS = ["PT", "필라테스", "개인", "그룹"];
-const VISIT_ROUTES = ["지인 소개", "SNS", "인터넷 검색", "간판/현수막", "전단지", "재등록", "기타"];
+const VISIT_ROUTES = ["지인 소개", "네이버플레이스", "당근광고", "인스타그램", "간판/현수막", "전단지", "재등록", "기타"];
 
 const EMPTY_FORM = {
   name: "",
