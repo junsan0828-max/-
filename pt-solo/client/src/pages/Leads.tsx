@@ -1025,6 +1025,9 @@ export default function LeadsPage() {
                   placeholder="운동 가능 시간, 날짜, 특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+                결제 정보가 포함되어 등록한 회원은 매출 통계에 반영됩니다.
+              </div>
             </div>
             <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={saveRegistration}
