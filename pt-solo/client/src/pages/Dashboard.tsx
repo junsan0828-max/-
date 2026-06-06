@@ -232,6 +232,10 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
+        <Button onClick={() => setLocation("/attendance")} className="gap-2">
+          <Dumbbell className="h-4 w-4" />
+          수업 하기
+        </Button>
       </div>
 
       {/* 알림 뱃지 */}
