@@ -309,7 +309,7 @@ function MembersTab() {
                 <CheckSquare className="h-4 w-4" />선택
               </Button>
               <Button size="sm" onClick={() => setShowRegister(true)} className="gap-1.5">
-                <UserPlus className="h-4 w-4" />신규 등록
+                <UserPlus className="h-4 w-4" />회원 등록
               </Button>
             </>
           )}
@@ -382,7 +382,7 @@ function MembersTab() {
           <p className="text-sm">{search || specialFilter !== "none" ? "조건에 맞는 회원이 없습니다." : "등록된 회원이 없습니다."}</p>
           {!search && specialFilter === "none" && (
             <Button size="sm" variant="outline" onClick={() => setShowRegister(true)} className="gap-1.5">
-              <UserPlus className="h-4 w-4" />첫 회원 등록하기
+              <UserPlus className="h-4 w-4" />회원 등록하기
             </Button>
           )}
         </div>
