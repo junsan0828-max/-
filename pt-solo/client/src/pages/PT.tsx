@@ -198,7 +198,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
               </div>
               {form.ptProgram === "기타" && (
                 <Input
-                  placeholder="프로그램명 직접 입력"
+                  placeholder="예: 요가, 수영, 크로스핏, 골프 등"
                   value={form.ptProgramCustom}
                   onChange={e => setForm(p => ({ ...p, ptProgramCustom: e.target.value }))}
                   className="mt-1.5"

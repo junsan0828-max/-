@@ -904,7 +904,7 @@ export default function LeadsPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">항목 유형 (복수 선택)</label>
+                <label className="text-xs text-muted-foreground">프로그램 유형 (복수 선택)</label>
                 <div className="flex gap-2 mt-1">
                   {["PT", "필라테스", "기타"].map(t => (
                     <button key={t} type="button"
@@ -957,8 +957,8 @@ export default function LeadsPage() {
               )}
               {regForm.itemTypes.includes("기타") && (
                 <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">기타 항목명</label>
-                  <input value={regForm.otherItem} onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))} placeholder="예: 락커, 운동복 등"
+                  <label className="text-xs text-muted-foreground">기타 프로그램명</label>
+                  <input value={regForm.otherItem} onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))} placeholder="예: 요가, 수영, 크로스핏, 골프 등"
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               )}
