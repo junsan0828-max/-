@@ -321,13 +321,31 @@ const membersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const result = await db
-        .select()
-        .from(members)
-        .where(eq(members.id, input.id))
-        .limit(1);
+      const [result, lockerRows, serviceRevs] = await Promise.all([
+        db.select().from(members).where(eq(members.id, input.id)).limit(1),
+        db.select({ memberId: lockers.memberId, lockerNumber: lockers.lockerNumber })
+          .from(lockers).where(and(eq(lockers.memberId, input.id), sql`${lockers.memberId} IS NOT NULL`)),
+        db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail, serviceItems: revenueEntries.serviceItems })
+          .from(revenueEntries).where(eq(revenueEntries.memberId, input.id)),
+      ]);
       if (!result[0]) throw new TRPCError({ code: "NOT_FOUND" });
-      return result[0];
+
+      // 락커 번호 (lockers 테이블 또는 serviceItems)
+      let lockerNumber: string | null = lockerRows[0]?.lockerNumber ?? null;
+      let hasUniform = false;
+      for (const e of serviceRevs) {
+        const si = (e.serviceItems ?? "").toLowerCase();
+        const d = (e.programDetail ?? "").toLowerCase();
+        if (d.includes("운동복") || d.includes("유니폼") || d.includes("uniform") || si.includes("운동복")) {
+          hasUniform = true;
+        }
+        if (!lockerNumber && si.includes("락커")) {
+          const match = (e.serviceItems ?? "").match(/락커\(([^)]+)\)/);
+          lockerNumber = match ? match[1] : "서비스";
+        }
+      }
+
+      return { ...result[0], lockerNumber, hasUniform };
     }),
 
   // N일 내 만료 예정 회원

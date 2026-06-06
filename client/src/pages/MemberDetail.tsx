@@ -1363,6 +1363,12 @@ export default function MemberDetail({ memberId }: Props) {
             const hasLocker = (memberPrograms?.lockers.length ?? 0) > 0 || allLockerItems.length > 0;
             const hasUniform = (memberPrograms?.uniforms.length ?? 0) > 0 || allUniformItems.length > 0;
 
+            // 뱃지-상세 불일치 감지 (getById 계산값 vs 프로그램 탭 실제 데이터)
+            const badgeLockerNum = (member as any).lockerNumber as string | null;
+            const badgeHasUniform = !!(member as any).hasUniform;
+            const lockerMismatch = !!badgeLockerNum && !hasLocker;
+            const uniformMismatch = badgeHasUniform && !hasUniform;
+
             return (
               <>
                 {/* 헬스권 */}
@@ -1447,6 +1453,15 @@ export default function MemberDetail({ memberId }: Props) {
                     <CardTitle className="text-base">락커</CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6">
+                    {lockerMismatch && (
+                      <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                        <span className="text-orange-400 text-sm shrink-0">⚠️</span>
+                        <div>
+                          <p className="text-xs font-medium text-orange-400">락커 연동 오류</p>
+                          <p className="text-xs text-orange-400/80 mt-0.5">회원 목록에서 락커 {badgeLockerNum} 뱃지가 감지됐지만 이 회원 ID에 연결된 데이터가 없습니다. 장부에서 해당 결제 내역의 회원을 이 회원으로 연결해 주세요.</p>
+                        </div>
+                      </div>
+                    )}
                     {!hasLocker ? (
                       <p className="text-muted-foreground text-sm text-center py-6">배정된 락커가 없습니다.</p>
                     ) : (
@@ -1491,6 +1506,15 @@ export default function MemberDetail({ memberId }: Props) {
                     <CardTitle className="text-base">운동복</CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6">
+                    {uniformMismatch && (
+                      <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                        <span className="text-orange-400 text-sm shrink-0">⚠️</span>
+                        <div>
+                          <p className="text-xs font-medium text-orange-400">운동복 연동 오류</p>
+                          <p className="text-xs text-orange-400/80 mt-0.5">회원 목록에서 운동복 뱃지가 감지됐지만 이 회원 ID에 연결된 데이터가 없습니다. 장부에서 해당 결제 내역의 회원을 이 회원으로 연결해 주세요.</p>
+                        </div>
+                      </div>
+                    )}
                     {!hasUniform ? (
                       <p className="text-muted-foreground text-sm text-center py-6">대여중인 운동복이 없습니다.</p>
                     ) : (
