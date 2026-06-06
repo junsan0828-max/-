@@ -101,7 +101,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
 
         <div className="px-5 pb-10 space-y-5">
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground">기본 정보</p>
+            <p className="text-xs font-semibold text-foreground">기본 정보</p>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">이름 <span className="text-primary">*</span></Label>
               <Input
@@ -158,7 +158,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
           </div>
 
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground">회원권</p>
+            <p className="text-xs font-semibold text-foreground">회원권</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">시작일</Label>
@@ -172,7 +172,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
           </div>
 
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground">기타</p>
+            <p className="text-xs font-semibold text-foreground">기타</p>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">방문 경로</Label>
               <Input placeholder="SNS, 지인 소개 등" value={form.visitRoute} onChange={e => setForm(p => ({ ...p, visitRoute: e.target.value }))} />
