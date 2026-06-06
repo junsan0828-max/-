@@ -5,12 +5,16 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Search, ChevronRight, Dumbbell, Calendar, AlertCircle,
-  Clock, XCircle, CheckSquare, Square, CalendarPlus, X,
+  Clock, XCircle, CheckSquare, Square, CalendarPlus, X, UserPlus,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
@@ -31,6 +35,169 @@ const EXTEND_PRESETS = [30, 60, 90, 180];
 
 type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
+const EMPTY_FORM = {
+  name: "",
+  phone: "",
+  birthDate: "",
+  gender: "" as "male" | "female" | "other" | "",
+  grade: "basic" as "basic" | "premium" | "vip",
+  status: "active" as "active" | "paused",
+  membershipStart: "",
+  membershipEnd: "",
+  visitRoute: "",
+  profileNote: "",
+};
+
+function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [nameError, setNameError] = useState("");
+
+  const createMutation = trpc.members.create.useMutation({
+    onSuccess: () => {
+      toast.success("회원이 등록되었습니다.");
+      setForm(EMPTY_FORM);
+      setNameError("");
+      utils.members.list.invalidate();
+      onClose();
+    },
+    onError: (e) => toast.error(e.message || "등록 실패"),
+  });
+
+  function handleSubmit() {
+    if (!form.name.trim()) { setNameError("이름을 입력해주세요."); return; }
+    setNameError("");
+    createMutation.mutate({
+      name: form.name.trim(),
+      phone: form.phone || undefined,
+      birthDate: form.birthDate || undefined,
+      gender: form.gender || undefined,
+      grade: form.grade,
+      status: form.status,
+      membershipStart: form.membershipStart || undefined,
+      membershipEnd: form.membershipEnd || undefined,
+      visitRoute: form.visitRoute || undefined,
+      profileNote: form.profileNote || undefined,
+    });
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative bg-card rounded-t-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl pb-safe">
+        <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+        <div className="px-5 pt-2 pb-4 flex items-center justify-between sticky top-6 bg-card/95 backdrop-blur-sm z-10">
+          <div>
+            <h2 className="text-base font-bold">신규 회원 등록</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">결제 없이 등록 · 매출에 미포함</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="px-5 pb-10 space-y-5">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기본 정보</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">이름 <span className="text-primary">*</span></Label>
+              <Input
+                placeholder="홍길동"
+                value={form.name}
+                onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setNameError(""); }}
+                className={nameError ? "border-red-500" : ""}
+              />
+              {nameError && <p className="text-xs text-red-500">{nameError}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">연락처</Label>
+                <Input placeholder="010-0000-0000" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">생년월일</Label>
+                <Input type="date" value={form.birthDate} onChange={e => setForm(p => ({ ...p, birthDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">성별</Label>
+                <Select value={form.gender} onValueChange={v => setForm(p => ({ ...p, gender: v as any }))}>
+                  <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">남성</SelectItem>
+                    <SelectItem value="female">여성</SelectItem>
+                    <SelectItem value="other">기타</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">등급</Label>
+                <Select value={form.grade} onValueChange={v => setForm(p => ({ ...p, grade: v as any }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="basic">기본</SelectItem>
+                    <SelectItem value="premium">프리미엄</SelectItem>
+                    <SelectItem value="vip">VIP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">상태</Label>
+              <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v as any }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">활성</SelectItem>
+                  <SelectItem value="paused">정지</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">회원권</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">시작일</Label>
+                <Input type="date" value={form.membershipStart} onChange={e => setForm(p => ({ ...p, membershipStart: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">종료일</Label>
+                <Input type="date" value={form.membershipEnd} onChange={e => setForm(p => ({ ...p, membershipEnd: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기타</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">방문 경로</Label>
+              <Input placeholder="SNS, 지인 소개 등" value={form.visitRoute} onChange={e => setForm(p => ({ ...p, visitRoute: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">메모</Label>
+              <Input placeholder="특이사항" value={form.profileNote} onChange={e => setForm(p => ({ ...p, profileNote: e.target.value }))} />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-muted/50 border border-border text-xs text-muted-foreground">
+            이 화면에서 등록한 회원은 PT 패키지·결제 정보가 없어 매출 통계에 포함되지 않습니다.
+          </div>
+
+          <Button className="w-full" disabled={createMutation.isPending} onClick={handleSubmit}>
+            {createMutation.isPending ? "등록 중..." : "등록 완료"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MembersTab() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
@@ -41,8 +208,10 @@ function MembersTab() {
   const [extendOpen, setExtendOpen] = useState(false);
   const [extendDays, setExtendDays] = useState(30);
   const [extendCustom, setExtendCustom] = useState("");
+  const [showRegister, setShowRegister] = useState(false);
 
-  const { data: members, isLoading, refetch } = trpc.members.list.useQuery();
+  const utils = trpc.useUtils();
+  const { data: members, isLoading } = trpc.members.list.useQuery();
   const { data: ptPackages } = trpc.pt.list.useQuery();
 
   const bulkExtendMutation = trpc.members.bulkExtend.useMutation({
@@ -51,7 +220,7 @@ function MembersTab() {
       setExtendOpen(false);
       setSelectMode(false);
       setSelectedIds(new Set());
-      refetch();
+      utils.members.list.invalidate();
     },
     onError: () => toast.error("연장 중 오류가 발생했습니다."),
   });
@@ -141,6 +310,9 @@ function MembersTab() {
               <Button size="sm" variant="outline" onClick={() => setSelectMode(true)} className="gap-1.5">
                 <CheckSquare className="h-4 w-4" />선택
               </Button>
+              <Button size="sm" onClick={() => setShowRegister(true)} className="gap-1.5">
+                <UserPlus className="h-4 w-4" />신규 등록
+              </Button>
             </>
           )}
         </div>
@@ -208,8 +380,13 @@ function MembersTab() {
           ))}
         </div>
       ) : filtered?.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
+        <div className="text-center py-12 space-y-3 text-muted-foreground">
           <p className="text-sm">{search || specialFilter !== "none" ? "조건에 맞는 회원이 없습니다." : "등록된 회원이 없습니다."}</p>
+          {!search && specialFilter === "none" && (
+            <Button size="sm" variant="outline" onClick={() => setShowRegister(true)} className="gap-1.5">
+              <UserPlus className="h-4 w-4" />첫 회원 등록하기
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -359,6 +536,8 @@ function MembersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RegisterSheet open={showRegister} onClose={() => setShowRegister(false)} />
     </div>
   );
 }
