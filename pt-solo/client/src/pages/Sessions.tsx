@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  Search, Plus, ChevronDown, ChevronUp, Trash2, X, LayoutTemplate,
+  Plus, ChevronDown, ChevronUp, Trash2, X, LayoutTemplate,
   PlusCircle, ChevronsDown, Send, Save, Dumbbell, Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,21 @@ import {
 } from "@/components/ui/dialog";
 import BodyPartPicker from "@/components/BodyPartPicker";
 import ExerciseEditor, { type Exercise, parseExercisesJson } from "@/components/ExerciseEditor";
+
+// 한글 초성 추출
+const CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const CHOSUNG_DISPLAY = ['ㄱ','ㄴ','ㄷ','ㄹ','ㅁ','ㅂ','ㅅ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const CHOSUNG_GROUP: Record<string, string[]> = {
+  ㄱ: ['ㄱ','ㄲ'], ㄴ: ['ㄴ'], ㄷ: ['ㄷ','ㄸ'], ㄹ: ['ㄹ'],
+  ㅁ: ['ㅁ'], ㅂ: ['ㅂ','ㅃ'], ㅅ: ['ㅅ','ㅆ'], ㅇ: ['ㅇ'],
+  ㅈ: ['ㅈ','ㅉ'], ㅊ: ['ㅊ'], ㅋ: ['ㅋ'], ㅌ: ['ㅌ'], ㅍ: ['ㅍ'], ㅎ: ['ㅎ'],
+};
+
+function getChosung(name: string): string {
+  const code = name.charCodeAt(0);
+  if (code >= 0xAC00 && code <= 0xD7A3) return CHOSUNG_LIST[Math.floor((code - 0xAC00) / 28 / 21)];
+  return name.charAt(0).toUpperCase();
+}
 
 function TemplateLoader({ onLoad }: { onLoad: (exs: Exercise[]) => void }) {
   const { data: templates } = trpc.workoutTemplates.list.useQuery();
@@ -74,7 +89,7 @@ const emptyForm = (): JournalForm => ({
 export default function Sessions() {
   const utils = trpc.useUtils();
   const { data: allMembers } = trpc.members.list.useQuery();
-  const [search, setSearch] = useState("");
+  const [chosungFilter, setChosungFilter] = useState<string>("전체");
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -144,9 +159,19 @@ export default function Sessions() {
     onError: (e) => toast.error(e.message),
   });
 
-  const filteredMembers = (allMembers ?? []).filter(m =>
-    m.name.includes(search) || (m.phone ?? "").includes(search)
-  );
+  const sortedMembers = [...(allMembers ?? [])].sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+  const filteredMembers = sortedMembers.filter(m => {
+    if (chosungFilter === "전체") return true;
+    const cs = getChosung(m.name);
+    return (CHOSUNG_GROUP[chosungFilter] ?? [chosungFilter]).includes(cs);
+  });
+
+  // 현재 회원 목록에 존재하는 초성만 표시
+  const existingChosung = new Set(sortedMembers.map(m => {
+    const cs = getChosung(m.name);
+    return CHOSUNG_DISPLAY.find(d => (CHOSUNG_GROUP[d] ?? [d]).includes(cs));
+  }).filter(Boolean));
 
   function openCreate() {
     setJournalForm(emptyForm());
@@ -241,36 +266,59 @@ export default function Sessions() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold">수업 관리</h1>
 
-      {/* 회원 검색 */}
-      <div className="space-y-2">
+      {/* 회원 선택 */}
+      <div className="space-y-3">
         <p className="text-sm font-medium text-muted-foreground">회원 선택</p>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="이름 또는 연락처로 검색"
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
+
+        {/* 초성 필터 */}
+        <div className="flex gap-1.5 flex-wrap">
+          {["전체", ...CHOSUNG_DISPLAY.filter(c => existingChosung.has(c))].map(c => (
+            <button
+              key={c}
+              onClick={() => setChosungFilter(c)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                chosungFilter === c
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:border-primary/40"
+              }`}
+            >
+              {c}
+            </button>
+          ))}
         </div>
 
-        {search && (
-          <div className="border border-border rounded-xl bg-card divide-y divide-border max-h-48 overflow-y-auto">
-            {filteredMembers.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">검색 결과 없음</p>
-            ) : filteredMembers.map(m => (
-              <button
-                key={m.id}
-                onClick={() => { setSelectedMemberId(m.id); setSearch(""); }}
-                className="w-full text-left px-4 py-3 hover:bg-accent transition-colors"
-              >
-                <span className="text-sm font-medium">{m.name}</span>
-                <span className="text-xs text-muted-foreground ml-2">{m.phone}</span>
-              </button>
-            ))}
+        {/* 회원 칩 목록 */}
+        {!allMembers || allMembers.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">등록된 회원이 없습니다.</p>
+        ) : filteredMembers.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">해당 초성의 회원이 없습니다.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {filteredMembers.map(m => {
+              const isSelected = m.id === selectedMemberId;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedMemberId(isSelected ? null : m.id)}
+                  className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-colors ${
+                    isSelected
+                      ? "bg-primary/15 border-primary text-primary"
+                      : "bg-card border-border hover:border-primary/40 text-foreground"
+                  }`}
+                >
+                  <div className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold ${
+                    isSelected ? "bg-primary text-primary-foreground" : "bg-accent text-foreground"
+                  }`}>
+                    {m.name.charAt(0)}
+                  </div>
+                  <span className="text-xs font-medium truncate w-full text-center px-1">{m.name}</span>
+                </button>
+              );
+            })}
           </div>
         )}
 
+        {/* 선택된 회원 패키지 정보 */}
         {selectedMember && (
           <div className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-3 space-y-2">
             <div className="flex items-center justify-between">
