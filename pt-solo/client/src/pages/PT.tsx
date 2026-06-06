@@ -119,6 +119,8 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
         </div>
 
         <div className="px-5 py-5 pb-10 space-y-5 overflow-y-auto flex-1">
+
+          {/* 1. 기본 정보 */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-foreground">기본 정보</p>
             <div className="space-y-1.5">
@@ -175,34 +177,9 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
             </div>
           </div>
 
+          {/* 2. 프로그램 */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-foreground">회원권</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">시작일</Label>
-                <Input type="date" value={form.membershipStart} onChange={e => setForm(p => ({ ...p, membershipStart: e.target.value }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">종료일</Label>
-                <Input type="date" value={form.membershipEnd} onChange={e => setForm(p => ({ ...p, membershipEnd: e.target.value }))} />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-foreground">기타</p>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">방문 경로</Label>
-              <Input placeholder="SNS, 지인 소개 등" value={form.visitRoute} onChange={e => setForm(p => ({ ...p, visitRoute: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">메모</Label>
-              <Input placeholder="특이사항" value={form.profileNote} onChange={e => setForm(p => ({ ...p, profileNote: e.target.value }))} />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <p className="text-xs font-semibold text-foreground">PT 패키지 · 결제 <span className="text-muted-foreground font-normal">(선택)</span></p>
+            <p className="text-xs font-semibold text-foreground">프로그램 <span className="text-muted-foreground font-normal">(선택)</span></p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">프로그램명</Label>
@@ -235,16 +212,40 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
                 ))}
               </div>
             </div>
+            {/* 날짜: 결제일 + 시작일 + 종료일 한 곳에 */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">결제일</Label>
+                <Input type="date" value={form.paymentDate} onChange={e => setForm(p => ({ ...p, paymentDate: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">시작일</Label>
+                <Input type="date" value={form.membershipStart} onChange={e => setForm(p => ({ ...p, membershipStart: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">종료일</Label>
+                <Input type="date" value={form.membershipEnd} onChange={e => setForm(p => ({ ...p, membershipEnd: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 기타 */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground">기타</p>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">결제일</Label>
-              <Input type="date" value={form.paymentDate} onChange={e => setForm(p => ({ ...p, paymentDate: e.target.value }))} />
+              <Label className="text-xs text-muted-foreground">방문 경로</Label>
+              <Input placeholder="SNS, 지인 소개 등" value={form.visitRoute} onChange={e => setForm(p => ({ ...p, visitRoute: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">메모</Label>
+              <Input placeholder="특이사항" value={form.profileNote} onChange={e => setForm(p => ({ ...p, profileNote: e.target.value }))} />
             </div>
           </div>
 
           <div className={`p-3 rounded-xl border text-xs ${hasPt ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-muted/50 border-border text-muted-foreground"}`}>
             {hasPt
-              ? "PT 패키지 정보가 입력되어 매출 통계에 반영됩니다."
-              : "PT 횟수를 입력하면 매출 통계에 반영됩니다. 입력하지 않으면 미포함입니다."}
+              ? "프로그램 정보가 입력되어 매출 통계에 반영됩니다."
+              : "횟수를 입력하면 매출 통계에 반영됩니다. 입력하지 않으면 미포함입니다."}
           </div>
 
           <Button className="w-full" disabled={createMutation.isPending} onClick={handleSubmit}>
