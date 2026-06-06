@@ -523,13 +523,14 @@ function MembersTab() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
+                      {/* 1행: 이름 + 상태/경고 뱃지 */}
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="font-medium text-foreground">{member.name}</p>
+                        <p className="font-semibold text-foreground">{member.name}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full border ${statusColors[member.status] ?? ""}`}>
                           {member.status === "active" ? "활성" : "정지"}
                         </span>
-                        {gradeLabels[member.grade] && member.grade !== "basic" && (
-                          <span className="text-xs text-muted-foreground">{gradeLabels[member.grade]}</span>
+                        {member.grade === "vip" && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">VIP</span>
                         )}
                         {isExpiringSoon && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">D-{daysLeft}</span>
@@ -540,29 +541,38 @@ function MembersTab() {
                         {hasUnpaid && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">미수금</span>
                         )}
-                        {isLowSessions && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">PT {remainingSessions}회</span>
+                      </div>
+                      {/* 2행: 연락처 + 만료일 */}
+                      <div className="flex items-center justify-between mt-0.5 gap-2">
+                        <p className="text-xs text-muted-foreground truncate">
+                          {member.phone ?? member.email ?? "연락처 없음"}
+                        </p>
+                        {member.membershipEnd && (
+                          <p className="text-xs text-muted-foreground shrink-0">
+                            ~{format(new Date(member.membershipEnd), "yy.MM.dd")}
+                          </p>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {member.phone ?? member.email ?? "연락처 없음"}
-                        {remainingSessions !== undefined && !isLowSessions && (
-                          <span className="text-primary ml-2">PT {remainingSessions}회</span>
-                        )}
-                      </p>
-                      {/* PT 패키지 인라인 */}
+                      {/* 3행: 프로그램 + 잔여 횟수 + 진행바 */}
                       {memberPkgs.length > 0 && (
-                        <div className="mt-2 space-y-1">
+                        <div className="mt-2 space-y-1.5">
                           {memberPkgs.map((pkg) => {
                             const pct = Math.min((pkg.usedSessions / pkg.totalSessions) * 100, 100);
+                            const remaining = pkg.totalSessions - pkg.usedSessions;
+                            const isLow = remaining <= 3;
                             return (
                               <div key={pkg.id}>
-                                <div className="flex items-center justify-between text-xs text-muted-foreground mb-0.5">
-                                  <span>{pkg.packageName || "PT 프로그램"}</span>
-                                  <span>{pkg.usedSessions}/{pkg.totalSessions}회</span>
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="text-muted-foreground font-medium">{pkg.packageName || "PT 프로그램"}</span>
+                                  <span className={isLow ? "text-primary font-semibold" : "text-muted-foreground"}>
+                                    잔여 {remaining}회
+                                  </span>
                                 </div>
-                                <div className="w-full bg-border rounded-full h-1">
-                                  <div className="bg-primary h-1 rounded-full" style={{ width: `${pct}%` }} />
+                                <div className="w-full bg-border rounded-full h-1.5">
+                                  <div
+                                    className={`h-1.5 rounded-full transition-all ${isLow ? "bg-primary" : "bg-primary/60"}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
                                 </div>
                               </div>
                             );
