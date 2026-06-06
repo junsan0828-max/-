@@ -267,51 +267,71 @@ export default function Sessions() {
       <h1 className="text-xl font-bold">수업 관리</h1>
 
       {/* 회원 선택 */}
-      <div className="space-y-3">
-        <p className="text-sm font-medium text-muted-foreground">회원 선택</p>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-muted-foreground">회원 선택</p>
+          {selectedMember && (
+            <button onClick={() => setSelectedMemberId(null)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+              <X className="h-3 w-3" />선택 해제
+            </button>
+          )}
+        </div>
 
-        {/* 초성 필터 */}
+        {/* 초성 필터 - 회원 수 표시 */}
         <div className="flex gap-1.5 flex-wrap">
-          {["전체", ...CHOSUNG_DISPLAY.filter(c => existingChosung.has(c))].map(c => (
+          {[
+            { label: "전체", count: sortedMembers.length },
+            ...CHOSUNG_DISPLAY
+              .filter(c => existingChosung.has(c))
+              .map(c => ({
+                label: c,
+                count: sortedMembers.filter(m => (CHOSUNG_GROUP[c] ?? [c]).includes(getChosung(m.name))).length,
+              }))
+          ].map(({ label, count }) => (
             <button
-              key={c}
-              onClick={() => setChosungFilter(c)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                chosungFilter === c
+              key={label}
+              onClick={() => setChosungFilter(label)}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                chosungFilter === label
                   ? "bg-primary text-primary-foreground border-primary"
                   : "border-border text-muted-foreground hover:border-primary/40"
               }`}
             >
-              {c}
+              {label}
+              <span className={`text-[10px] font-bold ${chosungFilter === label ? "text-primary-foreground/80" : "text-muted-foreground/60"}`}>
+                {count}
+              </span>
             </button>
           ))}
         </div>
 
-        {/* 회원 칩 목록 */}
+        {/* 회원 칩 목록 - 4열 컴팩트 */}
         {!allMembers || allMembers.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">등록된 회원이 없습니다.</p>
         ) : filteredMembers.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">해당 초성의 회원이 없습니다.</p>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-1.5">
             {filteredMembers.map(m => {
               const isSelected = m.id === selectedMemberId;
               return (
                 <button
                   key={m.id}
                   onClick={() => setSelectedMemberId(isSelected ? null : m.id)}
-                  className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-colors ${
+                  className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-colors ${
                     isSelected
-                      ? "bg-primary/15 border-primary text-primary"
-                      : "bg-card border-border hover:border-primary/40 text-foreground"
+                      ? "bg-primary/15 border-primary"
+                      : "bg-card border-border hover:border-primary/40"
                   }`}
                 >
-                  <div className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold ${
-                    isSelected ? "bg-primary text-primary-foreground" : "bg-accent text-foreground"
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    isSelected ? "bg-primary text-primary-foreground" : "bg-accent/60 text-foreground"
                   }`}>
                     {m.name.charAt(0)}
                   </div>
-                  <span className="text-xs font-medium truncate w-full text-center px-1">{m.name}</span>
+                  <span className={`text-[11px] font-medium truncate w-full text-center px-0.5 ${isSelected ? "text-primary" : "text-foreground"}`}>
+                    {m.name}
+                  </span>
                 </button>
               );
             })}
