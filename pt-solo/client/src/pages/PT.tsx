@@ -85,11 +85,11 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative bg-card rounded-t-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl pb-safe">
-        <div className="flex justify-center pt-3 pb-1 sticky top-0 bg-card/95 backdrop-blur-sm z-10">
+      <div className="relative bg-card rounded-t-3xl w-full max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-border" />
         </div>
-        <div className="px-5 pt-2 pb-4 flex items-center justify-between sticky top-6 bg-card/95 backdrop-blur-sm z-10">
+        <div className="px-5 pt-1 pb-4 flex items-center justify-between shrink-0 border-b border-border">
           <div>
             <h2 className="text-base font-bold">신규 회원 등록</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">결제 없이 등록 · 매출에 미포함</p>
@@ -99,7 +99,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
           </button>
         </div>
 
-        <div className="px-5 pb-10 space-y-5">
+        <div className="px-5 py-5 pb-10 space-y-5 overflow-y-auto flex-1">
           <div className="space-y-3">
             <p className="text-xs font-semibold text-foreground">기본 정보</p>
             <div className="space-y-1.5">
