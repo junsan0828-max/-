@@ -868,7 +868,7 @@ export default function LeadsPage() {
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
               <div>
                 <h2 className="font-bold text-foreground">{isQuickReg ? "바로등록" : "등록 상세 정보"}</h2>
-                <p className="text-xs text-muted-foreground">{isQuickReg ? "신규 회원 등록" : `${form.name} · ${form.interestType || "기타"}`}</p>
+                <p className="text-xs text-muted-foreground">{isQuickReg ? "결제 포함 등록 · 매출에 반영" : `${form.name} · ${form.interestType || "기타"}`}</p>
               </div>
               <button onClick={() => { setShowRegistration(false); setIsQuickReg(false); }} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
@@ -1025,11 +1025,13 @@ export default function LeadsPage() {
                   placeholder="운동 가능 시간, 날짜, 특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
-                결제 정보가 포함되어 등록한 회원은 매출 통계에 반영됩니다.
-              </div>
             </div>
-            <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
+            <div className="px-4 pt-3 pb-safe-4 border-t border-border shrink-0 space-y-2">
+              {isQuickReg && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+                  결제 정보가 포함되어 등록한 회원은 매출 통계에 반영됩니다.
+                </div>
+              )}
               <button type="button" onClick={saveRegistration}
                 disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50">
