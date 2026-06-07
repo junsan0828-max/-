@@ -1288,7 +1288,11 @@ export default function RegistrationManagement() {
         const match = (name: string, phone: string) =>
           !sq || name.toLowerCase().includes(sq) || (phone ?? "").replace(/\D/g, "").includes(sq.replace(/\D/g, ""));
 
-        const filteredHealthItems = parsedItems.filter(i => i.category === "헬스" && match(i.name, i.phone));
+        // getServiceHealthMemberships와 serviceItems "헬스" 항목이 같은 revenue entry에서 중복될 수 있으므로
+        // serviceHealthDuration으로 이미 표시되는 entryId는 parsedItems에서 제외
+        const serviceHealthEntryIds = new Set(serviceHealths.map((h: any) => h.id));
+
+        const filteredHealthItems = parsedItems.filter(i => i.category === "헬스" && match(i.name, i.phone) && !serviceHealthEntryIds.has(i.entryId));
         const filteredLockerItems = parsedItems.filter(i => i.category === "락커" && match(i.name, i.phone));
         const filteredUniformItems = parsedItems.filter(i => i.category === "운동복" && match(i.name, i.phone));
         const filteredPtItems = parsedItems.filter(i => i.category === "PT" && match(i.name, i.phone));
