@@ -4442,7 +4442,7 @@ function WorkshopStoreCard({ item, effectiveStatus, onClick }: { item: WsItem; e
 }
 
 // ── 내 작업실 기능 행 ──────────────────────────────────────────────────────────
-function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: string }; onClick: () => void }) {
+function WorkspaceFeatureRow({ item, onClick, onRemove }: { item: WsItem & { catLabel: string }; onClick: () => void; onRemove?: () => void }) {
   const Icon = item.icon;
   const hasSettings = [
     "brand_page","fitstep_plus","booking","report_branding",
@@ -4451,22 +4451,32 @@ function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: str
   ].includes(item.id);
 
   return (
-    <button onClick={onClick}
-      className="w-full bg-card border border-border rounded-2xl p-4 text-left hover:border-primary/30 hover:bg-primary/[0.02] active:scale-[0.98] transition-all duration-150">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-          <Icon className="h-5 w-5 text-primary" />
+    <div className="relative">
+      <button onClick={onClick}
+        className="w-full bg-card border border-border rounded-2xl p-4 text-left hover:border-primary/30 hover:bg-primary/[0.02] active:scale-[0.98] transition-all duration-150">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Icon className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">{item.name}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{item.catLabel}</p>
+          </div>
+          <div className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg
+            ${hasSettings ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground"}`}>
+            {hasSettings ? "관리하기" : "사용 중"}
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold">{item.name}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">{item.catLabel}</p>
-        </div>
-        <div className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg
-          ${hasSettings ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground"}`}>
-          {hasSettings ? "관리하기" : "사용 중"}
-        </div>
-      </div>
-    </button>
+      </button>
+      {!hasSettings && onRemove && (
+        <button
+          onClick={e => { e.stopPropagation(); if (confirm(`"${item.name}" 기능을 삭제하시겠습니까?\n삭제 후 재사용하려면 기능 구매 탭에서 다시 구매해야 합니다.`)) onRemove(); }}
+          className="absolute top-2 right-2 w-5 h-5 rounded-full bg-muted/70 hover:bg-destructive hover:text-white text-muted-foreground flex items-center justify-center transition-colors"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -4486,6 +4496,10 @@ function WorkshopContent() {
   });
   const unlockMutation = trpc.workshop.unlock.useMutation({
     onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("작업실이 활성화되었습니다!"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const removeMutation = trpc.workshop.remove.useMutation({
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("기능이 삭제되었습니다. 기능 구매 탭에서 다시 구매할 수 있습니다."); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -4717,7 +4731,7 @@ function WorkshopContent() {
             현재 이용 가능한 기능 {activeItems.length}개 · 설정 및 관리하세요
           </p>
           {activeItems.map(item => (
-            <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} />
+            <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} onRemove={() => removeMutation.mutate({ feature: item.id })} />
           ))}
           <div className="mt-4 bg-muted/30 border border-border/40 rounded-2xl p-4 text-center">
             <p className="text-xs text-muted-foreground">추가 기능은 <button className="text-primary font-semibold underline-offset-2 hover:underline" onClick={() => setWsTab("store")}>기능 구매</button> 탭에서 확인하세요</p>

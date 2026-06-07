@@ -3681,6 +3681,18 @@ const workshopRouter = t.router({
     );
     return { success: true };
   }),
+
+  remove: protectedProcedure
+    .input(z.object({ feature: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `DELETE FROM workshop_unlocks WHERE "trainerId"=$1 AND feature=$2`,
+        [trainerId, input.feature]
+      );
+      return { success: true };
+    }),
 });
 
 const workoutTemplatesRouter = t.router({
