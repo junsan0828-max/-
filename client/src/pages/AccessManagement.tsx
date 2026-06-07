@@ -648,22 +648,22 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
             )}
           </div>
 
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex justify-between items-center gap-2">
+            <p className="text-sm text-muted-foreground shrink min-w-0 truncate">
               사용 중 {occupiedCount}개 / 전체 {lockers.length}개
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setShowDeleteRange((v) => !v)}
-                className="flex items-center gap-1.5 text-sm border border-red-400 text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-400/10 transition-colors"
+                className="flex items-center gap-1.5 whitespace-nowrap text-xs border border-red-400 text-red-400 px-3 py-1.5 rounded-lg hover:bg-red-400/10 transition-colors"
               >
-                <Trash2 className="h-4 w-4" /> 범위 삭제
+                <Trash2 className="h-3.5 w-3.5" /> 범위 삭제
               </button>
               <button
                 onClick={() => setShowAddLocker(true)}
-                className="flex items-center gap-1.5 text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+                className="flex items-center gap-1.5 whitespace-nowrap text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
               >
-                <Plus className="h-4 w-4" /> 락커 추가
+                <Plus className="h-3.5 w-3.5" /> 락커 추가
               </button>
             </div>
           </div>

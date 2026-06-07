@@ -415,36 +415,36 @@ export default function RegistrationManagement() {
           {/* 간편 등록 */}
           <div className="space-y-3">
             <p className="text-sm font-semibold text-foreground">간편 등록</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => { setQuickModal("locker"); setLockerForm(f => ({ ...f, startDate: new Date().toISOString().substring(0, 10) })); }}
-                className="flex flex-col items-center justify-center gap-2 p-5 bg-card border border-border rounded-2xl hover:bg-accent hover:border-amber-500/50 transition-all group"
+                className="flex flex-col items-center justify-center gap-1.5 p-3 bg-card border border-border rounded-2xl hover:bg-accent hover:border-amber-500/50 transition-all group"
               >
-                <div className="p-3 rounded-full bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
-                  <Key className="h-6 w-6 text-amber-500" />
+                <div className="p-2.5 rounded-full bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
+                  <Key className="h-5 w-5 text-amber-500" />
                 </div>
-                <span className="text-sm font-semibold text-foreground">락커 구매</span>
-                <span className="text-xs text-muted-foreground text-center">5,000원/월</span>
+                <span className="text-xs font-semibold text-foreground text-center leading-tight">락커 구매</span>
+                <span className="text-[10px] text-muted-foreground text-center">5,000원/월</span>
               </button>
               <button
                 onClick={() => { setQuickModal("uniform"); setUniformQForm(f => ({ ...f, startDate: new Date().toISOString().substring(0, 10) })); }}
-                className="flex flex-col items-center justify-center gap-2 p-5 bg-card border border-border rounded-2xl hover:bg-accent hover:border-purple-500/50 transition-all group"
+                className="flex flex-col items-center justify-center gap-1.5 p-3 bg-card border border-border rounded-2xl hover:bg-accent hover:border-purple-500/50 transition-all group"
               >
-                <div className="p-3 rounded-full bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">
-                  <Shirt className="h-6 w-6 text-purple-500" />
+                <div className="p-2.5 rounded-full bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">
+                  <Shirt className="h-5 w-5 text-purple-500" />
                 </div>
-                <span className="text-sm font-semibold text-foreground">운동복 대여</span>
-                <span className="text-xs text-muted-foreground text-center">10,000원/월</span>
+                <span className="text-xs font-semibold text-foreground text-center leading-tight">운동복 대여</span>
+                <span className="text-[10px] text-muted-foreground text-center">10,000원/월</span>
               </button>
               <button
                 onClick={() => setQuickModal("daypass")}
-                className="flex flex-col items-center justify-center gap-2 p-5 bg-card border border-border rounded-2xl hover:bg-accent hover:border-blue-500/50 transition-all group"
+                className="flex flex-col items-center justify-center gap-1.5 p-3 bg-card border border-border rounded-2xl hover:bg-accent hover:border-blue-500/50 transition-all group"
               >
-                <div className="p-3 rounded-full bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
-                  <CalendarDays className="h-6 w-6 text-blue-500" />
+                <div className="p-2.5 rounded-full bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+                  <CalendarDays className="h-5 w-5 text-blue-500" />
                 </div>
-                <span className="text-sm font-semibold text-foreground">1일권 구매</span>
-                <span className="text-xs text-muted-foreground text-center">직접 입력</span>
+                <span className="text-xs font-semibold text-foreground text-center leading-tight">1일권 구매</span>
+                <span className="text-[10px] text-muted-foreground text-center">직접 입력</span>
               </button>
             </div>
           </div>
