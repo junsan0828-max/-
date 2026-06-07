@@ -344,28 +344,28 @@ function RevenueContent() {
 
                 {/* 이름 + 신규/재등록 + 금액 */}
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <span className="text-sm font-bold text-foreground">{row.entry.customerName || row.memberName || "—"}</span>
-                    <span className={`text-[11px] px-1.5 py-0.5 rounded border font-semibold ${subTypeStyle}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-bold text-foreground truncate">{row.entry.customerName || row.memberName || "—"}</span>
+                    <span className={`shrink-0 whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded border font-semibold ${subTypeStyle}`}>
                       {row.entry.subType}
                     </span>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-base font-bold text-foreground">{fmt(row.entry.paidAmount)}원</div>
+                    <div className="text-base font-bold text-foreground whitespace-nowrap">{fmt(row.entry.paidAmount)}원</div>
                     {row.entry.unpaidAmount > 0 && (
-                      <div className="text-xs text-red-400 flex items-center gap-0.5 justify-end">
+                      <div className="text-xs text-red-400 flex items-center gap-0.5 justify-end whitespace-nowrap">
                         <AlertCircle className="h-3 w-3" />미수 {fmt(row.entry.unpaidAmount)}
                       </div>
                     )}
                     {row.entry.discountAmount > 0 && (
-                      <div className="text-xs text-muted-foreground">할인 -{fmt(row.entry.discountAmount)}</div>
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">할인 -{fmt(row.entry.discountAmount)}</div>
                     )}
                   </div>
                 </div>
 
                 {/* 서비스 뱃지 */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${mainCol.bg} ${mainCol.text} ${mainCol.border}`}>
+                  <span className={`whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium border ${mainCol.bg} ${mainCol.text} ${mainCol.border}`}>
                     {row.entry.type === "PT"
                       ? `PT${row.entry.sessions ? ` ${row.entry.sessions}회` : ""}`
                       : row.entry.type === "헬스"
@@ -373,24 +373,24 @@ function RevenueContent() {
                       : row.entry.type}
                   </span>
                   {row.entry.type === "PT" && row.entry.programDetail && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium border bg-muted/40 text-muted-foreground border-border">
+                    <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium border bg-muted/40 text-muted-foreground border-border">
                       {row.entry.programDetail}
                     </span>
                   )}
                   {row.entry.type === "기타" && row.entry.programDetail && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${detailCol ? `${detailCol.bg} ${detailCol.text} ${detailCol.border}` : "bg-muted/40 text-muted-foreground border-border"}`}>
+                    <span className={`whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium border ${detailCol ? `${detailCol.bg} ${detailCol.text} ${detailCol.border}` : "bg-muted/40 text-muted-foreground border-border"}`}>
                       {row.entry.programDetail}{row.entry.duration ? ` ${row.entry.duration}개월` : ""}
                     </span>
                   )}
                   {(row.entry as any).serviceHealthDuration > 0 && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>
+                    <span className={`whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>
                       헬스 {(row.entry as any).serviceHealthDuration}개월
                     </span>
                   )}
                   {parsedItems.map((item, i) => {
                     const col = SERVICE_COLORS[item.type] ?? SERVICE_COLORS.기타;
                     return (
-                      <span key={i} className={`text-xs px-2 py-0.5 rounded-full font-medium border ${col.bg} ${col.text} ${col.border}`}>
+                      <span key={i} className={`whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium border ${col.bg} ${col.text} ${col.border}`}>
                         {item.label}
                       </span>
                     );
