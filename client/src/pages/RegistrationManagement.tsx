@@ -1277,7 +1277,9 @@ export default function RegistrationManagement() {
               : /락커/i.test(pd) ? "락커"
               : /헬스/i.test(pd) ? "헬스"
               : /PT/i.test(pd) ? "PT" : null;
-            if (cat) items.push({ entryId: entry.id, name, phone, detail: pd, paymentDate: entry.paymentDate ?? "", category: cat });
+            // detail은 카테고리명만 사용 (programDetail 전체 문자열은 배지에 넣으면 오버플로)
+            const cleanDetail = cat === "운동복" ? "운동복" : cat === "락커" ? "락커" : cat === "헬스" ? "헬스" : cat === "PT" ? "PT" : pd;
+            if (cat) items.push({ entryId: entry.id, name, phone, detail: cleanDetail, paymentDate: entry.paymentDate ?? "", category: cat });
           }
 
           return items;
@@ -1332,13 +1334,13 @@ export default function RegistrationManagement() {
               ) : (
                 <div className="space-y-2">
                   {filteredHealthItems.map((item, idx) => (
-                    <div key={`hi-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-start justify-between gap-2">
+                    <div key={`hi-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.phone || "—"}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.phone || "—"}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">🎁 {item.detail}</span>
+                        <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">🎁 {item.detail}</span>
                         <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
                       </div>
                     </div>
@@ -1371,13 +1373,13 @@ export default function RegistrationManagement() {
               ) : (
                 <div className="space-y-2">
                   {filteredLockerItems.map((item, idx) => (
-                    <div key={`li-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-start justify-between gap-2">
+                    <div key={`li-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.phone || "—"}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.phone || "—"}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">🎁 {item.detail}</span>
+                        <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">🎁 {item.detail}</span>
                         <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
                       </div>
                     </div>
@@ -1414,13 +1416,13 @@ export default function RegistrationManagement() {
               ) : (
                 <div className="space-y-2">
                   {filteredUniformItems.map((item, idx) => (
-                    <div key={`ui-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-start justify-between gap-2">
+                    <div key={`ui-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.phone || "—"}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.phone || "—"}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-medium">🎁 {item.detail}</span>
+                        <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-medium">🎁 {item.detail}</span>
                         <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
                       </div>
                     </div>
@@ -1454,13 +1456,13 @@ export default function RegistrationManagement() {
               ) : (
                 <div className="space-y-2">
                   {filteredPtItems.map((item, idx) => (
-                    <div key={`pi-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-start justify-between gap-2">
+                    <div key={`pi-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.phone || "—"}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.phone || "—"}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">🎁 {item.detail}</span>
+                        <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">🎁 {item.detail}</span>
                         <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
                       </div>
                     </div>
