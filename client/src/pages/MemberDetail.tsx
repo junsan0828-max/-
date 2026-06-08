@@ -336,6 +336,9 @@ export default function MemberDetail({ memberId }: Props) {
   const [checkedSets, setCheckedSets] = useState<Set<string>>(new Set());
   const [memberMemoEdit, setMemberMemoEdit] = useState(false);
   const [memberMemoText, setMemberMemoText] = useState("");
+  const [healthEditOpen, setHealthEditOpen] = useState(false);
+  const [healthEditStart, setHealthEditStart] = useState("");
+  const [healthEditEnd, setHealthEditEnd] = useState("");
 
   function openLiveTraining(log: any) {
     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
@@ -533,6 +536,17 @@ export default function MemberDetail({ memberId }: Props) {
       utils.access.getMemberPrograms.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
+  // 헬스권 날짜 수정
+  const saveHealthMutation = trpc.members.update.useMutation({
+    onSuccess: () => {
+      toast.success("헬스권이 수정되었습니다.");
+      setHealthEditOpen(false);
+      utils.members.getById.invalidate({ id: memberId });
+      utils.access.getMemberPrograms.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "수정 실패"),
   });
 
   // 미수금 업데이트
@@ -1432,6 +1446,17 @@ export default function MemberDetail({ memberId }: Props) {
                                 )}
                                 <button
                                   onClick={() => {
+                                    setHealthEditStart(member.membershipStart ?? "");
+                                    setHealthEditEnd(member.membershipEnd ?? "");
+                                    setHealthEditOpen(v => !v);
+                                  }}
+                                  className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                  title="헬스권 수정"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
                                     if (confirm("헬스권을 삭제하시겠습니까?\n삭제 후 재등록하면 장부·서비스 내역이 함께 저장됩니다.")) {
                                       clearHealthMutation.mutate({ id: memberId, membershipStart: null, membershipEnd: null });
                                     }
@@ -1444,13 +1469,52 @@ export default function MemberDetail({ memberId }: Props) {
                                 </button>
                               </div>
                             </div>
-                            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                              <div className="col-span-2">
-                                {fmtDate(member.membershipStart, "yyyy.MM.dd")} ~ {fmtDate(member.membershipEnd, "yyyy.MM.dd")}
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              {fmtDate(member.membershipStart, "yyyy.MM.dd")} ~ {fmtDate(member.membershipEnd, "yyyy.MM.dd")}
+                            </div>
+                            {healthEditOpen && (
+                              <div className="mt-3 pt-3 border-t border-border space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <p className="text-[11px] text-muted-foreground">시작일</p>
+                                    <input
+                                      type="date"
+                                      value={healthEditStart}
+                                      onChange={e => setHealthEditStart(e.target.value)}
+                                      className="w-full bg-input border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-[11px] text-muted-foreground">만료일</p>
+                                    <input
+                                      type="date"
+                                      value={healthEditEnd}
+                                      onChange={e => setHealthEditEnd(e.target.value)}
+                                      className="w-full bg-input border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setHealthEditOpen(false)}
+                                    className="flex-1 py-1.5 rounded text-xs border border-border text-muted-foreground hover:bg-accent transition-colors"
+                                  >취소</button>
+                                  <button
+                                    onClick={() => saveHealthMutation.mutate({
+                                      id: memberId,
+                                      membershipStart: healthEditStart || undefined,
+                                      membershipEnd: healthEditEnd || undefined,
+                                    })}
+                                    disabled={saveHealthMutation.isPending || !healthEditEnd}
+                                    className="flex-1 py-1.5 rounded text-xs bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                                  >
+                                    {saveHealthMutation.isPending ? "저장 중..." : "저장"}
+                                  </button>
+                                </div>
                               </div>
-                              <div className="col-span-2 text-amber-400/80 text-[11px] mt-0.5">
-                                ※ 결제 내역 없음 — 재등록 시 장부·서비스 내역이 함께 저장됩니다
-                              </div>
+                            )}
+                            <div className="mt-2 text-amber-400/80 text-[11px]">
+                              ※ 결제 내역 없음 — 재등록 시 장부·서비스 내역이 함께 저장됩니다
                             </div>
                           </div>
                         )}
