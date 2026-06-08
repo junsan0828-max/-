@@ -1983,14 +1983,32 @@ function TransferContractManager() {
   const { data: list } = trpc.eContract.list.useQuery();
   const invalidate = () => utils.eContract.list.invalidate();
   const createMutation = trpc.eContract.createTransfer.useMutation({ onSuccess: () => { invalidate(); setShowForm(false); resetForm(); } });
+  const updateTransferMutation = trpc.eContract.updateTransfer.useMutation({ onSuccess: () => { invalidate(); setEditId(null); setShowForm(false); resetForm(); toast.success("수정되었습니다"); } });
   const deleteMutation = trpc.eContract.delete.useMutation({ onSuccess: () => invalidate() });
   const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const { data: detail } = trpc.eContract.getDetail.useQuery({ id: detailId! }, { enabled: !!detailId });
 
   const emptyForm = { transferorName: "", transferorPhone: "", programName: "", totalSessions: "", usedSessions: "", remainingSessions: "", transferDate: "", trainerMemo: "" };
   const [form, setForm] = useState(emptyForm);
-  function resetForm() { setForm(emptyForm); }
+  function resetForm() { setForm(emptyForm); setEditId(null); }
+
+  function openEdit(c: any) {
+    const extra = (() => { try { return JSON.parse(c.extraData || '{}'); } catch { return {}; } })();
+    setForm({
+      transferorName: extra.transferorName ?? "",
+      transferorPhone: extra.transferorPhone ?? "",
+      programName: c.programName ?? "",
+      totalSessions: extra.totalSessions != null ? String(extra.totalSessions) : "",
+      usedSessions: extra.usedSessions != null ? String(extra.usedSessions) : "",
+      remainingSessions: extra.remainingSessions != null ? String(extra.remainingSessions) : "",
+      transferDate: extra.transferDate ?? "",
+      trainerMemo: c.trainerMemo ?? "",
+    });
+    setEditId(c.id);
+    setShowForm(true);
+  }
 
   const transferList = (list ?? []).filter((c: any) => c.contractType === 'transfer');
 
@@ -2024,7 +2042,7 @@ function TransferContractManager() {
 
       {showForm && (
         <div className="bg-accent/30 border border-border rounded-xl p-4 space-y-3">
-          <p className="text-xs font-semibold">양도 정보 입력</p>
+          <p className="text-xs font-semibold">{editId ? "양도양수 계약서 수정" : "양도 정보 입력"}</p>
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "양도인 이름", key: "transferorName", placeholder: "홍길동" },
@@ -2055,18 +2073,34 @@ function TransferContractManager() {
           </div>
           <div className="flex gap-2">
             <button onClick={() => { setShowForm(false); resetForm(); }} className="flex-1 text-xs py-2 border border-border rounded-lg text-muted-foreground">취소</button>
-            <button disabled={createMutation.isPending} onClick={() => createMutation.mutate({
-              transferorName: form.transferorName || undefined,
-              transferorPhone: form.transferorPhone || undefined,
-              programName: form.programName || undefined,
-              totalSessions: form.totalSessions ? parseInt(form.totalSessions) : undefined,
-              usedSessions: form.usedSessions ? parseInt(form.usedSessions) : undefined,
-              remainingSessions: form.remainingSessions ? parseInt(form.remainingSessions) : undefined,
-              transferDate: form.transferDate || undefined,
-              trainerMemo: form.trainerMemo || undefined,
-            })} className="flex-1 text-xs py-2 bg-primary text-primary-foreground rounded-lg font-semibold disabled:opacity-50">
-              {createMutation.isPending ? "생성 중..." : "계약서 생성 및 링크 발급"}
-            </button>
+            {editId ? (
+              <button disabled={updateTransferMutation.isPending} onClick={() => updateTransferMutation.mutate({
+                id: editId,
+                transferorName: form.transferorName || undefined,
+                transferorPhone: form.transferorPhone || undefined,
+                programName: form.programName || undefined,
+                totalSessions: form.totalSessions ? parseInt(form.totalSessions) : undefined,
+                usedSessions: form.usedSessions ? parseInt(form.usedSessions) : undefined,
+                remainingSessions: form.remainingSessions ? parseInt(form.remainingSessions) : undefined,
+                transferDate: form.transferDate || undefined,
+                trainerMemo: form.trainerMemo || undefined,
+              })} className="flex-1 text-xs py-2 bg-primary text-primary-foreground rounded-lg font-semibold disabled:opacity-50">
+                {updateTransferMutation.isPending ? "수정 중..." : "수정 완료"}
+              </button>
+            ) : (
+              <button disabled={createMutation.isPending} onClick={() => createMutation.mutate({
+                transferorName: form.transferorName || undefined,
+                transferorPhone: form.transferorPhone || undefined,
+                programName: form.programName || undefined,
+                totalSessions: form.totalSessions ? parseInt(form.totalSessions) : undefined,
+                usedSessions: form.usedSessions ? parseInt(form.usedSessions) : undefined,
+                remainingSessions: form.remainingSessions ? parseInt(form.remainingSessions) : undefined,
+                transferDate: form.transferDate || undefined,
+                trainerMemo: form.trainerMemo || undefined,
+              })} className="flex-1 text-xs py-2 bg-primary text-primary-foreground rounded-lg font-semibold disabled:opacity-50">
+                {createMutation.isPending ? "생성 중..." : "계약서 생성 및 링크 발급"}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2092,10 +2126,15 @@ function TransferContractManager() {
                       {` · ${c.createdAt?.slice(0, 10)}`}
                     </p>
                   </div>
-                  <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: c.id }); }}
-                    className="p-1 rounded-lg hover:bg-muted shrink-0">
-                    <X className="h-3.5 w-3.5 text-muted-foreground" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => openEdit(c)} className="p-1 rounded-lg hover:bg-muted">
+                      <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                    <button onClick={() => { if (confirm("삭제할까요?")) deleteMutation.mutate({ id: c.id }); }}
+                      className="p-1 rounded-lg hover:bg-muted">
+                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex gap-1.5">
                   <button onClick={() => copyLink(c.token)}

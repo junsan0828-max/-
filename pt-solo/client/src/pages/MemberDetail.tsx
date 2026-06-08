@@ -74,6 +74,8 @@ import {
   ChevronUp,
   Send,
   LayoutTemplate,
+  ReceiptText,
+  ArrowLeftRight,
 } from "lucide-react";
 
 function TemplateLoader({ onLoad }: { onLoad: (exs: Exercise[]) => void }) {
@@ -403,6 +405,33 @@ export default function MemberDetail({ memberId }: Props) {
     return { cost: rule?.cost ?? 50, enabled: rule?.enabled ?? true };
   };
 
+  // 작업실 기능 활성 여부
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
+  const isFeatureActive = (featureId: string) => {
+    const removed = wsStatus?.removedFeatures ?? [];
+    const configs = wsStatus?.featureConfigs ?? {};
+    return !removed.includes(featureId) && configs[featureId] === "active";
+  };
+  const refundContractActive = isFeatureActive("refund_contract");
+  const transferContractActive = isFeatureActive("transfer_contract");
+
+  // 환불/양도 계약서 생성 모달
+  const [refundContractOpen, setRefundContractOpen] = useState(false);
+  const [transferContractOpen, setTransferContractOpen] = useState(false);
+  const [contractCreatedToken, setContractCreatedToken] = useState<string | null>(null);
+
+  const createRefundMutation = trpc.eContract.createRefund.useMutation({
+    onSuccess: (data) => { setContractCreatedToken(data.token); },
+    onError: (e) => toast.error(e.message),
+  });
+  const createTransferMutation = trpc.eContract.createTransfer.useMutation({
+    onSuccess: (data) => { setContractCreatedToken(data.token); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [refundForm, setRefundForm] = useState({ programName: "", programPrice: "", programSessions: "", usedSessions: "", refundAmount: "", refundReason: "", paymentMethod: "", vatAmount: "", penaltyAmount: "" });
+  const [transferForm, setTransferForm] = useState({ programName: "", totalSessions: "", usedSessions: "", remainingSessions: "", transferDate: "", trainerMemo: "" });
+
   // 보고서 공유 토큰 발급
   const generateReportMutation = trpc.reports.generate.useMutation({
     onSuccess: (data) => {
@@ -697,8 +726,21 @@ export default function MemberDetail({ memberId }: Props) {
         {/* ── PT 프로그램 탭 ── */}
         <TabsContent value="pt" className="mt-4">
           <Card className="bg-card border-border">
-            <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6">
+            <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6 flex-wrap gap-2">
               <CardTitle className="text-base">PT 프로그램</CardTitle>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {refundContractActive && (
+                  <Button size="sm" variant="outline" className="gap-1.5 text-xs text-orange-500 border-orange-400/40 hover:bg-orange-500/10"
+                    onClick={() => { setRefundForm({ programName: ptPackages?.[0]?.packageName ?? "", programPrice: String(ptPackages?.[0]?.paymentAmount ?? ""), programSessions: String(ptPackages?.[0]?.totalSessions ?? ""), usedSessions: String(ptPackages?.[0]?.usedSessions ?? ""), refundAmount: "", refundReason: "", paymentMethod: "", vatAmount: "", penaltyAmount: "" }); setContractCreatedToken(null); setRefundContractOpen(true); }}>
+                    <ReceiptText className="h-3.5 w-3.5" /> 환불 계약서
+                  </Button>
+                )}
+                {transferContractActive && (
+                  <Button size="sm" variant="outline" className="gap-1.5 text-xs text-blue-500 border-blue-400/40 hover:bg-blue-500/10"
+                    onClick={() => { setTransferForm({ programName: ptPackages?.[0]?.packageName ?? "", totalSessions: String(ptPackages?.[0]?.totalSessions ?? ""), usedSessions: String(ptPackages?.[0]?.usedSessions ?? ""), remainingSessions: String((ptPackages?.[0]?.totalSessions ?? 0) - (ptPackages?.[0]?.usedSessions ?? 0)), transferDate: "", trainerMemo: "" }); setContractCreatedToken(null); setTransferContractOpen(true); }}>
+                    <ArrowLeftRight className="h-3.5 w-3.5" /> 양도양수 계약서
+                  </Button>
+                )}
               {/* 패키지 추가 다이얼로그 */}
               <Dialog open={addPkgOpen} onOpenChange={setAddPkgOpen}>
                 <DialogTrigger asChild>
@@ -808,6 +850,7 @@ export default function MemberDetail({ memberId }: Props) {
                   </div>
                 </DialogContent>
               </Dialog>
+              </div>
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
               {!ptPackages?.length ? (
@@ -1947,6 +1990,146 @@ export default function MemberDetail({ memberId }: Props) {
                 </div>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 환불 계약서 생성 다이얼로그 */}
+      <Dialog open={refundContractOpen} onOpenChange={(o) => { setRefundContractOpen(o); if (!o) setContractCreatedToken(null); }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ReceiptText className="h-4 w-4 text-orange-500" />환불 계약서 생성</DialogTitle>
+            <DialogDescription>{member?.name}님의 환불 계약서를 생성합니다.</DialogDescription>
+          </DialogHeader>
+          {contractCreatedToken ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-center text-green-500 font-semibold">계약서가 생성되었습니다!</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 text-xs gap-1.5" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/contract/${contractCreatedToken}`); toast.success("링크 복사됨"); }}>
+                  <Copy className="h-3.5 w-3.5" /> 링크 복사
+                </Button>
+                <Button className="flex-1 text-xs gap-1.5 bg-[#FEE500] text-[#3A1D1D] hover:bg-[#FEE500]/90" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/contract/${contractCreatedToken}`).then(() => { toast.success("링크 복사됨 — 카카오톡에 붙여넣기 하세요"); setTimeout(() => { window.location.href = "kakaotalk://"; }, 300); }); }}>
+                  카카오톡 공유
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { label: "프로그램명", key: "programName", placeholder: "PT 10회" },
+                  { label: "결제 금액(원)", key: "programPrice", placeholder: "500000" },
+                  { label: "총 횟수", key: "programSessions", placeholder: "10" },
+                  { label: "수강 횟수", key: "usedSessions", placeholder: "3" },
+                ] as { label: string; key: keyof typeof refundForm; placeholder: string }[]).map(({ label, key, placeholder }) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input value={refundForm[key]} onChange={e => setRefundForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} className="h-9 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">결제 방법</Label>
+                <div className="flex gap-2">
+                  {["카드", "현금", "계좌이체"].map(m => (
+                    <button key={m} onClick={() => setRefundForm(p => ({ ...p, paymentMethod: p.paymentMethod === m ? "" : m }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors ${refundForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { label: "부가세(원)", key: "vatAmount" },
+                  { label: "위약금(원)", key: "penaltyAmount" },
+                  { label: "환불 금액(원)", key: "refundAmount" },
+                ] as { label: string; key: keyof typeof refundForm }[]).map(({ label, key }) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input type="number" value={refundForm[key]} onChange={e => setRefundForm(p => ({ ...p, [key]: e.target.value }))} placeholder="0" className="h-9 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">환불 사유</Label>
+                <Textarea value={refundForm.refundReason} onChange={e => setRefundForm(p => ({ ...p, refundReason: e.target.value }))} placeholder="부상, 개인 사정 등" rows={2} className="text-sm resize-none" />
+              </div>
+              <Button className="w-full" disabled={createRefundMutation.isPending} onClick={() => createRefundMutation.mutate({
+                memberName: member?.name || undefined,
+                memberPhone: member?.phone || undefined,
+                programName: refundForm.programName || undefined,
+                programPrice: refundForm.programPrice ? parseInt(refundForm.programPrice) : undefined,
+                programSessions: refundForm.programSessions ? parseInt(refundForm.programSessions) : undefined,
+                usedSessions: refundForm.usedSessions ? parseInt(refundForm.usedSessions) : undefined,
+                refundAmount: refundForm.refundAmount ? parseInt(refundForm.refundAmount) : undefined,
+                refundReason: refundForm.refundReason || undefined,
+                paymentMethod: refundForm.paymentMethod || undefined,
+                vatAmount: refundForm.vatAmount ? parseInt(refundForm.vatAmount) : undefined,
+                penaltyAmount: refundForm.penaltyAmount ? parseInt(refundForm.penaltyAmount) : undefined,
+              })}>
+                {createRefundMutation.isPending ? "생성 중..." : "계약서 생성 및 링크 발급"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 양도양수 계약서 생성 다이얼로그 */}
+      <Dialog open={transferContractOpen} onOpenChange={(o) => { setTransferContractOpen(o); if (!o) setContractCreatedToken(null); }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ArrowLeftRight className="h-4 w-4 text-blue-500" />양도양수 계약서 생성</DialogTitle>
+            <DialogDescription>{member?.name}님의 양도양수 계약서를 생성합니다.</DialogDescription>
+          </DialogHeader>
+          {contractCreatedToken ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-center text-green-500 font-semibold">계약서가 생성되었습니다!</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 text-xs gap-1.5" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/contract/${contractCreatedToken}`); toast.success("링크 복사됨"); }}>
+                  <Copy className="h-3.5 w-3.5" /> 링크 복사
+                </Button>
+                <Button className="flex-1 text-xs gap-1.5 bg-[#FEE500] text-[#3A1D1D] hover:bg-[#FEE500]/90" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/contract/${contractCreatedToken}`).then(() => { toast.success("링크 복사됨 — 카카오톡에 붙여넣기 하세요"); setTimeout(() => { window.location.href = "kakaotalk://"; }, 300); }); }}>
+                  카카오톡 공유
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { label: "프로그램명", key: "programName", placeholder: "PT 10회" },
+                  { label: "총 횟수", key: "totalSessions", placeholder: "10" },
+                  { label: "수강 횟수", key: "usedSessions", placeholder: "3" },
+                  { label: "잔여 횟수", key: "remainingSessions", placeholder: "7" },
+                ] as { label: string; key: keyof typeof transferForm; placeholder: string }[]).map(({ label, key, placeholder }) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input value={transferForm[key]} onChange={e => setTransferForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} className="h-9 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">양도 예정일</Label>
+                <Input type="date" value={transferForm.transferDate} onChange={e => setTransferForm(p => ({ ...p, transferDate: e.target.value }))} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">트레이너 메모 (선택)</Label>
+                <Textarea value={transferForm.trainerMemo} onChange={e => setTransferForm(p => ({ ...p, trainerMemo: e.target.value }))} placeholder="특이사항 등" rows={2} className="text-sm resize-none" />
+              </div>
+              <Button className="w-full" disabled={createTransferMutation.isPending} onClick={() => createTransferMutation.mutate({
+                transferorName: member?.name || undefined,
+                transferorPhone: member?.phone || undefined,
+                programName: transferForm.programName || undefined,
+                totalSessions: transferForm.totalSessions ? parseInt(transferForm.totalSessions) : undefined,
+                usedSessions: transferForm.usedSessions ? parseInt(transferForm.usedSessions) : undefined,
+                remainingSessions: transferForm.remainingSessions ? parseInt(transferForm.remainingSessions) : undefined,
+                transferDate: transferForm.transferDate || undefined,
+                trainerMemo: transferForm.trainerMemo || undefined,
+              })}>
+                {createTransferMutation.isPending ? "생성 중..." : "계약서 생성 및 링크 발급"}
+              </Button>
+            </div>
           )}
         </DialogContent>
       </Dialog>

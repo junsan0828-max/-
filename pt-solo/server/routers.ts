@@ -1911,6 +1911,37 @@ const eContractRouter = t.router({
       return { token };
     }),
 
+  updateTransfer: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      transferorName: z.string().optional(),
+      transferorPhone: z.string().optional(),
+      programName: z.string().optional(),
+      totalSessions: z.number().optional(),
+      usedSessions: z.number().optional(),
+      remainingSessions: z.number().optional(),
+      transferDate: z.string().optional(),
+      trainerMemo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = (ctx.user as any).trainerId;
+      const { id, programName, trainerMemo, ...extraFields } = input;
+      const extra = JSON.stringify({
+        transferorName: extraFields.transferorName ?? null,
+        transferorPhone: extraFields.transferorPhone ?? null,
+        totalSessions: extraFields.totalSessions ?? null,
+        usedSessions: extraFields.usedSessions ?? null,
+        remainingSessions: extraFields.remainingSessions ?? null,
+        transferDate: extraFields.transferDate ?? null,
+      });
+      await pool.query(
+        `UPDATE e_contracts SET "programName"=$1, "trainerMemo"=$2, "extraData"=$3
+         WHERE id=$4 AND "trainerId"=$5`,
+        [programName ?? null, trainerMemo ?? null, extra, id, trainerId]
+      );
+      return { success: true };
+    }),
+
   list: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = (ctx.user as any).trainerId;
     if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
