@@ -1254,10 +1254,11 @@ export default function RegistrationManagement() {
         }
 
         // serviceItems + programDetail(결제 기록) 파싱 → 카테고리별 분류
-        type ParsedServiceItem = { entryId: number; name: string; phone: string; detail: string; paymentDate: string; category: string };
+        type ParsedServiceItem = { entryId: number; memberId: number | null; name: string; phone: string; detail: string; paymentDate: string; category: string };
         const parsedItems: ParsedServiceItem[] = serviceItemsList.flatMap((entry: any) => {
           const name = entry.customerName ?? entry.memberName ?? "—";
           const phone = entry.phone ?? "";
+          const memberId: number | null = entry.memberId ?? null;
           const items: ParsedServiceItem[] = [];
 
           // serviceItems에서 파싱
@@ -1267,7 +1268,7 @@ export default function RegistrationManagement() {
               : raw.startsWith("헬스") ? "헬스"
               : raw.startsWith("락커") ? "락커"
               : raw.startsWith("운동복") ? "운동복" : "기타";
-            items.push({ entryId: entry.id, name, phone, detail: raw, paymentDate: entry.paymentDate ?? "", category: cat });
+            items.push({ entryId: entry.id, memberId, name, phone, detail: raw, paymentDate: entry.paymentDate ?? "", category: cat });
           }
 
           // serviceItems가 없고 programDetail로만 등록된 경우 (예: programDetail="운동복")
@@ -1279,7 +1280,7 @@ export default function RegistrationManagement() {
               : /PT/i.test(pd) ? "PT" : null;
             // detail은 카테고리명만 사용 (programDetail 전체 문자열은 배지에 넣으면 오버플로)
             const cleanDetail = cat === "운동복" ? "운동복" : cat === "락커" ? "락커" : cat === "헬스" ? "헬스" : cat === "PT" ? "PT" : pd;
-            if (cat) items.push({ entryId: entry.id, name, phone, detail: cleanDetail, paymentDate: entry.paymentDate ?? "", category: cat });
+            if (cat) items.push({ entryId: entry.id, memberId, name, phone, detail: cleanDetail, paymentDate: entry.paymentDate ?? "", category: cat });
           }
 
           return items;
@@ -1389,6 +1390,7 @@ export default function RegistrationManagement() {
                             label={fmtDetail(item.detail)}
                             badgeBg="bg-emerald-500/20" badgeText="text-emerald-400"
                             subInfo={item.paymentDate || undefined}
+                            onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
                           />
                         ))}
                         {filteredServiceHealths.map((h: any) => (
@@ -1421,6 +1423,7 @@ export default function RegistrationManagement() {
                             label={fmtDetail(item.detail)}
                             badgeBg="bg-amber-500/20" badgeText="text-amber-400"
                             subInfo={item.paymentDate || undefined}
+                            onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
                           />
                         ))}
                         {filteredServiceLockers.map((l: any) => (
@@ -1453,6 +1456,7 @@ export default function RegistrationManagement() {
                             label="운동복"
                             badgeBg="bg-purple-500/20" badgeText="text-purple-400"
                             subInfo={item.paymentDate || undefined}
+                            onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
                           />
                         ))}
                         {filteredServiceUniforms.map((u: any) => (
@@ -1485,6 +1489,7 @@ export default function RegistrationManagement() {
                             label={fmtDetail(item.detail)}
                             badgeBg="bg-blue-500/20" badgeText="text-blue-400"
                             subInfo={item.paymentDate || undefined}
+                            onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
                           />
                         ))}
                         {filteredServicePt.map((p: any) => {
