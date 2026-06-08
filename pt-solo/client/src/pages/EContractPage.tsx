@@ -165,7 +165,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
   const { data, isLoading, error, refetch } = trpc.eContract.getPublic.useQuery({ token }, { retry: false });
   const submitMutation = trpc.eContract.submit.useMutation();
 
-  const [form, setForm] = useState({ memberName: "", memberPhone: "", memberBirth: "" });
+  const [form, setForm] = useState({ memberName: "", memberPhone: "", memberBirth: "", bankName: "", accountNumber: "", accountHolder: "" });
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [agreedMarketing, setAgreedMarketing] = useState(false);
@@ -379,6 +379,9 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
         agreedMarketing,
         signerName,
         signaturePng,
+        bankName: form.bankName || undefined,
+        accountNumber: form.accountNumber || undefined,
+        accountHolder: form.accountHolder || undefined,
       });
       const now = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
       if (result.step === 'transferor_signed') {
@@ -432,23 +435,16 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
             <h2 className="text-sm font-bold text-gray-900">환불 내역</h2>
             <div className="divide-y divide-gray-100">
               <InfoRow label="프로그램명" value={data.programName} />
+              <InfoRow label="결제 방법" value={extra.paymentMethod} />
               <InfoRow label="결제 금액" value={data.programPrice != null ? `${data.programPrice.toLocaleString()}원` : null} />
+              <InfoRow label="부가세" value={extra.vatAmount != null && extra.vatAmount > 0 ? `${Number(extra.vatAmount).toLocaleString()}원` : null} />
               <InfoRow label="총 횟수" value={data.programSessions != null ? `${data.programSessions}회` : null} />
               <InfoRow label="수강 횟수" value={extra.usedSessions != null ? `${extra.usedSessions}회` : null} />
+              <InfoRow label="위약금" value={extra.penaltyAmount != null && extra.penaltyAmount > 0 ? `${Number(extra.penaltyAmount).toLocaleString()}원` : null} />
               <InfoRow label="환불 금액" value={extra.refundAmount != null ? `${Number(extra.refundAmount).toLocaleString()}원` : null} />
               <InfoRow label="환불 사유" value={extra.refundReason} />
             </div>
           </div>
-          {(extra.bankName || extra.accountNumber) && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-              <h2 className="text-sm font-bold text-gray-900">환불 계좌 정보</h2>
-              <div className="divide-y divide-gray-100">
-                <InfoRow label="은행" value={extra.bankName} />
-                <InfoRow label="계좌번호" value={extra.accountNumber} />
-                <InfoRow label="예금주" value={extra.accountHolder} />
-              </div>
-            </div>
-          )}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
             <h2 className="text-sm font-bold text-gray-900">회원 확인</h2>
             {[
@@ -463,6 +459,30 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
               </div>
             ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-gray-900">환불 계좌 정보</h2>
+            <p className="text-xs text-gray-400">환불 받으실 계좌를 직접 입력해주세요.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500">은행</label>
+                <input type="text" placeholder="국민은행" value={form.bankName}
+                  onChange={e => setForm(p => ({ ...p, bankName: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500">예금주</label>
+                <input type="text" placeholder="홍길동" value={form.accountHolder}
+                  onChange={e => setForm(p => ({ ...p, accountHolder: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500">계좌번호</label>
+              <input type="text" placeholder="000-0000-0000000" value={form.accountNumber}
+                onChange={e => setForm(p => ({ ...p, accountNumber: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 bg-white" />
+            </div>
           </div>
           <p className="text-xs text-gray-500 text-center px-4">
             위 환불 내용을 확인하였으며, 이에 동의하여 서명합니다.

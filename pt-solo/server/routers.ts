@@ -1817,9 +1817,9 @@ const eContractRouter = t.router({
       usedSessions: z.number().optional(),
       refundAmount: z.number().optional(),
       refundReason: z.string().optional(),
-      bankName: z.string().optional(),
-      accountNumber: z.string().optional(),
-      accountHolder: z.string().optional(),
+      paymentMethod: z.string().optional(),
+      vatAmount: z.number().optional(),
+      penaltyAmount: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const trainerId = (ctx.user as any).trainerId;
@@ -1829,9 +1829,9 @@ const eContractRouter = t.router({
         usedSessions: input.usedSessions ?? null,
         refundAmount: input.refundAmount ?? null,
         refundReason: input.refundReason ?? null,
-        bankName: input.bankName ?? null,
-        accountNumber: input.accountNumber ?? null,
-        accountHolder: input.accountHolder ?? null,
+        paymentMethod: input.paymentMethod ?? null,
+        vatAmount: input.vatAmount ?? null,
+        penaltyAmount: input.penaltyAmount ?? null,
       });
       await pool.query(
         `INSERT INTO e_contracts ("trainerId", token, "memberName", "memberPhone",
@@ -1841,6 +1841,42 @@ const eContractRouter = t.router({
          input.programName ?? null, input.programPrice ?? null, input.programSessions ?? null, extra]
       );
       return { token };
+    }),
+
+  updateRefund: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      memberName: z.string().optional(),
+      memberPhone: z.string().optional(),
+      programName: z.string().optional(),
+      programPrice: z.number().optional(),
+      programSessions: z.number().optional(),
+      usedSessions: z.number().optional(),
+      refundAmount: z.number().optional(),
+      refundReason: z.string().optional(),
+      paymentMethod: z.string().optional(),
+      vatAmount: z.number().optional(),
+      penaltyAmount: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = (ctx.user as any).trainerId;
+      const { id, memberName, memberPhone, programName, programPrice, programSessions, ...extraFields } = input;
+      const extra = JSON.stringify({
+        usedSessions: extraFields.usedSessions ?? null,
+        refundAmount: extraFields.refundAmount ?? null,
+        refundReason: extraFields.refundReason ?? null,
+        paymentMethod: extraFields.paymentMethod ?? null,
+        vatAmount: extraFields.vatAmount ?? null,
+        penaltyAmount: extraFields.penaltyAmount ?? null,
+      });
+      await pool.query(
+        `UPDATE e_contracts SET "memberName"=$1, "memberPhone"=$2, "programName"=$3,
+          "programPrice"=$4, "programSessions"=$5, "extraData"=$6
+         WHERE id=$7 AND "trainerId"=$8`,
+        [memberName ?? null, memberPhone ?? null, programName ?? null,
+         programPrice ?? null, programSessions ?? null, extra, id, trainerId]
+      );
+      return { success: true };
     }),
 
   createTransfer: protectedProcedure
@@ -1961,6 +1997,9 @@ const eContractRouter = t.router({
       agreedMarketing: z.boolean().optional(),
       signerName: z.string().min(1),
       signaturePng: z.string().min(10),
+      bankName: z.string().optional(),
+      accountNumber: z.string().optional(),
+      accountHolder: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const check = await pool.query(
@@ -2003,6 +2042,25 @@ const eContractRouter = t.router({
       if (isStandard && (!input.agreedTerms || !input.agreedPrivacy)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "필수 동의가 필요합니다." });
       }
+
+      // 환불 계약서: 고객이 입력한 계좌 정보를 extraData에 병합
+      if (cType === 'refund' && (input.bankName || input.accountNumber || input.accountHolder)) {
+        const existingRow = await pool.query(`SELECT "extraData" FROM e_contracts WHERE token=$1`, [input.token]);
+        const existingExtra = (() => { try { return JSON.parse(existingRow.rows[0]?.extraData || '{}'); } catch { return {}; } })();
+        const mergedExtra = JSON.stringify({
+          ...existingExtra,
+          bankName: input.bankName ?? existingExtra.bankName ?? null,
+          accountNumber: input.accountNumber ?? existingExtra.accountNumber ?? null,
+          accountHolder: input.accountHolder ?? existingExtra.accountHolder ?? null,
+        });
+        await pool.query(
+          `UPDATE e_contracts SET status='signed', "memberName"=$2, "memberPhone"=$3,
+            "signerName"=$4, "signaturePng"=$5, "signedAt"=now()::text, "extraData"=$6 WHERE token=$1`,
+          [input.token, input.memberName ?? null, input.memberPhone ?? null, input.signerName, input.signaturePng, mergedExtra]
+        );
+        return { success: true, step: 'signed' };
+      }
+
       await pool.query(
         `UPDATE e_contracts SET status='signed', "memberName"=$2, "memberPhone"=$3, "memberBirth"=$4,
           "agreedTerms"=$5, "agreedPrivacy"=$6, "agreedMarketing"=$7,
