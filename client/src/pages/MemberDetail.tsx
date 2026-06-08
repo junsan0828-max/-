@@ -1359,7 +1359,9 @@ export default function MemberDetail({ memberId }: Props) {
             const healthRevs = allRevs.filter(r => r.type === "헬스");
             const etcRevs = allRevs.filter(r => r.type === "기타" && !classifiedIds.has(r.id));
 
-            const hasHealth = healthRevs.length > 0 || siHealth.length > 0;
+            // 멤버 레코드의 membershipEnd가 있으면 헬스권으로 표시 (revenue entry 없는 경우 폴백)
+            const memberHasHealthRecord = !!member.membershipEnd && healthRevs.length === 0;
+            const hasHealth = healthRevs.length > 0 || siHealth.length > 0 || memberHasHealthRecord;
             const hasLocker = (memberPrograms?.lockers.length ?? 0) > 0 || allLockerItems.length > 0;
             const hasUniform = (memberPrograms?.uniforms.length ?? 0) > 0 || allUniformItems.length > 0;
 
@@ -1381,6 +1383,18 @@ export default function MemberDetail({ memberId }: Props) {
                       <p className="text-muted-foreground text-sm text-center py-6">등록된 헬스권이 없습니다.</p>
                     ) : (
                       <div className="space-y-3">
+                        {/* 멤버 레코드 기반 헬스권 (revenue entry 없는 경우) */}
+                        {memberHasHealthRecord && (
+                          <div className="p-3 rounded-lg bg-accent/20 border border-border">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm text-foreground">헬스권</p>
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}`}>이용중</span>
+                            </div>
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              {fmtDate(member.membershipStart, "yyyy.MM.dd")} ~ {fmtDate(member.membershipEnd, "yyyy.MM.dd")}
+                            </div>
+                          </div>
+                        )}
                         {/* serviceItems 기반 헬스 서비스 */}
                         {siHealth.map(item => (
                           <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.헬스.faint} border ${SERVICE_COLORS.헬스.border}`}>
