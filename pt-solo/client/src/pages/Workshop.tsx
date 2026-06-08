@@ -4454,11 +4454,6 @@ function WorkshopStoreCard({ item, effectiveStatus, onClick, onRestore }: { item
 // ── 내 작업실 기능 행 ──────────────────────────────────────────────────────────
 function WorkspaceFeatureRow({ item, onClick, onRemove }: { item: WsItem & { catLabel: string }; onClick: () => void; onRemove?: () => void }) {
   const Icon = item.icon;
-  const hasSettings = [
-    "brand_page","fitstep_plus","booking","report_branding",
-    "templates","survey","contract_terms",
-    "e_contract","refund_contract","transfer_contract",
-  ].includes(item.id);
 
   return (
     <div className="relative">
@@ -4468,17 +4463,16 @@ function WorkspaceFeatureRow({ item, onClick, onRemove }: { item: WsItem & { cat
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
             <Icon className="h-5 w-5 text-primary" />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pr-6">
             <p className="text-sm font-semibold">{item.name}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">{item.catLabel}</p>
           </div>
-          <div className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg
-            ${hasSettings ? "bg-primary/10 text-primary" : "bg-muted/50 text-muted-foreground"}`}>
-            {hasSettings ? "관리하기" : "사용 중"}
+          <div className="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-muted/50 text-muted-foreground">
+            사용 중
           </div>
         </div>
       </button>
-      {!hasSettings && onRemove && (
+      {onRemove && (
         <button
           onClick={e => { e.stopPropagation(); if (confirm(`"${item.name}" 기능을 삭제하시겠습니까?\n삭제 후 재사용하려면 기능 구매 탭에서 다시 구매해야 합니다.`)) onRemove(); }}
           className="absolute top-2 right-2 w-5 h-5 rounded-full bg-muted/70 hover:bg-destructive hover:text-white text-muted-foreground flex items-center justify-center transition-colors"
