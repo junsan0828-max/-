@@ -838,6 +838,7 @@ async function initDatabase() {
     "isEnabled" INTEGER NOT NULL DEFAULT 1,
     "updatedAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+  await pool.query(`ALTER TABLE feature_cost_rules ADD COLUMN IF NOT EXISTS "isEnabled" INTEGER NOT NULL DEFAULT 1`);
   for (const [feature, label] of [
     ['new_contract',    '신규 전자계약'],
     ['reregistration',  '재등록 계약'],
@@ -849,7 +850,7 @@ async function initDatabase() {
   ]) {
     await pool.query(
       `INSERT INTO feature_cost_rules (feature, label, cost, "isEnabled") VALUES ($1,$2,50,1)
-       ON CONFLICT (feature) DO UPDATE SET label=$2, cost=CASE WHEN feature_cost_rules.cost=0 THEN 50 ELSE feature_cost_rules.cost END`,
+       ON CONFLICT (feature) DO UPDATE SET label=$2`,
       [feature, label]
     );
   }
