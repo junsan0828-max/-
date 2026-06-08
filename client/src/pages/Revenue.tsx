@@ -208,18 +208,9 @@ function RevenueContent() {
   return (
     <div className="space-y-4">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">매출 {isConsultant ? "입력" : "장부"}</h1>
-          <p className="text-xs text-muted-foreground">{isConsultant ? "오늘 입력한 매출 내역" : "매출 입력 및 분석"}</p>
-        </div>
-        <button
-          onClick={() => { setShowForm(true); setEditId(null); setForm({ ...defaultForm, paymentDate: new Date().toISOString().substring(0, 10), branchId: branchFilter ?? undefined }); }}
-          className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          매출 입력
-        </button>
+      <div>
+        <h1 className="text-xl font-bold text-foreground">매출 {isConsultant ? "입력" : "장부"}</h1>
+        <p className="text-xs text-muted-foreground">{isConsultant ? "오늘 입력한 매출 내역" : "매출 입력 및 분석"}</p>
       </div>
 
       {/* 지점 필터 */}
