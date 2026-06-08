@@ -525,6 +525,16 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "저장 실패"),
   });
 
+  // 헬스권 삭제 (membershipStart/End 클리어)
+  const clearHealthMutation = trpc.members.update.useMutation({
+    onSuccess: () => {
+      toast.success("헬스권이 삭제되었습니다.");
+      utils.members.getById.invalidate({ id: memberId });
+      utils.access.getMemberPrograms.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
+
   // 미수금 업데이트
   const updatePaymentMutation = trpc.pt.updatePayment.useMutation({
     onSuccess: () => {
@@ -1416,9 +1426,23 @@ export default function MemberDetail({ memberId }: Props) {
                                   <span className={`text-xs px-1.5 py-0.5 rounded-full border ${STATUS_COLORS.expired.bg} ${STATUS_COLORS.expired.text} ${STATUS_COLORS.expired.border}`}>만료</span>
                                 )}
                               </div>
-                              {healthDaysLeft !== null && healthDaysLeft > 0 && (
-                                <span className="text-xs font-semibold text-emerald-400">D-{healthDaysLeft}</span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {healthDaysLeft !== null && healthDaysLeft > 0 && (
+                                  <span className="text-xs font-semibold text-emerald-400">D-{healthDaysLeft}</span>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    if (confirm("헬스권을 삭제하시겠습니까?\n삭제 후 재등록하면 장부·서비스 내역이 함께 저장됩니다.")) {
+                                      clearHealthMutation.mutate({ id: memberId, membershipStart: null, membershipEnd: null });
+                                    }
+                                  }}
+                                  disabled={clearHealthMutation.isPending}
+                                  className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                                  title="헬스권 삭제"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
                             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
                               <div className="col-span-2">
