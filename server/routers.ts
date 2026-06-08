@@ -581,7 +581,7 @@ const membersRouter = t.router({
         const sessionCount = ptSessions ? parseInt(String(ptSessions)) : undefined;
         const paid = Math.max(0, paymentAmount - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
-        const revenueType = sessionCount ? "PT" : "기타";
+        const revenueType = sessionCount ? "PT" : "헬스";
         const [member] = await db.select().from(members).where(eq(members.id, id));
         await db.insert(revenueEntries).values({
           memberId: id,
