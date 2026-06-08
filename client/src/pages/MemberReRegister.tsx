@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,12 +32,16 @@ const SESSION_PRESETS = ["10", "20", "30", "40", "50"];
 
 export default function MemberReRegister() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { data: members = [] } = trpc.members.list.useQuery();
   const { data: allLockers } = trpc.access.getLockers.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: gymSettings } = trpc.gym.settings.get.useQuery();
 
-  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState(() => {
+    const params = new URLSearchParams(search);
+    return params.get("memberId") ?? "";
+  });
   const [regType, setRegType] = useState<"" | "health" | "pt">("");
   const [healthMonths, setHealthMonths] = useState<number | "">(1);
 
@@ -61,6 +65,30 @@ export default function MemberReRegister() {
     paymentDate: "",
     paymentMemo: "",
   });
+
+  // URL에서 memberId로 진입 시 회원의 기존 날짜 pre-fill
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const urlMemberId = params.get("memberId");
+    if (!urlMemberId || members.length === 0) return;
+    const m = members.find(x => String(x.id) === urlMemberId);
+    if (!m) return;
+    const start = (m as any).membershipStart ?? "";
+    const end = (m as any).membershipEnd ?? "";
+    setForm(p => ({
+      ...p,
+      membershipStart: start,
+      membershipEnd: end,
+    }));
+    // 날짜로 기간 추론해서 헬스 개월 수 설정
+    if (start && end) {
+      const s = new Date(start);
+      const e = new Date(end);
+      const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+      if (months > 0) setHealthMonths(months);
+      setRegType("health");
+    }
+  }, [search, members]);
 
   const updateMutation = trpc.members.update.useMutation({
     onSuccess: () => {
