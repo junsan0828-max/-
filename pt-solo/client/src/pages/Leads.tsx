@@ -208,6 +208,12 @@ export default function LeadsPage() {
 
   const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
   const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
+  const kakaoShareEnabled = (() => {
+    const configs = wsStatus?.featureConfigs ?? {};
+    const removed = wsStatus?.removedFeatures ?? [];
+    return configs["contract_kakao"] === "active" && !removed.includes("contract_kakao");
+  })();
   const autoPoints = useAutoPoints();
 
   // 기능별 비용/활성화 여부 헬퍼
@@ -592,7 +598,7 @@ export default function LeadsPage() {
             const s = STATUS_OPTIONS.find(s => s.value === displayStatus);
             const mainTypes = row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [];
             const subTypes = row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [];
-            const contractUrl = `/contract-print?name=${encodeURIComponent(row.lead.name)}&phone=${encodeURIComponent(row.lead.phone ?? "")}&date=${encodeURIComponent(new Date().toLocaleDateString("ko-KR"))}&trainerName=${encodeURIComponent((myProfile as any)?.trainerName ?? "")}&gymName=${encodeURIComponent((myProfile as any)?.workplaceName ?? "")}`;
+            const contractUrl = `/contract-print?name=${encodeURIComponent(row.lead.name)}&phone=${encodeURIComponent(row.lead.phone ?? "")}&date=${encodeURIComponent(new Date().toLocaleDateString("ko-KR"))}&trainerName=${encodeURIComponent((myProfile as any)?.trainerName ?? "")}&gymName=${encodeURIComponent((myProfile as any)?.workplaceName ?? "")}${kakaoShareEnabled ? "&showKakao=1" : ""}`;
             return (
               <div key={row.lead.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
                 {/* 헤더: 이름/상태 */}

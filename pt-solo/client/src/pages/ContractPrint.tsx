@@ -84,6 +84,7 @@ export default function ContractPrint() {
   const phone = params.get("phone") || "";
   const date = params.get("date") || new Date().toLocaleDateString("ko-KR");
   const marketing = params.get("marketing") === "1";
+  const showKakao = params.get("showKakao") === "1";
   const trainerName = params.get("trainerName") || "";
   const gymName = params.get("gymName") || "";
   const centerLabel = gymName || trainerName || "센터";
@@ -132,10 +133,12 @@ export default function ContractPrint() {
 
       {/* 버튼 (화면에서만 보임) */}
       <div className="no-print fixed top-4 right-4 z-50 flex gap-2">
-        <button onClick={handleKakaoShare}
-          className="bg-yellow-400 text-gray-900 px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-yellow-500 transition-colors flex items-center gap-1.5">
-          💬 카카오 공유
-        </button>
+        {showKakao && (
+          <button onClick={handleKakaoShare}
+            className="bg-yellow-400 text-gray-900 px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-yellow-500 transition-colors flex items-center gap-1.5">
+            💬 카카오 공유
+          </button>
+        )}
         <button onClick={handlePrint}
           className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5">
           🖨️ PDF 저장 / 인쇄
