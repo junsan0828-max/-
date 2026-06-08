@@ -4229,6 +4229,17 @@ const brandRouter = t.router({
     }
     const trainer = row.rows[0];
     if (!trainer || !trainer.brandIsPublic) throw new TRPCError({ code: "NOT_FOUND", message: "공개된 페이지가 없습니다." });
+
+    // 트레이너가 brand_page 기능을 제거했는지 확인
+    const settingsRow = await pool.query<{ removedFeatures: string | null }>(
+      `SELECT "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`,
+      [trainer.trainerId]
+    );
+    const removedFeatures = (settingsRow.rows[0]?.removedFeatures ?? "").split(",").filter(Boolean);
+    if (removedFeatures.includes("brand_page")) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "공개된 페이지가 없습니다." });
+    }
+
     return trainer;
   }),
 
