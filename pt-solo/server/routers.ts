@@ -3787,25 +3787,20 @@ const surveyRouter = t.router({
     await pool.query(`DELETE FROM custom_survey_questions WHERE id=$1 AND "trainerId"=$2`, [input.id, trainerId]);
     return { success: true };
   }),
-  getPublic: t.procedure.input(z.object({ username: z.string() })).query(async ({ input }) => {
-    const userRow = await pool.query<{ id: number }>(`SELECT id FROM users WHERE username=$1`, [input.username]);
-    if (!userRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
-    const userId = userRow.rows[0].id;
-    const trainerRow = await pool.query<any>(`SELECT id, "trainerName", "profileImage", "brandColor" FROM trainers WHERE "userId"=$1`, [userId]);
+  getPublic: t.procedure.input(z.object({ trainerId: z.number().int() })).query(async ({ input }) => {
+    const trainerRow = await pool.query<any>(`SELECT id, "trainerName", "profileImage", "brandColor" FROM trainers WHERE id=$1`, [input.trainerId]);
     const trainer = trainerRow.rows[0];
     if (!trainer) throw new TRPCError({ code: "NOT_FOUND" });
     const qRows = await pool.query<any>(`SELECT * FROM custom_survey_questions WHERE "trainerId"=$1 ORDER BY "sortOrder", id`, [trainer.id]);
     return { trainer, questions: qRows.rows };
   }),
   submit: t.procedure.input(z.object({
-    username: z.string(),
+    trainerId: z.number().int(),
     respondentName: z.string().min(1),
     respondentPhone: z.string().optional(),
     answers: z.record(z.string()),
   })).mutation(async ({ input }) => {
-    const userRow = await pool.query<{ id: number }>(`SELECT id FROM users WHERE username=$1`, [input.username]);
-    if (!userRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
-    const trainerRow = await pool.query<{ id: number }>(`SELECT id FROM trainers WHERE "userId"=$1`, [userRow.rows[0].id]);
+    const trainerRow = await pool.query<{ id: number }>(`SELECT id FROM trainers WHERE id=$1`, [input.trainerId]);
     if (!trainerRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
     const trainerId = trainerRow.rows[0].id;
     await pool.query(

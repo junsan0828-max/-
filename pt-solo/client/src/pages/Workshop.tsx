@@ -784,8 +784,8 @@ function SurveyBuilder() {
   const [form, setForm] = useState({ question: "", type: "text" as "text" | "choice" | "scale", options: "", isRequired: 0 });
   const [showResponses, setShowResponses] = useState(false);
 
-  const username = (user as any)?.username;
-  const surveyUrl = `${window.location.origin}/survey/${encodeURIComponent(username)}`;
+  const trainerId = (user as any)?.trainerId;
+  const surveyUrl = `${window.location.origin}/survey/${trainerId}`;
 
   const TYPE_LABELS = { text: "주관식", choice: "객관식", scale: "1~5점 척도" };
 

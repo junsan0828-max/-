@@ -2,10 +2,10 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { CheckCircle, ChevronRight } from "lucide-react";
 
-interface Props { username: string; }
+interface Props { trainerId: number; }
 
-export default function SurveyPage({ username }: Props) {
-  const { data, isLoading, error } = trpc.survey.getPublic.useQuery({ username });
+export default function SurveyPage({ trainerId }: Props) {
+  const { data, isLoading, error } = trpc.survey.getPublic.useQuery({ trainerId });
   const [step, setStep] = useState<"info" | "questions" | "done">("info");
   const [info, setInfo] = useState({ name: "", phone: "" });
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -140,7 +140,7 @@ export default function SurveyPage({ username }: Props) {
             ))}
             <button
               disabled={submitMutation.isPending || questions.filter((q: any) => q.isRequired).some((q: any) => !answers[q.id])}
-              onClick={() => submitMutation.mutate({ username, respondentName: info.name, respondentPhone: info.phone, answers })}
+              onClick={() => submitMutation.mutate({ trainerId, respondentName: info.name, respondentPhone: info.phone, answers })}
               className="w-full py-4 rounded-xl text-white font-bold disabled:opacity-40"
               style={{ backgroundColor: primaryColor }}>
               {submitMutation.isPending ? "제출 중..." : "제출하기"}
