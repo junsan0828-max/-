@@ -118,20 +118,27 @@ export default function MemberReRegister() {
     }
   }, [search, members]);
 
-  // 헬스 가격 자동 기입
+  // 헬스 가격 자동 기입 (기간별)
   useEffect(() => {
-    if (!gymSettings) return;
-    const price = (gymSettings as any).healthMonthlyPrice ?? 0;
-    if (price > 0) setHealthPrice(String(price * healthMonths));
+    if (!gymSettings || !addHealth) return;
+    const gs = gymSettings as any;
+    const key = `health${healthMonths}MonthPrice`;
+    const price = gs[key] ?? 0;
+    if (price > 0) setHealthPrice(String(price));
   }, [gymSettings, addHealth, healthMonths]);
 
-  // PT 가격 자동 기입
+  // PT 가격 자동 기입 (프로그램×횟수별, 이벤트PT는 수동)
   useEffect(() => {
-    if (!gymSettings) return;
-    const price = (gymSettings as any).ptSessionPrice ?? 0;
+    if (!gymSettings || !addPt || isServiceSession) return;
+    if (ptProgram === "이벤트피티") return;
+    const gs = gymSettings as any;
     const sessions = parseInt(ptSessions) || 0;
-    if (price > 0 && sessions > 0) setPtPrice(String(price * sessions));
-  }, [gymSettings, addPt, ptSessions]);
+    if (!sessions || ![10, 20, 30, 40, 50].includes(sessions)) return;
+    const prefix = ptProgram === "웨이트피티" ? "weightPt" : ptProgram === "케어피티" ? "carePt" : null;
+    if (!prefix) return;
+    const price = gs[`${prefix}${sessions}Price`] ?? 0;
+    if (price > 0) setPtPrice(String(price));
+  }, [gymSettings, addPt, ptProgram, ptSessions, isServiceSession]);
 
   // 락커 가격 자동 기입
   useEffect(() => {
@@ -392,8 +399,9 @@ export default function MemberReRegister() {
                         setHealthMonths(m);
                         const newEnd = calcEndDateByMonths(membershipStart, m);
                         setMembershipEnd(newEnd);
-                        const gp = (gymSettings as any)?.healthMonthlyPrice ?? 0;
-                        if (gp > 0) setHealthPrice(String(gp * m));
+                        const gs = gymSettings as any;
+                        const price = gs?.[`health${m}MonthPrice`] ?? 0;
+                        if (price > 0) setHealthPrice(String(price));
                       }}
                       className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${healthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground hover:bg-accent"}`}>
                       {m}개월
@@ -445,7 +453,13 @@ export default function MemberReRegister() {
                 <div className="flex gap-1.5 flex-wrap mt-1.5">
                   {PT_PRESETS.map(p => (
                     <button key={p} type="button"
-                      onClick={() => { setPtProgram(x => x === p && !isServiceSession ? "" : p); setIsServiceSession(false); }}
+                      onClick={() => {
+                        const next = ptProgram === p && !isServiceSession ? "" : p;
+                        setPtProgram(next);
+                        setIsServiceSession(false);
+                        // 이벤트피티는 가격 초기화
+                        if (p === "이벤트피티") setPtPrice("");
+                      }}
                       className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${ptProgram === p && !isServiceSession ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
                       {p}
                     </button>
@@ -456,6 +470,9 @@ export default function MemberReRegister() {
                     서비스세션
                   </button>
                 </div>
+                {ptProgram === "이벤트피티" && (
+                  <p className="text-[10px] text-amber-400 mt-1">이벤트PT는 단가가 없습니다. 결제 금액을 직접 입력해주세요.</p>
+                )}
                 {isServiceSession && (
                   <div className="mt-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 flex items-center gap-3">
                     <p className="text-xs text-emerald-400">서비스세션 — 0원 처리</p>
@@ -477,8 +494,14 @@ export default function MemberReRegister() {
                         const next = ptSessions === preset ? "" : preset;
                         setPtSessions(next);
                         if (!addHealth) setMembershipEnd(calcEndDateByPT(membershipStart, next));
-                        const gp = (gymSettings as any)?.ptSessionPrice ?? 0;
-                        if (gp > 0 && next) setPtPrice(String(gp * parseInt(next)));
+                        if (ptProgram !== "이벤트피티" && !isServiceSession && next) {
+                          const gs = gymSettings as any;
+                          const prefix = ptProgram === "웨이트피티" ? "weightPt" : ptProgram === "케어피티" ? "carePt" : null;
+                          if (prefix) {
+                            const price = gs?.[`${prefix}${parseInt(next)}Price`] ?? 0;
+                            if (price > 0) setPtPrice(String(price));
+                          }
+                        }
                       }}
                       className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${ptSessions === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
                       {preset}회
@@ -489,8 +512,6 @@ export default function MemberReRegister() {
                       const s = e.target.value;
                       setPtSessions(s);
                       if (!addHealth) setMembershipEnd(calcEndDateByPT(membershipStart, s));
-                      const gp = (gymSettings as any)?.ptSessionPrice ?? 0;
-                      if (gp > 0 && s) setPtPrice(String(gp * parseInt(s)));
                     }}
                     placeholder="직접 입력" className="bg-input border-border text-xs h-7 w-24" />
                 </div>

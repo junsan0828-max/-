@@ -507,19 +507,36 @@ export default function Admin() {
   const { data: gymSettings, refetch: refetchGymSettings } = trpc.gym.settings.get.useQuery();
   const [settingsForm, setSettingsForm] = useState({
     servicePtUnitPrice: "", serviceHealthUnitPrice: "", serviceLockUnitPrice: "", serviceUniformUnitPrice: "",
-    healthMonthlyPrice: "", ptSessionPrice: "", lockerMonthlyPrice: "", uniformPrice: "",
+    lockerMonthlyPrice: "", uniformPrice: "",
+    health1MonthPrice: "", health3MonthPrice: "", health6MonthPrice: "", health12MonthPrice: "",
+    weightPt10Price: "", weightPt20Price: "", weightPt30Price: "", weightPt40Price: "", weightPt50Price: "",
+    carePt10Price: "", carePt20Price: "", carePt30Price: "", carePt40Price: "", carePt50Price: "",
   });
   useEffect(() => {
     if (gymSettings) {
+      const gs = gymSettings as any;
+      const v = (k: string) => gs[k] > 0 ? String(gs[k]) : "";
       setSettingsForm({
         servicePtUnitPrice: gymSettings.servicePtUnitPrice > 0 ? String(gymSettings.servicePtUnitPrice) : "",
         serviceHealthUnitPrice: gymSettings.serviceHealthUnitPrice > 0 ? String(gymSettings.serviceHealthUnitPrice) : "",
         serviceLockUnitPrice: gymSettings.serviceLockUnitPrice > 0 ? String(gymSettings.serviceLockUnitPrice) : "",
         serviceUniformUnitPrice: gymSettings.serviceUniformUnitPrice > 0 ? String(gymSettings.serviceUniformUnitPrice) : "",
-        healthMonthlyPrice: (gymSettings as any).healthMonthlyPrice > 0 ? String((gymSettings as any).healthMonthlyPrice) : "",
-        ptSessionPrice: (gymSettings as any).ptSessionPrice > 0 ? String((gymSettings as any).ptSessionPrice) : "",
-        lockerMonthlyPrice: (gymSettings as any).lockerMonthlyPrice > 0 ? String((gymSettings as any).lockerMonthlyPrice) : "",
-        uniformPrice: (gymSettings as any).uniformPrice > 0 ? String((gymSettings as any).uniformPrice) : "",
+        lockerMonthlyPrice: v("lockerMonthlyPrice"),
+        uniformPrice: v("uniformPrice"),
+        health1MonthPrice: v("health1MonthPrice"),
+        health3MonthPrice: v("health3MonthPrice"),
+        health6MonthPrice: v("health6MonthPrice"),
+        health12MonthPrice: v("health12MonthPrice"),
+        weightPt10Price: v("weightPt10Price"),
+        weightPt20Price: v("weightPt20Price"),
+        weightPt30Price: v("weightPt30Price"),
+        weightPt40Price: v("weightPt40Price"),
+        weightPt50Price: v("weightPt50Price"),
+        carePt10Price: v("carePt10Price"),
+        carePt20Price: v("carePt20Price"),
+        carePt30Price: v("carePt30Price"),
+        carePt40Price: v("carePt40Price"),
+        carePt50Price: v("carePt50Price"),
       });
     }
   }, [gymSettings]);
@@ -559,45 +576,101 @@ export default function Admin() {
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">등록 기본 단가</CardTitle>
-          <p className="text-xs text-muted-foreground">재등록 시 결제금액에 자동 기입되는 기준 단가입니다. 개별 수정도 가능합니다.</p>
+          <p className="text-xs text-muted-foreground">재등록 시 자동 기입되는 기준 단가입니다. 계약서 작성 시 개별 수정 가능합니다.</p>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs text-muted-foreground">헬스 월 단가 (원/월)</Label>
-              <Input type="number" min="0" placeholder="예: 50000"
-                value={settingsForm.healthMonthlyPrice}
-                onChange={e => setSettingsForm(f => ({ ...f, healthMonthlyPrice: e.target.value }))}
-                className="bg-input border-border mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">PT 세션 단가 (원/회)</Label>
-              <Input type="number" min="0" placeholder="예: 60000"
-                value={settingsForm.ptSessionPrice}
-                onChange={e => setSettingsForm(f => ({ ...f, ptSessionPrice: e.target.value }))}
-                className="bg-input border-border mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">락커 월 단가 (원/월)</Label>
-              <Input type="number" min="0" placeholder="예: 10000"
-                value={settingsForm.lockerMonthlyPrice}
-                onChange={e => setSettingsForm(f => ({ ...f, lockerMonthlyPrice: e.target.value }))}
-                className="bg-input border-border mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">운동복 단가 (원)</Label>
-              <Input type="number" min="0" placeholder="예: 3000"
-                value={settingsForm.uniformPrice}
-                onChange={e => setSettingsForm(f => ({ ...f, uniformPrice: e.target.value }))}
-                className="bg-input border-border mt-1" />
+        <CardContent className="space-y-5">
+          {/* 헬스 */}
+          <div>
+            <p className="text-xs font-medium text-emerald-400 mb-2">헬스 이용기간별 단가 (원)</p>
+            <div className="grid grid-cols-4 gap-2">
+              {([["1개월", "health1MonthPrice"], ["3개월", "health3MonthPrice"], ["6개월", "health6MonthPrice"], ["12개월", "health12MonthPrice"]] as const).map(([label, key]) => (
+                <div key={key}>
+                  <Label className="text-[10px] text-muted-foreground">{label}</Label>
+                  <Input type="number" min="0" placeholder="0"
+                    value={(settingsForm as any)[key]}
+                    onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="bg-input border-border mt-1 text-xs h-8" />
+                </div>
+              ))}
             </div>
           </div>
+
+          {/* 웨이트PT */}
+          <div>
+            <p className="text-xs font-medium text-primary mb-2">웨이트PT 횟수별 단가 (원)</p>
+            <div className="grid grid-cols-5 gap-2">
+              {([["10회", "weightPt10Price"], ["20회", "weightPt20Price"], ["30회", "weightPt30Price"], ["40회", "weightPt40Price"], ["50회", "weightPt50Price"]] as const).map(([label, key]) => (
+                <div key={key}>
+                  <Label className="text-[10px] text-muted-foreground">{label}</Label>
+                  <Input type="number" min="0" placeholder="0"
+                    value={(settingsForm as any)[key]}
+                    onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="bg-input border-border mt-1 text-xs h-8" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 케어PT */}
+          <div>
+            <p className="text-xs font-medium text-blue-400 mb-2">케어PT 횟수별 단가 (원)</p>
+            <div className="grid grid-cols-5 gap-2">
+              {([["10회", "carePt10Price"], ["20회", "carePt20Price"], ["30회", "carePt30Price"], ["40회", "carePt40Price"], ["50회", "carePt50Price"]] as const).map(([label, key]) => (
+                <div key={key}>
+                  <Label className="text-[10px] text-muted-foreground">{label}</Label>
+                  <Input type="number" min="0" placeholder="0"
+                    value={(settingsForm as any)[key]}
+                    onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="bg-input border-border mt-1 text-xs h-8" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 이벤트PT 안내 */}
+          <div className="rounded-lg bg-muted/30 border border-border px-3 py-2">
+            <p className="text-xs text-muted-foreground">이벤트PT — 계약 시 직접 입력 (기본 단가 없음)</p>
+          </div>
+
+          {/* 락커 / 운동복 */}
+          <div>
+            <p className="text-xs font-medium text-amber-400 mb-2">락커 · 운동복 단가 (원)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">락커 단가 (원/월)</Label>
+                <Input type="number" min="0" placeholder="예: 10000"
+                  value={settingsForm.lockerMonthlyPrice}
+                  onChange={e => setSettingsForm(f => ({ ...f, lockerMonthlyPrice: e.target.value }))}
+                  className="bg-input border-border mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">운동복 단가 (원)</Label>
+                <Input type="number" min="0" placeholder="예: 3000"
+                  value={settingsForm.uniformPrice}
+                  onChange={e => setSettingsForm(f => ({ ...f, uniformPrice: e.target.value }))}
+                  className="bg-input border-border mt-1" />
+              </div>
+            </div>
+          </div>
+
           <Button
             onClick={() => updateGymSettings.mutate({
-              healthMonthlyPrice: settingsForm.healthMonthlyPrice ? parseInt(settingsForm.healthMonthlyPrice) : 0,
-              ptSessionPrice: settingsForm.ptSessionPrice ? parseInt(settingsForm.ptSessionPrice) : 0,
               lockerMonthlyPrice: settingsForm.lockerMonthlyPrice ? parseInt(settingsForm.lockerMonthlyPrice) : 0,
               uniformPrice: settingsForm.uniformPrice ? parseInt(settingsForm.uniformPrice) : 0,
+              health1MonthPrice: settingsForm.health1MonthPrice ? parseInt(settingsForm.health1MonthPrice) : 0,
+              health3MonthPrice: settingsForm.health3MonthPrice ? parseInt(settingsForm.health3MonthPrice) : 0,
+              health6MonthPrice: settingsForm.health6MonthPrice ? parseInt(settingsForm.health6MonthPrice) : 0,
+              health12MonthPrice: settingsForm.health12MonthPrice ? parseInt(settingsForm.health12MonthPrice) : 0,
+              weightPt10Price: settingsForm.weightPt10Price ? parseInt(settingsForm.weightPt10Price) : 0,
+              weightPt20Price: settingsForm.weightPt20Price ? parseInt(settingsForm.weightPt20Price) : 0,
+              weightPt30Price: settingsForm.weightPt30Price ? parseInt(settingsForm.weightPt30Price) : 0,
+              weightPt40Price: settingsForm.weightPt40Price ? parseInt(settingsForm.weightPt40Price) : 0,
+              weightPt50Price: settingsForm.weightPt50Price ? parseInt(settingsForm.weightPt50Price) : 0,
+              carePt10Price: settingsForm.carePt10Price ? parseInt(settingsForm.carePt10Price) : 0,
+              carePt20Price: settingsForm.carePt20Price ? parseInt(settingsForm.carePt20Price) : 0,
+              carePt30Price: settingsForm.carePt30Price ? parseInt(settingsForm.carePt30Price) : 0,
+              carePt40Price: settingsForm.carePt40Price ? parseInt(settingsForm.carePt40Price) : 0,
+              carePt50Price: settingsForm.carePt50Price ? parseInt(settingsForm.carePt50Price) : 0,
             })}
             disabled={updateGymSettings.isPending}
             className="w-full">

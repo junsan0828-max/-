@@ -2350,11 +2350,28 @@ async function ensureGymSettings(db: any) {
     )
   `);
   await db.execute(sql`INSERT INTO gym_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
-  // 등록 기본 단가 컬럼 추가 (기존 DB 호환)
+  // 기존 단일 단가 컬럼 (하위 호환)
   await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "healthMonthlyPrice" INTEGER DEFAULT 0`);
   await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "ptSessionPrice" INTEGER DEFAULT 0`);
   await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "lockerMonthlyPrice" INTEGER DEFAULT 0`);
   await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "uniformPrice" INTEGER DEFAULT 0`);
+  // 헬스 기간별 단가
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "health1MonthPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "health3MonthPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "health6MonthPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "health12MonthPrice" INTEGER DEFAULT 0`);
+  // 웨이트PT 횟수별 단가
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt10Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt20Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt30Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt40Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "weightPt50Price" INTEGER DEFAULT 0`);
+  // 케어PT 횟수별 단가
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt10Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt20Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt30Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt40Price" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "carePt50Price" INTEGER DEFAULT 0`);
 }
 
 const gymSettingsRouter = t.router({
@@ -2373,6 +2390,20 @@ const gymSettingsRouter = t.router({
       ptSessionPrice: Number(row.ptSessionPrice ?? 0),
       lockerMonthlyPrice: Number(row.lockerMonthlyPrice ?? 0),
       uniformPrice: Number(row.uniformPrice ?? 0),
+      health1MonthPrice: Number(row.health1MonthPrice ?? 0),
+      health3MonthPrice: Number(row.health3MonthPrice ?? 0),
+      health6MonthPrice: Number(row.health6MonthPrice ?? 0),
+      health12MonthPrice: Number(row.health12MonthPrice ?? 0),
+      weightPt10Price: Number(row.weightPt10Price ?? 0),
+      weightPt20Price: Number(row.weightPt20Price ?? 0),
+      weightPt30Price: Number(row.weightPt30Price ?? 0),
+      weightPt40Price: Number(row.weightPt40Price ?? 0),
+      weightPt50Price: Number(row.weightPt50Price ?? 0),
+      carePt10Price: Number(row.carePt10Price ?? 0),
+      carePt20Price: Number(row.carePt20Price ?? 0),
+      carePt30Price: Number(row.carePt30Price ?? 0),
+      carePt40Price: Number(row.carePt40Price ?? 0),
+      carePt50Price: Number(row.carePt50Price ?? 0),
     };
   }),
 
@@ -2386,6 +2417,20 @@ const gymSettingsRouter = t.router({
       ptSessionPrice: z.number().min(0).optional(),
       lockerMonthlyPrice: z.number().min(0).optional(),
       uniformPrice: z.number().min(0).optional(),
+      health1MonthPrice: z.number().min(0).optional(),
+      health3MonthPrice: z.number().min(0).optional(),
+      health6MonthPrice: z.number().min(0).optional(),
+      health12MonthPrice: z.number().min(0).optional(),
+      weightPt10Price: z.number().min(0).optional(),
+      weightPt20Price: z.number().min(0).optional(),
+      weightPt30Price: z.number().min(0).optional(),
+      weightPt40Price: z.number().min(0).optional(),
+      weightPt50Price: z.number().min(0).optional(),
+      carePt10Price: z.number().min(0).optional(),
+      carePt20Price: z.number().min(0).optional(),
+      carePt30Price: z.number().min(0).optional(),
+      carePt40Price: z.number().min(0).optional(),
+      carePt50Price: z.number().min(0).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
@@ -2401,6 +2446,20 @@ const gymSettingsRouter = t.router({
       if (input.ptSessionPrice !== undefined) sets.push(`"ptSessionPrice" = ${input.ptSessionPrice}`);
       if (input.lockerMonthlyPrice !== undefined) sets.push(`"lockerMonthlyPrice" = ${input.lockerMonthlyPrice}`);
       if (input.uniformPrice !== undefined) sets.push(`"uniformPrice" = ${input.uniformPrice}`);
+      if (input.health1MonthPrice !== undefined) sets.push(`"health1MonthPrice" = ${input.health1MonthPrice}`);
+      if (input.health3MonthPrice !== undefined) sets.push(`"health3MonthPrice" = ${input.health3MonthPrice}`);
+      if (input.health6MonthPrice !== undefined) sets.push(`"health6MonthPrice" = ${input.health6MonthPrice}`);
+      if (input.health12MonthPrice !== undefined) sets.push(`"health12MonthPrice" = ${input.health12MonthPrice}`);
+      if (input.weightPt10Price !== undefined) sets.push(`"weightPt10Price" = ${input.weightPt10Price}`);
+      if (input.weightPt20Price !== undefined) sets.push(`"weightPt20Price" = ${input.weightPt20Price}`);
+      if (input.weightPt30Price !== undefined) sets.push(`"weightPt30Price" = ${input.weightPt30Price}`);
+      if (input.weightPt40Price !== undefined) sets.push(`"weightPt40Price" = ${input.weightPt40Price}`);
+      if (input.weightPt50Price !== undefined) sets.push(`"weightPt50Price" = ${input.weightPt50Price}`);
+      if (input.carePt10Price !== undefined) sets.push(`"carePt10Price" = ${input.carePt10Price}`);
+      if (input.carePt20Price !== undefined) sets.push(`"carePt20Price" = ${input.carePt20Price}`);
+      if (input.carePt30Price !== undefined) sets.push(`"carePt30Price" = ${input.carePt30Price}`);
+      if (input.carePt40Price !== undefined) sets.push(`"carePt40Price" = ${input.carePt40Price}`);
+      if (input.carePt50Price !== undefined) sets.push(`"carePt50Price" = ${input.carePt50Price}`);
       if (sets.length > 0) {
         await db.execute(sql.raw(`UPDATE gym_settings SET ${sets.join(", ")} WHERE id = 1`));
       }
