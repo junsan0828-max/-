@@ -576,8 +576,8 @@ const membersRouter = t.router({
 
       await db.update(members).set(memberData).where(eq(members.id, id));
 
-      // 장부 자동 연동 (결제 금액이 있을 때만)
-      if (paymentAmount) {
+      // 장부 자동 연동 — paymentAmount가 명시적으로 전달된 경우 (0원 이전처리 포함)
+      if (paymentAmount != null && subType) {
         const sessionCount = ptSessions ? parseInt(String(ptSessions)) : undefined;
         const paid = Math.max(0, paymentAmount - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
@@ -603,6 +603,32 @@ const membersRouter = t.router({
           memo: paymentMemo,
           serviceItems: serviceItems || undefined,
         });
+      }
+
+      // PT 패키지 자동 생성 — 세션 수가 있고 등록/이전 처리인 경우
+      if (ptSessions && subType) {
+        const sessionCount = parseInt(String(ptSessions));
+        if (sessionCount > 0) {
+          const [member] = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, id)).limit(1);
+          const pricePerSession = calcPricePerSession(paymentAmount ?? undefined, sessionCount, paymentMethod);
+          await db.insert(ptPackages).values({
+            memberId: id,
+            trainerId: member?.trainerId ?? null,
+            totalSessions: sessionCount,
+            usedSessions: 0,
+            packageName: ptProgram || undefined,
+            startDate: memberData.membershipStart ?? undefined,
+            pricePerSession: pricePerSession ?? undefined,
+            paymentAmount: paymentAmount ?? undefined,
+            unpaidAmount: unpaidAmount ?? undefined,
+            paymentMethod: paymentMethod ?? undefined,
+            paymentDate: paymentDate ?? undefined,
+            paymentMemo: paymentMemo ?? undefined,
+            status: "active",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
       }
 
       return { success: true };
