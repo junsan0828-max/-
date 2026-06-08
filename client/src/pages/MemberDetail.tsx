@@ -337,6 +337,27 @@ export default function MemberDetail({ memberId }: Props) {
   const [memberMemoEdit, setMemberMemoEdit] = useState(false);
   const [memberMemoText, setMemberMemoText] = useState("");
 
+  // 환불 계약서 모달
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [refundSelectedPkgId, setRefundSelectedPkgId] = useState<number | "">("");
+  const [refundContractUrl, setRefundContractUrl] = useState("");
+  const [refundForm, setRefundForm] = useState({
+    paymentMethod: "" as "" | "카드" | "현금" | "계좌이체",
+    taxAmount: "0",
+    penaltyAmount: "0",
+    refundAmount: "0",
+    reason: "",
+  });
+
+  // 양도 계약서 모달
+  const [yangdoModalOpen, setYangdoModalOpen] = useState(false);
+  const [yangdoSelectedPkgId, setYangdoSelectedPkgId] = useState<number | "">("");
+  const [yangdoForm, setYangdoForm] = useState({
+    transferDate: "",
+    trainerMemo: "",
+  });
+  const [yangdoContractUrl, setYangdoContractUrl] = useState("");
+
   function openLiveTraining(log: any) {
     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
     setLiveLog(log);
@@ -535,6 +556,19 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
+  const createRefundContractMutation = trpc.gym.createRefundContract.useMutation({
+    onSuccess: (data) => {
+      setRefundContractUrl(window.location.origin + data.contractUrl);
+    },
+    onError: (e) => toast.error(e.message || "계약서 생성 실패"),
+  });
+
+  const createYangdoContractMutation = trpc.transfer.createTransfer.useMutation({
+    onSuccess: (data) => {
+      setYangdoContractUrl(window.location.origin + data.contractUrl);
+    },
+    onError: (e) => toast.error(e.message || "계약서 생성 실패"),
+  });
 
   // 미수금 업데이트
   const updatePaymentMutation = trpc.pt.updatePayment.useMutation({
@@ -1118,7 +1152,48 @@ export default function MemberDetail({ memberId }: Props) {
           {/* PT 패키지 */}
           <Card className="bg-card border-border">
             <CardHeader className="px-4 sm:px-6 pb-2">
-              <CardTitle className="text-base">PT</CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base">PT</CardTitle>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setRefundModalOpen(true);
+                      setRefundContractUrl("");
+                      setRefundSelectedPkgId(ptPackages?.[0]?.id ?? "");
+                      const firstPkg = ptPackages?.[0];
+                      if (firstPkg) {
+                        setRefundForm({
+                          paymentMethod: "",
+                          taxAmount: "0",
+                          penaltyAmount: "0",
+                          refundAmount: String(firstPkg.paymentAmount ?? 0),
+                          reason: "",
+                        });
+                      }
+                    }}
+                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
+                  >
+                    <span>🔄</span> 환불
+                  </button>
+                  <button
+                    onClick={() => {
+                      setYangdoModalOpen(true);
+                      setYangdoContractUrl("");
+                      setYangdoSelectedPkgId(ptPackages?.[0]?.id ?? "");
+                      setYangdoForm({ transferDate: "", trainerMemo: "" });
+                    }}
+                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                  >
+                    <ArrowRightLeft className="h-3 w-3" /> 양도
+                  </button>
+                  <button
+                    onClick={() => setAddPkgOpen(true)}
+                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" /> 프로그램 추가
+                  </button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
               {!ptPackages?.length ? (
@@ -2812,6 +2887,304 @@ export default function MemberDetail({ memberId }: Props) {
           onClose={() => setTransferOpen(false)}
         />
       )}
+
+      {/* ── 환불 계약서 모달 ── */}
+      <Dialog open={refundModalOpen} onOpenChange={(open) => { setRefundModalOpen(open); if (!open) setRefundContractUrl(""); }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span>🔄</span> 환불 계약서 생성
+            </DialogTitle>
+            <DialogDescription>환불 정보를 입력하고 계약서 링크를 발급합니다.</DialogDescription>
+          </DialogHeader>
+
+          {refundContractUrl ? (
+            <div className="space-y-4 py-2">
+              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
+                <p className="text-sm font-semibold text-green-400 mb-2">계약서가 생성되었습니다!</p>
+                <p className="text-xs text-muted-foreground break-all">{refundContractUrl}</p>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  navigator.clipboard.writeText(refundContractUrl);
+                  toast.success("링크가 복사되었습니다.");
+                }}
+              >
+                <Copy className="h-4 w-4 mr-2" /> 링크 복사
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => { setRefundModalOpen(false); setRefundContractUrl(""); }}>
+                닫기
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* 패키지 선택 */}
+              {ptPackages && ptPackages.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">PT 패키지 선택</Label>
+                  <Select
+                    value={String(refundSelectedPkgId)}
+                    onValueChange={(v) => {
+                      const id = Number(v);
+                      setRefundSelectedPkgId(id);
+                      const pkg = ptPackages.find((p) => p.id === id);
+                      if (pkg) {
+                        setRefundForm((prev) => ({
+                          ...prev,
+                          taxAmount: "0",
+                          penaltyAmount: "0",
+                          refundAmount: String(pkg.paymentAmount ?? 0),
+                        }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="패키지 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {ptPackages.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.packageName || "PT 프로그램"} ({p.totalSessions - p.usedSessions}회 잔여)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* 자동 채움 필드 */}
+              {(() => {
+                const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
+                return pkg ? (
+                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">프로그램명</span><span className="font-medium">{pkg.packageName || "PT 프로그램"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{(pkg.paymentAmount ?? 0).toLocaleString()}원</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">총 횟수</span><span className="font-medium">{pkg.totalSessions}회</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">수강 횟수</span><span className="font-medium">{pkg.usedSessions}회</span></div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* 결제 방법 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">결제 방법</Label>
+                <div className="flex gap-1.5">
+                  {(["카드", "현금", "계좌이체"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setRefundForm((p) => ({ ...p, paymentMethod: p.paymentMethod === m ? "" : m }))}
+                      className={`flex-1 py-1.5 rounded-lg text-xs border transition-colors ${refundForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 부가세 / 위약금 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">부가세(원)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={refundForm.taxAmount}
+                    onChange={(e) => {
+                      const tax = Number(e.target.value) || 0;
+                      const penalty = Number(refundForm.penaltyAmount) || 0;
+                      const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
+                      const base = pkg?.paymentAmount ?? 0;
+                      setRefundForm((p) => ({ ...p, taxAmount: e.target.value, refundAmount: String(Math.max(0, base - tax - penalty)) }));
+                    }}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">위약금(원)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={refundForm.penaltyAmount}
+                    onChange={(e) => {
+                      const penalty = Number(e.target.value) || 0;
+                      const tax = Number(refundForm.taxAmount) || 0;
+                      const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
+                      const base = pkg?.paymentAmount ?? 0;
+                      setRefundForm((p) => ({ ...p, penaltyAmount: e.target.value, refundAmount: String(Math.max(0, base - tax - penalty)) }));
+                    }}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* 환불 금액 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">환불 금액(원)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={refundForm.refundAmount}
+                  onChange={(e) => setRefundForm((p) => ({ ...p, refundAmount: e.target.value }))}
+                  className="h-9 text-sm font-semibold text-primary"
+                />
+              </div>
+
+              {/* 환불 사유 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">환불 사유</Label>
+                <Textarea
+                  rows={3}
+                  placeholder="환불 사유를 입력하세요 (선택)"
+                  value={refundForm.reason}
+                  onChange={(e) => setRefundForm((p) => ({ ...p, reason: e.target.value }))}
+                  className="text-sm resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setRefundModalOpen(false)}>취소</Button>
+                <Button
+                  className="flex-1"
+                  disabled={createRefundContractMutation.isPending}
+                  onClick={() => {
+                    const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
+                    if (!pkg || !member) return;
+                    createRefundContractMutation.mutate({
+                      memberId: member.id,
+                      packageId: pkg.id,
+                      memberName: member.name,
+                      memberPhone: member.phone ?? undefined,
+                      programName: pkg.packageName || "PT 프로그램",
+                      paymentAmount: pkg.paymentAmount ?? 0,
+                      totalSessions: pkg.totalSessions,
+                      usedSessions: pkg.usedSessions,
+                      paymentMethod: refundForm.paymentMethod || undefined,
+                      taxAmount: Number(refundForm.taxAmount) || 0,
+                      penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                      refundAmount: Number(refundForm.refundAmount) || 0,
+                      reason: refundForm.reason || undefined,
+                    });
+                  }}
+                >
+                  {createRefundContractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "계약서 생성 및 링크 발급"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 양도 계약서 모달 ── */}
+      <Dialog open={yangdoModalOpen} onOpenChange={(open) => { setYangdoModalOpen(open); if (!open) setYangdoContractUrl(""); }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-4 w-4 text-orange-400" /> 양도 계약서 생성
+            </DialogTitle>
+            <DialogDescription>양도 정보를 입력하고 계약서 링크를 발급합니다.</DialogDescription>
+          </DialogHeader>
+
+          {yangdoContractUrl ? (
+            <div className="space-y-4 py-2">
+              <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 text-center">
+                <p className="text-sm font-semibold text-orange-400 mb-2">계약서가 생성되었습니다!</p>
+                <p className="text-xs text-muted-foreground break-all">{yangdoContractUrl}</p>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  navigator.clipboard.writeText(yangdoContractUrl);
+                  toast.success("링크가 복사되었습니다.");
+                }}
+              >
+                <Copy className="h-4 w-4 mr-2" /> 링크 복사
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => { setYangdoModalOpen(false); setYangdoContractUrl(""); }}>
+                닫기
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* 패키지 선택 */}
+              {ptPackages && ptPackages.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">PT 패키지 선택</Label>
+                  <Select
+                    value={String(yangdoSelectedPkgId)}
+                    onValueChange={(v) => setYangdoSelectedPkgId(Number(v))}
+                  >
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="패키지 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {ptPackages.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.packageName || "PT 프로그램"} ({p.totalSessions - p.usedSessions}회 잔여)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* 자동 채움 필드 */}
+              {(() => {
+                const pkg = ptPackages?.find((p) => p.id === yangdoSelectedPkgId) ?? ptPackages?.[0];
+                return pkg ? (
+                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">프로그램명</span><span className="font-medium">{pkg.packageName || "PT 프로그램"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">총 횟수</span><span className="font-medium">{pkg.totalSessions}회</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">수강 횟수</span><span className="font-medium">{pkg.usedSessions}회</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">잔여 횟수</span><span className="font-medium text-primary">{pkg.totalSessions - pkg.usedSessions}회</span></div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* 양도 예정일 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">양도 예정일</Label>
+                <Input
+                  type="date"
+                  value={yangdoForm.transferDate}
+                  onChange={(e) => setYangdoForm((p) => ({ ...p, transferDate: e.target.value }))}
+                  className="h-9 text-sm"
+                />
+              </div>
+
+              {/* 트레이너 메모 */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">트레이너 메모 (선택)</Label>
+                <Textarea
+                  rows={3}
+                  placeholder="양도 관련 메모를 입력하세요 (선택)"
+                  value={yangdoForm.trainerMemo}
+                  onChange={(e) => setYangdoForm((p) => ({ ...p, trainerMemo: e.target.value }))}
+                  className="text-sm resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setYangdoModalOpen(false)}>취소</Button>
+                <Button
+                  className="flex-1"
+                  disabled={createYangdoContractMutation.isPending}
+                  onClick={() => {
+                    const pkg = ptPackages?.find((p) => p.id === yangdoSelectedPkgId) ?? ptPackages?.[0];
+                    if (!pkg || !member) return;
+                    const remaining = pkg.totalSessions - pkg.usedSessions;
+                    createYangdoContractMutation.mutate({
+                      transferorMemberId: member.id,
+                      itemType: "pt_package",
+                      itemId: pkg.id,
+                      itemDescription: `${pkg.packageName || "PT 프로그램"} (잔여 ${remaining}회${yangdoForm.transferDate ? ` · 양도예정일: ${yangdoForm.transferDate}` : ""}${yangdoForm.trainerMemo ? ` · ${yangdoForm.trainerMemo}` : ""})`,
+                    });
+                  }}
+                >
+                  {createYangdoContractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "계약서 생성 및 링크 발급"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
