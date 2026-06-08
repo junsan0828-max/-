@@ -778,6 +778,7 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "removedFeatures" TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandBlocks" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "journalType" TEXT NOT NULL DEFAULT 'weight'`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandMessage" TEXT`);
   await pool.query(`CREATE TABLE IF NOT EXISTS workshop_feature_config (
     id SERIAL PRIMARY KEY,
     "featureId" TEXT NOT NULL,

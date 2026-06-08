@@ -94,7 +94,7 @@ export default function MemberReport({ token }: Props) {
   }
 
   const { member, conditionChecks, workoutMemos, ptPackages, generatedAt } = data;
-  const trainerInfo = (data as any).trainerInfo as { trainerName?: string; profileImage?: string; brandColor?: string } | null;
+  const trainerInfo = (data as any).trainerInfo as { trainerName?: string; profileImage?: string; brandColor?: string; brandMessage?: string } | null;
 
   // 출석 통계
   const totalAttended = conditionChecks.filter((c) => c.status === "attended").length;
@@ -170,6 +170,12 @@ export default function MemberReport({ token }: Props) {
               {trainerInfo?.trainerName ?? "FIT STEP"}
             </p>
           </div>
+          {trainerInfo?.brandMessage && (
+            <div className="mb-4 rounded-xl px-4 py-3 text-sm font-medium"
+              style={{ backgroundColor: `${trainerInfo.brandColor || "#1a00ff"}18`, color: trainerInfo.brandColor || "#1a00ff" }}>
+              💬 {trainerInfo.brandMessage}
+            </div>
+          )}
           <div className="flex items-start gap-4">
             <div className="h-14 w-14 rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0"
               style={{ backgroundColor: trainerInfo?.brandColor || "#1a00ff" }}>

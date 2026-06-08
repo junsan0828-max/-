@@ -1627,7 +1627,7 @@ const reportsRouter = t.router({
       if (!memberRows[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
       const trainerRow = await pool.query<any>(
-        `SELECT "trainerName","profileImage","brandColor","activityArea","jobType" FROM trainers WHERE id=$1`,
+        `SELECT "trainerName","profileImage","brandColor","brandMessage","activityArea","jobType" FROM trainers WHERE id=$1`,
         [reportTrainerId]
       );
       const trainerInfo = trainerRow.rows[0] ?? null;
@@ -4170,7 +4170,7 @@ const brandRouter = t.router({
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
     const row = await pool.query<any>(
-      `SELECT "brandBio","brandSpecialties","brandColor","brandInstagram","brandKakao","brandYoutube","brandIsPublic","bookingEnabled","bookingMessage","trainerName","profileImage","activityArea","jobType","careerRange","brandBlocks"
+      `SELECT "brandBio","brandSpecialties","brandColor","brandInstagram","brandKakao","brandYoutube","brandIsPublic","bookingEnabled","bookingMessage","brandMessage","trainerName","profileImage","activityArea","jobType","careerRange","brandBlocks"
        FROM trainers WHERE id=$1`,
       [trainerId]
     );
@@ -4188,6 +4188,7 @@ const brandRouter = t.router({
     brandIsPublic: z.number().optional(),
     bookingEnabled: z.number().optional(),
     bookingMessage: z.string().optional(),
+    brandMessage: z.string().optional(),
     brandBlocks: z.string().optional(),
     profileImage: z.string().optional(),
   })).mutation(async ({ ctx, input }) => {
