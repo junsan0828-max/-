@@ -754,12 +754,12 @@ export default function MemberDetail({ memberId }: Props) {
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
-                    <DialogTitle>PT 프로그램 추가</DialogTitle>
-                    <DialogDescription>{member.name}님에게 새 PT 프로그램을 추가합니다.</DialogDescription>
+                    <DialogTitle>프로그램 추가</DialogTitle>
+                    <DialogDescription>{member.name}님에게 새 프로그램을 추가합니다.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">PT 프로그램</Label>
+                      <Label className="text-xs">프로그램명</Label>
                       <Input
                         value={pkgForm.ptProgram}
                         onChange={(e) => setPkgForm((p) => ({ ...p, ptProgram: e.target.value }))}
@@ -1380,7 +1380,7 @@ export default function MemberDetail({ memberId }: Props) {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">PT 프로그램</Label>
+              <Label className="text-xs">프로그램명</Label>
               <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="피티" className="h-9 text-sm" />
               <div className="flex gap-1.5 flex-wrap">
                 {["피티", "필라테스", "이벤트 세션"].map(preset => (
