@@ -556,6 +556,7 @@ export default function MemberDetail({ memberId }: Props) {
     .reduce((sum, p) => sum + (p.totalSessions - p.usedSessions), 0) ?? 0;
   const totalAttendance = attendanceList?.filter(a => a.status === "attended").length ?? 0;
   const memoCount = memoList?.length ?? 0;
+  const logCount = sessionLogs?.length ?? 0;
 
   return (
     <div className="space-y-4">
@@ -639,9 +640,9 @@ export default function MemberDetail({ memberId }: Props) {
       {/* 요약 통계 카드 */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 PT 횟수" },
+          { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 수업 수" },
           { icon: <CheckCircle className="h-5 w-5 text-green-400" />, value: totalAttendance, label: "총 출석 횟수" },
-          { icon: <BookOpen className="h-5 w-5 text-blue-400" />, value: memoCount, label: "운동 메모" },
+          { icon: <BookOpen className="h-5 w-5 text-blue-400" />, value: logCount, label: "수업 일지" },
         ].map((item) => (
           <Card key={item.label} className="bg-card border-border">
             <CardContent className="p-3 flex flex-col items-start gap-1">
@@ -659,7 +660,7 @@ export default function MemberDetail({ memberId }: Props) {
           <TabsTrigger value="info" className="text-xs px-1">기본정보</TabsTrigger>
           <TabsTrigger value="pt" className="text-xs px-1">프로그램</TabsTrigger>
           <TabsTrigger value="stats" className="text-xs px-1">통계</TabsTrigger>
-          <TabsTrigger value="training" className="text-xs px-1">트레이닝</TabsTrigger>
+          <TabsTrigger value="training" className="text-xs px-1">수업 일지</TabsTrigger>
           <TabsTrigger value="attendance" className="text-xs px-1">출석</TabsTrigger>
         </TabsList>
 
