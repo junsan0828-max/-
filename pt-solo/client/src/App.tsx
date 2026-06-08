@@ -31,6 +31,7 @@ import Sessions from "./pages/Sessions";
 import Academy from "./pages/Academy";
 import TrainerBrandPage from "./pages/TrainerBrandPage";
 import ClassBookingPage from "./pages/ClassBookingPage";
+import BookingManagementPage from "./pages/BookingManagementPage";
 import SurveyPage from "./pages/SurveyPage";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
@@ -185,6 +186,7 @@ function App() {
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
           <Route path="/sessions">{() => <Sessions />}</Route>
           <Route path="/workshop">{() => <Workshop />}</Route>
+          <Route path="/booking">{() => <BookingManagementPage />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" />}</Route>
           <Route path="/admin/trainers/:id">

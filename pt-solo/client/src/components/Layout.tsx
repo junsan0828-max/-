@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
@@ -16,6 +16,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
   const { data: profile } = trpc.trainers.getMyProfile.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const isFeatureActive = (featureId: string) => {
+    const removed = (wsStatus?.removedFeatures ?? []) as string[];
+    const configs = (wsStatus?.featureConfigs ?? {}) as Record<string, string>;
+    if (removed.includes(featureId)) return false;
+    return (configs[featureId] ?? "active") === "active";
+  };
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
       localStorage.removeItem("fitStep-autoLogin");
@@ -85,6 +92,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/sessions", label: "수업 관리", icon: BookOpen },
     { path: "/leads", label: "상담실", icon: UserPlus },
     { path: "/workshop", label: "작업실", icon: Wrench },
+    ...(isFeatureActive("booking") ? [{ path: "/booking", label: "수업 예약 관리", icon: CalendarCheck }] : []),
     { path: "/settlement", label: "성장분석실", icon: TrendingUp },
     { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
     { path: "/profile", label: "내 프로필", icon: User },
