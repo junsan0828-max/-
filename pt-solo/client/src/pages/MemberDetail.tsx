@@ -657,7 +657,7 @@ export default function MemberDetail({ memberId }: Props) {
       <Tabs defaultValue="info">
         <TabsList className="w-full grid grid-cols-5">
           <TabsTrigger value="info" className="text-xs px-1">기본정보</TabsTrigger>
-          <TabsTrigger value="pt" className="text-xs px-1">PT정보</TabsTrigger>
+          <TabsTrigger value="pt" className="text-xs px-1">프로그램</TabsTrigger>
           <TabsTrigger value="stats" className="text-xs px-1">통계</TabsTrigger>
           <TabsTrigger value="training" className="text-xs px-1">트레이닝</TabsTrigger>
           <TabsTrigger value="attendance" className="text-xs px-1">출석</TabsTrigger>
@@ -725,22 +725,22 @@ export default function MemberDetail({ memberId }: Props) {
           </Card>
         </TabsContent>
 
-        {/* ── PT 프로그램 탭 ── */}
+        {/* ── 프로그램 탭 ── */}
         <TabsContent value="pt" className="mt-4">
           <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6 flex-wrap gap-2">
-              <CardTitle className="text-base">PT 프로그램</CardTitle>
+              <CardTitle className="text-base">프로그램</CardTitle>
               <div className="flex items-center gap-1.5 flex-wrap">
                 {refundContractActive && (
                   <Button size="sm" variant="outline" className="gap-1.5 text-xs text-orange-500 border-orange-400/40 hover:bg-orange-500/10"
                     onClick={() => { setRefundForm({ programName: ptPackages?.[0]?.packageName ?? "", programPrice: String(ptPackages?.[0]?.paymentAmount ?? ""), programSessions: String(ptPackages?.[0]?.totalSessions ?? ""), usedSessions: String(ptPackages?.[0]?.usedSessions ?? ""), refundAmount: "", refundReason: "", paymentMethod: "", vatAmount: "", penaltyAmount: "" }); setContractCreatedToken(null); setRefundContractOpen(true); }}>
-                    <ReceiptText className="h-3.5 w-3.5" /> 환불 계약서
+                    <ReceiptText className="h-3.5 w-3.5" /> 환불
                   </Button>
                 )}
                 {transferContractActive && (
                   <Button size="sm" variant="outline" className="gap-1.5 text-xs text-blue-500 border-blue-400/40 hover:bg-blue-500/10"
                     onClick={() => { setTransferForm({ programName: ptPackages?.[0]?.packageName ?? "", totalSessions: String(ptPackages?.[0]?.totalSessions ?? ""), usedSessions: String(ptPackages?.[0]?.usedSessions ?? ""), remainingSessions: String((ptPackages?.[0]?.totalSessions ?? 0) - (ptPackages?.[0]?.usedSessions ?? 0)), transferDate: "", trainerMemo: "" }); setContractCreatedToken(null); setTransferContractOpen(true); }}>
-                    <ArrowLeftRight className="h-3.5 w-3.5" /> 양도양수 계약서
+                    <ArrowLeftRight className="h-3.5 w-3.5" /> 양도
                   </Button>
                 )}
               {/* 패키지 추가 다이얼로그 */}
