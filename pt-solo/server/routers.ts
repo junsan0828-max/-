@@ -1879,9 +1879,10 @@ const eContractRouter = t.router({
     const trainerId = (ctx.user as any).trainerId;
     if (!trainerId) throw new TRPCError({ code: "UNAUTHORIZED" });
     const rows = await pool.query<any>(
-      `SELECT id, token, "memberName", "memberPhone", "programName", "programPrice",
-              "programSessions", "programStartDate", status, "signedAt", "signerName",
-              "agreedMarketing", "createdAt", "contractType", "extraData"
+      `SELECT id, token, "memberName", "memberPhone", "memberBirth", "programName", "programFormat",
+              "listPrice", "discountAmount", "programPrice", "unpaidAmount", "paymentDate",
+              "programSessions", "programStartDate", "programEndDate", "trainerMemo",
+              status, "signedAt", "signerName", "agreedMarketing", "createdAt", "contractType", "extraData"
        FROM e_contracts WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 100`,
       [trainerId]
     );
@@ -1926,9 +1927,15 @@ const eContractRouter = t.router({
         memberPhone: r.memberPhone,
         memberBirth: r.memberBirth,
         programName: r.programName,
+        programFormat: r.programFormat,
+        listPrice: r.listPrice,
+        discountAmount: r.discountAmount,
         programPrice: r.programPrice,
+        unpaidAmount: r.unpaidAmount,
+        paymentDate: r.paymentDate,
         programSessions: r.programSessions,
         programStartDate: r.programStartDate,
+        programEndDate: r.programEndDate,
         trainerName: r.trainerName,
         trainerMemo: r.trainerMemo,
         transferorSignerName: r.transferorSignerName ?? null,
@@ -2017,6 +2024,49 @@ const eContractRouter = t.router({
       );
       if (!row.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
       return row.rows[0];
+    }),
+
+  // 계약 내용 수정 (트레이너 전용, 서명 전에만 가능)
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      memberName: z.string().optional(),
+      memberPhone: z.string().optional(),
+      memberBirth: z.string().optional(),
+      programName: z.string().optional(),
+      programFormat: z.string().optional(),
+      programSessions: z.number().optional(),
+      listPrice: z.number().optional(),
+      discountAmount: z.number().optional(),
+      programPrice: z.number().optional(),
+      unpaidAmount: z.number().optional(),
+      paymentDate: z.string().optional(),
+      programStartDate: z.string().optional(),
+      programEndDate: z.string().optional(),
+      trainerMemo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = (ctx.user as any).trainerId;
+      const { id, ...fields } = input;
+      await pool.query(
+        `UPDATE e_contracts SET
+          "memberName"=$1, "memberPhone"=$2, "memberBirth"=$3,
+          "programName"=$4, "programFormat"=$5, "programSessions"=$6,
+          "listPrice"=$7, "discountAmount"=$8, "programPrice"=$9, "unpaidAmount"=$10,
+          "paymentDate"=$11, "programStartDate"=$12, "programEndDate"=$13, "trainerMemo"=$14
+         WHERE id=$15 AND "trainerId"=$16`,
+        [
+          fields.memberName ?? null, fields.memberPhone ?? null, fields.memberBirth ?? null,
+          fields.programName ?? null, fields.programFormat ?? null,
+          fields.programSessions ?? null,
+          fields.listPrice ?? null, fields.discountAmount ?? null,
+          fields.programPrice ?? null, fields.unpaidAmount ?? null,
+          fields.paymentDate ?? null, fields.programStartDate ?? null,
+          fields.programEndDate ?? null, fields.trainerMemo ?? null,
+          id, trainerId,
+        ]
+      );
+      return { success: true };
     }),
 });
 

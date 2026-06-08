@@ -558,14 +558,20 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
               </div>
             ))}
           </div>
-          {(data.programName || data.programPrice || data.programSessions) && (
+          {(data.programName || data.programPrice || data.programSessions || data.programFormat || data.listPrice || data.paymentDate) && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
               <h2 className="text-sm font-bold text-gray-900">프로그램 정보</h2>
               <div className="divide-y divide-gray-100">
                 <InfoRow label="프로그램명" value={data.programName} />
-                <InfoRow label="금액" value={data.programPrice != null ? `${data.programPrice.toLocaleString()}원` : null} />
+                <InfoRow label="프로그램 형태" value={data.programFormat} />
                 <InfoRow label="횟수" value={data.programSessions != null ? `${data.programSessions}회` : null} />
+                <InfoRow label="정가" value={data.listPrice != null ? `${data.listPrice.toLocaleString()}원` : null} />
+                <InfoRow label="할인" value={data.discountAmount != null && data.discountAmount > 0 ? `-${data.discountAmount.toLocaleString()}원` : null} />
+                <InfoRow label="실결제" value={data.programPrice != null ? `${data.programPrice.toLocaleString()}원` : null} />
+                <InfoRow label="미수금" value={data.unpaidAmount != null && data.unpaidAmount > 0 ? `${data.unpaidAmount.toLocaleString()}원` : null} />
+                <InfoRow label="결제일" value={data.paymentDate} />
                 <InfoRow label="시작일" value={data.programStartDate} />
+                <InfoRow label="종료일" value={data.programEndDate} />
               </div>
               {data.trainerMemo && (
                 <div className="bg-gray-50 rounded-xl px-4 py-3">
