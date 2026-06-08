@@ -2,7 +2,8 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, desc, sql, like, gte, lte, inArray } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
-import { getDb } from "./db";
+import { randomUUID } from "crypto";
+import { getDb, pool } from "./db";
 import {
   channels,
   leads,
@@ -37,6 +38,7 @@ interface Context {
 }
 
 const t = initTRPC.context<Context>().create();
+const publicProcedure = t.procedure;
 const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
   return next({ ctx: { ...ctx, user: ctx.user } });
@@ -2389,6 +2391,73 @@ const gymSettingsRouter = t.router({
     }),
 });
 
+// ─── 환불 계약서 ──────────────────────────────────────────────────────────────
+const refundContractRouter = t.router({
+  createRefundContract: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      packageId: z.number().optional(),
+      memberName: z.string(),
+      memberPhone: z.string().optional(),
+      programName: z.string(),
+      paymentAmount: z.number().default(0),
+      totalSessions: z.number().default(0),
+      usedSessions: z.number().default(0),
+      paymentMethod: z.string().optional(),
+      taxAmount: z.number().default(0),
+      penaltyAmount: z.number().default(0),
+      refundAmount: z.number().default(0),
+      reason: z.string().optional(),
+      gymName: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS refund_contracts (
+          id SERIAL PRIMARY KEY,
+          token TEXT NOT NULL UNIQUE,
+          "memberId" INTEGER,
+          "packageId" INTEGER,
+          "memberName" TEXT,
+          "memberPhone" TEXT,
+          "programName" TEXT NOT NULL,
+          "paymentAmount" INTEGER NOT NULL DEFAULT 0,
+          "totalSessions" INTEGER NOT NULL DEFAULT 0,
+          "usedSessions" INTEGER NOT NULL DEFAULT 0,
+          "paymentMethod" TEXT,
+          "taxAmount" INTEGER NOT NULL DEFAULT 0,
+          "penaltyAmount" INTEGER NOT NULL DEFAULT 0,
+          "refundAmount" INTEGER NOT NULL DEFAULT 0,
+          reason TEXT,
+          "gymName" TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          "createdAt" TEXT NOT NULL
+        )
+      `);
+      const token = randomUUID();
+      const now = new Date().toISOString();
+      await pool.query(
+        `INSERT INTO refund_contracts (token,"memberId","packageId","memberName","memberPhone","programName","paymentAmount","totalSessions","usedSessions","paymentMethod","taxAmount","penaltyAmount","refundAmount",reason,"gymName",status,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'pending',$16)`,
+        [token, input.memberId, input.packageId ?? null, input.memberName, input.memberPhone ?? null, input.programName, input.paymentAmount, input.totalSessions, input.usedSessions, input.paymentMethod ?? null, input.taxAmount, input.penaltyAmount, input.refundAmount, input.reason ?? null, input.gymName ?? "자이언트짐", now]
+      );
+      return { token, contractUrl: `/refund/${token}` };
+    }),
+
+  getRefundContract: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const result = await pool.query(`SELECT * FROM refund_contracts WHERE token = $1`, [input.token]);
+      if (!result.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "계약서를 찾을 수 없습니다." });
+      return result.rows[0] as {
+        id: number; token: string; memberId: number | null; packageId: number | null;
+        memberName: string | null; memberPhone: string | null; programName: string;
+        paymentAmount: number; totalSessions: number; usedSessions: number;
+        paymentMethod: string | null; taxAmount: number; penaltyAmount: number;
+        refundAmount: number; reason: string | null; gymName: string | null;
+        status: string; createdAt: string;
+      };
+    }),
+});
+
 export const gymRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
@@ -2399,6 +2468,8 @@ export const gymRouter = t.router({
   work: workRouter,
   staff: staffRouter,
   settings: gymSettingsRouter,
+  createRefundContract: refundContractRouter.createRefundContract,
+  getRefundContract: refundContractRouter.getRefundContract,
 });
 
 export type GymRouter = typeof gymRouter;
