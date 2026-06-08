@@ -1362,6 +1362,21 @@ export default function MemberDetail({ memberId }: Props) {
             // 멤버 레코드의 membershipEnd가 있으면 헬스권으로 표시 (revenue entry 없는 경우 폴백)
             const memberHasHealthRecord = !!member.membershipEnd && healthRevs.length === 0;
             const hasHealth = healthRevs.length > 0 || siHealth.length > 0 || memberHasHealthRecord;
+
+            // 멤버 레코드 기반 기간 계산
+            const healthDurationMonths = (() => {
+              const s = member.membershipStart ? new Date(member.membershipStart) : null;
+              const e = member.membershipEnd ? new Date(member.membershipEnd) : null;
+              if (!s || !e) return null;
+              const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+              return months > 0 ? months : null;
+            })();
+            const healthDaysLeft = (() => {
+              if (!member.membershipEnd) return null;
+              const today = new Date(); today.setHours(0, 0, 0, 0);
+              const end = new Date(member.membershipEnd); end.setHours(0, 0, 0, 0);
+              return Math.ceil((end.getTime() - today.getTime()) / 86400000);
+            })();
             const hasLocker = (memberPrograms?.lockers.length ?? 0) > 0 || allLockerItems.length > 0;
             const hasUniform = (memberPrograms?.uniforms.length ?? 0) > 0 || allUniformItems.length > 0;
 
@@ -1386,12 +1401,32 @@ export default function MemberDetail({ memberId }: Props) {
                         {/* 멤버 레코드 기반 헬스권 (revenue entry 없는 경우) */}
                         {memberHasHealthRecord && (
                           <div className="p-3 rounded-lg bg-accent/20 border border-border">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium text-sm text-foreground">헬스권</p>
-                              <span className={`text-xs px-1.5 py-0.5 rounded-full border ${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}`}>이용중</span>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium text-sm text-foreground">
+                                  헬스권{healthDurationMonths ? ` ${healthDurationMonths}개월` : ""}
+                                </p>
+                                {healthDaysLeft !== null && healthDaysLeft > 0 ? (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
+                                    healthDaysLeft <= 7
+                                      ? `${STATUS_COLORS.expiring.bg} ${STATUS_COLORS.expiring.text} ${STATUS_COLORS.expiring.border}`
+                                      : `${STATUS_COLORS.active.bg} ${STATUS_COLORS.active.text} ${STATUS_COLORS.active.border}`
+                                  }`}>이용중</span>
+                                ) : (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${STATUS_COLORS.expired.bg} ${STATUS_COLORS.expired.text} ${STATUS_COLORS.expired.border}`}>만료</span>
+                                )}
+                              </div>
+                              {healthDaysLeft !== null && healthDaysLeft > 0 && (
+                                <span className="text-xs font-semibold text-emerald-400">D-{healthDaysLeft}</span>
+                              )}
                             </div>
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              {fmtDate(member.membershipStart, "yyyy.MM.dd")} ~ {fmtDate(member.membershipEnd, "yyyy.MM.dd")}
+                            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                              <div className="col-span-2">
+                                {fmtDate(member.membershipStart, "yyyy.MM.dd")} ~ {fmtDate(member.membershipEnd, "yyyy.MM.dd")}
+                              </div>
+                              <div className="col-span-2 text-amber-400/80 text-[11px] mt-0.5">
+                                ※ 결제 내역 없음 — 재등록 시 장부·서비스 내역이 함께 저장됩니다
+                              </div>
                             </div>
                           </div>
                         )}
