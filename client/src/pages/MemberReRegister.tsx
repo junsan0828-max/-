@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Dumbbell, Activity } from "lucide-react";
+import { ArrowLeft, Dumbbell, Activity, Lock, Shirt } from "lucide-react";
 
 function calcEndDateByPT(start: string, sessions: string): string {
   if (!start || !sessions) return "";
@@ -44,6 +44,15 @@ export default function MemberReRegister() {
   });
   const [regType, setRegType] = useState<"" | "health" | "pt">("");
   const [healthMonths, setHealthMonths] = useState<number | "">(1);
+
+  // 추가 서비스 등록
+  const [addLocker, setAddLocker] = useState(false);
+  const [addUniform, setAddUniform] = useState(false);
+  const [lockerConfig, setLockerConfig] = useState({ lockerId: "", startDate: "", endDate: "" });
+  const [uniformConfig, setUniformConfig] = useState({
+    startDate: "", endDate: "",
+    paymentAmount: "", paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+  });
 
   // 서비스 내역
   const [serviceItems, setServiceItems] = useState<string[]>([]);
@@ -80,7 +89,6 @@ export default function MemberReRegister() {
       membershipStart: start,
       membershipEnd: end,
     }));
-    // 날짜로 기간 추론해서 헬스 개월 수 설정
     if (start && end) {
       const s = new Date(start);
       const e = new Date(end);
@@ -98,12 +106,33 @@ export default function MemberReRegister() {
     onError: (err) => toast.error((err as any).message || "재등록 실패"),
   });
 
-  const selectedMember = members.find(m => String(m.id) === selectedMemberId);
+  const assignLockerMutation = trpc.access.assignLocker.useMutation({
+    onError: (err) => toast.error("락커 배정 실패: " + ((err as any).message || "")),
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const createUniformMutation = trpc.access.createUniform.useMutation({
+    onError: (err) => toast.error("운동복 등록 실패: " + ((err as any).message || "")),
+  });
+
+  const selectedMember = members.find(m => String(m.id) === selectedMemberId);
+  const availableLockers = (allLockers ?? []).filter((l: any) => !l.isOccupied);
+  const lockerGroups: { branchId: number | null; name: string; lockers: any[] }[] = [];
+  for (const l of availableLockers) {
+    const bid = l.branchId ?? null;
+    let g = lockerGroups.find(g => g.branchId === bid);
+    if (!g) {
+      const b = (branchList ?? []).find((b: any) => b.id === bid);
+      g = { branchId: bid, name: b?.name ?? "지점 미지정", lockers: [] };
+      lockerGroups.push(g);
+    }
+    g.lockers.push(l);
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMemberId) { toast.error("회원을 선택해주세요"); return; }
-    if (!regType) { toast.error("등록 유형을 선택해주세요"); return; }
+    if (!regType && !addLocker && !addUniform) { toast.error("등록 유형을 선택해주세요"); return; }
+    if (addLocker && !lockerConfig.lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
 
     const isHealth = regType === "health";
 
@@ -111,31 +140,80 @@ export default function MemberReRegister() {
       ? `서비스세션 단가:${form.unitPrice}${form.paymentMemo ? ` / ${form.paymentMemo}` : ""}`
       : (form.paymentMemo || undefined);
 
-    updateMutation.mutate({
-      id: parseInt(selectedMemberId),
-      name: selectedMember!.name,
-      membershipStart: form.membershipStart || undefined,
-      membershipEnd: form.membershipEnd || undefined,
-      ptProgram: isHealth ? `헬스 ${healthMonths}개월` : (form.isServiceSession ? "서비스세션" : (form.ptProgram || undefined)),
-      ptSessions: (!isHealth && form.ptSessions) ? parseInt(form.ptSessions) as any : undefined,
-      paymentAmount: (!isHealth && form.isServiceSession) ? 0 : (form.paymentAmount ? parseInt(form.paymentAmount) : (isHealth ? 0 : undefined)),
-      unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
-      paymentMethod: form.paymentMethod || undefined,
-      paymentDate: form.paymentDate || undefined,
-      paymentMemo: memoFinal,
-      subType: "재등록" as any,
-      serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
-        if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
-        if (item === "헬스") {
-          if (serviceHealthMonths) return `헬스(${serviceHealthMonths}개월)`;
-          if (serviceHealthCustom) return `헬스(${serviceHealthCustom}일)`;
-          return "헬스";
-        }
-        if (item === "락커" && serviceLockerNum) return `락커(${serviceLockerNum})`;
-        return item;
-      }).join(",") : undefined,
-    } as any);
+    const promises: Promise<any>[] = [];
+
+    if (regType) {
+      promises.push(
+        updateMutation.mutateAsync({
+          id: parseInt(selectedMemberId),
+          name: selectedMember!.name,
+          membershipStart: form.membershipStart || undefined,
+          membershipEnd: form.membershipEnd || undefined,
+          ptProgram: isHealth ? `헬스 ${healthMonths}개월` : (form.isServiceSession ? "서비스세션" : (form.ptProgram || undefined)),
+          ptSessions: (!isHealth && form.ptSessions) ? parseInt(form.ptSessions) as any : undefined,
+          paymentAmount: (!isHealth && form.isServiceSession) ? 0 : (form.paymentAmount ? parseInt(form.paymentAmount) : (isHealth ? 0 : undefined)),
+          unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
+          paymentMethod: form.paymentMethod || undefined,
+          paymentDate: form.paymentDate || undefined,
+          paymentMemo: memoFinal,
+          subType: "재등록" as any,
+          serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
+            if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
+            if (item === "헬스") {
+              if (serviceHealthMonths) return `헬스(${serviceHealthMonths}개월)`;
+              if (serviceHealthCustom) return `헬스(${serviceHealthCustom}일)`;
+              return "헬스";
+            }
+            if (item === "락커" && serviceLockerNum) return `락커(${serviceLockerNum})`;
+            return item;
+          }).join(",") : undefined,
+        } as any)
+      );
+    }
+
+    if (addLocker && lockerConfig.lockerId) {
+      promises.push(
+        assignLockerMutation.mutateAsync({
+          lockerId: parseInt(lockerConfig.lockerId),
+          memberId: parseInt(selectedMemberId),
+          memberName: selectedMember!.name,
+          memberPhone: selectedMember?.phone ?? undefined,
+          startDate: lockerConfig.startDate || undefined,
+          endDate: lockerConfig.endDate || undefined,
+          rentalType: "service",
+        })
+      );
+    }
+
+    if (addUniform) {
+      promises.push(
+        createUniformMutation.mutateAsync({
+          memberId: parseInt(selectedMemberId),
+          memberName: selectedMember!.name,
+          memberPhone: selectedMember?.phone ?? undefined,
+          startDate: uniformConfig.startDate || undefined,
+          endDate: uniformConfig.endDate || undefined,
+          rentalType: uniformConfig.paymentAmount ? "paid" : "service",
+          isPaid: uniformConfig.paymentAmount ? 1 : 0,
+          paymentAmount: uniformConfig.paymentAmount ? parseInt(uniformConfig.paymentAmount) : 0,
+          paymentMethod: uniformConfig.paymentMethod || undefined,
+          paymentDate: form.paymentDate || undefined,
+        })
+      );
+    }
+
+    try {
+      await Promise.all(promises);
+      if (!regType) {
+        toast.success("등록되었습니다.");
+        setLocation(`/members/${selectedMemberId}`);
+      }
+    } catch {
+      // individual mutations already show error toasts
+    }
   };
+
+  const isPending = updateMutation.isPending || assignLockerMutation.isPending || createUniformMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -197,53 +275,188 @@ export default function MemberReRegister() {
         {/* 등록 유형 선택 */}
         <Card className="bg-card border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">등록 유형 선택 <span className="text-primary">*</span></CardTitle>
+            <CardTitle className="text-base font-semibold">등록 유형 선택</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setRegType("health");
-                  setForm(p => ({ ...p, ptProgram: "", ptSessions: "", isServiceSession: false, unitPrice: "" }));
-                }}
-                className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${
-                  regType === "health"
-                    ? "border-emerald-500 bg-emerald-500/10"
-                    : "border-border hover:border-emerald-500/40 hover:bg-accent"
-                }`}
-              >
-                <div className={`p-3 rounded-full ${regType === "health" ? "bg-emerald-500/20" : "bg-muted"}`}>
-                  <Activity className={`h-6 w-6 ${regType === "health" ? "text-emerald-400" : "text-muted-foreground"}`} />
-                </div>
-                <div className="text-center">
-                  <p className={`text-sm font-semibold ${regType === "health" ? "text-emerald-400" : "text-foreground"}`}>헬스권</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">헬스 이용 등록</p>
-                </div>
-              </button>
+          <CardContent className="space-y-4">
+            {/* 주 등록 유형 */}
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">주 등록 <span className="text-muted-foreground/60">(선택)</span></p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegType(regType === "health" ? "" : "health");
+                    setForm(p => ({ ...p, ptProgram: "", ptSessions: "", isServiceSession: false, unitPrice: "" }));
+                  }}
+                  className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${
+                    regType === "health"
+                      ? "border-emerald-500 bg-emerald-500/10"
+                      : "border-border hover:border-emerald-500/40 hover:bg-accent"
+                  }`}
+                >
+                  <div className={`p-3 rounded-full ${regType === "health" ? "bg-emerald-500/20" : "bg-muted"}`}>
+                    <Activity className={`h-6 w-6 ${regType === "health" ? "text-emerald-400" : "text-muted-foreground"}`} />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-semibold ${regType === "health" ? "text-emerald-400" : "text-foreground"}`}>헬스권</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">헬스 이용 등록</p>
+                  </div>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setRegType("pt")}
-                className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${
-                  regType === "pt"
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:border-primary/40 hover:bg-accent"
-                }`}
-              >
-                <div className={`p-3 rounded-full ${regType === "pt" ? "bg-primary/20" : "bg-muted"}`}>
-                  <Dumbbell className={`h-6 w-6 ${regType === "pt" ? "text-primary" : "text-muted-foreground"}`} />
-                </div>
-                <div className="text-center">
-                  <p className={`text-sm font-semibold ${regType === "pt" ? "text-primary" : "text-foreground"}`}>PT 등록</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">PT + 헬스 포함</p>
-                </div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setRegType(regType === "pt" ? "" : "pt")}
+                  className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${
+                    regType === "pt"
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:border-primary/40 hover:bg-accent"
+                  }`}
+                >
+                  <div className={`p-3 rounded-full ${regType === "pt" ? "bg-primary/20" : "bg-muted"}`}>
+                    <Dumbbell className={`h-6 w-6 ${regType === "pt" ? "text-primary" : "text-muted-foreground"}`} />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-semibold ${regType === "pt" ? "text-primary" : "text-foreground"}`}>PT 등록</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">PT + 헬스 포함</p>
+                  </div>
+                </button>
+              </div>
             </div>
+
+            {/* 추가 등록 */}
+            <div className="border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground mb-2">추가 등록 <span className="text-muted-foreground/60">(복수 선택 가능)</span></p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAddLocker(v => !v)}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                    addLocker
+                      ? "border-amber-500 bg-amber-500/10"
+                      : "border-border hover:border-amber-500/40 hover:bg-accent"
+                  }`}
+                >
+                  <div className={`p-2.5 rounded-full ${addLocker ? "bg-amber-500/20" : "bg-muted"}`}>
+                    <Lock className={`h-5 w-5 ${addLocker ? "text-amber-400" : "text-muted-foreground"}`} />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-semibold ${addLocker ? "text-amber-400" : "text-foreground"}`}>락커</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">락커 배정</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAddUniform(v => !v)}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                    addUniform
+                      ? "border-purple-500 bg-purple-500/10"
+                      : "border-border hover:border-purple-500/40 hover:bg-accent"
+                  }`}
+                >
+                  <div className={`p-2.5 rounded-full ${addUniform ? "bg-purple-500/20" : "bg-muted"}`}>
+                    <Shirt className={`h-5 w-5 ${addUniform ? "text-purple-400" : "text-muted-foreground"}`} />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-semibold ${addUniform ? "text-purple-400" : "text-foreground"}`}>운동복</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">운동복 대여</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* 락커 설정 */}
+            {addLocker && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                <p className="text-sm font-semibold text-amber-400">락커 배정 설정</p>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">락커 선택 <span className="text-primary">*</span></Label>
+                  {availableLockers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">사용 가능한 락커가 없습니다</p>
+                  ) : (
+                    <select
+                      value={lockerConfig.lockerId}
+                      onChange={e => setLockerConfig(p => ({ ...p, lockerId: e.target.value }))}
+                      className="w-full rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      <option value="">락커 선택...</option>
+                      {lockerGroups.map(g => (
+                        <optgroup key={g.branchId ?? "none"} label={g.name}>
+                          {g.lockers.map((l: any) => (
+                            <option key={l.id} value={String(l.id)}>{l.lockerNumber}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">시작일</Label>
+                    <Input type="date" value={lockerConfig.startDate}
+                      onChange={e => setLockerConfig(p => ({ ...p, startDate: e.target.value }))}
+                      className="bg-input border-border text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">만료일</Label>
+                    <Input type="date" value={lockerConfig.endDate}
+                      onChange={e => setLockerConfig(p => ({ ...p, endDate: e.target.value }))}
+                      className="bg-input border-border text-sm" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 운동복 설정 */}
+            {addUniform && (
+              <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-4 space-y-3">
+                <p className="text-sm font-semibold text-purple-400">운동복 대여 설정</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">시작일</Label>
+                    <Input type="date" value={uniformConfig.startDate}
+                      onChange={e => setUniformConfig(p => ({ ...p, startDate: e.target.value }))}
+                      className="bg-input border-border text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">만료일</Label>
+                    <Input type="date" value={uniformConfig.endDate}
+                      onChange={e => setUniformConfig(p => ({ ...p, endDate: e.target.value }))}
+                      className="bg-input border-border text-sm" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">결제 금액 <span className="text-muted-foreground/60">(유료 시)</span></Label>
+                    <Input type="number" min="0" placeholder="0 (무료)"
+                      value={uniformConfig.paymentAmount}
+                      onChange={e => setUniformConfig(p => ({ ...p, paymentAmount: e.target.value }))}
+                      className="bg-input border-border text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">결제방법</Label>
+                    <Select
+                      value={uniformConfig.paymentMethod}
+                      onValueChange={v => setUniformConfig(p => ({ ...p, paymentMethod: v as any }))}
+                    >
+                      <SelectTrigger className="bg-input border-border text-sm">
+                        <SelectValue placeholder="선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="현금영수증">현금영수증</SelectItem>
+                        <SelectItem value="이체">계좌이체</SelectItem>
+                        <SelectItem value="지역화폐">지역화폐</SelectItem>
+                        <SelectItem value="카드">카드</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* 운동 기간 / 결제 (유형 선택 후) */}
+        {/* 운동 기간 / 결제 (주 등록 유형 선택 후) */}
         {regType !== "" && (
           <Card className="bg-card border-border">
             <CardHeader className="pb-4">
@@ -613,8 +826,8 @@ export default function MemberReRegister() {
           <Button type="button" variant="outline" className="flex-1" onClick={() => setLocation("/members")}>
             취소
           </Button>
-          <Button type="submit" className="flex-1" disabled={updateMutation.isPending || !selectedMemberId || !regType}>
-            {updateMutation.isPending ? "처리 중..." : "재등록 완료"}
+          <Button type="submit" className="flex-1" disabled={isPending || !selectedMemberId || (!regType && !addLocker && !addUniform)}>
+            {isPending ? "처리 중..." : "재등록 완료"}
           </Button>
         </div>
       </form>
