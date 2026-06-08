@@ -216,7 +216,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex bg-background overflow-hidden" style={{ height: '100dvh', minHeight: '100svh' }}>
+    <div className="flex bg-background overflow-x-hidden" style={{ height: '100dvh', minHeight: '100svh' }}>
 
       {/* 모바일 드로어 오버레이 (전체 계정) */}
       {drawerOpen && (
@@ -287,7 +287,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* 콘텐츠 */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto scroll-touch" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <main ref={mainRef} className="flex-1 overflow-y-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom)', WebkitOverflowScrolling: 'auto' }}>
           {/* iOS 스와이프 뒤로가기 인디케이터 */}
           {swipeDx > 0 && (
             <div

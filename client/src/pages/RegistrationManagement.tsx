@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { Portal } from "@/components/Portal";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -451,6 +452,7 @@ export default function RegistrationManagement() {
 
           {/* 락커 구매 모달 */}
           {quickModal === "locker" && (
+            <Portal>
             <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setQuickModal(null)}>
               <div className="bg-card border border-border rounded-2xl w-full max-w-md space-y-4 p-5" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
@@ -575,10 +577,12 @@ export default function RegistrationManagement() {
                 </div>
               </div>
             </div>
+            </Portal>
           )}
 
           {/* 운동복 대여 모달 */}
           {quickModal === "uniform" && (
+            <Portal>
             <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setQuickModal(null)}>
               <div className="bg-card border border-border rounded-2xl w-full max-w-md space-y-4 p-5" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
@@ -683,10 +687,12 @@ export default function RegistrationManagement() {
                 </div>
               </div>
             </div>
+            </Portal>
           )}
 
           {/* 1일권 모달 */}
           {quickModal === "daypass" && (
+            <Portal>
             <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setQuickModal(null)}>
               <div className="bg-card border border-border rounded-2xl w-full max-w-md space-y-4 p-5" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between">
@@ -731,6 +737,7 @@ export default function RegistrationManagement() {
                 </div>
               </div>
             </div>
+            </Portal>
           )}
         </div>
       )}
@@ -1089,6 +1096,7 @@ export default function RegistrationManagement() {
 
             {/* 추가/수정 폼 모달 */}
             {showUniformForm && (
+              <Portal>
               <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4">
                 <div className="bg-card border border-border rounded-2xl w-full max-w-md space-y-3 p-4">
                   <div className="flex items-center justify-between">
@@ -1216,6 +1224,7 @@ export default function RegistrationManagement() {
                   </button>
                 </div>
               </div>
+              </Portal>
             )}
           </div>
         );
@@ -1527,6 +1536,7 @@ export default function RegistrationManagement() {
 
       {/* 서비스 회원 상세 모달 */}
       {serviceModal && (
+        <Portal>
         <div className="fixed inset-0 z-[200] bg-black/70 flex items-end justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setServiceModal(null)}>
           <div className="bg-card border border-border rounded-t-2xl w-full max-w-md flex flex-col" style={{ maxHeight: 'calc(80svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
             {/* 헤더 */}
@@ -1595,6 +1605,7 @@ export default function RegistrationManagement() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* 락커 추가 모달 */}
@@ -1742,6 +1753,7 @@ function Modal({
   children: React.ReactNode;
 }) {
   return (
+    <Portal>
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-5">
         <div className="flex justify-between items-center mb-4">
@@ -1753,6 +1765,7 @@ function Modal({
         {children}
       </div>
     </div>
+    </Portal>
   );
 }
 

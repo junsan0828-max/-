@@ -63,14 +63,6 @@
   .safe-pt {
     padding-top: max(env(safe-area-inset-top), 0.75rem);
   }
-  /* iOS momentum scroll */
-  .scroll-touch {
-    -webkit-overflow-scrolling: touch;
-  }
-  /* prevent body horizontal scroll */
-  body {
-    overflow-x: hidden;
-  }
   /* 모달 시트 최대 높이: dvh 기반 (iOS 키보드 대응) */
   .modal-sheet-h {
     max-height: calc(100vh - max(env(safe-area-inset-top), 1rem) - max(env(safe-area-inset-bottom), 1rem));
