@@ -176,11 +176,12 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
 
   useEffect(() => {
     if (data) {
-      setForm({
+      setForm(p => ({
+        ...p,
         memberName: data.memberName ?? "",
         memberPhone: data.memberPhone ?? "",
         memberBirth: data.memberBirth ?? "",
-      });
+      }));
     }
   }, [data]);
 
