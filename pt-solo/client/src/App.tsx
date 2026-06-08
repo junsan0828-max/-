@@ -121,9 +121,9 @@ function App() {
   const [contractMatch, contractParams] = useRoute("/contract/:token");
 
   if (reportMatch && reportParams) return <MemberReport token={reportParams.token} />;
-  if (brandMatch && brandParams) return <TrainerBrandPage username={brandParams.username} />;
-  if (classMatch && classParams) return <ClassBookingPage username={classParams.username} />;
-  if (surveyMatch && surveyParams) return <SurveyPage username={surveyParams.username} />;
+  if (brandMatch && brandParams) return <TrainerBrandPage username={decodeURIComponent(brandParams.username)} />;
+  if (classMatch && classParams) return <ClassBookingPage username={decodeURIComponent(classParams.username)} />;
+  if (surveyMatch && surveyParams) return <SurveyPage username={decodeURIComponent(surveyParams.username)} />;
   if (contractMatch && contractParams) return <EContractPage token={contractParams.token} />;
 
   if (window.location.pathname === "/contract-print") {
