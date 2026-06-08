@@ -410,7 +410,9 @@ export default function MemberDetail({ memberId }: Props) {
   const isFeatureActive = (featureId: string) => {
     const removed = wsStatus?.removedFeatures ?? [];
     const configs = wsStatus?.featureConfigs ?? {};
-    return !removed.includes(featureId) && configs[featureId] === "active";
+    if (removed.includes(featureId)) return false;
+    // featureConfigs에 없으면 WS_CATALOG 기본값(active) 사용
+    return (configs[featureId] ?? "active") === "active";
   };
   const refundContractActive = isFeatureActive("refund_contract");
   const transferContractActive = isFeatureActive("transfer_contract");
