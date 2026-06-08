@@ -397,6 +397,11 @@ export default function MemberDetail({ memberId }: Props) {
   });
 
   const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
+  const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
+  const featureInfo = (feature: string) => {
+    const rule = featureCosts?.[feature];
+    return { cost: rule?.cost ?? 50, enabled: rule?.enabled ?? true };
+  };
 
   // 보고서 공유 토큰 발급
   const generateReportMutation = trpc.reports.generate.useMutation({
@@ -550,13 +555,14 @@ export default function MemberDetail({ memberId }: Props) {
             variant="outline"
             onClick={() => {
               if (shareToken) { setShareOpen(true); }
-              else { setReportPointConfirm(true); }
+              else if (featureInfo("health_report").enabled) { setReportPointConfirm(true); }
+              else { generateReportMutation.mutate({ memberId }); }
             }}
             disabled={generateReportMutation.isPending}
             className="gap-1.5"
           >
             <Share2 className="h-3.5 w-3.5" />
-            공유 <span className="text-primary/70 text-[10px]">-50P</span>
+            공유{featureInfo("health_report").enabled ? <span className="text-primary/70 text-[10px]"> -{featureInfo("health_report").cost}P</span> : null}
           </Button>
           <Button
             size="sm"
@@ -921,11 +927,12 @@ export default function MemberDetail({ memberId }: Props) {
                               disabled={generateReportMutation.isPending}
                               onClick={() => {
                                 if (shareToken) { setShareOpen(true); }
-                                else { setReportPointConfirm(true); }
+                                else if (featureInfo("health_report").enabled) { setReportPointConfirm(true); }
+                                else { generateReportMutation.mutate({ memberId }); }
                               }}
                             >
                               <Share2 className="h-3.5 w-3.5" />
-                              보고서 생성 및 공유 (-50P)
+                              보고서 생성 및 공유{featureInfo("health_report").enabled ? ` (-${featureInfo("health_report").cost}P)` : ""}
                             </Button>
                           </div>
                         )}
@@ -1949,6 +1956,7 @@ export default function MemberDetail({ memberId }: Props) {
         open={reportPointConfirm}
         onClose={() => setReportPointConfirm(false)}
         featureName="건강 리포트 공유"
+        cost={featureInfo("health_report").cost}
         loading={spendFeatureMutation.isPending || generateReportMutation.isPending}
         onConfirm={() => {
           spendFeatureMutation.mutate({ feature: "health_report" }, {

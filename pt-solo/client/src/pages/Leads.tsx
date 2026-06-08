@@ -227,6 +227,25 @@ export default function LeadsPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  function submitReregistration() {
+    if (!reregMemberId || !reregPkg.totalSessions) return;
+    addPackageMutation.mutate({
+      memberId: Number(reregMemberId),
+      ptProgram: reregPkg.ptProgram || undefined,
+      totalSessions: Number(reregPkg.totalSessions),
+      startDate: reregPkg.startDate || undefined,
+      expiryDate: reregPkg.expiryDate || undefined,
+      paymentAmount: reregPkg.paymentAmount ? Number(reregPkg.paymentAmount) : undefined,
+      unpaidAmount: reregPkg.unpaidAmount ? Number(reregPkg.unpaidAmount) : undefined,
+      paymentMethod: reregPkg.paymentMethod || undefined,
+      paymentMemo: reregPkg.paymentMemo || undefined,
+      withContract: true,
+    }, {
+      onSuccess: () => setShowReregiConfirm(false),
+      onError: (e) => toast.error(e.message),
+    });
+  }
+
   function openQuickModal() {
     setQuickName("");
     setQuickPhone("");
@@ -619,7 +638,11 @@ export default function LeadsPage() {
                       onClick={() => {
                         if (contractTerms) sessionStorage.setItem("contractTerms", JSON.stringify(contractTerms));
                         setPdfUrl(contractUrl);
-                        setShowPdfConfirm(true);
+                        if (featureInfo("contract_pdf").enabled) {
+                          setShowPdfConfirm(true);
+                        } else {
+                          window.open(contractUrl, "_blank");
+                        }
                       }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
                     >
@@ -861,14 +884,18 @@ export default function LeadsPage() {
                     disabled={!reregMemberId || !reregPkg.totalSessions || addPackageMutation.isPending}
                     onClick={() => {
                       if (!reregMemberId || !reregPkg.totalSessions) return;
-                      setShowReregiConfirm(true);
+                      if (featureInfo("reregistration").enabled) {
+                        setShowReregiConfirm(true);
+                      } else {
+                        submitReregistration();
+                      }
                     }}
                     className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-emerald-700 disabled:opacity-40">
                     {addPackageMutation.isPending ? "등록 중..." : (
                       <span className="flex items-center justify-center gap-1.5">
                         재등록 완료
                         {pointLabel(autoPoints("renewal_complete")) && <span className="text-xs font-normal text-green-300">{pointLabel(autoPoints("renewal_complete"))}</span>}
-                        <span className="text-xs font-normal opacity-70">-50P</span>
+                        {featureInfo("reregistration").enabled && <span className="text-xs font-normal opacity-70">-{featureInfo("reregistration").cost}P</span>}
                       </span>
                     )}
                   </button>
@@ -1247,25 +1274,9 @@ export default function LeadsPage() {
         open={showReregiConfirm}
         onClose={() => setShowReregiConfirm(false)}
         featureName="재등록 계약"
+        cost={featureInfo("reregistration").cost}
         loading={addPackageMutation.isPending}
-        onConfirm={() => {
-          if (!reregMemberId || !reregPkg.totalSessions) return;
-          addPackageMutation.mutate({
-            memberId: Number(reregMemberId),
-            ptProgram: reregPkg.ptProgram || undefined,
-            totalSessions: Number(reregPkg.totalSessions),
-            startDate: reregPkg.startDate || undefined,
-            expiryDate: reregPkg.expiryDate || undefined,
-            paymentAmount: reregPkg.paymentAmount ? Number(reregPkg.paymentAmount) : undefined,
-            unpaidAmount: reregPkg.unpaidAmount ? Number(reregPkg.unpaidAmount) : undefined,
-            paymentMethod: reregPkg.paymentMethod || undefined,
-            paymentMemo: reregPkg.paymentMemo || undefined,
-            withContract: true,
-          }, {
-            onSuccess: () => setShowReregiConfirm(false),
-            onError: (e) => toast.error(e.message),
-          });
-        }}
+        onConfirm={submitReregistration}
       />
     </div>
   );
