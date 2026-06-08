@@ -1776,9 +1776,15 @@ const eContractRouter = t.router({
       memberPhone: z.string().optional(),
       memberBirth: z.string().optional(),
       programName: z.string().optional(),
-      programPrice: z.number().optional(),
+      programFormat: z.string().optional(),
       programSessions: z.number().optional(),
+      listPrice: z.number().optional(),
+      discountAmount: z.number().optional(),
+      programPrice: z.number().optional(),
+      unpaidAmount: z.number().optional(),
+      paymentDate: z.string().optional(),
       programStartDate: z.string().optional(),
+      programEndDate: z.string().optional(),
       trainerMemo: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -1787,11 +1793,16 @@ const eContractRouter = t.router({
       const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
       await pool.query(
         `INSERT INTO e_contracts ("trainerId", token, "memberName", "memberPhone", "memberBirth",
-          "programName", "programPrice", "programSessions", "programStartDate", "trainerMemo")
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [trainerId, token, input.memberName ?? null, input.memberPhone ?? null, input.memberBirth ?? null,
-         input.programName ?? null, input.programPrice ?? null, input.programSessions ?? null,
-         input.programStartDate ?? null, input.trainerMemo ?? null]
+          "programName", "programFormat", "programSessions", "listPrice", "discountAmount",
+          "programPrice", "unpaidAmount", "paymentDate", "programStartDate", "programEndDate", "trainerMemo")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        [trainerId, token,
+         input.memberName ?? null, input.memberPhone ?? null, input.memberBirth ?? null,
+         input.programName ?? null, input.programFormat ?? null, input.programSessions ?? null,
+         input.listPrice ?? null, input.discountAmount ?? null,
+         input.programPrice ?? null, input.unpaidAmount ?? null,
+         input.paymentDate ?? null, input.programStartDate ?? null,
+         input.programEndDate ?? null, input.trainerMemo ?? null]
       );
       return { token };
     }),
