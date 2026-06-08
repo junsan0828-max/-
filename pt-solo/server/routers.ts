@@ -3568,34 +3568,41 @@ const workshopRouter = t.router({
     const featureConfigs: Record<string, string> = {};
     for (const row of cfgRows.rows) featureConfigs[row.featureId] = row.status;
 
-    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs };
+    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures: [] as string[] };
 
     // 코인 활성화 여부 확인
     const activated = await pool.query(
       `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature='workshop_access'`,
       [trainerId]
     );
-    if (activated.rows.length > 0) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs };
+    if (activated.rows.length > 0) {
+      const actSettings = await pool.query<{ removedFeatures: string | null }>(
+        `SELECT "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`, [trainerId]
+      );
+      const removedFeatures = (actSettings.rows[0]?.removedFeatures ?? "").split(",").filter(Boolean);
+      return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures };
+    }
 
-    // 트라이얼 시작일 확인
-    const settings = await pool.query<{ workshopTrialStartedAt: string | null }>(
-      `SELECT "workshopTrialStartedAt" FROM trainer_settings WHERE "trainerId"=$1`,
+    // 트라이얼 시작일 및 removedFeatures 확인
+    const settings = await pool.query<{ workshopTrialStartedAt: string | null; removedFeatures: string | null }>(
+      `SELECT "workshopTrialStartedAt", "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`,
       [trainerId]
     );
     const trialStartedAt = settings.rows[0]?.workshopTrialStartedAt ?? null;
-    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs };
+    const removedFeatures = (settings.rows[0]?.removedFeatures ?? "").split(",").filter(Boolean);
+    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures };
 
     const started = new Date(trialStartedAt);
     const now = new Date();
     const daysSince = Math.floor((now.getTime() - started.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysSince <= WORKSHOP_TRIAL_DAYS) {
-      return { status: "trial", daysRemaining: WORKSHOP_TRIAL_DAYS - daysSince, trialStartedAt, featureConfigs };
+      return { status: "trial", daysRemaining: WORKSHOP_TRIAL_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures };
     }
     if (daysSince <= WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS) {
-      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs };
+      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures };
     }
-    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs };
+    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs, removedFeatures };
   }),
 
   // 무료 체험 시작
@@ -3687,9 +3694,36 @@ const workshopRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const cur = await pool.query<{ removedFeatures: string }>(
+        `SELECT COALESCE("removedFeatures",'') AS "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`, [trainerId]
+      );
+      const existing = cur.rows[0]?.removedFeatures ?? "";
+      const list = existing.split(",").filter(Boolean);
+      if (!list.includes(input.feature)) {
+        const updated = [...list, input.feature].join(",");
+        await pool.query(
+          `INSERT INTO trainer_settings ("trainerId","removedFeatures") VALUES ($1,$2)
+           ON CONFLICT ("trainerId") DO UPDATE SET "removedFeatures"=$2`,
+          [trainerId, updated]
+        );
+      }
+      return { success: true };
+    }),
+
+  restore: protectedProcedure
+    .input(z.object({ feature: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const cur = await pool.query<{ removedFeatures: string }>(
+        `SELECT COALESCE("removedFeatures",'') AS "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`, [trainerId]
+      );
+      const existing = cur.rows[0]?.removedFeatures ?? "";
+      const updated = existing.split(",").filter(f => f && f !== input.feature).join(",");
       await pool.query(
-        `DELETE FROM workshop_unlocks WHERE "trainerId"=$1 AND feature=$2`,
-        [trainerId, input.feature]
+        `INSERT INTO trainer_settings ("trainerId","removedFeatures") VALUES ($1,$2)
+         ON CONFLICT ("trainerId") DO UPDATE SET "removedFeatures"=$2`,
+        [trainerId, updated]
       );
       return { success: true };
     }),

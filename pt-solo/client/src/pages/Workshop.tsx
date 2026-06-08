@@ -4415,27 +4415,37 @@ function AdminWorkshopView() {
 }
 
 // ── 스토어 카드 (기능 구매 탭용) ──────────────────────────────────────────────
-function WorkshopStoreCard({ item, effectiveStatus, onClick }: { item: WsItem; effectiveStatus?: string; onClick: () => void }) {
+function WorkshopStoreCard({ item, effectiveStatus, onClick, onRestore }: { item: WsItem; effectiveStatus?: string; onClick: () => void; onRestore?: () => void }) {
   const Icon = item.icon;
-  const isActive = (effectiveStatus ?? item.status) === "active";
+  const status = effectiveStatus ?? item.status;
+  const isActive = status === "active";
+  const isRemoved = status === "removed";
 
   return (
     <button onClick={onClick}
       className="w-full bg-card px-4 py-3.5 text-left hover:bg-accent/30 active:bg-accent/50 transition-colors">
       <div className="flex items-center gap-3">
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isActive ? "bg-primary/10" : "bg-muted/50"}`}>
-          <Icon className={`h-4.5 w-4.5 h-[18px] w-[18px] ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+          <Icon className={`h-[18px] w-[18px] ${isActive ? "text-primary" : "text-muted-foreground"}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-semibold ${!isActive ? "text-foreground/60" : ""}`}>{item.name}</p>
+          <p className={`text-sm font-semibold ${(!isActive || isRemoved) ? "text-foreground/60" : ""}`}>{item.name}</p>
           <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-1 mt-0.5">{item.shortDesc}</p>
         </div>
-        <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-          isActive ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400" :
-                     "bg-muted text-muted-foreground"
-        }`}>
-          {isActive ? "포함" : "준비 중"}
-        </span>
+        {isRemoved ? (
+          <span
+            onClick={e => { e.stopPropagation(); onRestore?.(); }}
+            className="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 cursor-pointer hover:bg-blue-200 transition-colors">
+            다시 추가
+          </span>
+        ) : (
+          <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            isActive ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400" :
+                       "bg-muted text-muted-foreground"
+          }`}>
+            {isActive ? "포함" : "준비 중"}
+          </span>
+        )}
       </div>
     </button>
   );
@@ -4499,7 +4509,11 @@ function WorkshopContent() {
     onError: (e) => toast.error(e.message),
   });
   const removeMutation = trpc.workshop.remove.useMutation({
-    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("기능이 삭제되었습니다. 기능 구매 탭에서 다시 구매할 수 있습니다."); },
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("기능이 삭제되었습니다. 기능 구매 탭에서 다시 추가할 수 있습니다."); },
+    onError: (e) => toast.error(e.message),
+  });
+  const restoreMutation = trpc.workshop.restore.useMutation({
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("기능이 다시 추가되었습니다."); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -4601,7 +4615,11 @@ function WorkshopContent() {
 
   // ── 체험 중 / 유예 / 활성화 → 두 탭 표시 ────────────────────────────────────
   const featureConfigs = wsStatus?.featureConfigs ?? {};
-  const getEffectiveStatus = (item: WsItem) => featureConfigs[item.id] ?? item.status;
+  const removedFeatures = wsStatus?.removedFeatures ?? [];
+  const getEffectiveStatus = (item: WsItem) => {
+    if (removedFeatures.includes(item.id)) return "removed";
+    return featureConfigs[item.id] ?? item.status;
+  };
 
   const activeItems = WS_CATALOG.flatMap(cat =>
     cat.items
@@ -4711,7 +4729,8 @@ function WorkshopContent() {
                 <div className="bg-card divide-y divide-border/40">
                   {tierItemList.map(item => (
                     <WorkshopStoreCard key={item.id} item={item} effectiveStatus={getEffectiveStatus(item)}
-                      onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} />
+                      onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })}
+                      onRestore={() => restoreMutation.mutate({ feature: item.id })} />
                   ))}
                 </div>
               </div>
