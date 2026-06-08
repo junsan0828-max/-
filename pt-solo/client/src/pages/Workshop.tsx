@@ -4745,14 +4745,29 @@ function WorkshopContent() {
 
       {/* ── 내 작업실 탭 ─────────────────────────────────────── */}
       {wsTab === "workspace" && (
-        <div className="space-y-3 pb-6">
+        <div className="space-y-4 pb-6">
           <p className="text-xs text-muted-foreground">
             현재 이용 가능한 기능 {activeItems.length}개 · 설정 및 관리하세요
           </p>
-          {activeItems.map(item => (
-            <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} onRemove={() => removeMutation.mutate({ feature: item.id })} />
-          ))}
-          <div className="mt-4 bg-muted/30 border border-border/40 rounded-2xl p-4 text-center">
+          {WS_CATALOG.map(cat => {
+            const catItems = activeItems.filter(item => (item as any).catKey === cat.key);
+            if (catItems.length === 0) return null;
+            return (
+              <div key={cat.key} className="space-y-2">
+                <div className={`flex items-center gap-2 px-1 py-1.5 border-b border-border/50`}>
+                  <div className={`w-5 h-5 rounded-md ${cat.bgCls} flex items-center justify-center shrink-0`}>
+                    <cat.icon className={`h-3 w-3 ${cat.iconCls}`} />
+                  </div>
+                  <span className="text-xs font-semibold text-foreground/70">{cat.label}</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">{catItems.length}개</span>
+                </div>
+                {catItems.map(item => (
+                  <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} onRemove={() => removeMutation.mutate({ feature: item.id })} />
+                ))}
+              </div>
+            );
+          })}
+          <div className="mt-2 bg-muted/30 border border-border/40 rounded-2xl p-4 text-center">
             <p className="text-xs text-muted-foreground">추가 기능은 <button className="text-primary font-semibold underline-offset-2 hover:underline" onClick={() => setWsTab("store")}>기능 구매</button> 탭에서 확인하세요</p>
           </div>
         </div>
