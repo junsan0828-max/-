@@ -432,19 +432,76 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
 
         {/* ── 환불 계약서 ─────────────────────────────── */}
         {contractType === 'refund' && (<>
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
             <h2 className="text-sm font-bold text-gray-900">환불 내역</h2>
+            {/* 프로그램 기본 정보 */}
             <div className="divide-y divide-gray-100">
               <InfoRow label="프로그램명" value={data.programName} />
-              <InfoRow label="결제 방법" value={extra.paymentMethod} />
-              <InfoRow label="결제 금액" value={data.programPrice != null ? `${data.programPrice.toLocaleString()}원` : null} />
-              <InfoRow label="부가세" value={extra.vatAmount != null && extra.vatAmount > 0 ? `${Number(extra.vatAmount).toLocaleString()}원` : null} />
-              <InfoRow label="총 횟수" value={data.programSessions != null ? `${data.programSessions}회` : null} />
-              <InfoRow label="수강 횟수" value={extra.usedSessions != null ? `${extra.usedSessions}회` : null} />
-              <InfoRow label="위약금" value={extra.penaltyAmount != null && extra.penaltyAmount > 0 ? `${Number(extra.penaltyAmount).toLocaleString()}원` : null} />
-              <InfoRow label="환불 금액" value={extra.refundAmount != null ? `${Number(extra.refundAmount).toLocaleString()}원` : null} />
-              <InfoRow label="환불 사유" value={extra.refundReason} />
+              {extra.paymentMethod && <InfoRow label="결제 방법" value={extra.paymentMethod} />}
             </div>
+            {/* 금액 계산 내역 */}
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+              {/* 결제 금액 */}
+              {data.programPrice != null && (
+                <div className="flex justify-between font-semibold text-gray-900">
+                  <span>결제 금액</span>
+                  <span>{data.programPrice.toLocaleString()}원</span>
+                </div>
+              )}
+              {/* 횟수 및 단가 계산 */}
+              {data.programSessions != null && extra.usedSessions != null && data.programPrice != null && (() => {
+                const unitPrice = Math.round(data.programPrice / data.programSessions);
+                const usedCost = unitPrice * Number(extra.usedSessions);
+                return (
+                  <div className="pl-2 border-l-2 border-gray-200 space-y-1.5 py-1">
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>총 횟수</span>
+                      <span>{data.programSessions}회</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>수강 횟수</span>
+                      <span>{Number(extra.usedSessions)}회</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>회당 단가</span>
+                      <span>{unitPrice.toLocaleString()}원/회</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-semibold text-red-500 pt-0.5">
+                      <span>- 사용 금액 ({Number(extra.usedSessions)}회)</span>
+                      <span>- {usedCost.toLocaleString()}원</span>
+                    </div>
+                  </div>
+                );
+              })()}
+              {/* 부가세 */}
+              {extra.vatAmount != null && Number(extra.vatAmount) > 0 && (
+                <div className="flex justify-between text-sm text-red-500 font-medium">
+                  <span>- 부가세</span>
+                  <span>- {Number(extra.vatAmount).toLocaleString()}원</span>
+                </div>
+              )}
+              {/* 위약금 */}
+              {extra.penaltyAmount != null && Number(extra.penaltyAmount) > 0 && (
+                <div className="flex justify-between text-sm text-red-500 font-medium">
+                  <span>- 위약금</span>
+                  <span>- {Number(extra.penaltyAmount).toLocaleString()}원</span>
+                </div>
+              )}
+              {/* 환불 금액 */}
+              {extra.refundAmount != null && (
+                <div className="flex justify-between font-bold text-base text-blue-600 border-t border-gray-200 pt-2 mt-1">
+                  <span>= 환불 금액</span>
+                  <span>{Number(extra.refundAmount).toLocaleString()}원</span>
+                </div>
+              )}
+            </div>
+            {/* 환불 사유 */}
+            {extra.refundReason && (
+              <div className="bg-gray-50 rounded-xl px-4 py-3">
+                <p className="text-xs text-gray-500 font-semibold mb-1">환불 사유</p>
+                <p className="text-xs text-gray-700">{extra.refundReason}</p>
+              </div>
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
             <h2 className="text-sm font-bold text-gray-900">회원 확인</h2>
