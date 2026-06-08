@@ -505,7 +505,10 @@ export default function Admin() {
 
   // 서비스 단가 설정
   const { data: gymSettings, refetch: refetchGymSettings } = trpc.gym.settings.get.useQuery();
-  const [settingsForm, setSettingsForm] = useState({ servicePtUnitPrice: "", serviceHealthUnitPrice: "", serviceLockUnitPrice: "", serviceUniformUnitPrice: "" });
+  const [settingsForm, setSettingsForm] = useState({
+    servicePtUnitPrice: "", serviceHealthUnitPrice: "", serviceLockUnitPrice: "", serviceUniformUnitPrice: "",
+    healthMonthlyPrice: "", ptSessionPrice: "", lockerMonthlyPrice: "", uniformPrice: "",
+  });
   useEffect(() => {
     if (gymSettings) {
       setSettingsForm({
@@ -513,6 +516,10 @@ export default function Admin() {
         serviceHealthUnitPrice: gymSettings.serviceHealthUnitPrice > 0 ? String(gymSettings.serviceHealthUnitPrice) : "",
         serviceLockUnitPrice: gymSettings.serviceLockUnitPrice > 0 ? String(gymSettings.serviceLockUnitPrice) : "",
         serviceUniformUnitPrice: gymSettings.serviceUniformUnitPrice > 0 ? String(gymSettings.serviceUniformUnitPrice) : "",
+        healthMonthlyPrice: (gymSettings as any).healthMonthlyPrice > 0 ? String((gymSettings as any).healthMonthlyPrice) : "",
+        ptSessionPrice: (gymSettings as any).ptSessionPrice > 0 ? String((gymSettings as any).ptSessionPrice) : "",
+        lockerMonthlyPrice: (gymSettings as any).lockerMonthlyPrice > 0 ? String((gymSettings as any).lockerMonthlyPrice) : "",
+        uniformPrice: (gymSettings as any).uniformPrice > 0 ? String((gymSettings as any).uniformPrice) : "",
       });
     }
   }, [gymSettings]);
@@ -547,6 +554,57 @@ export default function Admin() {
       {(<>
 
       {adminTab === "data" && (<>
+
+      {/* ── 등록 기본 단가 설정 ── */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">등록 기본 단가</CardTitle>
+          <p className="text-xs text-muted-foreground">재등록 시 결제금액에 자동 기입되는 기준 단가입니다. 개별 수정도 가능합니다.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">헬스 월 단가 (원/월)</Label>
+              <Input type="number" min="0" placeholder="예: 50000"
+                value={settingsForm.healthMonthlyPrice}
+                onChange={e => setSettingsForm(f => ({ ...f, healthMonthlyPrice: e.target.value }))}
+                className="bg-input border-border mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">PT 세션 단가 (원/회)</Label>
+              <Input type="number" min="0" placeholder="예: 60000"
+                value={settingsForm.ptSessionPrice}
+                onChange={e => setSettingsForm(f => ({ ...f, ptSessionPrice: e.target.value }))}
+                className="bg-input border-border mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">락커 월 단가 (원/월)</Label>
+              <Input type="number" min="0" placeholder="예: 10000"
+                value={settingsForm.lockerMonthlyPrice}
+                onChange={e => setSettingsForm(f => ({ ...f, lockerMonthlyPrice: e.target.value }))}
+                className="bg-input border-border mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">운동복 단가 (원)</Label>
+              <Input type="number" min="0" placeholder="예: 3000"
+                value={settingsForm.uniformPrice}
+                onChange={e => setSettingsForm(f => ({ ...f, uniformPrice: e.target.value }))}
+                className="bg-input border-border mt-1" />
+            </div>
+          </div>
+          <Button
+            onClick={() => updateGymSettings.mutate({
+              healthMonthlyPrice: settingsForm.healthMonthlyPrice ? parseInt(settingsForm.healthMonthlyPrice) : 0,
+              ptSessionPrice: settingsForm.ptSessionPrice ? parseInt(settingsForm.ptSessionPrice) : 0,
+              lockerMonthlyPrice: settingsForm.lockerMonthlyPrice ? parseInt(settingsForm.lockerMonthlyPrice) : 0,
+              uniformPrice: settingsForm.uniformPrice ? parseInt(settingsForm.uniformPrice) : 0,
+            })}
+            disabled={updateGymSettings.isPending}
+            className="w-full">
+            {updateGymSettings.isPending ? "저장 중..." : "저장"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* ── 서비스 단가 설정 ── */}
       <Card className="bg-card border-border">

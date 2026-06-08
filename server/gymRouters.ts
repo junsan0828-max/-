@@ -2350,6 +2350,11 @@ async function ensureGymSettings(db: any) {
     )
   `);
   await db.execute(sql`INSERT INTO gym_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+  // 등록 기본 단가 컬럼 추가 (기존 DB 호환)
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "healthMonthlyPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "ptSessionPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "lockerMonthlyPrice" INTEGER DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS "uniformPrice" INTEGER DEFAULT 0`);
 }
 
 const gymSettingsRouter = t.router({
@@ -2364,6 +2369,10 @@ const gymSettingsRouter = t.router({
       serviceHealthUnitPrice: Number(row.serviceHealthUnitPrice ?? 0),
       serviceLockUnitPrice: Number(row.serviceLockUnitPrice ?? 0),
       serviceUniformUnitPrice: Number(row.serviceUniformUnitPrice ?? 0),
+      healthMonthlyPrice: Number(row.healthMonthlyPrice ?? 0),
+      ptSessionPrice: Number(row.ptSessionPrice ?? 0),
+      lockerMonthlyPrice: Number(row.lockerMonthlyPrice ?? 0),
+      uniformPrice: Number(row.uniformPrice ?? 0),
     };
   }),
 
@@ -2373,6 +2382,10 @@ const gymSettingsRouter = t.router({
       serviceHealthUnitPrice: z.number().min(0).optional(),
       serviceLockUnitPrice: z.number().min(0).optional(),
       serviceUniformUnitPrice: z.number().min(0).optional(),
+      healthMonthlyPrice: z.number().min(0).optional(),
+      ptSessionPrice: z.number().min(0).optional(),
+      lockerMonthlyPrice: z.number().min(0).optional(),
+      uniformPrice: z.number().min(0).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user?.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
@@ -2384,6 +2397,10 @@ const gymSettingsRouter = t.router({
       if (input.serviceHealthUnitPrice !== undefined) sets.push(`"serviceHealthUnitPrice" = ${input.serviceHealthUnitPrice}`);
       if (input.serviceLockUnitPrice !== undefined) sets.push(`"serviceLockUnitPrice" = ${input.serviceLockUnitPrice}`);
       if (input.serviceUniformUnitPrice !== undefined) sets.push(`"serviceUniformUnitPrice" = ${input.serviceUniformUnitPrice}`);
+      if (input.healthMonthlyPrice !== undefined) sets.push(`"healthMonthlyPrice" = ${input.healthMonthlyPrice}`);
+      if (input.ptSessionPrice !== undefined) sets.push(`"ptSessionPrice" = ${input.ptSessionPrice}`);
+      if (input.lockerMonthlyPrice !== undefined) sets.push(`"lockerMonthlyPrice" = ${input.lockerMonthlyPrice}`);
+      if (input.uniformPrice !== undefined) sets.push(`"uniformPrice" = ${input.uniformPrice}`);
       if (sets.length > 0) {
         await db.execute(sql.raw(`UPDATE gym_settings SET ${sets.join(", ")} WHERE id = 1`));
       }

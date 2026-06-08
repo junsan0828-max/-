@@ -25,71 +25,6 @@ function calcEndDateByMonths(start: string, months: number): string {
   return d.toISOString().substring(0, 10);
 }
 
-type PaymentForm = {
-  amount: string;
-  unpaid: string;
-  method: "" | "현금영수증" | "이체" | "지역화폐" | "카드";
-  date: string;
-  memo: string;
-};
-const emptyPayment = (): PaymentForm => ({ amount: "", unpaid: "", method: "", date: "", memo: "" });
-
-function PaymentSection({
-  payment, onChange, label,
-}: {
-  payment: PaymentForm;
-  onChange: (p: PaymentForm) => void;
-  label: string;
-}) {
-  return (
-    <div className="space-y-3 pt-3 border-t border-border/50">
-      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">결제 금액</Label>
-          <Input type="number" min="0" placeholder="0"
-            value={payment.amount} onChange={e => onChange({ ...payment, amount: e.target.value })}
-            className="bg-input border-border" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">미수금</Label>
-          <Input type="number" min="0" placeholder="0"
-            value={payment.unpaid} onChange={e => onChange({ ...payment, unpaid: e.target.value })}
-            className="bg-input border-border" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">결제방법</Label>
-          <Select value={payment.method} onValueChange={v => onChange({ ...payment, method: v as any })}>
-            <SelectTrigger className="bg-input border-border">
-              <SelectValue placeholder="선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="현금영수증">현금영수증</SelectItem>
-              <SelectItem value="이체">계좌이체</SelectItem>
-              <SelectItem value="지역화폐">지역화폐</SelectItem>
-              <SelectItem value="카드">카드</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">결제일자</Label>
-          <Input type="date" value={payment.date}
-            onChange={e => onChange({ ...payment, date: e.target.value })}
-            className="bg-input border-border" />
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">메모</Label>
-        <Input type="text" placeholder="분납 등 메모"
-          value={payment.memo} onChange={e => onChange({ ...payment, memo: e.target.value })}
-          className="bg-input border-border" />
-      </div>
-    </div>
-  );
-}
-
 const PT_PRESETS = ["케어피티", "웨이트피티", "이벤트피티"];
 const SESSION_PRESETS = ["10", "20", "30", "40", "50"];
 
@@ -101,77 +36,117 @@ export default function MemberReRegister() {
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: gymSettings } = trpc.gym.settings.get.useQuery();
 
+  const today = new Date().toISOString().substring(0, 10);
+
   const [selectedMemberId, setSelectedMemberId] = useState(() => {
     const params = new URLSearchParams(search);
     return params.get("memberId") ?? "";
   });
 
-  // 공유 운동 날짜 (헬스/PT 공통)
-  const [membershipStart, setMembershipStart] = useState("");
+  // 공유 날짜
+  const [membershipStart, setMembershipStart] = useState(today);
   const [membershipEnd, setMembershipEnd] = useState("");
 
-  // PT 프로그램
+  // 헬스
+  const [addHealth, setAddHealth] = useState(false);
+  const [healthMonths, setHealthMonths] = useState<number>(1);
+  const [healthPrice, setHealthPrice] = useState("");
+
+  // PT
   const [addPt, setAddPt] = useState(false);
   const [ptProgram, setPtProgram] = useState("");
   const [isServiceSession, setIsServiceSession] = useState(false);
   const [unitPrice, setUnitPrice] = useState("");
   const [ptSessions, setPtSessions] = useState("");
-  const [ptPayment, setPtPayment] = useState<PaymentForm>(emptyPayment());
-
-  // 헬스 프로그램
-  const [addHealth, setAddHealth] = useState(false);
-  const [healthMonths, setHealthMonths] = useState<number | "">(1);
-  const [healthPayment, setHealthPayment] = useState<PaymentForm>(emptyPayment());
+  const [ptPrice, setPtPrice] = useState("");
 
   // 락커
   const [addLocker, setAddLocker] = useState(false);
-  const [lockerConfig, setLockerConfig] = useState({ lockerId: "", startDate: "", endDate: "" });
+  const [lockerId, setLockerId] = useState("");
+  const [lockerEnd, setLockerEnd] = useState("");
+  const [lockerPrice, setLockerPrice] = useState("");
 
   // 운동복
   const [addUniform, setAddUniform] = useState(false);
-  const [uniformConfig, setUniformConfig] = useState({
-    startDate: "", endDate: "",
-    paymentAmount: "", paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
-  });
+  const [uniformEnd, setUniformEnd] = useState("");
+  const [uniformPrice, setUniformPrice] = useState("");
+
+  // 공통 결제
+  const [paymentMethod, setPaymentMethod] = useState<"" | "현금영수증" | "이체" | "지역화폐" | "카드">("");
+  const [paymentDate, setPaymentDate] = useState(today);
+  const [unpaidAmount, setUnpaidAmount] = useState("");
+  const [paymentMemo, setPaymentMemo] = useState("");
 
   // 서비스 내역
   const [serviceItems, setServiceItems] = useState<string[]>([]);
-  const [servicePtCount, setServicePtCount] = useState<number | undefined>(undefined);
-  const [serviceHealthMonths, setServiceHealthMonths] = useState<number | undefined>(undefined);
+  const [servicePtCount, setServicePtCount] = useState<number | undefined>();
+  const [serviceHealthMonths, setServiceHealthMonths] = useState<number | undefined>();
   const [serviceHealthCustom, setServiceHealthCustom] = useState("");
   const [serviceLockerNum, setServiceLockerNum] = useState("");
 
-  // URL memberId → 기존 날짜 pre-fill
+  const selectedMember = members.find(m => String(m.id) === selectedMemberId);
+
+  // 회원 선택 시 날짜 자동 기입
+  useEffect(() => {
+    if (!selectedMember) return;
+    const memberEnd = (selectedMember as any).membershipEnd ?? "";
+    // 재등록: 기존 종료일이 오늘 이후면 그 날짜부터, 아니면 오늘
+    const autoStart = memberEnd && memberEnd >= today ? memberEnd : today;
+    setMembershipStart(autoStart);
+    setMembershipEnd(calcEndDateByMonths(autoStart, healthMonths));
+    setLockerEnd(calcEndDateByMonths(autoStart, healthMonths));
+    setUniformEnd(calcEndDateByMonths(autoStart, healthMonths));
+  }, [selectedMemberId]);
+
+  // URL memberId pre-fill (헬스권 수정에서 진입)
   useEffect(() => {
     const params = new URLSearchParams(search);
     const urlMemberId = params.get("memberId");
     if (!urlMemberId || members.length === 0) return;
     const m = members.find(x => String(x.id) === urlMemberId);
     if (!m) return;
-    const start = (m as any).membershipStart ?? "";
-    const end = (m as any).membershipEnd ?? "";
-    setMembershipStart(start);
-    setMembershipEnd(end);
-    if (start && end) {
-      const s = new Date(start);
-      const e = new Date(end);
+    const existingStart = (m as any).membershipStart ?? "";
+    const existingEnd = (m as any).membershipEnd ?? "";
+    if (existingStart) setMembershipStart(existingStart);
+    if (existingEnd) setMembershipEnd(existingEnd);
+    if (existingStart && existingEnd) {
+      const s = new Date(existingStart);
+      const e = new Date(existingEnd);
       const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
       if (months > 0) setHealthMonths(months);
       setAddHealth(true);
     }
   }, [search, members]);
 
-  const updateMutation = trpc.members.update.useMutation({
-    onError: (err) => toast.error((err as any).message || "등록 실패"),
-  });
-  const assignLockerMutation = trpc.access.assignLocker.useMutation({
-    onError: (err) => toast.error("락커 배정 실패: " + ((err as any).message || "")),
-  });
-  const createUniformMutation = trpc.access.createUniform.useMutation({
-    onError: (err) => toast.error("운동복 등록 실패: " + ((err as any).message || "")),
-  });
+  // 헬스 가격 자동 기입
+  useEffect(() => {
+    if (!gymSettings) return;
+    const price = (gymSettings as any).healthMonthlyPrice ?? 0;
+    if (price > 0) setHealthPrice(String(price * healthMonths));
+  }, [gymSettings, addHealth, healthMonths]);
 
-  const selectedMember = members.find(m => String(m.id) === selectedMemberId);
+  // PT 가격 자동 기입
+  useEffect(() => {
+    if (!gymSettings) return;
+    const price = (gymSettings as any).ptSessionPrice ?? 0;
+    const sessions = parseInt(ptSessions) || 0;
+    if (price > 0 && sessions > 0) setPtPrice(String(price * sessions));
+  }, [gymSettings, addPt, ptSessions]);
+
+  // 락커 가격 자동 기입
+  useEffect(() => {
+    if (!gymSettings) return;
+    const price = (gymSettings as any).lockerMonthlyPrice ?? 0;
+    if (price > 0) setLockerPrice(String(price));
+  }, [gymSettings, addLocker]);
+
+  // 운동복 가격 자동 기입
+  useEffect(() => {
+    if (!gymSettings) return;
+    const price = (gymSettings as any).uniformPrice ?? 0;
+    if (price > 0) setUniformPrice(String(price));
+  }, [gymSettings, addUniform]);
+
   const availableLockers = (allLockers ?? []).filter((l: any) => !l.isOccupied);
   const lockerGroups: { branchId: number | null; name: string; lockers: any[] }[] = [];
   for (const l of availableLockers) {
@@ -185,7 +160,24 @@ export default function MemberReRegister() {
     g.lockers.push(l);
   }
 
+  // 총 결제 금액
+  const totalAmount =
+    (addHealth && !isNaN(parseInt(healthPrice)) ? parseInt(healthPrice) : 0) +
+    (addPt && !isServiceSession && !isNaN(parseInt(ptPrice)) ? parseInt(ptPrice) : 0) +
+    (addLocker && !isNaN(parseInt(lockerPrice)) ? parseInt(lockerPrice) : 0) +
+    (addUniform && !isNaN(parseInt(uniformPrice)) ? parseInt(uniformPrice) : 0);
+
   const anySelected = addPt || addHealth || addLocker || addUniform;
+  const updateMutation = trpc.members.update.useMutation({
+    onError: (err) => toast.error((err as any).message || "등록 실패"),
+  });
+  const assignLockerMutation = trpc.access.assignLocker.useMutation({
+    onError: (err) => toast.error("락커 배정 실패: " + ((err as any).message || "")),
+  });
+  const createUniformMutation = trpc.access.createUniform.useMutation({
+    onError: (err) => toast.error("운동복 등록 실패: " + ((err as any).message || "")),
+  });
+
   const isPending = updateMutation.isPending || assignLockerMutation.isPending || createUniformMutation.isPending;
 
   const buildServiceItemsStr = () => {
@@ -206,13 +198,13 @@ export default function MemberReRegister() {
     e.preventDefault();
     if (!selectedMemberId) { toast.error("회원을 선택해주세요"); return; }
     if (!anySelected) { toast.error("등록 유형을 선택해주세요"); return; }
-    if (addLocker && !lockerConfig.lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
+    if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
 
-    const today = new Date().toISOString().substring(0, 10);
     const siStr = buildServiceItemsStr();
+    const method = paymentMethod || undefined;
+    const date = paymentDate || today;
 
     try {
-      // PT → 헬스 순서로 직렬 처리 (날짜 충돌 방지)
       if (addPt) {
         const ptEnd = addHealth ? membershipEnd : calcEndDateByPT(membershipStart, ptSessions);
         await updateMutation.mutateAsync({
@@ -222,13 +214,13 @@ export default function MemberReRegister() {
           membershipEnd: ptEnd || undefined,
           ptProgram: isServiceSession ? "서비스세션" : (ptProgram || undefined),
           ptSessions: ptSessions ? parseInt(ptSessions) as any : undefined,
-          paymentAmount: isServiceSession ? 0 : (ptPayment.amount ? parseInt(ptPayment.amount) : undefined),
-          unpaidAmount: ptPayment.unpaid ? parseInt(ptPayment.unpaid) : undefined,
-          paymentMethod: ptPayment.method || undefined,
-          paymentDate: ptPayment.date || today,
+          paymentAmount: isServiceSession ? 0 : (ptPrice ? parseInt(ptPrice) : undefined),
+          unpaidAmount: !addHealth && unpaidAmount ? parseInt(unpaidAmount) : undefined,
+          paymentMethod: method,
+          paymentDate: date,
           paymentMemo: isServiceSession
-            ? `서비스세션 단가:${unitPrice}${ptPayment.memo ? ` / ${ptPayment.memo}` : ""}`
-            : (ptPayment.memo || undefined),
+            ? `서비스세션 단가:${unitPrice}${paymentMemo ? ` / ${paymentMemo}` : ""}`
+            : (paymentMemo || undefined),
           subType: "재등록" as any,
           serviceItems: !addHealth ? siStr : undefined,
         } as any);
@@ -241,26 +233,25 @@ export default function MemberReRegister() {
           membershipStart: membershipStart || undefined,
           membershipEnd: membershipEnd || undefined,
           ptProgram: `헬스 ${healthMonths}개월`,
-          paymentAmount: healthPayment.amount ? parseInt(healthPayment.amount) : 0,
-          unpaidAmount: healthPayment.unpaid ? parseInt(healthPayment.unpaid) : undefined,
-          paymentMethod: healthPayment.method || undefined,
-          paymentDate: healthPayment.date || today,
-          paymentMemo: healthPayment.memo || undefined,
+          paymentAmount: healthPrice ? parseInt(healthPrice) : 0,
+          unpaidAmount: unpaidAmount ? parseInt(unpaidAmount) : undefined,
+          paymentMethod: method,
+          paymentDate: date,
+          paymentMemo: paymentMemo || undefined,
           subType: "재등록" as any,
           serviceItems: siStr,
         } as any);
       }
 
-      // 락커·운동복은 병렬
       await Promise.all([
-        addLocker && lockerConfig.lockerId
+        addLocker && lockerId
           ? assignLockerMutation.mutateAsync({
-              lockerId: parseInt(lockerConfig.lockerId),
+              lockerId: parseInt(lockerId),
               memberId: parseInt(selectedMemberId),
               memberName: selectedMember!.name,
               memberPhone: selectedMember?.phone ?? undefined,
-              startDate: lockerConfig.startDate || undefined,
-              endDate: lockerConfig.endDate || undefined,
+              startDate: membershipStart || undefined,
+              endDate: lockerEnd || undefined,
               rentalType: "service",
             })
           : Promise.resolve(),
@@ -269,12 +260,12 @@ export default function MemberReRegister() {
               memberId: parseInt(selectedMemberId),
               memberName: selectedMember!.name,
               memberPhone: selectedMember?.phone ?? undefined,
-              startDate: uniformConfig.startDate || undefined,
-              endDate: uniformConfig.endDate || undefined,
-              rentalType: uniformConfig.paymentAmount ? "paid" : "service",
-              isPaid: uniformConfig.paymentAmount ? 1 : 0,
-              paymentAmount: uniformConfig.paymentAmount ? parseInt(uniformConfig.paymentAmount) : 0,
-              paymentMethod: uniformConfig.paymentMethod || undefined,
+              startDate: membershipStart || undefined,
+              endDate: uniformEnd || undefined,
+              rentalType: uniformPrice && parseInt(uniformPrice) > 0 ? "paid" : "service",
+              isPaid: uniformPrice && parseInt(uniformPrice) > 0 ? 1 : 0,
+              paymentAmount: uniformPrice ? parseInt(uniformPrice) : 0,
+              paymentMethod: method,
             })
           : Promise.resolve(),
       ]);
@@ -282,7 +273,7 @@ export default function MemberReRegister() {
       toast.success("등록되었습니다.");
       setLocation(`/members/${selectedMemberId}`);
     } catch {
-      // individual mutations already toast errors
+      // individual mutations already toast
     }
   };
 
@@ -301,37 +292,38 @@ export default function MemberReRegister() {
           <CardHeader className="pb-4">
             <CardTitle className="text-base font-semibold">회원 선택</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-sm text-muted-foreground">
-                회원 이름 <span className="text-primary">*</span>
-              </Label>
-              <select
-                value={selectedMemberId}
-                onChange={e => setSelectedMemberId(e.target.value)}
-                className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">회원을 선택하세요</option>
-                {[...members].sort((a, b) => a.name.localeCompare(b.name, "ko")).map(m => (
-                  <option key={m.id} value={String(m.id)}>
-                    {m.name}{m.phone ? ` (${m.phone})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <CardContent className="space-y-3">
+            <select
+              value={selectedMemberId}
+              onChange={e => setSelectedMemberId(e.target.value)}
+              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">회원을 선택하세요</option>
+              {[...members].sort((a, b) => a.name.localeCompare(b.name, "ko")).map(m => (
+                <option key={m.id} value={String(m.id)}>
+                  {m.name}{m.phone ? ` (${m.phone})` : ""}
+                </option>
+              ))}
+            </select>
             {selectedMember && (
-              <div className="bg-background border border-border rounded-lg px-3 py-2.5 flex gap-4">
+              <div className="bg-background border border-border rounded-lg px-3 py-2.5 flex gap-4 flex-wrap">
                 <div>
                   <p className="text-xs text-muted-foreground">이름</p>
-                  <p className="text-sm font-medium text-foreground">{selectedMember.name}</p>
+                  <p className="text-sm font-medium">{selectedMember.name}</p>
                 </div>
                 {selectedMember.phone && (
                   <div>
                     <p className="text-xs text-muted-foreground">연락처</p>
-                    <p className="text-sm text-foreground">{selectedMember.phone}</p>
+                    <p className="text-sm">{selectedMember.phone}</p>
                   </div>
                 )}
-                {(selectedMember as any).ptSessions && (
+                {(selectedMember as any).membershipEnd && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">현재 만료일</p>
+                    <p className="text-sm text-emerald-400 font-medium">{(selectedMember as any).membershipEnd}</p>
+                  </div>
+                )}
+                {(selectedMember as any).ptSessions > 0 && (
                   <div>
                     <p className="text-xs text-muted-foreground">잔여 PT</p>
                     <p className="text-sm text-primary font-medium">{(selectedMember as any).ptSessions}회</p>
@@ -342,7 +334,7 @@ export default function MemberReRegister() {
           </CardContent>
         </Card>
 
-        {/* 등록 유형 선택 — 복수 선택 가능 */}
+        {/* 등록 유형 선택 */}
         <Card className="bg-card border-border">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">
@@ -352,190 +344,179 @@ export default function MemberReRegister() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setAddHealth(v => !v)}
-                className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${addHealth ? "border-emerald-500 bg-emerald-500/10" : "border-border hover:border-emerald-500/40 hover:bg-accent"}`}>
-                <div className={`p-3 rounded-full ${addHealth ? "bg-emerald-500/20" : "bg-muted"}`}>
-                  <Activity className={`h-6 w-6 ${addHealth ? "text-emerald-400" : "text-muted-foreground"}`} />
-                </div>
-                <div className="text-center">
-                  <p className={`text-sm font-semibold ${addHealth ? "text-emerald-400" : "text-foreground"}`}>헬스권</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">헬스 이용 등록</p>
-                </div>
-              </button>
-
-              <button type="button" onClick={() => setAddPt(v => !v)}
-                className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${addPt ? "border-primary bg-primary/10" : "border-border hover:border-primary/40 hover:bg-accent"}`}>
-                <div className={`p-3 rounded-full ${addPt ? "bg-primary/20" : "bg-muted"}`}>
-                  <Dumbbell className={`h-6 w-6 ${addPt ? "text-primary" : "text-muted-foreground"}`} />
-                </div>
-                <div className="text-center">
-                  <p className={`text-sm font-semibold ${addPt ? "text-primary" : "text-foreground"}`}>PT 등록</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">PT 세션 등록</p>
-                </div>
-              </button>
-
-              <button type="button" onClick={() => setAddLocker(v => !v)}
-                className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${addLocker ? "border-amber-500 bg-amber-500/10" : "border-border hover:border-amber-500/40 hover:bg-accent"}`}>
-                <div className={`p-3 rounded-full ${addLocker ? "bg-amber-500/20" : "bg-muted"}`}>
-                  <Lock className={`h-6 w-6 ${addLocker ? "text-amber-400" : "text-muted-foreground"}`} />
-                </div>
-                <div className="text-center">
-                  <p className={`text-sm font-semibold ${addLocker ? "text-amber-400" : "text-foreground"}`}>락커</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">락커 배정</p>
-                </div>
-              </button>
-
-              <button type="button" onClick={() => setAddUniform(v => !v)}
-                className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${addUniform ? "border-purple-500 bg-purple-500/10" : "border-border hover:border-purple-500/40 hover:bg-accent"}`}>
-                <div className={`p-3 rounded-full ${addUniform ? "bg-purple-500/20" : "bg-muted"}`}>
-                  <Shirt className={`h-6 w-6 ${addUniform ? "text-purple-400" : "text-muted-foreground"}`} />
-                </div>
-                <div className="text-center">
-                  <p className={`text-sm font-semibold ${addUniform ? "text-purple-400" : "text-foreground"}`}>운동복</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">운동복 대여</p>
-                </div>
-              </button>
+              {[
+                { key: "health", label: "헬스권", sub: "헬스 이용 등록", icon: Activity, active: addHealth, color: "emerald", toggle: () => setAddHealth(v => !v) },
+                { key: "pt", label: "PT 등록", sub: "PT 세션 등록", icon: Dumbbell, active: addPt, color: "primary", toggle: () => setAddPt(v => !v) },
+                { key: "locker", label: "락커", sub: "락커 배정", icon: Lock, active: addLocker, color: "amber", toggle: () => setAddLocker(v => !v) },
+                { key: "uniform", label: "운동복", sub: "운동복 대여", icon: Shirt, active: addUniform, color: "purple", toggle: () => setAddUniform(v => !v) },
+              ].map(({ key, label, sub, icon: Icon, active, color, toggle }) => (
+                <button key={key} type="button" onClick={toggle}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                    active
+                      ? color === "primary" ? "border-primary bg-primary/10"
+                        : `border-${color}-500 bg-${color}-500/10`
+                      : "border-border hover:bg-accent"
+                  }`}>
+                  <div className={`p-2.5 rounded-full ${active
+                    ? color === "primary" ? "bg-primary/20" : `bg-${color}-500/20`
+                    : "bg-muted"}`}>
+                    <Icon className={`h-5 w-5 ${active
+                      ? color === "primary" ? "text-primary" : `text-${color}-400`
+                      : "text-muted-foreground"}`} />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-semibold ${active
+                      ? color === "primary" ? "text-primary" : `text-${color}-400`
+                      : "text-foreground"}`}>{label}</p>
+                    <p className="text-xs text-muted-foreground">{sub}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>
 
+        {/* ── 헬스 프로그램 정보 ── */}
+        {addHealth && (
+          <Card className="bg-card border-emerald-500/40">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-emerald-400">헬스 프로그램 정보</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">이용 기간</Label>
+                <div className="flex gap-2 mt-1">
+                  {[1, 3, 6, 12].map(m => (
+                    <button key={m} type="button"
+                      onClick={() => {
+                        setHealthMonths(m);
+                        const newEnd = calcEndDateByMonths(membershipStart, m);
+                        setMembershipEnd(newEnd);
+                        const gp = (gymSettings as any)?.healthMonthlyPrice ?? 0;
+                        if (gp > 0) setHealthPrice(String(gp * m));
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${healthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                      {m}개월
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">운동 시작일</Label>
+                  <Input type="date" value={membershipStart}
+                    onChange={e => {
+                      setMembershipStart(e.target.value);
+                      setMembershipEnd(calcEndDateByMonths(e.target.value, healthMonths));
+                    }}
+                    className="bg-input border-border mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">운동 만료일</Label>
+                  <Input type="date" value={membershipEnd}
+                    onChange={e => setMembershipEnd(e.target.value)}
+                    className="bg-input border-border mt-1" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                <Input type="number" min="0" value={healthPrice}
+                  onChange={e => setHealthPrice(e.target.value)}
+                  placeholder="0" className="bg-input border-border mt-1" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* ── PT 프로그램 정보 ── */}
         {addPt && (
           <Card className="bg-card border-primary/40">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold text-primary">PT 프로그램 정보</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-primary">PT 프로그램 정보</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* 프로그램명 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm text-muted-foreground">프로그램명</Label>
-                <Input
-                  value={isServiceSession ? "" : ptProgram}
+            <CardContent className="space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">프로그램명</Label>
+                <Input value={isServiceSession ? "" : ptProgram}
                   onChange={e => { setPtProgram(e.target.value); setIsServiceSession(false); }}
-                  placeholder="프로그램명 직접 입력"
+                  placeholder="프로그램명 입력"
                   disabled={isServiceSession}
-                  className="bg-input border-border disabled:opacity-50"
-                />
-                <div className="flex gap-1.5 flex-wrap">
-                  {PT_PRESETS.map(preset => (
-                    <button key={preset} type="button"
-                      onClick={() => { setPtProgram(p => p === preset && !isServiceSession ? "" : preset); setIsServiceSession(false); }}
-                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${ptProgram === preset && !isServiceSession ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
-                      {preset}
+                  className="bg-input border-border mt-1 disabled:opacity-50" />
+                <div className="flex gap-1.5 flex-wrap mt-1.5">
+                  {PT_PRESETS.map(p => (
+                    <button key={p} type="button"
+                      onClick={() => { setPtProgram(x => x === p && !isServiceSession ? "" : p); setIsServiceSession(false); }}
+                      className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${ptProgram === p && !isServiceSession ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                      {p}
                     </button>
                   ))}
                   <button type="button"
-                    onClick={() => { setIsServiceSession(s => !s); setPtProgram(""); setPtPayment(p => ({ ...p, amount: "" })); }}
+                    onClick={() => { setIsServiceSession(s => !s); setPtProgram(""); setPtPrice(""); }}
                     className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${isServiceSession ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground hover:border-emerald-400/60"}`}>
                     서비스세션
                   </button>
                 </div>
                 {isServiceSession && (
-                  <div className="mt-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2.5 space-y-2">
-                    <p className="text-xs text-emerald-400 font-medium">서비스세션 — 결제금액 0원으로 처리됩니다</p>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">단가 (정산 기준)</Label>
+                  <div className="mt-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 flex items-center gap-3">
+                    <p className="text-xs text-emerald-400">서비스세션 — 0원 처리</p>
+                    <div className="flex-1">
                       <Input type="number" min="0" value={unitPrice}
-                        onChange={e => setUnitPrice(e.target.value)} placeholder="0"
-                        className="bg-background border-border text-sm" />
+                        onChange={e => setUnitPrice(e.target.value)}
+                        placeholder="단가 (정산기준)"
+                        className="bg-background border-border text-xs h-7" />
                     </div>
                   </div>
                 )}
               </div>
-
-              {/* PT 횟수 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm text-muted-foreground">PT 횟수</Label>
-                <Input type="number" min="1" value={ptSessions}
-                  onChange={e => {
-                    const s = e.target.value;
-                    setPtSessions(s);
-                    if (!addHealth) setMembershipEnd(calcEndDateByPT(membershipStart, s));
-                  }}
-                  placeholder="횟수 직접 입력" className="bg-input border-border"
-                />
-                <div className="flex gap-1.5 flex-wrap">
+              <div>
+                <Label className="text-xs text-muted-foreground">PT 횟수</Label>
+                <div className="flex gap-1.5 flex-wrap mt-1">
                   {SESSION_PRESETS.map(preset => (
                     <button key={preset} type="button"
                       onClick={() => {
                         const next = ptSessions === preset ? "" : preset;
                         setPtSessions(next);
                         if (!addHealth) setMembershipEnd(calcEndDateByPT(membershipStart, next));
+                        const gp = (gymSettings as any)?.ptSessionPrice ?? 0;
+                        if (gp > 0 && next) setPtPrice(String(gp * parseInt(next)));
                       }}
                       className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${ptSessions === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
                       {preset}회
                     </button>
                   ))}
+                  <Input type="number" min="1" value={ptSessions}
+                    onChange={e => {
+                      const s = e.target.value;
+                      setPtSessions(s);
+                      if (!addHealth) setMembershipEnd(calcEndDateByPT(membershipStart, s));
+                      const gp = (gymSettings as any)?.ptSessionPrice ?? 0;
+                      if (gp > 0 && s) setPtPrice(String(gp * parseInt(s)));
+                    }}
+                    placeholder="직접 입력" className="bg-input border-border text-xs h-7 w-24" />
                 </div>
               </div>
-
-              {/* 날짜 — 헬스 미선택 시만 표시 (헬스 선택 시 헬스 카드에서 공유) */}
               {!addHealth && (
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">시작일</Label>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">시작일</Label>
                     <Input type="date" value={membershipStart}
                       onChange={e => { setMembershipStart(e.target.value); setMembershipEnd(calcEndDateByPT(e.target.value, ptSessions)); }}
-                      className="bg-input border-border" />
+                      className="bg-input border-border mt-1" />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">만료일 <span className="text-primary text-xs">(자동계산)</span></Label>
-                    <Input type="date" value={membershipEnd} readOnly className="bg-input border-border opacity-60 cursor-not-allowed" />
+                  <div>
+                    <Label className="text-xs text-muted-foreground">만료일 <span className="text-primary text-[10px]">(자동)</span></Label>
+                    <Input type="date" value={membershipEnd} readOnly className="bg-input border-border mt-1 opacity-60 cursor-not-allowed" />
                   </div>
                 </div>
               )}
-
               {!isServiceSession && (
-                <PaymentSection payment={ptPayment} onChange={setPtPayment} label="PT 결제 정보" />
+                <div>
+                  <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                  <Input type="number" min="0" value={ptPrice}
+                    onChange={e => setPtPrice(e.target.value)}
+                    placeholder="0" className="bg-input border-border mt-1" />
+                </div>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── 헬스 프로그램 정보 ── */}
-        {addHealth && (
-          <Card className="bg-card border-emerald-500/40">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold text-emerald-400">헬스 프로그램 정보</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* 이용 기간 먼저 */}
-              <div className="space-y-1.5">
-                <Label className="text-sm text-muted-foreground">이용 기간</Label>
-                <div className="flex gap-2 flex-wrap">
-                  {[1, 3, 6, 12].map(m => (
-                    <button key={m} type="button"
-                      onClick={() => {
-                        setHealthMonths(m);
-                        if (membershipStart) setMembershipEnd(calcEndDateByMonths(membershipStart, m));
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${healthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground hover:bg-accent"}`}>
-                      {m}개월
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 날짜 (이용기간 이후) */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">운동 시작일</Label>
-                  <Input type="date" value={membershipStart}
-                    onChange={e => {
-                      setMembershipStart(e.target.value);
-                      if (healthMonths) setMembershipEnd(calcEndDateByMonths(e.target.value, Number(healthMonths)));
-                    }}
-                    className="bg-input border-border" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">운동 만료일</Label>
-                  <Input type="date" value={membershipEnd}
-                    onChange={e => setMembershipEnd(e.target.value)}
-                    className="bg-input border-border" />
-                </div>
-              </div>
-
-              <PaymentSection payment={healthPayment} onChange={setHealthPayment} label="헬스 결제 정보" />
             </CardContent>
           </Card>
         )}
@@ -543,18 +524,17 @@ export default function MemberReRegister() {
         {/* ── 락커 프로그램 정보 ── */}
         {addLocker && (
           <Card className="bg-card border-amber-500/40">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold text-amber-400">락커 프로그램 정보</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-amber-400">락커 프로그램 정보</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm text-muted-foreground">락커 선택 <span className="text-primary">*</span></Label>
+              <div>
+                <Label className="text-xs text-muted-foreground">락커 선택 <span className="text-primary">*</span></Label>
                 {availableLockers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">사용 가능한 락커가 없습니다</p>
+                  <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>
                 ) : (
-                  <select value={lockerConfig.lockerId}
-                    onChange={e => setLockerConfig(p => ({ ...p, lockerId: e.target.value }))}
-                    className="w-full rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none focus:ring-1 focus:ring-amber-500">
+                  <select value={lockerId} onChange={e => setLockerId(e.target.value)}
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm bg-input border border-border focus:outline-none focus:ring-1 focus:ring-amber-500">
                     <option value="">락커 선택...</option>
                     {lockerGroups.map(g => (
                       <optgroup key={g.branchId ?? "none"} label={g.name}>
@@ -567,18 +547,22 @@ export default function MemberReRegister() {
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">시작일</Label>
-                  <Input type="date" value={lockerConfig.startDate}
-                    onChange={e => setLockerConfig(p => ({ ...p, startDate: e.target.value }))}
-                    className="bg-input border-border" />
+                <div>
+                  <Label className="text-xs text-muted-foreground">시작일</Label>
+                  <Input type="date" value={membershipStart} readOnly className="bg-input border-border mt-1 opacity-60 cursor-not-allowed" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">만료일</Label>
-                  <Input type="date" value={lockerConfig.endDate}
-                    onChange={e => setLockerConfig(p => ({ ...p, endDate: e.target.value }))}
-                    className="bg-input border-border" />
+                <div>
+                  <Label className="text-xs text-muted-foreground">만료일</Label>
+                  <Input type="date" value={lockerEnd}
+                    onChange={e => setLockerEnd(e.target.value)}
+                    className="bg-input border-border mt-1" />
                 </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                <Input type="number" min="0" value={lockerPrice}
+                  onChange={e => setLockerPrice(e.target.value)}
+                  placeholder="0" className="bg-input border-border mt-1" />
               </div>
             </CardContent>
           </Card>
@@ -587,36 +571,122 @@ export default function MemberReRegister() {
         {/* ── 운동복 프로그램 정보 ── */}
         {addUniform && (
           <Card className="bg-card border-purple-500/40">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold text-purple-400">운동복 프로그램 정보</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-purple-400">운동복 프로그램 정보</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">시작일</Label>
-                  <Input type="date" value={uniformConfig.startDate}
-                    onChange={e => setUniformConfig(p => ({ ...p, startDate: e.target.value }))}
-                    className="bg-input border-border" />
+                <div>
+                  <Label className="text-xs text-muted-foreground">시작일</Label>
+                  <Input type="date" value={membershipStart} readOnly className="bg-input border-border mt-1 opacity-60 cursor-not-allowed" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">만료일</Label>
-                  <Input type="date" value={uniformConfig.endDate}
-                    onChange={e => setUniformConfig(p => ({ ...p, endDate: e.target.value }))}
-                    className="bg-input border-border" />
+                <div>
+                  <Label className="text-xs text-muted-foreground">만료일</Label>
+                  <Input type="date" value={uniformEnd}
+                    onChange={e => setUniformEnd(e.target.value)}
+                    className="bg-input border-border mt-1" />
                 </div>
               </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                <Input type="number" min="0" value={uniformPrice}
+                  onChange={e => setUniformPrice(e.target.value)}
+                  placeholder="0 (무료)" className="bg-input border-border mt-1" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── 서비스 내역 ── */}
+        {(addPt || addHealth) && (
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">
+                서비스 내역 <span className="text-xs font-normal text-muted-foreground">무료 제공 항목</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {[
+                { id: "PT", label: "PT", color: "blue" },
+                { id: "헬스", label: "헬스", color: "emerald" },
+                { id: "락커", label: "락커", color: "amber" },
+                { id: "운동복", label: "운동복", color: "purple" },
+              ].map(({ id, label, color }) => {
+                const sel = serviceItems.includes(id);
+                return (
+                  <div key={id} className={`rounded-xl border transition-colors ${sel ? `border-${color}-500/60 bg-${color}-500/5` : "border-border"}`}>
+                    <button type="button"
+                      onClick={() => {
+                        setServiceItems(s => sel ? s.filter(x => x !== id) : [...s, id]);
+                        if (id === "PT") setServicePtCount(undefined);
+                        if (id === "헬스") { setServiceHealthMonths(undefined); setServiceHealthCustom(""); }
+                        if (id === "락커") setServiceLockerNum("");
+                      }}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium">
+                      <span className={sel ? `text-${color}-400` : "text-muted-foreground"}>{label}</span>
+                      {sel && <span className={`text-[10px] px-2 py-0.5 rounded-full bg-${color}-500/20 text-${color}-400`}>선택됨</span>}
+                    </button>
+                    {sel && id === "PT" && (
+                      <div className="px-4 pb-3 border-t border-blue-500/20 pt-2 flex gap-2">
+                        {[1, 2, 3].map(n => (
+                          <button key={n} type="button"
+                            onClick={() => setServicePtCount(c => c === n ? undefined : n)}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-medium border ${servicePtCount === n ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground"}`}>
+                            +{n}회
+                          </button>
+                        ))}
+                        <Input type="number" min={1}
+                          value={servicePtCount && ![1,2,3].includes(servicePtCount) ? servicePtCount : ""}
+                          onChange={e => setServicePtCount(e.target.value ? parseInt(e.target.value) : undefined)}
+                          placeholder="직접입력" className="bg-input border-border text-xs h-8 w-20" />
+                      </div>
+                    )}
+                    {sel && id === "헬스" && (
+                      <div className="px-4 pb-3 border-t border-emerald-500/20 pt-2 space-y-2">
+                        <div className="flex gap-2">
+                          {[1, 3, 6, 12].map(m => (
+                            <button key={m} type="button"
+                              onClick={() => { setServiceHealthMonths(v => v === m ? undefined : m); setServiceHealthCustom(""); }}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border ${serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                              {m}개월
+                            </button>
+                          ))}
+                        </div>
+                        <Input type="number" min={1} value={serviceHealthCustom}
+                          onChange={e => { setServiceHealthCustom(e.target.value); setServiceHealthMonths(undefined); }}
+                          placeholder="직접 입력 (일)" className="bg-input border-border text-xs h-8" />
+                      </div>
+                    )}
+                    {sel && id === "락커" && (
+                      <div className="px-4 pb-3 border-t border-amber-500/20 pt-2">
+                        <select value={serviceLockerNum} onChange={e => setServiceLockerNum(e.target.value)}
+                          className="w-full rounded-lg px-3 py-1.5 text-xs bg-input border border-border">
+                          <option value="">락커 선택...</option>
+                          {lockerGroups.flatMap(g => g.lockers.map((l: any) => (
+                            <option key={l.id} value={l.lockerNumber}>{l.lockerNumber}</option>
+                          )))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── 공통 결제 정보 ── */}
+        {anySelected && (
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">결제 정보</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">결제 금액 <span className="text-muted-foreground/60">(유료 시)</span></Label>
-                  <Input type="number" min="0" placeholder="0 (무료)"
-                    value={uniformConfig.paymentAmount}
-                    onChange={e => setUniformConfig(p => ({ ...p, paymentAmount: e.target.value }))}
-                    className="bg-input border-border" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">결제방법</Label>
-                  <Select value={uniformConfig.paymentMethod} onValueChange={v => setUniformConfig(p => ({ ...p, paymentMethod: v as any }))}>
-                    <SelectTrigger className="bg-input border-border">
+                <div>
+                  <Label className="text-xs text-muted-foreground">결제방법</Label>
+                  <Select value={paymentMethod} onValueChange={v => setPaymentMethod(v as any)}>
+                    <SelectTrigger className="bg-input border-border mt-1">
                       <SelectValue placeholder="선택" />
                     </SelectTrigger>
                     <SelectContent>
@@ -627,166 +697,71 @@ export default function MemberReRegister() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── 서비스 내역 (PT 또는 헬스 선택 시 표시) ── */}
-        {(addPt || addHealth) && (
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">
-                서비스 내역
-                <span className="ml-2 text-xs font-normal text-muted-foreground">무료 제공 항목</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {/* PT 서비스 */}
-              {(() => {
-                const sel = serviceItems.includes("PT");
-                const paid = Number(ptPayment.amount) || 0;
-                const sessions = parseInt(ptSessions) || 0;
-                const calcPrice = sessions > 0 ? Math.round(paid / sessions) : 0;
-                const unitPriceVal = calcPrice > 0 ? calcPrice : (gymSettings?.servicePtUnitPrice ?? 0);
-                return (
-                  <div className={`rounded-xl border transition-colors ${sel ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
-                    <button type="button"
-                      onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "PT") : [...s, "PT"]); setServicePtCount(undefined); }}
-                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                      <span className={sel ? "text-blue-400" : "text-muted-foreground"}>PT</span>
-                      {unitPriceVal > 0 && <span className="text-[10px] text-muted-foreground">단가 {unitPriceVal.toLocaleString()}원/회</span>}
-                    </button>
-                    {sel && (
-                      <div className="px-4 pb-4 border-t border-blue-500/20 pt-3 space-y-2">
-                        <Label className="text-xs text-muted-foreground">제공 횟수</Label>
-                        <div className="flex gap-2">
-                          {[1, 2, 3].map(n => (
-                            <button key={n} type="button"
-                              onClick={() => setServicePtCount(c => c === n ? undefined : n)}
-                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${servicePtCount === n ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground"}`}>
-                              +{n}회
-                            </button>
-                          ))}
-                        </div>
-                        <Input type="number" min={1}
-                          value={servicePtCount && ![1,2,3].includes(servicePtCount) ? servicePtCount : ""}
-                          onChange={e => setServicePtCount(e.target.value ? parseInt(e.target.value) : undefined)}
-                          placeholder="직접 입력 (회)" className="bg-input border-border text-sm" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* 헬스 서비스 */}
-              {(() => {
-                const sel = serviceItems.includes("헬스");
-                return (
-                  <div className={`rounded-xl border transition-colors ${sel ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
-                    <button type="button"
-                      onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "헬스") : [...s, "헬스"]); setServiceHealthMonths(undefined); setServiceHealthCustom(""); }}
-                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                      <span className={sel ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
-                    </button>
-                    {sel && (
-                      <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
-                        <Label className="text-xs text-muted-foreground">제공 개월 수</Label>
-                        <div className="flex gap-2">
-                          {[1, 3, 6, 12].map(m => (
-                            <button key={m} type="button"
-                              onClick={() => { setServiceHealthMonths(v => v === m ? undefined : m); setServiceHealthCustom(""); }}
-                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
-                              {m}개월
-                            </button>
-                          ))}
-                        </div>
-                        <Input type="number" min={1} value={serviceHealthCustom}
-                          onChange={e => { setServiceHealthCustom(e.target.value); setServiceHealthMonths(undefined); }}
-                          placeholder="직접 입력 (일)" className="bg-input border-border text-sm" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* 락커 서비스 */}
-              {(() => {
-                const sel = serviceItems.includes("락커");
-                const avail = (allLockers ?? []).filter((l: any) => !l.isOccupied);
-                const groups: { branchId: number | null; name: string; lockers: any[] }[] = [];
-                for (const l of avail) {
-                  const bid = l.branchId ?? null;
-                  let g = groups.find(g => g.branchId === bid);
-                  if (!g) {
-                    const b = (branchList ?? []).find((b: any) => b.id === bid);
-                    g = { branchId: bid, name: b?.name ?? "지점 미지정", lockers: [] };
-                    groups.push(g);
-                  }
-                  g.lockers.push(l);
-                }
-                return (
-                  <div className={`rounded-xl border transition-colors ${sel ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
-                    <button type="button"
-                      onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "락커") : [...s, "락커"]); setServiceLockerNum(""); }}
-                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                      <span className={sel ? "text-amber-400" : "text-muted-foreground"}>락커</span>
-                      {avail.length > 0 && <span className="text-[10px] text-muted-foreground">사용 가능 {avail.length}개</span>}
-                    </button>
-                    {sel && (
-                      <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
-                        <Label className="text-xs text-muted-foreground">락커 번호</Label>
-                        {avail.length === 0 ? (
-                          <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>
-                        ) : (
-                          <select value={serviceLockerNum} onChange={e => setServiceLockerNum(e.target.value)}
-                            className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none focus:ring-1 focus:ring-amber-500">
-                            <option value="">락커 선택...</option>
-                            {groups.map(g => (
-                              <optgroup key={g.branchId ?? "none"} label={g.name}>
-                                {g.lockers.map((l: any) => (
-                                  <option key={l.id} value={l.lockerNumber}>{l.lockerNumber}</option>
-                                ))}
-                              </optgroup>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* 운동복 서비스 */}
-              {(() => {
-                const sel = serviceItems.includes("운동복");
-                return (
-                  <button type="button"
-                    onClick={() => setServiceItems(s => sel ? s.filter(x => x !== "운동복") : [...s, "운동복"])}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${sel ? "border-purple-500/60 bg-purple-500/5 text-purple-400" : "border-border text-muted-foreground"}`}>
-                    운동복
-                    {sel && <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
-                  </button>
-                );
-              })()}
-
-              {serviceItems.length > 0 && (
-                <div className="flex gap-1.5 flex-wrap mt-1">
-                  {serviceItems.map(item => {
-                    let label = `🎁 서비스 ${item}`;
-                    if (item === "PT" && servicePtCount) label = `🎁 PT +${servicePtCount}회`;
-                    else if (item === "헬스") {
-                      if (serviceHealthMonths) label = `🎁 헬스 +${serviceHealthMonths}개월`;
-                      else if (serviceHealthCustom) label = `🎁 헬스 +${serviceHealthCustom}일`;
-                    } else if (item === "락커" && serviceLockerNum) label = `🎁 락커 #${serviceLockerNum}`;
-                    const style = item === "PT" ? "bg-blue-500/20 text-blue-400"
-                      : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
-                      : item === "락커" ? "bg-amber-500/20 text-amber-400"
-                      : "bg-purple-500/20 text-purple-400";
-                    return <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${style}`}>{label}</span>;
-                  })}
+                <div>
+                  <Label className="text-xs text-muted-foreground">결제일자</Label>
+                  <Input type="date" value={paymentDate}
+                    onChange={e => setPaymentDate(e.target.value)}
+                    className="bg-input border-border mt-1" />
                 </div>
-              )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">미수금</Label>
+                  <Input type="number" min="0" placeholder="0"
+                    value={unpaidAmount} onChange={e => setUnpaidAmount(e.target.value)}
+                    className="bg-input border-border mt-1" />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">메모</Label>
+                  <Input type="text" placeholder="분납 등"
+                    value={paymentMemo} onChange={e => setPaymentMemo(e.target.value)}
+                    className="bg-input border-border mt-1" />
+                </div>
+              </div>
+
+              {/* 총 결제 합계 */}
+              <div className="rounded-xl bg-background border border-border p-3 space-y-1.5">
+                {addHealth && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-400">헬스 {healthMonths}개월</span>
+                    <span className="font-medium">{healthPrice ? parseInt(healthPrice).toLocaleString() : 0}원</span>
+                  </div>
+                )}
+                {addPt && !isServiceSession && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-primary">PT {ptSessions ? `${ptSessions}회` : ""}</span>
+                    <span className="font-medium">{ptPrice ? parseInt(ptPrice).toLocaleString() : 0}원</span>
+                  </div>
+                )}
+                {addPt && isServiceSession && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-400">PT 서비스세션</span>
+                    <span className="font-medium text-emerald-400">0원</span>
+                  </div>
+                )}
+                {addLocker && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-amber-400">락커</span>
+                    <span className="font-medium">{lockerPrice ? parseInt(lockerPrice).toLocaleString() : 0}원</span>
+                  </div>
+                )}
+                {addUniform && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-purple-400">운동복</span>
+                    <span className="font-medium">{uniformPrice ? parseInt(uniformPrice).toLocaleString() : 0}원</span>
+                  </div>
+                )}
+                {unpaidAmount && parseInt(unpaidAmount) > 0 && (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>미수금</span>
+                    <span className="text-red-400">-{parseInt(unpaidAmount).toLocaleString()}원</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-bold pt-1.5 border-t border-border">
+                  <span>합계</span>
+                  <span className="text-primary">{totalAmount.toLocaleString()}원</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -796,7 +771,7 @@ export default function MemberReRegister() {
             취소
           </Button>
           <Button type="submit" className="flex-1" disabled={isPending || !selectedMemberId || !anySelected}>
-            {isPending ? "처리 중..." : "재등록 완료"}
+            {isPending ? "처리 중..." : `${totalAmount > 0 ? totalAmount.toLocaleString() + "원 " : ""}등록 완료`}
           </Button>
         </div>
       </form>
