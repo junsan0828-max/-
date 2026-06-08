@@ -494,10 +494,11 @@ const membersRouter = t.router({
         });
       }
 
-      // 매출 자동 연동 (결제 금액이 있을 때만)
-      if (paymentAmount) {
+      // 매출 자동 연동 (결제 금액이 있거나 서비스 항목이 있을 때)
+      if (paymentAmount || serviceItems) {
+        const effectiveAmount = paymentAmount ?? 0;
         const sessionCount = ptSessions ? parseInt(ptSessions) : undefined;
-        const paid = Math.max(0, (paymentAmount ?? 0) - (unpaidAmount ?? 0));
+        const paid = Math.max(0, effectiveAmount - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
         const revenueType = input.primaryType ?? (sessionCount ? "PT" : ptProgram === "헬스" ? "헬스" : "기타");
         // 헬스 기간 계산 (membershipStart → membershipEnd diff)
@@ -519,7 +520,7 @@ const membersRouter = t.router({
           duration: healthDuration,
           type: revenueType,
           subType,
-          amount: paymentAmount ?? 0,
+          amount: effectiveAmount,
           discountAmount: 0,
           paidAmount: paid,
           unpaidAmount: unpaidAmount ?? 0,
@@ -576,10 +577,11 @@ const membersRouter = t.router({
 
       await db.update(members).set(memberData).where(eq(members.id, id));
 
-      // 장부 자동 연동 — paymentAmount가 명시적으로 전달된 경우 (0원 이전처리 포함)
-      if (paymentAmount != null && subType) {
+      // 장부 자동 연동 — paymentAmount가 있거나 serviceItems가 있는 경우
+      if ((paymentAmount != null || serviceItems) && subType) {
+        const effectiveAmount = paymentAmount ?? 0;
         const sessionCount = ptSessions ? parseInt(String(ptSessions)) : undefined;
-        const paid = Math.max(0, paymentAmount - (unpaidAmount ?? 0));
+        const paid = Math.max(0, effectiveAmount - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
         const revenueType = sessionCount ? "PT" : "헬스";
         const [member] = await db.select().from(members).where(eq(members.id, id));
@@ -593,7 +595,7 @@ const membersRouter = t.router({
           sessions: sessionCount,
           type: revenueType,
           subType: subType ?? "재등록",
-          amount: paymentAmount,
+          amount: effectiveAmount,
           discountAmount: 0,
           paidAmount: paid,
           unpaidAmount: unpaidAmount ?? 0,
