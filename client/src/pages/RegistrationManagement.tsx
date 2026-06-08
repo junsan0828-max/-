@@ -1254,11 +1254,18 @@ export default function RegistrationManagement() {
         }
 
         // serviceItems + programDetail(결제 기록) 파싱 → 카테고리별 분류
-        type ParsedServiceItem = { entryId: number; memberId: number | null; name: string; phone: string; detail: string; paymentDate: string; category: string };
+        type ParsedServiceItem = {
+          entryId: number; memberId: number | null;
+          name: string; phone: string; detail: string;
+          paymentDate: string; membershipStart: string | null; membershipEnd: string | null;
+          category: string;
+        };
         const parsedItems: ParsedServiceItem[] = serviceItemsList.flatMap((entry: any) => {
-          const name = entry.customerName ?? entry.memberName ?? "—";
-          const phone = entry.phone ?? "";
-          const memberId: number | null = entry.memberId ?? null;
+          const name = entry.memberName ?? entry.customerName ?? "—";
+          const phone = entry.memberPhone ?? entry.phone ?? "";
+          const memberId: number | null = entry.memberId ? Number(entry.memberId) : null;
+          const membershipStart: string | null = entry.membershipStart ?? null;
+          const membershipEnd: string | null = entry.membershipEnd ?? null;
           const items: ParsedServiceItem[] = [];
 
           // serviceItems에서 파싱
@@ -1268,7 +1275,7 @@ export default function RegistrationManagement() {
               : raw.startsWith("헬스") ? "헬스"
               : raw.startsWith("락커") ? "락커"
               : raw.startsWith("운동복") ? "운동복" : "기타";
-            items.push({ entryId: entry.id, memberId, name, phone, detail: raw, paymentDate: entry.paymentDate ?? "", category: cat });
+            items.push({ entryId: entry.id, memberId, name, phone, detail: raw, paymentDate: entry.paymentDate ?? "", membershipStart, membershipEnd, category: cat });
           }
 
           // serviceItems가 없고 programDetail로만 등록된 경우 (예: programDetail="운동복")
@@ -1278,9 +1285,8 @@ export default function RegistrationManagement() {
               : /락커/i.test(pd) ? "락커"
               : /헬스/i.test(pd) ? "헬스"
               : /PT/i.test(pd) ? "PT" : null;
-            // detail은 카테고리명만 사용 (programDetail 전체 문자열은 배지에 넣으면 오버플로)
             const cleanDetail = cat === "운동복" ? "운동복" : cat === "락커" ? "락커" : cat === "헬스" ? "헬스" : cat === "PT" ? "PT" : pd;
-            if (cat) items.push({ entryId: entry.id, memberId, name, phone, detail: cleanDetail, paymentDate: entry.paymentDate ?? "", category: cat });
+            if (cat) items.push({ entryId: entry.id, memberId, name, phone, detail: cleanDetail, paymentDate: entry.paymentDate ?? "", membershipStart, membershipEnd, category: cat });
           }
 
           return items;
@@ -1389,7 +1395,8 @@ export default function RegistrationManagement() {
                             name={item.name} phone={item.phone || null}
                             label={fmtDetail(item.detail)}
                             badgeBg="bg-emerald-500/20" badgeText="text-emerald-400"
-                            subInfo={item.paymentDate || undefined}
+                            subInfo={dateRange(item.membershipStart, item.membershipEnd) || item.paymentDate || undefined}
+                            endDate={item.membershipEnd || undefined}
                             onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
                           />
                         ))}
@@ -1422,7 +1429,8 @@ export default function RegistrationManagement() {
                             name={item.name} phone={item.phone || null}
                             label={fmtDetail(item.detail)}
                             badgeBg="bg-amber-500/20" badgeText="text-amber-400"
-                            subInfo={item.paymentDate || undefined}
+                            subInfo={dateRange(item.membershipStart, item.membershipEnd) || item.paymentDate || undefined}
+                            endDate={item.membershipEnd || undefined}
                             onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
                           />
                         ))}
@@ -1455,7 +1463,8 @@ export default function RegistrationManagement() {
                             name={item.name} phone={item.phone || null}
                             label="운동복"
                             badgeBg="bg-purple-500/20" badgeText="text-purple-400"
-                            subInfo={item.paymentDate || undefined}
+                            subInfo={dateRange(item.membershipStart, item.membershipEnd) || item.paymentDate || undefined}
+                            endDate={item.membershipEnd || undefined}
                             onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
                           />
                         ))}
@@ -1488,7 +1497,8 @@ export default function RegistrationManagement() {
                             name={item.name} phone={item.phone || null}
                             label={fmtDetail(item.detail)}
                             badgeBg="bg-blue-500/20" badgeText="text-blue-400"
-                            subInfo={item.paymentDate || undefined}
+                            subInfo={dateRange(item.membershipStart, item.membershipEnd) || item.paymentDate || undefined}
+                            endDate={item.membershipEnd || undefined}
                             onClick={item.memberId ? () => setLocation(`/members/${item.memberId}`) : undefined}
                           />
                         ))}

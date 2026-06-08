@@ -894,9 +894,32 @@ const revenueRouter = t.router({
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
     await db.execute(sql`ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceItems" TEXT`);
     const result = await db.execute(sql`
-      SELECT re.id, re."memberId", re."customerName", re."phone", re."serviceItems", re."programDetail", re."paymentDate", re."startDate", m.name AS "memberName"
+      SELECT
+        re.id,
+        COALESCE(re."memberId", m_match.id) AS "memberId",
+        re."customerName",
+        re."phone",
+        re."serviceItems",
+        re."programDetail",
+        re."paymentDate",
+        re."startDate",
+        COALESCE(m.name, m_match.name, re."customerName") AS "memberName",
+        COALESCE(m."membershipStart", m_match."membershipStart") AS "membershipStart",
+        COALESCE(m."membershipEnd",   m_match."membershipEnd")   AS "membershipEnd",
+        COALESCE(m.phone, m_match.phone, re.phone) AS "memberPhone"
       FROM revenue_entries re
       LEFT JOIN members m ON m.id = re."memberId"
+      LEFT JOIN LATERAL (
+        SELECT id, name, phone, "membershipStart", "membershipEnd"
+        FROM members
+        WHERE re."memberId" IS NULL
+          AND name = re."customerName"
+          AND phone IS NOT NULL
+          AND re.phone IS NOT NULL
+          AND REPLACE(REPLACE(phone, '-', ''), ' ', '') = REPLACE(REPLACE(re.phone, '-', ''), ' ', '')
+        ORDER BY id DESC
+        LIMIT 1
+      ) m_match ON true
       WHERE (re."serviceItems" IS NOT NULL AND re."serviceItems" != '')
          OR (re."programDetail" ILIKE '%운동복%' OR re."programDetail" ILIKE '%유니폼%' OR re."programDetail" ILIKE '%uniform%')
       ORDER BY re."paymentDate" DESC
