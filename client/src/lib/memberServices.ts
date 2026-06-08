@@ -58,7 +58,8 @@ export interface ParsedServiceItem {
   type: ServiceType;
   raw: string;       // 원본 토큰 (e.g. "헬스(3개월)")
   label: string;     // 표시용 (e.g. "헬스 3개월")
-  months?: number;   // 헬스/필라테스
+  months?: number;   // 헬스/필라테스 — 개월 단위
+  days?: number;     // 헬스 직접 입력 — 일 단위
   lockerNum?: string;
   ptCount?: number;
 }
@@ -73,8 +74,10 @@ export function parseServiceItems(serviceItems: string | null | undefined): Pars
     }
     if (raw.startsWith("헬스(")) {
       const m = raw.match(/헬스\((\d+)개월\)/);
+      const d = raw.match(/헬스\((\d+)일\)/);
       const mo = m ? parseInt(m[1]) : undefined;
-      return { type: "헬스" as ServiceType, raw, label: mo ? `헬스 ${mo}개월` : "헬스", months: mo };
+      const dy = d ? parseInt(d[1]) : undefined;
+      return { type: "헬스" as ServiceType, raw, label: mo ? `헬스 ${mo}개월` : dy ? `헬스 ${dy}일` : "헬스", months: mo, days: dy };
     }
     if (raw.startsWith("헬스")) {
       return { type: "헬스" as ServiceType, raw, label: "헬스" };

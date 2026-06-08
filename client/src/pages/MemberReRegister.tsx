@@ -127,8 +127,9 @@ export default function MemberReRegister() {
       serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
         if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
         if (item === "헬스") {
-          const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : undefined);
-          return m ? `헬스(${m}개월)` : "헬스";
+          if (serviceHealthMonths) return `헬스(${serviceHealthMonths}개월)`;
+          if (serviceHealthCustom) return `헬스(${serviceHealthCustom}일)`;
+          return "헬스";
         }
         if (item === "락커" && serviceLockerNum) return `락커(${serviceLockerNum})`;
         return item;
@@ -518,7 +519,7 @@ export default function MemberReRegister() {
                           </div>
                           <Input type="number" min={1} value={serviceHealthCustom}
                             onChange={e => { setServiceHealthCustom(e.target.value); setServiceHealthMonths(undefined); }}
-                            placeholder="직접 입력 (개월)" className="bg-input border-border text-sm" />
+                            placeholder="직접 입력 (일)" className="bg-input border-border text-sm" />
                         </div>
                       )}
                     </div>
@@ -592,8 +593,8 @@ export default function MemberReRegister() {
                       let label = `🎁 서비스 ${item}`;
                       if (item === "PT" && servicePtCount) label = `🎁 PT +${servicePtCount}회`;
                       else if (item === "헬스") {
-                        const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : 0);
-                        if (m) label = `🎁 헬스 +${m}개월`;
+                        if (serviceHealthMonths) label = `🎁 헬스 +${serviceHealthMonths}개월`;
+                        else if (serviceHealthCustom) label = `🎁 헬스 +${serviceHealthCustom}일`;
                       } else if (item === "락커" && serviceLockerNum) label = `🎁 락커 #${serviceLockerNum}`;
                       const style = item === "PT" ? "bg-blue-500/20 text-blue-400"
                         : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
