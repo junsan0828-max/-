@@ -785,7 +785,7 @@ function SurveyBuilder() {
   const [showResponses, setShowResponses] = useState(false);
 
   const username = (user as any)?.username;
-  const surveyUrl = `${window.location.origin}/survey/${username}`;
+  const surveyUrl = `${window.location.origin}/survey/${encodeURIComponent(username)}`;
 
   const TYPE_LABELS = { text: "주관식", choice: "객관식", scale: "1~5점 척도" };
 
@@ -2104,9 +2104,9 @@ function BookingFeaturePanel() {
               <p className="text-xs font-semibold text-muted-foreground">기존 회원 수업 예약 링크</p>
               <p className="text-[11px] text-muted-foreground">기존 회원에게 공유하는 수업 예약 전용 페이지입니다. 브랜드 페이지와 별도로 운영됩니다.</p>
               <div className="flex gap-2 items-center bg-accent/40 rounded-xl px-3 py-2">
-                <span className="text-xs flex-1 truncate text-foreground/70 font-mono">{window.location.origin}/c/{brand.username}</span>
+                <span className="text-xs flex-1 truncate text-foreground/70 font-mono">{window.location.origin}/c/{encodeURIComponent(brand.username)}</span>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/c/${brand.username}`); toast.success("링크 복사됨"); }}
+                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`); toast.success("링크 복사됨"); }}
                   className="text-[11px] font-semibold text-primary shrink-0 hover:underline">
                   복사
                 </button>
