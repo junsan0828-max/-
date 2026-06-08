@@ -1372,18 +1372,26 @@ export default function RegistrationManagement() {
                 <p className="text-xs text-muted-foreground text-center py-4">해당 서비스 이용자가 없습니다</p>
               ) : (
                 <div className="space-y-2">
-                  {filteredLockerItems.map((item, idx) => (
-                    <div key={`li-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{item.phone || "—"}</p>
+                  {filteredLockerItems.map((item, idx) => {
+                    const lockerNumMatch = item.detail.match(/락커\(([^)]+)\)/);
+                    const lockerNum = lockerNumMatch?.[1]; // 번호 있으면 "15번" 등, 없으면 undefined
+                    return (
+                      <div key={`li-${item.entryId}-${idx}`} className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{item.phone || "—"}</p>
+                        </div>
+                        <div className="text-right shrink-0 space-y-0.5">
+                          {lockerNum ? (
+                            <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">🎁 락커 {lockerNum}</span>
+                          ) : (
+                            <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-medium border border-orange-500/30">🎁 락커 미배정</span>
+                          )}
+                          <p className="text-xs text-muted-foreground">{item.paymentDate}</p>
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">🎁 {item.detail}</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">{item.paymentDate}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {filteredServiceLockers.map((l: any) => (
                     <button key={`sl-${l.id}`} type="button"
                       onClick={() => setServiceModal({ memberId: l.memberId, memberName: l.memberName ?? "—", memberPhone: l.memberPhone, serviceType: "서비스 락커", details: `#${l.lockerNumber} · ${l.startDate ?? "-"}${l.endDate ? ` ~ ${l.endDate}` : ""}` })}
