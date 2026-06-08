@@ -78,10 +78,10 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 
-function TemplateLoader({ onLoad }: { onLoad: (exs: Exercise[]) => void }) {
+function TemplateLoader({ onLoad, enabled = true }: { onLoad: (exs: Exercise[]) => void; enabled?: boolean }) {
   const { data: templates } = trpc.workoutTemplates.list.useQuery();
   const [open, setOpen] = useState(false);
-  if (!templates || templates.length === 0) return null;
+  if (!enabled || !templates || templates.length === 0) return null;
   return (
     <div className="relative">
       <button onClick={() => setOpen(v => !v)}
@@ -1601,7 +1601,7 @@ export default function MemberDetail({ memberId }: Props) {
               <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
-              <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
+              <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} enabled={isFeatureActive("templates")} />
               <Label className="text-xs">운동 종목</Label>
               <div className="space-y-1.5">
                 {journalForm.exercises.map((ex, i) => (
