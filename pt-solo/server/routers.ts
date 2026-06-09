@@ -3748,6 +3748,8 @@ const WORKSHOP_FEATURES: Record<string, { label: string; points: number }> = {
 const WORKSHOP_TRIAL_DAYS = 30;
 const WORKSHOP_GRACE_DAYS = 2;
 
+const ELITE_TRIAL_DAYS = 30;
+
 const workshopRouter = t.router({
   // 작업실 상태 조회 (미오픈 / 체험중 / 유예 / 잠금 / 활성화)
   getStatus: protectedProcedure.query(async ({ ctx }) => {
@@ -3756,7 +3758,27 @@ const workshopRouter = t.router({
     const featureConfigs: Record<string, string> = {};
     for (const row of cfgRows.rows) featureConfigs[row.featureId] = row.status;
 
-    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures: [] as string[] };
+    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures: [] as string[], eliteTrial: null as null | { status: "active"|"expired"; daysRemaining: number; extensionRequested: boolean } };
+
+    // elite trial 상태 계산
+    const settingsRow = await pool.query<{ workshopTrialStartedAt: string | null; removedFeatures: string | null; eliteTrialStartedAt: string | null; eliteTrialExtensionRequested: number }>(
+      `SELECT "workshopTrialStartedAt", "removedFeatures", "eliteTrialStartedAt", "eliteTrialExtensionRequested" FROM trainer_settings WHERE "trainerId"=$1`,
+      [trainerId]
+    );
+    const row0 = settingsRow.rows[0];
+    const removedFeatures = (row0?.removedFeatures ?? "").split(",").filter(Boolean);
+
+    let eliteTrial: null | { status: "active"|"expired"; daysRemaining: number; extensionRequested: boolean } = null;
+    if (row0?.eliteTrialStartedAt) {
+      const eliteStarted = new Date(row0.eliteTrialStartedAt);
+      const daysSince = Math.floor((Date.now() - eliteStarted.getTime()) / (1000 * 60 * 60 * 24));
+      const daysRemaining = Math.max(0, ELITE_TRIAL_DAYS - daysSince);
+      eliteTrial = {
+        status: daysRemaining > 0 ? "active" : "expired",
+        daysRemaining,
+        extensionRequested: row0.eliteTrialExtensionRequested === 1,
+      };
+    }
 
     // 코인 활성화 여부 확인
     const activated = await pool.query(
@@ -3764,33 +3786,52 @@ const workshopRouter = t.router({
       [trainerId]
     );
     if (activated.rows.length > 0) {
-      const actSettings = await pool.query<{ removedFeatures: string | null }>(
-        `SELECT "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`, [trainerId]
-      );
-      const removedFeatures = (actSettings.rows[0]?.removedFeatures ?? "").split(",").filter(Boolean);
-      return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures };
+      return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, eliteTrial };
     }
 
-    // 트라이얼 시작일 및 removedFeatures 확인
-    const settings = await pool.query<{ workshopTrialStartedAt: string | null; removedFeatures: string | null }>(
-      `SELECT "workshopTrialStartedAt", "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`,
-      [trainerId]
-    );
-    const trialStartedAt = settings.rows[0]?.workshopTrialStartedAt ?? null;
-    const removedFeatures = (settings.rows[0]?.removedFeatures ?? "").split(",").filter(Boolean);
-    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures };
+    const trialStartedAt = row0?.workshopTrialStartedAt ?? null;
+    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, eliteTrial };
 
     const started = new Date(trialStartedAt);
-    const now = new Date();
-    const daysSince = Math.floor((now.getTime() - started.getTime()) / (1000 * 60 * 60 * 24));
+    const daysSince = Math.floor((Date.now() - started.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysSince <= WORKSHOP_TRIAL_DAYS) {
-      return { status: "trial", daysRemaining: WORKSHOP_TRIAL_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures };
+      return { status: "trial", daysRemaining: WORKSHOP_TRIAL_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures, eliteTrial };
     }
     if (daysSince <= WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS) {
-      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures };
+      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures, eliteTrial };
     }
-    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs, removedFeatures };
+    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs, removedFeatures, eliteTrial };
+  }),
+
+  // ELITE 30일 체험 시작
+  startEliteTrial: protectedProcedure.mutation(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const existing = await pool.query<{ eliteTrialStartedAt: string | null }>(
+      `SELECT "eliteTrialStartedAt" FROM trainer_settings WHERE "trainerId"=$1`, [trainerId]
+    );
+    if (existing.rows[0]?.eliteTrialStartedAt) {
+      throw new TRPCError({ code: "CONFLICT", message: "이미 ELITE 체험을 사용하셨습니다." });
+    }
+    await pool.query(
+      `INSERT INTO trainer_settings ("trainerId","eliteTrialStartedAt","removedFeatures")
+       VALUES ($1,now()::text,'')
+       ON CONFLICT ("trainerId") DO UPDATE SET "eliteTrialStartedAt"=now()::text`,
+      [trainerId]
+    );
+    return { success: true };
+  }),
+
+  // ELITE 체험 연장 요청
+  requestEliteExtension: protectedProcedure.mutation(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await pool.query(
+      `UPDATE trainer_settings SET "eliteTrialExtensionRequested"=1 WHERE "trainerId"=$1`,
+      [trainerId]
+    );
+    return { success: true };
   }),
 
   // 무료 체험 시작

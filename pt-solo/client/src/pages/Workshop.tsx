@@ -4782,6 +4782,14 @@ function WorkshopContent() {
     onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("30일 무료 체험이 시작되었습니다!"); },
     onError: (e) => toast.error(e.message),
   });
+  const startEliteTrialMutation = trpc.workshop.startEliteTrial.useMutation({
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("ELITE 30일 체험이 시작되었습니다! PRO·ELITE 기능을 모두 사용해보세요."); },
+    onError: (e) => toast.error(e.message),
+  });
+  const requestEliteExtensionMutation = trpc.workshop.requestEliteExtension.useMutation({
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("연장 요청이 전송되었습니다. 검토 후 연락드립니다."); },
+    onError: (e) => toast.error(e.message),
+  });
   const unlockMutation = trpc.workshop.unlock.useMutation({
     onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("작업실이 활성화되었습니다!"); },
     onError: (e) => toast.error(e.message),
@@ -4808,6 +4816,17 @@ function WorkshopContent() {
 
   const status = wsStatus?.status ?? "unopened";
   const daysRemaining = wsStatus?.daysRemaining ?? 0;
+  const eliteTrial = (wsStatus as any)?.eliteTrial as null | { status: "active"|"expired"; daysRemaining: number; extensionRequested: boolean };
+  const eliteTrialActive = eliteTrial?.status === "active";
+
+  // elite trial 활성 중에는 PRO+ELITE 기능 ID 목록
+  const ELITE_TRIAL_FEATURE_IDS = [
+    ...["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal",
+        "booking", "report_branding", "contract_terms", "training_video", "e_contract"],
+    ...["member_overview", "activity_stats", "data_migration", "kpi_report",
+        "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis",
+        "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"],
+  ];
 
   // ── 미오픈: 무료 체험 CTA ─────────────────────────────────────────────────
   if (status === "unopened") {
@@ -4895,6 +4914,8 @@ function WorkshopContent() {
   const removedFeatures = wsStatus?.removedFeatures ?? [];
   const getEffectiveStatus = (item: WsItem) => {
     if (removedFeatures.includes(item.id)) return "removed";
+    // elite trial 활성 중: PRO+ELITE 기능 강제 active
+    if (eliteTrialActive && ELITE_TRIAL_FEATURE_IDS.includes(item.id)) return "active";
     return featureConfigs[item.id] ?? item.status;
   };
 
@@ -4933,6 +4954,21 @@ function WorkshopContent() {
             disabled={unlockMutation.isPending}>
             {unlockMutation.isPending ? "처리 중..." : "작업실 활성화"}
           </Button>
+        </div>
+      )}
+      {/* ELITE 체험 종료 배너 */}
+      {eliteTrial?.status === "expired" && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-amber-700">ELITE 체험이 종료되었습니다</p>
+            <p className="text-[10px] text-amber-600 mt-0.5">PRO·ELITE 기능을 계속 사용하려면 연장을 요청하세요</p>
+          </div>
+          <button
+            onClick={() => requestEliteExtensionMutation.mutate()}
+            disabled={requestEliteExtensionMutation.isPending || eliteTrial.extensionRequested}
+            className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-60 shrink-0">
+            {eliteTrial.extensionRequested ? "요청됨" : "연장 요청"}
+          </button>
         </div>
       )}
 
@@ -4986,6 +5022,32 @@ function WorkshopContent() {
                         <p className="text-[11px] text-muted-foreground">{meta.limit}</p>
                       </div>
                     </div>
+                    {/* ELITE 체험 버튼 (PRO/ELITE 티어에만) */}
+                    {(tierKey === "pro" || tierKey === "elite") && (
+                      <>
+                        {!eliteTrial && (
+                          <button
+                            onClick={() => startEliteTrialMutation.mutate()}
+                            disabled={startEliteTrialMutation.isPending}
+                            className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-60 shrink-0">
+                            {startEliteTrialMutation.isPending ? "신청 중..." : "ELITE 30일 체험"}
+                          </button>
+                        )}
+                        {eliteTrial?.status === "active" && (
+                          <span className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-600 border border-amber-500/30 shrink-0">
+                            체험 중 {eliteTrial.daysRemaining}일 남음
+                          </span>
+                        )}
+                        {eliteTrial?.status === "expired" && tierKey === "elite" && (
+                          <button
+                            onClick={() => requestEliteExtensionMutation.mutate()}
+                            disabled={requestEliteExtensionMutation.isPending || eliteTrial.extensionRequested}
+                            className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-muted text-muted-foreground border border-border hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-60 shrink-0">
+                            {eliteTrial.extensionRequested ? "연장 요청됨" : requestEliteExtensionMutation.isPending ? "요청 중..." : "연장 요청"}
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
 
                   {/* FREE 기본 기능 chips */}
