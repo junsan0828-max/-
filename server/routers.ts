@@ -169,7 +169,7 @@ const membersRouter = t.router({
     const { role, trainerId } = ctx.user;
     if (role === "trainer" && !trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
-    const whereClause = role === "trainer" ? eq(members.trainerId, trainerId!) : undefined;
+    const whereClause = undefined; // 트레이너·컨설턴트 모두 전체 회원 공유
 
     // 회원 + 서비스 데이터를 병렬 조회해 통합 반환
     const [memberRows, lockerRows, serviceRevs] = await Promise.all([

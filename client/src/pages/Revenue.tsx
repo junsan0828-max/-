@@ -68,6 +68,7 @@ function RevenueContent() {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [editCreatedBy, setEditCreatedBy] = useState<number | null>(null);
   const [form, setForm] = useState<RevForm>(defaultForm);
   const [filterType, setFilterType] = useState("");
   const [branchFilter, setBranchFilter] = useState<number | null>(() => {
@@ -108,10 +109,11 @@ function RevenueContent() {
     onSuccess: () => { toast.success("목표가 설정되었습니다"); utils.gym.revenue.targets.invalidate(); utils.gym.kpi.invalidate(); },
   });
 
-  function resetForm() { setShowForm(false); setEditId(null); setForm(defaultForm); }
+  function resetForm() { setShowForm(false); setEditId(null); setEditCreatedBy(null); setForm(defaultForm); }
 
   function openEdit(row: any) {
     setEditId(row.entry.id);
+    setEditCreatedBy(row.entry.createdBy ?? null);
     setForm({
       customerName: row.entry.customerName ?? "",
       phone: row.entry.phone ?? "",
@@ -210,7 +212,7 @@ function RevenueContent() {
       {/* 헤더 */}
       <div>
         <h1 className="text-xl font-bold text-foreground">매출 {isConsultant ? "입력" : "장부"}</h1>
-        <p className="text-xs text-muted-foreground">{isConsultant ? "오늘 입력한 매출 내역" : "매출 입력 및 분석"}</p>
+        <p className="text-xs text-muted-foreground">매출 입력 및 내역</p>
       </div>
 
       {/* 지점 필터 */}
@@ -229,18 +231,16 @@ function RevenueContent() {
         </div>
       )}
 
-      {/* 월 선택 - 컨설턴트/트레이너는 숨김 */}
-      {isAdminView && (
-        <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
-          <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <span className="text-base font-semibold text-foreground min-w-[100px] text-center">{year}년 {month}월</span>
-          <button onClick={nextMonth} className="text-muted-foreground hover:text-foreground">
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
-      )}
+      {/* 월 선택 */}
+      <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
+        <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <span className="text-base font-semibold text-foreground min-w-[100px] text-center">{year}년 {month}월</span>
+        <button onClick={nextMonth} className="text-muted-foreground hover:text-foreground">
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
 
       {/* 요약 카드 - 관리자만 표시 */}
       {isAdminView && kpiForbidden && (
@@ -330,8 +330,8 @@ function RevenueContent() {
               ? SERVICE_COLORS[detailServiceType] : null;
 
             return (
-              <div key={row.entry.id} onClick={() => { if (!isConsultant) openEdit(row); }}
-                className={`bg-card border border-border rounded-xl p-4 transition-colors ${!isConsultant ? "cursor-pointer hover:border-primary/30" : ""}`}>
+              <div key={row.entry.id} onClick={() => openEdit(row)}
+                className="bg-card border border-border rounded-xl p-4 transition-colors cursor-pointer hover:border-primary/30">
 
                 {/* 이름 + 신규/재등록 + 금액 */}
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -735,9 +735,13 @@ function RevenueContent() {
                     삭제
                   </button>
                 )}
+                {isConsultant && editId && editCreatedBy !== me?.id ? (
+                  <div className="flex-1 text-center text-xs text-muted-foreground py-2.5">타인이 입력한 항목은 수정할 수 없습니다</div>
+                ) : (
                 <button type="submit" className="flex-1 bg-primary text-primary-foreground rounded-lg py-2.5 text-sm font-medium hover:bg-primary/90">
                   {editId ? "수정" : "등록"}
                 </button>
+                )}
               </div>
             </form>
           </div>

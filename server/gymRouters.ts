@@ -359,13 +359,6 @@ const revenueRouter = t.router({
 
       let result = rows;
 
-      // 컨설턴트: 자신이 입력한 오늘 항목만 조회
-      if (ctx.user?.role === "consultant") {
-        const today = new Date().toISOString().substring(0, 10);
-        result = result.filter(r => r.entry.createdBy === ctx.user!.id && r.entry.paymentDate === today);
-        return result;
-      }
-
       if (input?.year && input?.month) {
         const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
         result = result.filter(r => r.entry.paymentDate.startsWith(prefix));
