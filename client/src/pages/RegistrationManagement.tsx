@@ -220,6 +220,8 @@ export default function RegistrationManagement() {
     if (!lockerForm.memberId) { toast.error("회원을 선택하세요"); return; }
     if (!lockerForm.lockerId) { toast.error("락커를 선택하세요"); return; }
     if (!lockerForm.amount) { toast.error("금액을 입력하세요"); return; }
+    if (!lockerForm.paymentMethod) { toast.error("결제 방법을 선택하세요"); return; }
+    if (!lockerForm.startDate) { toast.error("시작일을 입력하세요"); return; }
     purchaseLockerMutation.mutate({
       lockerId: parseInt(lockerForm.lockerId),
       memberId: parseInt(lockerForm.memberId),
@@ -236,6 +238,8 @@ export default function RegistrationManagement() {
   function submitUniformQuick() {
     if (!uniformQForm.memberId) { toast.error("회원을 선택하세요"); return; }
     if (!uniformQForm.amount) { toast.error("금액을 입력하세요"); return; }
+    if (!uniformQForm.paymentMethod) { toast.error("결제 방법을 선택하세요"); return; }
+    if (!uniformQForm.paymentDate) { toast.error("결제일을 입력하세요"); return; }
     createUniformQuickMutation.mutate({
       memberId: parseInt(uniformQForm.memberId),
       memberName: uniformQForm.memberName,
@@ -255,6 +259,7 @@ export default function RegistrationManagement() {
   function submitDayPass() {
     if (!dayPassForm.name.trim()) { toast.error("이름을 입력하세요"); return; }
     if (!dayPassForm.amount) { toast.error("금액을 입력하세요"); return; }
+    if (!dayPassForm.paymentMethod) { toast.error("결제 방법을 선택하세요"); return; }
     createDayPassMutation.mutate({
       customerName: dayPassForm.name.trim(),
       phone: dayPassForm.phone || undefined,
@@ -549,9 +554,9 @@ export default function RegistrationManagement() {
 
                 {/* 결제 방법 */}
                 <div>
-                  <label className="text-xs text-muted-foreground">결제 방법</label>
+                  <label className="text-xs text-muted-foreground">결제 방법 *</label>
                   <div className="flex gap-2 mt-1 flex-wrap">
-                    {["카드", "현금영수증", "이체", "지역화폐"].map(m => (
+                    {["카드", "현금", "현금영수증", "계좌이체", "지역화폐"].map(m => (
                       <button key={m} type="button"
                         onClick={() => setLockerForm(f => ({ ...f, paymentMethod: m }))}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${lockerForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
@@ -563,7 +568,7 @@ export default function RegistrationManagement() {
 
                 {/* 시작일 */}
                 <div>
-                  <label className="text-xs text-muted-foreground">시작일</label>
+                  <label className="text-xs text-muted-foreground">시작일 *</label>
                   <input type="date" value={lockerForm.startDate} onChange={e => setLockerForm(f => ({ ...f, startDate: e.target.value }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
@@ -652,9 +657,9 @@ export default function RegistrationManagement() {
 
                 {/* 결제 방법 */}
                 <div>
-                  <label className="text-xs text-muted-foreground">결제 방법</label>
+                  <label className="text-xs text-muted-foreground">결제 방법 *</label>
                   <div className="flex gap-2 mt-1 flex-wrap">
-                    {["카드", "현금영수증", "이체", "지역화폐"].map(m => (
+                    {["카드", "현금", "현금영수증", "계좌이체", "지역화폐"].map(m => (
                       <button key={m} type="button"
                         onClick={() => setUniformQForm(f => ({ ...f, paymentMethod: m }))}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformQForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
@@ -672,7 +677,7 @@ export default function RegistrationManagement() {
                       className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">결제 일자</label>
+                    <label className="text-xs text-muted-foreground">결제 일자 *</label>
                     <input type="date" value={uniformQForm.paymentDate} onChange={e => setUniformQForm(f => ({ ...f, paymentDate: e.target.value }))}
                       className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                   </div>

@@ -155,7 +155,15 @@ function RevenueContent() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.amount) return toast.error("금액을 입력해주세요");
+    if (!form.customerName?.trim()) return toast.error("회원 이름을 입력해주세요");
+    if (form.type === "기타" && !form.programDetail) return toast.error("항목을 선택해주세요");
+    if (form.type === "PT" && !form.sessions) return toast.error("PT 횟수를 선택해주세요");
+    if (form.type === "헬스" && !form.duration) return toast.error("이용 기간을 선택해주세요");
+    if (form.subType !== "이전") {
+      if (!form.amount) return toast.error("총 금액을 입력해주세요");
+      if (form.paidAmount === "") return toast.error("실 납부액을 입력해주세요");
+      if (!form.paymentMethod) return toast.error("결제 방법을 선택해주세요");
+    }
     if (!form.paymentDate) return toast.error("결제일을 입력해주세요");
     const resolvedProgram = form.type === "PT"
       ? (form.ptProgramKey === "기타" ? form.ptProgramCustom : form.ptProgramKey) || undefined
@@ -179,9 +187,9 @@ function RevenueContent() {
       paidAmount: parseInt(form.paidAmount) || 0,
       unpaidAmount: parseInt(form.unpaidAmount) || 0,
       refundAmount: parseInt(form.refundAmount) || 0,
-      paymentMethod: form.paymentMethod,
+      paymentMethod: form.paymentMethod || undefined,
       paymentDate: form.paymentDate,
-      startDate: form.startDate || undefined,
+      startDate: form.startDate || form.paymentDate,
       installments: parseInt(form.installments) || 1,
       memo: form.memo,
     };
@@ -520,7 +528,7 @@ function RevenueContent() {
                       className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
                   )}
                   <div>
-                    <label className="text-xs text-muted-foreground">횟수</label>
+                    <label className="text-xs text-muted-foreground">횟수 *</label>
                     <div className="flex gap-2 mt-1 flex-wrap">
                       {PT_SESSIONS.map(s => (
                         <button key={s} type="button" onClick={() => setForm(f => ({ ...f, sessions: form.sessions === String(s) ? "" : String(s) }))}
@@ -607,7 +615,7 @@ function RevenueContent() {
               {form.type === "기타" && (
                 <div className="space-y-2">
                   <div>
-                    <label className="text-xs text-muted-foreground">항목</label>
+                    <label className="text-xs text-muted-foreground">항목 *</label>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {OTHER_ITEMS.map(item => (
                         <button key={item} type="button" onClick={() => setForm(f => ({ ...f, programDetail: item }))}
@@ -682,7 +690,7 @@ function RevenueContent() {
               {/* 결제 정보 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted-foreground">결제 방법</label>
+                  <label className="text-xs text-muted-foreground">결제 방법 *</label>
                   <select value={form.paymentMethod} onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}
                     className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
                     <option value="">선택 안 함</option>

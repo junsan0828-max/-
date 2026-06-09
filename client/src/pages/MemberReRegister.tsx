@@ -206,6 +206,12 @@ export default function MemberReRegister() {
     if (!selectedMemberId) { toast.error("회원을 선택해주세요"); return; }
     if (!anySelected) { toast.error("등록 유형을 선택해주세요"); return; }
     if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
+    if (addHealth && !healthMonths) { toast.error("헬스 이용 기간을 선택해주세요"); return; }
+    if (addPt && !isServiceSession && !ptProgram) { toast.error("PT 프로그램명을 입력해주세요"); return; }
+    if (addPt && !isServiceSession && !ptSessions) { toast.error("PT 횟수를 선택해주세요"); return; }
+    const hasPaidItem = (addPt && !isServiceSession) || addHealth || (addLocker && lockerPrice) || (addUniform && uniformPrice);
+    if (hasPaidItem && !paymentMethod) { toast.error("결제 방법을 선택해주세요"); return; }
+    if (hasPaidItem && !paymentDate) { toast.error("결제일자를 입력해주세요"); return; }
 
     const siStr = buildServiceItemsStr();
     const method = paymentMethod || undefined;
@@ -391,7 +397,7 @@ export default function MemberReRegister() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <Label className="text-xs text-muted-foreground">이용 기간</Label>
+                <Label className="text-xs text-muted-foreground">이용 기간 *</Label>
                 <div className="flex gap-2 mt-1">
                   {[1, 3, 6, 12].map(m => (
                     <button key={m} type="button"
@@ -427,7 +433,7 @@ export default function MemberReRegister() {
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                <Label className="text-xs text-muted-foreground">결제 금액 *</Label>
                 <Input type="number" min="0" value={healthPrice}
                   onChange={e => setHealthPrice(e.target.value)}
                   placeholder="0" className="bg-input border-border mt-1" />
@@ -444,7 +450,7 @@ export default function MemberReRegister() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <Label className="text-xs text-muted-foreground">프로그램명</Label>
+                <Label className="text-xs text-muted-foreground">프로그램명 *</Label>
                 <Input value={isServiceSession ? "" : ptProgram}
                   onChange={e => { setPtProgram(e.target.value); setIsServiceSession(false); }}
                   placeholder="프로그램명 입력"
@@ -486,7 +492,7 @@ export default function MemberReRegister() {
                 )}
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">PT 횟수</Label>
+                <Label className="text-xs text-muted-foreground">PT 횟수 *</Label>
                 <div className="flex gap-1.5 flex-wrap mt-1">
                   {SESSION_PRESETS.map(preset => (
                     <button key={preset} type="button"
@@ -532,7 +538,7 @@ export default function MemberReRegister() {
               )}
               {!isServiceSession && (
                 <div>
-                  <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                  <Label className="text-xs text-muted-foreground">결제 금액 *</Label>
                   <Input type="number" min="0" value={ptPrice}
                     onChange={e => setPtPrice(e.target.value)}
                     placeholder="0" className="bg-input border-border mt-1" />
@@ -580,7 +586,7 @@ export default function MemberReRegister() {
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                <Label className="text-xs text-muted-foreground">결제 금액 *</Label>
                 <Input type="number" min="0" value={lockerPrice}
                   onChange={e => setLockerPrice(e.target.value)}
                   placeholder="0" className="bg-input border-border mt-1" />
@@ -609,7 +615,7 @@ export default function MemberReRegister() {
                 </div>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                <Label className="text-xs text-muted-foreground">결제 금액 *</Label>
                 <Input type="number" min="0" value={uniformPrice}
                   onChange={e => setUniformPrice(e.target.value)}
                   placeholder="0 (무료)" className="bg-input border-border mt-1" />
@@ -705,7 +711,7 @@ export default function MemberReRegister() {
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">결제방법</Label>
+                  <Label className="text-xs text-muted-foreground">결제방법 *</Label>
                   <Select value={paymentMethod} onValueChange={v => setPaymentMethod(v as any)}>
                     <SelectTrigger className="bg-input border-border mt-1">
                       <SelectValue placeholder="선택" />
@@ -721,7 +727,7 @@ export default function MemberReRegister() {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">결제일자</Label>
+                  <Label className="text-xs text-muted-foreground">결제일자 *</Label>
                   <Input type="date" value={paymentDate}
                     onChange={e => setPaymentDate(e.target.value)}
                     className="bg-input border-border mt-1" />

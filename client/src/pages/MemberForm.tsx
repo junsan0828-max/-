@@ -179,8 +179,13 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
+    if (!form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
     if (currentUser?.role === "admin" && !isEdit && !form.adminTrainerId) newErrors.adminTrainerId = "담당 트레이너를 선택해주세요.";
     if (!isEdit && !regType) newErrors.regType = "등록 유형을 선택해주세요.";
+    if (!isEdit && form.paymentAmount && parseInt(form.paymentAmount) > 0) {
+      if (!form.paymentMethod) newErrors.paymentMethod = "결제 방법을 선택해주세요.";
+      if (!form.paymentDate) newErrors.paymentDate = "결제일자를 입력해주세요.";
+    }
     if (!isEdit && form.name.trim() && form.phone.trim()) {
       const dup = allMembers.find(
         m => m.name.trim() === form.name.trim() && m.phone?.trim() === form.phone.trim()
@@ -209,7 +214,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       ptProgram: (!isHealth && form.ptProgram) ? form.ptProgram : undefined,
       gender: form.gender || undefined,
       birthDate: form.birthDate || undefined,
-      membershipStart: form.membershipStart || undefined,
+      membershipStart: form.membershipStart || new Date().toISOString().substring(0, 10),
       membershipEnd: form.membershipEnd || undefined,
       email: form.email || undefined,
       phone: form.phone || undefined,
@@ -336,14 +341,15 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                 {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="phone" className="text-sm text-muted-foreground">연락처</Label>
+                <Label htmlFor="phone" className="text-sm text-muted-foreground">연락처 <span className="text-primary">*</span></Label>
                 <Input
                   id="phone"
                   value={form.phone}
                   onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
                   placeholder="010-0000-0000"
-                  className="bg-input border-border"
+                  className={`bg-input border-border ${errors.phone ? "border-red-500" : ""}`}
                 />
+                {errors.phone && <p className="text-xs text-red-500">{errors.phone}</p>}
               </div>
             </div>
 
@@ -642,7 +648,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="paymentAmount" className="text-sm text-muted-foreground">결제 금액</Label>
+                      <Label htmlFor="paymentAmount" className="text-sm text-muted-foreground">결제 금액 *</Label>
                       <Input id="paymentAmount" type="number" min="0" placeholder="0" value={form.paymentAmount}
                         onChange={(e) => setForm((p) => ({ ...p, paymentAmount: e.target.value }))} className="bg-input border-border" />
                     </div>
@@ -654,9 +660,10 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">결제방법</Label>
+                    <Label className="text-sm text-muted-foreground">결제방법 <span className="text-primary">*</span></Label>
+                    {errors.paymentMethod && <p className="text-xs text-red-500">{errors.paymentMethod}</p>}
                     <Select value={form.paymentMethod} onValueChange={(v) => setForm((p) => ({ ...p, paymentMethod: v as any }))}>
-                      <SelectTrigger className="bg-input border-border">
+                      <SelectTrigger className={`bg-input border-border ${errors.paymentMethod ? "border-red-500" : ""}`}>
                         <SelectValue placeholder="결제방법 선택" />
                       </SelectTrigger>
                       <SelectContent>
@@ -671,8 +678,9 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="paymentDate" className="text-sm text-muted-foreground">결제일자</Label>
-                    <Input id="paymentDate" type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} className="bg-input border-border"/>
+                    <Label htmlFor="paymentDate" className="text-sm text-muted-foreground">결제일자 <span className="text-primary">*</span></Label>
+                    {errors.paymentDate && <p className="text-xs text-red-500">{errors.paymentDate}</p>}
+                    <Input id="paymentDate" type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} className={`bg-input border-border ${errors.paymentDate ? "border-red-500" : ""}`}/>
                   </div>
 
                   <div className="space-y-1.5">

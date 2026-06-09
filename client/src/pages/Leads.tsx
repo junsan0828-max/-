@@ -37,8 +37,8 @@ const EXERCISE_PURPOSES = [
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 const PT_SESSIONS = [10, 20, 30, 40, 50];
 const DURATIONS = [1, 3, 6, 12];
-const PAYMENT_METHODS_REG = ["카드", "현금영수증", "이체", "지역화폐"];
-const PAYMENT_METHOD_LABELS: Record<string, string> = { "이체": "계좌이체" };
+const PAYMENT_METHODS_REG = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제"];
+const PAYMENT_METHOD_LABELS: Record<string, string> = {};
 
 type RegForm = {
   itemTypes: string[];     // 복수 선택: PT / 헬스 / 기타
@@ -517,9 +517,15 @@ export default function LeadsPage() {
 
   function requestSignature() {
     const reg = regForm;
-    if (!reg.paymentDate) return toast.error("결제일을 입력해주세요");
+    if (reg.itemTypes.length === 0) return toast.error("항목 유형을 선택해주세요");
+    if (reg.itemTypes.includes("PT") && !reg.programKey) return toast.error("PT 프로그램을 선택해주세요");
+    if (reg.itemTypes.includes("PT") && !reg.sessions) return toast.error("PT 횟수를 선택해주세요");
+    if (reg.itemTypes.includes("헬스") && !reg.duration) return toast.error("헬스 이용 기간을 선택해주세요");
+    if (reg.itemTypes.includes("기타") && !reg.otherItem) return toast.error("기타 항목을 선택해주세요");
     const amount = Number(reg.amount);
     if (!amount) return toast.error("금액을 입력해주세요");
+    if (!reg.paymentMethod) return toast.error("결제 방법을 선택해주세요");
+    if (!reg.paymentDate) return toast.error("결제일을 입력해주세요");
     setShowRegistration(false);
     setShowSignature(true);
   }
@@ -1163,7 +1169,7 @@ export default function LeadsPage() {
 
               {/* 신규/재등록 */}
               <div>
-                <label className="text-xs text-muted-foreground">구분</label>
+                <label className="text-xs text-muted-foreground">구분 *</label>
                 <div className="flex gap-2 mt-1">
                   {(["신규", "재등록"] as const).map(s => (
                     <button key={s} type="button"
@@ -1177,7 +1183,7 @@ export default function LeadsPage() {
 
               {/* 항목 유형 — 복수 선택 + 인라인 상세 */}
               <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">항목 유형 (복수 선택 가능)</label>
+                <label className="text-xs text-muted-foreground">항목 유형 * (복수 선택 가능)</label>
 
                 {/* PT */}
                 <div className={`rounded-xl border transition-colors ${regForm.itemTypes.includes("PT") ? "border-primary/60 bg-primary/5" : "border-border"}`}>
@@ -1231,7 +1237,7 @@ export default function LeadsPage() {
                         </div>
                       )}
                       <div>
-                        <label className="text-xs text-muted-foreground">PT 횟수</label>
+                        <label className="text-xs text-muted-foreground">PT 횟수 *</label>
                         <div className="flex gap-2 mt-1">
                           {PT_SESSIONS.map(n => (
                             <button key={n} type="button"
@@ -1315,7 +1321,7 @@ export default function LeadsPage() {
               {/* 금액 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted-foreground">정가 (원)</label>
+                  <label className="text-xs text-muted-foreground">정가 * (원)</label>
                   <input type="number" value={regForm.amount}
                     onChange={e => {
                       const amt = e.target.value;
@@ -1340,7 +1346,7 @@ export default function LeadsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted-foreground">실결제 (원)</label>
+                  <label className="text-xs text-muted-foreground">실결제 * (원)</label>
                   <input type="number" value={regForm.paidAmount}
                     onChange={e => {
                       const paid = e.target.value;
@@ -1361,8 +1367,8 @@ export default function LeadsPage() {
 
               {/* 결제 방법 */}
               <div>
-                <label className="text-xs text-muted-foreground">결제 방법</label>
-                <div className="grid grid-cols-4 gap-2 mt-1">
+                <label className="text-xs text-muted-foreground">결제 방법 *</label>
+                <div className="grid grid-cols-3 gap-2 mt-1">
                   {PAYMENT_METHODS_REG.map(m => (
                     <button key={m} type="button"
                       onClick={() => setRegForm(f => ({ ...f, paymentMethod: f.paymentMethod === m ? "" : m }))}
