@@ -11,8 +11,14 @@ function getPlanBadge(plan?: string): { label: string; color: string; key: strin
   return { label: "FREE", color: "bg-gray-500/20 text-gray-500 border-gray-500/30", key: "free" };
 }
 
-function getRiskReasons(t: { lastLoginAt?: string | null; memberCount: number; sessionCount: number }): string[] {
-  const days = t.lastLoginAt ? (Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24) : 999;
+function effectiveDays(t: { lastLoginAt?: string | null; lastActivityDate?: string | null }): number {
+  const ref = t.lastLoginAt ?? (t as any).lastActivityDate ?? null;
+  if (!ref) return 999;
+  return (Date.now() - new Date(ref).getTime()) / (1000 * 60 * 60 * 24);
+}
+
+function getRiskReasons(t: { lastLoginAt?: string | null; lastActivityDate?: string | null; memberCount: number; sessionCount: number }): string[] {
+  const days = effectiveDays(t);
   return [
     days >= 14 ? `${Math.floor(days)}일 미접속` : null,
     t.memberCount === 0 ? "회원 없음" : null,
@@ -93,7 +99,8 @@ export default function AdminTrainers() {
         )}
         {filtered.map(t => {
           const plan = getPlanBadge((t as any).plan);
-          const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
+          const rawDays = effectiveDays(t);
+          const days = rawDays < 999 ? Math.floor(rawDays) : null;
           const risks = getRiskReasons(t);
           const isRisk = risks.length > 0;
           return (

@@ -97,7 +97,8 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   if (isLoading) return <div className="py-16 text-center text-muted-foreground text-sm">로딩 중...</div>;
   if (!t) return <div className="py-16 text-center text-muted-foreground text-sm">STEPER를 찾을 수 없습니다.</div>;
 
-  const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
+  const effectiveLoginAt = t.lastLoginAt ?? (t as any).lastActivityDate ?? null;
+  const days = effectiveLoginAt ? Math.floor((Date.now() - new Date(effectiveLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
   const isSuspended = t.position === "suspended";
 
   return (
@@ -165,7 +166,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                 ["연락처", t.phone ?? "-"],
                 ["이메일", t.email ?? "-"],
                 ["가입일", t.createdAt?.slice(0, 10) ?? "-"],
-                ["마지막 접속", t.lastLoginAt ? `${t.lastLoginAt.slice(0, 10)} (${days}일 전)` : "없음"],
+                ["마지막 접속", effectiveLoginAt ? `${effectiveLoginAt.slice(0, 10)} (${days}일 전)` : "없음"],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between py-1 border-b border-border/50 last:border-0">
                   <span className="text-muted-foreground">{label}</span>

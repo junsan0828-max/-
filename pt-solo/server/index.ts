@@ -165,7 +165,7 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
   const username = `${provider}_${providerId.slice(0, 8)}`;
   const myCode = Math.random().toString(36).slice(2, 10).toUpperCase();
   const [userRow] = await db2.insert(users).values({ username, password: null as any, role: "trainer", position: "active" }).returning({ id: users.id });
-  await pool.query(`UPDATE users SET provider=$1, "providerId"=$2, "referralCode"=$3 WHERE id=$4`, [provider, providerId, myCode, userRow.id]);
+  await pool.query(`UPDATE users SET provider=$1, "providerId"=$2, "referralCode"=$3, "lastLoginAt"=now()::text WHERE id=$4`, [provider, providerId, myCode, userRow.id]);
   const [trainerRow] = await db2.insert(trainers).values({
     userId: userRow.id,
     trainerName: name,
