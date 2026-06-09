@@ -2205,12 +2205,16 @@ const adminRouter = t.router({
       .orderBy(desc(trainers.createdAt));
 
     const withStats = await Promise.all(trainerList.map(async (tr) => {
-      const [mc, sc, ac, settingsRow] = await Promise.all([
+      const [mc, sc, ac, settingsRow, refRow] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, tr.id)),
         db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tr.id)),
         db.select({ count: sql<number>`COUNT(*)` }).from(attendanceChecks).where(eq(attendanceChecks.trainerId, tr.id)),
         db.select({ subscriptionStatus: trainerSettings.settlementRate, adminMemo: sql<string>`"adminMemo"`, subscriptionEndDate: sql<string>`"subscriptionEndDate"`, subStatus: sql<string>`"subscriptionStatus"` })
           .from(trainerSettings).where(eq(trainerSettings.trainerId, tr.id)).limit(1),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*) FROM users WHERE "referredBy"=(SELECT "referralCode" FROM users WHERE id=$1)`,
+          [tr.userId]
+        ),
       ]);
       const lastSession = await db.select({ date: ptSessionLogs.sessionDate }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tr.id)).orderBy(desc(ptSessionLogs.sessionDate)).limit(1);
       return {
@@ -2218,6 +2222,7 @@ const adminRouter = t.router({
         memberCount: Number(mc[0]?.count ?? 0),
         sessionCount: Number(sc[0]?.count ?? 0),
         attendanceCount: Number(ac[0]?.count ?? 0),
+        referralCount: Number(refRow.rows[0]?.count ?? 0),
         lastActivityDate: lastSession[0]?.date ?? null,
         subscriptionStatus: (settingsRow[0] as any)?.subStatus ?? "trial",
         subscriptionEndDate: (settingsRow[0] as any)?.subscriptionEndDate ?? null,

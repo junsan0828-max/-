@@ -112,7 +112,7 @@ export default function AdminTrainers() {
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-4 gap-1.5 text-center">
                     <div className="rounded-md bg-accent/20 py-1.5">
                       <p className="text-xs text-muted-foreground">회원</p>
                       <p className="text-sm font-bold text-blue-400">{t.memberCount}명</p>
@@ -120,6 +120,10 @@ export default function AdminTrainers() {
                     <div className="rounded-md bg-accent/20 py-1.5">
                       <p className="text-xs text-muted-foreground">PT 세션</p>
                       <p className="text-sm font-bold text-green-400">{t.sessionCount}회</p>
+                    </div>
+                    <div className="rounded-md bg-accent/20 py-1.5">
+                      <p className="text-xs text-muted-foreground">소개</p>
+                      <p className="text-sm font-bold text-amber-400">{(t as any).referralCount ?? 0}명</p>
                     </div>
                     <div className="rounded-md bg-accent/20 py-1.5">
                       <p className="text-xs text-muted-foreground">마지막 접속</p>

@@ -144,6 +144,7 @@ async function handleOAuthLogin(req: any, res: any, provider: string, providerId
     if (u.position === "pending") {
       await pool.query(`UPDATE users SET position='active' WHERE id=$1`, [u.id]);
     }
+    await pool.query(`UPDATE users SET "lastLoginAt"=now()::text WHERE id=$1`, [u.id]);
     // 재로그인: 이름은 덮어쓰지 않음, phone이 비어있을 때만 카카오 값으로 채움
     if (u.trainerId) {
       await pool.query(
