@@ -500,7 +500,7 @@ const membersRouter = t.router({
         const sessionCount = ptSessions ? parseInt(ptSessions) : undefined;
         const paid = Math.max(0, effectiveAmount - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
-        const revenueType = input.primaryType ?? (sessionCount ? "PT" : ptProgram === "헬스" ? "헬스" : "기타");
+        const revenueType = input.primaryType ?? (sessionCount ? "PT" : ptProgram?.startsWith("헬스") ? "헬스" : "기타");
         // 헬스 기간 계산 (membershipStart → membershipEnd diff)
         let healthDuration: number | undefined;
         if (revenueType === "헬스" && memberData.membershipStart && memberData.membershipEnd) {
@@ -509,6 +509,18 @@ const membersRouter = t.router({
           const diff = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
           if (diff > 0) healthDuration = diff;
         }
+        // 중복 방지: 같은 회원 + 같은 날짜 + 같은 금액 + 같은 subType 이미 존재하면 skip
+        const dupDate = paymentDate ?? today;
+        const existing = await db.select({ id: revenueEntries.id }).from(revenueEntries)
+          .where(and(
+            eq(revenueEntries.memberId, memberId),
+            eq(revenueEntries.paymentDate, dupDate),
+            eq(revenueEntries.amount, effectiveAmount),
+            eq(revenueEntries.subType, subType ?? "신규"),
+          )).limit(1);
+        if (existing.length > 0) {
+          // 중복 항목 존재 — 새 항목 저장 생략
+        } else {
         await db.insert(revenueEntries).values({
           memberId,
           trainerId,
@@ -530,6 +542,7 @@ const membersRouter = t.router({
           memo: paymentMemo,
           serviceItems: serviceItems || undefined,
         });
+        } // end else (no duplicate)
       }
 
       return { id: memberId };
@@ -585,6 +598,16 @@ const membersRouter = t.router({
         const today = new Date().toISOString().substring(0, 10);
         const revenueType = sessionCount ? "PT" : "헬스";
         const [member] = await db.select().from(members).where(eq(members.id, id));
+        // 중복 방지: 같은 회원 + 같은 날짜 + 같은 금액 + 같은 subType 이미 존재하면 skip
+        const dupDate2 = paymentDate ?? today;
+        const existing2 = await db.select({ id: revenueEntries.id }).from(revenueEntries)
+          .where(and(
+            eq(revenueEntries.memberId, id),
+            eq(revenueEntries.paymentDate, dupDate2),
+            eq(revenueEntries.amount, effectiveAmount),
+            eq(revenueEntries.subType, subType),
+          )).limit(1);
+        if (existing2.length === 0) {
         await db.insert(revenueEntries).values({
           memberId: id,
           trainerId: member?.trainerId ?? null,
@@ -605,6 +628,7 @@ const membersRouter = t.router({
           memo: paymentMemo,
           serviceItems: serviceItems || undefined,
         });
+        } // end dedup check
       }
 
       // PT 패키지 자동 생성 — 세션 수가 있고 등록/이전 처리인 경우
