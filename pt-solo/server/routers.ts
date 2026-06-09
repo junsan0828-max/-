@@ -3688,6 +3688,34 @@ const fitStepPlusRouter = t.router({
       }
       return { success: true };
     }),
+
+  // ── 플랜별 구독료 조회 ──
+  admin_getPlanPrices: adminProcedure.query(async () => {
+    const rows = await pool.query<{ key: string; value: string }>(
+      `SELECT key, value FROM plan_settings WHERE key IN ('plan_price_free','plan_price_pro','plan_price_elite')`
+    );
+    const map: Record<string, number> = { free: 0, pro: 29000, elite: 59000 };
+    for (const r of rows.rows) { map[r.key.replace("plan_price_", "")] = parseInt(r.value); }
+    return map;
+  }),
+
+  // ── 플랜별 구독료 업데이트 ──
+  admin_updatePlanPrices: adminProcedure
+    .input(z.object({
+      free: z.number().int().min(0).max(9999999),
+      pro: z.number().int().min(0).max(9999999),
+      elite: z.number().int().min(0).max(9999999),
+    }))
+    .mutation(async ({ input }) => {
+      for (const [plan, val] of [["free", input.free], ["pro", input.pro], ["elite", input.elite]] as const) {
+        await pool.query(
+          `INSERT INTO plan_settings (key, value, "updatedAt") VALUES ($1,$2,now()::text)
+           ON CONFLICT (key) DO UPDATE SET value=$2, "updatedAt"=now()::text`,
+          [`plan_price_${plan}`, String(val)]
+        );
+      }
+      return { success: true };
+    }),
 });
 
 const expensesRouter = t.router({

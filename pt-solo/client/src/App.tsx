@@ -23,6 +23,7 @@ import AdminTrainers from "./pages/AdminTrainers";
 import AdminTrainerDetail from "./pages/AdminTrainerDetail";
 import AdminNotices from "./pages/AdminNotices";
 import AdminFitStepPlus from "./pages/AdminFitStepPlus";
+import AdminPlans from "./pages/AdminPlans";
 import AdminPoints from "./pages/AdminPoints";
 import AdminRegistrations from "./pages/AdminRegistrations";
 import Leads from "./pages/Leads";
@@ -197,6 +198,7 @@ function App() {
           <Route path="/admin/points">{() => <AdminPoints />}</Route>
           <Route path="/admin/notices">{() => <AdminNotices />}</Route>
           <Route path="/admin/fit-step-plus">{() => <AdminFitStepPlus />}</Route>
+          <Route path="/admin/plans">{() => <AdminPlans />}</Route>
           <Route>{() => <Redirect to="/" />}</Route>
         </Switch>
       </ErrorBoundary>

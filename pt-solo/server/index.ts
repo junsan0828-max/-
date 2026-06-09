@@ -838,6 +838,7 @@ async function initDatabase() {
   for (const [k, v] of [
     ['fsp_limit_free','5'],['fsp_limit_pro','15'],['fsp_limit_elite','30'],
     ['member_limit_free','7'],['member_limit_pro','15'],['member_limit_elite','35'],
+    ['plan_price_free','0'],['plan_price_pro','29000'],['plan_price_elite','59000'],
   ]) {
     await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, [k, v]);
   }
