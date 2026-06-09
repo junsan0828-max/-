@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { X, ChevronLeft, ChevronRight, CalendarCheck } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, CalendarCheck, ExternalLink } from "lucide-react";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
 const TIME_PRESETS = ["06:00","07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00"];
@@ -130,10 +130,19 @@ export default function BookingManagementPage() {
         <div className="p-2 rounded-xl bg-primary/10">
           <CalendarCheck className="h-5 w-5 text-primary" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-lg font-bold">수업 예약 관리</h1>
           <p className="text-xs text-muted-foreground">예약 설정 · 시간 관리 · 예약 확인</p>
         </div>
+        {brand?.username && (
+          <button
+            onClick={() => window.open(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`, "_blank")}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/5 transition-colors shrink-0"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            미리보기
+          </button>
+        )}
       </div>
 
       {/* 탭 */}
@@ -295,6 +304,14 @@ export default function BookingManagementPage() {
                 {(saveRecurringMutation.isPending || generateMutation.isPending) ? "생성 중..." : "저장 후 슬롯 자동 생성"}
               </Button>
             </div>
+            {brand?.username && (
+              <button
+                onClick={() => window.open(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`, "_blank")}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors">
+                <ExternalLink className="h-3.5 w-3.5" />
+                예약 페이지 미리보기
+              </button>
+            )}
           </div>
 
           {/* 특정 날짜 슬롯 추가 */}
