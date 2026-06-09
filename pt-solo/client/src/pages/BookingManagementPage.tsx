@@ -2,10 +2,9 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { X, ChevronLeft, ChevronRight, CalendarCheck, ExternalLink } from "lucide-react";
+import { X, CalendarCheck, ExternalLink } from "lucide-react";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
-const TIME_PRESETS = ["06:00","07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00"];
 const TIME_GROUPS = [
   { key: "morning",   label: "오전", times: ["06:00","07:00","08:00","09:00","10:00","11:00"] },
   { key: "lunch",     label: "점심", times: ["12:00","13:00"] },
@@ -72,20 +71,11 @@ export default function BookingManagementPage() {
   }
 
   // ── 시간 관리 탭 ──
-  const today = new Date();
-  const [slotMonth, setSlotMonth] = useState(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`);
-  const { data: slots, refetch: refetchSlots } = trpc.booking.getSlots.useQuery({ month: slotMonth });
-  const addSlotMutation = trpc.booking.addSlot.useMutation({ onSuccess: () => refetchSlots() });
-  const deleteSlotMutation = trpc.booking.deleteSlot.useMutation({ onSuccess: () => refetchSlots() });
-
   const { data: recurring, refetch: refetchRecurring } = trpc.booking.getRecurring.useQuery();
   const saveRecurringMutation = trpc.booking.saveRecurring.useMutation({ onSuccess: () => refetchRecurring() });
   const generateMutation = trpc.booking.generateFromRecurring.useMutation({
-    onSuccess: (d: any) => { toast.success(`${d.created}개 슬롯 생성됨`); refetchSlots(); },
+    onSuccess: (d: any) => { toast.success(`${d.created}개 슬롯 생성됨`); },
   });
-  const { data: blackouts, refetch: refetchBlackouts } = trpc.booking.getBlackouts.useQuery();
-  const addBlackoutMutation = trpc.booking.addBlackout.useMutation({ onSuccess: () => refetchBlackouts() });
-  const deleteBlackoutMutation = trpc.booking.deleteBlackout.useMutation({ onSuccess: () => refetchBlackouts() });
 
   const [recurringEdit, setRecurringEdit] = useState<{ dayOfWeek: number; times: string[] }[]>([]);
   const [generateWeeks, setGenerateWeeks] = useState(4);
@@ -135,10 +125,6 @@ export default function BookingManagementPage() {
       r.dayOfWeek >= 1 && r.dayOfWeek <= 5 ? { ...r, times: [...source.times] } : r
     ));
   }
-
-  const [newSlotDate, setNewSlotDate] = useState("");
-  const [newSlotTimes, setNewSlotTimes] = useState<string[]>([]);
-  const [newBlackout, setNewBlackout] = useState("");
 
   // ── 예약 목록 탭 ──
   const { data: bookingList, refetch: refetchBookings } = trpc.booking.listBookings.useQuery();
@@ -431,93 +417,6 @@ export default function BookingManagementPage() {
                 예약 페이지 미리보기
               </button>
             )}
-          </div>
-
-          {/* 특정 날짜 슬롯 추가 */}
-          <div className="space-y-3">
-            <p className="text-sm font-semibold">특정 날짜 슬롯 추가</p>
-            <div className="space-y-2">
-              <input type="date" value={newSlotDate} onChange={e => setNewSlotDate(e.target.value)}
-                className="w-full h-9 bg-background border border-border rounded-xl px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-              {TIME_GROUPS.map(g => (
-                <div key={g.key} className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-muted-foreground w-6">{g.label}</span>
-                    <div className="flex flex-wrap gap-1">
-                      {g.times.map(t => (
-                        <button key={t} onClick={() => setNewSlotTimes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t].sort())}
-                          className={`text-[11px] px-2 py-0.5 rounded-md border font-medium transition-colors ${newSlotTimes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <Button size="sm" className="w-full" disabled={!newSlotDate || newSlotTimes.length === 0 || addSlotMutation.isPending}
-                onClick={() => { if (newSlotDate && newSlotTimes.length) { addSlotMutation.mutate({ date: newSlotDate, times: newSlotTimes }); setNewSlotTimes([]); } }}>
-                {addSlotMutation.isPending ? "추가 중..." : `슬롯 추가 (${newSlotTimes.length}개)`}
-              </Button>
-            </div>
-          </div>
-
-          {/* 등록된 슬롯 */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold flex-1">등록된 슬롯</p>
-              <button onClick={() => {
-                const [y, m] = slotMonth.split("-").map(Number);
-                setSlotMonth(m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`);
-              }} className="text-muted-foreground hover:text-foreground p-1"><ChevronLeft className="h-3.5 w-3.5" /></button>
-              <span className="text-xs font-medium">{slotMonth}</span>
-              <button onClick={() => {
-                const [y, m] = slotMonth.split("-").map(Number);
-                setSlotMonth(m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`);
-              }} className="text-muted-foreground hover:text-foreground p-1"><ChevronRight className="h-3.5 w-3.5" /></button>
-            </div>
-            {!slots || slots.length === 0
-              ? <p className="text-xs text-muted-foreground text-center py-2">슬롯이 없습니다</p>
-              : (() => {
-                const byDate: Record<string, any[]> = {};
-                (slots as any[]).forEach(s => { (byDate[s.date] = byDate[s.date] ?? []).push(s); });
-                return Object.entries(byDate).sort().map(([date, ss]) => (
-                  <div key={date} className="border border-border rounded-xl p-3 space-y-1.5">
-                    <p className="text-xs font-semibold">{date}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ss.map((s: any) => (
-                        <div key={s.id} className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border font-medium ${s.isBooked ? "bg-muted text-muted-foreground border-border" : "bg-background border-border text-foreground"}`}>
-                          {s.time}
-                          {s.isBooked ? <span className="text-[10px] text-amber-500">예약됨</span>
-                            : <button onClick={() => deleteSlotMutation.mutate({ id: s.id })} className="text-muted-foreground hover:text-red-500 ml-0.5"><X className="h-2.5 w-2.5" /></button>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ));
-              })()
-            }
-          </div>
-
-          {/* 휴무일 */}
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">휴무일</p>
-            <div className="flex gap-2">
-              <input type="date" value={newBlackout} onChange={e => setNewBlackout(e.target.value)}
-                className="flex-1 h-9 bg-background border border-border rounded-xl px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-              <Button size="sm" className="h-9 px-4" disabled={!newBlackout || addBlackoutMutation.isPending}
-                onClick={() => { addBlackoutMutation.mutate({ date: newBlackout }); setNewBlackout(""); }}>
-                추가
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {(blackouts ?? []).map((b: any) => (
-                <div key={b.id} className="flex items-center gap-1 bg-red-500/10 text-red-600 text-xs px-2.5 py-1 rounded-lg">
-                  <span>{b.date}</span>
-                  <button onClick={() => deleteBlackoutMutation.mutate({ date: b.date })}><X className="h-3 w-3" /></button>
-                </div>
-              ))}
-              {(!blackouts || blackouts.length === 0) && <p className="text-xs text-muted-foreground">등록된 휴무일이 없습니다</p>}
-            </div>
           </div>
         </div>
       )}
