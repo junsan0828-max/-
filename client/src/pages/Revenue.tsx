@@ -71,6 +71,7 @@ function RevenueContent() {
   const [editCreatedBy, setEditCreatedBy] = useState<number | null>(null);
   const [form, setForm] = useState<RevForm>(defaultForm);
   const [filterType, setFilterType] = useState("");
+  const [filterIncomplete, setFilterIncomplete] = useState(false);
   const [branchFilter, setBranchFilter] = useState<number | null>(() => {
     const saved = sessionStorage.getItem("revenue_default_branch");
     if (saved) { sessionStorage.removeItem("revenue_default_branch"); return Number(saved); }
@@ -82,7 +83,8 @@ function RevenueContent() {
   const isTrainer = me?.role === "trainer";
   const isAdminView = !isConsultant && !isTrainer;
 
-  const { data: entries, isLoading } = trpc.gym.revenue.list.useQuery({ year, month });
+  const { data: entries, isLoading } = trpc.gym.revenue.list.useQuery({ year, month }, { enabled: !filterIncomplete });
+  const { data: allEntries, isLoading: allLoading } = trpc.gym.revenue.list.useQuery({}, { enabled: filterIncomplete });
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month }, { enabled: isAdminView });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
@@ -196,12 +198,19 @@ function RevenueContent() {
     else setMonth(m => m + 1);
   }
 
-  const filtered = (entries ?? []).filter(row => {
+  const rawEntries = filterIncomplete ? (allEntries ?? []) : (entries ?? []);
+  const filtered = rawEntries.filter(row => {
     const q = search.toLowerCase();
     const matchSearch = !q || (row.memberName ?? "").toLowerCase().includes(q) || (row.trainerName ?? "").toLowerCase().includes(q) || (row.entry.customerName ?? "").toLowerCase().includes(q) || (row.entry.memo ?? "").toLowerCase().includes(q);
     const matchType = !filterType || row.entry.type === filterType;
     const matchBranch = !branchFilter || row.entry.branchId === branchFilter;
-    return matchSearch && matchType && matchBranch;
+    const matchIncomplete = !filterIncomplete || (
+      row.entry.amount === 0 ||
+      (row.entry.type === "기타" && !row.entry.programDetail) ||
+      (row.entry.type === "헬스" && !row.entry.duration) ||
+      (row.entry.type === "PT" && !row.entry.sessions)
+    );
+    return matchSearch && matchType && matchBranch && matchIncomplete;
   });
 
   // 같은 이름+날짜+금액+구분 중복 제거 (PT > 헬스 > 기타 우선)
@@ -242,7 +251,13 @@ function RevenueContent() {
         </div>
       )}
 
-      {/* 월 선택 */}
+      {/* 월 선택 / 미입력 모드 안내 */}
+      {filterIncomplete ? (
+        <div className="flex items-center justify-center gap-2 bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-3">
+          <span className="text-sm font-medium text-orange-400">전체 기간 · 미입력 항목 조회 중</span>
+          <span className="text-xs text-orange-400/70">({deduped.length}건)</span>
+        </div>
+      ) : (
       <div className="flex items-center justify-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
         <button onClick={prevMonth} className="text-muted-foreground hover:text-foreground">
           <ChevronLeft className="h-5 w-5" />
@@ -252,6 +267,7 @@ function RevenueContent() {
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
+      )}
 
       {/* 요약 카드 - 관리자만 표시 */}
       {isAdminView && kpiForbidden && (
@@ -298,13 +314,17 @@ function RevenueContent() {
 
       {/* 필터 & 검색 */}
       <div className="space-y-2">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {["", "PT", "헬스", "기타"].map(t => (
             <button key={t} onClick={() => setFilterType(t)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterType === t ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterType === t && !filterIncomplete ? "bg-primary text-primary-foreground" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}>
               {t || "전체"}
             </button>
           ))}
+          <button onClick={() => { setFilterIncomplete(f => !f); setFilterType(""); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterIncomplete ? "bg-orange-500 text-white border-orange-500" : "bg-card border border-border text-muted-foreground hover:text-foreground"}`}>
+            미입력
+          </button>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -314,7 +334,7 @@ function RevenueContent() {
       </div>
 
       {/* 매출 목록 */}
-      {isLoading ? (
+      {(isLoading || allLoading) ? (
         <div className="text-center text-muted-foreground py-8">로딩 중...</div>
       ) : deduped.length === 0 ? (
         <div className="text-center text-muted-foreground py-12">
