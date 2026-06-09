@@ -1154,7 +1154,7 @@ export default function LeadsPage() {
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
               <div>
                 <h2 className="font-bold text-foreground">등록 상세 정보</h2>
-                <p className="text-xs text-muted-foreground">{form.name} · {form.interestType || "기타"}</p>
+                <p className="text-xs text-muted-foreground">{form.name}{form.interestType ? ` · ${form.interestType}` : ""}</p>
               </div>
               <button onClick={() => setShowRegistration(false)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
