@@ -3,7 +3,9 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronRight, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, ChevronRight, AlertTriangle, Settings2 } from "lucide-react";
+import { toast } from "sonner";
 
 function getPlanBadge(plan?: string): { label: string; color: string; key: string } {
   if (plan === "elite") return { label: "ELITE", color: "bg-purple-500/20 text-purple-500 border-purple-500/30", key: "elite" };
@@ -20,9 +22,24 @@ const FILTERS = [
 
 export default function AdminTrainers() {
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const { data: trainerList } = trpc.admin.listTrainers.useQuery();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+
+  // 공통 플랜 인원 한도
+  const { data: memberLimits } = trpc.fitStepPlus.admin_getMemberLimits.useQuery();
+  const [limitOpen, setLimitOpen] = useState(false);
+  const [limitDraft, setLimitDraft] = useState<{ free: string; pro: string; elite: string } | null>(null);
+  const updateLimitsMutation = trpc.fitStepPlus.admin_updateMemberLimits.useMutation({
+    onSuccess: () => {
+      toast.success("플랜 인원 한도가 저장되었습니다.");
+      utils.fitStepPlus.admin_getMemberLimits.invalidate();
+      setLimitDraft(null);
+      setLimitOpen(false);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const riskList = useMemo(() => {
     if (!trainerList) return [];
@@ -45,10 +62,68 @@ export default function AdminTrainers() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">STEPER 관리</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">총 {trainerList?.length ?? 0}명</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-bold">STEPER 관리</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">총 {trainerList?.length ?? 0}명</p>
+        </div>
+        <button
+          onClick={() => { setLimitOpen(v => !v); if (!limitOpen && memberLimits) setLimitDraft({ free: String(memberLimits.free), pro: String(memberLimits.pro), elite: String(memberLimits.elite) }); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors shrink-0"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          플랜 인원 설정
+        </button>
       </div>
+
+      {/* 공통 플랜 인원 한도 패널 */}
+      {limitOpen && (
+        <Card className="bg-card border-primary/20">
+          <CardContent className="p-4 space-y-3">
+            <p className="text-sm font-semibold">플랜별 회원 수 한도</p>
+            <p className="text-xs text-muted-foreground">변경 시 모든 STEPER에게 즉시 적용됩니다.</p>
+            <div className="grid grid-cols-3 gap-3">
+              {(["free", "pro", "elite"] as const).map(plan => (
+                <div key={plan} className="space-y-1">
+                  <label className={`text-xs font-bold ${plan === "elite" ? "text-purple-500" : plan === "pro" ? "text-blue-500" : "text-gray-500"}`}>
+                    {plan.toUpperCase()}
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number" min={1} max={9999}
+                      value={limitDraft?.[plan] ?? String(memberLimits?.[plan] ?? "")}
+                      onChange={e => setLimitDraft(prev => ({
+                        free: String(memberLimits?.free ?? 7),
+                        pro: String(memberLimits?.pro ?? 15),
+                        elite: String(memberLimits?.elite ?? 35),
+                        ...prev,
+                        [plan]: e.target.value,
+                      }))}
+                      className="h-9 text-sm bg-input border-border"
+                    />
+                    <span className="text-xs text-muted-foreground shrink-0">명</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => { setLimitOpen(false); setLimitDraft(null); }}>취소</Button>
+              <Button size="sm" className="flex-1"
+                disabled={updateLimitsMutation.isPending || !limitDraft}
+                onClick={() => {
+                  if (!limitDraft) return;
+                  updateLimitsMutation.mutate({
+                    free: parseInt(limitDraft.free) || (memberLimits?.free ?? 7),
+                    pro: parseInt(limitDraft.pro) || (memberLimits?.pro ?? 15),
+                    elite: parseInt(limitDraft.elite) || (memberLimits?.elite ?? 35),
+                  });
+                }}>
+                {updateLimitsMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 검색 */}
       <div className="relative">
