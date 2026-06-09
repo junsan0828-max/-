@@ -3716,6 +3716,105 @@ const fitStepPlusRouter = t.router({
       }
       return { success: true };
     }),
+
+  // ── 플랜별 할인율 조회 ──
+  admin_getPlanDiscounts: adminProcedure.query(async () => {
+    const rows = await pool.query<{ key: string; value: string }>(
+      `SELECT key, value FROM plan_settings WHERE key IN ('plan_discount_free','plan_discount_pro','plan_discount_elite')`
+    );
+    const map: Record<string, number> = { free: 0, pro: 0, elite: 0 };
+    for (const r of rows.rows) { map[r.key.replace("plan_discount_", "")] = parseInt(r.value); }
+    return map;
+  }),
+
+  // ── 플랜별 할인율 업데이트 ──
+  admin_updatePlanDiscounts: adminProcedure
+    .input(z.object({
+      free: z.number().int().min(0).max(100),
+      pro: z.number().int().min(0).max(100),
+      elite: z.number().int().min(0).max(100),
+    }))
+    .mutation(async ({ input }) => {
+      for (const [plan, val] of [["free", input.free], ["pro", input.pro], ["elite", input.elite]] as const) {
+        await pool.query(
+          `INSERT INTO plan_settings (key, value, "updatedAt") VALUES ($1,$2,now()::text)
+           ON CONFLICT (key) DO UPDATE SET value=$2, "updatedAt"=now()::text`,
+          [`plan_discount_${plan}`, String(val)]
+        );
+      }
+      return { success: true };
+    }),
+
+  // ── 트레이너용 플랜 정보 조회 (가격+할인율) ──
+  trainer_getPublicPlanInfo: protectedProcedure.query(async () => {
+    const rows = await pool.query<{ key: string; value: string }>(
+      `SELECT key, value FROM plan_settings WHERE key LIKE 'plan_price_%' OR key LIKE 'plan_discount_%'`
+    );
+    const prices: Record<string, number> = { free: 0, pro: 29000, elite: 59000 };
+    const discounts: Record<string, number> = { free: 0, pro: 0, elite: 0 };
+    for (const r of rows.rows) {
+      if (r.key.startsWith("plan_price_")) prices[r.key.replace("plan_price_", "")] = parseInt(r.value);
+      if (r.key.startsWith("plan_discount_")) discounts[r.key.replace("plan_discount_", "")] = parseInt(r.value);
+    }
+    return { prices, discounts };
+  }),
+
+  // ── 플랜 구매 신청 ──
+  trainer_submitPlanPurchase: protectedProcedure
+    .input(z.object({
+      plan: z.enum(["pro", "elite"]),
+      amount: z.number().int().min(0),
+      depositor: z.string().min(1).max(50),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `INSERT INTO plan_purchase_requests ("trainerId", plan, amount, depositor, status, "createdAt")
+         VALUES ($1,$2,$3,$4,'pending',now()::text)`,
+        [trainerId, input.plan, input.amount, input.depositor]
+      );
+      return { success: true };
+    }),
+
+  // ── 관리자: 플랜 구매 신청 목록 ──
+  admin_listPlanPurchaseRequests: adminProcedure
+    .input(z.object({ trainerId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const rows = await pool.query<{
+        id: number; trainerId: number; plan: string; amount: number;
+        depositor: string; status: string; createdAt: string; trainerName: string;
+      }>(
+        `SELECT r.id, r."trainerId", r.plan, r.amount, r.depositor, r.status, r."createdAt", t."trainerName"
+         FROM plan_purchase_requests r JOIN trainers t ON t.id=r."trainerId"
+         ${input.trainerId ? `WHERE r."trainerId"=$1` : "WHERE r.status='pending'"}
+         ORDER BY r."createdAt" DESC`,
+        input.trainerId ? [input.trainerId] : []
+      );
+      return rows.rows;
+    }),
+
+  // ── 관리자: 플랜 구매 승인 ──
+  admin_approvePlanPurchase: adminProcedure
+    .input(z.object({ requestId: z.number(), trainerId: z.number(), plan: z.enum(["pro", "elite"]) }))
+    .mutation(async ({ input }) => {
+      await pool.query(`UPDATE plan_purchase_requests SET status='approved' WHERE id=$1`, [input.requestId]);
+      const userRow = await pool.query<{ userId: number }>(
+        `SELECT "userId" FROM trainers WHERE id=$1`, [input.trainerId]
+      );
+      if (userRow.rows[0]) {
+        await pool.query(`UPDATE users SET plan=$1 WHERE id=$2`, [input.plan, userRow.rows[0].userId]);
+      }
+      return { success: true };
+    }),
+
+  // ── 관리자: 플랜 구매 거절 ──
+  admin_rejectPlanPurchase: adminProcedure
+    .input(z.object({ requestId: z.number() }))
+    .mutation(async ({ input }) => {
+      await pool.query(`UPDATE plan_purchase_requests SET status='rejected' WHERE id=$1`, [input.requestId]);
+      return { success: true };
+    }),
 });
 
 const expensesRouter = t.router({

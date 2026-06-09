@@ -781,6 +781,15 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandBlocks" TEXT`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "journalType" TEXT NOT NULL DEFAULT 'weight'`);
   await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandMessage" TEXT`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS plan_purchase_requests (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    plan TEXT NOT NULL,
+    amount INTEGER NOT NULL DEFAULT 0,
+    depositor TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS workshop_feature_config (
     id SERIAL PRIMARY KEY,
     "featureId" TEXT NOT NULL,
@@ -839,6 +848,7 @@ async function initDatabase() {
     ['fsp_limit_free','5'],['fsp_limit_pro','15'],['fsp_limit_elite','30'],
     ['member_limit_free','7'],['member_limit_pro','15'],['member_limit_elite','35'],
     ['plan_price_free','0'],['plan_price_pro','29000'],['plan_price_elite','59000'],
+    ['plan_discount_free','0'],['plan_discount_pro','0'],['plan_discount_elite','0'],
   ]) {
     await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, [k, v]);
   }

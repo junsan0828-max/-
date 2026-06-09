@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users, ClipboardList } from "lucide-react";
+import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users, ClipboardList, CreditCard, Zap } from "lucide-react";
 
 const CHARGE_PACKAGES = [
   { krw: 10000,  points: 10000, bonus: 0 },
@@ -14,6 +14,16 @@ const CHARGE_PACKAGES = [
 ];
 const KAKAO_ACCOUNT = "3333-37-4826334";
 const KAKAO_HOLDER  = "피트니스텝";
+
+const PLAN_INFO = {
+  free:  { label: "FREE",  color: "text-gray-500",   border: "border-gray-500/30",   bg: "bg-gray-500/10",   features: ["회원 최대 7명", "기본 PT 관리"] },
+  pro:   { label: "PRO",   color: "text-blue-500",   border: "border-blue-500/30",   bg: "bg-blue-500/10",   features: ["회원 최대 15명", "수업 예약", "브랜드 페이지"] },
+  elite: { label: "ELITE", color: "text-purple-500", border: "border-purple-500/30", bg: "bg-purple-500/10", features: ["회원 최대 35명", "모든 기능 포함", "FIT STEP+"] },
+} as const;
+
+function calcDiscounted(price: number, discount: number) {
+  return Math.round(price * (1 - discount / 100));
+}
 import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
 import OnboardingSurveyModal from "@/components/OnboardingSurveyModal";
@@ -97,9 +107,11 @@ function ProfileCompletionBanner({ profile }: { profile: { jobType?: string | nu
 export default function Profile() {
   const { data: profile, refetch } = trpc.trainers.getMyProfile.useQuery();
   const { data: referralInfo } = trpc.trainers.getMyReferralInfo.useQuery();
+  const { data: authUser } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const { data: balanceData } = trpc.fitPoints.getBalance.useQuery();
   const { data: history } = trpc.fitPoints.getHistory.useQuery();
+  const { data: planInfo } = trpc.fitStepPlus.trainer_getPublicPlanInfo.useQuery();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
@@ -115,6 +127,19 @@ export default function Profile() {
   const [acctCopied, setAcctCopied] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
+
+  // 플랜 구매
+  const [selectedPlan, setSelectedPlan] = useState<"pro" | "elite" | null>(null);
+  const [planDepositor, setPlanDepositor] = useState("");
+  const [planAcctCopied, setPlanAcctCopied] = useState(false);
+  const submitPlanMutation = trpc.fitStepPlus.trainer_submitPlanPurchase.useMutation({
+    onSuccess: () => {
+      toast.success("플랜 구매 신청이 완료되었습니다. 입금 확인 후 플랜이 변경됩니다.");
+      setSelectedPlan(null);
+      setPlanDepositor("");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   useEffect(() => {
     if (profile) {
@@ -232,6 +257,132 @@ export default function Profile() {
 
       {/* 프로필 완성 보너스 안내 */}
       <ProfileCompletionBanner profile={profile as any} />
+
+      {/* 플랜 구독 */}
+      {(() => {
+        const currentPlan = (authUser as any)?.plan ?? "free";
+        const prices = planInfo?.prices ?? { free: 0, pro: 29000, elite: 59000 };
+        const discounts = planInfo?.discounts ?? { free: 0, pro: 0, elite: 0 };
+        const planKeys = (["free", "pro", "elite"] as const).filter(p => p !== "free");
+        return (
+          <Card className="bg-card border-border">
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-primary" />플랜 구독
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    현재 플랜:
+                    <span className={`ml-1.5 font-bold ${PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.color ?? "text-gray-500"}`}>
+                      {PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.label ?? "FREE"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* 플랜 카드 */}
+              <div className="grid grid-cols-2 gap-2">
+                {planKeys.map(plan => {
+                  const info = PLAN_INFO[plan];
+                  const price = prices[plan] ?? 0;
+                  const disc = discounts[plan] ?? 0;
+                  const finalPrice = disc > 0 ? calcDiscounted(price, disc) : price;
+                  const isCurrent = currentPlan === plan;
+                  const isSelected = selectedPlan === plan;
+                  return (
+                    <button key={plan} type="button"
+                      onClick={() => { if (!isCurrent) setSelectedPlan(isSelected ? null : plan); }}
+                      disabled={isCurrent}
+                      className={`relative rounded-xl border-2 p-3 text-left transition-all ${
+                        isCurrent ? "border-primary bg-primary/10 opacity-80 cursor-default"
+                          : isSelected ? `border-current ${info.border} ${info.bg}`
+                          : `border-border bg-card hover:${info.border}`
+                      }`}>
+                      {disc > 0 && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+                          -{disc}%
+                        </span>
+                      )}
+                      {isCurrent && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">현재</span>
+                      )}
+                      <p className={`text-xs font-black mb-1 ${info.color}`}>{info.label}</p>
+                      {price > 0 ? (
+                        <div>
+                          {disc > 0 && <p className="text-[10px] text-muted-foreground line-through">{price.toLocaleString()}원</p>}
+                          <p className={`text-sm font-black ${disc > 0 ? info.color : "text-foreground"}`}>{finalPrice.toLocaleString()}원<span className="text-[10px] font-normal text-muted-foreground">/월</span></p>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-black text-gray-500">무료</p>
+                      )}
+                      <ul className="mt-2 space-y-0.5">
+                        {info.features.map(f => (
+                          <li key={f} className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Zap className="h-2.5 w-2.5 text-primary shrink-0" />{f}
+                          </li>
+                        ))}
+                      </ul>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 구매 폼 */}
+              {selectedPlan && (() => {
+                const price = prices[selectedPlan] ?? 0;
+                const disc = discounts[selectedPlan] ?? 0;
+                const finalPrice = disc > 0 ? calcDiscounted(price, disc) : price;
+                return (
+                  <div className="space-y-3 pt-1">
+                    <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
+                          <span className="text-[9px] font-black text-white">K</span>
+                        </div>
+                        <p className="text-xs font-semibold text-yellow-800">카카오뱅크 입금 계좌</p>
+                      </div>
+                      <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
+                        <div>
+                          <p className="text-sm font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">{KAKAO_HOLDER}</p>
+                        </div>
+                        <button onClick={() => { navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, "")); setPlanAcctCopied(true); setTimeout(() => setPlanAcctCopied(false), 2000); }}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
+                          {planAcctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          {planAcctCopied ? "복사됨" : "복사"}
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between text-xs px-0.5">
+                        <span className="text-yellow-700">입금 금액</span>
+                        <div className="text-right">
+                          {disc > 0 && <p className="text-[10px] text-yellow-600 line-through">{price.toLocaleString()}원</p>}
+                          <span className="font-black text-yellow-900">{finalPrice.toLocaleString()}원</span>
+                          {disc > 0 && <span className="ml-1 text-[10px] font-bold text-red-500">({disc}% 할인)</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground">입금자명</p>
+                      <Input placeholder="실제 입금 시 표시되는 이름" value={planDepositor}
+                        onChange={e => setPlanDepositor(e.target.value)} className="h-9 text-sm bg-background/50 border-primary/30" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedPlan(null); setPlanDepositor(""); }}>취소</Button>
+                      <Button size="sm" className="flex-1"
+                        disabled={!planDepositor.trim() || submitPlanMutation.isPending}
+                        onClick={() => submitPlanMutation.mutate({ plan: selectedPlan, amount: finalPrice, depositor: planDepositor.trim() })}>
+                        {submitPlanMutation.isPending ? "신청 중..." : "신청하기"}
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground text-center">입금 확인 후 관리자가 플랜을 변경합니다 (보통 1시간 이내)</p>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* FIT POINT */}
       <Card className="bg-primary/10 border-primary/30">

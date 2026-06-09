@@ -74,6 +74,15 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   });
 
   const { data: pointData, refetch: refetchPoints } = trpc.admin.getTrainerPoints.useQuery({ trainerId });
+  const { data: planRequests, refetch: refetchPlanReqs } = trpc.fitStepPlus.admin_listPlanPurchaseRequests.useQuery({ trainerId });
+  const approvePlanMutation = trpc.fitStepPlus.admin_approvePlanPurchase.useMutation({
+    onSuccess: () => { toast.success("플랜이 승인되었습니다."); refetchPlanReqs(); utils.admin.getTrainer.invalidate({ trainerId }); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const rejectPlanMutation = trpc.fitStepPlus.admin_rejectPlanPurchase.useMutation({
+    onSuccess: () => { toast.success("신청이 거절되었습니다."); refetchPlanReqs(); },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const grantMutation = trpc.admin.grantPoints.useMutation({
     onSuccess: () => { toast.success("포인트가 지급되었습니다."); setGrantAmount(""); setGrantMemo(""); refetchPoints(); },
@@ -231,6 +240,36 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           })} disabled={updateMutation.isPending}>
             {updateMutation.isPending ? "저장 중..." : "저장"}
           </Button>
+
+          {/* 플랜 구매 신청 */}
+          {planRequests && planRequests.length > 0 && (
+            <div className="space-y-2 pt-1 border-t border-border">
+              <p className="text-xs font-semibold text-orange-400">플랜 구매 신청</p>
+              {planRequests.map(req => (
+                <div key={req.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-xs">
+                  <div>
+                    <p className="font-medium">{req.plan.toUpperCase()} — {req.amount.toLocaleString()}원</p>
+                    <p className="text-muted-foreground">입금자: {req.depositor} · {req.createdAt.slice(0, 10)}</p>
+                    {req.status !== "pending" && (
+                      <p className={req.status === "approved" ? "text-green-400" : "text-red-400"}>
+                        {req.status === "approved" ? "승인됨" : "거절됨"}
+                      </p>
+                    )}
+                  </div>
+                  {req.status === "pending" && (
+                    <div className="flex gap-1.5 shrink-0">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs border-red-500/40 text-red-400 hover:bg-red-500/10"
+                        disabled={rejectPlanMutation.isPending}
+                        onClick={() => rejectPlanMutation.mutate({ requestId: req.id })}>거절</Button>
+                      <Button size="sm" className="h-7 px-2 text-xs"
+                        disabled={approvePlanMutation.isPending}
+                        onClick={() => approvePlanMutation.mutate({ requestId: req.id, trainerId, plan: req.plan as "pro" | "elite" })}>승인</Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
