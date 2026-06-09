@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Dumbbell, Activity } from "lucide-react";
+import { ArrowLeft, Dumbbell, Activity, Lock, Shirt } from "lucide-react";
 
 interface Props {
   memberId?: number;
@@ -42,6 +42,19 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
   const [regType, setRegType] = useState<"" | "health" | "pt">("");
   const [healthMonths, setHealthMonths] = useState<number | "">(1);
+
+  // 락커
+  const [addLocker, setAddLocker] = useState(false);
+  const [lockerId, setLockerId] = useState("");
+  const [lockerMonths, setLockerMonths] = useState(1);
+  const [lockerPrice, setLockerPrice] = useState("");
+  const [lockerEnd, setLockerEnd] = useState("");
+
+  // 운동복
+  const [addUniform, setAddUniform] = useState(false);
+  const [uniformMonths, setUniformMonths] = useState(1);
+  const [uniformPrice, setUniformPrice] = useState("");
+  const [uniformEnd, setUniformEnd] = useState("");
 
   // 서비스 내역
   const [serviceItems, setServiceItems] = useState<string[]>([]);
@@ -76,6 +89,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const today = new Date().toISOString().substring(0, 10);
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: trainerList } = trpc.trainers.list.useQuery();
   const { data: allMembers = [] } = trpc.members.list.useQuery();
@@ -108,20 +122,59 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   }, [existingMember]);
 
   const createMutation = trpc.members.create.useMutation({
-    onSuccess: (data) => {
-      toast.success("회원이 등록되었습니다.");
-      setLocation(`/members/${data.id}`);
-    },
     onError: (err) => toast.error(err.message || "등록 실패"),
   });
 
   const updateMutation = trpc.members.update.useMutation({
-    onSuccess: () => {
-      toast.success("회원 정보가 수정되었습니다.");
-      setLocation(`/members/${memberId}`);
-    },
     onError: (err) => toast.error(err.message || "수정 실패"),
   });
+
+  const assignLockerMutation = trpc.access.assignLocker.useMutation({
+    onError: (err) => toast.error("락커 배정 실패: " + (err.message || "")),
+  });
+
+  const createUniformMutation = trpc.access.createUniform.useMutation({
+    onError: (err) => toast.error("운동복 등록 실패: " + (err.message || "")),
+  });
+
+  // 락커 가격 자동 기입
+  useEffect(() => {
+    if (!gymSettings || !addLocker) return;
+    const price = (gymSettings as any).lockerMonthlyPrice ?? 0;
+    if (price > 0) setLockerPrice(String(price * lockerMonths));
+  }, [gymSettings, addLocker, lockerMonths]);
+
+  // 운동복 가격 자동 기입
+  useEffect(() => {
+    if (!gymSettings || !addUniform) return;
+    const price = (gymSettings as any).uniformPrice ?? 0;
+    if (price > 0) setUniformPrice(String(price));
+  }, [gymSettings, addUniform]);
+
+  // 락커/운동복 종료일 자동 계산
+  useEffect(() => {
+    const start = form.membershipStart || today;
+    setLockerEnd(calcEndDateByMonths(start, lockerMonths));
+  }, [form.membershipStart, lockerMonths]);
+
+  useEffect(() => {
+    const start = form.membershipStart || today;
+    setUniformEnd(calcEndDateByMonths(start, uniformMonths));
+  }, [form.membershipStart, uniformMonths]);
+
+  // 사용 가능 락커 그룹
+  const availableLockers = (allLockers ?? []).filter((l: any) => !l.isOccupied);
+  const lockerGroups: { branchId: number | null; name: string; lockers: any[] }[] = [];
+  for (const l of availableLockers) {
+    const bid = l.branchId ?? null;
+    let g = lockerGroups.find(g => g.branchId === bid);
+    if (!g) {
+      const b = (branchList ?? []).find((b: any) => b.id === bid);
+      g = { branchId: bid, name: b?.name ?? "지점 미지정", lockers: [] };
+      lockerGroups.push(g);
+    }
+    g.lockers.push(l);
+  }
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -137,7 +190,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     return newErrors;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors = validateForm();
     if (Object.keys(newErrors).length > 0) {
@@ -145,6 +198,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       toast.error("입력 정보를 확인해주세요.");
       return;
     }
+    if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
     setErrors({});
 
     const isHealth = regType === "health";
@@ -181,14 +235,50 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       }).join(",") : undefined,
     };
 
-    if (isEdit) {
-      updateMutation.mutate({ id: memberId!, ...payload });
-    } else {
-      createMutation.mutate(payload as any);
+    try {
+      let savedMemberId: number;
+      if (isEdit) {
+        await updateMutation.mutateAsync({ id: memberId!, ...payload });
+        savedMemberId = memberId!;
+      } else {
+        const result = await createMutation.mutateAsync(payload as any);
+        savedMemberId = result.id;
+      }
+
+      if (addLocker && lockerId) {
+        await assignLockerMutation.mutateAsync({
+          lockerId: parseInt(lockerId),
+          memberId: savedMemberId,
+          memberName: form.name,
+          memberPhone: form.phone || undefined,
+          startDate: form.membershipStart || undefined,
+          endDate: lockerEnd || undefined,
+          rentalType: lockerPrice && parseInt(lockerPrice) > 0 ? "paid" : "service",
+        });
+      }
+
+      if (addUniform) {
+        await createUniformMutation.mutateAsync({
+          memberId: savedMemberId,
+          memberName: form.name,
+          memberPhone: form.phone || undefined,
+          startDate: form.membershipStart || undefined,
+          endDate: uniformEnd || undefined,
+          rentalType: uniformPrice && parseInt(uniformPrice) > 0 ? "paid" : "service",
+          isPaid: uniformPrice && parseInt(uniformPrice) > 0 ? 1 : 0,
+          paymentAmount: uniformPrice ? parseInt(uniformPrice) : 0,
+          paymentMethod: form.paymentMethod || undefined,
+        });
+      }
+
+      toast.success(isEdit ? "회원 정보가 수정되었습니다." : "회원이 등록되었습니다.");
+      setLocation(`/members/${savedMemberId}`);
+    } catch {
+      // individual mutations already toast errors
     }
   };
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending || assignLockerMutation.isPending || createUniformMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -747,6 +837,93 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                 </div>
               )}
             </CardContent>
+          </Card>
+        )}
+
+        {/* 락커 배정 (옵션) */}
+        {!isEdit && (
+          <Card className={`bg-card border-2 transition-colors ${addLocker ? "border-amber-500/40" : "border-border"}`}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-2"><Lock className="h-4 w-4 text-amber-500" />락커 배정</span>
+                <button type="button" onClick={() => { setAddLocker(v => !v); setLockerId(""); }}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${addLocker ? "bg-amber-500" : "bg-muted"}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${addLocker ? "left-6" : "left-1"}`} />
+                </button>
+              </CardTitle>
+            </CardHeader>
+            {addLocker && (
+              <CardContent className="space-y-3 pt-0">
+                <div>
+                  <label className="text-xs text-muted-foreground">락커 선택 *</label>
+                  <select value={lockerId} onChange={e => setLockerId(e.target.value)}
+                    className="w-full mt-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground">
+                    <option value="">락커 선택...</option>
+                    {lockerGroups.map(g => (
+                      <optgroup key={g.branchId ?? "none"} label={g.name}>
+                        {g.lockers.map((l: any) => <option key={l.id} value={String(l.id)}>락커 {l.lockerNumber}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                  {availableLockers.length === 0 && <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>}
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">사용 기간</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {[1, 3, 6, 12].map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setLockerMonths(m)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${lockerMonths === m ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
+                        {m}개월
+                      </button>
+                    ))}
+                  </div>
+                  {lockerEnd && <p className="text-xs text-muted-foreground mt-1">종료일: {lockerEnd}</p>}
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">결제 금액</label>
+                  <Input type="number" value={lockerPrice} onChange={e => setLockerPrice(e.target.value)}
+                    placeholder="0" className="mt-1 bg-input border-border" />
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
+
+        {/* 운동복 대여 (옵션) */}
+        {!isEdit && (
+          <Card className={`bg-card border-2 transition-colors ${addUniform ? "border-purple-500/40" : "border-border"}`}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-2"><Shirt className="h-4 w-4 text-purple-500" />운동복 대여</span>
+                <button type="button" onClick={() => setAddUniform(v => !v)}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${addUniform ? "bg-purple-500" : "bg-muted"}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${addUniform ? "left-6" : "left-1"}`} />
+                </button>
+              </CardTitle>
+            </CardHeader>
+            {addUniform && (
+              <CardContent className="space-y-3 pt-0">
+                <div>
+                  <label className="text-xs text-muted-foreground">사용 기간</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {[1, 3, 6, 12].map(m => (
+                      <button key={m} type="button"
+                        onClick={() => setUniformMonths(m)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformMonths === m ? "bg-purple-500 text-white border-purple-500" : "border-border text-muted-foreground"}`}>
+                        {m}개월
+                      </button>
+                    ))}
+                  </div>
+                  {uniformEnd && <p className="text-xs text-muted-foreground mt-1">종료일: {uniformEnd}</p>}
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">결제 금액</label>
+                  <Input type="number" value={uniformPrice} onChange={e => setUniformPrice(e.target.value)}
+                    placeholder="0 (무료 서비스면 0)" className="mt-1 bg-input border-border" />
+                </div>
+              </CardContent>
+            )}
           </Card>
         )}
 
