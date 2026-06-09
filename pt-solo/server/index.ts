@@ -64,10 +64,15 @@ app.use(
       let user = sessionUser;
       if (sessionUser) {
         try {
-          const freshRow = await db.select({ role: users.role }).from(users).where(eq(users.id, sessionUser.id)).limit(1);
+          const freshRow = await db.select({ role: users.role, lastLoginAt: users.lastLoginAt }).from(users).where(eq(users.id, sessionUser.id)).limit(1);
           if (freshRow[0]) {
             user = { ...sessionUser, role: freshRow[0].role as AuthUser["role"] };
             (req.session as any).user = user;
+            // 마지막 접속 시각을 1시간마다 갱신 (세션이 살아있는 한 항상 최신 유지)
+            const lastLogin = freshRow[0].lastLoginAt ? new Date(freshRow[0].lastLoginAt).getTime() : 0;
+            if (Date.now() - lastLogin > 60 * 60 * 1000) {
+              pool.query(`UPDATE users SET "lastLoginAt"=now()::text WHERE id=$1`, [sessionUser.id]).catch(() => {});
+            }
           }
         } catch {}
       }
