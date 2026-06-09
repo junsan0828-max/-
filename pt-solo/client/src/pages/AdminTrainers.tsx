@@ -11,6 +11,15 @@ function getPlanBadge(plan?: string): { label: string; color: string; key: strin
   return { label: "FREE", color: "bg-gray-500/20 text-gray-500 border-gray-500/30", key: "free" };
 }
 
+function getRiskReasons(t: { lastLoginAt?: string | null; memberCount: number; sessionCount: number }): string[] {
+  const days = t.lastLoginAt ? (Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24) : 999;
+  return [
+    days >= 14 ? `${Math.floor(days)}일 미접속` : null,
+    t.memberCount === 0 ? "회원 없음" : null,
+    t.sessionCount === 0 ? "PT 기록 없음" : null,
+  ].filter(Boolean) as string[];
+}
+
 const FILTERS = [
   { key: "all", label: "전체" },
   { key: "free", label: "FREE" },
@@ -24,14 +33,6 @@ export default function AdminTrainers() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
-  const riskList = useMemo(() => {
-    if (!trainerList) return [];
-    return trainerList.filter(t => {
-      const days = t.lastLoginAt ? (Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24) : 999;
-      return days >= 14 || t.memberCount === 0 || t.sessionCount === 0;
-    });
-  }, [trainerList]);
-
   const filtered = useMemo(() => {
     if (!trainerList) return [];
     return trainerList.filter(t => {
@@ -43,13 +44,20 @@ export default function AdminTrainers() {
     });
   }, [trainerList, search, filter]);
 
+  const riskCount = useMemo(() => filtered.filter(t => getRiskReasons(t).length > 0).length, [filtered]);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">STEPER 관리</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">총 {trainerList?.length ?? 0}명</p>
-        </div>
+      <div>
+        <h1 className="text-xl font-bold">STEPER 관리</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          총 {trainerList?.length ?? 0}명
+          {riskCount > 0 && (
+            <span className="ml-2 inline-flex items-center gap-1 text-orange-400">
+              <AlertTriangle className="h-3 w-3" />관리 필요 {riskCount}명
+            </span>
+          )}
+        </p>
       </div>
 
       {/* 검색 */}
@@ -78,32 +86,6 @@ export default function AdminTrainers() {
         ))}
       </div>
 
-      {/* 위험군 알림 */}
-      {riskList.length > 0 && filter === "all" && !search && (
-        <Card className="bg-card border-orange-500/30">
-          <CardContent className="p-3 space-y-1.5">
-            <p className="text-xs font-semibold text-orange-400 flex items-center gap-1.5">
-              <AlertTriangle className="h-3.5 w-3.5" />관리 필요 STEPER {riskList.length}명
-            </p>
-            {riskList.map(t => {
-              const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
-              const reasons = [
-                days !== null && days >= 14 ? `${days}일 미접속` : null,
-                t.memberCount === 0 ? "회원 없음" : null,
-                t.sessionCount === 0 ? "PT 기록 없음" : null,
-              ].filter(Boolean);
-              return (
-                <button key={t.id} onClick={() => setLocation(`/admin/trainers/${t.id}`)}
-                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 hover:border-orange-500/40 transition-colors text-left">
-                  <span className="text-sm font-medium">{t.trainerName}</span>
-                  <span className="text-xs text-orange-400">{reasons.join(" · ")}</span>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
       {/* STEPER 목록 */}
       <div className="space-y-2">
         {filtered.length === 0 && (
@@ -112,10 +94,12 @@ export default function AdminTrainers() {
         {filtered.map(t => {
           const plan = getPlanBadge((t as any).plan);
           const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
+          const risks = getRiskReasons(t);
+          const isRisk = risks.length > 0;
           return (
             <button key={t.id} onClick={() => setLocation(`/admin/trainers/${t.id}`)}
               className="w-full text-left">
-              <Card className="bg-card border-border hover:border-primary/40 transition-colors">
+              <Card className={`bg-card transition-colors ${isRisk ? "border-orange-500/30 hover:border-orange-500/50" : "border-border hover:border-primary/40"}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -123,6 +107,7 @@ export default function AdminTrainers() {
                       <p className="text-xs text-muted-foreground">@{t.username}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {isRisk && <span className="text-xs text-orange-400">{risks.join(" · ")}</span>}
                       <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${plan.color}`}>{plan.label}</span>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
