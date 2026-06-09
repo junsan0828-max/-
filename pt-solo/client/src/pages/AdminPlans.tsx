@@ -88,7 +88,9 @@ export default function AdminPlans() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{req.trainerName}</p>
                   <p className="text-xs text-muted-foreground">
-                    {req.plan.toUpperCase()} · {req.amount.toLocaleString()}원 · 입금자: {req.depositor}
+                    {req.plan.toUpperCase()} · 입금 {req.amount.toLocaleString()}원
+                    {(req as any).pointsUsed > 0 && ` + ${(req as any).pointsUsed.toLocaleString()}P 적용`}
+                    {req.depositor && ` · 입금자: ${req.depositor}`}
                   </p>
                   <p className="text-xs text-muted-foreground">{req.createdAt.slice(0, 16).replace("T", " ")}</p>
                 </div>

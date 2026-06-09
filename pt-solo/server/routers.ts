@@ -3791,22 +3791,45 @@ const fitStepPlusRouter = t.router({
       return { success: true };
     }),
 
-  // ── 플랜 구매 신청 (계좌이체) ──
+  // ── 플랜 구매 신청 (포인트 일부 + 계좌이체) ──
   trainer_submitPlanPurchase: protectedProcedure
     .input(z.object({
       plan: z.enum(["pro", "elite"]),
-      amount: z.number().int().min(0),
-      depositor: z.string().min(1).max(50),
+      totalAmount: z.number().int().min(0),
+      pointsUsed: z.number().int().min(0),
+      bankAmount: z.number().int().min(0),
+      depositor: z.string().max(50).default(""),
     }))
     .mutation(async ({ ctx, input }) => {
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      // 포인트 사용분 즉시 차감
+      if (input.pointsUsed > 0) {
+        const balRow = await pool.query<{ balance: string }>(
+          `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
+          [trainerId]
+        );
+        const balance = Number(balRow.rows[0]?.balance ?? 0);
+        const actualPoints = Math.min(input.pointsUsed, balance);
+        if (actualPoints > 0) {
+          await pool.query(
+            `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'usage',$3,'completed')`,
+            [trainerId, -actualPoints, `${input.plan.toUpperCase()} 플랜 포인트 적용`]
+          );
+        }
+      }
+      // 잔여금 없으면 즉시 플랜 업그레이드
+      if (input.bankAmount <= 0) {
+        await pool.query(`UPDATE users SET plan=$1 WHERE id=$2`, [input.plan, ctx.user.id]);
+        return { success: true, instant: true };
+      }
+      // 잔여금 계좌이체 신청 생성
       await pool.query(
-        `INSERT INTO plan_purchase_requests ("trainerId", plan, amount, depositor, status, "createdAt")
-         VALUES ($1,$2,$3,$4,'pending',now()::text)`,
-        [trainerId, input.plan, input.amount, input.depositor]
+        `INSERT INTO plan_purchase_requests ("trainerId", plan, amount, "pointsUsed", depositor, status, "createdAt")
+         VALUES ($1,$2,$3,$4,$5,'pending',now()::text)`,
+        [trainerId, input.plan, input.bankAmount, input.pointsUsed, input.depositor]
       );
-      return { success: true };
+      return { success: true, instant: false };
     }),
 
   // ── 관리자: 플랜 구매 신청 목록 ──
@@ -3815,9 +3838,9 @@ const fitStepPlusRouter = t.router({
     .query(async ({ input }) => {
       const rows = await pool.query<{
         id: number; trainerId: number; plan: string; amount: number;
-        depositor: string; status: string; createdAt: string; trainerName: string;
+        pointsUsed: number; depositor: string; status: string; createdAt: string; trainerName: string;
       }>(
-        `SELECT r.id, r."trainerId", r.plan, r.amount, r.depositor, r.status, r."createdAt", t."trainerName"
+        `SELECT r.id, r."trainerId", r.plan, r.amount, COALESCE(r."pointsUsed",0) AS "pointsUsed", r.depositor, r.status, r."createdAt", t."trainerName"
          FROM plan_purchase_requests r JOIN trainers t ON t.id=r."trainerId"
          ${input.trainerId ? `WHERE r."trainerId"=$1` : "WHERE r.status='pending'"}
          ORDER BY r."createdAt" DESC`,

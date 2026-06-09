@@ -130,22 +130,18 @@ export default function Profile() {
 
   // 플랜 구매
   const [selectedPlan, setSelectedPlan] = useState<"pro" | "elite" | null>(null);
-  const [payMethod, setPayMethod] = useState<"points" | "bank">("points");
   const [planDepositor, setPlanDepositor] = useState("");
   const [planAcctCopied, setPlanAcctCopied] = useState(false);
   const submitPlanMutation = trpc.fitStepPlus.trainer_submitPlanPurchase.useMutation({
-    onSuccess: () => {
-      toast.success("플랜 구매 신청이 완료되었습니다. 입금 확인 후 플랜이 변경됩니다.");
+    onSuccess: (data) => {
+      if ((data as any).instant) {
+        toast.success("플랜이 즉시 변경되었습니다!");
+        utils.auth.me.invalidate();
+      } else {
+        toast.success("신청 완료! 나머지 금액 입금 확인 후 플랜이 변경됩니다.");
+      }
       setSelectedPlan(null);
       setPlanDepositor("");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-  const purchaseWithPointsMutation = trpc.fitStepPlus.trainer_purchasePlanWithPoints.useMutation({
-    onSuccess: () => {
-      toast.success("플랜이 변경되었습니다!");
-      setSelectedPlan(null);
-      utils.auth.me.invalidate();
       utils.fitPoints.getBalance.invalidate();
       utils.fitPoints.getHistory.invalidate();
     },
@@ -344,105 +340,75 @@ export default function Profile() {
                 const price = prices[selectedPlan] ?? 0;
                 const disc = discounts[selectedPlan] ?? 0;
                 const finalPrice = disc > 0 ? calcDiscounted(price, disc) : price;
-                const hasEnoughPoints = balance >= finalPrice;
+                const pointsApplied = Math.min(balance, finalPrice);
+                const bankAmount = finalPrice - pointsApplied;
+                const isFree = finalPrice === 0;
                 return (
                   <div className="space-y-3 pt-1">
-                    {/* 결제 방법 탭 */}
-                    <div className="grid grid-cols-2 gap-1.5 p-1 bg-accent/30 rounded-xl">
-                      {([
-                        { key: "points", label: "포인트 결제", icon: Coins },
-                        { key: "bank", label: "계좌이체", icon: CreditCard },
-                      ] as const).map(({ key, label, icon: Icon }) => (
-                        <button key={key} type="button"
-                          onClick={() => setPayMethod(key)}
-                          className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${payMethod === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-                          <Icon className="h-3.5 w-3.5" />{label}
-                        </button>
-                      ))}
+                    {/* 결제 내역 */}
+                    <div className="rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2.5 bg-accent/10 text-xs">
+                        <span className="text-muted-foreground">{selectedPlan.toUpperCase()} 구독료</span>
+                        <div className="text-right">
+                          {disc > 0 && <p className="text-[10px] text-muted-foreground line-through">{price.toLocaleString()}원</p>}
+                          <span className="font-bold">{isFree ? "무료" : `${finalPrice.toLocaleString()}원`}{disc > 0 && <span className="ml-1 text-red-400">({disc}%↓)</span>}</span>
+                        </div>
+                      </div>
+                      {!isFree && pointsApplied > 0 && (
+                        <div className="flex items-center justify-between px-3 py-2.5 text-xs">
+                          <span className="flex items-center gap-1.5 text-primary"><Coins className="h-3.5 w-3.5" />포인트 적용</span>
+                          <span className="font-bold text-primary">-{pointsApplied.toLocaleString()} P</span>
+                        </div>
+                      )}
+                      {!isFree && (
+                        <div className="flex items-center justify-between px-3 py-2.5 bg-accent/20 text-xs font-bold">
+                          <span>계좌이체 금액</span>
+                          <span className={bankAmount === 0 ? "text-green-400" : ""}>{bankAmount === 0 ? "없음 (즉시 결제)" : `${bankAmount.toLocaleString()}원`}</span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* 결제 금액 요약 */}
-                    <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-accent/20 border border-border">
-                      <span className="text-xs text-muted-foreground">{selectedPlan.toUpperCase()} 플랜 구독료</span>
-                      <div className="text-right">
-                        {disc > 0 && <p className="text-[10px] text-muted-foreground line-through">{price.toLocaleString()}원</p>}
-                        <p className="text-sm font-black">{finalPrice.toLocaleString()}원{disc > 0 && <span className="ml-1 text-[10px] text-red-400 font-bold">({disc}% 할인)</span>}</p>
-                      </div>
-                    </div>
-
-                    {payMethod === "points" ? (
-                      <div className="space-y-3">
-                        {/* 포인트 잔액 표시 */}
-                        <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${hasEnoughPoints ? "bg-primary/10 border-primary/30" : "bg-red-500/10 border-red-500/30"}`}>
-                          <div className="flex items-center gap-2">
-                            <Coins className={`h-4 w-4 ${hasEnoughPoints ? "text-primary" : "text-red-400"}`} />
-                            <span className="text-xs text-muted-foreground">보유 포인트</span>
-                          </div>
-                          <div className="text-right">
-                            <p className={`text-sm font-black ${hasEnoughPoints ? "text-primary" : "text-red-400"}`}>{balance.toLocaleString()} P</p>
-                            {!hasEnoughPoints && (
-                              <p className="text-[10px] text-red-400">{(finalPrice - balance).toLocaleString()}P 부족</p>
-                            )}
-                          </div>
-                        </div>
-                        {hasEnoughPoints && (
-                          <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-xs">
-                            <span className="text-muted-foreground">결제 후 잔여 포인트</span>
-                            <span className="font-bold text-green-400">{(balance - finalPrice).toLocaleString()} P</span>
-                          </div>
-                        )}
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedPlan(null); }}>취소</Button>
-                          <Button size="sm" className="flex-1"
-                            disabled={!hasEnoughPoints || purchaseWithPointsMutation.isPending}
-                            onClick={() => purchaseWithPointsMutation.mutate({ plan: selectedPlan, amount: finalPrice })}>
-                            {purchaseWithPointsMutation.isPending ? "처리 중..." : `${finalPrice.toLocaleString()}P 결제`}
-                          </Button>
-                        </div>
-                        {!hasEnoughPoints && (
-                          <p className="text-[11px] text-muted-foreground text-center">포인트가 부족합니다. 충전 후 이용하거나 계좌이체를 선택하세요.</p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2.5">
+                    {/* 계좌이체가 필요한 경우 */}
+                    {bankAmount > 0 && (
+                      <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
                               <span className="text-[9px] font-black text-white">K</span>
                             </div>
-                            <p className="text-xs font-semibold text-yellow-800">카카오뱅크 입금 계좌</p>
+                            <p className="text-xs font-semibold text-yellow-800">카카오뱅크</p>
                           </div>
-                          <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
-                            <div>
-                              <p className="text-sm font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
-                              <p className="text-[11px] text-gray-500 mt-0.5">{KAKAO_HOLDER}</p>
-                            </div>
-                            <button onClick={() => { navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, "")); setPlanAcctCopied(true); setTimeout(() => setPlanAcctCopied(false), 2000); }}
-                              className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
-                              {planAcctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                              {planAcctCopied ? "복사됨" : "복사"}
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between text-xs px-0.5">
-                            <span className="text-yellow-700">입금 금액</span>
-                            <span className="font-black text-yellow-900">{finalPrice.toLocaleString()}원</span>
-                          </div>
+                          <p className="text-sm font-black text-yellow-900">{bankAmount.toLocaleString()}원 입금</p>
                         </div>
-                        <div className="space-y-1.5">
-                          <p className="text-xs font-semibold text-muted-foreground">입금자명</p>
-                          <Input placeholder="실제 입금 시 표시되는 이름" value={planDepositor}
-                            onChange={e => setPlanDepositor(e.target.value)} className="h-9 text-sm bg-background/50 border-primary/30" />
+                        <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
+                          <p className="text-sm font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
+                          <button onClick={() => { navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, "")); setPlanAcctCopied(true); setTimeout(() => setPlanAcctCopied(false), 2000); }}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
+                            {planAcctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                            {planAcctCopied ? "복사됨" : "복사"}
+                          </button>
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedPlan(null); setPlanDepositor(""); }}>취소</Button>
-                          <Button size="sm" className="flex-1"
-                            disabled={!planDepositor.trim() || submitPlanMutation.isPending}
-                            onClick={() => submitPlanMutation.mutate({ plan: selectedPlan, amount: finalPrice, depositor: planDepositor.trim() })}>
-                            {submitPlanMutation.isPending ? "신청 중..." : "신청하기"}
-                          </Button>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground text-center">입금 확인 후 관리자가 플랜을 변경합니다 (보통 1시간 이내)</p>
+                        <Input placeholder="입금자명" value={planDepositor}
+                          onChange={e => setPlanDepositor(e.target.value)} className="h-9 text-sm bg-white border-yellow-200" />
                       </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedPlan(null); setPlanDepositor(""); }}>취소</Button>
+                      <Button size="sm" className="flex-1"
+                        disabled={(bankAmount > 0 && !planDepositor.trim()) || submitPlanMutation.isPending}
+                        onClick={() => submitPlanMutation.mutate({
+                          plan: selectedPlan,
+                          totalAmount: finalPrice,
+                          pointsUsed: pointsApplied,
+                          bankAmount,
+                          depositor: planDepositor.trim(),
+                        })}>
+                        {submitPlanMutation.isPending ? "처리 중..." : bankAmount > 0 ? "신청하기" : "즉시 결제"}
+                      </Button>
+                    </div>
+                    {bankAmount > 0 && (
+                      <p className="text-[11px] text-muted-foreground text-center">포인트 {pointsApplied.toLocaleString()}P 즉시 차감 + 나머지 입금 확인 후 플랜 변경</p>
                     )}
                   </div>
                 );

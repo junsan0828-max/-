@@ -788,9 +788,11 @@ async function initDatabase() {
     plan TEXT NOT NULL,
     amount INTEGER NOT NULL DEFAULT 0,
     depositor TEXT NOT NULL DEFAULT '',
+    "pointsUsed" INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+  await pool.query(`ALTER TABLE plan_purchase_requests ADD COLUMN IF NOT EXISTS "pointsUsed" INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`CREATE TABLE IF NOT EXISTS workshop_feature_config (
     id SERIAL PRIMARY KEY,
     "featureId" TEXT NOT NULL,
