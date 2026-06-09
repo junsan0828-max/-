@@ -409,7 +409,12 @@ const membersRouter = t.router({
 
       const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
       const memberPlan = planRow?.plan ?? "free";
-      const memberLimit = memberPlan === "elite" ? 35 : memberPlan === "pro" ? 15 : 7;
+      const limitRows = await pool.query<{ key: string; value: string }>(
+        `SELECT key, value FROM plan_settings WHERE key IN ('member_limit_free','member_limit_pro','member_limit_elite')`
+      );
+      const limitMap: Record<string, number> = { free: 7, pro: 15, elite: 35 };
+      for (const r of limitRows.rows) { limitMap[r.key.replace("member_limit_", "")] = parseInt(r.value); }
+      const memberLimit = limitMap[memberPlan] ?? 7;
       const [cnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
       if (Number(cnt?.count ?? 0) >= memberLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${memberPlan.toUpperCase()} 플랜은 유효회원을 최대 ${memberLimit}명까지 등록할 수 있습니다.` });
 
@@ -2929,7 +2934,12 @@ const leadsRouter = t.router({
 
       const [planRow] = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
       const plan = planRow?.plan ?? "free";
-      const contractLimit = plan === "elite" ? 35 : plan === "pro" ? 15 : 7;
+      const cLimitRows = await pool.query<{ key: string; value: string }>(
+        `SELECT key, value FROM plan_settings WHERE key IN ('member_limit_free','member_limit_pro','member_limit_elite')`
+      );
+      const cLimitMap: Record<string, number> = { free: 7, pro: 15, elite: 35 };
+      for (const r of cLimitRows.rows) { cLimitMap[r.key.replace("member_limit_", "")] = parseInt(r.value); }
+      const contractLimit = cLimitMap[plan] ?? 7;
       const [totalCnt] = await db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId));
       if (Number(totalCnt?.count ?? 0) >= contractLimit) throw new TRPCError({ code: "FORBIDDEN", message: `${plan.toUpperCase()} 플랜은 유효회원을 최대 ${contractLimit}명까지 등록할 수 있습니다.` });
 
@@ -3619,6 +3629,34 @@ const fitStepPlusRouter = t.router({
       fspCount: Number(r.fspCount),
     }));
   }),
+
+  // ── 플랜별 일반 회원 수 제한 조회 ──
+  admin_getMemberLimits: adminProcedure.query(async () => {
+    const rows = await pool.query<{ key: string; value: string }>(
+      `SELECT key, value FROM plan_settings WHERE key IN ('member_limit_free','member_limit_pro','member_limit_elite')`
+    );
+    const map: Record<string, number> = { free: 7, pro: 15, elite: 35 };
+    for (const r of rows.rows) { map[r.key.replace("member_limit_", "")] = parseInt(r.value); }
+    return map;
+  }),
+
+  // ── 플랜별 일반 회원 수 제한 업데이트 ──
+  admin_updateMemberLimits: adminProcedure
+    .input(z.object({
+      free: z.number().int().min(1).max(9999),
+      pro: z.number().int().min(1).max(9999),
+      elite: z.number().int().min(1).max(9999),
+    }))
+    .mutation(async ({ input }) => {
+      for (const [plan, val] of [["free", input.free], ["pro", input.pro], ["elite", input.elite]] as const) {
+        await pool.query(
+          `INSERT INTO plan_settings (key, value, "updatedAt") VALUES ($1,$2,now()::text)
+           ON CONFLICT (key) DO UPDATE SET value=$2, "updatedAt"=now()::text`,
+          [`member_limit_${plan}`, String(val)]
+        );
+      }
+      return { success: true };
+    }),
 
   // ── 플랜별 FIT STEP+ 회원 수 제한 조회 ──
   admin_getPlanLimits: adminProcedure.query(async () => {

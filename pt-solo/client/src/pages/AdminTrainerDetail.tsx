@@ -16,9 +16,9 @@ const STATUS_OPTIONS = [
 ];
 
 const PLAN_OPTIONS = [
-  { value: "free", label: "FREE", desc: "유효회원 7명" },
-  { value: "pro", label: "PRO", desc: "유효회원 15명" },
-  { value: "elite", label: "ELITE", desc: "유효회원 35명" },
+  { value: "free", label: "FREE" },
+  { value: "pro", label: "PRO" },
+  { value: "elite", label: "ELITE" },
 ];
 
 function PlanBadge({ plan }: { plan?: string }) {
@@ -33,6 +33,14 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const { data: t, isLoading } = trpc.admin.getTrainer.useQuery({ trainerId });
+
+  // 플랜별 회원 한도
+  const { data: memberLimits } = trpc.fitStepPlus.admin_getMemberLimits.useQuery();
+  const [limitDraft, setLimitDraft] = useState<{ free: string; pro: string; elite: string } | null>(null);
+  const updateMemberLimitsMutation = trpc.fitStepPlus.admin_updateMemberLimits.useMutation({
+    onSuccess: () => { toast.success("플랜 인원 한도가 저장되었습니다."); utils.fitStepPlus.admin_getMemberLimits.invalidate(); setLimitDraft(null); },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const [subStatus, setSubStatus] = useState("");
   const [subEndDate, setSubEndDate] = useState("");
@@ -196,7 +204,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                       : "border-border text-muted-foreground hover:border-primary/40"
                   }`}>
                   <p>{o.label}</p>
-                  <p className="text-[10px] font-normal opacity-70 mt-0.5">{o.desc}</p>
+                  <p className="text-[10px] font-normal opacity-70 mt-0.5">유효회원 {memberLimits?.[o.value] ?? "—"}명</p>
                 </button>
               ))}
             </div>
@@ -222,6 +230,42 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
             plan: (planValue || (t as any).plan || "free") as any,
           })} disabled={updateMutation.isPending}>
             {updateMutation.isPending ? "저장 중..." : "저장"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* 플랜별 회원 한도 설정 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2"><CreditCard className="h-4 w-4 text-amber-500" />플랜별 회원 수 한도 설정</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">플랜마다 등록 가능한 유효회원 수 한도를 설정합니다. 변경 시 모든 STEPER에게 적용됩니다.</p>
+          {["free", "pro", "elite"].map(plan => (
+            <div key={plan} className="flex items-center gap-3">
+              <span className={`text-xs font-bold w-12 ${plan === "elite" ? "text-purple-500" : plan === "pro" ? "text-blue-500" : "text-gray-500"}`}>
+                {plan.toUpperCase()}
+              </span>
+              <Input
+                type="number" min={1} max={9999}
+                value={limitDraft?.[plan as "free"|"pro"|"elite"] ?? String(memberLimits?.[plan] ?? "")}
+                onChange={e => setLimitDraft(prev => ({ free: String(memberLimits?.free ?? 7), pro: String(memberLimits?.pro ?? 15), elite: String(memberLimits?.elite ?? 35), ...prev, [plan]: e.target.value }))}
+                className="h-9 w-24 text-sm bg-input border-border"
+              />
+              <span className="text-xs text-muted-foreground">명</span>
+            </div>
+          ))}
+          <Button size="sm" className="w-full"
+            disabled={updateMemberLimitsMutation.isPending || !limitDraft}
+            onClick={() => {
+              if (!limitDraft) return;
+              updateMemberLimitsMutation.mutate({
+                free: parseInt(limitDraft.free) || (memberLimits?.free ?? 7),
+                pro: parseInt(limitDraft.pro) || (memberLimits?.pro ?? 15),
+                elite: parseInt(limitDraft.elite) || (memberLimits?.elite ?? 35),
+              });
+            }}>
+            {updateMemberLimitsMutation.isPending ? "저장 중..." : "한도 저장"}
           </Button>
         </CardContent>
       </Card>

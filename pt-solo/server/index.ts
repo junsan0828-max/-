@@ -833,7 +833,10 @@ async function initDatabase() {
     value TEXT NOT NULL,
     "updatedAt" TEXT NOT NULL DEFAULT now()::text
   )`);
-  for (const [k, v] of [['fsp_limit_free','5'],['fsp_limit_pro','15'],['fsp_limit_elite','30']]) {
+  for (const [k, v] of [
+    ['fsp_limit_free','5'],['fsp_limit_pro','15'],['fsp_limit_elite','30'],
+    ['member_limit_free','7'],['member_limit_pro','15'],['member_limit_elite','35'],
+  ]) {
     await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, [k, v]);
   }
 
