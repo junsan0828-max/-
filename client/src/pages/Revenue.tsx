@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { parseServiceItems, SERVICE_COLORS, type ServiceType } from "@/lib/memberServices";
 
-const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "지역화폐", "분할결제"];
+const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제"];
 const CATEGORIES = ["PT", "헬스", "기타"] as const;
 const SUB_TYPES = ["신규", "재등록", "이전"] as const;
 const DURATIONS = [1, 3, 6, 12];
@@ -137,7 +137,7 @@ function RevenueContent() {
       paidAmount: String(row.entry.paidAmount),
       unpaidAmount: String(row.entry.unpaidAmount),
       refundAmount: String(row.entry.refundAmount),
-      paymentMethod: row.entry.paymentMethod ?? "카드",
+      paymentMethod: row.entry.paymentMethod === "이체" ? "계좌이체" : (row.entry.paymentMethod ?? ""),
       paymentDate: row.entry.paymentDate,
       startDate: row.entry.startDate ?? "",
       installments: String(row.entry.installments),
@@ -685,6 +685,7 @@ function RevenueContent() {
                   <label className="text-xs text-muted-foreground">결제 방법</label>
                   <select value={form.paymentMethod} onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}
                     className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                    <option value="">선택 안 함</option>
                     {PAYMENT_METHODS.map(m => <option key={m}>{m}</option>)}
                   </select>
                 </div>

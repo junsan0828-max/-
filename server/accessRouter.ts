@@ -702,6 +702,7 @@ export const accessRouter = t.router({
           discountAmount: 0,
           paidAmount: input.paymentAmount,
           unpaidAmount: 0,
+          paymentMethod: input.paymentMethod ?? undefined,
           paymentDate: resolvedPaymentDate,
           startDate: input.startDate ?? null,
           memo: input.memo ?? null,

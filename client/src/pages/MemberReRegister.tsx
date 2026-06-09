@@ -72,7 +72,7 @@ export default function MemberReRegister() {
   const [uniformPrice, setUniformPrice] = useState("");
 
   // 공통 결제
-  const [paymentMethod, setPaymentMethod] = useState<"" | "현금영수증" | "이체" | "지역화폐" | "카드">("");
+  const [paymentMethod, setPaymentMethod] = useState<"" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제">("");
   const [paymentDate, setPaymentDate] = useState(today);
   const [unpaidAmount, setUnpaidAmount] = useState("");
   const [paymentMemo, setPaymentMemo] = useState("");
@@ -711,10 +711,12 @@ export default function MemberReRegister() {
                       <SelectValue placeholder="선택" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="현금영수증">현금영수증</SelectItem>
-                      <SelectItem value="이체">계좌이체</SelectItem>
-                      <SelectItem value="지역화폐">지역화폐</SelectItem>
                       <SelectItem value="카드">카드</SelectItem>
+                      <SelectItem value="현금">현금</SelectItem>
+                      <SelectItem value="현금영수증">현금영수증</SelectItem>
+                      <SelectItem value="계좌이체">계좌이체</SelectItem>
+                      <SelectItem value="지역화폐">지역화폐</SelectItem>
+                      <SelectItem value="분할결제">분할결제</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
