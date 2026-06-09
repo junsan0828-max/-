@@ -3764,7 +3764,34 @@ const fitStepPlusRouter = t.router({
     return { prices, discounts };
   }),
 
-  // ── 플랜 구매 신청 ──
+  // ── 포인트로 플랜 즉시 구매 ──
+  trainer_purchasePlanWithPoints: protectedProcedure
+    .input(z.object({
+      plan: z.enum(["pro", "elite"]),
+      amount: z.number().int().min(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      if (input.amount > 0) {
+        const balRow = await pool.query<{ balance: string }>(
+          `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
+          [trainerId]
+        );
+        const balance = Number(balRow.rows[0]?.balance ?? 0);
+        if (balance < input.amount) {
+          throw new TRPCError({ code: "FORBIDDEN", message: `포인트가 부족합니다. (필요: ${input.amount.toLocaleString()}P, 보유: ${balance.toLocaleString()}P)` });
+        }
+        await pool.query(
+          `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'usage',$3,'completed')`,
+          [trainerId, -input.amount, `${input.plan.toUpperCase()} 플랜 구독 결제`]
+        );
+      }
+      await pool.query(`UPDATE users SET plan=$1 WHERE id=$2`, [input.plan, ctx.user.id]);
+      return { success: true };
+    }),
+
+  // ── 플랜 구매 신청 (계좌이체) ──
   trainer_submitPlanPurchase: protectedProcedure
     .input(z.object({
       plan: z.enum(["pro", "elite"]),
