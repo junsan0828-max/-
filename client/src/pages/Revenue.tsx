@@ -330,15 +330,14 @@ function RevenueContent() {
               : row.entry.subType === "이전"
               ? "bg-gray-400/10 text-gray-400 border-gray-400/30"
               : "bg-violet-400/10 text-violet-400 border-violet-400/30";
-            const mainCol = row.entry.type === "PT" ? SERVICE_COLORS.PT
-              : row.entry.type === "헬스" ? SERVICE_COLORS.헬스
-              : SERVICE_COLORS.기타;
-            const detailServiceType: ServiceType =
-              row.entry.programDetail === "락커" ? "락커"
-              : row.entry.programDetail === "운동복" ? "운동복"
+            // 기타 항목 중 운동복/락커는 해당 타입 색상으로 통합 표시
+            const effectiveType: ServiceType =
+              row.entry.type === "PT" ? "PT"
+              : row.entry.type === "헬스" ? "헬스"
+              : (row.entry.programDetail === "운동복 대여" || row.entry.programDetail === "운동복") ? "운동복"
+              : row.entry.programDetail?.startsWith("락커") ? "락커"
               : "기타";
-            const detailCol = row.entry.type === "기타" && row.entry.programDetail
-              ? SERVICE_COLORS[detailServiceType] : null;
+            const mainCol = SERVICE_COLORS[effectiveType] ?? SERVICE_COLORS.기타;
 
             return (
               <div key={row.entry.id} onClick={() => openEdit(row)}
@@ -368,12 +367,17 @@ function RevenueContent() {
                 {/* 서비스 뱃지 */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   <span className={`whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium border ${mainCol.bg} ${mainCol.text} ${mainCol.border}`}>
-                    {row.entry.type === "PT"
+                    {effectiveType === "PT"
                       ? `PT${row.entry.sessions ? ` ${row.entry.sessions}회` : ""}`
-                      : row.entry.type === "헬스"
-                      ? `헬스${row.entry.duration ? ` ${row.entry.duration}개월` : ""}`
-                      : row.entry.programDetail?.startsWith("헬스")
-                      ? row.entry.programDetail
+                      : effectiveType === "헬스"
+                      ? (row.entry.programDetail?.startsWith("헬스") ? row.entry.programDetail
+                        : `헬스${row.entry.duration ? ` ${row.entry.duration}개월` : ""}`)
+                      : effectiveType === "운동복"
+                      ? "운동복"
+                      : effectiveType === "락커"
+                      ? (row.entry.programDetail?.match(/락커\(([^)]+)\)/)
+                          ? `락커 ${row.entry.programDetail.match(/락커\(([^)]+)\)/)![1]}번`
+                          : "락커")
                       : row.entry.programDetail?.startsWith("PT")
                       ? row.entry.programDetail
                       : row.entry.type}
@@ -383,8 +387,8 @@ function RevenueContent() {
                       {row.entry.programDetail}
                     </span>
                   )}
-                  {row.entry.type === "기타" && row.entry.programDetail && (
-                    <span className={`whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium border ${detailCol ? `${detailCol.bg} ${detailCol.text} ${detailCol.border}` : "bg-muted/40 text-muted-foreground border-border"}`}>
+                  {row.entry.type === "기타" && row.entry.programDetail && effectiveType === "기타" && (
+                    <span className="whitespace-nowrap text-xs px-2 py-0.5 rounded-full font-medium border bg-muted/40 text-muted-foreground border-border">
                       {row.entry.programDetail}{row.entry.duration ? ` ${row.entry.duration}개월` : ""}
                     </span>
                   )}
