@@ -175,37 +175,65 @@ export default function AdminPlans() {
             <p className="text-xs text-muted-foreground mt-0.5">0이면 할인 없음. 설정 시 구매 화면에 할인가가 표시됩니다.</p>
           </div>
           <div className="grid grid-cols-3 gap-3">
+            {(["free", "pro", "elite"] as PlanKey[]).map(plan => (
+              <div key={plan} className="space-y-1">
+                <label className={`text-xs font-bold ${PLAN_STYLES[plan].color}`}>
+                  {PLAN_STYLES[plan].label}
+                </label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number" min={0} max={100}
+                    value={discountDraft?.[plan] ?? String(currentDiscounts[plan])}
+                    onChange={e => setDiscountDraft(prev => ({
+                      free: String(currentDiscounts.free),
+                      pro: String(currentDiscounts.pro),
+                      elite: String(currentDiscounts.elite),
+                      ...prev,
+                      [plan]: e.target.value,
+                    }))}
+                    className="h-9 text-sm bg-input border-border"
+                  />
+                  <span className="text-xs text-muted-foreground shrink-0">%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 실시간 미리보기 */}
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="grid grid-cols-4 bg-accent/30 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
+              <span>플랜</span>
+              <span className="text-right">정가</span>
+              <span className="text-right">할인율</span>
+              <span className="text-right">최종 금액</span>
+            </div>
             {(["free", "pro", "elite"] as PlanKey[]).map(plan => {
               const disc = parseInt(discountDraft?.[plan] ?? String(currentDiscounts[plan])) || 0;
               const price = currentPrices[plan];
-              const discounted = disc > 0 ? calcDiscounted(price, disc) : null;
+              const final = disc > 0 ? calcDiscounted(price, disc) : price;
+              const saved = price - final;
               return (
-                <div key={plan} className="space-y-1">
-                  <label className={`text-xs font-bold ${PLAN_STYLES[plan].color}`}>
-                    {PLAN_STYLES[plan].label}
-                  </label>
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number" min={0} max={100}
-                      value={discountDraft?.[plan] ?? String(currentDiscounts[plan])}
-                      onChange={e => setDiscountDraft(prev => ({
-                        free: String(currentDiscounts.free),
-                        pro: String(currentDiscounts.pro),
-                        elite: String(currentDiscounts.elite),
-                        ...prev,
-                        [plan]: e.target.value,
-                      }))}
-                      className="h-9 text-sm bg-input border-border"
-                    />
-                    <span className="text-xs text-muted-foreground shrink-0">%</span>
+                <div key={plan} className="grid grid-cols-4 items-center px-3 py-2.5 border-t border-border/50 text-sm">
+                  <span className={`text-xs font-bold ${PLAN_STYLES[plan].color}`}>{PLAN_STYLES[plan].label}</span>
+                  <span className="text-right text-xs text-muted-foreground">
+                    {price > 0 ? `${price.toLocaleString()}원` : "무료"}
+                  </span>
+                  <span className={`text-right text-xs font-medium ${disc > 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                    {disc > 0 ? `-${disc}%` : "—"}
+                  </span>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${disc > 0 ? "text-green-400" : ""}`}>
+                      {price > 0 ? `${final.toLocaleString()}원` : "무료"}
+                    </p>
+                    {saved > 0 && (
+                      <p className="text-[10px] text-red-400">{saved.toLocaleString()}원 절약</p>
+                    )}
                   </div>
-                  {discounted !== null && price > 0 && (
-                    <p className="text-xs text-green-400">{price.toLocaleString()} → {discounted.toLocaleString()}원</p>
-                  )}
                 </div>
               );
             })}
           </div>
+
           <div className="flex gap-2">
             <Button size="sm" variant="outline" className="flex-1" onClick={() => setDiscountDraft(null)}>취소</Button>
             <Button size="sm" className="flex-1"
