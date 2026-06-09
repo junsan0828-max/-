@@ -204,8 +204,19 @@ function RevenueContent() {
     return matchSearch && matchType && matchBranch;
   });
 
-  const monthTotal = filtered.reduce((s, r) => s + r.entry.paidAmount, 0);
-  const monthUnpaid = filtered.reduce((s, r) => s + r.entry.unpaidAmount, 0);
+  // 같은 이름+날짜+금액+구분 중복 제거 (PT > 헬스 > 기타 우선)
+  const TYPE_PRI: Record<string, number> = { PT: 3, 헬스: 2, 기타: 1 };
+  const dedupMap = new Map<string, typeof filtered[0]>();
+  for (const row of filtered) {
+    const key = `${row.entry.customerName}|${row.entry.paymentDate}|${row.entry.amount}|${row.entry.subType}`;
+    const existing = dedupMap.get(key);
+    if (!existing) { dedupMap.set(key, row); continue; }
+    if ((TYPE_PRI[row.entry.type] ?? 0) > (TYPE_PRI[existing.entry.type] ?? 0)) dedupMap.set(key, row);
+  }
+  const deduped = Array.from(dedupMap.values());
+
+  const monthTotal = deduped.reduce((s, r) => s + r.entry.paidAmount, 0);
+  const monthUnpaid = deduped.reduce((s, r) => s + r.entry.unpaidAmount, 0);
 
   return (
     <div className="space-y-4">
@@ -305,14 +316,14 @@ function RevenueContent() {
       {/* 매출 목록 */}
       {isLoading ? (
         <div className="text-center text-muted-foreground py-8">로딩 중...</div>
-      ) : filtered.length === 0 ? (
+      ) : deduped.length === 0 ? (
         <div className="text-center text-muted-foreground py-12">
           <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">이 달 매출 내역이 없습니다</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(row => {
+          {deduped.map(row => {
             const parsedItems = parseServiceItems((row.entry as any).serviceItems);
             const subTypeStyle = row.entry.subType === "신규"
               ? "bg-blue-400/10 text-blue-400 border-blue-400/30"
@@ -361,6 +372,10 @@ function RevenueContent() {
                       ? `PT${row.entry.sessions ? ` ${row.entry.sessions}회` : ""}`
                       : row.entry.type === "헬스"
                       ? `헬스${row.entry.duration ? ` ${row.entry.duration}개월` : ""}`
+                      : row.entry.programDetail?.startsWith("헬스")
+                      ? row.entry.programDetail
+                      : row.entry.programDetail?.startsWith("PT")
+                      ? row.entry.programDetail
                       : row.entry.type}
                   </span>
                   {row.entry.type === "PT" && row.entry.programDetail && (
