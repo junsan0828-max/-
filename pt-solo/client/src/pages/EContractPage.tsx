@@ -234,7 +234,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
         <div className="bg-white rounded-2xl border border-gray-200 p-5 text-left space-y-2">
           <p className="text-xs font-bold text-gray-500 mb-3">계약 내용 요약</p>
           {[
-            ["트레이너", data?.trainerName],
+            ["STEPER", data?.trainerName],
             submittedInfo.memberName ? ["회원명", submittedInfo.memberName] : null,
             submittedInfo.memberPhone ? ["연락처", submittedInfo.memberPhone] : null,
             data?.programName ? ["프로그램", data.programName] : null,
@@ -298,7 +298,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
       <div className="min-h-screen bg-gray-50 pb-20">
         <div className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
           <p className="text-xs text-gray-400 font-medium">FIT STEP · 서명 완료된 계약서</p>
-          <h1 className="text-base font-bold text-gray-900 mt-0.5">{data.trainerName} 트레이너</h1>
+          <h1 className="text-base font-bold text-gray-900 mt-0.5">{data.trainerName} STEPER</h1>
         </div>
         <div className="max-w-lg mx-auto px-5 pt-5 space-y-5">
           <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
@@ -313,7 +313,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
           <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
             <h2 className="text-sm font-bold text-gray-900">계약 정보</h2>
             <div className="divide-y divide-gray-100">
-              <InfoRowS label="트레이너" value={data.trainerName} />
+              <InfoRowS label="STEPER" value={data.trainerName} />
               {contractType === 'transfer' ? (<>
                 <InfoRowS label="양도인" value={extra.transferorName ?? data.transferorSignerName} />
                 <InfoRowS label="양수인" value={data.memberName} />
@@ -425,7 +425,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
       {/* 헤더 */}
       <div className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
         <p className="text-xs text-gray-400 font-medium">FIT STEP · {headerSubtitle}</p>
-        <h1 className="text-base font-bold text-gray-900 mt-0.5">{data.trainerName} 트레이너</h1>
+        <h1 className="text-base font-bold text-gray-900 mt-0.5">{data.trainerName} STEPER</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-5 pt-5 space-y-5">
@@ -563,7 +563,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
             </div>
             {data.trainerMemo && (
               <div className="bg-gray-50 rounded-xl px-4 py-3">
-                <p className="text-xs text-gray-500 font-semibold mb-1">트레이너 메모</p>
+                <p className="text-xs text-gray-500 font-semibold mb-1">STEPER 메모</p>
                 <p className="text-xs text-gray-700 leading-relaxed">{data.trainerMemo}</p>
               </div>
             )}
@@ -653,7 +653,7 @@ export default function EContractPage({ token: tokenProp }: { token?: string }) 
               </div>
               {data.trainerMemo && (
                 <div className="bg-gray-50 rounded-xl px-4 py-3">
-                  <p className="text-xs text-gray-500 font-semibold mb-1">트레이너 메모</p>
+                  <p className="text-xs text-gray-500 font-semibold mb-1">STEPER 메모</p>
                   <p className="text-xs text-gray-700 leading-relaxed">{data.trainerMemo}</p>
                 </div>
               )}

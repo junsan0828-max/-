@@ -108,7 +108,7 @@ export default function AdminRegistrations() {
           <div className="text-center py-12">
             <User className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
-              {tab === "pending" ? "대기 중인 가입 신청이 없습니다" : tab === "approved" ? "승인된 트레이너가 없습니다" : "거절된 신청이 없습니다"}
+              {tab === "pending" ? "대기 중인 가입 신청이 없습니다" : tab === "approved" ? "승인된 STEPER가 없습니다" : "거절된 신청이 없습니다"}
             </p>
           </div>
         )}

@@ -2117,7 +2117,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <Input type="date" value={transferForm.transferDate} onChange={e => setTransferForm(p => ({ ...p, transferDate: e.target.value }))} className="h-9 text-sm" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">트레이너 메모 (선택)</Label>
+                <Label className="text-xs">STEPER 메모 (선택)</Label>
                 <Textarea value={transferForm.trainerMemo} onChange={e => setTransferForm(p => ({ ...p, trainerMemo: e.target.value }))} placeholder="특이사항 등" rows={2} className="text-sm resize-none" />
               </div>
               <Button className="w-full" disabled={createTransferMutation.isPending} onClick={() => createTransferMutation.mutate({

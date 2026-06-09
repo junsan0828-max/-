@@ -151,7 +151,7 @@ export default function ContractPrint() {
         {/* 헤더 */}
         <div className="text-center mb-8 border-b-2 border-gray-800 pb-6">
           <h1 className="text-3xl font-bold tracking-wide mb-1">{gymName || trainerName || "센터"}</h1>
-          {gymName && trainerName && <p className="text-sm text-gray-500">{trainerName} 트레이너</p>}
+          {gymName && trainerName && <p className="text-sm text-gray-500">{trainerName} STEPER</p>}
           <h2 className="text-xl font-bold mt-4 tracking-widest">회 원 계 약 서</h2>
         </div>
 
@@ -250,7 +250,7 @@ export default function ContractPrint() {
             </div>
           </div>
           <div className="mt-8 text-center">
-            <p className="text-sm text-gray-600 font-semibold">{gymName ? `${gymName} ` : ""}{trainerName || "트레이너"}</p>
+            <p className="text-sm text-gray-600 font-semibold">{gymName ? `${gymName} ` : ""}{trainerName || "STEPER"}</p>
             <div className="mt-2 inline-block border-b border-gray-400 w-40 pb-8"></div>
             <span className="text-xs text-gray-400 ml-2">(서명/인)</span>
           </div>

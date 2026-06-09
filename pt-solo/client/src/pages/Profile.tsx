@@ -78,7 +78,7 @@ function ProfileCompletionBanner({ profile }: { profile: { jobType?: string | nu
     <div className="rounded-xl border border-amber-400/50 bg-amber-50/80 dark:bg-amber-900/20 dark:border-amber-500/30 p-4 flex items-start gap-3">
       <Gift className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">트레이너 프로필 완성 시 <span className="text-amber-600 dark:text-amber-400">+200P</span> 지급!</p>
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">STEPER 프로필 완성 시 <span className="text-amber-600 dark:text-amber-400">+200P</span> 지급!</p>
         <p className="text-xs text-amber-700/80 dark:text-amber-400/70 mt-0.5">직무, 경력, 활동지역을 모두 입력하면 FIT POINT 200P를 드립니다.</p>
         <div className="mt-2">
           <div className="flex justify-between text-xs text-amber-700/70 dark:text-amber-400/70 mb-1">
@@ -142,7 +142,7 @@ export default function Profile() {
         utils.fitPoints.getBalance.invalidate();
         utils.fitPoints.getHistory.invalidate();
       } else {
-        toast.success("트레이너 정보가 저장되었습니다.");
+        toast.success("STEPER 정보가 저장되었습니다.");
       }
       refetch();
     },
@@ -465,7 +465,7 @@ export default function Profile() {
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <Briefcase className="h-4 w-4 text-primary" />트레이너 상세 정보
+            <Briefcase className="h-4 w-4 text-primary" />STEPER 상세 정보
             {!(profile as any)?.profileBonusGranted && (
               <span className="ml-auto flex items-center gap-1 text-xs font-normal text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full">
                 <Gift className="h-3 w-3" />완성 시 +200P

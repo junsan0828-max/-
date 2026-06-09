@@ -585,7 +585,7 @@ export default function AdminNotices() {
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold">공지사항 / 배너 관리</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">트레이너 앱에 표시되는 공지와 배너</p>
+        <p className="text-sm text-muted-foreground mt-0.5">STEPER 앱에 표시되는 공지와 배너</p>
       </div>
 
       {/* 탭 */}

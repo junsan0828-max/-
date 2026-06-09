@@ -54,7 +54,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   const deleteMutation = trpc.admin.deleteTrainer.useMutation({
     onSuccess: () => {
       utils.admin.listTrainers.invalidate();
-      toast.success("트레이너 계정이 삭제되었습니다");
+      toast.success("STEPER 계정이 삭제되었습니다");
       setLocation("/admin/trainers");
     },
     onError: (e) => toast.error(e.message),
@@ -78,7 +78,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   });
 
   if (isLoading) return <div className="py-16 text-center text-muted-foreground text-sm">로딩 중...</div>;
-  if (!t) return <div className="py-16 text-center text-muted-foreground text-sm">트레이너를 찾을 수 없습니다.</div>;
+  if (!t) return <div className="py-16 text-center text-muted-foreground text-sm">STEPER를 찾을 수 없습니다.</div>;
 
   const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
   const isSuspended = t.position === "suspended";
@@ -118,7 +118,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
             <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">이름</label>
-                <Input value={editName} onChange={e => setEditName(e.target.value)} className="h-9 text-sm bg-input border-border" placeholder="트레이너 이름" />
+                <Input value={editName} onChange={e => setEditName(e.target.value)} className="h-9 text-sm bg-input border-border" placeholder="STEPER 이름" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">연락처</label>

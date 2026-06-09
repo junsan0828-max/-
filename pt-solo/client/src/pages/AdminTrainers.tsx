@@ -46,7 +46,7 @@ export default function AdminTrainers() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold">트레이너 관리</h1>
+        <h1 className="text-xl font-bold">STEPER 관리</h1>
         <p className="text-sm text-muted-foreground mt-0.5">총 {trainerList?.length ?? 0}명</p>
       </div>
 
@@ -81,7 +81,7 @@ export default function AdminTrainers() {
         <Card className="bg-card border-orange-500/30">
           <CardContent className="p-3 space-y-1.5">
             <p className="text-xs font-semibold text-orange-400 flex items-center gap-1.5">
-              <AlertTriangle className="h-3.5 w-3.5" />관리 필요 트레이너 {riskList.length}명
+              <AlertTriangle className="h-3.5 w-3.5" />관리 필요 STEPER {riskList.length}명
             </p>
             {riskList.map(t => {
               const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
@@ -102,10 +102,10 @@ export default function AdminTrainers() {
         </Card>
       )}
 
-      {/* 트레이너 목록 */}
+      {/* STEPER 목록 */}
       <div className="space-y-2">
         {filtered.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-8">트레이너가 없습니다.</p>
+          <p className="text-sm text-muted-foreground text-center py-8">STEPER가 없습니다.</p>
         )}
         {filtered.map(t => {
           const plan = getPlanBadge((t as any).plan);

@@ -67,18 +67,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.role === "admin";
 
   const JOB_LABELS: Record<string, string> = {
-    "퍼스널트레이너": "퍼스널트레이너",
-    "필라테스강사": "필라테스강사",
-    "트레이너 준비생": "트레이너 준비생",
-    "센터 운영자": "센터 운영자",
-    "프리랜서": "프리랜서",
-    "학생": "학생",
+    "퍼스널트레이너": "STEPER",
+    "필라테스강사": "STEPER",
+    "트레이너 준비생": "STEPER",
+    "센터 운영자": "STEPER",
+    "프리랜서": "STEPER",
+    "학생": "STEPER",
   };
-  const jobLabel = isAdmin ? "운영자" : (JOB_LABELS[(user as any)?.jobType ?? ""] ?? "트레이너");
+  const jobLabel = isAdmin ? "운영자" : (JOB_LABELS[(user as any)?.jobType ?? ""] ?? "STEPER");
 
   const adminNavItems = [
     { path: "/", label: "운영 현황", icon: LayoutDashboard },
-    { path: "/admin/trainers", label: "트레이너 관리", icon: ShieldCheck },
+    { path: "/admin/trainers", label: "STEPER 관리", icon: ShieldCheck },
     { path: "/admin/points", label: "포인트 관리", icon: Coins },
     { path: "/admin/notices", label: "공지/배너", icon: Bell },
     { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },

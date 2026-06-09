@@ -41,7 +41,7 @@ function AdminDashboard() {
       {/* 핵심 지표 */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "가입 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: ShieldCheck, color: "text-blue-400" },
+          { label: "가입 STEPER", value: `${stats?.totalTrainers ?? 0}명`, icon: ShieldCheck, color: "text-blue-400" },
           { label: "누적 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400" },
           { label: "누적 수업", value: `${stats?.totalSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400" },
         ].map((card) => (
@@ -61,12 +61,12 @@ function AdminDashboard() {
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary" />가입 트레이너
+            <ShieldCheck className="h-4 w-4 text-primary" />가입 STEPER
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {!trainerList || trainerList.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">가입된 트레이너가 없습니다.</p>
+            <p className="text-sm text-muted-foreground text-center py-6">가입된 STEPER가 없습니다.</p>
           ) : (
             trainerList.map((t) => (
               <button

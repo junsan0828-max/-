@@ -269,7 +269,7 @@ function CourseForm({
       <div className="flex items-center justify-between p-3 bg-accent/30 rounded-xl">
         <div>
           <p className="text-sm font-medium">게시 여부</p>
-          <p className="text-xs text-muted-foreground">{form.isPublished ? "트레이너에게 공개됩니다" : "임시저장 (비공개)"}</p>
+          <p className="text-xs text-muted-foreground">{form.isPublished ? "STEPER에게 공개됩니다" : "임시저장 (비공개)"}</p>
         </div>
         <button
           type="button"
@@ -380,7 +380,7 @@ export default function Academy() {
           )}
         </div>
         <p className="text-sm text-white/80 leading-relaxed">
-          매출을 늘리고 싶은 트레이너를 위한 실전 강의. 상담·브랜딩·PT 프로그래밍까지 배우고 포인트도 받으세요.
+          매출을 늘리고 싶은 STEPER를 위한 실전 강의. 상담·브랜딩·PT 프로그래밍까지 배우고 포인트도 받으세요.
         </p>
         <div className="flex items-center gap-4 pt-1">
           <div className="text-center">

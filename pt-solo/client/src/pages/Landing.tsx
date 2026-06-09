@@ -12,7 +12,7 @@ const PROBLEMS = [
   { icon: ClipboardList, title: "회원관리의 어려움", desc: "엑셀, 메모, 카카오톡으로 흩어진 회원 정보. 체계 없는 관리는 결국 이탈로 이어집니다." },
   { icon: RefreshCw, title: "재등록 관리의 부재", desc: "언제 끊기는지 모른 채 회원이 떠나고서야 알게 되는 재등록 타이밍." },
   { icon: NotebookPen, title: "기록 부족", desc: "기억에 의존하는 수업 관리. 회원의 변화를 추적하지 못하면 결과도 없습니다." },
-  { icon: Globe, title: "브랜딩 부족", desc: "실력이 있어도 보여줄 채널이 없는 현실. 트레이너 개인 브랜드가 필요합니다." },
+  { icon: Globe, title: "브랜딩 부족", desc: "실력이 있어도 보여줄 채널이 없는 현실. STEPER 개인 브랜드가 필요합니다." },
   { icon: Settings, title: "운영 시스템 부재", desc: "혼자 운영과 성장을 감당해야 하는 구조. 좋은 사람도 오래 버티기 어렵습니다." },
 ];
 
@@ -46,15 +46,15 @@ const FEATURES = [
     icon: Sparkles,
     label: "작업실",
     color: "amber",
-    items: ["개인 브랜딩", "트레이너 페이지", "SNS 관리", "콘텐츠"],
-    desc: "트레이너로서의 브랜드를 만들고 잠재 회원에게 나를 알립니다.",
+    items: ["개인 브랜딩", "STEPER 페이지", "SNS 관리", "콘텐츠"],
+    desc: "STEPER로서의 브랜드를 만들고 잠재 회원에게 나를 알립니다.",
   },
 ];
 
 const PLUS_CARDS = [
   { icon: LayoutDashboard, title: "개인 관리 페이지", items: ["회원별 전용 페이지", "운동·식단·기록 통합", "맞춤 콘텐츠 제공"] },
   { icon: Dumbbell, title: "맞춤 운동 프로그램", items: ["목표별 프로그램 구성", "회차별 운동 계획", "수행 기록 확인"] },
-  { icon: Video, title: "운동 영상 제공", items: ["트레이너 지정 영상", "동작 설명 안내", "혼자서도 복습 가능"] },
+  { icon: Video, title: "운동 영상 제공", items: ["STEPER 지정 영상", "동작 설명 안내", "혼자서도 복습 가능"] },
   { icon: Salad, title: "맞춤 식단 설계", items: ["목표별 식단 방향", "식사 기록 관리", "피드백 기반 관리"] },
   { icon: Activity, title: "활동 데이터 확인", items: ["출석 기록", "운동 수행 기록", "변화 추적 및 이력"] },
 ];
@@ -62,7 +62,7 @@ const PLUS_CARDS = [
 const CULTURES = [
   { n: "01", t: "기록하는 문화", d: "감각과 경험만이 아닌, 회원의 변화와 수업의 흐름을 데이터로 기록하고 분석합니다." },
   { n: "02", t: "책임지는 문화", d: "회원의 몸과 건강을 다루는 직업인 만큼, 더 높은 전문성과 책임감을 갖습니다." },
-  { n: "03", t: "함께 성장하는 문화", d: "트레이너와 강사가 경쟁 이전에 같은 업계를 성장시키는 파트너입니다." },
+  { n: "03", t: "함께 성장하는 문화", d: "STEPER와 강사가 경쟁 이전에 같은 업계를 성장시키는 파트너입니다." },
   { n: "04", t: "지속 가능한 운영 문화", d: "재등록 자동화, 데이터 기반 시스템으로 오래 살아남는 구조를 만듭니다." },
 ];
 
@@ -391,11 +391,11 @@ export default function Landing() {
                 피트니스 성장 플랫폼
               </div>
               <h1 className="text-[2.4rem] sm:text-[3rem] font-black leading-[1.1] tracking-tight mb-6">
-                트레이너의 성장과<br />운영을 연결하다.
+                STEPER의 성장과<br />운영을 연결하다.
               </h1>
               <p className="text-[15px] text-white/42 leading-loose mb-10">
                 회원관리부터 상담, 건강리포트, 개인 브랜딩까지.<br />
-                트레이너와 강사를 위한 피트니스 성장 플랫폼.
+                STEPER와 강사를 위한 피트니스 성장 플랫폼.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-8">
                 <a href="/auth/kakao"
@@ -449,7 +449,7 @@ export default function Landing() {
           <SectionLabel text="Why FIT STEP" />
           <h2 className="text-center text-[2rem] sm:text-[2.3rem] font-black leading-tight tracking-tight mb-4">왜 FIT STEP이<br />필요한가</h2>
           <p className="text-center text-white/35 text-sm mb-14">
-            좋은 트레이너는 많지만,<br />오래 살아남기 어려운 업계의 현실이 있습니다.
+            좋은 STEPER는 많지만,<br />오래 살아남기 어려운 업계의 현실이 있습니다.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {PROBLEMS.map(p => (
@@ -540,10 +540,10 @@ export default function Landing() {
               <div className={`order-1 lg:order-2 rounded-2xl border ${COLOR_MAP.amber.border} bg-gradient-to-br ${COLOR_MAP.amber.bg} p-7`}>
                 <div className="w-9 h-9 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center mb-4"><Sparkles className="h-4 w-4 text-white/50" /></div>
                 <div className={`text-xs font-bold ${COLOR_MAP.amber.text} mb-2 tracking-widest uppercase`}>작업실</div>
-                <h3 className="text-xl font-black mb-3 leading-snug">나만의 트레이너<br />브랜드를 만드세요</h3>
+                <h3 className="text-xl font-black mb-3 leading-snug">나만의 STEPER<br />브랜드를 만드세요</h3>
                 <p className="text-sm text-white/40 leading-relaxed mb-5">개인 페이지, SNS 관리, 콘텐츠 제작으로 잠재 회원에게 나를 알립니다.</p>
                 <div className="flex flex-wrap gap-2">
-                  {["개인 브랜딩", "트레이너 페이지", "SNS 관리", "콘텐츠"].map(i => (
+                  {["개인 브랜딩", "STEPER 페이지", "SNS 관리", "콘텐츠"].map(i => (
                     <span key={i} className={`text-xs px-3 py-1 rounded-full border ${COLOR_MAP.amber.tag}`}>{i}</span>
                   ))}
                 </div>
@@ -570,7 +570,7 @@ export default function Landing() {
             <span className="text-blue-400">나만의 프리미엄 관리 페이지</span>
           </h2>
           <p className="text-center text-white/38 text-sm leading-relaxed mb-6 max-w-lg mx-auto">
-            트레이너가 회원별로 운동 프로그램, 맞춤 영상, 식단 설계, 활동 데이터를 제공하는 개인 관리 페이지입니다.
+            STEPER가 회원별로 운동 프로그램, 맞춤 영상, 식단 설계, 활동 데이터를 제공하는 개인 관리 페이지입니다.
           </p>
           <div className="flex justify-center mb-14">
             <span className="inline-block text-sm font-semibold text-blue-300/80 bg-blue-500/10 border border-blue-500/20 rounded-full px-6 py-2.5">
@@ -623,14 +623,14 @@ export default function Landing() {
               <div className="bg-gradient-to-br from-blue-600/10 to-violet-600/5 border border-blue-500/18 rounded-2xl p-7">
                 <div className="space-y-4 text-sm text-white/50 leading-loose">
                   <p>
-                    <span className="text-white/80 font-semibold">14년간 트레이너로 현장을 경험하며</span><br />
+                    <span className="text-white/80 font-semibold">14년간 STEPER로 현장을 경험하며</span><br />
                     회원관리, 재등록, 운영 시스템의 한계를 직접 경험했습니다.
                   </p>
                   <p>
                     FIT STEP은<br />
                     <span className="text-white/75 font-semibold">연 1억 5천 매출 운영 경험</span>과<br />
                     <span className="text-white/75 font-semibold">자세체형교정 석사 및 의학박사 과정</span>의 전문성을 바탕으로,<br />
-                    트레이너와 강사가 더 오래, 더 체계적으로 성장할 수 있도록 만들었습니다.
+                    STEPER와 강사가 더 오래, 더 체계적으로 성장할 수 있도록 만들었습니다.
                   </p>
                   <p className="text-blue-300/70 font-medium">
                     "혼자 버티는 업계가 아니라,<br />
@@ -668,7 +668,7 @@ export default function Landing() {
             시작하세요.
           </h2>
           <p className="text-white/32 text-sm leading-relaxed mb-10">
-            더 체계적인 트레이너가 늘어나고,<br />
+            더 체계적인 STEPER가 늘어나고,<br />
             더 건강한 운영 문화가 자리 잡는 것이 우리의 목표입니다.
           </p>
           <a href="/auth/kakao"

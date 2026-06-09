@@ -152,7 +152,7 @@ export default function ClassBookingPage({ username }: Props) {
           </div>
           <div>
             <p className="text-lg font-bold text-gray-900">예약 완료!</p>
-            <p className="text-sm text-gray-500 mt-1">{trainer.trainerName} 트레이너가 곧 확인 후 연락드립니다.</p>
+            <p className="text-sm text-gray-500 mt-1">{trainer.trainerName} STEPER가 곧 확인 후 연락드립니다.</p>
           </div>
           <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-1 text-left">
             <p className="text-gray-600">📅 {selectedDate}</p>
@@ -163,7 +163,7 @@ export default function ClassBookingPage({ username }: Props) {
           <a href={`/p/${username}`}
             className="block w-full py-3 rounded-2xl text-white font-semibold text-sm"
             style={{ backgroundColor: primaryColor }}>
-            트레이너 페이지로
+            STEPER 페이지로
           </a>
         </div>
       </div>
@@ -179,7 +179,7 @@ export default function ClassBookingPage({ username }: Props) {
             <X className="h-5 w-5 text-gray-500" />
           </a>
           <div>
-            <p className="font-bold text-gray-900 text-sm">{trainer.trainerName} 트레이너</p>
+            <p className="font-bold text-gray-900 text-sm">{trainer.trainerName} STEPER</p>
             <p className="text-xs text-gray-400">수업 예약</p>
           </div>
         </div>

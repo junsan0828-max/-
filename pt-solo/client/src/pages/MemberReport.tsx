@@ -456,9 +456,9 @@ export default function MemberReport({ token }: Props) {
         {/* 푸터 */}
         <div className="border-t border-border pt-6 text-center space-y-1">
           <p className="text-xs font-semibold" style={{ color: trainerInfo?.brandColor || "#1a00ff" }}>
-            {trainerInfo?.trainerName ?? "FIT STEP"} 트레이너
+            {trainerInfo?.trainerName ?? "FIT STEP"} STEPER
           </p>
-          <p className="text-xs text-muted-foreground">Powered by FIT STEP · 트레이너 회원 관리 시스템</p>
+          <p className="text-xs text-muted-foreground">Powered by FIT STEP · STEPER 회원 관리 시스템</p>
         </div>
       </div>
     </div>

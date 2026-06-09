@@ -572,7 +572,7 @@ function AdminFspLimitsPanel() {
       <div className="bg-accent/20 border border-border rounded-xl p-4 space-y-3">
         <div>
           <p className="text-sm font-semibold">플랜별 FIT STEP+ 회원 수 제한</p>
-          <p className="text-xs text-muted-foreground mt-0.5">트레이너 플랜에 따라 등록 가능한 최대 회원 수</p>
+          <p className="text-xs text-muted-foreground mt-0.5">STEPER 플랜에 따라 등록 가능한 최대 회원 수</p>
         </div>
         {isLoading ? (
           <p className="text-xs text-muted-foreground">불러오는 중...</p>
@@ -609,11 +609,11 @@ function AdminFspLimitsPanel() {
         </button>
       </div>
 
-      {/* 트레이너별 현황 */}
+      {/* STEPER별 현황 */}
       <div>
-        <p className="text-xs font-semibold mb-2 text-muted-foreground">트레이너별 현황</p>
+        <p className="text-xs font-semibold mb-2 text-muted-foreground">STEPER별 현황</p>
         {!trainers || trainers.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">등록된 트레이너가 없습니다</p>
+          <p className="text-xs text-muted-foreground text-center py-4">등록된 STEPER가 없습니다</p>
         ) : (
           <div className="space-y-2">
             {trainers.map((trainer) => {
@@ -1008,7 +1008,7 @@ function IntroBlockEditor({ d, onChange }: { d: any; onChange: (data: any) => vo
       <div className="space-y-1.5">
         <label className="text-xs text-muted-foreground">직함 <span className="text-muted-foreground/50">(예: 퍼스널 트레이너)</span></label>
         <input value={d.title ?? ""} onChange={e => onChange({ ...d, title: e.target.value })}
-          placeholder="퍼스널 트레이너"
+          placeholder="퍼스널 STEPER"
           className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
       </div>
 
@@ -1024,7 +1024,7 @@ function IntroBlockEditor({ d, onChange }: { d: any; onChange: (data: any) => vo
       <div className="space-y-1.5">
         <label className="text-xs text-muted-foreground">소개글</label>
         <textarea value={d.bio ?? ""} onChange={e => onChange({ ...d, bio: e.target.value })}
-          rows={3} placeholder="트레이너 소개를 입력하세요..."
+          rows={3} placeholder="STEPER 소개를 입력하세요..."
           className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
       </div>
 
@@ -1552,7 +1552,7 @@ function EContractManager() {
           </div>
           {/* 메모 */}
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold text-muted-foreground">트레이너 메모 (회원에게 표시)</label>
+            <label className="text-[10px] font-semibold text-muted-foreground">STEPER 메모 (회원에게 표시)</label>
             <textarea value={form.trainerMemo} onChange={e => setForm(p => ({ ...p, trainerMemo: e.target.value }))}
               rows={2} placeholder="특이사항, 주의점 등"
               className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary resize-none" />
@@ -2066,7 +2066,7 @@ function TransferContractManager() {
               className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary" />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold text-muted-foreground">트레이너 메모 (선택)</label>
+            <label className="text-[10px] font-semibold text-muted-foreground">STEPER 메모 (선택)</label>
             <textarea value={form.trainerMemo} onChange={e => setForm(p => ({ ...p, trainerMemo: e.target.value }))}
               rows={2} placeholder="특이사항 등"
               className="w-full border border-border rounded-lg px-2.5 py-2 text-xs bg-background focus:outline-none focus:border-primary resize-none" />
@@ -2877,8 +2877,8 @@ function ReportBrandingEditor() {
               {(brand as any)?.trainerName?.[0] ?? "T"}
             </div>
             <div>
-              <p className="text-sm font-bold">{(brand as any)?.trainerName ?? "트레이너 이름"}</p>
-              <p className="text-xs text-muted-foreground">트레이너 · Powered by FIT STEP</p>
+              <p className="text-sm font-bold">{(brand as any)?.trainerName ?? "STEPER 이름"}</p>
+              <p className="text-xs text-muted-foreground">STEPER · Powered by FIT STEP</p>
             </div>
           </div>
           {brandMsg && (
@@ -3012,7 +3012,7 @@ const PREVIEW_FEATURES = [
     key: "brand_page",
     icon: <Globe className="h-5 w-5" />,
     title: "내 브랜드 페이지",
-    desc: "나만의 트레이너 소개 페이지를 만들고 링크 하나로 고객에게 공유하세요. 전문 분야, 소개글, 소셜 미디어를 한 곳에 담을 수 있습니다.",
+    desc: "나만의 STEPER 소개 페이지를 만들고 링크 하나로 고객에게 공유하세요. 전문 분야, 소개글, 소셜 미디어를 한 곳에 담을 수 있습니다.",
   },
   {
     key: "booking",
@@ -3085,13 +3085,13 @@ const WS_CATALOG: WsCatDef[] = [
     key: "branding", label: "브랜딩 & 회원 경험", icon: Sparkles, iconCls: "text-violet-500", bgCls: "bg-violet-500/10",
     items: [
       { id: "brand_page", icon: Globe, name: "내 브랜드 페이지", shortDesc: "STEPER 소개 및 브랜드 페이지 제작", status: "active",
-        description: "트레이너만의 브랜드 소개 페이지를 만들고 링크 하나로 회원에게 공유하세요. 소개글, 전문 분야, SNS 계정을 한 페이지에 담을 수 있습니다.",
+        description: "STEPER만의 브랜드 소개 페이지를 만들고 링크 하나로 회원에게 공유하세요. 소개글, 전문 분야, SNS 계정을 한 페이지에 담을 수 있습니다.",
         tags: ["소개 페이지", "SNS 연결", "브랜드 프로필"],
         useCases: ["신규 회원 유치 시 소개 자료로 활용", "SNS 바이오 링크로 설정", "상담 전 회원에게 공유"] },
       { id: "fitstep_plus", icon: Wrench, name: "FIT STEP+", shortDesc: "회원 전용 프리미엄 관리 페이지", status: "active",
-        description: "회원이 직접 접속하는 전용 앱 페이지입니다. 출석 체크, 개인 운동 기록, 트레이너 피드백을 한 곳에서 관리할 수 있습니다.",
+        description: "회원이 직접 접속하는 전용 앱 페이지입니다. 출석 체크, 개인 운동 기록, STEPER 피드백을 한 곳에서 관리할 수 있습니다.",
         tags: ["회원 앱", "출석 확인", "운동 기록", "리포트"],
-        useCases: ["회원 자가 출석 체크", "홈트레이닝 운동 기록", "트레이너 피드백 제공"] },
+        useCases: ["회원 자가 출석 체크", "홈트레이닝 운동 기록", "STEPER 피드백 제공"] },
       { id: "fitstep_videos", icon: PlaySquare, name: "운동 영상 200개", shortDesc: "회원에게 제공 가능한 운동 영상 라이브러리", status: "addon_fsp",
         description: "카테고리·부위별로 정리된 200개의 운동 영상을 회원에게 제공하세요. 홈트레이닝 영상과 부위별 운동 영상을 FIT STEP+ 앱에서 바로 볼 수 있습니다.",
         tags: ["카테고리별 영상", "부위별 영상", "홈트레이닝"],
@@ -3125,7 +3125,7 @@ const WS_CATALOG: WsCatDef[] = [
         tags: ["일지 내 영상 연결", "회원 복습", "홈운동 제공"],
         useCases: ["운동 후 복습 영상 제공", "홈트레이닝 프로그램", "회원 자가 학습"] },
       { id: "contract_terms", icon: FileText, name: "계약서 약관 브랜딩", shortDesc: "계약서 및 약관 커스터마이징", status: "active",
-        description: "회원 계약서와 약관을 트레이너만의 운영 정책에 맞게 수정하세요. 브랜드 컬러와 운영 방침을 반영한 전문적인 계약서를 제공할 수 있습니다.",
+        description: "회원 계약서와 약관을 STEPER만의 운영 정책에 맞게 수정하세요. 브랜드 컬러와 운영 방침을 반영한 전문적인 계약서를 제공할 수 있습니다.",
         tags: ["브랜드 컬러", "약관 수정", "운영 정책"],
         useCases: ["계약서 조건 맞춤 설정", "개인정보 동의서 수정", "운영 방침 반영"] },
     ],
@@ -4263,7 +4263,7 @@ function AdminPreviewNotice({ name }: { name: string }) {
       </div>
       <p className="text-sm font-semibold text-foreground">{name}</p>
       <p className="text-xs text-muted-foreground leading-relaxed">
-        이 기능은 트레이너 계정의 회원 데이터를 사용합니다.<br />실제 사용은 트레이너 작업실에서 확인하세요.
+        이 기능은 STEPER 계정의 회원 데이터를 사용합니다.<br />실제 사용은 STEPER 작업실에서 확인하세요.
       </p>
     </div>
   );
@@ -4356,7 +4356,7 @@ function AdminWorkshopView() {
   const summary = consoleData?.summary ?? { total: 0, unopened: 0, trial: 0, grace: 0, locked: 0, active: 0 };
 
   const featureUsage: Record<string, { activeUsers: number; totalMetric: number; label: string }> = {
-    brand_page:      { activeUsers: trainers.filter(t => t.brandIsPublic).length, totalMetric: trainers.filter(t => t.brandBio || t.brandIsPublic).length, label: "공개 중 트레이너" },
+    brand_page:      { activeUsers: trainers.filter(t => t.brandIsPublic).length, totalMetric: trainers.filter(t => t.brandBio || t.brandIsPublic).length, label: "공개 중 STEPER" },
     fitstep_plus:    { activeUsers: trainers.filter(t => t.fsp_count > 0).length, totalMetric: trainers.reduce((s, t) => s + (t.fsp_count || 0), 0), label: "FSP 회원 수" },
     booking:         { activeUsers: trainers.filter(t => t.bookingEnabled).length, totalMetric: trainers.reduce((s, t) => s + (t.booking_count || 0), 0), label: "총 예약 건" },
     report_branding: { activeUsers: trainers.filter(t => t.brandColor).length, totalMetric: trainers.filter(t => t.brandColor).length, label: "브랜드 설정" },

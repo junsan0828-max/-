@@ -65,7 +65,7 @@ export default function ProfileSetupModal({ onOpenChange }: { onOpenChange?: (op
 
           <h2 className="text-xl font-bold mb-1">나의 프로필을 완성하세요!</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            트레이너 정보를 입력하면<br />
+            STEPER 정보를 입력하면<br />
             <span className="text-primary font-semibold">FIT POINT 200P</span>를 즉시 드립니다
           </p>
         </div>

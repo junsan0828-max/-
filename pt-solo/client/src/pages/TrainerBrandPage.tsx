@@ -3,11 +3,11 @@ import { trpc } from "@/lib/trpc";
 import { Instagram, Youtube, MessageCircle, Calendar, ChevronRight, ArrowLeft, CheckCircle, Award, Dumbbell, PlaySquare, ChevronDown, Star, GraduationCap, Trophy, ChevronLeft, Check, Clock, X } from "lucide-react";
 
 const JOB_LABELS: Record<string, string> = {
-  personal_trainer: "퍼스널 트레이너",
+  personal_trainer: "퍼스널 STEPER",
   pilates: "필라테스 강사",
-  trainee: "트레이너 수련생",
+  trainee: "STEPER 수련생",
   studio_owner: "스튜디오 원장",
-  freelancer: "프리랜서 트레이너",
+  freelancer: "프리랜서 STEPER",
   student: "체육 전공생",
 };
 const CAREER_LABELS: Record<string, string> = {
@@ -600,7 +600,7 @@ export default function TrainerBrandPage({ username }: Props) {
                   </div>
                   <div>
                     <p className="text-lg font-bold text-gray-900">예약 완료!</p>
-                    <p className="text-sm text-gray-500 mt-1">{trainer.trainerName} 트레이너가 곧 연락드립니다.</p>
+                    <p className="text-sm text-gray-500 mt-1">{trainer.trainerName} STEPER가 곧 연락드립니다.</p>
                   </div>
                   {selectedDate && selectedSlot && (
                     <div className="bg-gray-50 rounded-2xl p-4 text-sm space-y-1">

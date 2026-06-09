@@ -341,7 +341,7 @@ export default function AdminPoints() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold">포인트 관리</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">트레이너 포인트 지급 및 자동 규칙 설정</p>
+        <p className="text-sm text-muted-foreground mt-0.5">STEPER 포인트 지급 및 자동 규칙 설정</p>
       </div>
 
       {/* 요약 */}
@@ -436,22 +436,22 @@ export default function AdminPoints() {
         </CardContent>
       </Card>
 
-      {/* 트레이너별 포인트 */}
+      {/* STEPER별 포인트 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <Coins className="h-4 w-4 text-primary" />트레이너별 포인트
+            <Coins className="h-4 w-4 text-primary" />STEPER별 포인트
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <Input
-            placeholder="트레이너 이름 또는 아이디 검색"
+            placeholder="STEPER 이름 또는 아이디 검색"
             value={search} onChange={e => setSearch(e.target.value)}
             className="h-9 text-sm bg-input border-border mb-3"
           />
           {isLoading && <p className="text-xs text-muted-foreground py-4 text-center">로딩 중...</p>}
           {filtered.length === 0 && !isLoading && (
-            <p className="text-xs text-muted-foreground py-4 text-center">트레이너가 없습니다</p>
+            <p className="text-xs text-muted-foreground py-4 text-center">STEPER가 없습니다</p>
           )}
           {filtered.map(t => <TrainerPointRow key={t.trainerId} trainer={t} />)}
         </CardContent>
