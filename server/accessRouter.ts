@@ -695,7 +695,7 @@ export const accessRouter = t.router({
           createdBy: ctx.user.id,
           customerName: input.memberName ?? null,
           phone: input.memberPhone ?? null,
-          programDetail: "운동복 대여",
+          programDetail: "운동복",
           type: "기타",
           subType: "신규",
           amount: input.paymentAmount,

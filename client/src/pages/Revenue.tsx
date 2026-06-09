@@ -117,7 +117,7 @@ function RevenueContent() {
     setForm({
       customerName: row.entry.customerName ?? "",
       phone: row.entry.phone ?? "",
-      programDetail: row.entry.programDetail ?? "",
+      programDetail: row.entry.programDetail === "운동복 대여" ? "운동복" : (row.entry.programDetail ?? ""),
       duration: row.entry.duration ? String(row.entry.duration) : "",
       sessions: row.entry.sessions ? String(row.entry.sessions) : "",
       ptProgramKey: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? (row.entry.programDetail ?? "") : (row.entry.programDetail ? "기타" : ""),
