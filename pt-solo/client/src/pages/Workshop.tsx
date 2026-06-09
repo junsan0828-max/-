@@ -4868,11 +4868,10 @@ function WorkshopContent() {
             ))}
           </div>
           <p className="text-sm font-semibold text-amber-800">작업실을 활성화하면 모든 데이터와 기능이 복구됩니다.</p>
-          <Button className="w-full bg-amber-500 hover:bg-amber-600 text-white gap-2"
+          <Button className="w-full bg-amber-500 hover:bg-amber-600 text-white"
             onClick={() => unlockMutation.mutate({ feature: "workshop_access" })}
             disabled={unlockMutation.isPending}>
-            <Coins className="h-4 w-4" />
-            {unlockMutation.isPending ? "처리 중..." : "50,000P로 작업실 활성화"}
+            {unlockMutation.isPending ? "처리 중..." : "작업실 활성화"}
           </Button>
         </div>
 
@@ -4929,11 +4928,10 @@ function WorkshopContent() {
               <p className="text-[10px] text-red-600 mt-0.5">지금 활성화하면 기존 데이터가 그대로 유지됩니다</p>
             </div>
           </div>
-          <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
+          <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-white"
             onClick={() => unlockMutation.mutate({ feature: "workshop_access" })}
             disabled={unlockMutation.isPending}>
-            <Coins className="h-3.5 w-3.5" />
-            {unlockMutation.isPending ? "처리 중..." : "50,000P로 작업실 활성화"}
+            {unlockMutation.isPending ? "처리 중..." : "작업실 활성화"}
           </Button>
         </div>
       )}

@@ -3742,7 +3742,7 @@ const expensesRouter = t.router({
 // ── 운동 프로그램 템플릿 ───────────────────────────────────────────────────
 // ── 작업실 잠금해제 ────────────────────────────────────────────────────────
 const WORKSHOP_FEATURES: Record<string, { label: string; points: number }> = {
-  workshop_access:  { label: "작업실 오픈",             points: 50000 },
+  workshop_access:  { label: "작업실 오픈",             points: 0 },
 };
 
 const WORKSHOP_TRIAL_DAYS = 30;
@@ -3856,18 +3856,20 @@ const workshopRouter = t.router({
     );
     if (existing.rows.length > 0) throw new TRPCError({ code: "CONFLICT", message: "이미 잠금해제된 기능입니다." });
 
-    // 포인트 잔액 확인
-    const balRow = await pool.query<{ balance: string }>(
-      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`, [trainerId]
-    );
-    const balance = Number(balRow.rows[0]?.balance ?? 0);
-    if (balance < meta.points) throw new TRPCError({ code: "FORBIDDEN", message: `포인트가 부족합니다. (필요: ${meta.points}P, 보유: ${balance}P)` });
+    if (meta.points > 0) {
+      // 포인트 잔액 확인
+      const balRow = await pool.query<{ balance: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`, [trainerId]
+      );
+      const balance = Number(balRow.rows[0]?.balance ?? 0);
+      if (balance < meta.points) throw new TRPCError({ code: "FORBIDDEN", message: `포인트가 부족합니다. (필요: ${meta.points}P, 보유: ${balance}P)` });
 
-    // 포인트 차감
-    await pool.query(
-      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'workshop_unlock',$3,'completed')`,
-      [trainerId, -meta.points, `작업실 기능 잠금해제: ${meta.label}`]
-    );
+      // 포인트 차감
+      await pool.query(
+        `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'workshop_unlock',$3,'completed')`,
+        [trainerId, -meta.points, `작업실 기능 잠금해제: ${meta.label}`]
+      );
+    }
 
     // 잠금해제 기록
     await pool.query(
