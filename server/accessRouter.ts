@@ -684,13 +684,33 @@ export const accessRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.execute(sql`ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "paymentDate" TEXT`);
       const now = new Date().toISOString();
-      const [row] = await db.insert(uniforms).values({ ...input, isActive: 1, createdAt: now, updatedAt: now }).returning();
+
+      // memberId 없는 신규 등록이면 members 테이블에 자동 생성
+      let resolvedMemberId = input.memberId ?? null;
+      if (!resolvedMemberId && input.memberName) {
+        const [newMember] = await db.insert(members).values({
+          name: input.memberName,
+          phone: input.memberPhone ?? undefined,
+          status: "active",
+          grade: "basic",
+          membershipStart: input.startDate ?? undefined,
+          createdAt: now,
+          updatedAt: now,
+        }).returning({ id: members.id });
+        resolvedMemberId = newMember?.id ?? null;
+      }
+
+      const [row] = await db.insert(uniforms).values({
+        ...input,
+        memberId: resolvedMemberId ?? undefined,
+        isActive: 1, createdAt: now, updatedAt: now,
+      }).returning();
 
       // 결제 대여 시 장부 자동 연동
       if (input.rentalType === "paid" && input.isPaid === 1 && input.paymentAmount && input.paymentAmount > 0) {
         const resolvedPaymentDate = input.paymentDate ?? now.substring(0, 10);
         await db.insert(revenueEntries).values({
-          memberId: input.memberId ?? null,
+          memberId: resolvedMemberId,
           trainerId: null,
           createdBy: ctx.user.id,
           customerName: input.memberName ?? null,

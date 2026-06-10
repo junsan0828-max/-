@@ -169,6 +169,26 @@ const membersRouter = t.router({
     const { role, trainerId } = ctx.user;
     if (role === "trainer" && !trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
+    // 운동복 매출 중 memberId 없는 것 소급 회원 생성
+    const orphanUniforms = await db.select().from(revenueEntries)
+      .where(and(eq(revenueEntries.programDetail, "운동복"), isNull(revenueEntries.memberId)));
+    for (const entry of orphanUniforms) {
+      if (!entry.customerName) continue;
+      const now = new Date().toISOString();
+      const [newMember] = await db.insert(members).values({
+        name: entry.customerName,
+        phone: entry.phone ?? undefined,
+        status: "active",
+        grade: "basic",
+        membershipStart: entry.startDate ?? undefined,
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: members.id });
+      if (newMember) {
+        await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, entry.id));
+      }
+    }
+
     const whereClause = undefined; // 트레이너·컨설턴트 모두 전체 회원 공유
 
     // 회원 + 서비스 데이터를 병렬 조회해 통합 반환
