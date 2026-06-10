@@ -40,16 +40,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
-
-  // 경로 변경 시 가이드 자동 표시
-  useEffect(() => {
-    if (user && shouldShowGuide(location)) {
-      setGuideOpen(true);
-    } else {
-      setGuideOpen(false);
-    }
-  }, [location, user]);
-
   const [surveyDone, setSurveyDone] = useState(
     () => !!sessionStorage.getItem("onboarding-survey-dismissed")
   );
@@ -66,6 +56,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     && !(profile as any).onboardingSurveyDone
     && !surveyDone
     && !needsBasicInfo;
+
+  // 경로 변경 시 가이드 자동 표시 (온보딩 모달이 없을 때만)
+  useEffect(() => {
+    if (user && shouldShowGuide(location) && !showSurvey && !needsBasicInfo && !profileModalOpen) {
+      const t = setTimeout(() => setGuideOpen(true), 800);
+      return () => clearTimeout(t);
+    } else {
+      setGuideOpen(false);
+    }
+  }, [location, user, showSurvey, needsBasicInfo, profileModalOpen]);
 
   useEffect(() => {
     const handler = (e: Event) => {
