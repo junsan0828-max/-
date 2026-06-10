@@ -178,8 +178,8 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-5">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-card/95 backdrop-blur border border-border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div className="absolute inset-0 z-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
         {/* 닫기 버튼 */}
         <button onClick={onClose} className="absolute top-3 right-3 p-1 text-muted-foreground hover:text-foreground transition-colors">
           <X className="h-4 w-4" />
