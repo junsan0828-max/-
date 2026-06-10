@@ -169,27 +169,51 @@ const membersRouter = t.router({
     const { role, trainerId } = ctx.user;
     if (role === "trainer" && !trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
-    // 운동복 매출 중 memberId 없는 것 소급 회원 생성 (운동복 대여 등 구형 포함)
+    // 운동복 매출 중 memberId 없는 것 소급 처리 (운동복 대여 등 구형 포함)
     const orphanUniforms = await db.select().from(revenueEntries)
       .where(and(sql`${revenueEntries.programDetail} LIKE '%운동복%'`, isNull(revenueEntries.memberId)));
     for (const entry of orphanUniforms) {
       if (!entry.customerName) continue;
       const now = new Date().toISOString();
-      const [newMember] = await db.insert(members).values({
-        name: entry.customerName,
-        phone: entry.phone ?? undefined,
-        status: "active",
-        grade: "basic",
-        membershipStart: entry.startDate ?? undefined,
-        createdAt: now,
-        updatedAt: now,
-      }).returning({ id: members.id });
-      if (newMember) {
-        await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, entry.id));
-        // uniforms 테이블도 함께 연결
-        await db.execute(sql`UPDATE uniforms SET "memberId" = ${newMember.id} WHERE "memberName" = ${entry.customerName} AND "memberId" IS NULL`);
+      // 같은 이름 기존 회원 먼저 탐색
+      const existing = await pool.query(
+        `SELECT id FROM members WHERE name = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+        [entry.customerName]
+      );
+      let targetMemberId: number | null = null;
+      if (existing.rows.length > 0) {
+        targetMemberId = existing.rows[0].id;
+        // 정지 회원이면 활성으로 전환
+        await db.update(members).set({ status: "active", updatedAt: now }).where(and(eq(members.id, targetMemberId!), eq(members.status, "paused")));
+      } else {
+        const [newMember] = await db.insert(members).values({
+          name: entry.customerName,
+          phone: entry.phone ?? undefined,
+          status: "active",
+          grade: "basic",
+          membershipStart: entry.startDate ?? undefined,
+          createdAt: now,
+          updatedAt: now,
+        }).returning({ id: members.id });
+        targetMemberId = newMember?.id ?? null;
+      }
+      if (targetMemberId) {
+        await db.update(revenueEntries).set({ memberId: targetMemberId }).where(eq(revenueEntries.id, entry.id));
+        await db.execute(sql`UPDATE uniforms SET "memberId" = ${targetMemberId} WHERE "memberName" = ${entry.customerName} AND "memberId" IS NULL`);
       }
     }
+
+    // 운동복 구매로 연결된 정지 회원도 활성으로 전환
+    await pool.query(`
+      UPDATE members m SET status = 'active', "updatedAt" = NOW()::text
+      WHERE m.status = 'paused'
+        AND EXISTS (
+          SELECT 1 FROM revenue_entries r
+          WHERE r."memberId" = m.id
+            AND r."programDetail" LIKE '%운동복%'
+            AND r."subType" = '신규'
+        )
+    `);
 
     const whereClause = undefined; // 트레이너·컨설턴트 모두 전체 회원 공유
 

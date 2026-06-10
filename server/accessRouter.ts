@@ -698,6 +698,10 @@ export const accessRouter = t.router({
           updatedAt: now,
         }).returning({ id: members.id });
         resolvedMemberId = newMember?.id ?? null;
+      } else if (resolvedMemberId) {
+        // 기존 정지 회원 → 신규 구매 시 활성으로 전환
+        await db.update(members).set({ status: "active", updatedAt: now })
+          .where(and(eq(members.id, resolvedMemberId), eq(members.status, "paused")));
       }
 
       const [row] = await db.insert(uniforms).values({
