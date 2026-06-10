@@ -4,12 +4,11 @@ import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Whe
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRk00IJXvZha8RRaMK40XQ-C20WhhmPVHxLbxiUnPZZfy64fd8muHWuz_QbhNXjLDkqscnrbRQ-AzME/pub?gid=287813752&single=true&output=csv";
 
-// 네임스페이스: 영문+숫자+밑줄만 허용 (하이픈 불가)
-const COUNTER_NS = "dietplanner_standalone";
+const COUNTER_NS = "zdietplan";
 
 async function fetchCounterAPI(path: string): Promise<number | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
+  const timer = setTimeout(() => controller.abort(), 6000);
   try {
     const res = await fetch(`https://api.countapi.xyz/${path}`, { signal: controller.signal });
     clearTimeout(timer);
@@ -706,6 +705,12 @@ const _FT: FT[] = [
   ["snack","말린 블루베리","30g",100,24,1,0],
   ["snack","말린 파파야","30g",80,20,0,0],
   ["snack","퀴노아 팝","퀴노아팝30g",110,20,4,2],
+  ["breakfast","두부 야채 된장죽","두부+야채+쌀20g",220,30,12,6],
+  ["lunch","닭가슴살 오이냉채면","닭+오이+냉채면",430,70,28,8],
+  ["dinner","참치 아보카도 야채볶음+밥","참치+아보카도+야채+현미밥",480,56,30,18],
+  ["snack","구운 아몬드+크랜베리","구운아몬드+건크랜베리30g",160,16,4,10],
+  ["snack","저지방 두부 티라미수","두부+저지방크림",130,12,9,5],
+  ["breakfast","닭가슴살 오트밀죽","닭가슴살+오트밀",310,40,28,5],
 ];
 
 const BUILT_IN_FOOD_DB: MealDBItem[] = _FT.map(
@@ -894,14 +899,30 @@ export default function DietPlanner() {
 
   useEffect(() => {
     loadDB();
-    // 방문자 수: 세션당 1회만 증가
+
+    const lsV = parseInt(localStorage.getItem("dp_vc") || "0");
+    const lsS = parseInt(localStorage.getItem("dp_sc") || "0");
+
     if (!sessionStorage.getItem("dp-visited")) {
       sessionStorage.setItem("dp-visited", "1");
-      hitCounter("visitors").then(setVisitorCount);
+      const next = lsV + 1;
+      localStorage.setItem("dp_vc", String(next));
+      setVisitorCount(next);
+      // 원격 카운터 동기화 시도
+      hitCounter("visitors").then((v) => {
+        if (v !== null) { localStorage.setItem("dp_vc", String(v)); setVisitorCount(v); }
+      });
     } else {
-      getCounter("visitors").then(setVisitorCount);
+      setVisitorCount(lsV);
+      getCounter("visitors").then((v) => {
+        if (v !== null) { localStorage.setItem("dp_vc", String(v)); setVisitorCount(v); }
+      });
     }
-    getCounter("shares").then(setShareCount);
+
+    setShareCount(lsS);
+    getCounter("shares").then((s) => {
+      if (s !== null) { localStorage.setItem("dp_sc", String(s)); setShareCount(s); }
+    });
   }, []);
 
   const bmr =
@@ -961,7 +982,11 @@ export default function DietPlanner() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }
-      hitCounter("shares").then((v) => { if (v !== null) setShareCount(v); });
+      hitCounter("shares").then((v) => {
+        const next = v ?? (parseInt(localStorage.getItem("dp_sc") || "0") + 1);
+        localStorage.setItem("dp_sc", String(next));
+        setShareCount(next);
+      });
     } catch {
       // 사용자가 공유 취소한 경우 카운트 안 함
     }
@@ -988,30 +1013,32 @@ export default function DietPlanner() {
             <h1 className="text-base font-bold text-white">맞춤 식단 플래너</h1>
             <p className="text-xs text-gray-400">회원 정보 입력 → 하루 식단 자동 구성</p>
           </div>
-          <div className="ml-auto flex items-center gap-3">
-            {visitorCount !== null && (
-              <span className="flex items-center gap-1 text-xs text-gray-400">
-                <span>👥</span>
-                <span>{visitorCount.toLocaleString()}명</span>
+          <div className="ml-auto flex items-center gap-2">
+            {/* 이용자/공유 카운터 — 항상 표시 */}
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <span>👥</span>
+              <span className="tabular-nums">
+                {visitorCount !== null ? `${visitorCount.toLocaleString()}명` : "···"}
               </span>
-            )}
-            {shareCount !== null && (
-              <span className="flex items-center gap-1 text-xs text-gray-400">
-                <span>📤</span>
-                <span>{shareCount.toLocaleString()}회</span>
+            </span>
+            <span className="text-gray-700">|</span>
+            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <span>📤</span>
+              <span className="tabular-nums">
+                {shareCount !== null ? `${shareCount.toLocaleString()}회` : "···"}
               </span>
-            )}
-            <span className="w-px h-4 bg-gray-700" />
-            {dbLoading && (
+            </span>
+            <span className="w-px h-4 bg-gray-700 mx-1" />
+            {/* 식품 DB 현황 */}
+            {dbLoading ? (
               <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />식품 DB 로딩 중
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />로딩 중
               </span>
-            )}
-            {!dbLoading && (
+            ) : (
               <span className="text-xs text-emerald-400">{dbLabel}</span>
             )}
             {dbError && (
-              <button onClick={loadDB} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300">
+              <button onClick={loadDB} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 ml-1">
                 <RefreshCw className="w-3.5 h-3.5" />재시도
               </button>
             )}
