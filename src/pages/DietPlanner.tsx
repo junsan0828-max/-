@@ -30,6 +30,15 @@ function getCounter(key: string): Promise<number | null> {
 }
 
 // ─── 타입 ──────────────────────────────────────────────────────────────────────
+interface KakaoUser {
+  id: number;
+  name: string;
+  thumbnail: string | null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const Kakao = (): any => (window as any).Kakao;
+
 interface MealDBItem {
   mealTime: "breakfast" | "lunch" | "dinner" | "snack";
   name: string;
@@ -847,6 +856,15 @@ function sumMeal(entries: MealEntry[]) {
   );
 }
 
+// ─── 카카오 아이콘 ─────────────────────────────────────────────────────────────
+function KakaoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="#3A1D1D" aria-hidden>
+      <path d="M12 3C6.477 3 2 6.92 2 11.7c0 3.05 1.62 5.74 4.09 7.37L5 21.5l3.84-1.92c.99.28 2.05.42 3.16.42 5.523 0 10-3.92 10-8.7S17.523 3 12 3z" />
+    </svg>
+  );
+}
+
 // ─── 컴포넌트 ──────────────────────────────────────────────────────────────────
 export default function DietPlanner() {
   const [name, setName] = useState("");
@@ -872,6 +890,7 @@ export default function DietPlanner() {
   const [dbError, setDbError] = useState(false);
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
   const [shareCount, setShareCount] = useState<number | null>(null);
+  const [kakaoUser, setKakaoUser] = useState<KakaoUser | null>(null);
 
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -898,6 +917,13 @@ export default function DietPlanner() {
   }
 
   useEffect(() => {
+    // Kakao SDK 초기화
+    const k = Kakao();
+    const appKey = import.meta.env.VITE_KAKAO_APP_KEY as string | undefined;
+    if (k && appKey && !k.isInitialized()) {
+      k.init(appKey);
+    }
+
     loadDB();
 
     const lsV = parseInt(localStorage.getItem("dp_vc") || "0");
@@ -992,6 +1018,41 @@ export default function DietPlanner() {
     }
   }
 
+  function handleKakaoLogin() {
+    const k = Kakao();
+    if (!k?.isInitialized()) {
+      alert("카카오 앱 키가 설정되지 않았습니다.\nRailway 환경변수 VITE_KAKAO_APP_KEY를 확인해주세요.");
+      return;
+    }
+    k.Auth.login({
+      success: () => {
+        k.API.request({
+          url: "/v2/user/me",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          success: (res: any) => {
+            const profile = res.kakao_account?.profile;
+            const user: KakaoUser = {
+              id: res.id,
+              name: profile?.nickname ?? "카카오 사용자",
+              thumbnail: profile?.thumbnail_image_url ?? null,
+            };
+            setKakaoUser(user);
+            if (profile?.nickname && !name) setName(profile.nickname);
+          },
+        });
+      },
+    });
+  }
+
+  function handleKakaoLogout() {
+    const k = Kakao();
+    if (k?.Auth?.getAccessToken()) {
+      k.Auth.logout(() => setKakaoUser(null));
+    } else {
+      setKakaoUser(null);
+    }
+  }
+
   const dbLabel = dbItems.length >= 1000 ? "식품 DB 1000개+" : `식품 DB ${dbItems.length}개`;
 
   const mealLabels = [
@@ -1006,14 +1067,14 @@ export default function DietPlanner() {
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-4">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
             <Salad className="w-5 h-5 text-emerald-400" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-base font-bold text-white">맞춤 식단 플래너</h1>
             <p className="text-xs text-gray-400">회원 정보 입력 → 하루 식단 자동 구성</p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 shrink-0">
             {/* 이용자/공유 카운터 — 항상 표시 */}
             <span className="flex items-center gap-1 text-xs text-gray-400">
               <span>👥</span>
@@ -1043,6 +1104,30 @@ export default function DietPlanner() {
               </button>
             )}
           </div>
+
+          {/* 카카오 로그인 버튼 */}
+          {kakaoUser ? (
+            <button
+              onClick={handleKakaoLogout}
+              title="로그아웃"
+              className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold pl-1.5 pr-2.5 py-1.5 rounded-lg transition-colors shrink-0"
+            >
+              {kakaoUser.thumbnail ? (
+                <img src={kakaoUser.thumbnail} alt="" className="w-5 h-5 rounded-full object-cover" />
+              ) : (
+                <KakaoIcon />
+              )}
+              <span className="max-w-[72px] truncate">{kakaoUser.name}</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleKakaoLogin}
+              className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
+            >
+              <KakaoIcon />
+              <span>로그인</span>
+            </button>
+          )}
         </div>
       </div>
 
