@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Salad, User, Activity, Utensils, Share2, AlertCircle, Flame, Wheat, Beef, Droplets, Loader2, RefreshCw } from "lucide-react";
+import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Wheat, Beef, Droplets, Loader2, RefreshCw } from "lucide-react";
 
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRk00IJXvZha8RRaMK40XQ-C20WhhmPVHxLbxiUnPZZfy64fd8muHWuz_QbhNXjLDkqscnrbRQ-AzME/pub?gid=287813752&single=true&output=csv";
@@ -155,6 +155,7 @@ export default function DietPlanner() {
 
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [ratioError, setRatioError] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const [dbItems, setDbItems] = useState<MealDBItem[]>([]);
   const [dbLoading, setDbLoading] = useState(true);
@@ -205,38 +206,41 @@ export default function DietPlanner() {
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   }
 
-  function handleKakaoShare() {
-    if (!mealPlan || !window.Kakao) return;
-    const total = sumMeal([...mealPlan.breakfast, ...mealPlan.lunch, ...mealPlan.dinner, ...mealPlan.snack]);
+  function buildShareText() {
+    if (!mealPlan) return "";
     const bf = sumMeal(mealPlan.breakfast);
     const lu = sumMeal(mealPlan.lunch);
     const di = sumMeal(mealPlan.dinner);
     const sn = sumMeal(mealPlan.snack);
-    const desc = [
-      `권장칼로리: ${tdee} kcal`,
-      `아침(${pctBreakfast}%): ${bf.kcal}kcal | 탄${bf.carb}g 단${bf.protein}g 지${bf.fat}g`,
-      `점심(${pctLunch}%): ${lu.kcal}kcal | 탄${lu.carb}g 단${lu.protein}g 지${lu.fat}g`,
-      `저녁(${pctDinner}%): ${di.kcal}kcal | 탄${di.carb}g 단${di.protein}g 지${di.fat}g`,
-      `간식(${pctSnack}%): ${sn.kcal}kcal | 탄${sn.carb}g 단${sn.protein}g 지${sn.fat}g`,
-      `합계: ${total.kcal}kcal | 탄${total.carb}g 단${total.protein}g 지${total.fat}g`,
+    const total = { kcal: bf.kcal + lu.kcal + di.kcal + sn.kcal, carb: bf.carb + lu.carb + di.carb + sn.carb, protein: bf.protein + lu.protein + di.protein + sn.protein, fat: bf.fat + lu.fat + di.fat + sn.fat };
+
+    const mealLine = (label: string, entries: MealEntry[], sum: ReturnType<typeof sumMeal>) =>
+      `${label}: ${entries.map((e) => e.name).join(" + ")}\n  ${sum.kcal}kcal | 탄${sum.carb}g 단${sum.protein}g 지${sum.fat}g`;
+
+    return [
+      `🥗 ${name || "회원"}님의 하루 맞춤 식단`,
+      `권장칼로리: ${tdee.toLocaleString()} kcal`,
+      "",
+      mealLine("🌅 아침", mealPlan.breakfast, bf),
+      mealLine("☀️ 점심", mealPlan.lunch, lu),
+      mealLine("🌙 저녁", mealPlan.dinner, di),
+      mealLine("🥗 간식", mealPlan.snack, sn),
+      "",
+      `📊 합계: ${total.kcal}kcal | 탄${total.carb}g 단${total.protein}g 지${total.fat}g`,
     ].join("\n");
-    window.Kakao.Share.sendDefault({
-      objectType: "text",
-      text: `[FIT STEP] ${name || "회원"}님의 하루 맞춤 식단\n\n${desc}`,
-      link: { mobileWebUrl: window.location.href, webUrl: window.location.href },
-    });
   }
 
-  useEffect(() => {
-    if (window.Kakao) return;
-    const script = document.createElement("script");
-    script.src = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js";
-    script.async = true;
-    script.onload = () => {
-      if (window.Kakao && !window.Kakao.isInitialized()) window.Kakao.init("YOUR_KAKAO_JS_KEY");
-    };
-    document.head.appendChild(script);
-  }, []);
+  async function handleShare() {
+    if (!mealPlan) return;
+    const text = buildShareText();
+    if (navigator.share) {
+      await navigator.share({ title: `${name || "회원"}님의 하루 맞춤 식단`, text });
+    } else {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
 
   const mealLabels = [
     { key: "breakfast" as const, label: "아침", pct: pctBreakfast, emoji: "🌅" },
@@ -450,11 +454,11 @@ export default function DietPlanner() {
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-white">{name || "회원"}님의 하루 식단</h2>
               <button
-                onClick={handleKakaoShare}
+                onClick={handleShare}
                 className="flex items-center gap-1.5 text-xs bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold px-3 py-1.5 rounded-lg transition-colors"
               >
-                <Share2 className="w-3.5 h-3.5" />
-                카카오 공유
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+                {copied ? "복사됨!" : "공유하기"}
               </button>
             </div>
 
@@ -546,6 +550,3 @@ export default function DietPlanner() {
   );
 }
 
-declare global {
-  interface Window { Kakao: any; }
-}
