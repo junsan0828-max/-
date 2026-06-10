@@ -358,6 +358,12 @@ export default function MemberDetail({ memberId }: Props) {
   });
   const [yangdoContractUrl, setYangdoContractUrl] = useState("");
 
+  // 서비스 타입별 환불/양도 모달
+  const [refundServiceType, setRefundServiceType] = useState<"pt" | "health" | "locker" | "uniform">("pt");
+  const [refundSelectedItemId, setRefundSelectedItemId] = useState<number | "">("");
+  const [yangdoServiceType, setYangdoServiceType] = useState<"pt" | "health" | "locker" | "uniform">("pt");
+  const [yangdoSelectedItemId, setYangdoSelectedItemId] = useState<number | "">("");
+
   function openLiveTraining(log: any) {
     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
     setLiveLog(log);
@@ -411,6 +417,12 @@ export default function MemberDetail({ memberId }: Props) {
   const { data: leadInfo } = trpc.gym.leads.getByMemberId.useQuery({ memberId });
   const { data: parQData } = trpc.parQ.get.useQuery({ memberId });
   const { data: memberPrograms } = trpc.access.getMemberPrograms.useQuery({ memberId });
+
+  // 모달에서 접근할 수 있도록 component 레벨에서 파생
+  const healthRevsForModal = useMemo(() =>
+    (memberPrograms?.healthRevenues ?? []).filter((r: any) => r.type === "헬스"),
+    [memberPrograms]
+  );
 
   // 회원 삭제
   const deleteMutation = trpc.members.delete.useMutation({
@@ -1157,6 +1169,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => {
+                      setRefundServiceType("pt");
                       setRefundModalOpen(true);
                       setRefundContractUrl("");
                       setRefundSelectedPkgId(ptPackages?.[0]?.id ?? "");
@@ -1177,6 +1190,7 @@ export default function MemberDetail({ memberId }: Props) {
                   </button>
                   <button
                     onClick={() => {
+                      setYangdoServiceType("pt");
                       setYangdoModalOpen(true);
                       setYangdoContractUrl("");
                       setYangdoSelectedPkgId(ptPackages?.[0]?.id ?? "");
@@ -1482,7 +1496,42 @@ export default function MemberDetail({ memberId }: Props) {
                 {/* 헬스권 */}
                 <Card className="bg-card border-border">
                   <CardHeader className="px-4 sm:px-6 pb-2">
-                    <CardTitle className="text-base">헬스권</CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-base">헬스권</CardTitle>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setRefundServiceType("health");
+                            setRefundModalOpen(true);
+                            setRefundContractUrl("");
+                            const firstRev = healthRevs[0];
+                            setRefundSelectedItemId(firstRev?.id ?? "");
+                            setRefundForm({ paymentMethod: "", taxAmount: "0", penaltyAmount: "0", refundAmount: String(firstRev?.paidAmount ?? 0), reason: "" });
+                          }}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
+                        >
+                          <span>🔄</span> 환불
+                        </button>
+                        <button
+                          onClick={() => {
+                            setYangdoServiceType("health");
+                            setYangdoModalOpen(true);
+                            setYangdoContractUrl("");
+                            setYangdoSelectedItemId(healthRevs[0]?.id ?? "");
+                            setYangdoForm({ transferDate: "", trainerMemo: "" });
+                          }}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                        >
+                          <ArrowRightLeft className="h-3 w-3" /> 양도
+                        </button>
+                        <button
+                          onClick={() => setLocation(`/members/re-register?memberId=${memberId}`)}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                        >
+                          <Plus className="h-3 w-3" /> 프로그램 추가
+                        </button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6">
                     {!hasHealth ? (
@@ -1609,7 +1658,35 @@ export default function MemberDetail({ memberId }: Props) {
                 {/* 락커 */}
                 <Card className="bg-card border-border">
                   <CardHeader className="px-4 sm:px-6 pb-2">
-                    <CardTitle className="text-base">락커</CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-base">락커</CardTitle>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setRefundServiceType("locker");
+                            setRefundModalOpen(true);
+                            setRefundContractUrl("");
+                            setRefundSelectedItemId(memberPrograms?.lockers[0]?.id ?? "");
+                            setRefundForm({ paymentMethod: "", taxAmount: "0", penaltyAmount: "0", refundAmount: "0", reason: "" });
+                          }}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
+                        >
+                          <span>🔄</span> 환불
+                        </button>
+                        <button
+                          onClick={() => {
+                            setYangdoServiceType("locker");
+                            setYangdoModalOpen(true);
+                            setYangdoContractUrl("");
+                            setYangdoSelectedItemId(memberPrograms?.lockers[0]?.id ?? "");
+                            setYangdoForm({ transferDate: "", trainerMemo: "" });
+                          }}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                        >
+                          <ArrowRightLeft className="h-3 w-3" /> 양도
+                        </button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6">
                     {lockerMismatch && (
@@ -1662,7 +1739,35 @@ export default function MemberDetail({ memberId }: Props) {
                 {/* 운동복 */}
                 <Card className="bg-card border-border">
                   <CardHeader className="px-4 sm:px-6 pb-2">
-                    <CardTitle className="text-base">운동복</CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-base">운동복</CardTitle>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setRefundServiceType("uniform");
+                            setRefundModalOpen(true);
+                            setRefundContractUrl("");
+                            setRefundSelectedItemId(memberPrograms?.uniforms[0]?.id ?? "");
+                            setRefundForm({ paymentMethod: "", taxAmount: "0", penaltyAmount: "0", refundAmount: "0", reason: "" });
+                          }}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-red-400/50 text-red-400 hover:bg-red-400/10 transition-colors"
+                        >
+                          <span>🔄</span> 환불
+                        </button>
+                        <button
+                          onClick={() => {
+                            setYangdoServiceType("uniform");
+                            setYangdoModalOpen(true);
+                            setYangdoContractUrl("");
+                            setYangdoSelectedItemId(memberPrograms?.uniforms[0]?.id ?? "");
+                            setYangdoForm({ transferDate: "", trainerMemo: "" });
+                          }}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
+                        >
+                          <ArrowRightLeft className="h-3 w-3" /> 양도
+                        </button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6">
                     {uniformMismatch && (
@@ -2898,7 +3003,7 @@ export default function MemberDetail({ memberId }: Props) {
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <span>🔄</span> 환불 계약서 생성
+              <span>🔄</span> {refundServiceType === "pt" ? "PT" : refundServiceType === "health" ? "헬스권" : refundServiceType === "locker" ? "락커" : "운동복"} 환불 계약서 생성
             </DialogTitle>
             <DialogDescription>환불 정보를 입력하고 계약서 링크를 발급합니다.</DialogDescription>
           </DialogHeader>
@@ -2924,8 +3029,8 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* 패키지 선택 */}
-              {ptPackages && ptPackages.length > 1 && (
+              {/* PT 패키지 선택 */}
+              {refundServiceType === "pt" && ptPackages && ptPackages.length > 1 && (
                 <div className="space-y-1.5">
                   <Label className="text-xs">PT 패키지 선택</Label>
                   <Select
@@ -2956,8 +3061,73 @@ export default function MemberDetail({ memberId }: Props) {
                 </div>
               )}
 
+              {/* 헬스권 선택 */}
+              {refundServiceType === "health" && healthRevsForModal.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">헬스권 선택</Label>
+                  <Select
+                    value={String(refundSelectedItemId)}
+                    onValueChange={(v) => {
+                      const id = Number(v);
+                      setRefundSelectedItemId(id);
+                      const rev = healthRevsForModal.find((r: any) => r.id === id);
+                      if (rev) setRefundForm((p) => ({ ...p, taxAmount: "0", penaltyAmount: "0", refundAmount: String((rev as any).paidAmount ?? 0) }));
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="헬스권 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {healthRevsForModal.map((r: any) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          헬스권{r.subType ? ` (${r.subType})` : ""}{r.startDate ? ` · ${r.startDate}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* 락커 선택 */}
+              {refundServiceType === "locker" && (memberPrograms?.lockers?.length ?? 0) > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">락커 선택</Label>
+                  <Select
+                    value={String(refundSelectedItemId)}
+                    onValueChange={(v) => { setRefundSelectedItemId(Number(v)); }}
+                  >
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="락커 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {memberPrograms?.lockers?.map((l) => (
+                        <SelectItem key={l.id} value={String(l.id)}>
+                          락커 {l.lockerNumber}{l.startDate ? ` · ${l.startDate}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* 운동복 선택 */}
+              {refundServiceType === "uniform" && (memberPrograms?.uniforms?.length ?? 0) > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">운동복 선택</Label>
+                  <Select
+                    value={String(refundSelectedItemId)}
+                    onValueChange={(v) => { setRefundSelectedItemId(Number(v)); }}
+                  >
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동복 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {memberPrograms?.uniforms?.map((u) => (
+                        <SelectItem key={u.id} value={String(u.id)}>
+                          운동복{u.size ? ` (${u.size})` : ""}{u.startDate ? ` · ${u.startDate}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* 자동 채움 필드 */}
-              {(() => {
+              {refundServiceType === "pt" && (() => {
                 const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
                 return pkg ? (
                   <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
@@ -2965,6 +3135,34 @@ export default function MemberDetail({ memberId }: Props) {
                     <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{(pkg.paymentAmount ?? 0).toLocaleString()}원</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">총 횟수</span><span className="font-medium">{pkg.totalSessions}회</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">수강 횟수</span><span className="font-medium">{pkg.usedSessions}회</span></div>
+                  </div>
+                ) : null;
+              })()}
+              {refundServiceType === "health" && (() => {
+                const rev = (healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any;
+                return rev ? (
+                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">프로그램명</span><span className="font-medium">헬스권{rev.subType ? ` (${rev.subType})` : ""}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{(rev.paidAmount ?? 0).toLocaleString()}원</span></div>
+                    {(rev.startDate || rev.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{rev.startDate ?? "-"} ~ {rev.endDate ?? "-"}</span></div>}
+                  </div>
+                ) : null;
+              })()}
+              {refundServiceType === "locker" && (() => {
+                const locker = memberPrograms?.lockers?.find((l) => l.id === refundSelectedItemId) ?? memberPrograms?.lockers?.[0];
+                return locker ? (
+                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">락커 번호</span><span className="font-medium">{locker.lockerNumber}</span></div>
+                    {(locker.startDate || locker.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</span></div>}
+                  </div>
+                ) : null;
+              })()}
+              {refundServiceType === "uniform" && (() => {
+                const uniform = memberPrograms?.uniforms?.find((u) => u.id === refundSelectedItemId) ?? memberPrograms?.uniforms?.[0];
+                return uniform ? (
+                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">운동복</span><span className="font-medium">{uniform.size ? `사이즈 ${uniform.size}` : "기본"}</span></div>
+                    {(uniform.startDate || uniform.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{uniform.startDate ?? "-"} ~ {uniform.endDate ?? "-"}</span></div>}
                   </div>
                 ) : null;
               })()}
@@ -2997,8 +3195,11 @@ export default function MemberDetail({ memberId }: Props) {
                     onChange={(e) => {
                       const tax = Number(e.target.value) || 0;
                       const penalty = Number(refundForm.penaltyAmount) || 0;
-                      const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
-                      const base = pkg?.paymentAmount ?? 0;
+                      const base = refundServiceType === "pt"
+                        ? ((ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0])?.paymentAmount ?? 0)
+                        : refundServiceType === "health"
+                          ? (((healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any)?.paidAmount ?? 0)
+                          : 0;
                       setRefundForm((p) => ({ ...p, taxAmount: e.target.value, refundAmount: String(Math.max(0, base - tax - penalty)) }));
                     }}
                     className="h-9 text-sm"
@@ -3013,8 +3214,11 @@ export default function MemberDetail({ memberId }: Props) {
                     onChange={(e) => {
                       const penalty = Number(e.target.value) || 0;
                       const tax = Number(refundForm.taxAmount) || 0;
-                      const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
-                      const base = pkg?.paymentAmount ?? 0;
+                      const base = refundServiceType === "pt"
+                        ? ((ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0])?.paymentAmount ?? 0)
+                        : refundServiceType === "health"
+                          ? (((healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any)?.paidAmount ?? 0)
+                          : 0;
                       setRefundForm((p) => ({ ...p, penaltyAmount: e.target.value, refundAmount: String(Math.max(0, base - tax - penalty)) }));
                     }}
                     className="h-9 text-sm"
@@ -3052,23 +3256,74 @@ export default function MemberDetail({ memberId }: Props) {
                   className="flex-1"
                   disabled={createRefundContractMutation.isPending}
                   onClick={() => {
-                    const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
-                    if (!pkg || !member) return;
-                    createRefundContractMutation.mutate({
-                      memberId: member.id,
-                      packageId: pkg.id,
-                      memberName: member.name,
-                      memberPhone: member.phone ?? undefined,
-                      programName: pkg.packageName || "PT 프로그램",
-                      paymentAmount: pkg.paymentAmount ?? 0,
-                      totalSessions: pkg.totalSessions,
-                      usedSessions: pkg.usedSessions,
-                      paymentMethod: refundForm.paymentMethod || undefined,
-                      taxAmount: Number(refundForm.taxAmount) || 0,
-                      penaltyAmount: Number(refundForm.penaltyAmount) || 0,
-                      refundAmount: Number(refundForm.refundAmount) || 0,
-                      reason: refundForm.reason || undefined,
-                    });
+                    if (!member) return;
+                    if (refundServiceType === "pt") {
+                      const pkg = ptPackages?.find((p) => p.id === refundSelectedPkgId) ?? ptPackages?.[0];
+                      if (!pkg) return;
+                      createRefundContractMutation.mutate({
+                        memberId: member.id,
+                        packageId: pkg.id,
+                        memberName: member.name,
+                        memberPhone: member.phone ?? undefined,
+                        programName: pkg.packageName || "PT 프로그램",
+                        paymentAmount: pkg.paymentAmount ?? 0,
+                        totalSessions: pkg.totalSessions,
+                        usedSessions: pkg.usedSessions,
+                        paymentMethod: refundForm.paymentMethod || undefined,
+                        taxAmount: Number(refundForm.taxAmount) || 0,
+                        penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                        refundAmount: Number(refundForm.refundAmount) || 0,
+                        reason: refundForm.reason || undefined,
+                      });
+                    } else if (refundServiceType === "health") {
+                      const rev = (healthRevsForModal.find((r: any) => r.id === refundSelectedItemId) ?? healthRevsForModal[0]) as any;
+                      createRefundContractMutation.mutate({
+                        memberId: member.id,
+                        memberName: member.name,
+                        memberPhone: member.phone ?? undefined,
+                        programName: `헬스권${rev?.subType ? ` (${rev.subType})` : ""}`,
+                        paymentAmount: rev?.paidAmount ?? 0,
+                        totalSessions: 0,
+                        usedSessions: 0,
+                        paymentMethod: refundForm.paymentMethod || undefined,
+                        taxAmount: Number(refundForm.taxAmount) || 0,
+                        penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                        refundAmount: Number(refundForm.refundAmount) || 0,
+                        reason: refundForm.reason || undefined,
+                      });
+                    } else if (refundServiceType === "locker") {
+                      const locker = memberPrograms?.lockers?.find((l) => l.id === refundSelectedItemId) ?? memberPrograms?.lockers?.[0];
+                      createRefundContractMutation.mutate({
+                        memberId: member.id,
+                        memberName: member.name,
+                        memberPhone: member.phone ?? undefined,
+                        programName: `락커 ${locker?.lockerNumber ?? ""}`,
+                        paymentAmount: 0,
+                        totalSessions: 0,
+                        usedSessions: 0,
+                        paymentMethod: refundForm.paymentMethod || undefined,
+                        taxAmount: Number(refundForm.taxAmount) || 0,
+                        penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                        refundAmount: Number(refundForm.refundAmount) || 0,
+                        reason: refundForm.reason || undefined,
+                      });
+                    } else if (refundServiceType === "uniform") {
+                      const uniform = memberPrograms?.uniforms?.find((u) => u.id === refundSelectedItemId) ?? memberPrograms?.uniforms?.[0];
+                      createRefundContractMutation.mutate({
+                        memberId: member.id,
+                        memberName: member.name,
+                        memberPhone: member.phone ?? undefined,
+                        programName: `운동복${uniform?.size ? ` (${uniform.size})` : ""}`,
+                        paymentAmount: 0,
+                        totalSessions: 0,
+                        usedSessions: 0,
+                        paymentMethod: refundForm.paymentMethod || undefined,
+                        taxAmount: Number(refundForm.taxAmount) || 0,
+                        penaltyAmount: Number(refundForm.penaltyAmount) || 0,
+                        refundAmount: Number(refundForm.refundAmount) || 0,
+                        reason: refundForm.reason || undefined,
+                      });
+                    }
                   }}
                 >
                   {createRefundContractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "계약서 생성 및 링크 발급"}
@@ -3084,7 +3339,7 @@ export default function MemberDetail({ memberId }: Props) {
         <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ArrowRightLeft className="h-4 w-4 text-orange-400" /> 양도 계약서 생성
+              <ArrowRightLeft className="h-4 w-4 text-orange-400" /> {yangdoServiceType === "pt" ? "PT" : yangdoServiceType === "health" ? "헬스권" : yangdoServiceType === "locker" ? "락커" : "운동복"} 양도 계약서 생성
             </DialogTitle>
             <DialogDescription>양도 정보를 입력하고 계약서 링크를 발급합니다.</DialogDescription>
           </DialogHeader>
@@ -3110,8 +3365,8 @@ export default function MemberDetail({ memberId }: Props) {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* 패키지 선택 */}
-              {ptPackages && ptPackages.length > 1 && (
+              {/* PT 패키지 선택 */}
+              {yangdoServiceType === "pt" && ptPackages && ptPackages.length > 1 && (
                 <div className="space-y-1.5">
                   <Label className="text-xs">PT 패키지 선택</Label>
                   <Select
@@ -3130,8 +3385,68 @@ export default function MemberDetail({ memberId }: Props) {
                 </div>
               )}
 
+              {/* 헬스권 선택 */}
+              {yangdoServiceType === "health" && healthRevsForModal.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">헬스권 선택</Label>
+                  <Select
+                    value={String(yangdoSelectedItemId)}
+                    onValueChange={(v) => { setYangdoSelectedItemId(Number(v)); }}
+                  >
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="헬스권 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {healthRevsForModal.map((r: any) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          헬스권{r.subType ? ` (${r.subType})` : ""}{r.startDate ? ` · ${r.startDate}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* 락커 선택 */}
+              {yangdoServiceType === "locker" && (memberPrograms?.lockers?.length ?? 0) > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">락커 선택</Label>
+                  <Select
+                    value={String(yangdoSelectedItemId)}
+                    onValueChange={(v) => { setYangdoSelectedItemId(Number(v)); }}
+                  >
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="락커 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {memberPrograms?.lockers?.map((l) => (
+                        <SelectItem key={l.id} value={String(l.id)}>
+                          락커 {l.lockerNumber}{l.startDate ? ` · ${l.startDate}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* 운동복 선택 */}
+              {yangdoServiceType === "uniform" && (memberPrograms?.uniforms?.length ?? 0) > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">운동복 선택</Label>
+                  <Select
+                    value={String(yangdoSelectedItemId)}
+                    onValueChange={(v) => { setYangdoSelectedItemId(Number(v)); }}
+                  >
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동복 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {memberPrograms?.uniforms?.map((u) => (
+                        <SelectItem key={u.id} value={String(u.id)}>
+                          운동복{u.size ? ` (${u.size})` : ""}{u.startDate ? ` · ${u.startDate}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* 자동 채움 필드 */}
-              {(() => {
+              {yangdoServiceType === "pt" && (() => {
                 const pkg = ptPackages?.find((p) => p.id === yangdoSelectedPkgId) ?? ptPackages?.[0];
                 return pkg ? (
                   <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
@@ -3139,6 +3454,33 @@ export default function MemberDetail({ memberId }: Props) {
                     <div className="flex justify-between"><span className="text-muted-foreground">총 횟수</span><span className="font-medium">{pkg.totalSessions}회</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">수강 횟수</span><span className="font-medium">{pkg.usedSessions}회</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">잔여 횟수</span><span className="font-medium text-primary">{pkg.totalSessions - pkg.usedSessions}회</span></div>
+                  </div>
+                ) : null;
+              })()}
+              {yangdoServiceType === "health" && (() => {
+                const rev = (healthRevsForModal.find((r: any) => r.id === yangdoSelectedItemId) ?? healthRevsForModal[0]) as any;
+                return rev ? (
+                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">프로그램명</span><span className="font-medium">헬스권{rev.subType ? ` (${rev.subType})` : ""}</span></div>
+                    {(rev.startDate || rev.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{rev.startDate ?? "-"} ~ {rev.endDate ?? "-"}</span></div>}
+                  </div>
+                ) : null;
+              })()}
+              {yangdoServiceType === "locker" && (() => {
+                const locker = memberPrograms?.lockers?.find((l) => l.id === yangdoSelectedItemId) ?? memberPrograms?.lockers?.[0];
+                return locker ? (
+                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">락커 번호</span><span className="font-medium">{locker.lockerNumber}</span></div>
+                    {(locker.startDate || locker.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{locker.startDate ?? "-"} ~ {locker.endDate ?? "-"}</span></div>}
+                  </div>
+                ) : null;
+              })()}
+              {yangdoServiceType === "uniform" && (() => {
+                const uniform = memberPrograms?.uniforms?.find((u) => u.id === yangdoSelectedItemId) ?? memberPrograms?.uniforms?.[0];
+                return uniform ? (
+                  <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">운동복</span><span className="font-medium">{uniform.size ? `사이즈 ${uniform.size}` : "기본"}</span></div>
+                    {(uniform.startDate || uniform.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{uniform.startDate ?? "-"} ~ {uniform.endDate ?? "-"}</span></div>}
                   </div>
                 ) : null;
               })()}
@@ -3172,15 +3514,41 @@ export default function MemberDetail({ memberId }: Props) {
                   className="flex-1"
                   disabled={createYangdoContractMutation.isPending}
                   onClick={() => {
-                    const pkg = ptPackages?.find((p) => p.id === yangdoSelectedPkgId) ?? ptPackages?.[0];
-                    if (!pkg || !member) return;
-                    const remaining = pkg.totalSessions - pkg.usedSessions;
-                    createYangdoContractMutation.mutate({
-                      transferorMemberId: member.id,
-                      itemType: "pt_package",
-                      itemId: pkg.id,
-                      itemDescription: `${pkg.packageName || "PT 프로그램"} (잔여 ${remaining}회${yangdoForm.transferDate ? ` · 양도예정일: ${yangdoForm.transferDate}` : ""}${yangdoForm.trainerMemo ? ` · ${yangdoForm.trainerMemo}` : ""})`,
-                    });
+                    if (!member) return;
+                    if (yangdoServiceType === "pt") {
+                      const pkg = ptPackages?.find((p) => p.id === yangdoSelectedPkgId) ?? ptPackages?.[0];
+                      if (!pkg) return;
+                      const remaining = pkg.totalSessions - pkg.usedSessions;
+                      createYangdoContractMutation.mutate({
+                        transferorMemberId: member.id,
+                        itemType: "pt_package",
+                        itemId: pkg.id,
+                        itemDescription: `${pkg.packageName || "PT 프로그램"} (잔여 ${remaining}회${yangdoForm.transferDate ? ` · 양도예정일: ${yangdoForm.transferDate}` : ""}${yangdoForm.trainerMemo ? ` · ${yangdoForm.trainerMemo}` : ""})`,
+                      });
+                    } else if (yangdoServiceType === "health") {
+                      const rev = (healthRevsForModal.find((r: any) => r.id === yangdoSelectedItemId) ?? healthRevsForModal[0]) as any;
+                      createYangdoContractMutation.mutate({
+                        transferorMemberId: member.id,
+                        itemType: "membership",
+                        itemDescription: `헬스권${rev?.subType ? ` (${rev.subType})` : ""}${rev?.startDate ? ` · ${rev.startDate} ~ ${rev.endDate ?? "-"}` : ""}${yangdoForm.transferDate ? ` · 양도예정일: ${yangdoForm.transferDate}` : ""}${yangdoForm.trainerMemo ? ` · ${yangdoForm.trainerMemo}` : ""}`,
+                      });
+                    } else if (yangdoServiceType === "locker") {
+                      const locker = memberPrograms?.lockers?.find((l) => l.id === yangdoSelectedItemId) ?? memberPrograms?.lockers?.[0];
+                      createYangdoContractMutation.mutate({
+                        transferorMemberId: member.id,
+                        itemType: "locker",
+                        itemId: locker?.id,
+                        itemDescription: `락커 ${locker?.lockerNumber ?? ""}${yangdoForm.transferDate ? ` · 양도예정일: ${yangdoForm.transferDate}` : ""}${yangdoForm.trainerMemo ? ` · ${yangdoForm.trainerMemo}` : ""}`,
+                      });
+                    } else if (yangdoServiceType === "uniform") {
+                      const uniform = memberPrograms?.uniforms?.find((u) => u.id === yangdoSelectedItemId) ?? memberPrograms?.uniforms?.[0];
+                      createYangdoContractMutation.mutate({
+                        transferorMemberId: member.id,
+                        itemType: "uniform",
+                        itemId: uniform?.id,
+                        itemDescription: `운동복${uniform?.size ? ` (${uniform.size})` : ""}${yangdoForm.transferDate ? ` · 양도예정일: ${yangdoForm.transferDate}` : ""}${yangdoForm.trainerMemo ? ` · ${yangdoForm.trainerMemo}` : ""}`,
+                      });
+                    }
                   }}
                 >
                   {createYangdoContractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "계약서 생성 및 링크 발급"}
