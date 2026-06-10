@@ -13,7 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Dumbbell, Activity, Lock, Shirt } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+
+const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제"] as const;
+const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 
 interface Props {
   memberId?: number;
@@ -40,7 +43,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [, setLocation] = useLocation();
   const isEdit = !!memberId;
 
-  const [regType, setRegType] = useState<"" | "health" | "pt">("");
+  const [itemTypes, setItemTypes] = useState<string[]>([]);
   const [healthMonths, setHealthMonths] = useState<number | "">(1);
 
   // 락커
@@ -77,6 +80,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     ptProgram: "",
     ptSessions: "",
     paymentAmount: "",
+    discountAmount: "",
     unpaidAmount: "",
     visitRoute: "",
     paymentMethod: "" as "" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제",
@@ -85,6 +89,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     adminTrainerId: defaultTrainerId ? String(defaultTrainerId) : "",
     serviceSessions: "",
     serviceSessionPrice: "",
+    subType: "신규" as "신규" | "재등록",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -176,12 +181,16 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     g.lockers.push(l);
   }
 
+  const hasPT = itemTypes.includes("PT");
+  const hasHealth = itemTypes.includes("헬스");
+  const hasOther = itemTypes.includes("기타");
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
     if (!form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
     if (currentUser?.role === "admin" && !isEdit && !form.adminTrainerId) newErrors.adminTrainerId = "담당 트레이너를 선택해주세요.";
-    if (!isEdit && !regType) newErrors.regType = "등록 유형을 선택해주세요.";
+    if (!isEdit && itemTypes.length === 0) newErrors.itemTypes = "항목 유형을 선택해주세요.";
     if (!isEdit && form.paymentAmount && parseInt(form.paymentAmount) > 0) {
       if (!form.paymentMethod) newErrors.paymentMethod = "결제 방법을 선택해주세요.";
       if (!form.paymentDate) newErrors.paymentDate = "결제일자를 입력해주세요.";
@@ -206,29 +215,36 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
     setErrors({});
 
-    const isHealth = regType === "health";
+    // 항목 유형에서 primaryType 결정
+    const primaryType: "PT" | "헬스" | "기타" | undefined =
+      hasPT ? "PT" : hasHealth ? "헬스" : hasOther ? "기타" : undefined;
+
+    // PT 프로그램명 구성
+    const resolvedPtProgram = hasPT ? form.ptProgram || undefined : undefined;
 
     const payload = {
       ...form,
-      ptSessions: (!isHealth && form.ptSessions) ? (form.ptSessions as any) : undefined,
-      ptProgram: (!isHealth && form.ptProgram) ? form.ptProgram : undefined,
+      ptSessions: (hasPT && form.ptSessions) ? form.ptSessions : undefined,
+      ptProgram: resolvedPtProgram,
       gender: form.gender || undefined,
       birthDate: form.birthDate || undefined,
-      membershipStart: form.membershipStart || new Date().toISOString().substring(0, 10),
+      membershipStart: form.membershipStart || today,
       membershipEnd: form.membershipEnd || undefined,
       email: form.email || undefined,
       phone: form.phone || undefined,
       profileNote: form.profileNote || undefined,
       paymentAmount: form.paymentAmount ? parseInt(form.paymentAmount) : undefined,
+      discountAmount: form.discountAmount ? parseInt(form.discountAmount) : undefined,
       unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
       visitRoute: form.visitRoute || undefined,
       paymentMethod: form.paymentMethod || undefined,
       paymentDate: form.paymentDate || undefined,
       paymentMemo: form.paymentMemo || undefined,
       adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
-      serviceSessions: (!isHealth && form.serviceSessions) ? parseInt(form.serviceSessions) : undefined,
-      serviceSessionPrice: (!isHealth && form.serviceSessionPrice) ? parseInt(form.serviceSessionPrice) : undefined,
-      subType: (isEdit ? "재등록" : "신규") as "신규" | "재등록",
+      serviceSessions: (hasPT && form.serviceSessions) ? parseInt(form.serviceSessions) : undefined,
+      serviceSessionPrice: (hasPT && form.serviceSessionPrice) ? parseInt(form.serviceSessionPrice) : undefined,
+      subType: form.subType,
+      primaryType,
       serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
         if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
         if (item === "헬스") {
@@ -284,6 +300,11 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending || assignLockerMutation.isPending || createUniformMutation.isPending;
+
+  // 실결제 자동 계산
+  const computedPaid = Math.max(0,
+    (parseInt(form.paymentAmount) || 0) - (parseInt(form.discountAmount) || 0) - (parseInt(form.unpaidAmount) || 0)
+  );
 
   return (
     <div className="space-y-4">
@@ -365,10 +386,10 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                 />
                 {form.birthDate && (() => {
                   const birth = new Date(form.birthDate);
-                  const today = new Date();
-                  let age = today.getFullYear() - birth.getFullYear();
-                  const mo = today.getMonth() - birth.getMonth();
-                  if (mo < 0 || (mo === 0 && today.getDate() < birth.getDate())) age--;
+                  const todayD = new Date();
+                  let age = todayD.getFullYear() - birth.getFullYear();
+                  const mo = todayD.getMonth() - birth.getMonth();
+                  if (mo < 0 || (mo === 0 && todayD.getDate() < birth.getDate())) age--;
                   return <p className="text-xs text-primary mt-1">만 {age}세</p>;
                 })()}
               </div>
@@ -435,505 +456,487 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           </CardContent>
         </Card>
 
-        {/* 등록 유형 선택 (신규 등록 시만) */}
+        {/* ── 등록 정보 (신규 등록 시만) ── */}
         {!isEdit && (
-          <Card className={`bg-card border-2 ${errors.regType ? "border-red-500" : "border-border"}`}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">등록 유형 선택 <span className="text-primary">*</span></CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRegType("health");
-                    setForm(p => ({ ...p, ptProgram: "", ptSessions: "", serviceSessions: "", serviceSessionPrice: "" }));
-                  }}
-                  className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${
-                    regType === "health"
-                      ? "border-emerald-500 bg-emerald-500/10"
-                      : "border-border hover:border-emerald-500/40 hover:bg-accent"
-                  }`}
-                >
-                  <div className={`p-3 rounded-full ${regType === "health" ? "bg-emerald-500/20" : "bg-muted"}`}>
-                    <Activity className={`h-6 w-6 ${regType === "health" ? "text-emerald-400" : "text-muted-foreground"}`} />
-                  </div>
-                  <div className="text-center">
-                    <p className={`text-sm font-semibold ${regType === "health" ? "text-emerald-400" : "text-foreground"}`}>헬스권</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">헬스 이용 등록</p>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRegType("pt")}
-                  className={`flex flex-col items-center gap-2.5 p-5 rounded-xl border-2 transition-all ${
-                    regType === "pt"
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:border-primary/40 hover:bg-accent"
-                  }`}
-                >
-                  <div className={`p-3 rounded-full ${regType === "pt" ? "bg-primary/20" : "bg-muted"}`}>
-                    <Dumbbell className={`h-6 w-6 ${regType === "pt" ? "text-primary" : "text-muted-foreground"}`} />
-                  </div>
-                  <div className="text-center">
-                    <p className={`text-sm font-semibold ${regType === "pt" ? "text-primary" : "text-foreground"}`}>PT 등록</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">PT + 헬스 포함</p>
-                  </div>
-                </button>
-              </div>
-              {errors.regType && <p className="text-xs text-red-500 mt-2">{errors.regType}</p>}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* 운동 기간 / 결제 정보 (등록 유형이 선택됐거나 수정 모드일 때) */}
-        {(isEdit || regType !== "") && (
           <Card className="bg-card border-border">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base font-semibold">
-                {regType === "health" ? "헬스 기간 및 결제" : regType === "pt" ? "PT 및 헬스 기간·결제" : "운동 기간"}
-              </CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">등록 상세 정보</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* 운동 시작일 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="membershipStart" className="text-sm text-muted-foreground">운동 시작일</Label>
-                  <Input
-                    id="membershipStart"
-                    type="date"
-                    value={form.membershipStart}
-                    onChange={(e) => {
-                      const start = e.target.value;
-                      let end = form.membershipEnd;
-                      if (regType === "health" && healthMonths) {
-                        end = calcEndDateByMonths(start, Number(healthMonths));
-                      } else if (regType === "pt") {
-                        end = calcEndDateByPT(start, form.ptSessions);
-                      }
-                      setForm((p) => ({ ...p, membershipStart: start, membershipEnd: end }));
-                    }}
-                    className="bg-input border-border"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">
-                    운동 만료일
-                    {regType === "pt" && <span className="text-primary text-xs ml-1">(자동계산)</span>}
-                  </Label>
-                  <Input
-                    id="membershipEnd"
-                    type="date"
-                    value={form.membershipEnd}
-                    readOnly={regType === "pt"}
-                    onChange={(e) => regType !== "pt" && setForm((p) => ({ ...p, membershipEnd: e.target.value }))}
-                    className={`bg-input border-border ${regType === "pt" ? "opacity-60 cursor-not-allowed" : ""}`}
-                  />
+
+              {/* 구분 */}
+              <div>
+                <label className="text-xs text-muted-foreground">구분 *</label>
+                <div className="flex gap-2 mt-1">
+                  {(["신규", "재등록"] as const).map(s => (
+                    <button key={s} type="button"
+                      onClick={() => setForm(f => ({ ...f, subType: s }))}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.subType === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      {s}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* 헬스권: 이용 기간 선택 */}
-              {(regType === "health" || isEdit) && (
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">이용 기간</Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {[1, 3, 6, 12].map(m => (
-                      <button key={m} type="button"
-                        onClick={() => {
-                          setHealthMonths(m);
-                          if (form.membershipStart) {
-                            setForm(p => ({ ...p, membershipEnd: calcEndDateByMonths(p.membershipStart, m) }));
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                          healthMonths === m
-                            ? "bg-emerald-500 text-white border-emerald-500"
-                            : "border-border text-muted-foreground hover:bg-accent"
-                        }`}
-                      >
-                        {m}개월
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* 항목 유형 */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">항목 유형 * (복수 선택 가능)</label>
+                {errors.itemTypes && <p className="text-xs text-red-500">{errors.itemTypes}</p>}
 
-              {/* PT 등록: 프로그램명 + PT 횟수 */}
-              {!isEdit && regType === "pt" && (
-                <>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">프로그램명</Label>
-                    <Input
-                      value={form.ptProgram}
-                      onChange={(e) => setForm((p) => ({ ...p, ptProgram: e.target.value }))}
-                      placeholder="프로그램명 직접 입력"
-                      className="bg-input border-border"
-                    />
-                    <div className="flex gap-1.5 flex-wrap">
-                      {["케어피티", "웨이트피티", "이벤트피티"].map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => setForm((p) => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset, serviceSessions: "", serviceSessionPrice: "" }))}
-                          className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                            form.ptProgram === preset
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "border-border text-muted-foreground hover:border-primary/40"
-                          }`}
-                        >
-                          {preset}
-                        </button>
-                      ))}
-                    </div>
-                    {form.ptProgram === "이벤트피티" && (
-                      <div className="mt-1">
-                        <select
-                          className="w-full h-9 rounded-lg px-3 text-sm text-foreground focus:outline-none bg-input border border-border"
-                          defaultValue=""
-                          onChange={e => {
-                            const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
-                            if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0) }));
-                          }}>
-                          <option value="" disabled>이벤트 선택...</option>
-                          {(ptEvents ?? []).map((ev: any) => (
-                            <option key={ev.id} value={String(ev.id)}>
-                              {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
-                            </option>
+                {/* PT */}
+                <div className={`rounded-xl border transition-colors ${hasPT ? "border-primary/60 bg-primary/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setItemTypes(t => hasPT ? t.filter(x => x !== "PT") : [...t, "PT"])}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={hasPT ? "text-primary" : "text-muted-foreground"}>PT</span>
+                    {hasPT && <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {hasPT && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-primary/20 pt-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">PT 프로그램</label>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          {PT_PROGRAMS.map(p => (
+                            <button key={p} type="button"
+                              onClick={() => setForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p }))}
+                              className={`py-2 rounded-lg text-sm font-medium border transition-colors ${form.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                              {p}
+                            </button>
                           ))}
-                        </select>
-                        {(ptEvents ?? []).length === 0 && <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">PT 횟수</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={form.ptSessions}
-                      onChange={(e) => {
-                        const s = e.target.value;
-                        setForm((p) => ({ ...p, ptSessions: s, membershipEnd: calcEndDateByPT(p.membershipStart, s) }));
-                      }}
-                      placeholder="횟수 직접 입력"
-                      className="bg-input border-border"
-                    />
-                    <div className="flex gap-1.5 flex-wrap">
-                      {["10", "20", "30", "40", "50"].map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => setForm((p) => {
-                            const next = p.ptSessions === preset ? "" : preset;
-                            return { ...p, ptSessions: next, membershipEnd: calcEndDateByPT(p.membershipStart, next) };
-                          })}
-                          className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                            form.ptSessions === preset
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "border-border text-muted-foreground hover:border-primary/40"
-                          }`}
-                        >
-                          {preset}회
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* 결제 정보 (신규 등록 시) */}
-              {!isEdit && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="paymentAmount" className="text-sm text-muted-foreground">결제 금액 *</Label>
-                      <Input id="paymentAmount" type="number" min="0" placeholder="0" value={form.paymentAmount}
-                        onChange={(e) => setForm((p) => ({ ...p, paymentAmount: e.target.value }))} className="bg-input border-border" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="unpaidAmount" className="text-sm text-muted-foreground">미수금 금액</Label>
-                      <Input id="unpaidAmount" type="number" min="0" placeholder="0" value={form.unpaidAmount}
-                        onChange={(e) => setForm((p) => ({ ...p, unpaidAmount: e.target.value }))} className="bg-input border-border" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-sm text-muted-foreground">결제방법 <span className="text-primary">*</span></Label>
-                    {errors.paymentMethod && <p className="text-xs text-red-500">{errors.paymentMethod}</p>}
-                    <Select value={form.paymentMethod} onValueChange={(v) => setForm((p) => ({ ...p, paymentMethod: v as any }))}>
-                      <SelectTrigger className={`bg-input border-border ${errors.paymentMethod ? "border-red-500" : ""}`}>
-                        <SelectValue placeholder="결제방법 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="카드">카드</SelectItem>
-                        <SelectItem value="현금">현금</SelectItem>
-                        <SelectItem value="현금영수증">현금영수증</SelectItem>
-                        <SelectItem value="계좌이체">계좌이체</SelectItem>
-                        <SelectItem value="지역화폐">지역화폐</SelectItem>
-                        <SelectItem value="분할결제">분할결제</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="paymentDate" className="text-sm text-muted-foreground">결제일자 <span className="text-primary">*</span></Label>
-                    {errors.paymentDate && <p className="text-xs text-red-500">{errors.paymentDate}</p>}
-                    <Input id="paymentDate" type="date" value={form.paymentDate} onChange={(e) => setForm((p) => ({ ...p, paymentDate: e.target.value }))} className={`bg-input border-border ${errors.paymentDate ? "border-red-500" : ""}`}/>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="paymentMemo" className="text-sm text-muted-foreground">결제 메모</Label>
-                    <Input id="paymentMemo" type="text" placeholder="분납 등 메모" value={form.paymentMemo} onChange={(e) => setForm((p) => ({ ...p, paymentMemo: e.target.value }))} className="bg-input border-border"/>
-                  </div>
-                </>
-              )}
-
-              {/* 서비스 내역 */}
-              {(isEdit || regType !== "") && (
-                <div className="space-y-2 pt-2 border-t border-border">
-                  <Label className="text-sm text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목)</span></Label>
-
-                  {/* PT */}
-                  {(() => {
-                    const sel = serviceItems.includes("PT");
-                    const paid = Number(form.paymentAmount) || 0;
-                    const sessions = parseInt(form.ptSessions) || 0;
-                    const calcPrice = sessions > 0 ? Math.round(paid / sessions) : 0;
-                    const unitPrice = calcPrice > 0 ? calcPrice : (gymSettings?.servicePtUnitPrice ?? 0);
-                    return (
-                      <div className={`rounded-xl border transition-colors ${sel ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
-                        <button type="button"
-                          onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "PT") : [...s, "PT"]); setServicePtCount(undefined); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                          <span className={sel ? "text-blue-400" : "text-muted-foreground"}>PT</span>
-                          {unitPrice > 0 && <span className="text-[10px] text-muted-foreground">단가 {unitPrice.toLocaleString()}원/회</span>}
-                        </button>
-                        {sel && (
-                          <div className="px-4 pb-4 border-t border-blue-500/20 pt-3 space-y-2">
-                            <Label className="text-xs text-muted-foreground">제공 횟수</Label>
-                            <div className="flex gap-2">
-                              {[1, 2, 3].map(n => (
-                                <button key={n} type="button"
-                                  onClick={() => setServicePtCount(c => c === n ? undefined : n)}
-                                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${servicePtCount === n ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground"}`}>
-                                  +{n}회
-                                </button>
+                        </div>
+                        {form.ptProgram === "기타" && (
+                          <input value={form.ptProgram === "기타" ? "" : form.ptProgram}
+                            onChange={e => setForm(f => ({ ...f, ptProgram: e.target.value }))}
+                            placeholder="프로그램명 입력"
+                            className="w-full mt-2 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                        )}
+                        {form.ptProgram === "이벤트피티" && (
+                          <div className="mt-2">
+                            <select
+                              className="w-full h-9 rounded-lg px-3 text-sm text-foreground focus:outline-none bg-input border border-border"
+                              defaultValue=""
+                              onChange={e => {
+                                const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
+                                if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0) }));
+                              }}>
+                              <option value="" disabled>이벤트 선택...</option>
+                              {(ptEvents ?? []).map((ev: any) => (
+                                <option key={ev.id} value={String(ev.id)}>
+                                  {ev.name} (서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
+                                </option>
                               ))}
-                            </div>
-                            <Input type="number" min={1}
-                              value={servicePtCount && ![1,2,3].includes(servicePtCount) ? servicePtCount : ""}
-                              onChange={e => setServicePtCount(e.target.value ? parseInt(e.target.value) : undefined)}
-                              placeholder="직접 입력 (회)" className="bg-input border-border text-sm" />
-                            {servicePtCount && unitPrice > 0 && (
-                              <p className="text-xs text-blue-400">서비스 금액 ≈ {(servicePtCount * unitPrice).toLocaleString()}원 상당</p>
-                            )}
+                            </select>
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
+                      <div>
+                        <label className="text-xs text-muted-foreground">PT 횟수</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={form.ptSessions}
+                          onChange={e => {
+                            const s = e.target.value;
+                            setForm(p => ({ ...p, ptSessions: s, membershipEnd: calcEndDateByPT(p.membershipStart, s) }));
+                          }}
+                          placeholder="횟수 직접 입력"
+                          className="bg-input border-border mt-1"
+                        />
+                        <div className="flex gap-1.5 flex-wrap mt-1.5">
+                          {["10", "20", "30", "40", "50"].map(preset => (
+                            <button key={preset} type="button"
+                              onClick={() => setForm(p => {
+                                const next = p.ptSessions === preset ? "" : preset;
+                                return { ...p, ptSessions: next, membershipEnd: calcEndDateByPT(p.membershipStart, next) };
+                              })}
+                              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${form.ptSessions === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                              {preset}회
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-                  {/* 헬스 */}
-                  {(() => {
-                    const sel = serviceItems.includes("헬스");
-                    return (
-                      <div className={`rounded-xl border transition-colors ${sel ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
-                        <button type="button"
-                          onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "헬스") : [...s, "헬스"]); setServiceHealthMonths(undefined); setServiceHealthCustom(""); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                          <span className={sel ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                {/* 헬스 */}
+                <div className={`rounded-xl border transition-colors ${hasHealth ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                  <button type="button" onClick={() => setItemTypes(t => hasHealth ? t.filter(x => x !== "헬스") : [...t, "헬스"])}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={hasHealth ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                    {hasHealth && <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {hasHealth && (
+                    <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3">
+                      <label className="text-xs text-muted-foreground">이용 기간</label>
+                      <div className="flex gap-2 mt-1">
+                        {[1, 3, 6, 12].map(m => (
+                          <button key={m} type="button"
+                            onClick={() => {
+                              setHealthMonths(m);
+                              if (form.membershipStart) {
+                                setForm(p => ({ ...p, membershipEnd: calcEndDateByMonths(p.membershipStart, m) }));
+                              }
+                            }}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${healthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                            {m}개월
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 기타 (락커 / 운동복) */}
+                <div className={`rounded-xl border transition-colors ${hasOther ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                  <button type="button" onClick={() => {
+                    setItemTypes(t => hasOther ? t.filter(x => x !== "기타") : [...t, "기타"]);
+                    if (hasOther) { setAddLocker(false); setAddUniform(false); setLockerId(""); }
+                  }}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                    <span className={hasOther ? "text-amber-400" : "text-muted-foreground"}>기타 <span className="font-normal text-xs">(운동복, 락커 등)</span></span>
+                    {hasOther && <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                  </button>
+                  {hasOther && (
+                    <div className="px-4 pb-4 border-t border-amber-500/20 pt-3 space-y-3">
+                      {/* 락커 배정 */}
+                      <div className={`rounded-xl border transition-colors ${addLocker ? "border-amber-400/60 bg-amber-400/5" : "border-border"}`}>
+                        <button type="button" onClick={() => { setAddLocker(v => !v); setLockerId(""); }}
+                          className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium">
+                          <span className={addLocker ? "text-amber-400" : "text-muted-foreground"}>락커 배정</span>
+                          <div className={`w-10 h-5 rounded-full transition-colors relative ${addLocker ? "bg-amber-500" : "bg-muted"}`}>
+                            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${addLocker ? "left-5" : "left-0.5"}`} />
+                          </div>
                         </button>
-                        {sel && (
-                          <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
-                            <Label className="text-xs text-muted-foreground">제공 개월 수</Label>
-                            <div className="flex gap-2">
+                        {addLocker && (
+                          <div className="px-3 pb-3 space-y-2 border-t border-amber-400/20 pt-2">
+                            <select value={lockerId} onChange={e => setLockerId(e.target.value)}
+                              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                              <option value="">락커 선택...</option>
+                              {lockerGroups.map(g => (
+                                <optgroup key={g.branchId ?? "none"} label={g.name}>
+                                  {g.lockers.map((l: any) => <option key={l.id} value={String(l.id)}>락커 {l.lockerNumber}</option>)}
+                                </optgroup>
+                              ))}
+                            </select>
+                            {availableLockers.length === 0 && <p className="text-xs text-muted-foreground">사용 가능한 락커가 없습니다</p>}
+                            <div className="flex gap-1.5 flex-wrap">
                               {[1, 3, 6, 12].map(m => (
-                                <button key={m} type="button"
-                                  onClick={() => { setServiceHealthMonths(v => v === m ? undefined : m); setServiceHealthCustom(""); }}
-                                  className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                <button key={m} type="button" onClick={() => setLockerMonths(m)}
+                                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${lockerMonths === m ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
                                   {m}개월
                                 </button>
                               ))}
                             </div>
-                            <Input type="number" min={1} value={serviceHealthCustom}
-                              onChange={e => { setServiceHealthCustom(e.target.value); setServiceHealthMonths(undefined); }}
-                              placeholder="직접 입력 (개월)" className="bg-input border-border text-sm" />
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-xs text-muted-foreground">결제 금액</label>
+                                <Input type="number" value={lockerPrice} onChange={e => setLockerPrice(e.target.value)}
+                                  placeholder="0" className="mt-1 bg-input border-border" />
+                              </div>
+                              <div>
+                                {lockerEnd && <div className="text-xs text-muted-foreground mt-4">종료: {lockerEnd}</div>}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
 
-                  {/* 락커 */}
-                  {(() => {
-                    const sel = serviceItems.includes("락커");
-                    const avail = (allLockers ?? []).filter((l: any) => !l.isOccupied);
-                    const groups: { branchId: number | null; name: string; lockers: any[] }[] = [];
-                    for (const l of avail) {
-                      const bid = l.branchId ?? null;
-                      let g = groups.find(g => g.branchId === bid);
-                      if (!g) {
-                        const b = (branchList ?? []).find((b: any) => b.id === bid);
-                        g = { branchId: bid, name: b?.name ?? "지점 미지정", lockers: [] };
-                        groups.push(g);
-                      }
-                      g.lockers.push(l);
-                    }
-                    return (
-                      <div className={`rounded-xl border transition-colors ${sel ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
-                        <button type="button"
-                          onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "락커") : [...s, "락커"]); setServiceLockerNum(""); }}
-                          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
-                          <span className={sel ? "text-amber-400" : "text-muted-foreground"}>락커</span>
-                          {avail.length > 0 && <span className="text-[10px] text-muted-foreground">사용 가능 {avail.length}개</span>}
+                      {/* 운동복 대여 */}
+                      <div className={`rounded-xl border transition-colors ${addUniform ? "border-purple-500/60 bg-purple-500/5" : "border-border"}`}>
+                        <button type="button" onClick={() => setAddUniform(v => !v)}
+                          className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium">
+                          <span className={addUniform ? "text-purple-400" : "text-muted-foreground"}>운동복 대여</span>
+                          <div className={`w-10 h-5 rounded-full transition-colors relative ${addUniform ? "bg-purple-500" : "bg-muted"}`}>
+                            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${addUniform ? "left-5" : "left-0.5"}`} />
+                          </div>
                         </button>
-                        {sel && (
-                          <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
-                            <Label className="text-xs text-muted-foreground">락커 번호</Label>
-                            {avail.length === 0 ? (
-                              <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>
-                            ) : (
-                              <select value={serviceLockerNum} onChange={e => setServiceLockerNum(e.target.value)}
-                                className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none focus:ring-1 focus:ring-amber-500">
-                                <option value="">락커 선택...</option>
-                                {groups.map(g => (
-                                  <optgroup key={g.branchId ?? "none"} label={g.name}>
-                                    {g.lockers.map((l: any) => (
-                                      <option key={l.id} value={l.lockerNumber}>{l.lockerNumber}</option>
-                                    ))}
-                                  </optgroup>
-                                ))}
-                              </select>
-                            )}
+                        {addUniform && (
+                          <div className="px-3 pb-3 space-y-2 border-t border-purple-500/20 pt-2">
+                            <div className="flex gap-1.5 flex-wrap">
+                              {[1, 3, 6, 12].map(m => (
+                                <button key={m} type="button" onClick={() => setUniformMonths(m)}
+                                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${uniformMonths === m ? "bg-purple-500 text-white border-purple-500" : "border-border text-muted-foreground"}`}>
+                                  {m}개월
+                                </button>
+                              ))}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-xs text-muted-foreground">결제 금액</label>
+                                <Input type="number" value={uniformPrice} onChange={e => setUniformPrice(e.target.value)}
+                                  placeholder="0" className="mt-1 bg-input border-border" />
+                              </div>
+                              <div>
+                                {uniformEnd && <div className="text-xs text-muted-foreground mt-4">종료: {uniformEnd}</div>}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
-
-                  {/* 운동복 */}
-                  {(() => {
-                    const sel = serviceItems.includes("운동복");
-                    return (
-                      <button type="button"
-                        onClick={() => setServiceItems(s => sel ? s.filter(x => x !== "운동복") : [...s, "운동복"])}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${sel ? "border-purple-500/60 bg-purple-500/5 text-purple-400" : "border-border text-muted-foreground"}`}>
-                        운동복
-                        {sel && <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
-                      </button>
-                    );
-                  })()}
-
-                  {/* 배지 */}
-                  {serviceItems.length > 0 && (
-                    <div className="flex gap-1.5 flex-wrap mt-1">
-                      {serviceItems.map(item => {
-                        let label = `🎁 서비스 ${item}`;
-                        if (item === "PT" && servicePtCount) label = `🎁 PT +${servicePtCount}회`;
-                        else if (item === "헬스") {
-                          const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : 0);
-                          if (m) label = `🎁 헬스 +${m}개월`;
-                        } else if (item === "락커" && serviceLockerNum) label = `🎁 락커 #${serviceLockerNum}`;
-                        const style = item === "PT" ? "bg-blue-500/20 text-blue-400"
-                          : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
-                          : item === "락커" ? "bg-amber-500/20 text-amber-400"
-                          : "bg-purple-500/20 text-purple-400";
-                        return <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${style}`}>{label}</span>;
-                      })}
                     </div>
                   )}
                 </div>
-              )}
+              </div>
+
+              {/* 날짜 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">결제일 *</label>
+                  <input type="date" value={form.paymentDate}
+                    onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))}
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">시작일</label>
+                  <input type="date" value={form.membershipStart}
+                    onChange={e => {
+                      const start = e.target.value;
+                      let end = form.membershipEnd;
+                      if (hasHealth && healthMonths) end = calcEndDateByMonths(start, Number(healthMonths));
+                      else if (hasPT) end = calcEndDateByPT(start, form.ptSessions);
+                      setForm(p => ({ ...p, membershipStart: start, membershipEnd: end }));
+                    }}
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                </div>
+              </div>
+
+              {/* 금액 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">정가 * (원)</label>
+                  <input type="number" value={form.paymentAmount}
+                    onChange={e => setForm(f => ({ ...f, paymentAmount: e.target.value }))}
+                    placeholder="0"
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">할인 (원)</label>
+                  <input type="number" value={form.discountAmount}
+                    onChange={e => setForm(f => ({ ...f, discountAmount: e.target.value }))}
+                    placeholder="0"
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">실결제 (원)</label>
+                  <div className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border opacity-70">
+                    {computedPaid.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">미수금 (원)</label>
+                  <input type="number" value={form.unpaidAmount}
+                    onChange={e => setForm(f => ({ ...f, unpaidAmount: e.target.value }))}
+                    placeholder="0"
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                </div>
+              </div>
+
+              {/* 결제 방법 */}
+              <div>
+                <label className="text-xs text-muted-foreground">결제 방법 *</label>
+                {errors.paymentMethod && <p className="text-xs text-red-500">{errors.paymentMethod}</p>}
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {PAYMENT_METHODS.map(m => (
+                    <button key={m} type="button"
+                      onClick={() => setForm(f => ({ ...f, paymentMethod: f.paymentMethod === m ? "" : m as any }))}
+                      className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 등록 메모 */}
+              <div>
+                <label className="text-xs text-muted-foreground">등록 진행 내용</label>
+                <textarea value={form.paymentMemo} onChange={e => setForm(f => ({ ...f, paymentMemo: e.target.value }))} rows={2}
+                  placeholder="운동 가능 시간, 날짜, 특이사항..."
+                  className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none resize-none" />
+              </div>
+
+              {/* 서비스 내역 */}
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label className="text-sm text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목)</span></Label>
+
+                {/* PT */}
+                {(() => {
+                  const sel = serviceItems.includes("PT");
+                  const paid = Number(form.paymentAmount) || 0;
+                  const sessions = parseInt(form.ptSessions) || 0;
+                  const calcPrice = sessions > 0 ? Math.round(paid / sessions) : 0;
+                  const unitPrice = calcPrice > 0 ? calcPrice : (gymSettings?.servicePtUnitPrice ?? 0);
+                  return (
+                    <div className={`rounded-xl border transition-colors ${sel ? "border-blue-500/60 bg-blue-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "PT") : [...s, "PT"]); setServicePtCount(undefined); }}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={sel ? "text-blue-400" : "text-muted-foreground"}>PT</span>
+                        {unitPrice > 0 && <span className="text-[10px] text-muted-foreground">단가 {unitPrice.toLocaleString()}원/회</span>}
+                      </button>
+                      {sel && (
+                        <div className="px-4 pb-4 border-t border-blue-500/20 pt-3 space-y-2">
+                          <Label className="text-xs text-muted-foreground">제공 횟수</Label>
+                          <div className="flex gap-2">
+                            {[1, 2, 3].map(n => (
+                              <button key={n} type="button"
+                                onClick={() => setServicePtCount(c => c === n ? undefined : n)}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${servicePtCount === n ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground"}`}>
+                                +{n}회
+                              </button>
+                            ))}
+                          </div>
+                          <Input type="number" min={1}
+                            value={servicePtCount && ![1,2,3].includes(servicePtCount) ? servicePtCount : ""}
+                            onChange={e => setServicePtCount(e.target.value ? parseInt(e.target.value) : undefined)}
+                            placeholder="직접 입력 (회)" className="bg-input border-border text-sm" />
+                          {servicePtCount && unitPrice > 0 && (
+                            <p className="text-xs text-blue-400">서비스 금액 ≈ {(servicePtCount * unitPrice).toLocaleString()}원 상당</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 헬스 */}
+                {(() => {
+                  const sel = serviceItems.includes("헬스");
+                  return (
+                    <div className={`rounded-xl border transition-colors ${sel ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "헬스") : [...s, "헬스"]); setServiceHealthMonths(undefined); setServiceHealthCustom(""); }}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={sel ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                      </button>
+                      {sel && (
+                        <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
+                          <Label className="text-xs text-muted-foreground">제공 개월 수</Label>
+                          <div className="flex gap-2">
+                            {[1, 3, 6, 12].map(m => (
+                              <button key={m} type="button"
+                                onClick={() => { setServiceHealthMonths(v => v === m ? undefined : m); setServiceHealthCustom(""); }}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                {m}개월
+                              </button>
+                            ))}
+                          </div>
+                          <Input type="number" min={1} value={serviceHealthCustom}
+                            onChange={e => { setServiceHealthCustom(e.target.value); setServiceHealthMonths(undefined); }}
+                            placeholder="직접 입력 (개월)" className="bg-input border-border text-sm" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 락커 */}
+                {(() => {
+                  const sel = serviceItems.includes("락커");
+                  const avail = (allLockers ?? []).filter((l: any) => !l.isOccupied);
+                  const groups: { branchId: number | null; name: string; lockers: any[] }[] = [];
+                  for (const l of avail) {
+                    const bid = l.branchId ?? null;
+                    let g = groups.find(g => g.branchId === bid);
+                    if (!g) {
+                      const b = (branchList ?? []).find((b: any) => b.id === bid);
+                      g = { branchId: bid, name: b?.name ?? "지점 미지정", lockers: [] };
+                      groups.push(g);
+                    }
+                    g.lockers.push(l);
+                  }
+                  return (
+                    <div className={`rounded-xl border transition-colors ${sel ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                      <button type="button"
+                        onClick={() => { setServiceItems(s => sel ? s.filter(x => x !== "락커") : [...s, "락커"]); setServiceLockerNum(""); }}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                        <span className={sel ? "text-amber-400" : "text-muted-foreground"}>락커</span>
+                        {avail.length > 0 && <span className="text-[10px] text-muted-foreground">사용 가능 {avail.length}개</span>}
+                      </button>
+                      {sel && (
+                        <div className="px-4 pb-4 border-t border-amber-500/20 pt-3">
+                          <Label className="text-xs text-muted-foreground">락커 번호</Label>
+                          {avail.length === 0 ? (
+                            <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>
+                          ) : (
+                            <select value={serviceLockerNum} onChange={e => setServiceLockerNum(e.target.value)}
+                              className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none focus:ring-1 focus:ring-amber-500">
+                              <option value="">락커 선택...</option>
+                              {groups.map(g => (
+                                <optgroup key={g.branchId ?? "none"} label={g.name}>
+                                  {g.lockers.map((l: any) => (
+                                    <option key={l.id} value={l.lockerNumber}>{l.lockerNumber}</option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 운동복 */}
+                {(() => {
+                  const sel = serviceItems.includes("운동복");
+                  return (
+                    <button type="button"
+                      onClick={() => setServiceItems(s => sel ? s.filter(x => x !== "운동복") : [...s, "운동복"])}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${sel ? "border-purple-500/60 bg-purple-500/5 text-purple-400" : "border-border text-muted-foreground"}`}>
+                      운동복
+                      {sel && <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                    </button>
+                  );
+                })()}
+
+                {/* 서비스 배지 */}
+                {serviceItems.length > 0 && (
+                  <div className="flex gap-1.5 flex-wrap mt-1">
+                    {serviceItems.map(item => {
+                      let label = `🎁 서비스 ${item}`;
+                      if (item === "PT" && servicePtCount) label = `🎁 PT +${servicePtCount}회`;
+                      else if (item === "헬스") {
+                        const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : 0);
+                        if (m) label = `🎁 헬스 +${m}개월`;
+                      } else if (item === "락커" && serviceLockerNum) label = `🎁 락커 #${serviceLockerNum}`;
+                      const style = item === "PT" ? "bg-blue-500/20 text-blue-400"
+                        : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
+                        : item === "락커" ? "bg-amber-500/20 text-amber-400"
+                        : "bg-purple-500/20 text-purple-400";
+                      return <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${style}`}>{label}</span>;
+                    })}
+                  </div>
+                )}
+              </div>
+
             </CardContent>
           </Card>
         )}
 
-        {/* 락커 배정 (옵션) */}
-        {!isEdit && (
-          <Card className={`bg-card border-2 transition-colors ${addLocker ? "border-amber-500/40" : "border-border"}`}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center justify-between">
-                <span className="flex items-center gap-2"><Lock className="h-4 w-4 text-amber-500" />락커 배정</span>
-                <button type="button" onClick={() => { setAddLocker(v => !v); setLockerId(""); }}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${addLocker ? "bg-amber-500" : "bg-muted"}`}>
-                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${addLocker ? "left-6" : "left-1"}`} />
-                </button>
-              </CardTitle>
+        {/* 수정 모드: 운동 기간 */}
+        {isEdit && (
+          <Card className="bg-card border-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold">운동 기간</CardTitle>
             </CardHeader>
-            {addLocker && (
-              <CardContent className="space-y-3 pt-0">
-                <div>
-                  <label className="text-xs text-muted-foreground">락커 선택 *</label>
-                  <select value={lockerId} onChange={e => setLockerId(e.target.value)}
-                    className="w-full mt-1 bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground">
-                    <option value="">락커 선택...</option>
-                    {lockerGroups.map(g => (
-                      <optgroup key={g.branchId ?? "none"} label={g.name}>
-                        {g.lockers.map((l: any) => <option key={l.id} value={String(l.id)}>락커 {l.lockerNumber}</option>)}
-                      </optgroup>
-                    ))}
-                  </select>
-                  {availableLockers.length === 0 && <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>}
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="membershipStart" className="text-sm text-muted-foreground">운동 시작일</Label>
+                  <Input id="membershipStart" type="date" value={form.membershipStart}
+                    onChange={e => setForm(p => ({ ...p, membershipStart: e.target.value }))}
+                    className="bg-input border-border" />
                 </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">사용 기간</label>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    {[1, 3, 6, 12].map(m => (
-                      <button key={m} type="button"
-                        onClick={() => setLockerMonths(m)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${lockerMonths === m ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground"}`}>
-                        {m}개월
-                      </button>
-                    ))}
-                  </div>
-                  {lockerEnd && <p className="text-xs text-muted-foreground mt-1">종료일: {lockerEnd}</p>}
+                <div className="space-y-1.5">
+                  <Label htmlFor="membershipEnd" className="text-sm text-muted-foreground">운동 만료일</Label>
+                  <Input id="membershipEnd" type="date" value={form.membershipEnd}
+                    onChange={e => setForm(p => ({ ...p, membershipEnd: e.target.value }))}
+                    className="bg-input border-border" />
                 </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">결제 금액</label>
-                  <Input type="number" value={lockerPrice} onChange={e => setLockerPrice(e.target.value)}
-                    placeholder="0" className="mt-1 bg-input border-border" />
-                </div>
-              </CardContent>
-            )}
-          </Card>
-        )}
-
-        {/* 운동복 대여 (옵션) */}
-        {!isEdit && (
-          <Card className={`bg-card border-2 transition-colors ${addUniform ? "border-purple-500/40" : "border-border"}`}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold flex items-center justify-between">
-                <span className="flex items-center gap-2"><Shirt className="h-4 w-4 text-purple-500" />운동복 대여</span>
-                <button type="button" onClick={() => setAddUniform(v => !v)}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${addUniform ? "bg-purple-500" : "bg-muted"}`}>
-                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${addUniform ? "left-6" : "left-1"}`} />
-                </button>
-              </CardTitle>
-            </CardHeader>
-            {addUniform && (
-              <CardContent className="space-y-3 pt-0">
-                <div>
-                  <label className="text-xs text-muted-foreground">사용 기간</label>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    {[1, 3, 6, 12].map(m => (
-                      <button key={m} type="button"
-                        onClick={() => setUniformMonths(m)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformMonths === m ? "bg-purple-500 text-white border-purple-500" : "border-border text-muted-foreground"}`}>
-                        {m}개월
-                      </button>
-                    ))}
-                  </div>
-                  {uniformEnd && <p className="text-xs text-muted-foreground mt-1">종료일: {uniformEnd}</p>}
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">결제 금액</label>
-                  <Input type="number" value={uniformPrice} onChange={e => setUniformPrice(e.target.value)}
-                    placeholder="0 (무료 서비스면 0)" className="mt-1 bg-input border-border" />
-                </div>
-              </CardContent>
-            )}
+              </div>
+            </CardContent>
           </Card>
         )}
 

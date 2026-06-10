@@ -471,6 +471,7 @@ const membersRouter = t.router({
         serviceSessions: z.number().min(0).default(0).optional(),
         serviceSessionPrice: z.number().min(0).optional(),
         paymentAmount: z.number().optional(),
+        discountAmount: z.number().optional(),
         unpaidAmount: z.number().optional(),
         paymentMethod: z.enum(["카드", "현금", "현금영수증", "계좌이체", "이체", "지역화폐", "분할결제"]).optional(),
         paymentDate: z.string().optional(),
@@ -499,6 +500,7 @@ const membersRouter = t.router({
         serviceSessions,
         serviceSessionPrice,
         paymentAmount,
+        discountAmount: inputDiscountAmount,
         unpaidAmount,
         paymentMethod,
         paymentDate,
@@ -544,7 +546,8 @@ const membersRouter = t.router({
       if (paymentAmount || serviceItems) {
         const effectiveAmount = paymentAmount ?? 0;
         const sessionCount = ptSessions ? parseInt(ptSessions) : undefined;
-        const paid = Math.max(0, effectiveAmount - (unpaidAmount ?? 0));
+        const discAmt = inputDiscountAmount ?? 0;
+        const paid = Math.max(0, effectiveAmount - discAmt - (unpaidAmount ?? 0));
         const today = new Date().toISOString().substring(0, 10);
         const revenueType = input.primaryType ?? (sessionCount ? "PT" : ptProgram?.startsWith("헬스") ? "헬스" : "기타");
         // 헬스 기간 계산 (membershipStart → membershipEnd diff)
@@ -579,7 +582,7 @@ const membersRouter = t.router({
           type: revenueType,
           subType,
           amount: effectiveAmount,
-          discountAmount: 0,
+          discountAmount: discAmt,
           paidAmount: paid,
           unpaidAmount: unpaidAmount ?? 0,
           paymentMethod,
