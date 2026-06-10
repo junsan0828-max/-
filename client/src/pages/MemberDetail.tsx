@@ -1412,7 +1412,7 @@ export default function MemberDetail({ memberId }: Props) {
             const siEntries = allRevs.filter(r => r.serviceItems);
             const parseItems = (prefix: string) =>
               siEntries.flatMap(r =>
-                (r.serviceItems ?? "").split(",").filter(s => s.startsWith(prefix)).map(item => ({
+                (r.serviceItems ?? "").split(",").map(s => s.trim()).filter(s => s.startsWith(prefix)).map(item => ({
                   key: `si-${r.id}-${item}`,
                   detail: item,
                   paymentDate: r.paymentDate,
@@ -1425,16 +1425,21 @@ export default function MemberDetail({ memberId }: Props) {
             const siUniform = parseItems("운동복");
 
             // serviceItems가 없지만 programDetail에 해당 카테고리가 있는 항목
+            // + serviceItems 있지만 parseItems에서 못 잡은 경우 fallback
             const siEntryIds = new Set(siEntries.map(r => r.id));
             const pdUniform = allRevs.filter(r =>
               !siEntryIds.has(r.id) && /운동복|유니폼|uniform/i.test(r.programDetail ?? "")
             ).map(r => ({ key: `pd-${r.id}`, detail: r.programDetail ?? "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
+            // serviceItems에 운동복이 있지만 parseItems에서 못 잡은 항목 보완
+            const siUniformFallback = siEntries
+              .filter(r => /운동복|유니폼|uniform/i.test(r.serviceItems ?? "") && !siUniform.some(u => u.fromEntry === r.id))
+              .map(r => ({ key: `si-fb-${r.id}`, detail: "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
 
             const pdLocker = allRevs.filter(r =>
               !siEntryIds.has(r.id) && /락커/i.test(r.programDetail ?? "")
             ).map(r => ({ key: `pd-${r.id}`, detail: r.programDetail ?? "락커", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
 
-            const allUniformItems = [...siUniform, ...pdUniform];
+            const allUniformItems = [...siUniform, ...siUniformFallback, ...pdUniform];
             const allLockerItems = [...siLocker, ...pdLocker];
 
             // 기타 서비스: 위에서 분류된 항목 제외
