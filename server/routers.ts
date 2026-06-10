@@ -169,9 +169,9 @@ const membersRouter = t.router({
     const { role, trainerId } = ctx.user;
     if (role === "trainer" && !trainerId) throw new TRPCError({ code: "FORBIDDEN" });
 
-    // 운동복 매출 중 memberId 없는 것 소급 회원 생성
+    // 운동복 매출 중 memberId 없는 것 소급 회원 생성 (운동복 대여 등 구형 포함)
     const orphanUniforms = await db.select().from(revenueEntries)
-      .where(and(eq(revenueEntries.programDetail, "운동복"), isNull(revenueEntries.memberId)));
+      .where(and(sql`${revenueEntries.programDetail} LIKE '%운동복%'`, isNull(revenueEntries.memberId)));
     for (const entry of orphanUniforms) {
       if (!entry.customerName) continue;
       const now = new Date().toISOString();
@@ -186,6 +186,8 @@ const membersRouter = t.router({
       }).returning({ id: members.id });
       if (newMember) {
         await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, entry.id));
+        // uniforms 테이블도 함께 연결
+        await db.execute(sql`UPDATE uniforms SET "memberId" = ${newMember.id} WHERE "memberName" = ${entry.customerName} AND "memberId" IS NULL`);
       }
     }
 
