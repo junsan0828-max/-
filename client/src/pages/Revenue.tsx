@@ -23,13 +23,18 @@ type RevForm = {
   amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string; refundAmount: string;
   paymentMethod: string; paymentDate: string; startDate: string; installments: string; memo: string;
   ptProgramKey: string; ptProgramCustom: string;
-  serviceHealthDuration: string; // PT 등록 시 서비스 헬스권 기간(개월), "" = 없음
-  serviceItems: string; // 무료 제공 서비스 항목 (예: 헬스(14일),PT(3회))
+  serviceHealthDuration: string;
+  siPT: boolean; siPTCount: string;
+  siHealth: boolean; siHealthMonths: string; siHealthCustom: string;
+  siLocker: boolean; siLockerNum: string;
+  siUniform: boolean;
 };
 
 const defaultForm: RevForm = {
   customerName: "", phone: "", programDetail: "", duration: "", sessions: "",
-  ptProgramKey: "", ptProgramCustom: "", serviceHealthDuration: "", serviceItems: "",
+  ptProgramKey: "", ptProgramCustom: "", serviceHealthDuration: "",
+  siPT: false, siPTCount: "", siHealth: false, siHealthMonths: "", siHealthCustom: "",
+  siLocker: false, siLockerNum: "", siUniform: false,
   type: "PT", subType: "신규",
   amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0", refundAmount: "0",
   paymentMethod: "카드", paymentDate: new Date().toISOString().substring(0, 10), startDate: "",
@@ -39,6 +44,39 @@ const defaultForm: RevForm = {
 
 function fmt(n: number) {
   return n.toLocaleString();
+}
+
+function parseRevServiceItems(str: string) {
+  const r = { siPT: false, siPTCount: "", siHealth: false, siHealthMonths: "", siHealthCustom: "", siLocker: false, siLockerNum: "", siUniform: false };
+  if (!str) return r;
+  for (const part of str.split(",").map(s => s.trim())) {
+    const ptM = /^PT\((\d+)회\)$/.exec(part);
+    if (ptM) { r.siPT = true; r.siPTCount = ptM[1]; continue; }
+    if (part === "PT") { r.siPT = true; continue; }
+    const hMo = /^헬스\((\d+)개월\)$/.exec(part);
+    if (hMo) { r.siHealth = true; r.siHealthMonths = hMo[1]; continue; }
+    const hDay = /^헬스\((\d+)일\)$/.exec(part);
+    if (hDay) { r.siHealth = true; r.siHealthCustom = hDay[1]; continue; }
+    if (part === "헬스") { r.siHealth = true; continue; }
+    const lkM = /^락커\((.+)\)$/.exec(part);
+    if (lkM) { r.siLocker = true; r.siLockerNum = lkM[1]; continue; }
+    if (part === "락커") { r.siLocker = true; continue; }
+    if (part === "운동복") { r.siUniform = true; }
+  }
+  return r;
+}
+
+function buildRevServiceItems(f: RevForm): string | undefined {
+  const parts: string[] = [];
+  if (f.siPT) parts.push(f.siPTCount ? `PT(${f.siPTCount}회)` : "PT");
+  if (f.siHealth) {
+    if (f.siHealthMonths) parts.push(`헬스(${f.siHealthMonths}개월)`);
+    else if (f.siHealthCustom) parts.push(`헬스(${f.siHealthCustom}일)`);
+    else parts.push("헬스");
+  }
+  if (f.siLocker) parts.push(f.siLockerNum ? `락커(${f.siLockerNum})` : "락커");
+  if (f.siUniform) parts.push("운동복");
+  return parts.length > 0 ? parts.join(",") : undefined;
 }
 
 export default function RevenuePage() {
@@ -117,6 +155,7 @@ function RevenueContent() {
   function openEdit(row: any) {
     setEditId(row.entry.id);
     setEditCreatedBy(row.entry.createdBy ?? null);
+    const si = parseRevServiceItems((row.entry as any).serviceItems ?? "");
     setForm({
       customerName: row.entry.customerName ?? "",
       phone: row.entry.phone ?? "",
@@ -128,7 +167,7 @@ function RevenueContent() {
       ptProgramKey: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? (row.entry.programDetail ?? "") : (row.entry.programDetail ? "기타" : ""),
       ptProgramCustom: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? "" : (row.entry.programDetail ?? ""),
       serviceHealthDuration: (row.entry as any).serviceHealthDuration ? String((row.entry as any).serviceHealthDuration) : "",
-      serviceItems: (row.entry as any).serviceItems ?? "",
+      ...si,
       leadId: row.entry.leadId ?? undefined,
       trainerId: row.entry.trainerId ?? undefined,
       consultantId: (row.entry as any).consultantId ?? undefined,
@@ -196,7 +235,7 @@ function RevenueContent() {
       startDate: form.startDate || form.paymentDate,
       installments: parseInt(form.installments) || 1,
       memo: form.memo,
-      serviceItems: form.serviceItems || undefined,
+      serviceItems: buildRevServiceItems(form),
     };
     if (editId) updateMutation.mutate({ id: editId, ...payload });
     else createMutation.mutate(payload);
@@ -514,6 +553,23 @@ function RevenueContent() {
                 </div>
               </div>
 
+              {/* 등록 유형 */}
+              <div>
+                <label className="text-xs text-muted-foreground">등록 유형 *</label>
+                <div className="flex gap-2 mt-1">
+                  {SUB_TYPES.map(s => (
+                    <button key={s} type="button" onClick={() => setForm(f => ({
+                      ...f,
+                      subType: s,
+                      ...(s === "이전" ? { amount: "0", paidAmount: "0", unpaidAmount: "0", discountAmount: "0", refundAmount: "0" } : {}),
+                    }))}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.subType === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* PT: 프로그램명 + 횟수 + 서비스 헬스권 */}
               {form.type === "PT" && (
                 <div className="space-y-2">
@@ -620,13 +676,73 @@ function RevenueContent() {
               {(form.type === "헬스" || form.type === "PT") && (
                 <div>
                   <label className="text-xs text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목)</span></label>
-                  <input
-                    type="text"
-                    value={form.serviceItems}
-                    onChange={e => setForm(f => ({ ...f, serviceItems: e.target.value }))}
-                    placeholder="예: 헬스(14일), PT(3회)"
-                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none"
-                  />
+                  <div className="space-y-1.5 mt-1">
+                    {([
+                      { id: "siPT" as const, label: "PT", color: "blue" },
+                      { id: "siHealth" as const, label: "헬스", color: "emerald" },
+                      { id: "siLocker" as const, label: "락커", color: "amber" },
+                      { id: "siUniform" as const, label: "운동복", color: "purple" },
+                    ] as const).map(({ id, label, color }) => {
+                      const sel = form[id] as boolean;
+                      return (
+                        <div key={id} className={`rounded-xl border transition-colors ${sel ? `border-${color}-500/60 bg-${color}-500/5` : "border-border bg-background"}`}>
+                          <button type="button"
+                            onClick={() => setForm(f => ({
+                              ...f,
+                              [id]: !sel,
+                              ...(id === "siPT" && sel ? { siPTCount: "" } : {}),
+                              ...(id === "siHealth" && sel ? { siHealthMonths: "", siHealthCustom: "" } : {}),
+                              ...(id === "siLocker" && sel ? { siLockerNum: "" } : {}),
+                            }))}
+                            className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium">
+                            <span className={sel ? `text-${color}-400` : "text-muted-foreground"}>{label}</span>
+                            {sel && <span className={`text-[10px] px-2 py-0.5 rounded-full bg-${color}-500/20 text-${color}-400`}>선택됨</span>}
+                          </button>
+                          {sel && id === "siPT" && (
+                            <div className="px-4 pb-3 border-t border-blue-500/20 pt-2 flex gap-2">
+                              {[1, 2, 3].map(n => (
+                                <button key={n} type="button"
+                                  onClick={() => setForm(f => ({ ...f, siPTCount: f.siPTCount === String(n) ? "" : String(n) }))}
+                                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium border ${form.siPTCount === String(n) ? "bg-blue-500 text-white border-blue-500" : "bg-background border-border text-muted-foreground"}`}>
+                                  +{n}회
+                                </button>
+                              ))}
+                              <input type="number" min={1}
+                                value={![1,2,3].map(String).includes(form.siPTCount) && form.siPTCount !== "" ? form.siPTCount : ""}
+                                onChange={e => setForm(f => ({ ...f, siPTCount: e.target.value }))}
+                                placeholder="직접입력"
+                                className="bg-background border border-border rounded-lg text-xs px-2 py-1.5 w-20 focus:outline-none" />
+                            </div>
+                          )}
+                          {sel && id === "siHealth" && (
+                            <div className="px-4 pb-3 border-t border-emerald-500/20 pt-2 space-y-2">
+                              <div className="flex gap-2">
+                                {[1, 3, 6, 12].map(m => (
+                                  <button key={m} type="button"
+                                    onClick={() => setForm(f => ({ ...f, siHealthMonths: f.siHealthMonths === String(m) ? "" : String(m), siHealthCustom: "" }))}
+                                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border ${form.siHealthMonths === String(m) ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                    {m}개월
+                                  </button>
+                                ))}
+                              </div>
+                              <input type="number" min={1} value={form.siHealthCustom}
+                                onChange={e => setForm(f => ({ ...f, siHealthCustom: e.target.value, siHealthMonths: "" }))}
+                                placeholder="직접 입력 (일)"
+                                className="w-full bg-background border border-border rounded-lg text-xs px-3 py-1.5 focus:outline-none" />
+                            </div>
+                          )}
+                          {sel && id === "siLocker" && (
+                            <div className="px-4 pb-3 border-t border-amber-500/20 pt-2">
+                              <input type="text" value={form.siLockerNum}
+                                onChange={e => setForm(f => ({ ...f, siLockerNum: e.target.value }))}
+                                placeholder="락커 번호 입력"
+                                className="w-full bg-background border border-border rounded-lg text-xs px-3 py-1.5 focus:outline-none" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -657,23 +773,6 @@ function RevenueContent() {
                   </div>
                 </div>
               )}
-
-              {/* 신규/재등록 */}
-              <div>
-                <label className="text-xs text-muted-foreground">등록 유형 *</label>
-                <div className="flex gap-2 mt-1">
-                  {SUB_TYPES.map(s => (
-                    <button key={s} type="button" onClick={() => setForm(f => ({
-                      ...f,
-                      subType: s,
-                      ...(s === "이전" ? { amount: "0", paidAmount: "0", unpaidAmount: "0", discountAmount: "0", refundAmount: "0" } : {}),
-                    }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.subType === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* 금액 */}
               <div className="grid grid-cols-2 gap-3">
