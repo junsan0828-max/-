@@ -247,7 +247,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
         {user && !showSurvey && !needsBasicInfo && !profileModalOpen && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
-        {guideOpen && <PageGuideModal path={location} onClose={() => setGuideOpen(false)} />}
         {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal onOpenChange={setProfileModalOpen} />}
         {needsBasicInfo && (
           <BasicInfoModal
@@ -256,6 +255,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
         )}
         {showSurvey && <OnboardingSurveyModal onClose={() => { sessionStorage.setItem("onboarding-survey-dismissed", "1"); setSurveyDone(true); }} />}
+        {guideOpen && <PageGuideModal path={location} onClose={() => setGuideOpen(false)} />}
       </div>
     </div>
   );
