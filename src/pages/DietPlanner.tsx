@@ -891,6 +891,7 @@ export default function DietPlanner() {
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
   const [shareCount, setShareCount] = useState<number | null>(null);
   const [kakaoUser, setKakaoUser] = useState<KakaoUser | null>(null);
+  const [kakaoMsg, setKakaoMsg] = useState<string>("");
 
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -1019,27 +1020,43 @@ export default function DietPlanner() {
   }
 
   function handleKakaoLogin() {
+    setKakaoMsg("");
     const k = Kakao();
-    if (!k?.isInitialized()) {
-      alert("카카오 앱 키가 설정되지 않았습니다.\nRailway 환경변수 VITE_KAKAO_APP_KEY를 확인해주세요.");
+    if (!k) {
+      setKakaoMsg("❌ SDK 미로드 — 페이지 새로고침");
       return;
     }
+    if (!k.isInitialized()) {
+      setKakaoMsg("❌ 앱 키 미설정 (VITE_KAKAO_APP_KEY)");
+      return;
+    }
+    setKakaoMsg("로그인 중...");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     k.Auth.login({
-      success: () => {
+      scope: "profile_nickname,profile_image",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      success: (_auth: any) => {
         k.API.request({
           url: "/v2/user/me",
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           success: (res: any) => {
+            setKakaoMsg("");
             const profile = res.kakao_account?.profile;
-            const user: KakaoUser = {
+            setKakaoUser({
               id: res.id,
               name: profile?.nickname ?? "카카오 사용자",
               thumbnail: profile?.thumbnail_image_url ?? null,
-            };
-            setKakaoUser(user);
+            });
             if (profile?.nickname && !name) setName(profile.nickname);
           },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          fail: (e: any) => setKakaoMsg("❌ 프로필 오류: " + (e?.msg ?? JSON.stringify(e))),
         });
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fail: (e: any) => {
+        const msg = e?.error_description ?? e?.error ?? JSON.stringify(e);
+        setKakaoMsg("❌ " + msg);
       },
     });
   }
@@ -1106,28 +1123,33 @@ export default function DietPlanner() {
           </div>
 
           {/* 카카오 로그인 버튼 */}
-          {kakaoUser ? (
-            <button
-              onClick={handleKakaoLogout}
-              title="로그아웃"
-              className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold pl-1.5 pr-2.5 py-1.5 rounded-lg transition-colors shrink-0"
-            >
-              {kakaoUser.thumbnail ? (
-                <img src={kakaoUser.thumbnail} alt="" className="w-5 h-5 rounded-full object-cover" />
-              ) : (
+          <div className="flex flex-col items-end gap-0.5 shrink-0">
+            {kakaoUser ? (
+              <button
+                onClick={handleKakaoLogout}
+                title="로그아웃"
+                className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold pl-1.5 pr-2.5 py-1.5 rounded-lg transition-colors"
+              >
+                {kakaoUser.thumbnail ? (
+                  <img src={kakaoUser.thumbnail} alt="" className="w-5 h-5 rounded-full object-cover" />
+                ) : (
+                  <KakaoIcon />
+                )}
+                <span className="max-w-[72px] truncate">{kakaoUser.name}</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleKakaoLogin}
+                className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+              >
                 <KakaoIcon />
-              )}
-              <span className="max-w-[72px] truncate">{kakaoUser.name}</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleKakaoLogin}
-              className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors shrink-0"
-            >
-              <KakaoIcon />
-              <span>로그인</span>
-            </button>
-          )}
+                <span>{kakaoMsg === "로그인 중..." ? "로그인 중..." : "로그인"}</span>
+              </button>
+            )}
+            {kakaoMsg && kakaoMsg !== "로그인 중..." && (
+              <span className="text-[10px] text-red-400 max-w-[160px] truncate">{kakaoMsg}</span>
+            )}
+          </div>
         </div>
       </div>
 
