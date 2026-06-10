@@ -4782,14 +4782,7 @@ function WorkshopContent() {
     onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("30일 무료 체험이 시작되었습니다!"); },
     onError: (e) => toast.error(e.message),
   });
-  const startEliteTrialMutation = trpc.workshop.startEliteTrial.useMutation({
-    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("ELITE 30일 체험이 시작되었습니다! PRO·ELITE 기능을 모두 사용해보세요."); },
-    onError: (e) => toast.error(e.message),
-  });
-  const requestEliteExtensionMutation = trpc.workshop.requestEliteExtension.useMutation({
-    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("연장 요청이 전송되었습니다. 검토 후 연락드립니다."); },
-    onError: (e) => toast.error(e.message),
-  });
+
   const unlockMutation = trpc.workshop.unlock.useMutation({
     onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("작업실이 활성화되었습니다!"); },
     onError: (e) => toast.error(e.message),
@@ -4838,12 +4831,12 @@ function WorkshopContent() {
             <Wrench className="h-8 w-8 text-primary" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold">작업실 무료 체험 시작하기</h1>
+            <h1 className="text-xl font-bold">전체 기능 30일 무료 체험</h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              회원 관리, 예약, 브랜딩, 설문, 템플릿 기능을<br />
-              30일 동안 자유롭게 사용해보세요.
+              PRO · ELITE 기능을 포함한 <strong className="text-foreground">모든 기능</strong>을<br />
+              30일 동안 제한 없이 사용해보세요.
             </p>
-            <p className="text-xs text-muted-foreground">실제 회원 데이터와 작업 흐름을 직접 경험할 수 있습니다.</p>
+            <p className="text-xs text-muted-foreground">결제 없이 바로 시작 · 1회 한정 · 카드 정보 불필요</p>
           </div>
 
           <div className="w-full space-y-1.5 text-left">
@@ -4858,9 +4851,9 @@ function WorkshopContent() {
           <Button className="w-full gap-2" size="lg"
             onClick={() => startTrialMutation.mutate()}
             disabled={startTrialMutation.isPending}>
-            {startTrialMutation.isPending ? "시작 중..." : "무료 체험 오픈 (30일)"}
+            {startTrialMutation.isPending ? "시작 중..." : "전체 기능 무료 체험 시작 (30일)"}
           </Button>
-          <p className="text-xs text-muted-foreground">결제 없이 바로 시작 · 카드 정보 불필요</p>
+          <p className="text-xs text-muted-foreground">모든 플랜 기능 포함 · 1회 한정 제공</p>
         </div>
       </div>
     );
@@ -4956,21 +4949,6 @@ function WorkshopContent() {
           </Button>
         </div>
       )}
-      {/* ELITE 체험 종료 배너 */}
-      {eliteTrial?.status === "expired" && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold text-amber-700">ELITE 체험이 종료되었습니다</p>
-            <p className="text-[10px] text-amber-600 mt-0.5">PRO·ELITE 기능을 계속 사용하려면 연장을 요청하세요</p>
-          </div>
-          <button
-            onClick={() => requestEliteExtensionMutation.mutate()}
-            disabled={requestEliteExtensionMutation.isPending || eliteTrial.extensionRequested}
-            className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-60 shrink-0">
-            {eliteTrial.extensionRequested ? "요청됨" : "연장 요청"}
-          </button>
-        </div>
-      )}
 
       {/* 헤더 */}
       <div className="flex items-center justify-between">
@@ -5022,31 +5000,11 @@ function WorkshopContent() {
                         <p className="text-[11px] text-muted-foreground">{meta.limit}</p>
                       </div>
                     </div>
-                    {/* ELITE 체험 버튼 (PRO/ELITE 티어에만) */}
-                    {(tierKey === "pro" || tierKey === "elite") && (
-                      <>
-                        {!eliteTrial && (
-                          <button
-                            onClick={() => startEliteTrialMutation.mutate()}
-                            disabled={startEliteTrialMutation.isPending}
-                            className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-60 shrink-0">
-                            {startEliteTrialMutation.isPending ? "신청 중..." : "ELITE 30일 체험"}
-                          </button>
-                        )}
-                        {eliteTrial?.status === "active" && (
-                          <span className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-600 border border-amber-500/30 shrink-0">
-                            체험 중 {eliteTrial.daysRemaining}일 남음
-                          </span>
-                        )}
-                        {eliteTrial?.status === "expired" && tierKey === "elite" && (
-                          <button
-                            onClick={() => requestEliteExtensionMutation.mutate()}
-                            disabled={requestEliteExtensionMutation.isPending || eliteTrial.extensionRequested}
-                            className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-muted text-muted-foreground border border-border hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-60 shrink-0">
-                            {eliteTrial.extensionRequested ? "연장 요청됨" : requestEliteExtensionMutation.isPending ? "요청 중..." : "연장 요청"}
-                          </button>
-                        )}
-                      </>
+                    {/* 체험 중 배지 */}
+                    {eliteTrialActive && (
+                      <span className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+                        체험 중 {eliteTrial!.daysRemaining}일 남음
+                      </span>
                     )}
                   </div>
 

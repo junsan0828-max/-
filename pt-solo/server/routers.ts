@@ -3942,25 +3942,12 @@ const workshopRouter = t.router({
 
     if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures: [] as string[], eliteTrial: null as null | { status: "active"|"expired"; daysRemaining: number; extensionRequested: boolean } };
 
-    // elite trial 상태 계산
-    const settingsRow = await pool.query<{ workshopTrialStartedAt: string | null; removedFeatures: string | null; eliteTrialStartedAt: string | null; eliteTrialExtensionRequested: number }>(
-      `SELECT "workshopTrialStartedAt", "removedFeatures", "eliteTrialStartedAt", "eliteTrialExtensionRequested" FROM trainer_settings WHERE "trainerId"=$1`,
+    const settingsRow = await pool.query<{ workshopTrialStartedAt: string | null; removedFeatures: string | null }>(
+      `SELECT "workshopTrialStartedAt", "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`,
       [trainerId]
     );
     const row0 = settingsRow.rows[0];
     const removedFeatures = (row0?.removedFeatures ?? "").split(",").filter(Boolean);
-
-    let eliteTrial: null | { status: "active"|"expired"; daysRemaining: number; extensionRequested: boolean } = null;
-    if (row0?.eliteTrialStartedAt) {
-      const eliteStarted = new Date(row0.eliteTrialStartedAt);
-      const daysSince = Math.floor((Date.now() - eliteStarted.getTime()) / (1000 * 60 * 60 * 24));
-      const daysRemaining = Math.max(0, ELITE_TRIAL_DAYS - daysSince);
-      eliteTrial = {
-        status: daysRemaining > 0 ? "active" : "expired",
-        daysRemaining,
-        extensionRequested: row0.eliteTrialExtensionRequested === 1,
-      };
-    }
 
     // 코인 활성화 여부 확인
     const activated = await pool.query(
@@ -3968,51 +3955,37 @@ const workshopRouter = t.router({
       [trainerId]
     );
     if (activated.rows.length > 0) {
-      return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, eliteTrial };
+      return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, eliteTrial: null };
     }
 
     const trialStartedAt = row0?.workshopTrialStartedAt ?? null;
-    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, eliteTrial };
+    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, eliteTrial: null };
 
     const started = new Date(trialStartedAt);
     const daysSince = Math.floor((Date.now() - started.getTime()) / (1000 * 60 * 60 * 24));
+    const trialDaysRemaining = Math.max(0, WORKSHOP_TRIAL_DAYS - daysSince);
+
+    // 체험 기간 중에는 전체 기능(엘리트 포함) 활성화
+    const eliteTrial: null | { status: "active"|"expired"; daysRemaining: number; extensionRequested: boolean } =
+      trialDaysRemaining > 0
+        ? { status: "active", daysRemaining: trialDaysRemaining, extensionRequested: false }
+        : null;
 
     if (daysSince <= WORKSHOP_TRIAL_DAYS) {
-      return { status: "trial", daysRemaining: WORKSHOP_TRIAL_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures, eliteTrial };
+      return { status: "trial", daysRemaining: trialDaysRemaining, trialStartedAt, featureConfigs, removedFeatures, eliteTrial };
     }
     if (daysSince <= WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS) {
-      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures, eliteTrial };
+      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures, eliteTrial: null };
     }
-    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs, removedFeatures, eliteTrial };
+    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs, removedFeatures, eliteTrial: null };
   }),
 
-  // ELITE 30일 체험 시작
-  startEliteTrial: protectedProcedure.mutation(async ({ ctx }) => {
-    const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    const existing = await pool.query<{ eliteTrialStartedAt: string | null }>(
-      `SELECT "eliteTrialStartedAt" FROM trainer_settings WHERE "trainerId"=$1`, [trainerId]
-    );
-    if (existing.rows[0]?.eliteTrialStartedAt) {
-      throw new TRPCError({ code: "CONFLICT", message: "이미 ELITE 체험을 사용하셨습니다." });
-    }
-    await pool.query(
-      `INSERT INTO trainer_settings ("trainerId","eliteTrialStartedAt","removedFeatures")
-       VALUES ($1,now()::text,'')
-       ON CONFLICT ("trainerId") DO UPDATE SET "eliteTrialStartedAt"=now()::text`,
-      [trainerId]
-    );
-    return { success: true };
+  // (기존 호환성 유지용 - 더 이상 별도 elite trial 없음)
+  startEliteTrial: protectedProcedure.mutation(async () => {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "전체 기능 체험은 작업실 무료 체험으로 통합되었습니다." });
   }),
 
-  // ELITE 체험 연장 요청
-  requestEliteExtension: protectedProcedure.mutation(async ({ ctx }) => {
-    const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    await pool.query(
-      `UPDATE trainer_settings SET "eliteTrialExtensionRequested"=1 WHERE "trainerId"=$1`,
-      [trainerId]
-    );
+  requestEliteExtension: protectedProcedure.mutation(async () => {
     return { success: true };
   }),
 
