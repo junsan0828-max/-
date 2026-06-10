@@ -644,6 +644,12 @@ const membersRouter = t.router({
         const today = new Date().toISOString().substring(0, 10);
         const revenueType = sessionCount ? "PT" : "헬스";
         const [member] = await db.select().from(members).where(eq(members.id, id));
+        // 헬스권 기간 계산: ptProgram 텍스트 "헬스 N개월" 파싱 → duration 컬럼에 저장
+        let healthDuration: number | undefined;
+        if (revenueType === "헬스" && ptProgram) {
+          const m2 = /헬스 (\d+)개월/.exec(ptProgram);
+          if (m2) healthDuration = parseInt(m2[1]);
+        }
         // 중복 방지: 같은 회원 + 같은 날짜 + 같은 금액 + 같은 subType 이미 존재하면 skip
         const dupDate2 = paymentDate ?? today;
         const existing2 = await db.select({ id: revenueEntries.id }).from(revenueEntries)
@@ -662,6 +668,7 @@ const membersRouter = t.router({
           phone: member?.phone ?? memberData.phone,
           programDetail: ptProgram || (sessionCount ? `PT ${sessionCount}회` : undefined),
           sessions: sessionCount,
+          duration: healthDuration,
           type: revenueType,
           subType: subType ?? "재등록",
           amount: effectiveAmount,

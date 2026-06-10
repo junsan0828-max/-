@@ -24,11 +24,12 @@ type RevForm = {
   paymentMethod: string; paymentDate: string; startDate: string; installments: string; memo: string;
   ptProgramKey: string; ptProgramCustom: string;
   serviceHealthDuration: string; // PT 등록 시 서비스 헬스권 기간(개월), "" = 없음
+  serviceItems: string; // 무료 제공 서비스 항목 (예: 헬스(14일),PT(3회))
 };
 
 const defaultForm: RevForm = {
   customerName: "", phone: "", programDetail: "", duration: "", sessions: "",
-  ptProgramKey: "", ptProgramCustom: "", serviceHealthDuration: "",
+  ptProgramKey: "", ptProgramCustom: "", serviceHealthDuration: "", serviceItems: "",
   type: "PT", subType: "신규",
   amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0", refundAmount: "0",
   paymentMethod: "카드", paymentDate: new Date().toISOString().substring(0, 10), startDate: "",
@@ -120,11 +121,14 @@ function RevenueContent() {
       customerName: row.entry.customerName ?? "",
       phone: row.entry.phone ?? "",
       programDetail: row.entry.programDetail === "운동복 대여" ? "운동복" : (row.entry.programDetail ?? ""),
-      duration: row.entry.duration ? String(row.entry.duration) : "",
+      duration: row.entry.duration
+        ? String(row.entry.duration)
+        : (/^헬스 (\d+)개월/.exec(row.entry.programDetail ?? "")?.[1] ?? ""),
       sessions: row.entry.sessions ? String(row.entry.sessions) : "",
       ptProgramKey: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? (row.entry.programDetail ?? "") : (row.entry.programDetail ? "기타" : ""),
       ptProgramCustom: PT_PROGRAMS.includes(row.entry.programDetail ?? "") ? "" : (row.entry.programDetail ?? ""),
       serviceHealthDuration: (row.entry as any).serviceHealthDuration ? String((row.entry as any).serviceHealthDuration) : "",
+      serviceItems: (row.entry as any).serviceItems ?? "",
       leadId: row.entry.leadId ?? undefined,
       trainerId: row.entry.trainerId ?? undefined,
       consultantId: (row.entry as any).consultantId ?? undefined,
@@ -192,6 +196,7 @@ function RevenueContent() {
       startDate: form.startDate || form.paymentDate,
       installments: parseInt(form.installments) || 1,
       memo: form.memo,
+      serviceItems: form.serviceItems || undefined,
     };
     if (editId) updateMutation.mutate({ id: editId, ...payload });
     else createMutation.mutate(payload);
@@ -608,6 +613,20 @@ function RevenueContent() {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* 서비스 내역 (헬스/PT 공통) */}
+              {(form.type === "헬스" || form.type === "PT") && (
+                <div>
+                  <label className="text-xs text-muted-foreground">서비스 내역 <span className="text-muted-foreground/60">(무료 제공 항목)</span></label>
+                  <input
+                    type="text"
+                    value={form.serviceItems}
+                    onChange={e => setForm(f => ({ ...f, serviceItems: e.target.value }))}
+                    placeholder="예: 헬스(14일), PT(3회)"
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none"
+                  />
                 </div>
               )}
 
