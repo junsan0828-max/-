@@ -5,12 +5,13 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
 import BasicInfoModal from "./BasicInfoModal";
 import InstallPromptModal from "./InstallPromptModal";
+import PageGuideModal, { shouldShowGuide } from "./PageGuideModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -38,6 +39,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  // 경로 변경 시 가이드 자동 표시
+  useEffect(() => {
+    if (user && shouldShowGuide(location)) {
+      setGuideOpen(true);
+    } else {
+      setGuideOpen(false);
+    }
+  }, [location, user]);
+
   const [surveyDone, setSurveyDone] = useState(
     () => !!sessionStorage.getItem("onboarding-survey-dismissed")
   );
@@ -140,6 +152,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-muted-foreground">{jobLabel}</p>
           </div>
           <button
+            onClick={() => setGuideOpen(true)}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <HelpCircle className="h-4 w-4 shrink-0" />
+            페이지 안내
+          </button>
+          <button
             onClick={() => logoutMutation.mutate()}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
@@ -214,7 +233,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-xl tracking-wider" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>FIT</span>
             <span className="text-xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
           </button>
-          <span className="text-xs text-muted-foreground">{user?.username}</span>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setGuideOpen(true)} className="text-muted-foreground hover:text-primary p-1 transition-colors">
+              <HelpCircle className="h-4 w-4" />
+            </button>
+            <span className="text-xs text-muted-foreground">{user?.username}</span>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto">
@@ -223,6 +247,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
         {user && !showSurvey && !needsBasicInfo && !profileModalOpen && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
+        {guideOpen && <PageGuideModal path={location} onClose={() => setGuideOpen(false)} />}
         {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal onOpenChange={setProfileModalOpen} />}
         {needsBasicInfo && (
           <BasicInfoModal
