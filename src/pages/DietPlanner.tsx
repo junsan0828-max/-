@@ -36,8 +36,6 @@ interface KakaoUser {
   thumbnail: string | null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const Kakao = (): any => (window as any).Kakao;
 
 interface MealDBItem {
   mealTime: "breakfast" | "lunch" | "dinner" | "snack";
@@ -856,6 +854,26 @@ function sumMeal(entries: MealEntry[]) {
   );
 }
 
+// ─── 카카오 OAuth (팝업 없는 리다이렉트 방식) ────────────────────────────────────
+async function fetchKakaoProfile(token: string): Promise<KakaoUser | null> {
+  try {
+    const res = await fetch("https://kapi.kakao.com/v2/user/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await res.json();
+    const profile = data.kakao_account?.profile;
+    return {
+      id: data.id,
+      name: profile?.nickname ?? "카카오 사용자",
+      thumbnail: profile?.thumbnail_image_url ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ─── 카카오 아이콘 ─────────────────────────────────────────────────────────────
 function KakaoIcon() {
   return (
@@ -918,14 +936,27 @@ export default function DietPlanner() {
   }
 
   useEffect(() => {
-    // Kakao SDK 초기화
-    const k = Kakao();
-    const appKey = import.meta.env.VITE_KAKAO_APP_KEY as string | undefined;
-    if (k && appKey && !k.isInitialized()) {
-      k.init(appKey);
-    }
-
     loadDB();
+
+    // 카카오 로그인 리다이렉트 콜백 처리 (URL 해시에서 토큰 추출)
+    const hash = window.location.hash;
+    if (hash.includes("access_token")) {
+      const params = new URLSearchParams(hash.replace("#", ""));
+      const token = params.get("access_token");
+      if (token) {
+        window.history.replaceState(null, "", window.location.pathname);
+        setKakaoMsg("프로필 불러오는 중...");
+        fetchKakaoProfile(token).then((user) => {
+          if (user) {
+            setKakaoUser(user);
+            setKakaoMsg("");
+            if (user.name && !name) setName(user.name);
+          } else {
+            setKakaoMsg("❌ 프로필 조회 실패");
+          }
+        });
+      }
+    }
 
     const lsV = parseInt(localStorage.getItem("dp_vc") || "0");
     const lsS = parseInt(localStorage.getItem("dp_sc") || "0");
@@ -1020,54 +1051,22 @@ export default function DietPlanner() {
   }
 
   function handleKakaoLogin() {
-    setKakaoMsg("");
-    const k = Kakao();
-    if (!k) {
-      setKakaoMsg("❌ SDK 미로드 — 페이지 새로고침");
-      return;
-    }
-    if (!k.isInitialized()) {
+    const appKey = import.meta.env.VITE_KAKAO_APP_KEY;
+    if (!appKey) {
       setKakaoMsg("❌ 앱 키 미설정 (VITE_KAKAO_APP_KEY)");
       return;
     }
-    setKakaoMsg("로그인 중...");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    k.Auth.login({
-      scope: "profile_nickname,profile_image",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      success: (_auth: any) => {
-        k.API.request({
-          url: "/v2/user/me",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          success: (res: any) => {
-            setKakaoMsg("");
-            const profile = res.kakao_account?.profile;
-            setKakaoUser({
-              id: res.id,
-              name: profile?.nickname ?? "카카오 사용자",
-              thumbnail: profile?.thumbnail_image_url ?? null,
-            });
-            if (profile?.nickname && !name) setName(profile.nickname);
-          },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          fail: (e: any) => setKakaoMsg("❌ 프로필 오류: " + (e?.msg ?? JSON.stringify(e))),
-        });
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      fail: (e: any) => {
-        const msg = e?.error_description ?? e?.error ?? JSON.stringify(e);
-        setKakaoMsg("❌ " + msg);
-      },
-    });
+    const redirectUri = window.location.origin + window.location.pathname;
+    window.location.href =
+      `https://kauth.kakao.com/oauth/authorize?client_id=${appKey}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=token` +
+      `&scope=profile_nickname,profile_image`;
   }
 
   function handleKakaoLogout() {
-    const k = Kakao();
-    if (k?.Auth?.getAccessToken()) {
-      k.Auth.logout(() => setKakaoUser(null));
-    } else {
-      setKakaoUser(null);
-    }
+    setKakaoUser(null);
+    setKakaoMsg("");
   }
 
   const dbLabel = dbItems.length >= 1000 ? "식품 DB 1000개+" : `식품 DB ${dbItems.length}개`;
