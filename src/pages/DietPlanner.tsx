@@ -1081,17 +1081,48 @@ export default function DietPlanner() {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 pb-20">
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-800 px-4 py-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
-            <Salad className="w-5 h-5 text-emerald-400" />
+      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3">
+        <div className="max-w-3xl mx-auto space-y-2">
+          {/* Row 1: 로고+타이틀 / 카카오 버튼 */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <Salad className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm font-bold text-white leading-tight whitespace-nowrap">맞춤 식단 플래너</h1>
+              <p className="text-[10px] text-gray-400 leading-tight whitespace-nowrap">회원 정보 입력 → 하루 식단 자동 구성</p>
+            </div>
+            {/* 카카오 로그인 버튼 */}
+            <div className="flex flex-col items-end gap-0.5 shrink-0">
+              {kakaoUser ? (
+                <button
+                  onClick={handleKakaoLogout}
+                  title="로그아웃"
+                  className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold pl-1.5 pr-2.5 py-1.5 rounded-lg transition-colors"
+                >
+                  {kakaoUser.thumbnail ? (
+                    <img src={kakaoUser.thumbnail} alt="" className="w-5 h-5 rounded-full object-cover" />
+                  ) : (
+                    <KakaoIcon />
+                  )}
+                  <span className="max-w-[72px] truncate">{kakaoUser.name}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleKakaoLogin}
+                  className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                >
+                  <KakaoIcon />
+                  <span>로그인</span>
+                </button>
+              )}
+              {kakaoMsg && (
+                <span className="text-[10px] text-red-400 max-w-[140px] truncate">{kakaoMsg}</span>
+              )}
+            </div>
           </div>
-          <div className="min-w-0">
-            <h1 className="text-base font-bold text-white">맞춤 식단 플래너</h1>
-            <p className="text-xs text-gray-400">회원 정보 입력 → 하루 식단 자동 구성</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            {/* 이용자/공유 카운터 — 항상 표시 */}
+          {/* Row 2: 이용자/공유 카운터 + DB 현황 */}
+          <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 text-xs text-gray-400">
               <span>👥</span>
               <span className="tabular-nums">
@@ -1105,48 +1136,18 @@ export default function DietPlanner() {
                 {shareCount !== null ? `${shareCount.toLocaleString()}회` : "···"}
               </span>
             </span>
-            <span className="w-px h-4 bg-gray-700 mx-1" />
-            {/* 식품 DB 현황 */}
+            <span className="w-px h-3 bg-gray-700 mx-0.5" />
             {dbLoading ? (
-              <span className="flex items-center gap-1.5 text-xs text-gray-400">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />로딩 중
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                <Loader2 className="w-3 h-3 animate-spin" />로딩 중
               </span>
             ) : (
               <span className="text-xs text-emerald-400">{dbLabel}</span>
             )}
             {dbError && (
-              <button onClick={loadDB} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 ml-1">
-                <RefreshCw className="w-3.5 h-3.5" />재시도
+              <button onClick={loadDB} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300">
+                <RefreshCw className="w-3 h-3" />재시도
               </button>
-            )}
-          </div>
-
-          {/* 카카오 로그인 버튼 */}
-          <div className="flex flex-col items-end gap-0.5 shrink-0">
-            {kakaoUser ? (
-              <button
-                onClick={handleKakaoLogout}
-                title="로그아웃"
-                className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold pl-1.5 pr-2.5 py-1.5 rounded-lg transition-colors"
-              >
-                {kakaoUser.thumbnail ? (
-                  <img src={kakaoUser.thumbnail} alt="" className="w-5 h-5 rounded-full object-cover" />
-                ) : (
-                  <KakaoIcon />
-                )}
-                <span className="max-w-[72px] truncate">{kakaoUser.name}</span>
-              </button>
-            ) : (
-              <button
-                onClick={handleKakaoLogin}
-                className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
-              >
-                <KakaoIcon />
-                <span>{kakaoMsg === "로그인 중..." ? "로그인 중..." : "로그인"}</span>
-              </button>
-            )}
-            {kakaoMsg && kakaoMsg !== "로그인 중..." && (
-              <span className="text-[10px] text-red-400 max-w-[160px] truncate">{kakaoMsg}</span>
             )}
           </div>
         </div>
