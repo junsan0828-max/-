@@ -4,6 +4,30 @@ import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Whe
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRk00IJXvZha8RRaMK40XQ-C20WhhmPVHxLbxiUnPZZfy64fd8muHWuz_QbhNXjLDkqscnrbRQ-AzME/pub?gid=287813752&single=true&output=csv";
 
+const COUNTER_NS = "diet-planner-standalone-app";
+
+async function hitCounter(key: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.countapi.xyz/hit/${COUNTER_NS}/${key}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data.value === "number" ? data.value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getCounter(key: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.countapi.xyz/get/${COUNTER_NS}/${key}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data.value === "number" ? data.value : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── 타입 ──────────────────────────────────────────────────────────────────────
 interface MealDBItem {
   mealTime: "breakfast" | "lunch" | "dinner" | "snack";
@@ -719,6 +743,8 @@ export default function DietPlanner() {
   const [dbItems, setDbItems] = useState<MealDBItem[]>(BUILT_IN_FOOD_DB);
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState(false);
+  const [visitorCount, setVisitorCount] = useState<number | null>(null);
+  const [shareCount, setShareCount] = useState<number | null>(null);
 
   const resultRef = useRef<HTMLDivElement>(null);
 
@@ -744,7 +770,17 @@ export default function DietPlanner() {
       });
   }
 
-  useEffect(() => { loadDB(); }, []);
+  useEffect(() => {
+    loadDB();
+    // 방문자 수: 세션당 1회만 증가
+    if (!sessionStorage.getItem("dp-visited")) {
+      sessionStorage.setItem("dp-visited", "1");
+      hitCounter("visitors").then(setVisitorCount);
+    } else {
+      getCounter("visitors").then(setVisitorCount);
+    }
+    getCounter("shares").then(setShareCount);
+  }, []);
 
   const bmr =
     age && weight && height
@@ -795,12 +831,17 @@ export default function DietPlanner() {
   async function handleShare() {
     if (!mealPlan) return;
     const text = buildShareText();
-    if (navigator.share) {
-      await navigator.share({ title: `${name || "회원"}님의 하루 맞춤 식단`, text });
-    } else {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${name || "회원"}님의 하루 맞춤 식단`, text });
+      } else {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+      hitCounter("shares").then((v) => { if (v !== null) setShareCount(v); });
+    } catch {
+      // 사용자가 공유 취소한 경우 카운트 안 함
     }
   }
 
@@ -825,7 +866,20 @@ export default function DietPlanner() {
             <h1 className="text-base font-bold text-white">맞춤 식단 플래너</h1>
             <p className="text-xs text-gray-400">회원 정보 입력 → 하루 식단 자동 구성</p>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
+            {visitorCount !== null && (
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                <span>👥</span>
+                <span>{visitorCount.toLocaleString()}명</span>
+              </span>
+            )}
+            {shareCount !== null && (
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                <span>📤</span>
+                <span>{shareCount.toLocaleString()}회</span>
+              </span>
+            )}
+            <span className="w-px h-4 bg-gray-700" />
             {dbLoading && (
               <span className="flex items-center gap-1.5 text-xs text-gray-400">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />식품 DB 로딩 중
