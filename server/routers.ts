@@ -609,7 +609,7 @@ const membersRouter = t.router({
         membershipEnd: z.string().nullable().optional(),
         profileNote: z.string().optional(),
         visitRoute: z.string().optional(),
-        trainerId: z.number().optional(),
+        trainerId: z.number().nullable().optional(),
         signatureDataUrl: z.string().optional(),
         // 재등록 결제 정보 (장부 자동 연동용)
         ptProgram: z.string().optional(),

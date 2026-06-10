@@ -542,7 +542,7 @@ export default function MemberDetail({ memberId }: Props) {
   // 담당 트레이너 변경
   const updateMemberMutation = trpc.members.update.useMutation({
     onSuccess: () => {
-      toast.success("담당 트레이너가 변경되었습니다.");
+      toast.success(selectedTrainerId === "none" ? "담당 트레이너가 해제되었습니다." : "담당 트레이너가 변경되었습니다.");
       setTrainerChangeOpen(false);
       utils.members.getById.invalidate({ id: memberId });
     },
@@ -2740,6 +2740,7 @@ export default function MemberDetail({ memberId }: Props) {
                 <SelectValue placeholder="트레이너 선택" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">없음 (해제)</SelectItem>
                 {trainers?.map((t) => (
                   <SelectItem key={t.id} value={String(t.id)}>{t.trainerName}</SelectItem>
                 ))}
@@ -2750,7 +2751,10 @@ export default function MemberDetail({ memberId }: Props) {
               <Button
                 className="flex-1"
                 disabled={!selectedTrainerId || updateMemberMutation.isPending}
-                onClick={() => updateMemberMutation.mutate({ id: memberId, trainerId: parseInt(selectedTrainerId) })}
+                onClick={() => updateMemberMutation.mutate({
+                  id: memberId,
+                  trainerId: selectedTrainerId === "none" ? null : parseInt(selectedTrainerId),
+                })}
               >
                 {updateMemberMutation.isPending ? "변경 중..." : "변경"}
               </Button>
