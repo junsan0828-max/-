@@ -4,7 +4,7 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
-  UserCog, Settings, User, ClipboardCheck, Download, X, Receipt,
+  UserCog, Settings, User, ClipboardCheck, Download, X, Receipt, Salad,
 } from "lucide-react";
 import Logo from "./Logo";
 
@@ -56,6 +56,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/members", label: "회원 관리", icon: Users },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
+    { path: "/diet-planner", label: "식단 플래너", icon: Salad },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
