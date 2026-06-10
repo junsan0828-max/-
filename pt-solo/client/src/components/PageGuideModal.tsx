@@ -1,7 +1,8 @@
-import { X } from "lucide-react";
+import { X, LayoutDashboard, Dumbbell, BookOpen, UserPlus, CalendarCheck, TrendingUp, GraduationCap, Wrench, User, ShieldCheck, CreditCard, Coins, Bell, Zap, type LucideIcon } from "lucide-react";
 
 interface PageGuide {
-  emoji: string;
+  icon: LucideIcon;
+  color: string;
   title: string;
   desc: string;
   tips: string[];
@@ -9,7 +10,8 @@ interface PageGuide {
 
 const GUIDES: Record<string, PageGuide> = {
   "/": {
-    emoji: "📊",
+    icon: LayoutDashboard,
+    color: "bg-blue-500/15 text-blue-500",
     title: "대시보드",
     desc: "오늘의 현황을 한눈에 확인하는 홈 화면입니다.",
     tips: [
@@ -19,7 +21,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/pt": {
-    emoji: "🏋️",
+    icon: Dumbbell,
+    color: "bg-violet-500/15 text-violet-500",
     title: "회원 관리",
     desc: "등록된 회원 정보와 PT 현황을 관리합니다.",
     tips: [
@@ -29,7 +32,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/sessions": {
-    emoji: "📋",
+    icon: BookOpen,
+    color: "bg-green-500/15 text-green-500",
     title: "수업 관리",
     desc: "수업 완료 체크와 세션 기록을 관리합니다.",
     tips: [
@@ -39,7 +43,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/leads": {
-    emoji: "👥",
+    icon: UserPlus,
+    color: "bg-amber-500/15 text-amber-500",
     title: "상담실",
     desc: "잠재 고객 상담과 등록 전환을 관리합니다.",
     tips: [
@@ -49,18 +54,19 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/booking": {
-    emoji: "📅",
+    icon: CalendarCheck,
+    color: "bg-cyan-500/15 text-cyan-500",
     title: "수업 예약 관리",
     desc: "예약 설정, 시간 관리, 예약 현황을 확인합니다.",
     tips: [
       "시간 관리 탭에서 요일별 예약 가능 시간을 설정하세요.",
       "오전 / 점심 / 오후 / 저녁 그룹을 탭하면 해당 시간대를 한 번에 선택합니다.",
-      "▼를 눌러 펼치면 개별 시간을 세세하게 조정할 수 있습니다.",
       "저장 후 슬롯 자동 생성을 누르면 예약 달력에 즉시 반영됩니다.",
     ],
   },
   "/settlement": {
-    emoji: "📈",
+    icon: TrendingUp,
+    color: "bg-emerald-500/15 text-emerald-500",
     title: "성장분석실",
     desc: "매출, 정산, 성장 지표를 분석합니다.",
     tips: [
@@ -70,7 +76,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/academy": {
-    emoji: "🎓",
+    icon: GraduationCap,
+    color: "bg-indigo-500/15 text-indigo-500",
     title: "성장 아카데미",
     desc: "트레이너 성장을 위한 교육 콘텐츠입니다.",
     tips: [
@@ -80,7 +87,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/workshop": {
-    emoji: "🛠️",
+    icon: Wrench,
+    color: "bg-orange-500/15 text-orange-500",
     title: "작업실",
     desc: "브랜드 페이지, 계약서, 설문 등 업무 도구를 관리합니다.",
     tips: [
@@ -90,7 +98,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/profile": {
-    emoji: "👤",
+    icon: User,
+    color: "bg-slate-500/15 text-slate-400",
     title: "내 프로필",
     desc: "프로필 정보, 플랜, 포인트를 관리합니다.",
     tips: [
@@ -100,7 +109,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/admin/trainers": {
-    emoji: "🛡️",
+    icon: ShieldCheck,
+    color: "bg-blue-500/15 text-blue-500",
     title: "STEPER 관리",
     desc: "등록된 트레이너 현황을 확인하고 관리합니다.",
     tips: [
@@ -110,7 +120,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/admin/plans": {
-    emoji: "💳",
+    icon: CreditCard,
+    color: "bg-violet-500/15 text-violet-500",
     title: "플랜 관리",
     desc: "구독료, 할인율, 회원 수 한도를 설정합니다.",
     tips: [
@@ -120,7 +131,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/admin/points": {
-    emoji: "🪙",
+    icon: Coins,
+    color: "bg-yellow-500/15 text-yellow-500",
     title: "포인트 관리",
     desc: "STEPER 포인트 지급 및 내역을 관리합니다.",
     tips: [
@@ -129,7 +141,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/admin/notices": {
-    emoji: "📢",
+    icon: Bell,
+    color: "bg-rose-500/15 text-rose-500",
     title: "공지 / 배너",
     desc: "공지사항과 메인 배너를 관리합니다.",
     tips: [
@@ -138,7 +151,8 @@ const GUIDES: Record<string, PageGuide> = {
     ],
   },
   "/admin/fit-step-plus": {
-    emoji: "⚡",
+    icon: Zap,
+    color: "bg-primary/15 text-primary",
     title: "FIT STEP+",
     desc: "FIT STEP Plus 기능과 설정을 관리합니다.",
     tips: [
@@ -160,7 +174,6 @@ export function shouldShowGuide(path: string): boolean {
 
 function matchGuide(path: string): PageGuide | null {
   if (GUIDES[path]) return GUIDES[path];
-  // prefix match for nested paths (e.g. /admin/trainers/123 → /admin/trainers)
   const prefix = Object.keys(GUIDES)
     .filter(k => k !== "/" && path.startsWith(k))
     .sort((a, b) => b.length - a.length)[0];
@@ -171,6 +184,8 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
   const guide = matchGuide(path);
   if (!guide) return null;
 
+  const Icon = guide.icon;
+
   function handleDismiss() {
     localStorage.setItem(storageKey(path), "1");
     onClose();
@@ -180,24 +195,28 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-5">
       <div className="absolute inset-0 z-0 bg-black/50" onClick={onClose} />
       <div className="relative z-10 bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-        {/* 닫기 버튼 */}
-        <button onClick={onClose} className="absolute top-3 right-3 p-1 text-muted-foreground hover:text-foreground transition-colors">
+        {/* 닫기 */}
+        <button onClick={onClose} className="absolute top-3.5 right-3.5 p-1 text-muted-foreground hover:text-foreground transition-colors">
           <X className="h-4 w-4" />
         </button>
 
         {/* 헤더 */}
-        <div className="px-6 pt-6 pb-4 text-center space-y-1.5 border-b border-border/60">
-          <div className="text-4xl leading-none">{guide.emoji}</div>
-          <h2 className="text-base font-bold mt-2">{guide.title}</h2>
-          <p className="text-xs text-muted-foreground leading-relaxed">{guide.desc}</p>
+        <div className="px-6 pt-7 pb-5 text-center space-y-3 border-b border-border/60">
+          <div className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl ${guide.color}`}>
+            <Icon className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold">{guide.title}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{guide.desc}</p>
+          </div>
         </div>
 
-        {/* 팁 목록 */}
-        <ul className="px-6 py-4 space-y-3">
+        {/* 팁 */}
+        <ul className="px-6 py-5 space-y-3.5">
           {guide.tips.map((tip, i) => (
-            <li key={i} className="flex items-start gap-2.5">
+            <li key={i} className="flex items-start gap-3">
               <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
-              <span className="text-xs text-foreground/85 leading-relaxed">{tip}</span>
+              <span className="text-xs text-foreground/80 leading-relaxed">{tip}</span>
             </li>
           ))}
         </ul>
@@ -205,7 +224,7 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
         {/* 버튼 */}
         <div className="px-6 pb-6 flex gap-2">
           <button onClick={handleDismiss}
-            className="flex-1 py-2.5 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors">
+            className="flex-1 py-2.5 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
             다시 안보기
           </button>
           <button onClick={onClose}
