@@ -854,7 +854,43 @@ function sumMeal(entries: MealEntry[]) {
   );
 }
 
-// ─── 카카오 OAuth (팝업 없는 리다이렉트 방식) ────────────────────────────────────
+// ─── 카카오 OAuth PKCE 헬퍼 ───────────────────────────────────────────────────
+function generateCodeVerifier(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+async function exchangeKakaoCode(code: string, verifier: string, redirectUri: string): Promise<string | null> {
+  const appKey = import.meta.env.VITE_KAKAO_APP_KEY;
+  try {
+    const res = await fetch("https://kauth.kakao.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: appKey,
+        redirect_uri: redirectUri,
+        code,
+        code_verifier: verifier,
+      }).toString(),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchKakaoProfile(token: string): Promise<KakaoUser | null> {
   try {
     const res = await fetch("https://kapi.kakao.com/v2/user/me", {
@@ -938,23 +974,30 @@ export default function DietPlanner() {
   useEffect(() => {
     loadDB();
 
-    // 카카오 로그인 리다이렉트 콜백 처리 (URL 해시에서 토큰 추출)
-    const hash = window.location.hash;
-    if (hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.replace("#", ""));
-      const token = params.get("access_token");
-      if (token) {
-        window.history.replaceState(null, "", window.location.pathname);
+    // 카카오 PKCE 콜백 처리 (URL search params에서 code 추출)
+    const searchParams = new URLSearchParams(window.location.search);
+    const authCode = searchParams.get("code");
+    if (authCode) {
+      const verifier = sessionStorage.getItem("kakao_pkce_verifier");
+      sessionStorage.removeItem("kakao_pkce_verifier");
+      const redirectUri = window.location.origin + window.location.pathname;
+      window.history.replaceState(null, "", window.location.pathname);
+      if (verifier) {
         setKakaoMsg("프로필 불러오는 중...");
-        fetchKakaoProfile(token).then((user) => {
-          if (user) {
-            setKakaoUser(user);
-            setKakaoMsg("");
-            if (user.name && !name) setName(user.name);
-          } else {
-            setKakaoMsg("❌ 프로필 조회 실패");
-          }
+        exchangeKakaoCode(authCode, verifier, redirectUri).then((token) => {
+          if (!token) { setKakaoMsg("❌ 토큰 교환 실패"); return; }
+          fetchKakaoProfile(token).then((user) => {
+            if (user) {
+              setKakaoUser(user);
+              setKakaoMsg("");
+              setName((prev) => prev || user.name);
+            } else {
+              setKakaoMsg("❌ 프로필 조회 실패");
+            }
+          });
         });
+      } else {
+        setKakaoMsg("❌ 인증 상태 만료, 다시 시도하세요");
       }
     }
 
@@ -1050,17 +1093,19 @@ export default function DietPlanner() {
     }
   }
 
-  function handleKakaoLogin() {
+  async function handleKakaoLogin() {
     const appKey = import.meta.env.VITE_KAKAO_APP_KEY;
-    if (!appKey) {
-      setKakaoMsg("❌ 앱 키 미설정 (VITE_KAKAO_APP_KEY)");
-      return;
-    }
+    if (!appKey) { setKakaoMsg("❌ 앱 키 미설정 (VITE_KAKAO_APP_KEY)"); return; }
+    const verifier = generateCodeVerifier();
+    sessionStorage.setItem("kakao_pkce_verifier", verifier);
+    const challenge = await generateCodeChallenge(verifier);
     const redirectUri = window.location.origin + window.location.pathname;
     window.location.href =
       `https://kauth.kakao.com/oauth/authorize?client_id=${appKey}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&response_type=token` +
+      `&response_type=code` +
+      `&code_challenge=${challenge}` +
+      `&code_challenge_method=S256` +
       `&scope=profile_nickname,profile_image`;
   }
 
