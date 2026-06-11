@@ -940,63 +940,70 @@ function PromoBanner() {
       <a
         href={BANNER_CONFIG.url}
         {...linkProps}
-        className="group block rounded-2xl overflow-hidden"
+        className="group block rounded-2xl overflow-hidden relative"
         style={{
-          background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 45%, #1a2f6b 100%)",
-          boxShadow: "0 0 0 1px rgba(99,179,237,0.15), 0 4px 24px rgba(0,0,0,0.4)",
+          background: "linear-gradient(135deg, #16a34a 0%, #059669 40%, #0284c7 100%)",
+          boxShadow: "0 4px 20px rgba(22,163,74,0.45), 0 1px 0 rgba(255,255,255,0.1) inset",
         }}
       >
-        {/* 상단 포인트 라인 */}
+        {/* 배경 패턴 — 미묘한 원형 */}
         <div
-          className="h-[2px] w-full"
-          style={{ background: "linear-gradient(90deg, #3b82f6, #60a5fa, #818cf8)" }}
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 80% 50%, rgba(255,255,255,0.07) 0%, transparent 60%)," +
+              "radial-gradient(circle at 10% 80%, rgba(0,0,0,0.15) 0%, transparent 50%)",
+          }}
         />
-        <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+        <div className="relative flex items-center justify-between gap-3 px-4 py-3.5">
           {/* 좌측: 로고 + 문구 */}
           <div className="flex items-center gap-3 min-w-0">
             {/* 로고 마크 */}
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                boxShadow: "0 0 0 1px rgba(255,255,255,0.25) inset",
+              }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
                 <path d="M13 2L4.09 12.96A1 1 0 005 14.5h6.5L11 22l8.91-10.96A1 1 0 0019 9.5h-6.5L13 2z"
-                  fill="white" stroke="white" strokeWidth="0.5" strokeLinejoin="round" />
+                  fill="white" strokeWidth="0" />
               </svg>
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-extrabold text-white tracking-wide">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-base font-extrabold text-white tracking-wide drop-shadow">
                   {BANNER_CONFIG.logo}
                 </span>
                 <span
-                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                  style={{ background: "rgba(99,179,237,0.18)", color: "#93c5fd" }}
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(255,255,255,0.25)", color: "white" }}
                 >
                   FITNESS
                 </span>
               </div>
-              <p className="text-[11px] text-blue-200/80 leading-snug line-clamp-2">
+              <p className="text-[11px] text-white/85 leading-snug line-clamp-2">
                 {BANNER_CONFIG.tagline}
               </p>
             </div>
           </div>
           {/* 우측: CTA 버튼 */}
           <div
-            className="shrink-0 text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all
-              group-hover:brightness-110 group-active:scale-95"
+            className="shrink-0 text-[11px] font-extrabold px-3.5 py-2.5 rounded-xl whitespace-nowrap transition-all
+              group-hover:scale-105 group-active:scale-95"
             style={{
-              background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-              color: "white",
-              boxShadow: "0 2px 12px rgba(99,102,241,0.45)",
+              background: "white",
+              color: "#16a34a",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
             }}
           >
             {BANNER_CONFIG.ctaText} →
           </div>
         </div>
         {/* 하단 보조 문구 */}
-        <div className="px-4 pb-3 -mt-1">
-          <p className="text-[10px] text-blue-300/50">{BANNER_CONFIG.sub}</p>
+        <div className="relative px-4 pb-3 -mt-1">
+          <p className="text-[10px] text-white/50">{BANNER_CONFIG.sub}</p>
         </div>
       </a>
     </div>
