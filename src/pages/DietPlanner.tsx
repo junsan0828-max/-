@@ -1027,7 +1027,9 @@ export default function DietPlanner() {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState(false);
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
+  const [visitorToday, setVisitorToday] = useState<number | null>(null);
   const [shareCount, setShareCount] = useState<number | null>(null);
+  const [shareToday, setShareToday] = useState<number | null>(null);
   const [kakaoUser, setKakaoUser] = useState<KakaoUser | null>(null);
   const [kakaoMsg, setKakaoMsg] = useState<string>("");
 
@@ -1085,28 +1087,43 @@ export default function DietPlanner() {
       }
     }
 
-    const lsV = parseInt(localStorage.getItem("dp_vc") || "0");
-    const lsS = parseInt(localStorage.getItem("dp_sc") || "0");
+    const todayKey = new Date().toISOString().slice(0, 10).replace(/-/g, ""); // e.g. "20260611"
+    const vtKey = `dp_vt_${todayKey}`;
+    const stKey = `dp_st_${todayKey}`;
+
+    const lsV  = parseInt(localStorage.getItem("dp_vc") || "0");
+    const lsVT = parseInt(localStorage.getItem(vtKey)   || "0");
+    const lsS  = parseInt(localStorage.getItem("dp_sc") || "0");
+    const lsST = parseInt(localStorage.getItem(stKey)   || "0");
 
     if (!sessionStorage.getItem("dp-visited")) {
       sessionStorage.setItem("dp-visited", "1");
-      const next = lsV + 1;
-      localStorage.setItem("dp_vc", String(next));
-      setVisitorCount(next);
-      // 원격 카운터 동기화 시도
+      // 로컬 즉시 반영
+      const nextV  = lsV  + 1; localStorage.setItem("dp_vc", String(nextV));  setVisitorCount(nextV);
+      const nextVT = lsVT + 1; localStorage.setItem(vtKey,   String(nextVT)); setVisitorToday(nextVT);
+      // 원격 동기화
       hitCounter("visitors").then((v) => {
         if (v !== null) { localStorage.setItem("dp_vc", String(v)); setVisitorCount(v); }
       });
+      hitCounter(`visitors_${todayKey}`).then((v) => {
+        if (v !== null) { localStorage.setItem(vtKey, String(v)); setVisitorToday(v); }
+      });
     } else {
-      setVisitorCount(lsV);
+      setVisitorCount(lsV); setVisitorToday(lsVT);
       getCounter("visitors").then((v) => {
         if (v !== null) { localStorage.setItem("dp_vc", String(v)); setVisitorCount(v); }
       });
+      getCounter(`visitors_${todayKey}`).then((v) => {
+        if (v !== null) { localStorage.setItem(vtKey, String(v)); setVisitorToday(v); }
+      });
     }
 
-    setShareCount(lsS);
+    setShareCount(lsS); setShareToday(lsST);
     getCounter("shares").then((s) => {
       if (s !== null) { localStorage.setItem("dp_sc", String(s)); setShareCount(s); }
+    });
+    getCounter(`shares_${todayKey}`).then((s) => {
+      if (s !== null) { localStorage.setItem(stKey, String(s)); setShareToday(s); }
     });
   }, []);
 
@@ -1167,10 +1184,15 @@ export default function DietPlanner() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }
+      const tdk = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const stk = `dp_st_${tdk}`;
       hitCounter("shares").then((v) => {
         const next = v ?? (parseInt(localStorage.getItem("dp_sc") || "0") + 1);
-        localStorage.setItem("dp_sc", String(next));
-        setShareCount(next);
+        localStorage.setItem("dp_sc", String(next)); setShareCount(next);
+      });
+      hitCounter(`shares_${tdk}`).then((v) => {
+        const next = v ?? (parseInt(localStorage.getItem(stk) || "0") + 1);
+        localStorage.setItem(stk, String(next)); setShareToday(next);
       });
     } catch {
       // 사용자가 공유 취소한 경우 카운트 안 함
@@ -1251,19 +1273,37 @@ export default function DietPlanner() {
             </div>
           </div>
           {/* Row 2: 이용자/공유 카운터 + DB 현황 */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* 방문자 */}
             <span className="flex items-center gap-1 text-xs text-gray-400">
               <span>👥</span>
-              <span className="tabular-nums">
+              <span className="tabular-nums text-gray-300">
                 {visitorCount !== null ? `${visitorCount.toLocaleString()}명` : "···"}
               </span>
+              <span className="text-gray-600">누적</span>
             </span>
-            <span className="text-gray-700">|</span>
+            <span className="text-gray-700 text-[10px]">·</span>
+            <span className="flex items-center gap-0.5 text-xs text-gray-400">
+              <span className="tabular-nums text-emerald-400">
+                {visitorToday !== null ? `${visitorToday.toLocaleString()}명` : "···"}
+              </span>
+              <span className="text-gray-600">오늘</span>
+            </span>
+            <span className="w-px h-3 bg-gray-700 mx-0.5" />
+            {/* 공유 */}
             <span className="flex items-center gap-1 text-xs text-gray-400">
               <span>📤</span>
-              <span className="tabular-nums">
+              <span className="tabular-nums text-gray-300">
                 {shareCount !== null ? `${shareCount.toLocaleString()}회` : "···"}
               </span>
+              <span className="text-gray-600">누적</span>
+            </span>
+            <span className="text-gray-700 text-[10px]">·</span>
+            <span className="flex items-center gap-0.5 text-xs text-gray-400">
+              <span className="tabular-nums text-emerald-400">
+                {shareToday !== null ? `${shareToday.toLocaleString()}회` : "···"}
+              </span>
+              <span className="text-gray-600">오늘</span>
             </span>
             <span className="w-px h-3 bg-gray-700 mx-0.5" />
             {dbLoading ? (
