@@ -1713,20 +1713,25 @@ export default function DietPlanner() {
           {/* Row 2: 카운터 + DB */}
           <div className="flex items-center justify-between gap-2">
             {/* 방문자·공유 카운터 */}
-            <div className="flex items-center gap-1.5 text-[11px] min-w-0">
-              <span>👥</span>
-              <span className="tabular-nums text-gray-300">{visitorCount ?? "···"}명</span>
-              <span className="text-gray-600">누적</span>
-              <span className="text-gray-700">·</span>
-              <span className="tabular-nums text-emerald-400">{visitorToday ?? "···"}명</span>
-              <span className="text-gray-600">오늘</span>
-              <span className="w-px h-3 bg-gray-700 mx-0.5" />
-              <span>📤</span>
-              <span className="tabular-nums text-gray-300">{shareCount ?? "···"}회</span>
-              <span className="text-gray-600">누적</span>
-              <span className="text-gray-700">·</span>
-              <span className="tabular-nums text-emerald-400">{shareToday ?? "···"}회</span>
-              <span className="text-gray-600">오늘</span>
+            <div className="flex items-center gap-1.5">
+              {/* 방문자 */}
+              <div className="flex items-center gap-1.5 bg-gray-800/60 rounded-lg px-2.5 py-1.5">
+                <User className="w-3 h-3 text-gray-500 shrink-0" strokeWidth={1.5} />
+                <span className="tabular-nums text-[11px] font-semibold text-white">{visitorCount ?? "—"}</span>
+                <span className="text-[10px] text-gray-600">누적</span>
+                <span className="w-px h-3 bg-gray-700" />
+                <span className="tabular-nums text-[11px] font-semibold text-emerald-400">{visitorToday ?? "—"}</span>
+                <span className="text-[10px] text-gray-600">오늘</span>
+              </div>
+              {/* 공유 */}
+              <div className="flex items-center gap-1.5 bg-gray-800/60 rounded-lg px-2.5 py-1.5">
+                <Share2 className="w-3 h-3 text-gray-500 shrink-0" strokeWidth={1.5} />
+                <span className="tabular-nums text-[11px] font-semibold text-white">{shareCount ?? "—"}</span>
+                <span className="text-[10px] text-gray-600">누적</span>
+                <span className="w-px h-3 bg-gray-700" />
+                <span className="tabular-nums text-[11px] font-semibold text-emerald-400">{shareToday ?? "—"}</span>
+                <span className="text-[10px] text-gray-600">오늘</span>
+              </div>
             </div>
             {/* DB 현황 */}
             <div className="shrink-0 flex items-center gap-1">
