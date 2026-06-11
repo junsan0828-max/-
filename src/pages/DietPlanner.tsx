@@ -2169,6 +2169,7 @@ export default function DietPlanner() {
           {mealMode === "recommended" && (<>
           <div>
             <label className="block text-xs text-gray-400 mb-1">포함할 음식 <span className="text-gray-600">(쉼표로 구분)</span></label>
+            <p className="text-[11px] text-gray-600 mb-1.5">식단에 반드시 넣고 싶은 재료나 음식을 입력하세요. 입력한 음식이 우선적으로 선택됩니다.</p>
             <input
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-orange-500"
               placeholder="예: 닭가슴살, 연어, 두부"
@@ -2178,6 +2179,7 @@ export default function DietPlanner() {
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1">제외할 음식 <span className="text-gray-600">(쉼표로 구분)</span></label>
+            <p className="text-[11px] text-gray-600 mb-1.5">알레르기·비선호 식재료를 입력하면 식단 생성 시 해당 음식을 제외합니다.</p>
             <input
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
               placeholder="예: 달걀, 우유, 소고기"
