@@ -4,10 +4,42 @@ import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Whe
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRk00IJXvZha8RRaMK40XQ-C20WhhmPVHxLbxiUnPZZfy64fd8muHWuz_QbhNXjLDkqscnrbRQ-AzME/pub?gid=287813752&single=true&output=csv";
 
-// ─── 로컬 카운터 (외부 API 의존 없음, 리셋 방지) ────────────────────────────────
+// ─── 카운터: Supabase 우선, 미설정 시 localStorage 폴백 ──────────────────────
 function _todayKey() { return new Date().toISOString().slice(0,10).replace(/-/g,""); }
 function _lsNum(key: string) { return parseInt(localStorage.getItem(key)||"0"); }
 function _lsInc(key: string) { const n=_lsNum(key)+1; localStorage.setItem(key,String(n)); return n; }
+
+const _SB_URL  = (import.meta.env.VITE_SUPABASE_URL  as string | undefined) ?? "";
+const _SB_KEY  = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? "";
+const _SB_HDR  = () => ({ "Content-Type":"application/json", apikey:_SB_KEY, Authorization:`Bearer ${_SB_KEY}` });
+
+async function remoteInc(key: string): Promise<number> {
+  if (!_SB_URL || !_SB_KEY) return _lsInc(key);
+  try {
+    const res = await fetch(`${_SB_URL}/rest/v1/rpc/dp_inc_counter`, {
+      method: "POST", headers: _SB_HDR(),
+      body: JSON.stringify({ p_key: key }),
+    });
+    if (!res.ok) throw new Error();
+    const n = await res.json() as number;
+    localStorage.setItem(key, String(n));
+    return n;
+  } catch { return _lsInc(key); }
+}
+
+async function remoteGet(key: string): Promise<number> {
+  if (!_SB_URL || !_SB_KEY) return _lsNum(key);
+  try {
+    const res = await fetch(`${_SB_URL}/rest/v1/dp_counters?key=eq.${key}&select=value`, {
+      headers: _SB_HDR(),
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json() as {value:number}[];
+    const n = data[0]?.value ?? _lsNum(key);
+    localStorage.setItem(key, String(n));
+    return n;
+  } catch { return _lsNum(key); }
+}
 
 // ─── 사용자 유형 & 이용 제한 ───────────────────────────────────────────────────
 type UserType = "member" | "trainer";
@@ -1768,24 +1800,23 @@ export default function DietPlanner() {
       }
     }
 
-    // ── 외부 API 없이 localStorage만으로 카운터 관리 (리셋 방지) ──────────────
-    const tdk  = _todayKey();
+    // ── 공유 카운터 (Supabase 우선, 폴백: localStorage) ────────────────────────
+    const tdk   = _todayKey();
     const vtKey = `dp_vt_${tdk}`;
     const stKey = `dp_st_${tdk}`;
 
-    // 방문자 카운트 (세션당 1회)
-    if (!sessionStorage.getItem("dp-visited")) {
-      sessionStorage.setItem("dp-visited", "1");
-      setVisitorCount(_lsInc("dp_vc"));
-      setVisitorToday(_lsInc(vtKey));
-    } else {
-      setVisitorCount(_lsNum("dp_vc"));
-      setVisitorToday(_lsNum(vtKey));
-    }
-
-    // 공유 카운트 초기 표시
-    setShareCount(_lsNum("dp_sc"));
-    setShareToday(_lsNum(stKey));
+    (async () => {
+      if (!sessionStorage.getItem("dp-visited")) {
+        sessionStorage.setItem("dp-visited", "1");
+        setVisitorCount(await remoteInc("dp_vc"));
+        setVisitorToday(await remoteInc(vtKey));
+      } else {
+        setVisitorCount(await remoteGet("dp_vc"));
+        setVisitorToday(await remoteGet(vtKey));
+      }
+      setShareCount(await remoteGet("dp_sc"));
+      setShareToday(await remoteGet(stKey));
+    })();
   }, []);
 
   const bmr =
@@ -1858,8 +1889,8 @@ export default function DietPlanner() {
         setTimeout(() => setCopied(false), 2500);
       }
       const stk = `dp_st_${_todayKey()}`;
-      setShareCount(_lsInc("dp_sc"));
-      setShareToday(_lsInc(stk));
+      setShareCount(await remoteInc("dp_sc"));
+      setShareToday(await remoteInc(stk));
     } catch {
       // 공유 취소
     }
