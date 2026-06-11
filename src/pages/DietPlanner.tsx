@@ -1273,24 +1273,24 @@ function calcTDEE(bmr: number, activity: string): number {
 }
 
 function mealScore(item: MealDBItem, targetKcal: number, healthRatio = 50): number {
-  const kcalDiff = Math.abs(item.kcal - targetKcal);
+  // Primary: closeness to target (scale-free % diff so high-TDEE users aren't penalized)
+  const kcalDiff = Math.abs(item.kcal - targetKcal) / Math.max(targetKcal, 1) * 100;
   let bonus = 0;
+  const protPct = (item.protein * 4) / Math.max(item.kcal, 1) * 100;
+  const fatPct  = (item.fat * 9)     / Math.max(item.kcal, 1) * 100;
+  const carbPct = (item.carb * 4)    / Math.max(item.kcal, 1) * 100;
   if (item.mealTime === "breakfast") {
-    if (item.kcal <= 400) bonus += 30;
-    if (item.protein >= 10) bonus += 15;
-    if (item.fat < 15) bonus += 10;
+    if (protPct >= 15) bonus += 15;   // protein ≥15% of kcal
+    if (fatPct  <= 35) bonus += 10;
   } else if (item.mealTime === "lunch") {
-    if (item.carb >= 40 && item.carb <= 90) bonus += 20;
-    if (item.protein >= 20) bonus += 15;
+    if (carbPct >= 40 && carbPct <= 65) bonus += 20;
+    if (protPct >= 20) bonus += 15;
   } else if (item.mealTime === "dinner") {
-    const proteinRatio = item.protein / Math.max(item.kcal, 1);
-    bonus += proteinRatio * 120;
-    if (item.fat < 20) bonus += 20;
-    if (item.carb < 60) bonus += 10;
+    bonus += protPct * 1.2;           // reward protein density
+    if (fatPct  <= 40) bonus += 20;
+    if (carbPct <= 55) bonus += 10;
   } else if (item.mealTime === "snack") {
-    if (item.kcal <= 250) bonus += 30;
-    if (item.protein >= 8) bonus += 20;
-    if (item.kcal <= 150) bonus += 20;
+    if (protPct >= 15) bonus += 20;
   }
   // 건강식/일반식 비율 반영: healthRatio 0~100
   const isHealthy = classifyFood(item.name) === "healthy";
@@ -1340,8 +1340,28 @@ function buildMealFromDB(
     .sort((a, b) => a.score - b.score)
     .slice(0, 5);
   const pick = sorted[Math.floor(Math.random() * sorted.length)].item;
+  const result: MealEntry[] = [{ name: pick.name, serving: pick.serving, kcal: pick.kcal, carb: pick.carb, protein: pick.protein, fat: pick.fat }];
 
-  return [{ name: pick.name, serving: pick.serving, kcal: pick.kcal, carb: pick.carb, protein: pick.protein, fat: pick.fat }];
+  // 메인 메뉴가 목표 칼로리의 80% 미만이면 사이드 아이템 추가
+  const remaining = targetKcal - pick.kcal;
+  if (remaining >= targetKcal * 0.2 && mealTime !== "snack") {
+    const sidePool = candidates.filter(
+      (item) =>
+        item.name !== pick.name &&
+        item.kcal <= remaining * 1.3 &&
+        item.kcal >= remaining * 0.1
+    );
+    if (sidePool.length > 0) {
+      const sideSorted = sidePool
+        .map((item) => ({ item, score: mealScore(item, remaining, healthRatio) }))
+        .sort((a, b) => a.score - b.score)
+        .slice(0, 5);
+      const side = sideSorted[Math.floor(Math.random() * sideSorted.length)].item;
+      result.push({ name: side.name, serving: side.serving, kcal: side.kcal, carb: side.carb, protein: side.protein, fat: side.fat });
+    }
+  }
+
+  return result;
 }
 
 function sumMeal(entries: MealEntry[]) {
