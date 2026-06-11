@@ -1597,14 +1597,9 @@ function KakaoIcon() {
 
 // ─── 프로모션 배너 설정 (문구·링크·활성화 여부 여기서 수정) ─────────────────────
 const BANNER_CONFIG = {
-  active: true,                             // false 로 바꾸면 배너 숨김
-  url: "https://fitstep.co.kr/",            // FIT STEP 홈페이지 URL
+  active: true,
+  url: "https://fitstep.co.kr/",
   openNewTab: true,
-  logo: "FIT STEP",
-  headline: "운동과 식단, 회원 관리까지",
-  subheadline: "핏스텝에서 함께 시작하세요.",
-  features: ["운동 기록", "건강 보고서", "회원 관리", "브랜딩"],
-  ctaText: "무료로 시작하기",
 } as const;
 
 function PromoBanner() {
@@ -1617,59 +1612,61 @@ function PromoBanner() {
       <a
         href={BANNER_CONFIG.url}
         {...linkProps}
-        className="group block relative overflow-hidden"
+        className="group block"
         style={{
           background: "#ffffff",
-          border: "1px solid #e5e7eb",
-          borderRadius: "16px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)",
+          border: "1px solid #E5E7EB",
+          borderRadius: "18px",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+          minHeight: 90,
+          display: "flex",
+          alignItems: "center",
+          padding: "14px 16px",
+          gap: 12,
+          textDecoration: "none",
         }}
       >
-        {/* 좌측 포인트 바 */}
+        {/* 좌측 아이콘 */}
         <div
-          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-          style={{ background: "linear-gradient(180deg, #10b981, #059669)" }}
-        />
+          className="flex-shrink-0"
+          style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <Zap className="w-4 h-4" style={{ color: "#059669" }} strokeWidth={2.5} />
+        </div>
 
-        {/* 메인 콘텐츠 — 수평 3분할: 아이콘 | 텍스트 | 버튼 */}
-        <div className="pl-4 pr-3 py-3 flex flex-row items-center gap-2.5">
-
-          {/* 아이콘: 텍스트 높이에 맞게 self-center */}
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 self-center"
-            style={{ background: "linear-gradient(135deg, #ecfdf5, #d1fae5)", border: "1px solid #a7f3d0" }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M13 2L4.09 12.96A1 1 0 005 14.5h6.5L11 22l8.91-10.96A1 1 0 0019 9.5h-6.5L13 2z"
-                fill="#059669" />
-            </svg>
+        {/* 텍스트 블록 */}
+        <div className="flex-1 min-w-0">
+          <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: "0.12em", marginBottom: 3 }}>
+            FIT STEP
           </div>
-
-          {/* 텍스트 블록 */}
-          <div className="flex-1 min-w-0 self-center">
-            <div className="text-[10px] font-extrabold tracking-widest mb-0.5" style={{ color: "#059669" }}>
-              {BANNER_CONFIG.logo}
-            </div>
-            <div className="text-[12px] font-bold" style={{ color: "#111827", lineHeight: "1.45" }}>
-              {BANNER_CONFIG.headline}
-            </div>
-            <div className="text-[12px] font-bold" style={{ color: "#374151", lineHeight: "1.45" }}>
-              {BANNER_CONFIG.subheadline}
-            </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", lineHeight: 1.4, marginBottom: 2 }}>
+            <span style={{ fontWeight: 800 }}>식단 생성 무제한.</span> 회원관리까지 하나로.
           </div>
-
-          {/* CTA 버튼: 텍스트 블록과 동일 높이로 self-center */}
-          <div
-            className="flex-shrink-0 self-center text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all group-hover:brightness-110 group-active:scale-95"
-            style={{
-              background: "linear-gradient(135deg, #10b981, #059669)",
-              color: "white",
-              boxShadow: "0 2px 8px rgba(5,150,105,0.3)",
-            }}
-          >
-            {BANNER_CONFIG.ctaText}
+          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: 1.4 }}>
+            운동전문가를 위한 올인원 성장 플랫폼
           </div>
+        </div>
 
+        {/* CTA 버튼 */}
+        <div
+          className="flex-shrink-0 transition-all group-hover:brightness-110 group-active:scale-95"
+          style={{
+            background: "#059669",
+            color: "#ffffff",
+            fontSize: 11,
+            fontWeight: 700,
+            padding: "8px 13px",
+            borderRadius: 10,
+            whiteSpace: "nowrap",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          무료로 시작하기 →
         </div>
       </a>
     </div>
