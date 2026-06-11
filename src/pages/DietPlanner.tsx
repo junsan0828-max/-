@@ -948,13 +948,14 @@ function KakaoIcon() {
 
 // ─── 프로모션 배너 설정 (문구·링크·활성화 여부 여기서 수정) ─────────────────────
 const BANNER_CONFIG = {
-  active: true,                                       // false 로 바꾸면 배너 숨김
-  url: "https://fitstep.co.kr/",                       // FIT STEP 홈페이지 URL
+  active: true,                             // false 로 바꾸면 배너 숨김
+  url: "https://fitstep.co.kr/",            // FIT STEP 홈페이지 URL
   openNewTab: true,
   logo: "FIT STEP",
-  tagline: "운동을 기록하고, 성장까지 연결하세요",
-  sub: "운동전문가와 회원을 연결하는 성장 플랫폼",
-  ctaText: "FIT STEP 알아보기",
+  headline: "운동과 식단, 회원 관리까지",
+  subheadline: "FIT STEP에서 함께 시작하세요.",
+  features: ["운동 기록", "건강 보고서", "회원 관리", "브랜딩"],
+  ctaText: "무료로 시작하기",
 } as const;
 
 function PromoBanner() {
@@ -963,74 +964,81 @@ function PromoBanner() {
     ? { target: "_blank", rel: "noopener noreferrer" }
     : {};
   return (
-    <div className="px-4 pt-3 pb-1 max-w-3xl mx-auto">
+    <div className="px-4 pt-3 pb-2 max-w-3xl mx-auto">
       <a
         href={BANNER_CONFIG.url}
         {...linkProps}
-        className="group block rounded-2xl overflow-hidden relative"
+        className="group block relative overflow-hidden"
         style={{
-          background: "linear-gradient(135deg, #16a34a 0%, #059669 40%, #0284c7 100%)",
-          boxShadow: "0 4px 20px rgba(22,163,74,0.45), 0 1px 0 rgba(255,255,255,0.1) inset",
+          background: "#ffffff",
+          border: "1px solid #e5e7eb",
+          borderRadius: "16px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)",
         }}
       >
-        {/* 배경 패턴 — 미묘한 원형 */}
+        {/* 좌측 포인트 바 */}
         <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 80% 50%, rgba(255,255,255,0.07) 0%, transparent 60%)," +
-              "radial-gradient(circle at 10% 80%, rgba(0,0,0,0.15) 0%, transparent 50%)",
-          }}
+          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+          style={{ background: "linear-gradient(180deg, #10b981, #059669)" }}
         />
-        <div className="relative flex items-center justify-between gap-3 px-4 py-3.5">
-          {/* 좌측: 로고 + 문구 */}
-          <div className="flex items-center gap-3 min-w-0">
-            {/* 로고 마크 */}
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-              style={{
-                background: "rgba(255,255,255,0.2)",
-                boxShadow: "0 0 0 1px rgba(255,255,255,0.25) inset",
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path d="M13 2L4.09 12.96A1 1 0 005 14.5h6.5L11 22l8.91-10.96A1 1 0 0019 9.5h-6.5L13 2z"
-                  fill="white" strokeWidth="0" />
-              </svg>
+
+        <div className="pl-5 pr-4 py-3.5 flex items-center gap-3">
+          {/* 로고 아이콘 */}
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "linear-gradient(135deg, #ecfdf5, #d1fae5)", border: "1px solid #a7f3d0" }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M13 2L4.09 12.96A1 1 0 005 14.5h6.5L11 22l8.91-10.96A1 1 0 0019 9.5h-6.5L13 2z"
+                fill="#059669" />
+            </svg>
+          </div>
+
+          {/* 중앙 텍스트 */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-[11px] font-bold tracking-widest" style={{ color: "#059669" }}>
+                {BANNER_CONFIG.logo}
+              </span>
+              <span
+                className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full"
+                style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
+              >
+                FITNESS PLATFORM
+              </span>
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-base font-extrabold text-white tracking-wide drop-shadow">
-                  {BANNER_CONFIG.logo}
+            <p className="text-[13px] font-bold leading-tight" style={{ color: "#111827" }}>
+              {BANNER_CONFIG.headline}
+            </p>
+            <p className="text-[13px] font-bold leading-tight mb-1.5" style={{ color: "#111827" }}>
+              {BANNER_CONFIG.subheadline}
+            </p>
+            <div className="flex items-center gap-1 flex-wrap">
+              {BANNER_CONFIG.features.map((f, i) => (
+                <span key={f} className="flex items-center gap-1">
+                  <span className="text-[10px]" style={{ color: "#6b7280" }}>{f}</span>
+                  {i < BANNER_CONFIG.features.length - 1 && (
+                    <span className="text-[10px]" style={{ color: "#d1d5db" }}>·</span>
+                  )}
                 </span>
-                <span
-                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                  style={{ background: "rgba(255,255,255,0.25)", color: "white" }}
-                >
-                  FITNESS
-                </span>
-              </div>
-              <p className="text-[11px] text-white/85 leading-snug line-clamp-2">
-                {BANNER_CONFIG.tagline}
-              </p>
+              ))}
             </div>
           </div>
-          {/* 우측: CTA 버튼 */}
+
+          {/* CTA 버튼 */}
           <div
-            className="shrink-0 text-[11px] font-extrabold px-3.5 py-2.5 rounded-xl whitespace-nowrap transition-all
-              group-hover:scale-105 group-active:scale-95"
+            className="shrink-0 text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all
+              group-hover:shadow-md group-active:scale-95 text-center"
             style={{
-              background: "white",
-              color: "#16a34a",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+              background: "linear-gradient(135deg, #10b981, #059669)",
+              color: "white",
+              boxShadow: "0 2px 8px rgba(5,150,105,0.35)",
+              minWidth: "72px",
             }}
           >
-            {BANNER_CONFIG.ctaText} →
+            {BANNER_CONFIG.ctaText}
+            <div className="text-[9px] font-normal opacity-80 mt-0.5">fitstep.co.kr</div>
           </div>
-        </div>
-        {/* 하단 보조 문구 */}
-        <div className="relative px-4 pb-3 -mt-1">
-          <p className="text-[10px] text-white/50">{BANNER_CONFIG.sub}</p>
         </div>
       </a>
     </div>
