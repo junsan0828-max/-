@@ -919,6 +919,90 @@ function KakaoIcon() {
   );
 }
 
+// ─── 프로모션 배너 설정 (문구·링크·활성화 여부 여기서 수정) ─────────────────────
+const BANNER_CONFIG = {
+  active: true,                                       // false 로 바꾸면 배너 숨김
+  url: "https://fitstep.kr",                          // FIT STEP 홈페이지 URL
+  openNewTab: true,
+  logo: "FIT STEP",
+  tagline: "운동을 기록하고, 성장까지 연결하세요",
+  sub: "운동전문가와 회원을 연결하는 성장 플랫폼",
+  ctaText: "FIT STEP 알아보기",
+} as const;
+
+function PromoBanner() {
+  if (!BANNER_CONFIG.active) return null;
+  const linkProps = BANNER_CONFIG.openNewTab
+    ? { target: "_blank", rel: "noopener noreferrer" }
+    : {};
+  return (
+    <div className="px-4 pt-3 pb-1 max-w-3xl mx-auto">
+      <a
+        href={BANNER_CONFIG.url}
+        {...linkProps}
+        className="group block rounded-2xl overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 45%, #1a2f6b 100%)",
+          boxShadow: "0 0 0 1px rgba(99,179,237,0.15), 0 4px 24px rgba(0,0,0,0.4)",
+        }}
+      >
+        {/* 상단 포인트 라인 */}
+        <div
+          className="h-[2px] w-full"
+          style={{ background: "linear-gradient(90deg, #3b82f6, #60a5fa, #818cf8)" }}
+        />
+        <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+          {/* 좌측: 로고 + 문구 */}
+          <div className="flex items-center gap-3 min-w-0">
+            {/* 로고 마크 */}
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg, #3b82f6, #6366f1)" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M13 2L4.09 12.96A1 1 0 005 14.5h6.5L11 22l8.91-10.96A1 1 0 0019 9.5h-6.5L13 2z"
+                  fill="white" stroke="white" strokeWidth="0.5" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-extrabold text-white tracking-wide">
+                  {BANNER_CONFIG.logo}
+                </span>
+                <span
+                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(99,179,237,0.18)", color: "#93c5fd" }}
+                >
+                  FITNESS
+                </span>
+              </div>
+              <p className="text-[11px] text-blue-200/80 leading-tight truncate">
+                {BANNER_CONFIG.tagline}
+              </p>
+            </div>
+          </div>
+          {/* 우측: CTA 버튼 */}
+          <div
+            className="shrink-0 text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all
+              group-hover:brightness-110 group-active:scale-95"
+            style={{
+              background: "linear-gradient(135deg, #3b82f6, #6366f1)",
+              color: "white",
+              boxShadow: "0 2px 12px rgba(99,102,241,0.45)",
+            }}
+          >
+            {BANNER_CONFIG.ctaText} →
+          </div>
+        </div>
+        {/* 하단 보조 문구 */}
+        <div className="px-4 pb-3 -mt-1">
+          <p className="text-[10px] text-blue-300/50">{BANNER_CONFIG.sub}</p>
+        </div>
+      </a>
+    </div>
+  );
+}
+
 // ─── 컴포넌트 ──────────────────────────────────────────────────────────────────
 export default function DietPlanner() {
   const [name, setName] = useState("");
@@ -1197,6 +1281,9 @@ export default function DietPlanner() {
           </div>
         </div>
       </div>
+
+      {/* ── FIT STEP 프로모션 배너 ── */}
+      <PromoBanner />
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* ── 회원 기본 정보 ── */}
