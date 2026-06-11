@@ -162,22 +162,36 @@ const GUIDES: Record<string, PageGuide> = {
   },
 };
 
-function storageKey(path: string) {
-  return `guide-dismissed${path.replace(/\//g, "-") || "-home"}`;
-}
-
-export function shouldShowGuide(path: string): boolean {
-  const guide = matchGuide(path);
-  if (!guide) return false;
-  return !localStorage.getItem(storageKey(path));
-}
-
-function matchGuide(path: string): PageGuide | null {
-  if (GUIDES[path]) return GUIDES[path];
+// 경로를 정규화된 가이드 키로 변환
+function canonicalKey(path: string): string | null {
+  if (GUIDES[path]) return path;
   const prefix = Object.keys(GUIDES)
     .filter(k => k !== "/" && path.startsWith(k))
     .sort((a, b) => b.length - a.length)[0];
-  return prefix ? GUIDES[prefix] : null;
+  return prefix ?? null;
+}
+
+function storageKey(key: string) {
+  return `guide-dismissed${key.replace(/\//g, "-") || "-home"}`;
+}
+
+function sessionKey(key: string) {
+  return `guide-seen${key.replace(/\//g, "-") || "-home"}`;
+}
+
+export function shouldShowGuide(path: string): boolean {
+  const key = canonicalKey(path);
+  if (!key) return false;
+  // localStorage: 영구 "다시 안보기"
+  if (localStorage.getItem(storageKey(key))) return false;
+  // sessionStorage: 이번 세션에서 이미 확인함 ("확인" 버튼도 포함)
+  if (sessionStorage.getItem(sessionKey(key))) return false;
+  return true;
+}
+
+function matchGuide(path: string): PageGuide | null {
+  const key = canonicalKey(path);
+  return key ? GUIDES[key] : null;
 }
 
 export default function PageGuideModal({ path, onClose }: { path: string; onClose: () => void }) {
@@ -185,9 +199,17 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
   if (!guide) return null;
 
   const Icon = guide.icon;
+  const key = canonicalKey(path) ?? path;
 
   function handleDismiss() {
-    localStorage.setItem(storageKey(path), "1");
+    localStorage.setItem(storageKey(key), "1");
+    sessionStorage.setItem(sessionKey(key), "1");
+    onClose();
+  }
+
+  function handleConfirm() {
+    // "확인"은 이번 세션만 닫음 (다음 방문 시 다시 표시)
+    sessionStorage.setItem(sessionKey(key), "1");
     onClose();
   }
 
@@ -196,7 +218,7 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
       <div className="absolute inset-0 z-0 bg-black/50" onClick={onClose} />
       <div className="relative z-10 bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
         {/* 닫기 */}
-        <button onClick={onClose} className="absolute top-3.5 right-3.5 p-1 text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={handleConfirm} className="absolute top-3.5 right-3.5 p-1 text-muted-foreground hover:text-foreground transition-colors">
           <X className="h-4 w-4" />
         </button>
 
@@ -227,7 +249,7 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
             className="flex-1 py-2.5 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
             다시 안보기
           </button>
-          <button onClick={onClose}
+          <button onClick={handleConfirm}
             className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity">
             확인
           </button>
