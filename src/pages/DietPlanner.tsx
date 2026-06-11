@@ -39,10 +39,9 @@ function incGenCount()    { const k = getTodayGenKey(); const n = getGenCount()+
 // ─── 입장 환영 모달 ──────────────────────────────────────────────────────────
 function WelcomeModal({ onClose }: { onClose: () => void }) {
   const tiers = [
-    { Icon: Lock,     label: "비로그인",                  count: "2회 / 일",  countColor: "#9ca3af" },
-    { Icon: User,     label: "일반 회원 (카카오 로그인)", count: "5회 / 일",  countColor: "#34d399" },
-    { Icon: Dumbbell, label: "운동전문가 (카카오 로그인)", count: "10회 / 일", countColor: "#60a5fa" },
-    { Icon: Zap,      label: "FIT STEP 가입 회원",        count: "무제한",    countColor: "#fbbf24" },
+    { Icon: Lock,     label: "비회원",      count: "2회 / 일",  countColor: "#6b7280" },
+    { Icon: User,     label: "로그인 회원", count: "5회 / 일",  countColor: "#34d399" },
+    { Icon: Dumbbell, label: "운동전문가",  count: "10회 / 일", countColor: "#60a5fa" },
   ] as const;
 
   return (
@@ -93,15 +92,13 @@ function WelcomeModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          {/* 이용 횟수 테이블 */}
+          {/* 이용 횟수 테이블 — 3단계만 */}
           <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
             <div className="px-4 py-2.5 border-b border-white/[0.04]" style={{ background: "rgba(255,255,255,0.03)" }}>
               <p className="text-[10px] text-gray-500 font-semibold tracking-widest uppercase">일일 식단 생성 횟수</p>
             </div>
             {tiers.map(({ Icon, label, count, countColor }, i) => (
-              <div key={i}
-                className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0"
-                style={{ background: i === 3 ? "rgba(251,191,36,0.03)" : undefined }}>
+              <div key={i} className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0">
                 <div className="flex items-center gap-2.5">
                   <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: countColor, opacity: 0.7 }} strokeWidth={1.5} />
                   <span className="text-[11px] text-gray-400">{label}</span>
@@ -115,7 +112,7 @@ function WelcomeModal({ onClose }: { onClose: () => void }) {
           <div className="flex items-start gap-2.5 px-1">
             <ChevronRight className="w-3.5 h-3.5 text-emerald-500/60 shrink-0 mt-0.5" strokeWidth={2} />
             <p className="text-[11px] text-gray-500 leading-relaxed">
-              카카오 로그인으로 더 많은 식단을 생성하고, 생성한 식단을 텍스트로 공유할 수 있습니다.
+              카카오 로그인 후 더 많은 식단을 생성하고,<br />생성한 식단을 텍스트로 공유할 수 있습니다.
             </p>
           </div>
 
@@ -164,13 +161,6 @@ function UserTypeModal({ onSelect }: { onSelect: (t: UserType) => void }) {
           </div>
           <p className="text-xs text-gray-400">회원 식단 관리 및 운동 지도가 필요한 트레이너/강사</p>
         </button>
-        <div className="bg-emerald-900/20 border border-emerald-700/30 rounded-xl p-3 text-center space-y-0.5">
-          <div className="flex items-center justify-center gap-1.5 mb-0.5">
-            <Zap className="w-3.5 h-3.5 text-yellow-400" strokeWidth={1.5} />
-            <p className="text-xs text-emerald-300 font-bold">FIT STEP 가입 회원 — 하루 무제한 이용</p>
-          </div>
-          <a href="https://fitstep.co.kr/" target="_blank" rel="noopener noreferrer" className="text-[11px] text-emerald-400 underline">fitstep.co.kr 알아보기 →</a>
-        </div>
       </div>
     </div>
   );
@@ -182,55 +172,68 @@ function LimitReachedModal({ effectiveType, onClose, onLogin }: {
 }) {
   const isGuest   = effectiveType === "guest";
   const isMember  = effectiveType === "member";
+  const isTrainer = !isGuest && !isMember;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.75)" }}>
       <div className="w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl p-6 space-y-4">
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-red-500/10 border border-red-500/20">
-            <AlertCircle className="w-5 h-5 text-red-400" strokeWidth={1.5} />
+
+        {/* 아이콘 + 메시지 */}
+        <div className="text-center space-y-2.5">
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-gray-800 border border-gray-700">
+            <AlertCircle className="w-5 h-5 text-gray-400" strokeWidth={1.5} />
           </div>
           {isGuest && (
             <>
-              <h2 className="text-sm font-bold text-white">오늘 무료 생성 횟수를 모두 사용했습니다.</h2>
-              <p className="text-xs text-gray-400">카카오 로그인 후 일반 회원은 하루 5회,<br />운동전문가는 하루 10회까지 이용할 수 있습니다.</p>
+              <h2 className="text-sm font-bold text-white">오늘 무료 생성 횟수를 모두 사용했어요.</h2>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                카카오 로그인 후 로그인 회원은 하루 5회,<br />운동전문가는 하루 10회까지 이용할 수 있습니다.
+              </p>
             </>
           )}
           {isMember && (
             <>
-              <h2 className="text-sm font-bold text-white">오늘 식단 생성 횟수를 모두 사용했습니다.</h2>
-              <p className="text-xs text-gray-400">운동전문가라면 사용자 유형을 변경하여<br />하루 10회까지 이용할 수 있습니다.</p>
+              <h2 className="text-sm font-bold text-white">오늘 생성 횟수를 모두 사용했어요.</h2>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                운동전문가라면 유형을 변경해<br />하루 10회까지 이용할 수 있습니다.
+              </p>
             </>
           )}
-          {!isGuest && !isMember && (
+          {isTrainer && (
             <>
-              <h2 className="text-sm font-bold text-white">오늘 운동전문가 이용 횟수를 모두 사용했습니다.</h2>
-              <p className="text-xs text-gray-400">FIT STEP 가입 회원은 식단 플래너를<br />하루 무제한으로 이용할 수 있습니다.</p>
+              <h2 className="text-sm font-bold text-white">오늘 생성 횟수를 모두 사용했어요.</h2>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                내일 자정이 지나면 횟수가 초기화됩니다.
+              </p>
             </>
           )}
         </div>
+
+        {/* 비로그인 → 카카오 로그인 */}
         {isGuest && (
           <button onClick={() => { onClose(); onLogin(); }}
             className="w-full py-3 bg-[#FEE500] text-[#3A1D1D] font-bold text-sm rounded-xl flex items-center justify-center gap-2">
             <KakaoIcon /><span>카카오 로그인하기</span>
           </button>
         )}
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-2">
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <Zap className="w-3.5 h-3.5 text-yellow-400" strokeWidth={1.5} />
-            <p className="text-xs font-bold text-white">운동전문가이신가요?</p>
+
+        {/* 운동전문가 → FIT STEP 자연스러운 소개 */}
+        {isTrainer && (
+          <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 space-y-2.5">
+            <p className="text-xs font-semibold text-gray-200">운동전문가를 위한 추가 기능이 준비되어 있습니다.</p>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              회원관리 · 건강 보고서 · 예약 기능 등<br />운동전문가를 위한 다양한 기능을 확인해보세요.
+            </p>
+            <a href="https://fitstep.co.kr/" target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-between w-full px-3.5 py-2.5 rounded-lg text-xs font-semibold text-emerald-400 border border-emerald-700/40 hover:border-emerald-500/60 transition-colors"
+              style={{ background: "rgba(16,185,129,0.06)" }}>
+              <span>FIT STEP 알아보기</span>
+              <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
+            </a>
           </div>
-          <p className="text-xs text-gray-400">FIT STEP 가입 회원은 식단 플래너를 하루 무제한으로 이용할 수 있습니다.</p>
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-            {["회원관리","운동 기록 관리","건강 보고서","브랜드 페이지","예약 기능"].map(f => (
-              <span key={f} className="text-[11px] text-gray-500">· {f}</span>
-            ))}
-          </div>
-          <a href="https://fitstep.co.kr/" target="_blank" rel="noopener noreferrer"
-            className="block w-full text-center py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm rounded-xl mt-1">
-            FIT STEP 알아보기
-          </a>
-        </div>
-        <button onClick={onClose} className="w-full text-xs text-gray-600 py-1">닫기</button>
+        )}
+
+        <button onClick={onClose} className="w-full text-xs text-gray-600 py-1 hover:text-gray-500 transition-colors">닫기</button>
       </div>
     </div>
   );
