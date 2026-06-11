@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Wheat, Beef, Droplets, Loader2, RefreshCw } from "lucide-react";
+import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Wheat, Beef, Droplets, Loader2, RefreshCw, Dumbbell, Lock, Zap, ChevronRight } from "lucide-react";
 
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRk00IJXvZha8RRaMK40XQ-C20WhhmPVHxLbxiUnPZZfy64fd8muHWuz_QbhNXjLDkqscnrbRQ-AzME/pub?gid=287813752&single=true&output=csv";
@@ -38,80 +38,94 @@ function incGenCount()    { const k = getTodayGenKey(); const n = getGenCount()+
 
 // ─── 입장 환영 모달 ──────────────────────────────────────────────────────────
 function WelcomeModal({ onClose }: { onClose: () => void }) {
+  const tiers = [
+    { Icon: Lock,     label: "비로그인",                  count: "2회 / 일",  countColor: "#9ca3af" },
+    { Icon: User,     label: "일반 회원 (카카오 로그인)", count: "5회 / 일",  countColor: "#34d399" },
+    { Icon: Dumbbell, label: "운동전문가 (카카오 로그인)", count: "10회 / 일", countColor: "#60a5fa" },
+    { Icon: Zap,      label: "FIT STEP 가입 회원",        count: "무제한",    countColor: "#fbbf24" },
+  ] as const;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4"
-      style={{ background: "rgba(0,0,0,0.82)" }}
+      style={{ background: "rgba(0,0,0,0.85)" }}
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-sm bg-gray-900 border border-gray-700/60 rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl"
+        className="w-full sm:max-w-sm bg-gray-900 border border-white/[0.06] rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 상단 그라디언트 헤더 */}
-        <div className="relative px-6 pt-8 pb-6 text-center" style={{ background: "linear-gradient(135deg, #064e3b 0%, #065f46 40%, #1e3a5f 100%)" }}>
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 70% 20%, #10b981 0%, transparent 50%)" }} />
+        {/* 헤더 */}
+        <div className="relative px-6 pt-8 pb-7 text-center overflow-hidden"
+          style={{ background: "linear-gradient(160deg, #0a2a1f 0%, #0d3d2b 50%, #0f2744 100%)" }}>
+          <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(16,185,129,0.12) 0%, transparent 70%)" }} />
           <div className="relative">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3" style={{ background: "rgba(16,185,129,0.2)", border: "1px solid rgba(16,185,129,0.3)" }}>
-              <span className="text-2xl">🥗</span>
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4"
+              style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.22)" }}>
+              <Salad className="w-5 h-5 text-emerald-400" strokeWidth={1.5} />
             </div>
-            <h2 className="text-lg font-bold text-white leading-tight">맞춤 식단 플래너</h2>
-            <p className="text-xs text-emerald-300/80 mt-1 font-medium">AI 기반 개인 맞춤 영양 설계</p>
+            <h2 className="text-[17px] font-bold text-white tracking-tight">맞춤 식단 플래너</h2>
+            <p className="text-[11px] text-emerald-400/70 mt-1.5 font-medium tracking-wide uppercase">Personalized Nutrition Planner</p>
           </div>
         </div>
 
         {/* 콘텐츠 */}
-        <div className="px-6 py-5 space-y-4">
-          {/* 사용 대상 */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="bg-gray-800/70 border border-gray-700/50 rounded-xl p-3.5 text-center space-y-1.5">
-              <span className="text-xl">🏋️</span>
-              <p className="text-xs font-bold text-white">운동 전문가</p>
-              <p className="text-[11px] text-gray-400 leading-relaxed">회원 식단 관리·<br />트레이닝 지도</p>
+        <div className="px-5 py-5 space-y-3.5">
+          {/* 사용 대상 카드 2개 */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-gray-800/50 border border-white/[0.06] rounded-2xl p-4 flex flex-col items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <Dumbbell className="w-4 h-4 text-blue-400" strokeWidth={1.5} />
+              </div>
+              <div className="text-center">
+                <p className="text-[12px] font-bold text-white">운동 전문가</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">회원 식단 관리<br />트레이닝 지도</p>
+              </div>
             </div>
-            <div className="bg-gray-800/70 border border-gray-700/50 rounded-xl p-3.5 text-center space-y-1.5">
-              <span className="text-xl">👤</span>
-              <p className="text-xs font-bold text-white">일반 회원</p>
-              <p className="text-[11px] text-gray-400 leading-relaxed">개인 운동·<br />식단 자기 관리</p>
+            <div className="bg-gray-800/50 border border-white/[0.06] rounded-2xl p-4 flex flex-col items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <User className="w-4 h-4 text-emerald-400" strokeWidth={1.5} />
+              </div>
+              <div className="text-center">
+                <p className="text-[12px] font-bold text-white">일반 회원</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">개인 운동<br />식단 자기 관리</p>
+              </div>
             </div>
           </div>
 
-          {/* 이용 혜택 안내 */}
-          <div className="rounded-xl border border-gray-700/50 overflow-hidden">
-            <div className="px-4 py-2.5 bg-gray-800/50">
-              <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">일일 식단 생성 횟수</p>
+          {/* 이용 횟수 테이블 */}
+          <div className="rounded-2xl border border-white/[0.06] overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-white/[0.04]" style={{ background: "rgba(255,255,255,0.03)" }}>
+              <p className="text-[10px] text-gray-500 font-semibold tracking-widest uppercase">일일 식단 생성 횟수</p>
             </div>
-            <div className="divide-y divide-gray-800">
-              {[
-                { icon: "🔓", label: "비로그인", count: "2회 / 일", color: "text-gray-400" },
-                { icon: "👤", label: "일반 회원 (카카오 로그인)", count: "5회 / 일", color: "text-emerald-400" },
-                { icon: "🏋️", label: "운동전문가 (카카오 로그인)", count: "10회 / 일", color: "text-blue-400" },
-                { icon: "🚀", label: "FIT STEP 가입 회원", count: "무제한", color: "text-yellow-400" },
-              ].map(({ icon, label, count, color }) => (
-                <div key={label} className="flex items-center justify-between px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">{icon}</span>
-                    <span className="text-xs text-gray-300">{label}</span>
-                  </div>
-                  <span className={`text-xs font-bold ${color}`}>{count}</span>
+            {tiers.map(({ Icon, label, count, countColor }, i) => (
+              <div key={i}
+                className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04] last:border-0"
+                style={{ background: i === 3 ? "rgba(251,191,36,0.03)" : undefined }}>
+                <div className="flex items-center gap-2.5">
+                  <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: countColor, opacity: 0.7 }} strokeWidth={1.5} />
+                  <span className="text-[11px] text-gray-400">{label}</span>
                 </div>
-              ))}
-            </div>
+                <span className="text-[11px] font-bold tabular-nums" style={{ color: countColor }}>{count}</span>
+              </div>
+            ))}
           </div>
 
-          {/* 로그인 유도 메시지 */}
-          <p className="text-center text-[11px] text-gray-500 leading-relaxed">
-            카카오 로그인으로 더 많은 식단을 생성하고<br />
-            생성한 식단을 텍스트로 공유할 수 있습니다.
-          </p>
+          {/* 로그인 유도 */}
+          <div className="flex items-start gap-2.5 px-1">
+            <ChevronRight className="w-3.5 h-3.5 text-emerald-500/60 shrink-0 mt-0.5" strokeWidth={2} />
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              카카오 로그인으로 더 많은 식단을 생성하고, 생성한 식단을 텍스트로 공유할 수 있습니다.
+            </p>
+          </div>
 
           {/* 시작 버튼 */}
           <button
             onClick={onClose}
-            className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-colors"
-            style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
+            className="w-full py-3.5 rounded-xl font-bold text-sm text-white tracking-wide transition-opacity hover:opacity-90"
+            style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" }}
           >
-            식단 플래너 시작하기
+            시작하기
           </button>
         </div>
       </div>
@@ -133,7 +147,7 @@ function UserTypeModal({ onSelect }: { onSelect: (t: UserType) => void }) {
           className="w-full text-left bg-gray-800 border border-gray-600 hover:border-emerald-500 rounded-xl p-4 transition-colors"
         >
           <div className="flex items-center gap-2 mb-1">
-            <span>👤</span>
+            <User className="w-4 h-4 text-emerald-400" strokeWidth={1.5} />
             <span className="text-sm font-bold text-white">일반 회원</span>
             <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">하루 5회</span>
           </div>
@@ -144,14 +158,17 @@ function UserTypeModal({ onSelect }: { onSelect: (t: UserType) => void }) {
           className="w-full text-left bg-gray-800 border border-gray-600 hover:border-blue-500 rounded-xl p-4 transition-colors"
         >
           <div className="flex items-center gap-2 mb-1">
-            <span>🏋️</span>
+            <Dumbbell className="w-4 h-4 text-blue-400" strokeWidth={1.5} />
             <span className="text-sm font-bold text-white">운동전문가</span>
             <span className="ml-auto text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-bold">하루 10회</span>
           </div>
           <p className="text-xs text-gray-400">회원 식단 관리 및 운동 지도가 필요한 트레이너/강사</p>
         </button>
         <div className="bg-emerald-900/20 border border-emerald-700/30 rounded-xl p-3 text-center space-y-0.5">
-          <p className="text-xs text-emerald-300 font-bold">🚀 FIT STEP 가입 회원 — 하루 무제한 이용</p>
+          <div className="flex items-center justify-center gap-1.5 mb-0.5">
+            <Zap className="w-3.5 h-3.5 text-yellow-400" strokeWidth={1.5} />
+            <p className="text-xs text-emerald-300 font-bold">FIT STEP 가입 회원 — 하루 무제한 이용</p>
+          </div>
           <a href="https://fitstep.co.kr/" target="_blank" rel="noopener noreferrer" className="text-[11px] text-emerald-400 underline">fitstep.co.kr 알아보기 →</a>
         </div>
       </div>
@@ -169,7 +186,9 @@ function LimitReachedModal({ effectiveType, onClose, onLogin }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.75)" }}>
       <div className="w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl p-6 space-y-4">
         <div className="text-center space-y-2">
-          <div className="text-3xl">⏰</div>
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-red-500/10 border border-red-500/20">
+            <AlertCircle className="w-5 h-5 text-red-400" strokeWidth={1.5} />
+          </div>
           {isGuest && (
             <>
               <h2 className="text-sm font-bold text-white">오늘 무료 생성 횟수를 모두 사용했습니다.</h2>
@@ -196,7 +215,10 @@ function LimitReachedModal({ effectiveType, onClose, onLogin }: {
           </button>
         )}
         <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-2">
-          <p className="text-xs font-bold text-white">🚀 운동전문가이신가요?</p>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <Zap className="w-3.5 h-3.5 text-yellow-400" strokeWidth={1.5} />
+            <p className="text-xs font-bold text-white">운동전문가이신가요?</p>
+          </div>
           <p className="text-xs text-gray-400">FIT STEP 가입 회원은 식단 플래너를 하루 무제한으로 이용할 수 있습니다.</p>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5">
             {["회원관리","운동 기록 관리","건강 보고서","브랜드 페이지","예약 기능"].map(f => (
@@ -1649,12 +1671,14 @@ export default function DietPlanner() {
             {kakaoUser && (
               <button
                 onClick={() => setShowTypeModal(true)}
-                className="shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors"
+                className="shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors"
                 style={userType === "trainer"
                   ? { background: "rgba(59,130,246,0.15)", color: "#93c5fd", borderColor: "rgba(59,130,246,0.3)" }
                   : { background: "rgba(16,185,129,0.15)", color: "#6ee7b7", borderColor: "rgba(16,185,129,0.3)" }}
               >
-                {userType === "trainer" ? "🏋️ 운동전문가" : "👤 일반 회원"}
+                {userType === "trainer"
+                  ? <><Dumbbell className="w-3 h-3" strokeWidth={2} />운동전문가</>
+                  : <><User className="w-3 h-3" strokeWidth={2} />일반 회원</>}
               </button>
             )}
             {/* 카카오 로그인 버튼 */}
