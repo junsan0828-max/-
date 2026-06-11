@@ -892,13 +892,16 @@ interface SharePayload {
 
 function encodeSharePayload(name: string, tdee: number, plan: MealPlan): string {
   const payload: SharePayload = { n: name || "회원", t: tdee, b: plan.breakfast, l: plan.lunch, d: plan.dinner, s: plan.snack };
-  return btoa(encodeURIComponent(JSON.stringify(payload)));
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  return btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(""));
 }
 
 function decodeSharePayload(hash: string): SharePayload | null {
   try {
     if (!hash.startsWith("#share=")) return null;
-    return JSON.parse(decodeURIComponent(atob(hash.slice(7))));
+    const bin = atob(hash.slice(7));
+    const bytes = new Uint8Array([...bin].map((c) => c.charCodeAt(0)));
+    return JSON.parse(new TextDecoder().decode(bytes));
   } catch { return null; }
 }
 
