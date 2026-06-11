@@ -79,6 +79,21 @@ function buildRevServiceItems(f: RevForm): string | undefined {
   return parts.length > 0 ? parts.join(",") : undefined;
 }
 
+function computeRevenueEndDate(entry: any): string | null {
+  if (!entry.startDate || !entry.duration) return null;
+  const d = new Date(entry.startDate);
+  d.setMonth(d.getMonth() + entry.duration);
+  if (entry.serviceItems) {
+    for (const part of (entry.serviceItems as string).split(",").map((s: string) => s.trim())) {
+      const mo = /^헬스\((\d+)개월\)$/.exec(part);
+      if (mo) { d.setMonth(d.getMonth() + parseInt(mo[1])); continue; }
+      const dy = /^헬스\((\d+)일\)$/.exec(part);
+      if (dy) { d.setDate(d.getDate() + parseInt(dy[1])); }
+    }
+  }
+  return d.toISOString().substring(0, 10);
+}
+
 export default function RevenuePage() {
   const [financeTab, setFinanceTab] = useState<"revenue" | "expenses">("revenue");
 
@@ -481,7 +496,13 @@ function RevenueContent() {
 
                 {/* 결제 정보 */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                  <span>{row.entry.paymentDate}</span>
+                  {row.entry.type === "헬스" && row.entry.startDate ? (
+                    <span>{row.entry.startDate} ~ {computeRevenueEndDate(row.entry) ?? "—"}</span>
+                  ) : row.entry.type === "PT" && row.entry.startDate ? (
+                    <span>{row.entry.startDate} 등록</span>
+                  ) : (
+                    <span>{row.entry.paymentDate}</span>
+                  )}
                   {row.entry.paymentMethod && <span>· {row.entry.paymentMethod}</span>}
                   {row.entry.type === "PT" && !row.entry.trainerId && (
                     <span className="text-orange-400 font-medium">· 트레이너 미배정</span>
