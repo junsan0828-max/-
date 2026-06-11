@@ -867,11 +867,14 @@ function buildMealFromDB(
     if (matching.length > 0) pool = matching;
   }
 
-  const best = pool.reduce((prev, curr) =>
-    mealScore(curr, targetKcal, healthRatio) < mealScore(prev, targetKcal, healthRatio) ? curr : prev
-  );
+  // 상위 5개 후보 중 랜덤 선택 → 재생성 시 다른 식단 출력
+  const sorted = pool
+    .map((item) => ({ item, score: mealScore(item, targetKcal, healthRatio) }))
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 5);
+  const pick = sorted[Math.floor(Math.random() * sorted.length)].item;
 
-  return [{ name: best.name, serving: best.serving, kcal: best.kcal, carb: best.carb, protein: best.protein, fat: best.fat }];
+  return [{ name: pick.name, serving: pick.serving, kcal: pick.kcal, carb: pick.carb, protein: pick.protein, fat: pick.fat }];
 }
 
 function sumMeal(entries: MealEntry[]) {
@@ -1539,6 +1542,8 @@ export default function DietPlanner() {
             ? "식품 DB 로딩 중..."
             : !tdee
             ? "회원 정보를 먼저 입력하세요"
+            : mealPlan
+            ? "🔄 식단 다시 생성"
             : "식단 자동 생성"}
         </button>
 
