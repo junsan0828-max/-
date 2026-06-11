@@ -4,30 +4,10 @@ import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Whe
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRk00IJXvZha8RRaMK40XQ-C20WhhmPVHxLbxiUnPZZfy64fd8muHWuz_QbhNXjLDkqscnrbRQ-AzME/pub?gid=287813752&single=true&output=csv";
 
-const COUNTER_NS = "zdietplan";
-
-async function fetchCounterAPI(path: string): Promise<number | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  try {
-    const res = await fetch(`https://api.countapi.xyz/${path}`, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return typeof data.value === "number" ? data.value : null;
-  } catch {
-    clearTimeout(timer);
-    return null;
-  }
-}
-
-function hitCounter(key: string): Promise<number | null> {
-  return fetchCounterAPI(`hit/${COUNTER_NS}/${key}`);
-}
-
-function getCounter(key: string): Promise<number | null> {
-  return fetchCounterAPI(`get/${COUNTER_NS}/${key}`);
-}
+// ─── 로컬 카운터 (외부 API 의존 없음, 리셋 방지) ────────────────────────────────
+function _todayKey() { return new Date().toISOString().slice(0,10).replace(/-/g,""); }
+function _lsNum(key: string) { return parseInt(localStorage.getItem(key)||"0"); }
+function _lsInc(key: string) { const n=_lsNum(key)+1; localStorage.setItem(key,String(n)); return n; }
 
 // ─── 사용자 유형 & 이용 제한 ───────────────────────────────────────────────────
 type UserType = "member" | "trainer";
@@ -1767,51 +1747,24 @@ export default function DietPlanner() {
       }
     }
 
-    const todayKey = new Date().toISOString().slice(0, 10).replace(/-/g, ""); // e.g. "20260611"
-    const vtKey = `dp_vt_${todayKey}`;
-    const stKey = `dp_st_${todayKey}`;
+    // ── 외부 API 없이 localStorage만으로 카운터 관리 (리셋 방지) ──────────────
+    const tdk  = _todayKey();
+    const vtKey = `dp_vt_${tdk}`;
+    const stKey = `dp_st_${tdk}`;
 
-    const lsV  = parseInt(localStorage.getItem("dp_vc") || "0");
-    const lsVT = parseInt(localStorage.getItem(vtKey)   || "0");
-    const lsS  = parseInt(localStorage.getItem("dp_sc") || "0");
-    const lsST = parseInt(localStorage.getItem(stKey)   || "0");
-
-    // localStorage를 항상 source of truth로 유지 — 원격값이 더 작으면 무시
-    function safeSet(key: string, remote: number, local: number, setter: (n: number) => void) {
-      const safe = Math.max(remote, local);
-      localStorage.setItem(key, String(safe));
-      setter(safe);
-    }
-
+    // 방문자 카운트 (세션당 1회)
     if (!sessionStorage.getItem("dp-visited")) {
       sessionStorage.setItem("dp-visited", "1");
-      // 로컬 즉시 반영
-      const nextV  = lsV  + 1; localStorage.setItem("dp_vc", String(nextV));  setVisitorCount(nextV);
-      const nextVT = lsVT + 1; localStorage.setItem(vtKey,   String(nextVT)); setVisitorToday(nextVT);
-      // 원격 동기화 (원격값이 더 낮아도 로컬값 보호)
-      hitCounter("visitors").then((v) => {
-        if (v !== null) safeSet("dp_vc", v, parseInt(localStorage.getItem("dp_vc") || "0"), setVisitorCount);
-      });
-      hitCounter(`visitors_${todayKey}`).then((v) => {
-        if (v !== null) safeSet(vtKey, v, parseInt(localStorage.getItem(vtKey) || "0"), setVisitorToday);
-      });
+      setVisitorCount(_lsInc("dp_vc"));
+      setVisitorToday(_lsInc(vtKey));
     } else {
-      setVisitorCount(lsV); setVisitorToday(lsVT);
-      getCounter("visitors").then((v) => {
-        if (v !== null) safeSet("dp_vc", v, parseInt(localStorage.getItem("dp_vc") || "0"), setVisitorCount);
-      });
-      getCounter(`visitors_${todayKey}`).then((v) => {
-        if (v !== null) safeSet(vtKey, v, parseInt(localStorage.getItem(vtKey) || "0"), setVisitorToday);
-      });
+      setVisitorCount(_lsNum("dp_vc"));
+      setVisitorToday(_lsNum(vtKey));
     }
 
-    setShareCount(lsS); setShareToday(lsST);
-    getCounter("shares").then((s) => {
-      if (s !== null) safeSet("dp_sc", s, parseInt(localStorage.getItem("dp_sc") || "0"), setShareCount);
-    });
-    getCounter(`shares_${todayKey}`).then((s) => {
-      if (s !== null) safeSet(stKey, s, parseInt(localStorage.getItem(stKey) || "0"), setShareToday);
-    });
+    // 공유 카운트 초기 표시
+    setShareCount(_lsNum("dp_sc"));
+    setShareToday(_lsNum(stKey));
   }, []);
 
   const bmr =
@@ -1883,18 +1836,9 @@ export default function DietPlanner() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2500);
       }
-      const tdk = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const stk = `dp_st_${tdk}`;
-      hitCounter("shares").then((v) => {
-        const local = parseInt(localStorage.getItem("dp_sc") || "0") + 1;
-        const next = Math.max(v ?? local, local);
-        localStorage.setItem("dp_sc", String(next)); setShareCount(next);
-      });
-      hitCounter(`shares_${tdk}`).then((v) => {
-        const local = parseInt(localStorage.getItem(stk) || "0") + 1;
-        const next = Math.max(v ?? local, local);
-        localStorage.setItem(stk, String(next)); setShareToday(next);
-      });
+      const stk = `dp_st_${_todayKey()}`;
+      setShareCount(_lsInc("dp_sc"));
+      setShareToday(_lsInc(stk));
     } catch {
       // 공유 취소
     }
@@ -1927,7 +1871,11 @@ export default function DietPlanner() {
     setShowTypeModal(false);
   }
 
-  const dbLabel = dbItems.length >= 1000 ? "식품 DB 1000개+" : `식품 DB ${dbItems.length}개`;
+  const totalFoodCount = dbItems.length + REAL_FOOD_DB.length;
+  const dbLabel = totalFoodCount >= 3000 ? "식품 DB 3000개+" :
+                  totalFoodCount >= 2000 ? "식품 DB 2000개+" :
+                  totalFoodCount >= 1000 ? "식품 DB 1000개+" :
+                  `식품 DB ${totalFoodCount}개`;
 
   const mealLabels = [
     { key: "breakfast" as const, label: "아침", pct: pctBreakfast, emoji: "🌅" },
