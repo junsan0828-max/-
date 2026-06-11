@@ -772,6 +772,27 @@ function parseFoodDB(csv: string): MealDBItem[] {
   return items;
 }
 
+// ─── 건강식 / 일반식 분류 ──────────────────────────────────────────────────────
+const HEALTHY_KW = [
+  "닭가슴살","달걀흰자","두부","현미","통밀","오트밀","고구마","샐러드","견과","저지방","무지방",
+  "그릭요거트","단백질파우더","프로틴","연어","새우살","브로콜리","시금치","토마토","아보카도",
+  "블루베리","키위","채소","나물","퀴노아","아몬드버터","프로틴볼","달걀말이","달걀스크램블",
+  "달걀후라이","삶은달걀","스크램블에그","오믈렛","콩나물","무침","참치(캔)","닭안심","생선구이",
+  "두부조림","된장국","미역국","청국장","잡곡","흑미","렌틸","병아리콩","그린스무디","채소스무디",
+];
+const REGULAR_KW = [
+  "돈가스","튀김","탕","찌개","볶음밥","라면","짜장","짬뽕","피자","햄버거","파스타","삼겹살",
+  "갈비","불고기","떡볶이","순대","국밥","칼국수","냉면","만두","전","치킨","닭강정","닭볶음탕",
+  "마라탕","족발","보쌈","감자튀김","닭곰탕","설렁탕","곰탕","우거지","순대국","뼈해장국",
+  "아구찜","낙지볶음","제육볶음","김치찌개","부대찌개","된장찌개","순두부찌개","스테이크","리조또",
+];
+
+function classifyFood(name: string): "healthy" | "regular" {
+  if (HEALTHY_KW.some((k) => name.includes(k))) return "healthy";
+  if (REGULAR_KW.some((k) => name.includes(k))) return "regular";
+  return "regular";
+}
+
 // ─── 계산 함수 ─────────────────────────────────────────────────────────────────
 function calcBMR(gender: string, age: number, weight: number, height: number): number {
   if (gender === "male") return Math.round(88.362 + 13.397 * weight + 4.799 * height - 5.677 * age);
@@ -784,7 +805,7 @@ function calcTDEE(bmr: number, activity: string): number {
   return Math.round(bmr * (ACTIVITY_MULTIPLIER[activity] ?? 1.55));
 }
 
-function mealScore(item: MealDBItem, targetKcal: number): number {
+function mealScore(item: MealDBItem, targetKcal: number, healthRatio = 50): number {
   const kcalDiff = Math.abs(item.kcal - targetKcal);
   let bonus = 0;
   if (item.mealTime === "breakfast") {
@@ -804,6 +825,11 @@ function mealScore(item: MealDBItem, targetKcal: number): number {
     if (item.protein >= 8) bonus += 20;
     if (item.kcal <= 150) bonus += 20;
   }
+  // 건강식/일반식 비율 반영: healthRatio 0~100
+  const isHealthy = classifyFood(item.name) === "healthy";
+  const bias = (healthRatio - 50) * 1.8; // -90 ~ +90
+  if (isHealthy) bonus += bias;
+  else bonus -= bias;
   return kcalDiff - bonus;
 }
 
@@ -812,7 +838,8 @@ function buildMealFromDB(
   mealTime: keyof MealPlan,
   targetKcal: number,
   includeList: string[],
-  excludeList: string[]
+  excludeList: string[],
+  healthRatio = 50
 ): MealEntry[] {
   const excLower = excludeList.map((s) => s.toLowerCase().trim()).filter(Boolean);
   const incLower = includeList.map((s) => s.toLowerCase().trim()).filter(Boolean);
@@ -841,7 +868,7 @@ function buildMealFromDB(
   }
 
   const best = pool.reduce((prev, curr) =>
-    mealScore(curr, targetKcal) < mealScore(prev, targetKcal) ? curr : prev
+    mealScore(curr, targetKcal, healthRatio) < mealScore(prev, targetKcal, healthRatio) ? curr : prev
   );
 
   return [{ name: best.name, serving: best.serving, kcal: best.kcal, carb: best.carb, protein: best.protein, fat: best.fat }];
@@ -1020,6 +1047,7 @@ export default function DietPlanner() {
   const [activity, setActivity] = useState<"low" | "moderate" | "high">("moderate");
   const [includeFood, setIncludeFood] = useState("");
   const [excludeFood, setExcludeFood] = useState("");
+  const [healthRatio, setHealthRatio] = useState(50); // 0=일반식, 100=건강식
 
   const [pctBreakfast, setPctBreakfast] = useState(25);
   const [pctLunch, setPctLunch] = useState(35);
@@ -1170,10 +1198,10 @@ export default function DietPlanner() {
     const includeList = includeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     const excludeList = excludeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     const plan: MealPlan = {
-      breakfast: buildMealFromDB(dbItems, "breakfast", (tdee * pctBreakfast) / 100, includeList, excludeList),
-      lunch: buildMealFromDB(dbItems, "lunch", (tdee * pctLunch) / 100, includeList, excludeList),
-      dinner: buildMealFromDB(dbItems, "dinner", (tdee * pctDinner) / 100, includeList, excludeList),
-      snack: buildMealFromDB(dbItems, "snack", (tdee * pctSnack) / 100, includeList, excludeList),
+      breakfast: buildMealFromDB(dbItems, "breakfast", (tdee * pctBreakfast) / 100, includeList, excludeList, healthRatio),
+      lunch: buildMealFromDB(dbItems, "lunch", (tdee * pctLunch) / 100, includeList, excludeList, healthRatio),
+      dinner: buildMealFromDB(dbItems, "dinner", (tdee * pctDinner) / 100, includeList, excludeList, healthRatio),
+      snack: buildMealFromDB(dbItems, "snack", (tdee * pctSnack) / 100, includeList, excludeList, healthRatio),
     };
     setMealPlan(plan);
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -1448,6 +1476,36 @@ export default function DietPlanner() {
               value={excludeFood}
               onChange={(e) => setExcludeFood(e.target.value)}
             />
+          </div>
+
+          {/* 건강식 / 일반식 비율 */}
+          <div className="bg-gray-800/60 rounded-xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-300 font-medium">식단 스타일</span>
+              <div className="flex items-center gap-1.5 text-xs font-bold">
+                <span className={healthRatio >= 50 ? "text-emerald-400" : "text-gray-500"}>
+                  건강식 {healthRatio}%
+                </span>
+                <span className="text-gray-600">/</span>
+                <span className={healthRatio < 50 ? "text-orange-400" : "text-gray-500"}>
+                  일반식 {100 - healthRatio}%
+                </span>
+              </div>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={10}
+              value={healthRatio}
+              onChange={(e) => setHealthRatio(parseInt(e.target.value))}
+              className="w-full accent-emerald-500"
+            />
+            <div className="flex justify-between text-[10px] text-gray-600">
+              <span>🍖 일반식 위주<br/><span className="text-gray-700">탕·튀김·볶음 등</span></span>
+              <span className="text-center">균형</span>
+              <span className="text-right">건강식 위주 🥗<br/><span className="text-gray-700">닭가슴살·채소·달걀 등</span></span>
+            </div>
           </div>
         </section>
 
