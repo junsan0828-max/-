@@ -5,7 +5,7 @@ import { consultantRecordsRouter } from "./consultantRecordsRouter";
 import { consultantDataRouter } from "./consultantDataRouter";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, lte, gte, gt, isNull, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb, getDashboardStats, pool } from "./db";
 import {
@@ -3368,15 +3368,24 @@ const adminRouter = t.router({
           .where(and(
             eq(members.trainerId, tid),
             eq(members.status, "active"),
-            sql`${ptPackages.expiryDate} >= ${monthStart}`,
-            sql`${ptPackages.expiryDate} < ${monthEnd}`,
+            or(
+              and(
+                sql`${ptPackages.expiryDate} >= ${monthStart}`,
+                sql`${ptPackages.expiryDate} < ${monthEnd}`,
+              ),
+              sql`(${ptPackages.totalSessions} - ${ptPackages.usedSessions}) <= 8`,
+            ),
           ));
+
+        // 중복 제거 (회원 1명이 PT패키지 여러 개인 경우)
+        const seen = new Set<number>();
+        const unique = rows.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
 
         return {
           trainerId: tid,
-          total: rows.length,
-          rereg: rows.filter(r => r.renewalIntent === "재등록예정").length,
-          churn: rows.filter(r => r.renewalIntent === "이탈예정").length,
+          total: unique.length,
+          rereg: unique.filter(r => r.renewalIntent === "재등록예정").length,
+          churn: unique.filter(r => r.renewalIntent === "이탈예정").length,
         };
       }));
 
