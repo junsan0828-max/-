@@ -976,7 +976,7 @@ function PromoBanner() {
                   FITNESS
                 </span>
               </div>
-              <p className="text-[11px] text-blue-200/80 leading-tight truncate">
+              <p className="text-[11px] text-blue-200/80 leading-snug line-clamp-2">
                 {BANNER_CONFIG.tagline}
               </p>
             </div>
@@ -1295,52 +1295,39 @@ export default function DietPlanner() {
               )}
             </div>
           </div>
-          {/* Row 2: 이용자/공유 카운터 + DB 현황 */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* 방문자 */}
-            <span className="flex items-center gap-1 text-xs text-gray-400">
+          {/* Row 2: 카운터 + DB */}
+          <div className="flex items-center justify-between gap-2">
+            {/* 방문자·공유 카운터 */}
+            <div className="flex items-center gap-1.5 text-[11px] min-w-0">
               <span>👥</span>
-              <span className="tabular-nums text-gray-300">
-                {visitorCount !== null ? `${visitorCount.toLocaleString()}명` : "···"}
-              </span>
+              <span className="tabular-nums text-gray-300">{visitorCount ?? "···"}명</span>
               <span className="text-gray-600">누적</span>
-            </span>
-            <span className="text-gray-700 text-[10px]">·</span>
-            <span className="flex items-center gap-0.5 text-xs text-gray-400">
-              <span className="tabular-nums text-emerald-400">
-                {visitorToday !== null ? `${visitorToday.toLocaleString()}명` : "···"}
-              </span>
+              <span className="text-gray-700">·</span>
+              <span className="tabular-nums text-emerald-400">{visitorToday ?? "···"}명</span>
               <span className="text-gray-600">오늘</span>
-            </span>
-            <span className="w-px h-3 bg-gray-700 mx-0.5" />
-            {/* 공유 */}
-            <span className="flex items-center gap-1 text-xs text-gray-400">
+              <span className="w-px h-3 bg-gray-700 mx-0.5" />
               <span>📤</span>
-              <span className="tabular-nums text-gray-300">
-                {shareCount !== null ? `${shareCount.toLocaleString()}회` : "···"}
-              </span>
+              <span className="tabular-nums text-gray-300">{shareCount ?? "···"}회</span>
               <span className="text-gray-600">누적</span>
-            </span>
-            <span className="text-gray-700 text-[10px]">·</span>
-            <span className="flex items-center gap-0.5 text-xs text-gray-400">
-              <span className="tabular-nums text-emerald-400">
-                {shareToday !== null ? `${shareToday.toLocaleString()}회` : "···"}
-              </span>
+              <span className="text-gray-700">·</span>
+              <span className="tabular-nums text-emerald-400">{shareToday ?? "···"}회</span>
               <span className="text-gray-600">오늘</span>
-            </span>
-            <span className="w-px h-3 bg-gray-700 mx-0.5" />
-            {dbLoading ? (
-              <span className="flex items-center gap-1 text-xs text-gray-400">
-                <Loader2 className="w-3 h-3 animate-spin" />로딩 중
-              </span>
-            ) : (
-              <span className="text-xs text-emerald-400">{dbLabel}</span>
-            )}
-            {dbError && (
-              <button onClick={loadDB} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300">
-                <RefreshCw className="w-3 h-3" />재시도
-              </button>
-            )}
+            </div>
+            {/* DB 현황 */}
+            <div className="shrink-0 flex items-center gap-1">
+              {dbLoading ? (
+                <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                  <Loader2 className="w-3 h-3 animate-spin" />로딩 중
+                </span>
+              ) : (
+                <span className="text-[11px] text-emerald-400 font-medium">{dbLabel}</span>
+              )}
+              {dbError && (
+                <button onClick={loadDB} className="flex items-center gap-0.5 text-[11px] text-red-400 hover:text-red-300">
+                  <RefreshCw className="w-3 h-3" />재시도
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
