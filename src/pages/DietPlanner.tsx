@@ -1204,6 +1204,7 @@ export default function DietPlanner() {
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [ratioError, setRatioError] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
 
   const [dbItems, setDbItems] = useState<MealDBItem[]>(BUILT_IN_FOOD_DB);
   const [dbLoading, setDbLoading] = useState(true);
@@ -1355,11 +1356,25 @@ export default function DietPlanner() {
   }
 
   async function handleShare() {
-    if (!mealPlan || !tdee) return;
+    if (!mealPlan || !tdee || shareLoading) return;
+    setShareLoading(true);
     try {
       const encoded = encodeSharePayload(name, tdee, mealPlan);
-      const url = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
-      await navigator.clipboard.writeText(url);
+      const longUrl = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
+      // TinyURL로 단축
+      let finalUrl = longUrl;
+      try {
+        const res = await fetch(
+          `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
+          { signal: AbortSignal.timeout(6000) }
+        );
+        if (res.ok) {
+          const short = (await res.text()).trim();
+          if (short.startsWith("https://")) finalUrl = short;
+        }
+      } catch { /* 단축 실패 시 원본 사용 */ }
+      await navigator.clipboard.writeText(finalUrl);
+      setShareLoading(false);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
       const tdk = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -1373,7 +1388,7 @@ export default function DietPlanner() {
         localStorage.setItem(stk, String(next)); setShareToday(next);
       });
     } catch {
-      // clipboard 실패 시 무시
+      setShareLoading(false);
     }
   }
 
@@ -1688,8 +1703,8 @@ export default function DietPlanner() {
                 onClick={handleShare}
                 className="flex items-center gap-1.5 text-xs bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold px-3 py-1.5 rounded-lg transition-colors"
               >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-                {copied ? "링크 복사됨!" : "PDF 공유하기"}
+                {shareLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : copied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+                {shareLoading ? "링크 생성 중..." : copied ? "링크 복사됨!" : "PDF 공유하기"}
               </button>
             </div>
 
