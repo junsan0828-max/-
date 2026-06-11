@@ -36,6 +36,89 @@ function getTodayGenKey() { return `dp_gen_${new Date().toISOString().slice(0,10
 function getGenCount()    { return parseInt(localStorage.getItem(getTodayGenKey()) || "0"); }
 function incGenCount()    { const k = getTodayGenKey(); const n = getGenCount()+1; localStorage.setItem(k,String(n)); return n; }
 
+// ─── 입장 환영 모달 ──────────────────────────────────────────────────────────
+function WelcomeModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4"
+      style={{ background: "rgba(0,0,0,0.82)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full sm:max-w-sm bg-gray-900 border border-gray-700/60 rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 상단 그라디언트 헤더 */}
+        <div className="relative px-6 pt-8 pb-6 text-center" style={{ background: "linear-gradient(135deg, #064e3b 0%, #065f46 40%, #1e3a5f 100%)" }}>
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 70% 20%, #10b981 0%, transparent 50%)" }} />
+          <div className="relative">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-3" style={{ background: "rgba(16,185,129,0.2)", border: "1px solid rgba(16,185,129,0.3)" }}>
+              <span className="text-2xl">🥗</span>
+            </div>
+            <h2 className="text-lg font-bold text-white leading-tight">맞춤 식단 플래너</h2>
+            <p className="text-xs text-emerald-300/80 mt-1 font-medium">AI 기반 개인 맞춤 영양 설계</p>
+          </div>
+        </div>
+
+        {/* 콘텐츠 */}
+        <div className="px-6 py-5 space-y-4">
+          {/* 사용 대상 */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="bg-gray-800/70 border border-gray-700/50 rounded-xl p-3.5 text-center space-y-1.5">
+              <span className="text-xl">🏋️</span>
+              <p className="text-xs font-bold text-white">운동 전문가</p>
+              <p className="text-[11px] text-gray-400 leading-relaxed">회원 식단 관리·<br />트레이닝 지도</p>
+            </div>
+            <div className="bg-gray-800/70 border border-gray-700/50 rounded-xl p-3.5 text-center space-y-1.5">
+              <span className="text-xl">👤</span>
+              <p className="text-xs font-bold text-white">일반 회원</p>
+              <p className="text-[11px] text-gray-400 leading-relaxed">개인 운동·<br />식단 자기 관리</p>
+            </div>
+          </div>
+
+          {/* 이용 혜택 안내 */}
+          <div className="rounded-xl border border-gray-700/50 overflow-hidden">
+            <div className="px-4 py-2.5 bg-gray-800/50">
+              <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">일일 식단 생성 횟수</p>
+            </div>
+            <div className="divide-y divide-gray-800">
+              {[
+                { icon: "🔓", label: "비로그인", count: "2회 / 일", color: "text-gray-400" },
+                { icon: "👤", label: "일반 회원 (카카오 로그인)", count: "5회 / 일", color: "text-emerald-400" },
+                { icon: "🏋️", label: "운동전문가 (카카오 로그인)", count: "10회 / 일", color: "text-blue-400" },
+                { icon: "🚀", label: "FIT STEP 가입 회원", count: "무제한", color: "text-yellow-400" },
+              ].map(({ icon, label, count, color }) => (
+                <div key={label} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{icon}</span>
+                    <span className="text-xs text-gray-300">{label}</span>
+                  </div>
+                  <span className={`text-xs font-bold ${color}`}>{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 로그인 유도 메시지 */}
+          <p className="text-center text-[11px] text-gray-500 leading-relaxed">
+            카카오 로그인으로 더 많은 식단을 생성하고<br />
+            생성한 식단을 텍스트로 공유할 수 있습니다.
+          </p>
+
+          {/* 시작 버튼 */}
+          <button
+            onClick={onClose}
+            className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-colors"
+            style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
+          >
+            식단 플래너 시작하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── 사용자 유형 선택 모달 ────────────────────────────────────────────────────
 function UserTypeModal({ onSelect }: { onSelect: (t: UserType) => void }) {
   return (
@@ -1303,6 +1386,9 @@ export default function DietPlanner() {
   const [ratioError, setRatioError] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // 입장 환영 모달 (세션당 1회)
+  const [showWelcome, setShowWelcome] = useState(() => !sessionStorage.getItem("dp-welcomed"));
+
   // 사용자 유형
   const [userType, setUserType] = useState<UserType | null>(() => {
     const s = localStorage.getItem("dp_ut");
@@ -1533,6 +1619,12 @@ export default function DietPlanner() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 pb-20">
+      {showWelcome && (
+        <WelcomeModal onClose={() => {
+          sessionStorage.setItem("dp-welcomed", "1");
+          setShowWelcome(false);
+        }} />
+      )}
       {showTypeModal && <UserTypeModal onSelect={handleUserTypeSelect} />}
       {showLimitModal && (
         <LimitReachedModal
