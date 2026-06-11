@@ -111,8 +111,8 @@ function WelcomeModal({ onClose }: { onClose: () => void }) {
           {/* 로그인 유도 */}
           <div className="flex items-start gap-2.5 px-1">
             <ChevronRight className="w-3.5 h-3.5 text-emerald-500/60 shrink-0 mt-0.5" strokeWidth={2} />
-            <p className="text-[11px] text-gray-500 leading-relaxed">
-              카카오 로그인 후 더 많은 식단을 생성하고,<br />생성한 식단을 텍스트로 공유할 수 있습니다.
+            <p className="text-[11px] text-gray-500">
+              로그인하면 더 많은 식단 생성 및 텍스트 공유가 가능합니다.
             </p>
           </div>
 
