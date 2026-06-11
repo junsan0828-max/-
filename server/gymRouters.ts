@@ -642,6 +642,45 @@ const revenueRouter = t.router({
       return { success: true };
     }),
 
+  recomputeMembershipEnd: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const healthRows = await db.select().from(revenueEntries).where(eq(revenueEntries.type, "헬스"));
+      // memberId별 가장 최신 헬스 등록 entry를 기준으로 membershipEnd 재계산
+      const latestByMember = new Map<number, typeof healthRows[0]>();
+      for (const row of healthRows) {
+        if (!row.memberId || !row.startDate) continue;
+        const prev = latestByMember.get(row.memberId);
+        if (!prev || (row.startDate > prev.startDate!)) latestByMember.set(row.memberId, row);
+      }
+      let updated = 0;
+      for (const [memberId, row] of latestByMember) {
+        let months = row.duration ?? 0;
+        if (!months) {
+          const m = /^헬스\s*(\d+)개월/.exec(row.programDetail ?? "");
+          if (m) months = parseInt(m[1]);
+        }
+        if (!months) continue;
+        const [yr, mo, dy] = row.startDate!.split("-").map(Number);
+        const d = new Date(yr, mo - 1, dy);
+        d.setMonth(d.getMonth() + months);
+        if (row.serviceItems) {
+          for (const part of row.serviceItems.split(",").map((s: string) => s.trim())) {
+            const moM = /^헬스\((\d+)개월\)$/.exec(part);
+            if (moM) { d.setMonth(d.getMonth() + parseInt(moM[1])); continue; }
+            const dyM = /^헬스\((\d+)일\)$/.exec(part);
+            if (dyM) { d.setDate(d.getDate() + parseInt(dyM[1])); }
+          }
+        }
+        const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        await db.update(members).set({ membershipEnd: newEnd }).where(eq(members.id, memberId));
+        updated++;
+      }
+      return { updated };
+    }),
+
   monthlySummary: protectedProcedure
     .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {

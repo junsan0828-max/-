@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
+import { toast } from "sonner";
 import { Search, ChevronRight, MapPin, Users, UserCheck, Clock, UserX, Pause, TrendingUp, TrendingDown, Minus, X } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
@@ -78,6 +79,14 @@ export default function AdminMembers() {
     },
     onError: (e) => console.error("[fixMissingTransferees 오류]", e.message),
   });
+  const recomputeMutation = trpc.gym.revenue.recomputeMembershipEnd.useMutation({
+    onSuccess: (data) => {
+      toast.success(`만료일 재계산 완료 (${data.updated}명)`);
+      utils.members.listAll.invalidate();
+    },
+    onError: (e) => toast.error(`재계산 오류: ${e.message}`),
+  });
+
   const [mergeResult, setMergeResult] = useState<string | null>(null);
   const mergeMutation = trpc.admin.mergeDuplicateMembers.useMutation({
     onSuccess: (data) => {
@@ -280,7 +289,16 @@ export default function AdminMembers() {
 
   return (
     <div className="space-y-4 pb-20">
-      <h1 className="text-xl font-bold">회원 관리</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">회원 관리</h1>
+        <button
+          onClick={() => recomputeMutation.mutate()}
+          disabled={recomputeMutation.isPending}
+          className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        >
+          {recomputeMutation.isPending ? "재계산 중..." : "만료일 재계산"}
+        </button>
+      </div>
 
       {/* 지점 필터 */}
       {branchList && branchList.length > 0 && (
@@ -542,12 +560,17 @@ export default function AdminMembers() {
                     )}
                     {pkgLabel && <span className="text-xs text-muted-foreground truncate">{pkgLabel}</span>}
                   </div>
-                  {/* 트레이너 + 시작일 */}
+                  {/* 트레이너 + 기간 */}
                   {(trainerNames.length > 0 || primary.membershipStart) && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                       {trainerNames.length > 0 && <span>{trainerNames.join(", ")}</span>}
                       {trainerNames.length > 0 && primary.membershipStart && <span>·</span>}
-                      {primary.membershipStart && <span>{primary.membershipStart}</span>}
+                      {primary.membershipStart && (
+                        <span>
+                          {primary.membershipStart}
+                          {primary.membershipEnd ? ` ~ ${primary.membershipEnd}` : ""}
+                        </span>
+                      )}
                     </div>
                   )}
                   {/* 중복 상세 */}
