@@ -1498,34 +1498,41 @@ export default function DietPlanner() {
     const lsS  = parseInt(localStorage.getItem("dp_sc") || "0");
     const lsST = parseInt(localStorage.getItem(stKey)   || "0");
 
+    // localStorage를 항상 source of truth로 유지 — 원격값이 더 작으면 무시
+    function safeSet(key: string, remote: number, local: number, setter: (n: number) => void) {
+      const safe = Math.max(remote, local);
+      localStorage.setItem(key, String(safe));
+      setter(safe);
+    }
+
     if (!sessionStorage.getItem("dp-visited")) {
       sessionStorage.setItem("dp-visited", "1");
       // 로컬 즉시 반영
       const nextV  = lsV  + 1; localStorage.setItem("dp_vc", String(nextV));  setVisitorCount(nextV);
       const nextVT = lsVT + 1; localStorage.setItem(vtKey,   String(nextVT)); setVisitorToday(nextVT);
-      // 원격 동기화
+      // 원격 동기화 (원격값이 더 낮아도 로컬값 보호)
       hitCounter("visitors").then((v) => {
-        if (v !== null) { localStorage.setItem("dp_vc", String(v)); setVisitorCount(v); }
+        if (v !== null) safeSet("dp_vc", v, parseInt(localStorage.getItem("dp_vc") || "0"), setVisitorCount);
       });
       hitCounter(`visitors_${todayKey}`).then((v) => {
-        if (v !== null) { localStorage.setItem(vtKey, String(v)); setVisitorToday(v); }
+        if (v !== null) safeSet(vtKey, v, parseInt(localStorage.getItem(vtKey) || "0"), setVisitorToday);
       });
     } else {
       setVisitorCount(lsV); setVisitorToday(lsVT);
       getCounter("visitors").then((v) => {
-        if (v !== null) { localStorage.setItem("dp_vc", String(v)); setVisitorCount(v); }
+        if (v !== null) safeSet("dp_vc", v, parseInt(localStorage.getItem("dp_vc") || "0"), setVisitorCount);
       });
       getCounter(`visitors_${todayKey}`).then((v) => {
-        if (v !== null) { localStorage.setItem(vtKey, String(v)); setVisitorToday(v); }
+        if (v !== null) safeSet(vtKey, v, parseInt(localStorage.getItem(vtKey) || "0"), setVisitorToday);
       });
     }
 
     setShareCount(lsS); setShareToday(lsST);
     getCounter("shares").then((s) => {
-      if (s !== null) { localStorage.setItem("dp_sc", String(s)); setShareCount(s); }
+      if (s !== null) safeSet("dp_sc", s, parseInt(localStorage.getItem("dp_sc") || "0"), setShareCount);
     });
     getCounter(`shares_${todayKey}`).then((s) => {
-      if (s !== null) { localStorage.setItem(stKey, String(s)); setShareToday(s); }
+      if (s !== null) safeSet(stKey, s, parseInt(localStorage.getItem(stKey) || "0"), setShareToday);
     });
   }, []);
 
@@ -1594,11 +1601,13 @@ export default function DietPlanner() {
       const tdk = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const stk = `dp_st_${tdk}`;
       hitCounter("shares").then((v) => {
-        const next = v ?? (parseInt(localStorage.getItem("dp_sc") || "0") + 1);
+        const local = parseInt(localStorage.getItem("dp_sc") || "0") + 1;
+        const next = Math.max(v ?? local, local);
         localStorage.setItem("dp_sc", String(next)); setShareCount(next);
       });
       hitCounter(`shares_${tdk}`).then((v) => {
-        const next = v ?? (parseInt(localStorage.getItem(stk) || "0") + 1);
+        const local = parseInt(localStorage.getItem(stk) || "0") + 1;
+        const next = Math.max(v ?? local, local);
         localStorage.setItem(stk, String(next)); setShareToday(next);
       });
     } catch {
