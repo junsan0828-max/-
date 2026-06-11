@@ -1365,10 +1365,11 @@ function buildMealFromDB(
 }
 
 function sumMeal(entries: MealEntry[]) {
-  return entries.reduce(
+  const r = entries.reduce(
     (acc, e) => ({ kcal: acc.kcal + e.kcal, carb: acc.carb + e.carb, protein: acc.protein + e.protein, fat: acc.fat + e.fat }),
     { kcal: 0, carb: 0, protein: 0, fat: 0 }
   );
+  return { kcal: Math.round(r.kcal), carb: Math.round(r.carb * 10) / 10, protein: Math.round(r.protein * 10) / 10, fat: Math.round(r.fat * 10) / 10 };
 }
 
 // ─── 공유 링크 인코딩/디코딩 ───────────────────────────────────────────────────
