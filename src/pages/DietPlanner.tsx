@@ -922,7 +922,7 @@ function KakaoIcon() {
 // ─── 프로모션 배너 설정 (문구·링크·활성화 여부 여기서 수정) ─────────────────────
 const BANNER_CONFIG = {
   active: true,                                       // false 로 바꾸면 배너 숨김
-  url: "https://fitstep.kr",                          // FIT STEP 홈페이지 URL
+  url: "https://fitstep.co.kr/",                       // FIT STEP 홈페이지 URL
   openNewTab: true,
   logo: "FIT STEP",
   tagline: "운동을 기록하고, 성장까지 연결하세요",
