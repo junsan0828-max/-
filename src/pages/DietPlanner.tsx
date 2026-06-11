@@ -884,6 +884,129 @@ function sumMeal(entries: MealEntry[]) {
   );
 }
 
+// ─── 공유 링크 인코딩/디코딩 ───────────────────────────────────────────────────
+interface SharePayload {
+  n: string; t: number;
+  b: MealEntry[]; l: MealEntry[]; d: MealEntry[]; s: MealEntry[];
+}
+
+function encodeSharePayload(name: string, tdee: number, plan: MealPlan): string {
+  const payload: SharePayload = { n: name || "회원", t: tdee, b: plan.breakfast, l: plan.lunch, d: plan.dinner, s: plan.snack };
+  return btoa(encodeURIComponent(JSON.stringify(payload)));
+}
+
+function decodeSharePayload(hash: string): SharePayload | null {
+  try {
+    if (!hash.startsWith("#share=")) return null;
+    return JSON.parse(decodeURIComponent(atob(hash.slice(7))));
+  } catch { return null; }
+}
+
+// ─── 공유 뷰 컴포넌트 (링크 열었을 때 보이는 화면) ─────────────────────────────
+function SharedMealView({ data }: { data: SharePayload }) {
+  const meals = [
+    { label: "🌅 아침",     entries: data.b },
+    { label: "☀️ 점심",     entries: data.l },
+    { label: "🌙 저녁",     entries: data.d },
+    { label: "🥗 건강 간식", entries: data.s },
+  ];
+  const total = sumMeal([...data.b, ...data.l, ...data.d, ...data.s]);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Noto Sans KR', sans-serif" }}>
+      {/* 프린트용 숨김 스타일 */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white; }
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "24px 16px 40px" }}>
+        {/* 헤더 */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: 2, marginBottom: 6 }}>
+              FIT STEP · 맞춤 식단 플래너
+            </div>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0, lineHeight: 1.3 }}>
+              {data.n}님의 하루 식단
+            </h1>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+              권장 칼로리: {data.t.toLocaleString()} kcal
+            </div>
+          </div>
+          <button
+            className="no-print"
+            onClick={() => window.print()}
+            style={{
+              background: "linear-gradient(135deg, #10b981, #059669)", color: "white",
+              border: "none", borderRadius: 10, padding: "10px 16px",
+              fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+              boxShadow: "0 2px 8px rgba(5,150,105,0.35)",
+            }}
+          >
+            📥 PDF 저장
+          </button>
+        </div>
+
+        {/* 하루 요약 */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8,
+          background: "white", borderRadius: 14, padding: "14px 12px",
+          border: "1px solid #e5e7eb", marginBottom: 16,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        }}>
+          {[
+            { label: "총 칼로리", val: `${total.kcal.toLocaleString()}`, unit: "kcal", color: "#059669" },
+            { label: "탄수화물", val: `${total.carb}g`, unit: "", color: "#f59e0b" },
+            { label: "단백질",   val: `${total.protein}g`, unit: "", color: "#3b82f6" },
+            { label: "지방",     val: `${total.fat}g`, unit: "", color: "#ef4444" },
+          ].map(({ label, val, unit, color }) => (
+            <div key={label} style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color }}>{val}</div>
+              {unit && <div style={{ fontSize: 10, color: "#9ca3af" }}>{unit}</div>}
+            </div>
+          ))}
+        </div>
+
+        {/* 끼니별 */}
+        {meals.map(({ label, entries }) => entries.length === 0 ? null : (
+          <div key={label} style={{
+            background: "white", borderRadius: 14, marginBottom: 12,
+            border: "1px solid #e5e7eb", overflow: "hidden",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+          }}>
+            <div style={{ padding: "10px 16px", background: "#f9fafb", borderBottom: "1px solid #f3f4f6" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>{label}</span>
+            </div>
+            {entries.map((e, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "12px 16px", borderTop: i > 0 ? "1px solid #f3f4f6" : "none" }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{e.name}</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{e.serving}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#059669" }}>{e.kcal} kcal</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>탄{e.carb}g · 단{e.protein}g · 지{e.fat}g</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        {/* 푸터 */}
+        <div style={{ textAlign: "center", marginTop: 32, paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
+          <div style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>FIT STEP</div>
+          <div style={{ fontSize: 10, color: "#d1d5db", marginTop: 2 }}>fitstep.co.kr · 맞춤 식단 플래너</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── 카카오 OAuth PKCE 헬퍼 ───────────────────────────────────────────────────
 function generateCodeVerifier(): string {
   const array = new Uint8Array(32);
@@ -1032,6 +1155,10 @@ function PromoBanner() {
 
 // ─── 컴포넌트 ──────────────────────────────────────────────────────────────────
 export default function DietPlanner() {
+  // ── 공유 링크로 접근한 경우 SharedMealView 렌더링 ──
+  const sharePayload = decodeSharePayload(window.location.hash);
+  if (sharePayload) return <SharedMealView data={sharePayload} />;
+
   const [name, setName] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
   const [age, setAge] = useState("");
@@ -1225,16 +1352,13 @@ export default function DietPlanner() {
   }
 
   async function handleShare() {
-    if (!mealPlan) return;
-    const text = buildShareText();
+    if (!mealPlan || !tdee) return;
     try {
-      if (navigator.share) {
-        await navigator.share({ title: `${name || "회원"}님의 하루 맞춤 식단`, text });
-      } else {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
+      const encoded = encodeSharePayload(name, tdee, mealPlan);
+      const url = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
       const tdk = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const stk = `dp_st_${tdk}`;
       hitCounter("shares").then((v) => {
@@ -1246,7 +1370,7 @@ export default function DietPlanner() {
         localStorage.setItem(stk, String(next)); setShareToday(next);
       });
     } catch {
-      // 사용자가 공유 취소한 경우 카운트 안 함
+      // clipboard 실패 시 무시
     }
   }
 
@@ -1562,7 +1686,7 @@ export default function DietPlanner() {
                 className="flex items-center gap-1.5 text-xs bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold px-3 py-1.5 rounded-lg transition-colors"
               >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-                {copied ? "복사됨!" : "공유하기"}
+                {copied ? "링크 복사됨!" : "PDF 공유하기"}
               </button>
             </div>
 
