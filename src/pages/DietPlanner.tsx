@@ -29,6 +29,108 @@ function getCounter(key: string): Promise<number | null> {
   return fetchCounterAPI(`get/${COUNTER_NS}/${key}`);
 }
 
+// ─── 사용자 유형 & 이용 제한 ───────────────────────────────────────────────────
+type UserType = "member" | "trainer";
+const DAILY_LIMITS: Record<string, number> = { guest: 2, member: 5, trainer: 10 };
+function getTodayGenKey() { return `dp_gen_${new Date().toISOString().slice(0,10).replace(/-/g,"")}`; }
+function getGenCount()    { return parseInt(localStorage.getItem(getTodayGenKey()) || "0"); }
+function incGenCount()    { const k = getTodayGenKey(); const n = getGenCount()+1; localStorage.setItem(k,String(n)); return n; }
+
+// ─── 사용자 유형 선택 모달 ────────────────────────────────────────────────────
+function UserTypeModal({ onSelect }: { onSelect: (t: UserType) => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.75)" }}>
+      <div className="w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl p-6 space-y-3">
+        <div className="text-center mb-1">
+          <h2 className="text-base font-bold text-white">어떤 목적으로 이용하시나요?</h2>
+          <p className="text-xs text-gray-400 mt-1">사용 목적에 맞는 이용 혜택을 제공해드릴게요.</p>
+        </div>
+        <button
+          onClick={() => onSelect("member")}
+          className="w-full text-left bg-gray-800 border border-gray-600 hover:border-emerald-500 rounded-xl p-4 transition-colors"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span>👤</span>
+            <span className="text-sm font-bold text-white">일반 회원</span>
+            <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">하루 5회</span>
+          </div>
+          <p className="text-xs text-gray-400">운동과 식단을 관리하고 싶은 사용자</p>
+        </button>
+        <button
+          onClick={() => onSelect("trainer")}
+          className="w-full text-left bg-gray-800 border border-gray-600 hover:border-blue-500 rounded-xl p-4 transition-colors"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span>🏋️</span>
+            <span className="text-sm font-bold text-white">운동전문가</span>
+            <span className="ml-auto text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-bold">하루 10회</span>
+          </div>
+          <p className="text-xs text-gray-400">회원 식단 관리 및 운동 지도가 필요한 트레이너/강사</p>
+        </button>
+        <div className="bg-emerald-900/20 border border-emerald-700/30 rounded-xl p-3 text-center space-y-0.5">
+          <p className="text-xs text-emerald-300 font-bold">🚀 FIT STEP 가입 회원 — 하루 무제한 이용</p>
+          <a href="https://fitstep.co.kr/" target="_blank" rel="noopener noreferrer" className="text-[11px] text-emerald-400 underline">fitstep.co.kr 알아보기 →</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 이용 제한 도달 모달 ──────────────────────────────────────────────────────
+function LimitReachedModal({ effectiveType, onClose, onLogin }: {
+  effectiveType: string; onClose: () => void; onLogin: () => void;
+}) {
+  const isGuest   = effectiveType === "guest";
+  const isMember  = effectiveType === "member";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.75)" }}>
+      <div className="w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl p-6 space-y-4">
+        <div className="text-center space-y-2">
+          <div className="text-3xl">⏰</div>
+          {isGuest && (
+            <>
+              <h2 className="text-sm font-bold text-white">오늘 무료 생성 횟수를 모두 사용했습니다.</h2>
+              <p className="text-xs text-gray-400">카카오 로그인 후 일반 회원은 하루 5회,<br />운동전문가는 하루 10회까지 이용할 수 있습니다.</p>
+            </>
+          )}
+          {isMember && (
+            <>
+              <h2 className="text-sm font-bold text-white">오늘 식단 생성 횟수를 모두 사용했습니다.</h2>
+              <p className="text-xs text-gray-400">운동전문가라면 사용자 유형을 변경하여<br />하루 10회까지 이용할 수 있습니다.</p>
+            </>
+          )}
+          {!isGuest && !isMember && (
+            <>
+              <h2 className="text-sm font-bold text-white">오늘 운동전문가 이용 횟수를 모두 사용했습니다.</h2>
+              <p className="text-xs text-gray-400">FIT STEP 가입 회원은 식단 플래너를<br />하루 무제한으로 이용할 수 있습니다.</p>
+            </>
+          )}
+        </div>
+        {isGuest && (
+          <button onClick={() => { onClose(); onLogin(); }}
+            className="w-full py-3 bg-[#FEE500] text-[#3A1D1D] font-bold text-sm rounded-xl flex items-center justify-center gap-2">
+            <KakaoIcon /><span>카카오 로그인하기</span>
+          </button>
+        )}
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-2">
+          <p className="text-xs font-bold text-white">🚀 운동전문가이신가요?</p>
+          <p className="text-xs text-gray-400">FIT STEP 가입 회원은 식단 플래너를 하루 무제한으로 이용할 수 있습니다.</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+            {["회원관리","운동 기록 관리","건강 보고서","브랜드 페이지","예약 기능"].map(f => (
+              <span key={f} className="text-[11px] text-gray-500">· {f}</span>
+            ))}
+          </div>
+          <a href="https://fitstep.co.kr/" target="_blank" rel="noopener noreferrer"
+            className="block w-full text-center py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm rounded-xl mt-1">
+            FIT STEP 알아보기
+          </a>
+        </div>
+        <button onClick={onClose} className="w-full text-xs text-gray-600 py-1">닫기</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── 타입 ──────────────────────────────────────────────────────────────────────
 interface KakaoUser {
   id: number;
@@ -1158,10 +1260,6 @@ function PromoBanner() {
 
 // ─── 컴포넌트 ──────────────────────────────────────────────────────────────────
 export default function DietPlanner() {
-  // ── 공유 링크로 접근한 경우 SharedMealView 렌더링 ──
-  const sharePayload = decodeSharePayload(window.location.hash);
-  if (sharePayload) return <SharedMealView data={sharePayload} />;
-
   const [name, setName] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
   const [age, setAge] = useState("");
@@ -1204,7 +1302,15 @@ export default function DietPlanner() {
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [ratioError, setRatioError] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [shareLoading, setShareLoading] = useState(false);
+
+  // 사용자 유형
+  const [userType, setUserType] = useState<UserType | null>(() => {
+    const s = localStorage.getItem("dp_ut");
+    return s === "member" || s === "trainer" ? s : null;
+  });
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [todayCount, setTodayCount] = useState(() => getGenCount());
 
   const [dbItems, setDbItems] = useState<MealDBItem[]>(BUILT_IN_FOOD_DB);
   const [dbLoading, setDbLoading] = useState(true);
@@ -1260,6 +1366,8 @@ export default function DietPlanner() {
               setKakaoUser(user);
               setKakaoMsg("");
               setName((prev) => prev || user.name);
+              // 최초 로그인 시 유형 선택 모달
+              if (!localStorage.getItem("dp_ut")) setShowTypeModal(true);
             } else {
               setKakaoMsg("❌ 프로필 조회 실패");
             }
@@ -1318,6 +1426,9 @@ export default function DietPlanner() {
   const pctTotal = pctBreakfast + pctLunch + pctDinner + pctSnack;
 
   function handleGenerate() {
+    const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
+    const limit = DAILY_LIMITS[effectiveType] ?? 2;
+    if (todayCount >= limit) { setShowLimitModal(true); return; }
     setRatioError(false);
     const includeList = includeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     const excludeList = excludeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
@@ -1328,55 +1439,47 @@ export default function DietPlanner() {
       snack: buildMealFromDB(dbItems, "snack", (tdee * pctSnack) / 100, includeList, excludeList, healthRatio),
     };
     setMealPlan(plan);
+    const newCount = incGenCount();
+    setTodayCount(newCount);
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   }
 
   function buildShareText() {
     if (!mealPlan) return "";
-    const bf = sumMeal(mealPlan.breakfast);
-    const lu = sumMeal(mealPlan.lunch);
-    const di = sumMeal(mealPlan.dinner);
-    const sn = sumMeal(mealPlan.snack);
-    const total = { kcal: bf.kcal + lu.kcal + di.kcal + sn.kcal, carb: bf.carb + lu.carb + di.carb + sn.carb, protein: bf.protein + lu.protein + di.protein + sn.protein, fat: bf.fat + lu.fat + di.fat + sn.fat };
-
-    const mealLine = (label: string, entries: MealEntry[], sum: ReturnType<typeof sumMeal>) =>
-      `${label}: ${entries.map((e) => e.name).join(" + ")}\n  ${sum.kcal}kcal | 탄${sum.carb}g 단${sum.protein}g 지${sum.fat}g`;
-
+    const meals = [
+      { label: "아침",   entries: mealPlan.breakfast },
+      { label: "점심",   entries: mealPlan.lunch },
+      { label: "저녁",   entries: mealPlan.dinner },
+      { label: "간식",   entries: mealPlan.snack },
+    ];
+    const total = sumMeal([...mealPlan.breakfast, ...mealPlan.lunch, ...mealPlan.dinner, ...mealPlan.snack]);
     return [
-      `🥗 ${name || "회원"}님의 하루 맞춤 식단`,
-      `권장칼로리: ${tdee.toLocaleString()} kcal`,
+      `🥗 오늘의 맞춤 식단`,
+      `${name || "회원"}님 · 권장 ${tdee.toLocaleString()} kcal`,
       "",
-      mealLine("🌅 아침", mealPlan.breakfast, bf),
-      mealLine("☀️ 점심", mealPlan.lunch, lu),
-      mealLine("🌙 저녁", mealPlan.dinner, di),
-      mealLine("🥗 간식", mealPlan.snack, sn),
+      ...meals.flatMap(({ label, entries }) =>
+        entries.length ? [`[${label}]`, ...entries.map(e => `${e.name} (${e.kcal}kcal)`), ""] : []
+      ),
+      `총 권장 칼로리: ${total.kcal.toLocaleString()}kcal`,
+      `탄수화물 ${total.carb}g · 단백질 ${total.protein}g · 지방 ${total.fat}g`,
       "",
-      `📊 합계: ${total.kcal}kcal | 탄${total.carb}g 단${total.protein}g 지${total.fat}g`,
+      "FIT STEP 맞춤 식단 플래너로 생성된 식단입니다.",
+      "fitstep.co.kr",
     ].join("\n");
   }
 
   async function handleShare() {
-    if (!mealPlan || !tdee || shareLoading) return;
-    setShareLoading(true);
+    if (!mealPlan) return;
+    if (!kakaoUser) { setKakaoMsg("로그인하면 식단을 공유할 수 있습니다."); return; }
+    const text = buildShareText();
     try {
-      const encoded = encodeSharePayload(name, tdee, mealPlan);
-      const longUrl = `${window.location.origin}${window.location.pathname}#share=${encoded}`;
-      // TinyURL로 단축
-      let finalUrl = longUrl;
-      try {
-        const res = await fetch(
-          `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`,
-          { signal: AbortSignal.timeout(6000) }
-        );
-        if (res.ok) {
-          const short = (await res.text()).trim();
-          if (short.startsWith("https://")) finalUrl = short;
-        }
-      } catch { /* 단축 실패 시 원본 사용 */ }
-      await navigator.clipboard.writeText(finalUrl);
-      setShareLoading(false);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
+      if (navigator.share) {
+        await navigator.share({ title: `${name || "회원"}님의 하루 맞춤 식단`, text });
+      } else {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
       const tdk = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const stk = `dp_st_${tdk}`;
       hitCounter("shares").then((v) => {
@@ -1388,7 +1491,7 @@ export default function DietPlanner() {
         localStorage.setItem(stk, String(next)); setShareToday(next);
       });
     } catch {
-      setShareLoading(false);
+      // 공유 취소
     }
   }
 
@@ -1413,6 +1516,12 @@ export default function DietPlanner() {
     setKakaoMsg("");
   }
 
+  function handleUserTypeSelect(type: UserType) {
+    localStorage.setItem("dp_ut", type);
+    setUserType(type);
+    setShowTypeModal(false);
+  }
+
   const dbLabel = dbItems.length >= 1000 ? "식품 DB 1000개+" : `식품 DB ${dbItems.length}개`;
 
   const mealLabels = [
@@ -1424,6 +1533,14 @@ export default function DietPlanner() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 pb-20">
+      {showTypeModal && <UserTypeModal onSelect={handleUserTypeSelect} />}
+      {showLimitModal && (
+        <LimitReachedModal
+          effectiveType={kakaoUser ? (userType ?? "member") : "guest"}
+          onClose={() => setShowLimitModal(false)}
+          onLogin={handleKakaoLogin}
+        />
+      )}
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-3">
         <div className="max-w-3xl mx-auto space-y-2">
@@ -1436,6 +1553,18 @@ export default function DietPlanner() {
               <h1 className="text-sm font-bold text-white leading-tight whitespace-nowrap">맞춤 식단 플래너</h1>
               <p className="text-[10px] text-gray-400 leading-tight whitespace-nowrap">회원 정보 입력 → 하루 식단 자동 구성</p>
             </div>
+            {/* 사용자 유형 뱃지 (로그인 후) */}
+            {kakaoUser && (
+              <button
+                onClick={() => setShowTypeModal(true)}
+                className="shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors"
+                style={userType === "trainer"
+                  ? { background: "rgba(59,130,246,0.15)", color: "#93c5fd", borderColor: "rgba(59,130,246,0.3)" }
+                  : { background: "rgba(16,185,129,0.15)", color: "#6ee7b7", borderColor: "rgba(16,185,129,0.3)" }}
+              >
+                {userType === "trainer" ? "🏋️ 운동전문가" : "👤 일반 회원"}
+              </button>
+            )}
             {/* 카카오 로그인 버튼 */}
             <div className="flex flex-col items-end gap-0.5 shrink-0">
               {kakaoUser ? (
@@ -1679,6 +1808,21 @@ export default function DietPlanner() {
           </div>
         </section>
 
+        {/* 이용 횟수 표시 */}
+        {(() => {
+          const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
+          const limit = DAILY_LIMITS[effectiveType] ?? 2;
+          const label = effectiveType === "guest" ? "비로그인" : effectiveType === "trainer" ? "운동전문가" : "일반 회원";
+          return (
+            <div className="flex items-center justify-between text-xs px-1">
+              <span className="text-gray-500">{label}</span>
+              <span className={todayCount >= limit ? "text-red-400 font-bold" : "text-gray-400"}>
+                오늘 {todayCount} / {limit}회 이용
+              </span>
+            </div>
+          );
+        })()}
+
         {/* 생성 버튼 */}
         <button
           onClick={handleGenerate}
@@ -1701,10 +1845,14 @@ export default function DietPlanner() {
               <h2 className="text-sm font-bold text-white">{name || "회원"}님의 하루 식단</h2>
               <button
                 onClick={handleShare}
-                className="flex items-center gap-1.5 text-xs bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold px-3 py-1.5 rounded-lg transition-colors"
+                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                  kakaoUser
+                    ? "bg-yellow-400 hover:bg-yellow-300 text-gray-900"
+                    : "bg-gray-700 text-gray-400 cursor-default"
+                }`}
               >
-                {shareLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : copied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-                {shareLoading ? "링크 생성 중..." : copied ? "링크 복사됨!" : "PDF 공유하기"}
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+                {copied ? "복사됨!" : kakaoUser ? "공유하기" : "로그인 후 공유 가능"}
               </button>
             </div>
 
