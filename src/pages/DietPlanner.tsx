@@ -1618,51 +1618,49 @@ function PromoBanner() {
           border: "1px solid #E5E7EB",
           borderRadius: "18px",
           boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-          minHeight: 90,
-          display: "flex",
-          alignItems: "center",
           padding: "14px 16px",
-          gap: 12,
           textDecoration: "none",
+          display: "block",
         }}
       >
-        {/* 좌측 아이콘 */}
-        <div
-          className="flex-shrink-0"
-          style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: "#f0fdf4",
-            border: "1px solid #bbf7d0",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          <Zap className="w-4 h-4" style={{ color: "#059669" }} strokeWidth={2.5} />
+        {/* 상단 행: 아이콘 + 텍스트 */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
+          <div
+            className="flex-shrink-0"
+            style={{
+              width: 34, height: 34, borderRadius: 9,
+              background: "#f0fdf4", border: "1px solid #bbf7d0",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              marginTop: 1,
+            }}
+          >
+            <Zap className="w-4 h-4" style={{ color: "#059669" }} strokeWidth={2.5} />
+          </div>
+
+          <div style={{ flex: 1, wordBreak: "keep-all" }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: "0.12em", marginBottom: 4 }}>
+              FIT STEP
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", lineHeight: 1.45, marginBottom: 3 }}>
+              <span style={{ fontWeight: 800 }}>식단 생성 무제한.</span> 회원관리까지 하나로.
+            </div>
+            <div style={{ fontSize: 11, color: "#6B7280", lineHeight: 1.45 }}>
+              운동전문가를 위한 올인원 성장 플랫폼
+            </div>
+          </div>
         </div>
 
-        {/* 텍스트 블록 */}
-        <div className="flex-1 min-w-0">
-          <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: "0.12em", marginBottom: 3 }}>
-            FIT STEP
-          </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", lineHeight: 1.4, marginBottom: 2 }}>
-            <span style={{ fontWeight: 800 }}>식단 생성 무제한.</span> 회원관리까지 하나로.
-          </div>
-          <div style={{ fontSize: 11, color: "#6B7280", lineHeight: 1.4 }}>
-            운동전문가를 위한 올인원 성장 플랫폼
-          </div>
-        </div>
-
-        {/* CTA 버튼 */}
+        {/* 하단 행: CTA 버튼 (전체 너비) */}
         <div
-          className="flex-shrink-0 transition-all group-hover:brightness-110 group-active:scale-95"
+          className="transition-all group-hover:brightness-110 group-active:scale-95"
           style={{
             background: "#059669",
             color: "#ffffff",
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 700,
-            padding: "8px 13px",
+            padding: "9px 0",
             borderRadius: 10,
-            whiteSpace: "nowrap",
+            textAlign: "center",
             letterSpacing: "-0.01em",
           }}
         >
