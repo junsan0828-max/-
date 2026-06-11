@@ -953,7 +953,7 @@ const BANNER_CONFIG = {
   openNewTab: true,
   logo: "FIT STEP",
   headline: "운동과 식단, 회원 관리까지",
-  subheadline: "FIT STEP에서 함께 시작하세요.",
+  subheadline: "핏스텝에서 함께 시작하세요.",
   features: ["운동 기록", "건강 보고서", "회원 관리", "브랜딩"],
   ctaText: "무료로 시작하기",
 } as const;
@@ -996,48 +996,25 @@ function PromoBanner() {
 
           {/* 중앙 텍스트 */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <span className="text-[11px] font-bold tracking-widest" style={{ color: "#059669" }}>
-                {BANNER_CONFIG.logo}
-              </span>
-              <span
-                className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full"
-                style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}
-              >
-                FITNESS PLATFORM
-              </span>
-            </div>
-            <p className="text-[13px] font-bold leading-tight" style={{ color: "#111827" }}>
-              {BANNER_CONFIG.headline}
+            <span className="text-[10px] font-bold tracking-widest" style={{ color: "#059669" }}>
+              {BANNER_CONFIG.logo}
+            </span>
+            <p className="text-[13px] font-bold leading-snug mt-0.5" style={{ color: "#111827" }}>
+              {BANNER_CONFIG.headline}<br />{BANNER_CONFIG.subheadline}
             </p>
-            <p className="text-[13px] font-bold leading-tight mb-1.5" style={{ color: "#111827" }}>
-              {BANNER_CONFIG.subheadline}
-            </p>
-            <div className="flex items-center gap-1 flex-wrap">
-              {BANNER_CONFIG.features.map((f, i) => (
-                <span key={f} className="flex items-center gap-1">
-                  <span className="text-[10px]" style={{ color: "#6b7280" }}>{f}</span>
-                  {i < BANNER_CONFIG.features.length - 1 && (
-                    <span className="text-[10px]" style={{ color: "#d1d5db" }}>·</span>
-                  )}
-                </span>
-              ))}
-            </div>
           </div>
 
           {/* CTA 버튼 */}
           <div
-            className="shrink-0 text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all
+            className="shrink-0 text-[11px] font-bold px-3 py-2.5 rounded-xl whitespace-nowrap transition-all
               group-hover:shadow-md group-active:scale-95 text-center"
             style={{
               background: "linear-gradient(135deg, #10b981, #059669)",
               color: "white",
               boxShadow: "0 2px 8px rgba(5,150,105,0.35)",
-              minWidth: "72px",
             }}
           >
             {BANNER_CONFIG.ctaText}
-            <div className="text-[9px] font-normal opacity-80 mt-0.5">fitstep.co.kr</div>
           </div>
         </div>
       </a>
