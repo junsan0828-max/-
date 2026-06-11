@@ -80,18 +80,27 @@ function buildRevServiceItems(f: RevForm): string | undefined {
 }
 
 function computeRevenueEndDate(entry: any): string | null {
-  if (!entry.startDate || !entry.duration) return null;
-  const d = new Date(entry.startDate);
-  d.setMonth(d.getMonth() + entry.duration);
+  if (!entry.startDate) return null;
+  // duration이 null이면 programDetail에서 파싱 (레거시 데이터 대응)
+  let months = entry.duration ? Number(entry.duration) : 0;
+  if (!months) {
+    const m = /^헬스\s*(\d+)개월/.exec(entry.programDetail ?? "");
+    if (m) months = parseInt(m[1]);
+  }
+  if (!months) return null;
+  // 타임존 이슈 방지: 날짜를 로컬 파싱
+  const [y, mo, dy] = (entry.startDate as string).split("-").map(Number);
+  const d = new Date(y, mo - 1, dy);
+  d.setMonth(d.getMonth() + months);
   if (entry.serviceItems) {
     for (const part of (entry.serviceItems as string).split(",").map((s: string) => s.trim())) {
-      const mo = /^헬스\((\d+)개월\)$/.exec(part);
-      if (mo) { d.setMonth(d.getMonth() + parseInt(mo[1])); continue; }
-      const dy = /^헬스\((\d+)일\)$/.exec(part);
-      if (dy) { d.setDate(d.getDate() + parseInt(dy[1])); }
+      const moM = /^헬스\((\d+)개월\)$/.exec(part);
+      if (moM) { d.setMonth(d.getMonth() + parseInt(moM[1])); continue; }
+      const dyM = /^헬스\((\d+)일\)$/.exec(part);
+      if (dyM) { d.setDate(d.getDate() + parseInt(dyM[1])); }
     }
   }
-  return d.toISOString().substring(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export default function RevenuePage() {

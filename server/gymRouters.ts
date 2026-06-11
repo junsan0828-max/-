@@ -521,17 +521,18 @@ const revenueRouter = t.router({
       if (input.type === "헬스" && input.customerName && !input.memberId && input.subType !== "이전") {
         let membershipEnd: string | undefined;
         if (input.startDate && input.duration) {
-          const end = new Date(input.startDate);
+          const [yr, mo, dy] = input.startDate.split("-").map(Number);
+          const end = new Date(yr, mo - 1, dy);
           end.setMonth(end.getMonth() + input.duration);
           if (input.serviceItems) {
             for (const part of input.serviceItems.split(",").map((s: string) => s.trim())) {
-              const mo = /^헬스\((\d+)개월\)$/.exec(part);
-              if (mo) { end.setMonth(end.getMonth() + parseInt(mo[1])); continue; }
-              const dy = /^헬스\((\d+)일\)$/.exec(part);
-              if (dy) { end.setDate(end.getDate() + parseInt(dy[1])); }
+              const moM = /^헬스\((\d+)개월\)$/.exec(part);
+              if (moM) { end.setMonth(end.getMonth() + parseInt(moM[1])); continue; }
+              const dyM = /^헬스\((\d+)일\)$/.exec(part);
+              if (dyM) { end.setDate(end.getDate() + parseInt(dyM[1])); }
             }
           }
-          membershipEnd = end.toISOString().substring(0, 10);
+          membershipEnd = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
         }
         const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId ?? null, membershipStart: input.startDate ?? undefined, membershipEnd: membershipEnd ?? undefined });
         if (newId) row.memberId = newId;
@@ -600,19 +601,27 @@ const revenueRouter = t.router({
       const [row] = await db.update(revenueEntries).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, id)).returning();
 
       // 헬스 타입이고 회원이 연결되어 있으면 membershipEnd 재계산
-      if (row.type === "헬스" && row.memberId && row.startDate && row.duration) {
-        const d = new Date(row.startDate);
-        d.setMonth(d.getMonth() + row.duration);
-        if (row.serviceItems) {
-          for (const part of row.serviceItems.split(",").map((s: string) => s.trim())) {
-            const mo = /^헬스\((\d+)개월\)$/.exec(part);
-            if (mo) { d.setMonth(d.getMonth() + parseInt(mo[1])); continue; }
-            const dy = /^헬스\((\d+)일\)$/.exec(part);
-            if (dy) { d.setDate(d.getDate() + parseInt(dy[1])); }
-          }
+      if (row.type === "헬스" && row.memberId && row.startDate) {
+        let months = row.duration ?? 0;
+        if (!months) {
+          const m = /^헬스\s*(\d+)개월/.exec(row.programDetail ?? "");
+          if (m) months = parseInt(m[1]);
         }
-        const newMembershipEnd = d.toISOString().substring(0, 10);
-        await db.update(members).set({ membershipEnd: newMembershipEnd }).where(eq(members.id, row.memberId));
+        if (months) {
+          const [yr, mo, dy] = row.startDate.split("-").map(Number);
+          const d = new Date(yr, mo - 1, dy);
+          d.setMonth(d.getMonth() + months);
+          if (row.serviceItems) {
+            for (const part of row.serviceItems.split(",").map((s: string) => s.trim())) {
+              const moM = /^헬스\((\d+)개월\)$/.exec(part);
+              if (moM) { d.setMonth(d.getMonth() + parseInt(moM[1])); continue; }
+              const dyM = /^헬스\((\d+)일\)$/.exec(part);
+              if (dyM) { d.setDate(d.getDate() + parseInt(dyM[1])); }
+            }
+          }
+          const newMembershipEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          await db.update(members).set({ membershipEnd: newMembershipEnd }).where(eq(members.id, row.memberId));
+        }
       }
 
       return row;
