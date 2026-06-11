@@ -985,40 +985,45 @@ function PromoBanner() {
           style={{ background: "linear-gradient(180deg, #10b981, #059669)" }}
         />
 
-        <div className="pl-5 pr-4 py-3.5 flex items-center gap-3">
-          {/* 로고 아이콘 */}
+        {/* 메인 콘텐츠 — 수평 3분할: 아이콘 | 텍스트 | 버튼 */}
+        <div className="pl-4 pr-3 py-3 flex flex-row items-center gap-2.5">
+
+          {/* 아이콘: 텍스트 높이에 맞게 self-center */}
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 self-center"
             style={{ background: "linear-gradient(135deg, #ecfdf5, #d1fae5)", border: "1px solid #a7f3d0" }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
               <path d="M13 2L4.09 12.96A1 1 0 005 14.5h6.5L11 22l8.91-10.96A1 1 0 0019 9.5h-6.5L13 2z"
                 fill="#059669" />
             </svg>
           </div>
 
-          {/* 중앙 텍스트 */}
-          <div className="flex-1 min-w-0">
-            <span className="text-[10px] font-bold tracking-widest" style={{ color: "#059669" }}>
+          {/* 텍스트 블록 */}
+          <div className="flex-1 min-w-0 self-center">
+            <div className="text-[10px] font-extrabold tracking-widest mb-0.5" style={{ color: "#059669" }}>
               {BANNER_CONFIG.logo}
-            </span>
-            <p className="text-[13px] font-bold leading-snug mt-0.5" style={{ color: "#111827" }}>
-              {BANNER_CONFIG.headline}<br />{BANNER_CONFIG.subheadline}
-            </p>
+            </div>
+            <div className="text-[12px] font-bold" style={{ color: "#111827", lineHeight: "1.45" }}>
+              {BANNER_CONFIG.headline}
+            </div>
+            <div className="text-[12px] font-bold" style={{ color: "#374151", lineHeight: "1.45" }}>
+              {BANNER_CONFIG.subheadline}
+            </div>
           </div>
 
-          {/* CTA 버튼 */}
+          {/* CTA 버튼: 텍스트 블록과 동일 높이로 self-center */}
           <div
-            className="shrink-0 text-[11px] font-bold px-3 py-2.5 rounded-xl whitespace-nowrap transition-all
-              group-hover:shadow-md group-active:scale-95 text-center"
+            className="flex-shrink-0 self-center text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap transition-all group-hover:brightness-110 group-active:scale-95"
             style={{
               background: "linear-gradient(135deg, #10b981, #059669)",
               color: "white",
-              boxShadow: "0 2px 8px rgba(5,150,105,0.35)",
+              boxShadow: "0 2px 8px rgba(5,150,105,0.3)",
             }}
           >
             {BANNER_CONFIG.ctaText}
           </div>
+
         </div>
       </a>
     </div>
