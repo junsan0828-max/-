@@ -36,6 +36,283 @@ function getTodayGenKey() { return `dp_gen_${new Date().toISOString().slice(0,10
 function getGenCount()    { return parseInt(localStorage.getItem(getTodayGenKey()) || "0"); }
 function incGenCount()    { const k = getTodayGenKey(); const n = getGenCount()+1; localStorage.setItem(k,String(n)); return n; }
 
+// ─── 현실 식단 DB ──────────────────────────────────────────────────────────────
+type RealCat = "C"|"P"|"F"|"V"|"S"; // 탄수화물/단백질/지방/채소/간식
+interface RealFoodItem { cat:RealCat; meals:("breakfast"|"lunch"|"dinner"|"snack")[]; name:string; serving:string; kcal:number; carb:number; protein:number; fat:number; }
+
+// [cat, mealBits(1=아침,2=점심,4=저녁,8=간식), name, kcal/100g, carb/100g, prot/100g, fat/100g]
+type RFB = [RealCat,number,string,number,number,number,number];
+const _RFB: RFB[] = [
+  // ── 탄수화물 ───────────────────────────────────────────────────────────────
+  ["C",7,"현미밥",168,37.0,3.6,1.3],["C",7,"백미밥",180,39.4,2.8,0.3],
+  ["C",7,"잡곡밥",172,37.5,3.5,1.0],["C",7,"보리밥",158,34.8,4.0,0.8],
+  ["C",7,"흑미밥",175,38.5,3.8,1.2],["C",7,"귀리밥",185,33.8,5.8,3.2],
+  ["C",7,"콩밥",185,35.0,6.5,2.0],["C",7,"찰밥",195,44.0,3.5,0.5],
+  ["C",7,"현미보리밥",163,35.8,4.0,1.0],["C",7,"오분도미밥",176,38.0,3.4,1.0],
+  ["C",7,"현미귀리밥",178,36.5,4.5,2.0],["C",7,"팥밥",180,38.5,5.0,0.5],
+  ["C",7,"기장밥",185,40.0,4.5,1.5],["C",7,"수수밥",178,38.0,4.2,1.2],
+  ["C",7,"퀴노아밥",190,32.0,7.0,3.5],
+  ["C",7,"찐고구마",103,23.5,1.5,0.1],["C",7,"군고구마",110,25.0,1.5,0.2],
+  ["C",7,"자색고구마",105,24.0,1.5,0.1],["C",7,"찐감자",80,18.0,2.0,0.1],
+  ["C",7,"삶은감자",78,17.5,2.1,0.1],["C",7,"으깬감자",95,20.0,2.0,0.5],
+  ["C",3,"오트밀(건)",389,66.0,13.0,7.0],["C",3,"퀵오트밀(건)",368,63.0,13.0,6.0],
+  ["C",3,"압착귀리(건)",389,68.0,13.0,7.0],["C",3,"롤드오트(건)",380,67.0,13.0,6.5],
+  ["C",3,"스틸컷오트(건)",371,64.0,13.0,7.0],
+  ["C",7,"통밀식빵",248,47.0,9.0,2.5],["C",7,"호밀빵",260,49.0,9.5,3.0],
+  ["C",7,"잡곡빵",265,51.0,9.0,3.0],["C",3,"베이글",270,55.0,9.5,1.5],
+  ["C",7,"식빵",265,51.0,8.0,3.0],["C",7,"통밀크래커",420,65.0,12.0,14.0],
+  ["C",7,"라이스케이크",387,87.0,7.0,0.5],
+  ["C",7,"통밀파스타(건)",356,74.0,12.0,1.5],["C",7,"메밀면(건)",346,72.0,13.0,1.5],
+  ["C",6,"쌀국수(건)",360,80.0,6.0,0.5],["C",6,"당면(건)",344,85.0,0.5,0.2],
+  ["C",6,"소면(건)",349,73.0,11.0,1.0],["C",6,"우동면(생)",168,35.0,5.0,0.5],
+  ["C",6,"두부면",98,3.5,10.0,6.0],["C",6,"곤약면",9,2.0,0.3,0.0],
+  ["C",6,"실곤약",8,1.8,0.2,0.0],
+  ["C",15,"바나나",89,23.0,1.1,0.3],["C",15,"사과",52,14.0,0.3,0.2],
+  ["C",15,"배",57,15.0,0.4,0.1],["C",15,"오렌지",47,12.0,0.9,0.1],
+  ["C",8,"귤",53,13.5,0.8,0.1],["C",8,"딸기",33,7.7,0.7,0.3],
+  ["C",8,"블루베리",57,14.5,0.7,0.3],["C",8,"체리",63,16.0,1.1,0.2],
+  ["C",8,"포도",69,18.0,0.7,0.2],["C",8,"수박",30,7.6,0.6,0.2],
+  ["C",8,"키위",61,15.0,1.1,0.5],["C",8,"망고",60,15.0,0.8,0.4],
+  ["C",8,"파인애플",50,13.0,0.5,0.1],["C",8,"복숭아",39,9.5,0.9,0.3],
+  ["C",8,"자두",46,11.0,0.7,0.3],["C",8,"냉동딸기",33,7.7,0.7,0.3],
+  ["C",8,"냉동블루베리",57,14.5,0.7,0.3],["C",8,"냉동망고",60,15.0,0.8,0.4],
+  ["C",7,"옥수수(삶은)",96,21.0,3.5,1.2],["C",7,"단호박(찐)",49,11.5,1.6,0.3],
+  ["C",7,"밤(삶은)",245,54.0,3.5,1.0],["C",7,"토란(삶은)",58,13.5,1.4,0.2],
+  ["C",7,"연근(삶은)",74,17.5,2.0,0.1],["C",3,"그래놀라",450,65.0,10.0,18.0],
+  ["C",7,"현미떡",219,48.0,4.0,1.0],["C",7,"흑임자죽(건)",370,68.0,9.0,10.0],
+  ["C",7,"아마란스(삶은)",102,19.0,3.8,1.6],["C",7,"타피오카",358,88.0,0.2,0.0],
+  ["C",7,"현미미숫가루",365,75.0,8.5,4.5],["C",3,"통밀뮤즐리",349,61.0,11.0,7.0],
+  ["C",7,"삶은옥수수(낟알)",108,25.0,3.3,1.4],["C",7,"누룽지",362,80.0,8.0,1.5],
+  ["C",6,"냉동볶음밥베이스",145,30.0,3.5,1.5],["C",7,"압맥(보리)",354,73.0,9.0,2.0],
+  ["C",7,"흰강낭콩(삶은)",127,23.0,8.7,0.5],["C",7,"서리태(삶은)",143,11.0,12.0,7.0],
+  // ── 단백질 ───────────────────────────────────────────────────────────────
+  ["P",7,"삶은닭가슴살",165,0,31.0,3.6],["P",7,"구운닭가슴살",168,0,31.5,4.0],
+  ["P",7,"훈제닭가슴살",130,1.5,24.0,2.5],["P",7,"닭안심(삶은)",120,0,26.0,1.2],
+  ["P",6,"닭다리살(뼈없이)",185,0,27.0,8.0],["P",7,"수비드닭가슴살",155,0,29.0,3.5],
+  ["P",7,"닭가슴살큐브",152,2.5,28.0,3.0],["P",7,"닭가슴살볼",158,3.0,27.0,3.5],
+  ["P",7,"닭가슴살스테이크",160,1.0,30.0,3.8],
+  ["P",7,"연어(구운)",208,0,20.0,13.0],["P",7,"연어(생)",142,0,19.8,6.7],
+  ["P",7,"훈제연어",117,0,18.0,4.5],["P",7,"고등어(구운)",205,0,20.0,13.0],
+  ["P",6,"꽁치(구운)",195,0,20.0,12.0],["P",6,"갈치(구운)",143,0,22.0,5.0],
+  ["P",6,"대구(구운)",105,0,23.0,1.0],["P",6,"조기(구운)",155,0,22.0,7.0],
+  ["P",6,"명태(구운)",90,0,21.0,0.5],["P",6,"동태(구운)",88,0,20.5,0.5],
+  ["P",7,"새우(삶은)",99,0,20.0,1.5],["P",6,"오징어(삶은)",92,3,19.0,1.2],
+  ["P",6,"낙지(삶은)",82,0,17.0,1.0],["P",6,"굴(생)",69,4,8.0,2.5],
+  ["P",6,"홍합(삶은)",86,3.7,12.0,2.0],["P",6,"바지락(삶은)",74,2,15.0,1.5],
+  ["P",7,"소고기(안심)",216,0,20.6,14.0],["P",7,"소고기(우둔)",165,0,22.0,8.0],
+  ["P",6,"소고기(홍두깨살)",150,0,22.5,6.5],["P",7,"소고기(사태)",145,0,21.0,6.0],
+  ["P",6,"돼지고기(앞다리)",190,0,19.0,12.5],["P",6,"돼지고기(안심)",143,0,22.4,5.5],
+  ["P",6,"돼지고기(등심)",165,0,20.0,9.0],
+  ["P",7,"두부(일반)",76,2,8.0,4.0],["P",7,"두부(연두부)",54,2.5,5.0,2.5],
+  ["P",7,"두부(순두부)",42,0.7,4.5,2.0],["P",7,"두부(단단한두부)",85,2,9.0,4.5],
+  ["P",7,"두부(부침두부)",82,2,8.5,4.2],
+  ["P",7,"에다마메(냉동)",122,8.9,11.0,5.2],["P",7,"삶은콩",147,8.5,9.3,8.0],
+  ["P",7,"검은콩(삶은)",150,8.5,9.5,8.0],["P",7,"렌틸콩(삶은)",116,20.0,9.0,0.4],
+  ["P",3,"그릭요거트(무가당)",59,3.6,10.0,0.4],["P",3,"저지방그릭요거트",70,5,9.0,1.0],
+  ["P",3,"프로틴그릭요거트",80,5,14.0,0.5],["P",3,"코티지치즈",98,3.4,11.1,4.3],
+  ["P",3,"리코타치즈",174,3.5,7.0,13.0],
+  ["P",3,"저지방우유",50,5.0,3.4,1.4],["P",3,"무지방우유",34,5.0,3.4,0.1],
+  ["P",3,"두유(무가당)",45,1.8,3.6,2.0],["P",3,"아몬드밀크(무가당)",15,0.3,0.5,1.0],
+  ["P",7,"오리고기(구운)",337,0,16.5,29.0],["P",7,"오리가슴살(구운)",190,0,22,10.0],
+  ["P",6,"닭간(삶은)",119,0.7,18.9,4.2],["P",7,"쇠고기(샤브샤브용)",145,0,20,7.0],
+  ["P",7,"새우살(냉동)",85,0,18.0,1.0],["P",6,"전복(삶은)",90,5,17,0.5],
+  ["P",6,"우렁살(삶은)",76,3.5,14,1.0],["P",7,"실란트로두부",72,1.8,8.5,3.5],
+  ["P",3,"케피어",63,4.5,3.2,3.5],["P",7,"삶은병아리콩",164,27,9,2.6],
+  ["P",7,"닭가슴살(냉동구이)",160,0.5,30,3.8],["P",7,"칠면조가슴살",135,0,29,1.5],
+  ["P",6,"조개관자(삶은)",107,7,17,1.5],["P",6,"문어(삶은)",82,2.5,15,1.2],
+  ["P",3,"스키어(아이슬란드요거트)",67,4,12,0.2],["P",6,"가자미(구운)",103,0,22,1.3],
+  // ── 지방 ─────────────────────────────────────────────────────────────────
+  ["F",15,"아몬드",579,22,21,49],["F",15,"호두",654,14,15,65],
+  ["F",15,"캐슈넛",553,30,18,44],["F",15,"피스타치오",562,28,20,45],
+  ["F",15,"마카다미아",718,14,8,76],["F",15,"피칸",691,14,9,72],
+  ["F",15,"브라질너트",656,12,14,66],["F",15,"해바라기씨",584,20,21,51],
+  ["F",15,"호박씨",559,11,30,49],["F",15,"아마씨(분말)",534,29,18,42],
+  ["F",15,"치아씨드",486,42,17,31],["F",15,"혼합견과",614,19,16,52],
+  ["F",15,"땅콩버터",598,22,25,50],["F",15,"아몬드버터",614,19,21,55],
+  ["F",15,"아보카도",160,9,2,15],
+  // ── 채소 ─────────────────────────────────────────────────────────────────
+  ["V",15,"브로콜리",34,7,2.8,0.4],["V",15,"시금치",23,3.6,2.9,0.4],
+  ["V",15,"케일",49,9,4.3,0.9],["V",15,"상추",15,2.9,1.4,0.2],
+  ["V",15,"양배추",25,6,1.3,0.1],["V",15,"적양배추",31,7,1.4,0.1],
+  ["V",15,"당근",41,10,0.9,0.2],["V",15,"파프리카(빨강)",31,7.6,1.0,0.3],
+  ["V",15,"파프리카(노랑)",27,6.3,1.0,0.2],["V",15,"파프리카(초록)",20,4.6,0.9,0.2],
+  ["V",15,"오이",15,3.6,0.7,0.1],["V",15,"셀러리",14,3,0.7,0.2],
+  ["V",15,"콜리플라워",25,5,1.9,0.3],["V",15,"아스파라거스",20,3.9,2.2,0.1],
+  ["V",15,"토마토",18,3.9,0.9,0.2],["V",15,"방울토마토",18,3.9,0.9,0.2],
+  ["V",15,"양파",40,9,1.1,0.1],["V",15,"애호박",17,3.6,1.2,0.2],
+  ["V",15,"가지",25,5.9,1.0,0.2],["V",15,"청경채",13,2.2,1.5,0.2],
+  ["V",15,"깻잎",43,7.5,4.0,1.0],["V",15,"부추",29,5.0,2.4,0.4],
+  ["V",15,"쑥갓",22,3.8,2.0,0.4],["V",15,"고사리(삶은)",35,6.5,3.0,0.5],
+  ["V",15,"느타리버섯",22,4.3,2.4,0.3],["V",15,"팽이버섯",37,8,2.7,0.3],
+  ["V",15,"새송이버섯",28,5.4,2.0,0.4],["V",15,"표고버섯",34,6.8,2.2,0.5],
+  ["V",15,"양송이버섯",22,3.3,3.1,0.3],["V",15,"목이버섯(건)",280,61,14,1.5],
+  ["V",7,"김치",15,2.4,1.1,0.3],["V",7,"깍두기",20,4,1.0,0.2],
+  ["V",7,"시금치나물",38,5,3.0,1.0],["V",7,"콩나물",30,4,3.0,0.5],
+  ["V",7,"숙주나물",12,2.1,1.7,0.2],["V",7,"취나물",28,4.5,3.0,0.5],
+  ["V",7,"도라지나물",45,9,1.5,0.3],["V",7,"무나물",25,5,1.0,0.3],
+  ["V",7,"냉동혼합채소",50,10,2.5,0.5],["V",15,"편의점샐러드",20,3,1.5,0.5],
+  ["V",15,"새싹채소",32,5,3.0,0.5],["V",15,"루꼴라",25,3.6,2.6,0.7],
+  ["V",15,"적상추",16,2.9,1.4,0.2],["V",15,"청경채(데친)",13,1.8,1.5,0.3],
+  ["V",15,"냉동브로콜리",28,5.5,3.0,0.3],["V",15,"냉동시금치",23,3.5,2.8,0.4],
+  ["V",7,"나물(비빔용혼합)",40,6,3.0,1.0],["V",7,"고구마줄기(나물)",28,5,1.8,0.5],
+  ["V",7,"열무김치",12,2,1.0,0.3],["V",7,"백김치",18,3.5,1.2,0.2],
+  ["V",15,"파프리카(혼합)",27,6,1.0,0.2],["V",15,"비트",43,10,1.6,0.2],
+  ["V",15,"무(생)",18,4.1,0.7,0.1],["V",15,"오이(절임)",11,2.5,0.5,0.1],
+  ["V",7,"우거지",25,4.8,1.8,0.3],["V",7,"고들빼기김치",15,2,1.1,0.3],
+];
+
+// 제공량별 자동 확장 (각 식품 × 서빙 사이즈 = 2000+ 항목)
+const _SIZES: Record<RealCat, number[]> = {
+  C: [60,75,100,120,150,175,200,250,300,350],
+  P: [40,50,75,100,125,150,175,200,250],
+  F: [5,8,10,12,15,20,25,30],
+  V: [30,50,75,100,150,200,250,300],
+  S: [],
+};
+const _MEAL_MAP: Record<number,("breakfast"|"lunch"|"dinner"|"snack")[]> = {
+  1:["breakfast"],2:["lunch"],4:["dinner"],8:["snack"],
+  3:["breakfast","lunch"],5:["breakfast","dinner"],6:["lunch","dinner"],
+  7:["breakfast","lunch","dinner"],9:["breakfast","snack"],
+  14:["lunch","dinner","snack"],15:["breakfast","lunch","dinner","snack"],
+};
+
+function _expand(base: RFB[]): RealFoodItem[] {
+  const out: RealFoodItem[] = [];
+  for (const [cat,bits,name,k100,c100,p100,f100] of base) {
+    const sizes = _SIZES[cat];
+    const meals = _MEAL_MAP[bits] ?? ["breakfast","lunch","dinner"];
+    for (const g of sizes) {
+      out.push({ cat, meals, name, serving:`${g}g`,
+        kcal: Math.round(k100*g/100),
+        carb: Math.round(c100*g/100*10)/10,
+        protein: Math.round(p100*g/100*10)/10,
+        fat: Math.round(f100*g/100*10)/10,
+      });
+    }
+  }
+  return out;
+}
+
+// 개수 기반 고정 항목 (계란, 소시지, 통조림 등)
+const _RF_FIXED: RealFoodItem[] = [
+  // 닭가슴살 소시지
+  ...([1,2,3,4,5] as const).map(n=>({cat:"P" as RealCat,meals:["breakfast","lunch","dinner","snack"] as ("breakfast"|"lunch"|"dinner"|"snack")[],name:"닭가슴살소시지",serving:`${n}개`,kcal:n*55,carb:n*1,protein:n*9,fat:n*2})),
+  // 삶은 계란
+  ...([1,2,3,4,5] as const).map(n=>({cat:"P" as RealCat,meals:["breakfast","lunch","dinner","snack"] as ("breakfast"|"lunch"|"dinner"|"snack")[],name:"삶은계란",serving:`${n}개`,kcal:n*78,carb:+(n*0.6).toFixed(1),protein:+(n*6.3).toFixed(1),fat:+(n*5.3).toFixed(1)})),
+  // 달걀흰자
+  ...([1,2,3,4,5] as const).map(n=>({cat:"P" as RealCat,meals:["breakfast","lunch","dinner","snack"] as ("breakfast"|"lunch"|"dinner"|"snack")[],name:"달걀흰자",serving:`${n}개분`,kcal:n*17,carb:+(n*0.2).toFixed(1),protein:+(n*3.6).toFixed(1),fat:+(n*0.1).toFixed(1)})),
+  // 참치캔
+  {cat:"P",meals:["lunch","dinner","snack"],name:"참치캔(물)",serving:"1/2캔",kcal:58,carb:0,protein:13,fat:0.3},
+  {cat:"P",meals:["lunch","dinner","snack"],name:"참치캔(물)",serving:"1캔",kcal:116,carb:0,protein:26,fat:0.6},
+  {cat:"P",meals:["lunch","dinner","snack"],name:"참치캔(물)",serving:"1.5캔",kcal:174,carb:0,protein:39,fat:0.9},
+  {cat:"P",meals:["lunch","dinner"],name:"고등어통조림",serving:"1/2캔",kcal:190,carb:0,protein:17,fat:13},
+  {cat:"P",meals:["lunch","dinner"],name:"고등어통조림",serving:"1캔",kcal:380,carb:0,protein:34,fat:26},
+  // 프로틴
+  {cat:"P",meals:["breakfast","snack"],name:"프로틴파우더",serving:"1스쿱(25g)",kcal:95,carb:3,protein:20,fat:1},
+  {cat:"P",meals:["breakfast","snack"],name:"프로틴파우더",serving:"2스쿱(50g)",kcal:190,carb:6,protein:40,fat:2},
+  {cat:"P",meals:["breakfast","snack"],name:"프로틴드링크",serving:"1병(250ml)",kcal:130,carb:5,protein:25,fat:1.5},
+  // 삼각김밥
+  ...["참치마요","불고기","김치","계란","연어","명란","스팸","참치김치","닭가슴살","새우마요"].map((f,i)=>({
+    cat:"C" as RealCat,meals:["breakfast","lunch","snack"] as ("breakfast"|"lunch"|"dinner"|"snack")[],
+    name:`삼각김밥(${f})`,serving:"1개",kcal:185+i*5,carb:33,protein:5+Math.floor(i/3),fat:4+Math.floor(i/4)
+  })),
+  // 편의점 도시락
+  {cat:"C",meals:["lunch","dinner"],name:"편의점도시락(불고기)",serving:"1개",kcal:520,carb:75,protein:22,fat:14},
+  {cat:"C",meals:["lunch","dinner"],name:"편의점도시락(제육볶음)",serving:"1개",kcal:560,carb:72,protein:24,fat:17},
+  {cat:"C",meals:["lunch","dinner"],name:"편의점도시락(닭갈비)",serving:"1개",kcal:490,carb:68,protein:25,fat:13},
+  {cat:"C",meals:["lunch","dinner"],name:"편의점도시락(비빔밥)",serving:"1개",kcal:420,carb:65,protein:15,fat:10},
+  // 그릭요거트 (개수 기반)
+  {cat:"P",meals:["breakfast","snack"],name:"그릭요거트(무가당)",serving:"1개(100g)",kcal:59,carb:3.6,protein:10,fat:0.4},
+  {cat:"P",meals:["breakfast","snack"],name:"그릭요거트(무가당)",serving:"2개(200g)",kcal:118,carb:7.2,protein:20,fat:0.8},
+  {cat:"P",meals:["breakfast","snack"],name:"저지방그릭요거트",serving:"1개(100g)",kcal:70,carb:5,protein:9,fat:1},
+  {cat:"P",meals:["breakfast","snack"],name:"저지방그릭요거트",serving:"2개(200g)",kcal:140,carb:10,protein:18,fat:2},
+  // 두유/우유
+  {cat:"P",meals:["breakfast","snack"],name:"두유(무가당)",serving:"200ml",kcal:90,carb:3.6,protein:7.2,fat:4},
+  {cat:"P",meals:["breakfast","snack"],name:"두유(무가당)",serving:"300ml",kcal:135,carb:5.4,protein:10.8,fat:6},
+  {cat:"P",meals:["breakfast","snack"],name:"저지방우유",serving:"200ml",kcal:100,carb:10,protein:6.8,fat:2.8},
+  {cat:"P",meals:["breakfast","snack"],name:"저지방우유",serving:"300ml",kcal:150,carb:15,protein:10.2,fat:4.2},
+  // 견과류 소포장
+  {cat:"F",meals:["breakfast","snack"],name:"혼합견과(소포장)",serving:"1봉(25g)",kcal:154,carb:5,protein:4,fat:13},
+  {cat:"F",meals:["breakfast","snack"],name:"혼합견과(소포장)",serving:"2봉(50g)",kcal:307,carb:10,protein:8,fat:26},
+  // 간식
+  {cat:"S",meals:["snack"],name:"프로틴바",serving:"1개",kcal:220,carb:22,protein:20,fat:6},
+  {cat:"S",meals:["snack"],name:"프로틴바",serving:"2개",kcal:440,carb:44,protein:40,fat:12},
+  {cat:"S",meals:["snack"],name:"견과류바",serving:"1개",kcal:160,carb:16,protein:4,fat:9},
+  {cat:"S",meals:["snack"],name:"라이스웨이퍼",serving:"3장",kcal:110,carb:24,protein:2,fat:0.5},
+  {cat:"S",meals:["snack"],name:"단백질요거트드링크",serving:"1병",kcal:95,carb:8,protein:12,fat:1.5},
+  {cat:"S",meals:["snack"],name:"오트쿠키",serving:"2개",kcal:130,carb:20,protein:3,fat:4},
+  {cat:"S",meals:["snack"],name:"삶은옥수수",serving:"1개",kcal:155,carb:34,protein:5,fat:1.5},
+  // 편의점 샐러드
+  {cat:"V",meals:["lunch","dinner","snack"],name:"편의점샐러드(플레인)",serving:"1팩(150g)",kcal:30,carb:5,protein:2,fat:0.5},
+  {cat:"V",meals:["lunch","dinner","snack"],name:"편의점샐러드(닭가슴살)",serving:"1팩(200g)",kcal:120,carb:7,protein:15,fat:3},
+  {cat:"V",meals:["lunch","dinner","snack"],name:"편의점샐러드(에그)",serving:"1팩(200g)",kcal:150,carb:8,protein:10,fat:8},
+  // 추가 고정 항목
+  {cat:"C",meals:["breakfast","snack"],name:"에너지바(저당)",serving:"1개",kcal:180,carb:22,protein:10,fat:5},
+  {cat:"P",meals:["lunch","dinner"],name:"닭가슴살통조림",serving:"1캔(135g)",kcal:148,carb:0,protein:31,fat:2},
+  {cat:"P",meals:["lunch","dinner"],name:"닭가슴살통조림",serving:"2캔(270g)",kcal:296,carb:0,protein:62,fat:4},
+  {cat:"P",meals:["breakfast","snack"],name:"단백질음료(190ml)",serving:"1병",kcal:75,carb:4,protein:12,fat:1},
+  {cat:"S",meals:["snack"],name:"미숫가루(무가당)",serving:"30g+물",kcal:110,carb:22,protein:3.5,fat:1.5},
+  {cat:"S",meals:["snack"],name:"두부과자",serving:"1봉(40g)",kcal:145,carb:12,protein:10,fat:6},
+  {cat:"F",meals:["breakfast","snack"],name:"다크초콜릿(80%이상)",serving:"1조각(10g)",kcal:58,carb:3.5,protein:1,fat:5},
+  {cat:"F",meals:["breakfast","snack"],name:"다크초콜릿(80%이상)",serving:"2조각(20g)",kcal:116,carb:7,protein:2,fat:10},
+  // 편의점 닭가슴살 제품 (1/2/3개)
+  ...([1,2,3] as const).map(n=>({cat:"P" as RealCat,meals:["breakfast","lunch","dinner","snack"] as ("breakfast"|"lunch"|"dinner"|"snack")[],name:"편의점훈제닭가슴살",serving:`${n}팩(${n*100}g)`,kcal:n*130,carb:n*1.5,protein:n*24,fat:n*2.5})),
+  // 프로틴 요거트 (1/2개)
+  ...([1,2] as const).map(n=>({cat:"P" as RealCat,meals:["breakfast","snack"] as ("breakfast"|"lunch"|"dinner"|"snack")[],name:"프로틴요거트",serving:`${n}개(${n*100}g)`,kcal:n*80,carb:n*5,protein:n*14,fat:n*0.5})),
+  // 삶은 고구마 개수 기반
+  ...([1,2] as const).map(n=>({cat:"C" as RealCat,meals:["breakfast","lunch","dinner","snack"] as ("breakfast"|"lunch"|"dinner"|"snack")[],name:"삶은고구마",serving:`${n}개(${n*130}g)`,kcal:n*134,carb:n*30.6,protein:n*2,fat:n*0.1})),
+  // 바나나 개수
+  ...([1,2,3] as const).map(n=>({cat:"C" as RealCat,meals:["breakfast","lunch","dinner","snack"] as ("breakfast"|"lunch"|"dinner"|"snack")[],name:"바나나",serving:`${n}개`,kcal:n*89,carb:n*23,protein:n*1.1,fat:n*0.3})),
+  // 보충 4개
+  {cat:"S",meals:["snack"],name:"그린스무디(시판)",serving:"1병(250ml)",kcal:120,carb:22,protein:3,fat:2},
+  {cat:"V",meals:["lunch","dinner"],name:"샐러드(집밥용)",serving:"1인분(180g)",kcal:45,carb:8,protein:2,fat:1},
+  {cat:"C",meals:["breakfast","snack"],name:"쌀과자",serving:"1봉(30g)",kcal:120,carb:26,protein:2,fat:0.5},
+  {cat:"C",meals:["breakfast","snack"],name:"쌀과자",serving:"2봉(60g)",kcal:240,carb:52,protein:4,fat:1},
+  {cat:"P",meals:["lunch","dinner"],name:"두부면(1인분)",serving:"150g",kcal:147,carb:5,protein:15,fat:9},
+  {cat:"P",meals:["lunch","dinner"],name:"두부면(1인분)",serving:"200g",kcal:196,carb:7,protein:20,fat:12},
+  {cat:"V",meals:["breakfast","lunch","dinner","snack"],name:"토마토(방울)",serving:"15개",kcal:27,carb:5.9,protein:1.4,fat:0.3},
+  {cat:"V",meals:["breakfast","lunch","dinner","snack"],name:"토마토(방울)",serving:"20개",kcal:36,carb:7.8,protein:1.8,fat:0.4},
+  {cat:"F",meals:["breakfast","snack"],name:"올리브(절임)",serving:"10알",kcal:50,carb:1.5,protein:0.5,fat:4.5},
+  {cat:"S",meals:["snack"],name:"아이스크림(저지방)",serving:"1개(100ml)",kcal:90,carb:15,protein:3,fat:2},
+];
+
+const REAL_FOOD_DB: RealFoodItem[] = [..._expand(_RFB), ..._RF_FIXED];
+
+function buildRealMeal(
+  time: "breakfast"|"lunch"|"dinner"|"snack",
+  targetKcal: number
+): MealEntry[] {
+  if (targetKcal <= 0) return [];
+  const pool = REAL_FOOD_DB.filter(f => f.meals.includes(time));
+  const rand5 = (arr: RealFoodItem[], budget: number) => {
+    const sorted = [...arr].sort((a,b)=>Math.abs(a.kcal-budget)-Math.abs(b.kcal-budget));
+    const top = sorted.slice(0,5);
+    return top[Math.floor(Math.random()*top.length)] ?? null;
+  };
+  const toEntry = (f: RealFoodItem): MealEntry => ({name:f.name,serving:f.serving,kcal:f.kcal,carb:f.carb,protein:f.protein,fat:f.fat});
+
+  if (time === "snack") {
+    const snPool = pool.filter(f=>f.cat==="S"||f.cat==="F"||f.cat==="P");
+    if (!snPool.length) return [];
+    const first = rand5(snPool, targetKcal);
+    if (!first) return [];
+    const rem = targetKcal - first.kcal;
+    if (rem > 60) {
+      const sec = rand5(snPool.filter(f=>f.name!==first.name && f.kcal<=rem*1.4), rem);
+      if (sec) return [toEntry(first),toEntry(sec)];
+    }
+    return [toEntry(first)];
+  }
+
+  // 일반 식사: 탄수 40% + 단백 35% + 채소 15% + 지방 10%(확률적)
+  const carb = rand5(pool.filter(f=>f.cat==="C"), targetKcal*0.40);
+  const prot = rand5(pool.filter(f=>f.cat==="P"), targetKcal*0.35);
+  const veg  = rand5(pool.filter(f=>f.cat==="V"), targetKcal*0.15);
+  const fat  = Math.random()>0.45 ? rand5(pool.filter(f=>f.cat==="F"), targetKcal*0.10) : null;
+  return [carb,prot,veg,fat].filter((x): x is RealFoodItem => x!==null).map(toEntry);
+}
+
+
 // ─── 입장 환영 모달 ──────────────────────────────────────────────────────────
 function WelcomeModal({ onClose }: { onClose: () => void }) {
   const tiers = [
@@ -1374,6 +1651,7 @@ export default function DietPlanner() {
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState("");
   const [activity, setActivity] = useState<"low" | "moderate" | "high">("moderate");
+  const [mealMode, setMealMode] = useState<"recommended"|"realistic">("recommended");
   const [includeFood, setIncludeFood] = useState("");
   const [excludeFood, setExcludeFood] = useState("");
   const [healthRatio, setHealthRatio] = useState(50); // 0=일반식, 100=건강식
@@ -1550,12 +1828,19 @@ export default function DietPlanner() {
     setRatioError(false);
     const includeList = includeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     const excludeList = excludeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
-    const plan: MealPlan = {
-      breakfast: buildMealFromDB(dbItems, "breakfast", (tdee * pctBreakfast) / 100, includeList, excludeList, healthRatio),
-      lunch: buildMealFromDB(dbItems, "lunch", (tdee * pctLunch) / 100, includeList, excludeList, healthRatio),
-      dinner: buildMealFromDB(dbItems, "dinner", (tdee * pctDinner) / 100, includeList, excludeList, healthRatio),
-      snack: buildMealFromDB(dbItems, "snack", (tdee * pctSnack) / 100, includeList, excludeList, healthRatio),
-    };
+    const plan: MealPlan = mealMode === "realistic"
+      ? {
+          breakfast: buildRealMeal("breakfast", (tdee * pctBreakfast) / 100),
+          lunch:     buildRealMeal("lunch",     (tdee * pctLunch)     / 100),
+          dinner:    buildRealMeal("dinner",    (tdee * pctDinner)    / 100),
+          snack:     buildRealMeal("snack",     (tdee * pctSnack)     / 100),
+        }
+      : {
+          breakfast: buildMealFromDB(dbItems, "breakfast", (tdee * pctBreakfast) / 100, includeList, excludeList, healthRatio),
+          lunch:     buildMealFromDB(dbItems, "lunch",     (tdee * pctLunch)     / 100, includeList, excludeList, healthRatio),
+          dinner:    buildMealFromDB(dbItems, "dinner",    (tdee * pctDinner)    / 100, includeList, excludeList, healthRatio),
+          snack:     buildMealFromDB(dbItems, "snack",     (tdee * pctSnack)     / 100, includeList, excludeList, healthRatio),
+        };
     setMealPlan(plan);
     const newCount = incGenCount();
     setTodayCount(newCount);
@@ -1856,6 +2141,32 @@ export default function DietPlanner() {
             <Utensils className="w-4 h-4 text-orange-400" />
             <h2 className="text-sm font-semibold text-gray-200">음식 설정</h2>
           </div>
+
+          {/* 식단 생성 방식 */}
+          <div>
+            <label className="block text-xs text-gray-400 mb-2">식단 생성 방식</label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value:"recommended", label:"추천 식단", desc:"전문가 기준 칼로리·영양 균형 식단", sub:"닭가슴살 볶음밥 · 고단백 도시락" },
+                { value:"realistic",   label:"현실 식단", desc:"편의점·마트에서 바로 준비 가능한 조합", sub:"현미밥+닭가슴살+브로콜리" },
+              ] as const).map(({ value, label, desc, sub }) => (
+                <button
+                  key={value}
+                  onClick={() => setMealMode(value)}
+                  className={`text-left p-3.5 rounded-xl border transition-colors space-y-1 ${
+                    mealMode === value
+                      ? "bg-orange-500/10 border-orange-500/60"
+                      : "bg-gray-800/50 border-gray-700/50"
+                  }`}
+                >
+                  <p className={`text-xs font-bold ${mealMode===value?"text-orange-400":"text-gray-300"}`}>{label}</p>
+                  <p className="text-[10px] text-gray-500 leading-relaxed">{desc}</p>
+                  <p className="text-[10px] text-gray-600 italic">{sub}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+          {mealMode === "recommended" && (<>
           <div>
             <label className="block text-xs text-gray-400 mb-1">포함할 음식 <span className="text-gray-600">(쉼표로 구분)</span></label>
             <input
@@ -1874,36 +2185,26 @@ export default function DietPlanner() {
               onChange={(e) => setExcludeFood(e.target.value)}
             />
           </div>
-
           {/* 건강식 / 일반식 비율 */}
           <div className="bg-gray-800/60 rounded-xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-300 font-medium">식단 스타일</span>
               <div className="flex items-center gap-1.5 text-xs font-bold">
-                <span className={healthRatio >= 50 ? "text-emerald-400" : "text-gray-500"}>
-                  건강식 {healthRatio}%
-                </span>
+                <span className={healthRatio >= 50 ? "text-emerald-400" : "text-gray-500"}>건강식 {healthRatio}%</span>
                 <span className="text-gray-600">/</span>
-                <span className={healthRatio < 50 ? "text-orange-400" : "text-gray-500"}>
-                  일반식 {100 - healthRatio}%
-                </span>
+                <span className={healthRatio < 50 ? "text-orange-400" : "text-gray-500"}>일반식 {100 - healthRatio}%</span>
               </div>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={10}
-              value={healthRatio}
+            <input type="range" min={0} max={100} step={10} value={healthRatio}
               onChange={(e) => setHealthRatio(parseInt(e.target.value))}
-              className="w-full accent-emerald-500"
-            />
+              className="w-full accent-emerald-500" />
             <div className="flex justify-between text-[10px] text-gray-600">
-              <span>🍖 일반식 위주<br/><span className="text-gray-700">탕·튀김·볶음 등</span></span>
+              <span>일반식 위주<br/><span className="text-gray-700">탕·튀김·볶음 등</span></span>
               <span className="text-center">균형</span>
-              <span className="text-right">건강식 위주 🥗<br/><span className="text-gray-700">닭가슴살·채소·달걀 등</span></span>
+              <span className="text-right">건강식 위주<br/><span className="text-gray-700">닭가슴살·채소·달걀 등</span></span>
             </div>
           </div>
+          </>)}
         </section>
 
         {/* ── 식사 비율 설정 ── */}
