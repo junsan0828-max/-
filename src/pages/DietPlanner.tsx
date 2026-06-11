@@ -1019,6 +1019,30 @@ export default function DietPlanner() {
   const [pctDinner, setPctDinner] = useState(30);
   const [pctSnack, setPctSnack] = useState(10);
 
+  function handlePctChange(key: "breakfast" | "lunch" | "dinner" | "snack", newVal: number) {
+    const val = Math.min(95, Math.max(5, newVal)); // 각 슬라이더 5~95% 범위
+    const others = (["breakfast", "lunch", "dinner", "snack"] as const).filter((k) => k !== key);
+    const cur = { breakfast: pctBreakfast, lunch: pctLunch, dinner: pctDinner, snack: pctSnack };
+    cur[key] = val;
+    const remaining = 100 - val;
+    const othersSum = others.reduce((s, k) => s + cur[k], 0);
+    if (othersSum === 0) {
+      const share = Math.floor(remaining / 3);
+      others.forEach((k, i) => { cur[k] = i === 2 ? remaining - share * 2 : share; });
+    } else {
+      let dist = 0;
+      others.slice(0, -1).forEach((k) => {
+        cur[k] = Math.max(0, Math.round((cur[k] / othersSum) * remaining));
+        dist += cur[k];
+      });
+      cur[others[others.length - 1]] = Math.max(0, remaining - dist);
+    }
+    setPctBreakfast(cur.breakfast);
+    setPctLunch(cur.lunch);
+    setPctDinner(cur.dinner);
+    setPctSnack(cur.snack);
+  }
+
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [ratioError, setRatioError] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1135,7 +1159,6 @@ export default function DietPlanner() {
   const pctTotal = pctBreakfast + pctLunch + pctDinner + pctSnack;
 
   function handleGenerate() {
-    if (pctTotal !== 100) { setRatioError(true); return; }
     setRatioError(false);
     const includeList = includeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     const excludeList = excludeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
@@ -1439,27 +1462,17 @@ export default function DietPlanner() {
           <div className="flex items-center gap-2 mb-1">
             <Activity className="w-4 h-4 text-purple-400" />
             <h2 className="text-sm font-semibold text-gray-200">식사 비율 설정</h2>
-            <span
-              className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${
-                pctTotal === 100 ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-              }`}
-            >
+            <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
               합계 {pctTotal}%
             </span>
           </div>
-          {ratioError && (
-            <div className="flex items-center gap-2 text-red-400 text-xs bg-red-500/10 rounded-lg px-3 py-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              식사 비율의 합이 100%가 되어야 합니다.
-            </div>
-          )}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "🌅 아침", value: pctBreakfast, setter: setPctBreakfast, color: "text-yellow-400" },
-              { label: "☀️ 점심", value: pctLunch, setter: setPctLunch, color: "text-orange-400" },
-              { label: "🌙 저녁", value: pctDinner, setter: setPctDinner, color: "text-blue-400" },
-              { label: "🥗 건강간식", value: pctSnack, setter: setPctSnack, color: "text-emerald-400" },
-            ].map(({ label, value, setter, color }) => (
+              { label: "🌅 아침", value: pctBreakfast, key: "breakfast" as const, color: "text-yellow-400" },
+              { label: "☀️ 점심", value: pctLunch,     key: "lunch"     as const, color: "text-orange-400" },
+              { label: "🌙 저녁", value: pctDinner,    key: "dinner"    as const, color: "text-blue-400" },
+              { label: "🥗 건강간식", value: pctSnack, key: "snack"     as const, color: "text-emerald-400" },
+            ].map(({ label, value, key, color }) => (
               <div key={label} className="bg-gray-800/60 rounded-xl p-3">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs text-gray-300">{label}</span>
@@ -1467,11 +1480,11 @@ export default function DietPlanner() {
                 </div>
                 <input
                   type="range"
-                  min={0}
-                  max={100}
+                  min={5}
+                  max={95}
                   step={5}
                   value={value}
-                  onChange={(e) => setter(parseInt(e.target.value))}
+                  onChange={(e) => handlePctChange(key, parseInt(e.target.value))}
                   className="w-full accent-emerald-500"
                 />
               </div>
