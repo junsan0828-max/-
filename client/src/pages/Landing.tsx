@@ -39,8 +39,8 @@ const IMG = {
     { src: "/images/gymplus/screen-report.jpg", label: "리포트" },
   ],
   branch: [
-    { exterior: "/images/branch/branch1-exterior.jpg", interior: "/images/branch/branch1-interior.jpg" },
-    { exterior: "/images/branch/branch2-exterior.jpg", interior: "/images/branch/branch2-interior.jpg" },
+    { interior: "/images/branch/branch1-interior.jpg" },
+    { interior: "/images/branch/branch2-interior.jpg" },
   ],
 };
 
@@ -616,14 +616,6 @@ function BranchSection() {
             <div key={b.name} className={`${i === 1 ? "bg-[#F7F7F5]" : "bg-white border border-gray-100"} p-10 lg:p-14`}>
               <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-6">ZIANTGYM {b.name}</p>
 
-              {/* 외관 사진 */}
-              <Img
-                src={b.imgs.exterior}
-                alt={`자이언트짐 ${b.name} 외관`}
-                className="w-full aspect-video object-cover mb-8"
-              />
-
-              {/* 내부 사진 */}
               <Img
                 src={b.imgs.interior}
                 alt={`자이언트짐 ${b.name} 내부`}
