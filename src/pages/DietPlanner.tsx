@@ -42,8 +42,8 @@ async function remoteGet(key: string): Promise<number> {
 }
 
 // ─── 사용자 유형 & 이용 제한 ───────────────────────────────────────────────────
-type UserType = "member" | "trainer";
-const DAILY_LIMITS: Record<string, number> = { guest: 2, member: 5, trainer: 10 };
+type UserType = "member" | "trainer" | "fitstep";
+const DAILY_LIMITS: Record<string, number> = { guest: 2, member: 5, trainer: 10, fitstep: 99999 };
 function getTodayGenKey() { return `dp_gen_${new Date().toISOString().slice(0,10).replace(/-/g,"")}`; }
 function getGenCount()    { return parseInt(localStorage.getItem(getTodayGenKey()) || "0"); }
 function incGenCount()    { const k = getTodayGenKey(); const n = getGenCount()+1; localStorage.setItem(k,String(n)); return n; }
@@ -328,9 +328,10 @@ function buildRealMeal(
 // ─── 입장 환영 모달 ──────────────────────────────────────────────────────────
 function WelcomeModal({ onClose }: { onClose: () => void }) {
   const tiers = [
-    { Icon: Lock,     label: "비회원",      count: "2회 / 일",  countColor: "#6b7280" },
-    { Icon: User,     label: "로그인 회원", count: "5회 / 일",  countColor: "#34d399" },
-    { Icon: Dumbbell, label: "운동전문가",  count: "10회 / 일", countColor: "#60a5fa" },
+    { Icon: Lock,     label: "비회원",          count: "2회 / 일",  countColor: "#6b7280" },
+    { Icon: User,     label: "로그인 회원",     count: "5회 / 일",  countColor: "#34d399" },
+    { Icon: Dumbbell, label: "운동전문가",      count: "10회 / 일", countColor: "#60a5fa" },
+    { Icon: Zap,      label: "FIT STEP 회원",   count: "무제한",    countColor: "#059669" },
   ] as const;
 
   return (
@@ -1723,7 +1724,7 @@ export default function DietPlanner() {
   // 사용자 유형
   const [userType, setUserType] = useState<UserType | null>(() => {
     const s = localStorage.getItem("dp_ut");
-    return s === "member" || s === "trainer" ? s : null;
+    return s === "member" || s === "trainer" || s === "fitstep" ? s : null;
   });
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
@@ -1766,8 +1767,13 @@ export default function DietPlanner() {
   useEffect(() => {
     loadDB();
 
-    // 카카오 PKCE 콜백 처리 (URL search params에서 code 추출)
+    // FIT STEP 레퍼럴 감지: ?ref=fitstep 또는 ?fitstep=1
     const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("ref") === "fitstep" || searchParams.get("fitstep") === "1") {
+      localStorage.setItem("dp_fitstep", "1");
+    }
+
+    // 카카오 PKCE 콜백 처리 (URL search params에서 code 추출)
     const authCode = searchParams.get("code");
     if (authCode) {
       const verifier = sessionStorage.getItem("kakao_pkce_verifier");
@@ -1783,8 +1789,14 @@ export default function DietPlanner() {
               setKakaoUser(user);
               setKakaoMsg("");
               setName((prev) => prev || user.name);
-              // 최초 로그인 시 유형 선택 모달
-              if (!localStorage.getItem("dp_ut")) setShowTypeModal(true);
+              // FIT STEP 레퍼럴 회원 → 무제한 자동 부여
+              if (localStorage.getItem("dp_fitstep") === "1") {
+                localStorage.setItem("dp_ut", "fitstep");
+                setUserType("fitstep");
+              } else if (!localStorage.getItem("dp_ut")) {
+                // 최초 로그인 시 유형 선택 모달
+                setShowTypeModal(true);
+              }
             } else {
               setKakaoMsg("❌ 프로필 조회 실패");
             }
@@ -1961,17 +1973,26 @@ export default function DietPlanner() {
             </div>
             {/* 사용자 유형 뱃지 (로그인 후) */}
             {kakaoUser && (
-              <button
-                onClick={() => setShowTypeModal(true)}
-                className="shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors"
-                style={userType === "trainer"
-                  ? { background: "rgba(59,130,246,0.15)", color: "#93c5fd", borderColor: "rgba(59,130,246,0.3)" }
-                  : { background: "rgba(16,185,129,0.15)", color: "#6ee7b7", borderColor: "rgba(16,185,129,0.3)" }}
-              >
-                {userType === "trainer"
-                  ? <><Dumbbell className="w-3 h-3" strokeWidth={2} />운동전문가</>
-                  : <><User className="w-3 h-3" strokeWidth={2} />일반 회원</>}
-              </button>
+              userType === "fitstep" ? (
+                <div
+                  className="shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border"
+                  style={{ background: "rgba(5,150,105,0.18)", color: "#34d399", borderColor: "rgba(5,150,105,0.35)" }}
+                >
+                  <Zap className="w-3 h-3" strokeWidth={2} />FIT STEP
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowTypeModal(true)}
+                  className="shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors"
+                  style={userType === "trainer"
+                    ? { background: "rgba(59,130,246,0.15)", color: "#93c5fd", borderColor: "rgba(59,130,246,0.3)" }
+                    : { background: "rgba(16,185,129,0.15)", color: "#6ee7b7", borderColor: "rgba(16,185,129,0.3)" }}
+                >
+                  {userType === "trainer"
+                    ? <><Dumbbell className="w-3 h-3" strokeWidth={2} />운동전문가</>
+                    : <><User className="w-3 h-3" strokeWidth={2} />일반 회원</>}
+                </button>
+              )
             )}
             {/* 카카오 로그인 버튼 */}
             <div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -2243,7 +2264,7 @@ export default function DietPlanner() {
         {(() => {
           const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
           const limit = DAILY_LIMITS[effectiveType] ?? 2;
-          const label = effectiveType === "guest" ? "비로그인" : effectiveType === "trainer" ? "운동전문가" : "일반 회원";
+          const label = effectiveType === "guest" ? "비로그인" : effectiveType === "trainer" ? "운동전문가" : effectiveType === "fitstep" ? "FIT STEP 회원" : "일반 회원";
           return (
             <div className="flex items-center justify-between text-xs px-1">
               <span className="text-gray-500">{label}</span>
