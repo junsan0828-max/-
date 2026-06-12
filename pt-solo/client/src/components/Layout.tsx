@@ -58,13 +58,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     && !needsBasicInfo;
 
   // 경로 변경 시 가이드 자동 표시 (온보딩 모달이 없을 때만)
+  // location이 실제로 바뀔 때만 트리거 — user refetch 등으로 재실행돼도 이미 dismissed면 무시
   useEffect(() => {
-    if (user && shouldShowGuide(location) && !showSurvey && !needsBasicInfo && !profileModalOpen) {
-      const t = setTimeout(() => setGuideOpen(true), 800);
-      return () => clearTimeout(t);
-    } else {
-      setGuideOpen(false);
-    }
+    if (!user) return;
+    if (showSurvey || needsBasicInfo || profileModalOpen) { setGuideOpen(false); return; }
+    if (!shouldShowGuide(location)) { setGuideOpen(false); return; }
+    const t = setTimeout(() => {
+      // 타임아웃 직전에 한 번 더 확인 (그 사이 dismiss됐을 수 있음)
+      if (shouldShowGuide(location)) setGuideOpen(true);
+    }, 800);
+    return () => clearTimeout(t);
   }, [location, user, showSurvey, needsBasicInfo, profileModalOpen]);
 
   useEffect(() => {

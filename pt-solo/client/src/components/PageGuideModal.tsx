@@ -201,13 +201,22 @@ function sessionKey(key: string) {
   return `guide-seen${key.replace(/\//g, "-") || "-home"}`;
 }
 
+// 런타임 인메모리 dismissed 세트 — localStorage/sessionStorage 실패 시에도 동일 세션 내 재노출 방지
+const runtimeDismissed = new Set<string>();
+
+function safeGet(storage: Storage, key: string): string | null {
+  try { return storage.getItem(key); } catch { return null; }
+}
+function safeSet(storage: Storage, key: string, value: string) {
+  try { storage.setItem(key, value); } catch { /* noop */ }
+}
+
 export function shouldShowGuide(path: string): boolean {
   const key = canonicalKey(path);
   if (!key) return false;
-  // localStorage: 영구 "다시 안보기"
-  if (localStorage.getItem(storageKey(key))) return false;
-  // sessionStorage: 이번 세션에서 이미 확인함 ("확인" 버튼도 포함)
-  if (sessionStorage.getItem(sessionKey(key))) return false;
+  if (runtimeDismissed.has(key)) return false;
+  if (safeGet(localStorage, storageKey(key))) return false;
+  if (safeGet(sessionStorage, sessionKey(key))) return false;
   return true;
 }
 
@@ -224,14 +233,15 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
   const key = canonicalKey(path) ?? path;
 
   function handleDismiss() {
-    localStorage.setItem(storageKey(key), "1");
-    sessionStorage.setItem(sessionKey(key), "1");
+    runtimeDismissed.add(key);
+    safeSet(localStorage, storageKey(key), "1");
+    safeSet(sessionStorage, sessionKey(key), "1");
     onClose();
   }
 
   function handleConfirm() {
-    // "확인"은 이번 세션만 닫음 (다음 방문 시 다시 표시)
-    sessionStorage.setItem(sessionKey(key), "1");
+    runtimeDismissed.add(key);
+    safeSet(sessionStorage, sessionKey(key), "1");
     onClose();
   }
 
