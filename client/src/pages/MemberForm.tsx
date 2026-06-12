@@ -329,7 +329,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             <CardTitle className="text-base font-semibold">기본 정보</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentUser?.role === "admin" && !isEdit && (
+            {currentUser?.role === "admin" && !isEdit && !(hasHealth && !hasPT && !hasOther) && (
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">
                   담당 트레이너 <span className="text-primary">*</span>
@@ -737,25 +737,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                 </div>
               </div>
 
-              {/* 지점 */}
-              {branchList && branchList.length > 0 && (
-                <div>
-                  <label className="text-xs text-muted-foreground">지점</label>
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    <button type="button" onClick={() => setBranchId(null)}
-                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${branchId === null ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                      미지정
-                    </button>
-                    {branchList.map((b: any) => (
-                      <button key={b.id} type="button" onClick={() => setBranchId(b.id)}
-                        className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                        {b.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* 결제 방법 */}
               <div>
                 <label className="text-xs text-muted-foreground">결제 방법 *</label>
@@ -933,6 +914,25 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   </div>
                 )}
               </div>
+
+              {/* 지점 */}
+              {branchList && branchList.length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <label className="text-xs text-muted-foreground">지점</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    <button type="button" onClick={() => setBranchId(null)}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${branchId === null ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      미지정
+                    </button>
+                    {branchList.map((b: any) => (
+                      <button key={b.id} type="button" onClick={() => setBranchId(b.id)}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             </CardContent>
           </Card>
