@@ -94,6 +94,13 @@ export default function AdminMembers() {
     },
     onError: (e) => toast.error(`동기화 오류: ${e.message}`),
   });
+  const syncRevenueMutation = trpc.gym.revenue.syncRevenueFromPackages.useMutation({
+    onSuccess: (data) => {
+      toast.success(`장부 역동기화 완료 ${data.created > 0 ? `(${data.created}건 생성)` : "(변경 없음)"}`);
+      utils.members.listAll.invalidate();
+    },
+    onError: (e) => toast.error(`장부 동기화 오류: ${e.message}`),
+  });
 
   const [mergeResult, setMergeResult] = useState<string | null>(null);
   const mergeMutation = trpc.admin.mergeDuplicateMembers.useMutation({
@@ -300,6 +307,13 @@ export default function AdminMembers() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">회원 관리</h1>
         <div className="flex gap-2">
+          <button
+            onClick={() => syncRevenueMutation.mutate()}
+            disabled={syncRevenueMutation.isPending}
+            className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {syncRevenueMutation.isPending ? "동기화 중..." : "장부 역동기화"}
+          </button>
           <button
             onClick={() => syncPtMutation.mutate()}
             disabled={syncPtMutation.isPending}

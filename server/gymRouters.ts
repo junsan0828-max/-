@@ -802,6 +802,73 @@ const revenueRouter = t.router({
       return { created, updated };
     }),
 
+  // PT 패키지가 있는데 장부 항목이 없는 기존 회원 장부 항목 역방향 생성
+  syncRevenueFromPackages: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 결제금액 있는 PT 패키지 전체 로드
+      const pkgs = await db.select().from(ptPackages)
+        .where(and(isNotNull(ptPackages.memberId), isNotNull(ptPackages.paymentAmount)));
+
+      // 기존 revenue_entries: memberId+type=PT 기준 (paymentDate별 SET)
+      const existingRevs = await db.select({
+        memberId: revenueEntries.memberId,
+        paymentDate: revenueEntries.paymentDate,
+        amount: revenueEntries.amount,
+      }).from(revenueEntries)
+        .where(and(eq(revenueEntries.type, "PT"), isNotNull(revenueEntries.memberId)));
+
+      // 중복 키: memberId|paymentDate
+      const revKey = (memberId: number, paymentDate: string) => `${memberId}|${paymentDate}`;
+      const existingRevSet = new Set(existingRevs.map(r => revKey(r.memberId!, r.paymentDate)));
+
+      // 회원 이름/전화번호 조회용 맵
+      const memberIds = [...new Set(pkgs.map(p => p.memberId))];
+      const memberRows = memberIds.length > 0
+        ? await db.select({ id: members.id, name: members.name, phone: members.phone, branchId: members.branchId })
+            .from(members).where(inArray(members.id, memberIds))
+        : [];
+      const memberMap = new Map(memberRows.map(m => [m.id, m]));
+
+      let created = 0;
+      const today = new Date().toISOString().substring(0, 10);
+      for (const pkg of pkgs) {
+        if (!pkg.memberId || !pkg.paymentAmount || pkg.paymentAmount <= 0) continue;
+        const payDate = pkg.paymentDate ?? pkg.startDate ?? today;
+        const key = revKey(pkg.memberId, payDate);
+        if (existingRevSet.has(key)) continue;
+
+        const mem = memberMap.get(pkg.memberId);
+        await db.insert(revenueEntries).values({
+          memberId: pkg.memberId,
+          trainerId: pkg.trainerId ?? null,
+          branchId: mem?.branchId ?? null,
+          createdBy: ctx.user.id,
+          customerName: mem?.name ?? null,
+          phone: mem?.phone ?? null,
+          programDetail: pkg.packageName ?? undefined,
+          sessions: pkg.totalSessions,
+          type: "PT",
+          subType: "신규",
+          amount: pkg.paymentAmount,
+          discountAmount: 0,
+          paidAmount: pkg.paymentAmount - (pkg.unpaidAmount ?? 0),
+          unpaidAmount: pkg.unpaidAmount ?? 0,
+          paymentMethod: pkg.paymentMethod ?? undefined,
+          paymentDate: payDate,
+          startDate: pkg.startDate ?? undefined,
+          memo: pkg.paymentMemo ?? null,
+        });
+        // 중복 방지를 위해 set에 추가
+        existingRevSet.add(key);
+        created++;
+      }
+      return { created };
+    }),
+
   monthlySummary: protectedProcedure
     .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
