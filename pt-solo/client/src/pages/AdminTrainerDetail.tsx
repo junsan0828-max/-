@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock, Trash2, Pencil } from "lucide-react";
+import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock, Trash2, Pencil, X, Users, Dumbbell, ClipboardCheck } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = [
@@ -41,6 +42,18 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
     onSuccess: () => { toast.success("플랜 인원 한도가 저장되었습니다."); utils.fitStepPlus.admin_getMemberLimits.invalidate(); setLimitDraft(null); },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const [activityModal, setActivityModal] = useState<"members" | "sessions" | "attendances" | null>(null);
+
+  const { data: membersDetail } = trpc.admin.getTrainerMembersDetail.useQuery(
+    { trainerId }, { enabled: activityModal === "members" }
+  );
+  const { data: sessionsDetail } = trpc.admin.getTrainerSessionsDetail.useQuery(
+    { trainerId }, { enabled: activityModal === "sessions" }
+  );
+  const { data: attendancesDetail } = trpc.admin.getTrainerAttendancesDetail.useQuery(
+    { trainerId }, { enabled: activityModal === "attendances" }
+  );
 
   const [subStatus, setSubStatus] = useState("");
   const [subEndDate, setSubEndDate] = useState("");
@@ -185,17 +198,144 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
         </CardHeader>
         <CardContent className="grid grid-cols-3 gap-2">
           {[
-            { label: "관리 회원", value: `${t.memberCount}명`, color: "text-blue-400" },
-            { label: "수업", value: `${t.sessionCount}회`, color: "text-green-400" },
-            { label: "출석 체크", value: `${t.attendanceCount}회`, color: "text-purple-400" },
+            { label: "관리 회원", value: `${t.memberCount}명`, color: "text-blue-400", modal: "members" as const },
+            { label: "수업", value: `${t.sessionCount}회`, color: "text-green-400", modal: "sessions" as const },
+            { label: "출석 체크", value: `${t.attendanceCount}회`, color: "text-purple-400", modal: "attendances" as const },
           ].map(item => (
-            <div key={item.label} className="p-2.5 rounded-lg bg-accent/20 border border-border text-center">
+            <button
+              key={item.label}
+              onClick={() => setActivityModal(item.modal)}
+              className="p-2.5 rounded-lg bg-accent/20 border border-border text-center hover:border-primary/40 hover:bg-accent/40 transition-colors"
+            >
               <p className="text-xs text-muted-foreground mb-1">{item.label}</p>
               <p className={`text-lg font-bold ${item.color}`}>{item.value}</p>
-            </div>
+            </button>
           ))}
         </CardContent>
       </Card>
+
+      {/* 활동 정보 모달 - 회원 */}
+      <Dialog open={activityModal === "members"} onOpenChange={o => !o && setActivityModal(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4 text-blue-400" />관리 회원 목록
+            </DialogTitle>
+          </DialogHeader>
+          {!membersDetail ? (
+            <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+          ) : membersDetail.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">등록된 회원이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {membersDetail.map((m: any) => (
+                <div key={m.id} className="px-3 py-2.5 rounded-lg bg-accent/20 border border-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{m.name}</p>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
+                      m.status === "active" ? "bg-green-500/15 text-green-400 border-green-500/30"
+                      : m.status === "expired" ? "bg-red-500/15 text-red-400 border-red-500/30"
+                      : "bg-slate-500/15 text-slate-400 border-slate-500/30"
+                    }`}>{m.status === "active" ? "활성" : m.status === "expired" ? "만료" : m.status}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    {m.phone && <span>📞 {m.phone}</span>}
+                    {m.gender && <span>{m.gender}</span>}
+                    {m.membershipStart && <span>시작 {m.membershipStart}</span>}
+                    {m.membershipEnd && <span>만료 {m.membershipEnd}</span>}
+                  </div>
+                  <div className="flex gap-3 text-xs">
+                    <span className="text-green-400 font-medium">잔여 {m.remainingSessions}회</span>
+                    <span className="text-muted-foreground">총 {m.totalSessions}회 / 완료 {m.usedSessions}회</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 활동 정보 모달 - 수업 */}
+      <Dialog open={activityModal === "sessions"} onOpenChange={o => !o && setActivityModal(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Dumbbell className="h-4 w-4 text-green-400" />수업 기록 (최근 100건)
+            </DialogTitle>
+          </DialogHeader>
+          {!sessionsDetail ? (
+            <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+          ) : sessionsDetail.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">수업 기록이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {sessionsDetail.map((s: any) => (
+                <div key={s.id} className="px-3 py-2.5 rounded-lg bg-accent/20 border border-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{s.memberName ?? "알 수 없음"}</p>
+                    <span className="text-xs text-muted-foreground">{s.sessionDate}</span>
+                  </div>
+                  {s.bodyPart && <p className="text-xs text-primary">{s.bodyPart}</p>}
+                  {s.feedback && <p className="text-xs text-muted-foreground line-clamp-2">{s.feedback}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 활동 정보 모달 - 출석 체크 */}
+      <Dialog open={activityModal === "attendances"} onOpenChange={o => !o && setActivityModal(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ClipboardCheck className="h-4 w-4 text-purple-400" />출석 체크 기록 (최근 100건)
+            </DialogTitle>
+          </DialogHeader>
+          {!attendancesDetail ? (
+            <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+          ) : attendancesDetail.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">출석 체크 기록이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {attendancesDetail.map((a: any) => (
+                <div key={a.id} className="px-3 py-2.5 rounded-lg bg-accent/20 border border-border space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{a.memberName ?? "알 수 없음"}</p>
+                    <span className="text-xs text-muted-foreground">{a.checkDate}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    {a.conditionScore != null && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-muted-foreground">컨디션</span>
+                        <span className={`font-bold ${a.conditionScore >= 4 ? "text-green-400" : a.conditionScore >= 3 ? "text-yellow-400" : "text-red-400"}`}>{a.conditionScore}/5</span>
+                      </span>
+                    )}
+                    {a.sleepHours != null && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-muted-foreground">수면</span>
+                        <span className="font-medium">{a.sleepHours}h</span>
+                      </span>
+                    )}
+                    {a.energyLevel != null && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-muted-foreground">에너지</span>
+                        <span className="font-medium">{a.energyLevel}/5</span>
+                      </span>
+                    )}
+                    {a.painLevel != null && a.painLevel > 0 && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-red-400">통증</span>
+                        <span className="font-medium text-red-400">{a.painLevel}/5{a.painArea ? ` (${a.painArea})` : ""}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 플랜 관리 */}
       <Card className="bg-card border-border">

@@ -2640,6 +2640,58 @@ const adminRouter = t.router({
       return row.rows[0] ?? null;
     }),
 
+  getTrainerMembersDetail: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const rows = await pool.query<any>(
+        `SELECT m.id, m.name, m.phone, m.gender, m.status, m."membershipStart", m."membershipEnd", m."createdAt",
+                COALESCE(p.total, 0) AS "totalSessions", COALESCE(p.used, 0) AS "usedSessions",
+                COALESCE(p.total - p.used, 0) AS "remainingSessions"
+         FROM members m
+         LEFT JOIN LATERAL (
+           SELECT SUM("totalSessions") AS total, SUM("usedSessions") AS used
+           FROM pt_packages WHERE "memberId" = m.id AND status = 'active'
+         ) p ON true
+         WHERE m."trainerId" = $1
+         ORDER BY m."createdAt" DESC`,
+        [input.trainerId]
+      );
+      return rows.rows;
+    }),
+
+  getTrainerSessionsDetail: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const rows = await pool.query<any>(
+        `SELECT sl.id, sl."sessionDate", sl."bodyPart", sl.feedback, sl."createdAt",
+                m.name AS "memberName"
+         FROM pt_session_logs sl
+         LEFT JOIN members m ON m.id = sl."memberId"
+         WHERE sl."trainerId" = $1
+         ORDER BY sl."sessionDate" DESC, sl."createdAt" DESC
+         LIMIT 100`,
+        [input.trainerId]
+      );
+      return rows.rows;
+    }),
+
+  getTrainerAttendancesDetail: adminProcedure
+    .input(z.object({ trainerId: z.number() }))
+    .query(async ({ input }) => {
+      const rows = await pool.query<any>(
+        `SELECT ac.id, ac."checkDate", ac."conditionScore", ac."sleepHours", ac."energyLevel",
+                ac."painLevel", ac."painArea", ac."createdAt",
+                m.name AS "memberName"
+         FROM attendance_checks ac
+         LEFT JOIN members m ON m.id = ac."memberId"
+         WHERE ac."trainerId" = $1
+         ORDER BY ac."checkDate" DESC, ac."createdAt" DESC
+         LIMIT 100`,
+        [input.trainerId]
+      );
+      return rows.rows;
+    }),
+
   listSurveyResponses: adminProcedure.query(async () => {
     const rows = await pool.query<{
       id: number; trainerName: string | null; phone: string | null; email: string | null;
