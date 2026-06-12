@@ -698,6 +698,14 @@ const revenueRouter = t.router({
         const prev = latestByMember.get(row.memberId);
         if (!prev || (row.startDate > prev.startDate!)) latestByMember.set(row.memberId, row);
       }
+      // 현재 membershipEnd 값 한 번에 로드
+      const memberIds = Array.from(latestByMember.keys());
+      const currentEnds = memberIds.length > 0
+        ? await db.select({ id: members.id, membershipEnd: members.membershipEnd })
+            .from(members).where(inArray(members.id, memberIds))
+        : [];
+      const currentEndMap = new Map(currentEnds.map(m => [m.id, m.membershipEnd]));
+
       let updated = 0;
       for (const [memberId, row] of latestByMember) {
         let months = row.duration ?? 0;
@@ -718,6 +726,7 @@ const revenueRouter = t.router({
           }
         }
         const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        if (currentEndMap.get(memberId) === newEnd) continue;
         await db.update(members).set({ membershipEnd: newEnd }).where(eq(members.id, memberId));
         updated++;
       }
