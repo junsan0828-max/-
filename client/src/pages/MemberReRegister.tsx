@@ -63,11 +63,13 @@ export default function MemberReRegister() {
   // 락커
   const [addLocker, setAddLocker] = useState(false);
   const [lockerId, setLockerId] = useState("");
+  const [lockerMonths, setLockerMonths] = useState<number>(1);
   const [lockerEnd, setLockerEnd] = useState("");
   const [lockerPrice, setLockerPrice] = useState("");
 
   // 운동복
   const [addUniform, setAddUniform] = useState(false);
+  const [uniformMonths, setUniformMonths] = useState<number>(1);
   const [uniformEnd, setUniformEnd] = useState("");
   const [uniformPrice, setUniformPrice] = useState("");
 
@@ -556,6 +558,21 @@ export default function MemberReRegister() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
+                <Label className="text-xs text-muted-foreground">이용 기간 *</Label>
+                <div className="flex gap-2 mt-1">
+                  {[1, 3, 6, 12].map(m => (
+                    <button key={m} type="button"
+                      onClick={() => {
+                        setLockerMonths(m);
+                        setLockerEnd(calcEndDateByMonths(membershipStart, m));
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${lockerMonths === m ? "bg-amber-500 text-white border-amber-500" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                      {m}개월
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
                 <Label className="text-xs text-muted-foreground">락커 선택 <span className="text-primary">*</span></Label>
                 {availableLockers.length === 0 ? (
                   <p className="text-xs text-muted-foreground mt-1">사용 가능한 락커가 없습니다</p>
@@ -602,6 +619,21 @@ export default function MemberReRegister() {
               <CardTitle className="text-sm font-semibold text-purple-400">운동복 프로그램 정보</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">이용 기간 *</Label>
+                <div className="flex gap-2 mt-1">
+                  {[1, 3, 6, 12].map(m => (
+                    <button key={m} type="button"
+                      onClick={() => {
+                        setUniformMonths(m);
+                        setUniformEnd(calcEndDateByMonths(membershipStart, m));
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformMonths === m ? "bg-purple-500 text-white border-purple-500" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                      {m}개월
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-muted-foreground">시작일</Label>
