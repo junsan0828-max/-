@@ -1,9 +1,24 @@
 import { useState, useEffect } from "react";
 
-// ─── 연락처 설정 ──────────────────────────────────────────────────────────────
-const NAVER_PLACE_URL = "https://booking.naver.com/booking/13/bizes/YOUR_ID";
-const KAKAO_CHANNEL_URL = "https://pf.kakao.com/_YOUR_ID";
-const PHONE_NUMBER = "010-0000-0000";
+// ─── 지점별 정보 설정 ─────────────────────────────────────────────────────────
+const BRANCH = {
+  b1: {
+    name: "1호점",
+    address: "경기도 시흥시 정왕동 000-0",
+    phone: "010-0000-0000",
+    hours: { weekday: "08:00 – 23:00", sat: "10:00 – 17:00", sun: "휴무" },
+    naverUrl: "https://booking.naver.com/booking/13/bizes/YOUR_ID_1",
+    kakaoUrl: "https://pf.kakao.com/_YOUR_ID_1",
+  },
+  b2: {
+    name: "2호점",
+    address: "경기도 시흥시 정왕동 000-0",
+    phone: "010-0000-0000",
+    hours: { weekday: "08:00 – 23:00", sat: "10:00 – 17:00", sun: "휴무" },
+    naverUrl: "https://booking.naver.com/booking/13/bizes/YOUR_ID_2",
+    kakaoUrl: "https://pf.kakao.com/_YOUR_ID_2",
+  },
+};
 
 // ─── 이미지 경로 (실제 사진 업로드 후 경로 교체) ──────────────────────────────
 const IMG = {
@@ -22,6 +37,10 @@ const IMG = {
     { src: "/images/gymplus/screen-program.jpg", label: "운동 프로그램" },
     { src: "/images/gymplus/screen-record.jpg", label: "운동 기록" },
     { src: "/images/gymplus/screen-report.jpg", label: "리포트" },
+  ],
+  branch: [
+    { exterior: "/images/branch/branch1-exterior.jpg", interior: "/images/branch/branch1-interior.jpg" },
+    { exterior: "/images/branch/branch2-exterior.jpg", interior: "/images/branch/branch2-interior.jpg" },
   ],
 };
 
@@ -67,6 +86,7 @@ function Nav() {
     { label: "분석 시스템", id: "analysis" },
     { label: "후기", id: "reviews" },
     { label: "짐플러스", id: "gymplus" },
+    { label: "지점 안내", id: "branches" },
   ];
 
   return (
@@ -576,7 +596,93 @@ function GymPlusSection() {
   );
 }
 
-// ─── Section 7: 상담 신청 ─────────────────────────────────────────────────────
+// ─── Section 7: 지점 안내 ─────────────────────────────────────────────────────
+function BranchSection() {
+  const branches = [
+    { ...BRANCH.b1, imgs: IMG.branch[0] },
+    { ...BRANCH.b2, imgs: IMG.branch[1] },
+  ];
+
+  return (
+    <section id="branches" className="py-28 lg:py-40 bg-white">
+      <div className="max-w-6xl mx-auto px-6 lg:px-8">
+        <div className="mb-16 lg:mb-20">
+          <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-4">Locations</p>
+          <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-[#0B1D3A]">지점 안내</h2>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-1">
+          {branches.map((b, i) => (
+            <div key={b.name} className={`${i === 1 ? "bg-[#F7F7F5]" : "bg-white border border-gray-100"} p-10 lg:p-14`}>
+              <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-6">ZIANTGYM {b.name}</p>
+
+              {/* 외관 사진 */}
+              <Img
+                src={b.imgs.exterior}
+                alt={`자이언트짐 ${b.name} 외관`}
+                className="w-full aspect-video object-cover mb-8"
+              />
+
+              {/* 내부 사진 */}
+              <Img
+                src={b.imgs.interior}
+                alt={`자이언트짐 ${b.name} 내부`}
+                className="w-full aspect-video object-cover mb-10"
+              />
+
+              {/* 정보 */}
+              <div className="space-y-3 mb-10 border-t border-gray-100 pt-8">
+                {[
+                  { label: "주소", value: b.address },
+                  { label: "전화", value: b.phone },
+                  { label: "평일", value: b.hours.weekday },
+                  { label: "토요일", value: b.hours.sat },
+                  { label: "일요일", value: b.hours.sun },
+                ].map((item) => (
+                  <div key={item.label} className="flex justify-between text-sm gap-4">
+                    <span className="text-gray-300 font-light flex-shrink-0">{item.label}</span>
+                    <span className="text-gray-600 font-light text-right">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <div className="space-y-2">
+                <a
+                  href={b.naverUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between w-full px-6 py-4 bg-[#0B1D3A] text-white hover:bg-[#162d5a] transition-colors group"
+                >
+                  <span className="text-xs font-medium tracking-wide">네이버 예약</span>
+                  <span className="text-white/30 group-hover:text-white/60 transition-colors">→</span>
+                </a>
+                <a
+                  href={b.kakaoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between w-full px-6 py-4 bg-gray-50 border border-gray-100 text-[#0B1D3A] hover:bg-gray-100 transition-colors group"
+                >
+                  <span className="text-xs font-medium tracking-wide">카카오톡 문의</span>
+                  <span className="text-gray-300 group-hover:text-gray-500 transition-colors">→</span>
+                </a>
+                <a
+                  href={`tel:${b.phone}`}
+                  className="flex items-center justify-between w-full px-6 py-4 bg-gray-50 border border-gray-100 text-[#0B1D3A] hover:bg-gray-100 transition-colors group"
+                >
+                  <span className="text-xs font-medium tracking-wide">전화 문의</span>
+                  <span className="text-gray-300 text-xs font-light group-hover:text-gray-500 transition-colors">{b.phone}</span>
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Section 8: 상담 신청 ─────────────────────────────────────────────────────
 function ContactSection() {
   const steps = [
     { step: "무료 체형분석 예약", active: true },
@@ -618,48 +724,52 @@ function ContactSection() {
             </div>
           </div>
 
-          <div className="flex flex-col justify-center">
-            <div className="space-y-2 mb-14">
-              <a
-                href={NAVER_PLACE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between w-full px-8 py-6 bg-[#0B1D3A] text-white hover:bg-[#162d5a] transition-colors group"
-              >
-                <span className="text-sm font-medium">네이버 플레이스 예약</span>
-                <span className="text-white/30 group-hover:text-white/60 transition-colors text-base">→</span>
-              </a>
-              <a
-                href={KAKAO_CHANNEL_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between w-full px-8 py-6 bg-gray-50 text-[#0B1D3A] hover:bg-gray-100 transition-colors group border border-gray-100"
-              >
-                <span className="text-sm font-medium">카카오톡 문의</span>
-                <span className="text-gray-300 group-hover:text-gray-500 transition-colors text-base">→</span>
-              </a>
-              <a
-                href={`tel:${PHONE_NUMBER}`}
-                className="flex items-center justify-between w-full px-8 py-6 bg-gray-50 text-[#0B1D3A] hover:bg-gray-100 transition-colors group border border-gray-100"
-              >
-                <span className="text-sm font-medium">전화 문의</span>
-                <span className="text-gray-300 text-sm font-light group-hover:text-gray-500 transition-colors">{PHONE_NUMBER}</span>
-              </a>
-            </div>
-
-            <div className="border-t border-gray-100 pt-10 space-y-4">
-              {[
-                { label: "주소", value: "경기도 시흥시 정왕동" },
-                { label: "평일", value: "08:00 – 23:00" },
-                { label: "토요일", value: "10:00 – 17:00" },
-                { label: "일요일", value: "휴무" },
-              ].map((item) => (
-                <div key={item.label} className="flex justify-between text-sm">
-                  <span className="text-gray-300 font-light">{item.label}</span>
-                  <span className="text-gray-600 font-light">{item.value}</span>
+          <div className="flex flex-col justify-center gap-6">
+            {[BRANCH.b1, BRANCH.b2].map((b) => (
+              <div key={b.name} className="border border-gray-100 p-8">
+                <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-5">ZIANTGYM {b.name}</p>
+                <div className="space-y-2 mb-6">
+                  <a
+                    href={b.naverUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between w-full px-6 py-4 bg-[#0B1D3A] text-white hover:bg-[#162d5a] transition-colors group"
+                  >
+                    <span className="text-xs font-medium tracking-wide">네이버 예약</span>
+                    <span className="text-white/30 group-hover:text-white/60 transition-colors">→</span>
+                  </a>
+                  <a
+                    href={b.kakaoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between w-full px-6 py-4 bg-gray-50 border border-gray-100 text-[#0B1D3A] hover:bg-gray-100 transition-colors group"
+                  >
+                    <span className="text-xs font-medium tracking-wide">카카오톡 문의</span>
+                    <span className="text-gray-300 group-hover:text-gray-500 transition-colors">→</span>
+                  </a>
+                  <a
+                    href={`tel:${b.phone}`}
+                    className="flex items-center justify-between w-full px-6 py-4 bg-gray-50 border border-gray-100 text-[#0B1D3A] hover:bg-gray-100 transition-colors group"
+                  >
+                    <span className="text-xs font-medium tracking-wide">전화 문의</span>
+                    <span className="text-gray-300 text-xs font-light group-hover:text-gray-500 transition-colors">{b.phone}</span>
+                  </a>
                 </div>
-              ))}
-            </div>
+                <div className="border-t border-gray-50 pt-5 space-y-2">
+                  {[
+                    { label: "주소", value: b.address },
+                    { label: "평일", value: b.hours.weekday },
+                    { label: "토요일", value: b.hours.sat },
+                    { label: "일요일", value: b.hours.sun },
+                  ].map((item) => (
+                    <div key={item.label} className="flex justify-between text-xs gap-4">
+                      <span className="text-gray-300 font-light flex-shrink-0">{item.label}</span>
+                      <span className="text-gray-500 font-light text-right">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -674,11 +784,11 @@ function Footer() {
       <div className="max-w-6xl mx-auto px-6 lg:px-8 py-12">
         <div className="flex flex-col lg:flex-row justify-between gap-8 mb-10">
           <div>
-            <p className="text-[#0B1D3A] font-bold tracking-[0.2em] uppercase text-xs mb-3">ZIANTGYM</p>
-            <p className="text-xs text-gray-300 font-light leading-relaxed">
-              경기도 시흥시 정왕동<br />
-              Tel. {PHONE_NUMBER}
-            </p>
+            <p className="text-[#0B1D3A] font-bold tracking-[0.2em] uppercase text-xs mb-4">ZIANTGYM</p>
+            <div className="text-xs text-gray-300 font-light leading-relaxed space-y-2">
+              <p>1호점 · {BRANCH.b1.address}<br />Tel. {BRANCH.b1.phone}</p>
+              <p>2호점 · {BRANCH.b2.address}<br />Tel. {BRANCH.b2.phone}</p>
+            </div>
           </div>
           <div className="text-xs text-gray-300 font-light space-y-1.5">
             <p>평일 08:00 – 23:00 · 토 10:00 – 17:00 · 일 휴무</p>
@@ -710,20 +820,18 @@ function MobileBottomCTA() {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-100">
       <div className="grid grid-cols-2">
-        <a
-          href={NAVER_PLACE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => scrollTo("branches")}
           className="py-4 bg-[#0B1D3A] text-white text-[10px] font-medium text-center tracking-[0.15em] uppercase"
         >
           무료 체형분석 예약
-        </a>
-        <a
-          href={`tel:${PHONE_NUMBER}`}
+        </button>
+        <button
+          onClick={() => scrollTo("contact")}
           className="py-4 bg-white text-[#0B1D3A] text-[10px] font-medium text-center tracking-[0.15em] uppercase border-l border-gray-100"
         >
-          전화 문의
-        </a>
+          상담 신청
+        </button>
       </div>
     </div>
   );
@@ -745,6 +853,7 @@ export default function Landing() {
       <AnalysisSection />
       <ReviewsSection />
       <GymPlusSection />
+      <BranchSection />
       <ContactSection />
       <Footer />
       <MobileBottomCTA />
