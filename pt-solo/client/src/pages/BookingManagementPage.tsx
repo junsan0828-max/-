@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { X, CalendarCheck, ExternalLink } from "lucide-react";
+import TabBanner from "@/components/TabBanner";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
 const TIME_GROUPS = [
@@ -147,6 +148,7 @@ export default function BookingManagementPage() {
 
   return (
     <div className="space-y-5 pb-8">
+      <TabBanner tabKey="booking" />
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <div className="p-2 rounded-xl bg-primary/10">

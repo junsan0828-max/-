@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import BodyPartPicker from "@/components/BodyPartPicker";
 import ExerciseEditor, { type Exercise, parseExercisesJson } from "@/components/ExerciseEditor";
+import TabBanner from "@/components/TabBanner";
 
 // 한글 초성 추출
 const CHOSUNG_LIST = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
@@ -320,6 +321,7 @@ export default function Sessions() {
 
   return (
     <div className="space-y-4">
+      <TabBanner tabKey="sessions" />
       <h1 className="text-xl font-bold">수업 관리</h1>
 
       {/* 회원 선택 */}

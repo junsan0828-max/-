@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers, Camera, ReceiptText, ArrowLeftRight } from "lucide-react";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
+import TabBanner from "@/components/TabBanner";
 
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
@@ -4958,7 +4959,7 @@ function WorkshopContent() {
 
   return (
     <div className="space-y-4">
-      
+      <TabBanner tabKey="workshop" />
 
       {status === "trial" && daysRemaining > 7 && (
         <div className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5 flex items-center justify-between">
