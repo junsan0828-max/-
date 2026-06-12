@@ -7,21 +7,21 @@ const PHONE_NUMBER = "010-0000-0000";
 
 // ─── 이미지 경로 (실제 사진 업로드 후 경로 교체) ──────────────────────────────
 const IMG = {
-  hero: "/images/hero/hero-main.png",
-  intro: "/images/facility/facility-overview.png",
-  bodyAnalysis: "/images/training/body-analysis.png",
-  ptSession: "/images/training/pt-session.png",
-  memberWorkout: "/images/training/member-workout.png",
+  hero: "/images/hero/hero-main.jpg",
+  intro: "/images/facility/facility-overview.jpg",
+  bodyAnalysis: "/images/training/body-analysis.jpg",
+  ptSession: "/images/training/pt-session.jpg",
+  memberWorkout: "/images/training/member-workout.jpg",
   beforeAfter: [
-    { before: "/images/reviews/review-01-before.png", after: "/images/reviews/review-01-after.png", label: "3개월 체형교정" },
-    { before: "/images/reviews/review-02-before.png", after: "/images/reviews/review-02-after.png", label: "4개월 다이어트" },
-    { before: "/images/reviews/review-03-before.png", after: "/images/reviews/review-03-after.png", label: "6개월 통증관리" },
+    { before: "/images/reviews/review-01-before.jpg", after: "/images/reviews/review-01-after.jpg", label: "3개월 체형교정" },
+    { before: "/images/reviews/review-02-before.jpg", after: "/images/reviews/review-02-after.jpg", label: "4개월 다이어트" },
+    { before: "/images/reviews/review-03-before.jpg", after: "/images/reviews/review-03-after.jpg", label: "6개월 통증관리" },
   ],
   gymplus: [
-    { src: "/images/gymplus/screen-dashboard.png", label: "대시보드" },
-    { src: "/images/gymplus/screen-program.png", label: "운동 프로그램" },
-    { src: "/images/gymplus/screen-record.png", label: "운동 기록" },
-    { src: "/images/gymplus/screen-report.png", label: "리포트" },
+    { src: "/images/gymplus/screen-dashboard.jpg", label: "대시보드" },
+    { src: "/images/gymplus/screen-program.jpg", label: "운동 프로그램" },
+    { src: "/images/gymplus/screen-record.jpg", label: "운동 기록" },
+    { src: "/images/gymplus/screen-report.jpg", label: "리포트" },
   ],
 };
 
