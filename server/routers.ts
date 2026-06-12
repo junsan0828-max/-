@@ -4181,6 +4181,22 @@ const gymPlusProtected = t.procedure.use(({ ctx, next }) => {
 const adminOnlyGymPlus = t.procedure;
 
 const gymPlusRouter = t.router({
+  // 관리자 로그인 (기존 admin 계정으로 인증)
+  adminLogin: publicProcedure
+    .input(z.object({ username: z.string(), password: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [user] = await db.select().from(users)
+        .where(eq(users.username, input.username)).limit(1);
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+      if (user.role !== "admin" && user.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN", message: "관리자 계정만 접근할 수 있습니다." });
+      const valid = await bcrypt.compare(input.password, user.password);
+      if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+      return { success: true, username: user.username, role: user.role };
+    }),
+
   memberLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
     .mutation(async ({ ctx, input }) => {
