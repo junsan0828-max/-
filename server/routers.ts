@@ -27,6 +27,7 @@ import {
   trainerBranches,
   revenueEntries,
   lockers,
+  uniforms,
   ptEventPrograms,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";

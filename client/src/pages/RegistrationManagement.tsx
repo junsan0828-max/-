@@ -204,7 +204,7 @@ export default function RegistrationManagement() {
   const createDayPassMutation = trpc.gym.revenue.create.useMutation({
     onSuccess: () => {
       setQuickModal(null);
-      setDayPassForm({ name: "", phone: "", amount: "", paymentMethod: "카드" });
+      setDayPassForm({ name: "", phone: "", amount: "", paymentMethod: "카드", branchId: null });
       toast.success("1일권 등록 완료");
     },
     onError: (e) => toast.error(e.message),
