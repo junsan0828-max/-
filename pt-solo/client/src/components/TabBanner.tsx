@@ -19,8 +19,8 @@ export default function TabBanner({ tabKey }: { tabKey: string }) {
     <img
       src={banner.imageUrl}
       alt="배너"
-      className="w-full h-full object-cover"
-      style={{ height: heightStyle }}
+      className="w-full h-auto"
+      style={{ display: "block", objectFit: "contain" }}
     />
   ) : (
     <div
