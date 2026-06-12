@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Dumbbell, Activity, Lock, Shirt } from "lucide-react";
+import { ArrowLeft, Dumbbell, Activity, Lock, Shirt, Search, X } from "lucide-react";
 
 function calcEndDateByPT(start: string, sessions: string): string {
   if (!start || !sessions) return "";
@@ -42,6 +42,9 @@ export default function MemberReRegister() {
     const params = new URLSearchParams(search);
     return params.get("memberId") ?? "";
   });
+  const [memberSearch, setMemberSearch] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   // 공유 날짜
   const [membershipStart, setMembershipStart] = useState(today);
@@ -308,18 +311,48 @@ export default function MemberReRegister() {
             <CardTitle className="text-base font-semibold">회원 선택</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <select
-              value={selectedMemberId}
-              onChange={e => setSelectedMemberId(e.target.value)}
-              className="w-full bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="">회원을 선택하세요</option>
-              {[...members].sort((a, b) => a.name.localeCompare(b.name, "ko")).map(m => (
-                <option key={m.id} value={String(m.id)}>
-                  {m.name}{m.phone ? ` (${m.phone})` : ""}
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={searchRef}>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={selectedMember ? selectedMember.name + (selectedMember.phone ? ` (${selectedMember.phone})` : "") : memberSearch}
+                  onChange={e => {
+                    if (selectedMemberId) { setSelectedMemberId(""); setMemberSearch(e.target.value); }
+                    else { setMemberSearch(e.target.value); }
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => { if (!selectedMemberId) setShowSuggestions(true); }}
+                  placeholder="이름 또는 연락처로 검색"
+                  className="w-full pl-9 pr-9 py-2 bg-input border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                {(selectedMemberId || memberSearch) && (
+                  <button type="button" onClick={() => { setSelectedMemberId(""); setMemberSearch(""); setShowSuggestions(false); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {showSuggestions && !selectedMemberId && memberSearch && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                  {[...members]
+                    .filter(m => m.name.includes(memberSearch) || (m.phone ?? "").includes(memberSearch))
+                    .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+                    .slice(0, 20)
+                    .map(m => (
+                      <button key={m.id} type="button"
+                        onMouseDown={() => { setSelectedMemberId(String(m.id)); setShowSuggestions(false); setMemberSearch(""); }}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent transition-colors flex items-center justify-between">
+                        <span className="font-medium">{m.name}</span>
+                        {m.phone && <span className="text-xs text-muted-foreground">{m.phone}</span>}
+                      </button>
+                    ))}
+                  {members.filter(m => m.name.includes(memberSearch) || (m.phone ?? "").includes(memberSearch)).length === 0 && (
+                    <p className="text-sm text-muted-foreground px-4 py-3">검색 결과가 없습니다</p>
+                  )}
+                </div>
+              )}
+            </div>
             {selectedMember && (
               <div className="bg-background border border-border rounded-lg px-3 py-2.5 flex gap-4 flex-wrap">
                 <div>
