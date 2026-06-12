@@ -8,7 +8,7 @@ const BRANCH = {
     phone: "0507-1482-3349",
     hours: { weekday: "08:00 – 23:00", sat: "10:00 – 17:00", sun: "휴무" },
     naverUrl: "https://naver.me/GALzXokD",
-    kakaoUrl: "https://pf.kakao.com/_YOUR_ID_1",
+    kakaoUrl: "http://pf.kakao.com/_hEHnX/chat",
   },
   b2: {
     name: "2호점",
@@ -16,7 +16,7 @@ const BRANCH = {
     phone: "0507-1457-4003",
     hours: { weekday: "08:00 – 23:00", sat: "10:00 – 17:00", sun: "휴무" },
     naverUrl: "https://naver.me/51upjb7H",
-    kakaoUrl: "https://pf.kakao.com/_YOUR_ID_2",
+    kakaoUrl: "http://pf.kakao.com/_hEHnX/chat",
   },
 };
 
