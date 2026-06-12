@@ -11,9 +11,13 @@ type Notice = { id: number; title: string; content: string; isPinned: boolean; i
 const TAB_OPTIONS = [
   { key: "all",        label: "전체 (공통)" },
   { key: "dashboard",  label: "대시보드" },
-  { key: "pt",         label: "수업 관리" },
+  { key: "pt",         label: "회원 관리" },
+  { key: "sessions",   label: "수업 관리" },
+  { key: "leads",      label: "상담실" },
+  { key: "workshop",   label: "작업실" },
+  { key: "booking",    label: "수업 예약 관리" },
+  { key: "settlement", label: "성장분석실" },
   { key: "attendance", label: "출석 체크" },
-  { key: "leads",      label: "상담관리" },
   { key: "profile",    label: "내 프로필" },
 ];
 
