@@ -529,7 +529,7 @@ const revenueRouter = t.router({
               unpaidAmount: input.unpaidAmount ?? 0,
               paymentMethod: input.paymentMethod ?? undefined,
               paymentDate: input.paymentDate ?? undefined,
-              memo: input.memo ?? undefined,
+              paymentMemo: input.memo ?? undefined,
             });
           }
         }
@@ -638,7 +638,7 @@ const revenueRouter = t.router({
             unpaidAmount: row.unpaidAmount ?? 0,
             paymentMethod: row.paymentMethod ?? undefined,
             paymentDate: row.paymentDate ?? undefined,
-            memo: row.memo ?? undefined,
+            paymentMemo: row.memo ?? undefined,
           });
         }
       }
@@ -749,7 +749,7 @@ const revenueRouter = t.router({
           unpaidAmount: rev.unpaidAmount ?? 0,
           paymentMethod: rev.paymentMethod ?? undefined,
           paymentDate: rev.paymentDate ?? undefined,
-          memo: rev.memo ?? undefined,
+          paymentMemo: rev.memo ?? undefined,
         });
         created++;
       }
