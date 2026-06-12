@@ -329,7 +329,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             <CardTitle className="text-base font-semibold">기본 정보</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentUser?.role === "admin" && !isEdit && !(hasHealth && !hasPT && !hasOther) && (
+            {currentUser?.role === "admin" && !isEdit && hasPT && (
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">
                   담당 트레이너 <span className="text-primary">*</span>
