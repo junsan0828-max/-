@@ -367,18 +367,19 @@ const membersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const [result, lockerRows, serviceRevs] = await Promise.all([
+      const [result, lockerRows, serviceRevs, uniformRows] = await Promise.all([
         db.select().from(members).where(eq(members.id, input.id)).limit(1),
         db.select({ memberId: lockers.memberId, lockerNumber: lockers.lockerNumber })
           .from(lockers).where(and(eq(lockers.memberId, input.id), sql`${lockers.memberId} IS NOT NULL`)),
         db.select({ memberId: revenueEntries.memberId, programDetail: revenueEntries.programDetail, serviceItems: revenueEntries.serviceItems })
           .from(revenueEntries).where(eq(revenueEntries.memberId, input.id)),
+        db.select({ id: uniforms.id }).from(uniforms).where(eq(uniforms.memberId, input.id)).limit(1),
       ]);
       if (!result[0]) throw new TRPCError({ code: "NOT_FOUND" });
 
       // 락커 번호 (lockers 테이블 또는 serviceItems)
       let lockerNumber: string | null = lockerRows[0]?.lockerNumber ?? null;
-      let hasUniform = false;
+      let hasUniform = uniformRows.length > 0;
       for (const e of serviceRevs) {
         const si = (e.serviceItems ?? "").toLowerCase();
         const d = (e.programDetail ?? "").toLowerCase();
