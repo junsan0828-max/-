@@ -283,7 +283,7 @@ function TrainerDashboard() {
         </div>
         <div className="flex items-center gap-2">
           <a
-            href="https://noble-unity-production-8100.up.railway.app/"
+            href="https://noble-unity-production-8100.up.railway.app/?ref=fitstep"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
