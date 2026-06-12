@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
+  Zap, FileText, CalendarCheck, BarChart3, Globe,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -167,6 +168,45 @@ function BannerAndNotices() {
   );
 }
 
+function WorkshopPromoBanner({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] px-5 pt-6 pb-5 text-white">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-28 h-28 rounded-full bg-violet-500/20 blur-2xl" />
+      </div>
+      <div className="relative inline-flex items-center gap-1.5 bg-primary/20 border border-primary/30 rounded-full px-3 py-1 mb-3">
+        <Zap className="h-3 w-3 text-primary" />
+        <span className="text-[11px] font-bold text-primary tracking-wide">FIT STEP 작업실</span>
+      </div>
+      <div className="relative space-y-1.5 mb-4">
+        <h2 className="text-[18px] font-black leading-tight tracking-tight">
+          수업만 하는 트레이너에서,<br />
+          <span className="text-primary">브랜드를 만드는</span> 전문가로
+        </h2>
+        <p className="text-xs text-white/55 leading-relaxed">전자계약 · 예약관리 · 보고서 · 개인 브랜딩을 시작하세요.</p>
+      </div>
+      <div className="relative grid grid-cols-4 gap-1.5 mb-4">
+        {[
+          { icon: FileText, label: "전자계약" },
+          { icon: CalendarCheck, label: "예약관리" },
+          { icon: BarChart3, label: "보고서" },
+          { icon: Globe, label: "브랜딩" },
+        ].map(f => (
+          <div key={f.label} className="flex flex-col items-center gap-1 bg-white/8 rounded-xl py-2.5 border border-white/10">
+            <f.icon className="h-4 w-4 text-primary" />
+            <span className="text-[10px] font-semibold text-white/70">{f.label}</span>
+          </div>
+        ))}
+      </div>
+      <button onClick={onStart}
+        className="relative w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all">
+        30일 전체 기능 무료 체험 시작 →
+      </button>
+    </div>
+  );
+}
+
 function TrainerDashboard() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
@@ -174,6 +214,7 @@ function TrainerDashboard() {
   const { data: chartData } = trpc.dashboard.getMonthlyChart.useQuery();
   const { data: revenueData } = trpc.dashboard.getMonthlyRevenue.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
 
   const [journalOpen, setJournalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
@@ -186,6 +227,11 @@ function TrainerDashboard() {
     bodyPart: "",
     notes: "",
     exercises: [] as Exercise[],
+  });
+
+  const startTrialMutation = trpc.workshop.startTrial.useMutation({
+    onSuccess: () => { toast.success("30일 전체 기능 무료 체험이 시작되었습니다!"); setLocation("/workshop"); },
+    onError: (e) => toast.error(e.message),
   });
 
   const useSessionMutation = trpc.pt.useSession.useMutation({
@@ -227,6 +273,9 @@ function TrainerDashboard() {
     <div className="space-y-6">
       <TabBanner tabKey="dashboard" />
       <BannerAndNotices />
+      {wsStatus?.status === "unopened" && (
+        <WorkshopPromoBanner onStart={() => startTrialMutation.mutate()} />
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">대시보드</h1>
