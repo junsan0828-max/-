@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
-  Zap, FileText, CalendarCheck, BarChart3, Globe,
+  Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -281,10 +281,21 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
-        <Button onClick={() => setLocation("/attendance")} className="gap-2">
-          <Dumbbell className="h-4 w-4" />
-          수업 하기
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href="https://noble-unity-production-8100.up.railway.app/"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
+          >
+            <UtensilsCrossed className="h-4 w-4" />
+            맞춤 식단
+          </a>
+          <Button onClick={() => setLocation("/attendance")} className="gap-2">
+            <Dumbbell className="h-4 w-4" />
+            수업 하기
+          </Button>
+        </div>
       </div>
 
       {/* 알림 뱃지 */}
