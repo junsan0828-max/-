@@ -1441,13 +1441,16 @@ export default function MemberDetail({ memberId }: Props) {
             // serviceItems가 없지만 programDetail에 해당 카테고리가 있는 항목
             // + serviceItems 있지만 parseItems에서 못 잡은 경우 fallback
             const siEntryIds = new Set(siEntries.map(r => r.id));
-            const pdUniform = allRevs.filter(r =>
-              !siEntryIds.has(r.id) && /운동복|유니폼|uniform/i.test(r.programDetail ?? "")
-            ).map(r => ({ key: `pd-${r.id}`, detail: r.programDetail ?? "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
-            // serviceItems에 운동복이 있지만 parseItems에서 못 잡은 항목 보완
+            // serviceItems에 운동복이 있지만 parseItems에서 못 잡은 항목 보완 (pdUniform보다 먼저 정의)
             const siUniformFallback = siEntries
               .filter(r => /운동복|유니폼|uniform/i.test(r.serviceItems ?? "") && !siUniform.some(u => u.fromEntry === r.id))
               .map(r => ({ key: `si-fb-${r.id}`, detail: "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
+            // programDetail에 운동복이 있고 siUniform/siUniformFallback에 포함되지 않은 항목
+            const pdUniform = allRevs.filter(r =>
+              /운동복|유니폼|uniform/i.test(r.programDetail ?? "") &&
+              !siUniform.some(u => u.fromEntry === r.id) &&
+              !siUniformFallback.some(u => u.fromEntry === r.id)
+            ).map(r => ({ key: `pd-${r.id}`, detail: r.programDetail ?? "운동복", paymentDate: r.paymentDate, subType: r.subType, fromEntry: r.id }));
 
             const pdLocker = allRevs.filter(r =>
               !siEntryIds.has(r.id) && /락커/i.test(r.programDetail ?? "")
@@ -1489,7 +1492,7 @@ export default function MemberDetail({ memberId }: Props) {
             const badgeLockerNum = (member as any).lockerNumber as string | null;
             const badgeHasUniform = !!(member as any).hasUniform;
             const lockerMismatch = !!badgeLockerNum && !hasLocker;
-            const uniformMismatch = badgeHasUniform && !hasUniform;
+            const uniformMismatch = !!memberPrograms && badgeHasUniform && !hasUniform;
 
             return (
               <>
