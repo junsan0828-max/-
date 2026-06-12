@@ -809,39 +809,79 @@ const revenueRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 결제금액 있는 PT 패키지 전체 로드
-      const pkgs = await db.select().from(ptPackages)
-        .where(and(isNotNull(ptPackages.memberId), isNotNull(ptPackages.paymentAmount)));
+      const today = new Date().toISOString().substring(0, 10);
 
-      // 기존 revenue_entries: memberId+type=PT 기준 (paymentDate별 SET)
+      // ── Phase 1: memberId 없는 장부 항목 → 이름+전화번호로 회원 연결 ──────────
+      const orphanRevs = await db.select({
+        id: revenueEntries.id,
+        customerName: revenueEntries.customerName,
+        phone: revenueEntries.phone,
+      }).from(revenueEntries)
+        .where(sql`${revenueEntries.memberId} IS NULL AND ${revenueEntries.customerName} IS NOT NULL`);
+
+      let linked = 0;
+      for (const rev of orphanRevs) {
+        if (!rev.customerName) continue;
+        let found: { id: number } | undefined;
+        if (rev.phone) {
+          const rows = await db.select({ id: members.id })
+            .from(members)
+            .where(and(eq(members.name, rev.customerName), eq(members.phone, rev.phone)))
+            .limit(1);
+          found = rows[0];
+        }
+        if (!found) {
+          const rows = await db.select({ id: members.id })
+            .from(members)
+            .where(eq(members.name, rev.customerName))
+            .limit(1);
+          found = rows[0];
+        }
+        if (found) {
+          await db.update(revenueEntries).set({ memberId: found.id })
+            .where(eq(revenueEntries.id, rev.id));
+          linked++;
+        }
+      }
+
+      // ── Phase 2: PT 패키지 있는데 장부 항목 없는 회원 → 장부 생성 ─────────────
+      // memberId 있는 모든 PT 패키지 로드 (결제금액 조건 없이)
+      const pkgs = await db.select().from(ptPackages)
+        .where(isNotNull(ptPackages.memberId));
+
+      // Phase 1 완료 후 재조회: PT 장부 항목 (memberId 있는 것)
       const existingRevs = await db.select({
         memberId: revenueEntries.memberId,
         paymentDate: revenueEntries.paymentDate,
-        amount: revenueEntries.amount,
       }).from(revenueEntries)
         .where(and(eq(revenueEntries.type, "PT"), isNotNull(revenueEntries.memberId)));
 
-      // 중복 키: memberId|paymentDate
+      // 중복 키: memberId|paymentDate (같은 날짜 같은 회원은 1건만)
       const revKey = (memberId: number, paymentDate: string) => `${memberId}|${paymentDate}`;
       const existingRevSet = new Set(existingRevs.map(r => revKey(r.memberId!, r.paymentDate)));
 
-      // 회원 이름/전화번호 조회용 맵
-      const memberIds = [...new Set(pkgs.map(p => p.memberId))];
-      const memberRows = memberIds.length > 0
+      // 회원별 이미 장부 항목 존재 여부 (날짜 무관)
+      const memberIdsWithRev = new Set(existingRevs.map(r => r.memberId!));
+
+      const allMemberIds = [...new Set(pkgs.map(p => p.memberId))];
+      const memberRows = allMemberIds.length > 0
         ? await db.select({ id: members.id, name: members.name, phone: members.phone, branchId: members.branchId })
-            .from(members).where(inArray(members.id, memberIds))
+            .from(members).where(inArray(members.id, allMemberIds))
         : [];
       const memberMap = new Map(memberRows.map(m => [m.id, m]));
 
       let created = 0;
-      const today = new Date().toISOString().substring(0, 10);
       for (const pkg of pkgs) {
-        if (!pkg.memberId || !pkg.paymentAmount || pkg.paymentAmount <= 0) continue;
+        if (!pkg.memberId) continue;
+        // 이미 이 회원의 PT 장부 항목이 존재하면 건너뜀
+        if (memberIdsWithRev.has(pkg.memberId)) continue;
+
         const payDate = pkg.paymentDate ?? pkg.startDate ?? today;
         const key = revKey(pkg.memberId, payDate);
         if (existingRevSet.has(key)) continue;
 
         const mem = memberMap.get(pkg.memberId);
+        const amount = pkg.paymentAmount ?? 0;
         await db.insert(revenueEntries).values({
           memberId: pkg.memberId,
           trainerId: pkg.trainerId ?? null,
@@ -853,20 +893,20 @@ const revenueRouter = t.router({
           sessions: pkg.totalSessions,
           type: "PT",
           subType: "신규",
-          amount: pkg.paymentAmount,
+          amount,
           discountAmount: 0,
-          paidAmount: pkg.paymentAmount - (pkg.unpaidAmount ?? 0),
+          paidAmount: amount - (pkg.unpaidAmount ?? 0),
           unpaidAmount: pkg.unpaidAmount ?? 0,
           paymentMethod: pkg.paymentMethod ?? undefined,
           paymentDate: payDate,
           startDate: pkg.startDate ?? undefined,
           memo: pkg.paymentMemo ?? null,
         });
-        // 중복 방지를 위해 set에 추가
         existingRevSet.add(key);
+        memberIdsWithRev.add(pkg.memberId);
         created++;
       }
-      return { created };
+      return { linked, created };
     }),
 
   monthlySummary: protectedProcedure

@@ -96,7 +96,11 @@ export default function AdminMembers() {
   });
   const syncRevenueMutation = trpc.gym.revenue.syncRevenueFromPackages.useMutation({
     onSuccess: (data) => {
-      toast.success(`장부 역동기화 완료 ${data.created > 0 ? `(${data.created}건 생성)` : "(변경 없음)"}`);
+      const parts = [
+        (data as any).linked > 0 && `${(data as any).linked}건 연결`,
+        data.created > 0 && `${data.created}건 생성`,
+      ].filter(Boolean).join(", ");
+      toast.success(`장부 역동기화 완료 ${parts ? `(${parts})` : "(변경 없음)"}`);
       utils.members.listAll.invalidate();
     },
     onError: (e) => toast.error(`장부 동기화 오류: ${e.message}`),
