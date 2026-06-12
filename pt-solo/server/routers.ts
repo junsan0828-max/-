@@ -4719,7 +4719,7 @@ const trainerFeedbackRouter = t.router({
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const trainerRow = await pool.query<{ name: string; username: string }>(
-        `SELECT t.name, u.username FROM trainers t JOIN users u ON u."trainerId" = t.id WHERE t.id = $1 LIMIT 1`,
+        `SELECT t."trainerName" AS name, u.username FROM trainers t JOIN users u ON t."userId" = u.id WHERE t.id = $1 LIMIT 1`,
         [trainerId]
       );
       const trainerName = trainerRow.rows[0]?.name ?? "unknown";
