@@ -26,7 +26,10 @@ const IMG = {
   intro: "/images/facility/facility-overview.jpg",
   bodyAnalysis: "/images/training/body-analysis.jpg",
   ptSession: "/images/training/pt-session.jpg",
-  memberWorkout: "/images/training/member-workout.jpg",
+  memberWorkout: {
+    b1: "/images/training/member-workout-1.jpg",
+    b2: "/images/training/member-workout-2.jpg",
+  },
   beforeAfter: [
     { before: "/images/reviews/review-01-before.jpg", after: "/images/reviews/review-01-after.jpg", label: "3개월 체형교정" },
     { before: "/images/reviews/review-02-before.jpg", after: "/images/reviews/review-02-after.jpg", label: "4개월 다이어트" },
@@ -344,7 +347,7 @@ function ProgramSection() {
                 </div>
               ))}
             </div>
-            <Img src={IMG.memberWorkout} alt="헬스 이용 장면" className="w-full aspect-video object-cover" />
+            <Img src={IMG.memberWorkout[branch]} alt="헬스 이용 장면" className="w-full aspect-video object-cover" />
           </div>
 
           {/* 개인 맞춤 PT */}
