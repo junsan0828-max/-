@@ -225,7 +225,18 @@ function matchGuide(path: string): PageGuide | null {
   return key ? GUIDES[key] : null;
 }
 
-export default function PageGuideModal({ path, onClose }: { path: string; onClose: () => void }) {
+// 서버에서 받은 dismissed 목록을 런타임 Set에 동기화
+export function syncServerDismissed(keys: string[]) {
+  keys.forEach(k => runtimeDismissed.add(k));
+}
+
+export default function PageGuideModal({
+  path, onClose, onDismissPermanent,
+}: {
+  path: string;
+  onClose: () => void;
+  onDismissPermanent?: (key: string) => void;
+}) {
   const guide = matchGuide(path);
   if (!guide) return null;
 
@@ -236,6 +247,7 @@ export default function PageGuideModal({ path, onClose }: { path: string; onClos
     runtimeDismissed.add(key);
     safeSet(localStorage, storageKey(key), "1");
     safeSet(sessionStorage, sessionKey(key), "1");
+    onDismissPermanent?.(key);
     onClose();
   }
 

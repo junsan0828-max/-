@@ -11,13 +11,19 @@ import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
 import BasicInfoModal from "./BasicInfoModal";
 import InstallPromptModal from "./InstallPromptModal";
-import PageGuideModal, { shouldShowGuide } from "./PageGuideModal";
+import PageGuideModal, { shouldShowGuide, syncServerDismissed } from "./PageGuideModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
   const { data: profile } = trpc.trainers.getMyProfile.useQuery(undefined, { enabled: user?.role === "trainer" });
   const { data: wsStatus } = trpc.workshop.getStatus.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const { data: serverDismissed } = trpc.trainers.getGuideDismissed.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const dismissGuideMutation = trpc.trainers.dismissGuide.useMutation();
+
+  useEffect(() => {
+    if (serverDismissed && serverDismissed.length > 0) syncServerDismissed(serverDismissed);
+  }, [serverDismissed]);
   const isFeatureActive = (featureId: string) => {
     const removed = (wsStatus?.removedFeatures ?? []) as string[];
     const configs = (wsStatus?.featureConfigs ?? {}) as Record<string, string>;
@@ -260,7 +266,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
         )}
         {showSurvey && <OnboardingSurveyModal onClose={() => { sessionStorage.setItem("onboarding-survey-dismissed", "1"); setSurveyDone(true); }} />}
-        {guideOpen && <PageGuideModal path={location} onClose={() => setGuideOpen(false)} />}
+        {guideOpen && (
+          <PageGuideModal
+            path={location}
+            onClose={() => setGuideOpen(false)}
+            onDismissPermanent={(key) => dismissGuideMutation.mutate({ key })}
+          />
+        )}
       </div>
     </div>
   );

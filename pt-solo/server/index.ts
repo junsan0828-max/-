@@ -780,6 +780,7 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE fit_point_logs ADD COLUMN IF NOT EXISTS "expiresAt" TEXT`);
   await pool.query(`ALTER TABLE fit_step_plus_workout_logs ADD COLUMN IF NOT EXISTS intensity TEXT`);
   await pool.query(`ALTER TABLE fit_step_plus_workout_logs ADD COLUMN IF NOT EXISTS "totalVolume" INTEGER`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "guideDismissed" TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "workshopTrialStartedAt" TEXT`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "removedFeatures" TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "eliteTrialStartedAt" TEXT`);

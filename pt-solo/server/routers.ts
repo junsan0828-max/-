@@ -1290,6 +1290,36 @@ const trainersRouter = t.router({
       );
       return { ok: true, pointsGranted: true };
     }),
+
+  getGuideDismissed: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) return [];
+    const result = await pool.query<{ guideDismissed: string }>(
+      `SELECT "guideDismissed" FROM trainer_settings WHERE "trainerId" = $1 LIMIT 1`,
+      [trainerId]
+    );
+    const raw = result.rows[0]?.guideDismissed ?? "";
+    return raw ? raw.split(",").filter(Boolean) : [];
+  }),
+
+  dismissGuide: protectedProcedure
+    .input(z.object({ key: z.string().min(1).max(200) }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) return;
+      const existing = await pool.query<{ guideDismissed: string }>(
+        `SELECT "guideDismissed" FROM trainer_settings WHERE "trainerId" = $1 LIMIT 1`,
+        [trainerId]
+      );
+      const current = existing.rows[0]?.guideDismissed ?? "";
+      const keys = new Set(current.split(",").filter(Boolean));
+      keys.add(input.key);
+      await pool.query(
+        `UPDATE trainer_settings SET "guideDismissed" = $1 WHERE "trainerId" = $2`,
+        [Array.from(keys).join(","), trainerId]
+      );
+      return { success: true };
+    }),
 });
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
