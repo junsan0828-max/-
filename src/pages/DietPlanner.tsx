@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Wheat, Beef, Droplets, Loader2, RefreshCw, Dumbbell, Lock, Zap, ChevronRight } from "lucide-react";
+import { Salad, User, Activity, Utensils, Share2, Check, AlertCircle, Flame, Wheat, Beef, Droplets, Loader2, RefreshCw, Dumbbell, Lock, Zap, ChevronRight, Leaf, TrendingDown } from "lucide-react";
 
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRk00IJXvZha8RRaMK40XQ-C20WhhmPVHxLbxiUnPZZfy64fd8muHWuz_QbhNXjLDkqscnrbRQ-AzME/pub?gid=287813752&single=true&output=csv";
@@ -1305,6 +1305,18 @@ function calcTDEE(bmr: number, activity: string): number {
   return Math.round(bmr * (ACTIVITY_MULTIPLIER[activity] ?? 1.55));
 }
 
+// ─── 식단 목적 설정 ─────────────────────────────────────────────────────────────
+type DietGoal = "cut" | "bulk" | "maintain" | "habit";
+const DIET_GOAL_CONFIG: Record<DietGoal, {
+  label: string; desc: string; mult: number;
+  carb: number; prot: number; fat: number; healthRatio: number;
+}> = {
+  cut:      { label:"체중 감량",   desc:"체지방 감소를 위해 단백질 섭취를 늘리고 총 섭취 열량을 조절합니다.",     mult:0.85, carb:0.40, prot:0.35, fat:0.25, healthRatio:80 },
+  bulk:     { label:"근육량 증가", desc:"운동 수행 능력과 회복을 위해 충분한 에너지와 단백질을 제공합니다.",     mult:1.10, carb:0.50, prot:0.30, fat:0.20, healthRatio:65 },
+  maintain: { label:"건강 유지",   desc:"균형 잡힌 영양소 비율을 통해 건강한 식습관을 유지합니다.",             mult:1.00, carb:0.50, prot:0.25, fat:0.25, healthRatio:60 },
+  habit:    { label:"식습관 개선", desc:"규칙적인 식사를 통해 건강한 생활 습관 형성을 돕습니다.",               mult:1.00, carb:0.55, prot:0.20, fat:0.25, healthRatio:50 },
+};
+
 function mealScore(item: MealDBItem, targetKcal: number, healthRatio = 50): number {
   // Primary: closeness to target (scale-free % diff so high-TDEE users aren't penalized)
   const kcalDiff = Math.abs(item.kcal - targetKcal) / Math.max(targetKcal, 1) * 100;
@@ -1680,6 +1692,7 @@ export default function DietPlanner() {
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState("");
   const [activity, setActivity] = useState<"low" | "moderate" | "high">("moderate");
+  const [dietGoal, setDietGoal] = useState<DietGoal | null>(null);
   const [mealMode, setMealMode] = useState<"recommended"|"realistic">("recommended");
   const [includeFood, setIncludeFood] = useState("");
   const [excludeFood, setExcludeFood] = useState("");
@@ -1844,27 +1857,37 @@ export default function DietPlanner() {
       ? calcBMR(gender, parseInt(age), parseFloat(weight), parseFloat(height))
       : 0;
   const tdee = bmr ? calcTDEE(bmr, activity) : 0;
+  const goalCfg = dietGoal ? DIET_GOAL_CONFIG[dietGoal] : null;
+  const adjustedTdee = tdee && goalCfg ? Math.round(tdee * goalCfg.mult) : tdee;
+  const goalMacros = adjustedTdee && goalCfg ? {
+    carb: Math.round(adjustedTdee * goalCfg.carb / 4),
+    prot: Math.round(adjustedTdee * goalCfg.prot / 4),
+    fat:  Math.round(adjustedTdee * goalCfg.fat  / 9),
+  } : null;
   const pctTotal = pctBreakfast + pctLunch + pctDinner + pctSnack;
 
   function handleGenerate() {
+    if (!dietGoal) return;
     const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
     const limit = DAILY_LIMITS[effectiveType] ?? 2;
     if (todayCount >= limit) { setShowLimitModal(true); return; }
     setRatioError(false);
     const includeList = includeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     const excludeList = excludeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+    const effectiveHealthRatio = goalCfg ? goalCfg.healthRatio : healthRatio;
+    const base = adjustedTdee;
     const plan: MealPlan = mealMode === "realistic"
       ? {
-          breakfast: buildRealMeal("breakfast", (tdee * pctBreakfast) / 100),
-          lunch:     buildRealMeal("lunch",     (tdee * pctLunch)     / 100),
-          dinner:    buildRealMeal("dinner",    (tdee * pctDinner)    / 100),
-          snack:     buildRealMeal("snack",     (tdee * pctSnack)     / 100),
+          breakfast: buildRealMeal("breakfast", (base * pctBreakfast) / 100),
+          lunch:     buildRealMeal("lunch",     (base * pctLunch)     / 100),
+          dinner:    buildRealMeal("dinner",    (base * pctDinner)    / 100),
+          snack:     buildRealMeal("snack",     (base * pctSnack)     / 100),
         }
       : {
-          breakfast: buildMealFromDB(dbItems, "breakfast", (tdee * pctBreakfast) / 100, includeList, excludeList, healthRatio),
-          lunch:     buildMealFromDB(dbItems, "lunch",     (tdee * pctLunch)     / 100, includeList, excludeList, healthRatio),
-          dinner:    buildMealFromDB(dbItems, "dinner",    (tdee * pctDinner)    / 100, includeList, excludeList, healthRatio),
-          snack:     buildMealFromDB(dbItems, "snack",     (tdee * pctSnack)     / 100, includeList, excludeList, healthRatio),
+          breakfast: buildMealFromDB(dbItems, "breakfast", (base * pctBreakfast) / 100, includeList, excludeList, effectiveHealthRatio),
+          lunch:     buildMealFromDB(dbItems, "lunch",     (base * pctLunch)     / 100, includeList, excludeList, effectiveHealthRatio),
+          dinner:    buildMealFromDB(dbItems, "dinner",    (base * pctDinner)    / 100, includeList, excludeList, effectiveHealthRatio),
+          snack:     buildMealFromDB(dbItems, "snack",     (base * pctSnack)     / 100, includeList, excludeList, effectiveHealthRatio),
         };
     setMealPlan(plan);
     const newCount = incGenCount();
@@ -2163,6 +2186,62 @@ export default function DietPlanner() {
               ))}
             </div>
           </div>
+
+          {/* 식단 목적 */}
+          <div>
+            <label className="block text-xs text-gray-400 mb-2">
+              식단 목적 <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { key:"cut"      as DietGoal, Icon:TrendingDown, label:"체중 감량",   sub:"체지방 감소를 위한 식단" },
+                { key:"bulk"     as DietGoal, Icon:Dumbbell,     label:"근육량 증가", sub:"근육 성장 및 수행 향상" },
+                { key:"maintain" as DietGoal, Icon:Leaf,         label:"건강 유지",   sub:"균형 잡힌 건강한 식습관" },
+                { key:"habit"    as DietGoal, Icon:Utensils,     label:"식습관 개선", sub:"규칙적인 식사 습관 형성" },
+              ]).map(({ key, Icon, label, sub }) => (
+                <button
+                  key={key}
+                  onClick={() => setDietGoal(key)}
+                  className={`text-left p-3 rounded-xl border transition-colors ${
+                    dietGoal === key
+                      ? "bg-emerald-500/10 border-emerald-500/60"
+                      : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${dietGoal===key?"text-emerald-400":"text-gray-500"}`} strokeWidth={2} />
+                    <span className={`text-xs font-bold ${dietGoal===key?"text-emerald-400":"text-gray-300"}`}>{label}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 leading-relaxed pl-5">{sub}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* 목적 선택 후 칼로리·영양소 미리보기 */}
+            {goalCfg && adjustedTdee > 0 && goalMacros && (
+              <div className="mt-3 bg-gray-800/60 border border-gray-700/50 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-emerald-400">{goalCfg.label}</span>
+                  <span className="text-[11px] font-bold text-white">{adjustedTdee.toLocaleString()} kcal</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-gray-900/60 rounded-lg py-2">
+                    <p className="text-[10px] text-gray-500 mb-0.5">탄수화물</p>
+                    <p className="text-xs font-bold text-yellow-400">{goalMacros.carb}g</p>
+                  </div>
+                  <div className="bg-gray-900/60 rounded-lg py-2">
+                    <p className="text-[10px] text-gray-500 mb-0.5">단백질</p>
+                    <p className="text-xs font-bold text-blue-400">{goalMacros.prot}g</p>
+                  </div>
+                  <div className="bg-gray-900/60 rounded-lg py-2">
+                    <p className="text-[10px] text-gray-500 mb-0.5">지방</p>
+                    <p className="text-xs font-bold text-red-400">{goalMacros.fat}g</p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 leading-relaxed">{goalCfg.desc}</p>
+              </div>
+            )}
+          </div>
         </section>
 
         {/* ── 음식 설정 ── */}
@@ -2292,15 +2371,17 @@ export default function DietPlanner() {
         {/* 생성 버튼 */}
         <button
           onClick={handleGenerate}
-          disabled={!tdee || dbLoading}
+          disabled={!tdee || !dietGoal || dbLoading}
           className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold text-sm transition-colors"
         >
           {dbLoading
             ? "식품 DB 로딩 중..."
             : !tdee
             ? "회원 정보를 먼저 입력하세요"
+            : !dietGoal
+            ? "식단 목적을 선택해주세요"
             : mealPlan
-            ? "🔄 식단 다시 생성"
+            ? "식단 다시 생성"
             : "식단 자동 생성"}
         </button>
 
@@ -2326,24 +2407,40 @@ export default function DietPlanner() {
             {(() => {
               const total = sumMeal([...mealPlan.breakfast, ...mealPlan.lunch, ...mealPlan.dinner, ...mealPlan.snack]);
               return (
-                <div className="bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-800/40 rounded-2xl p-4 grid grid-cols-4 gap-2 text-center">
-                  <div>
-                    <p className="text-xs text-gray-400 mb-0.5">총 칼로리</p>
-                    <p className="text-base font-bold text-emerald-400">{total.kcal.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">kcal</p>
+                <div className="space-y-2">
+                  {goalCfg && (
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[11px] text-gray-500">식단 목적</span>
+                      <span className="text-[11px] font-bold text-emerald-400">{goalCfg.label}</span>
+                    </div>
+                  )}
+                  <div className="bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-800/40 rounded-2xl p-4 grid grid-cols-4 gap-2 text-center">
+                    <div>
+                      <p className="text-xs text-gray-400 mb-0.5">총 칼로리</p>
+                      <p className="text-base font-bold text-emerald-400">{total.kcal.toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">kcal</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-0.5">탄수화물</p>
+                      <p className="text-base font-bold text-yellow-400">{total.carb}g</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-0.5">단백질</p>
+                      <p className="text-base font-bold text-blue-400">{total.protein}g</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-0.5">지방</p>
+                      <p className="text-base font-bold text-red-400">{total.fat}g</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-400 mb-0.5">탄수화물</p>
-                    <p className="text-base font-bold text-yellow-400">{total.carb}g</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 mb-0.5">단백질</p>
-                    <p className="text-base font-bold text-blue-400">{total.protein}g</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 mb-0.5">지방</p>
-                    <p className="text-base font-bold text-red-400">{total.fat}g</p>
-                  </div>
+                  {goalMacros && (
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] text-gray-600">목표</span>
+                      <span className="text-[10px] text-gray-500">
+                        탄 {goalMacros.carb}g · 단 {goalMacros.prot}g · 지 {goalMacros.fat}g
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })()}
