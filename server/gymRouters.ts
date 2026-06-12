@@ -618,14 +618,16 @@ const revenueRouter = t.router({
 
       const [row] = await db.update(revenueEntries).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, id)).returning();
 
-      // PT 타입이고 회원이 연결되어 있으면 ptPackage 생성 (startDate+sessions 기준 중복 방지)
+      // PT 타입이고 회원이 연결되어 있으면 ptPackage 생성/금액 동기화
       if (row.type === "PT" && row.memberId && row.sessions && row.sessions > 0) {
-        const existingPkg = await db.select({ id: ptPackages.id }).from(ptPackages)
+        const existingPkg = await db.select({ id: ptPackages.id, paymentAmount: ptPackages.paymentAmount })
+          .from(ptPackages)
           .where(and(
             eq(ptPackages.memberId, row.memberId),
             eq(ptPackages.startDate, row.startDate ?? ""),
             eq(ptPackages.totalSessions, row.sessions),
           )).limit(1);
+        const newAmount = row.paidAmount ?? row.amount ?? undefined;
         if (existingPkg.length === 0) {
           await db.insert(ptPackages).values({
             memberId: row.memberId,
@@ -634,12 +636,20 @@ const revenueRouter = t.router({
             totalSessions: row.sessions,
             usedSessions: 0,
             startDate: row.startDate ?? undefined,
-            paymentAmount: row.paidAmount ?? row.amount ?? undefined,
+            paymentAmount: newAmount,
             unpaidAmount: row.unpaidAmount ?? 0,
             paymentMethod: row.paymentMethod ?? undefined,
             paymentDate: row.paymentDate ?? undefined,
             paymentMemo: row.memo ?? undefined,
           });
+        } else if (newAmount != null && existingPkg[0].paymentAmount !== newAmount) {
+          // 장부 금액이 변경된 경우 패키지 금액도 동기화
+          await db.update(ptPackages).set({
+            paymentAmount: newAmount,
+            unpaidAmount: row.unpaidAmount ?? 0,
+            paymentMethod: row.paymentMethod ?? undefined,
+            paymentDate: row.paymentDate ?? undefined,
+          }).where(eq(ptPackages.id, existingPkg[0].id));
         }
       }
 
@@ -743,36 +753,51 @@ const revenueRouter = t.router({
         .where(and(eq(revenueEntries.type, "PT"), isNotNull(revenueEntries.memberId)));
       // 기존 ptPackages 전체 로드 (memberId + startDate + totalSessions 조합으로 중복 체크)
       const existingPkgs = await db.select({
+        id: ptPackages.id,
         memberId: ptPackages.memberId,
         startDate: ptPackages.startDate,
         totalSessions: ptPackages.totalSessions,
+        paymentAmount: ptPackages.paymentAmount,
       }).from(ptPackages);
       const pkgKey = (memberId: number, startDate: string | null, sessions: number) =>
         `${memberId}|${startDate ?? ""}|${sessions}`;
-      const existingSet = new Set(existingPkgs.map(p => pkgKey(p.memberId, p.startDate, p.totalSessions)));
+      const existingMap = new Map(existingPkgs.map(p => [pkgKey(p.memberId, p.startDate, p.totalSessions), p]));
 
       let created = 0;
+      let updated = 0;
       for (const rev of ptRevs) {
         if (!rev.memberId || !rev.sessions || rev.sessions <= 0) continue;
         const key = pkgKey(rev.memberId, rev.startDate, rev.sessions);
-        if (existingSet.has(key)) continue;
-        await db.insert(ptPackages).values({
-          memberId: rev.memberId,
-          trainerId: rev.trainerId ?? undefined,
-          packageName: rev.programDetail ?? undefined,
-          totalSessions: rev.sessions,
-          usedSessions: 0,
-          startDate: rev.startDate ?? undefined,
-          paymentAmount: rev.paidAmount ?? rev.amount ?? undefined,
-          unpaidAmount: rev.unpaidAmount ?? 0,
-          paymentMethod: rev.paymentMethod ?? undefined,
-          paymentDate: rev.paymentDate ?? undefined,
-          paymentMemo: rev.memo ?? undefined,
-        });
-        existingSet.add(key);
-        created++;
+        const newAmount = rev.paidAmount ?? rev.amount ?? undefined;
+        const existing = existingMap.get(key);
+        if (!existing) {
+          await db.insert(ptPackages).values({
+            memberId: rev.memberId,
+            trainerId: rev.trainerId ?? undefined,
+            packageName: rev.programDetail ?? undefined,
+            totalSessions: rev.sessions,
+            usedSessions: 0,
+            startDate: rev.startDate ?? undefined,
+            paymentAmount: newAmount,
+            unpaidAmount: rev.unpaidAmount ?? 0,
+            paymentMethod: rev.paymentMethod ?? undefined,
+            paymentDate: rev.paymentDate ?? undefined,
+            paymentMemo: rev.memo ?? undefined,
+          });
+          existingMap.set(key, { id: -1, memberId: rev.memberId, startDate: rev.startDate, totalSessions: rev.sessions, paymentAmount: newAmount ?? null });
+          created++;
+        } else if (newAmount != null && existing.paymentAmount !== newAmount) {
+          // 장부 금액이 다르면 패키지 금액 동기화
+          await db.update(ptPackages).set({
+            paymentAmount: newAmount,
+            unpaidAmount: rev.unpaidAmount ?? 0,
+            paymentMethod: rev.paymentMethod ?? undefined,
+            paymentDate: rev.paymentDate ?? undefined,
+          }).where(eq(ptPackages.id, existing.id));
+          updated++;
+        }
       }
-      return { created };
+      return { created, updated };
     }),
 
   monthlySummary: protectedProcedure

@@ -88,7 +88,8 @@ export default function AdminMembers() {
   });
   const syncPtMutation = trpc.gym.revenue.syncPtPackages.useMutation({
     onSuccess: (data) => {
-      toast.success(`PT 프로그램 동기화 완료 (${data.created}건 생성)`);
+      const msg = [data.created > 0 && `${data.created}건 생성`, (data as any).updated > 0 && `${(data as any).updated}건 금액 수정`].filter(Boolean).join(", ");
+      toast.success(`PT 프로그램 동기화 완료 ${msg ? `(${msg})` : "(변경 없음)"}`);
       utils.members.listAll.invalidate();
     },
     onError: (e) => toast.error(`동기화 오류: ${e.message}`),
