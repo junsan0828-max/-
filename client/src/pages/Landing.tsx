@@ -24,8 +24,8 @@ const BRANCH = {
 const IMG = {
   hero: "/images/hero/hero-main.jpg",
   intro: "/images/facility/facility-overview.jpg",
-  bodyAnalysis: "/images/training/body-analysis.JPG",
-  ptSession: "/images/training/pt-session.JPG",
+  bodyAnalysis: "/images/training/body-analysis.jpg",
+  ptSession: "/images/training/pt-session.jpg",
   memberWorkout: "/images/training/member-workout.jpg",
   beforeAfter: [
     { before: "/images/reviews/review-01-before.jpg", after: "/images/reviews/review-01-after.jpg", label: "3개월 체형교정" },
@@ -46,8 +46,12 @@ const IMG = {
 
 // ─── 이미지 컴포넌트 (사진 없을 때 placeholder) ───────────────────────────────
 function Img({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [triedUpper, setTriedUpper] = useState(false);
   const [error, setError] = useState(false);
-  if (error || !src) {
+
+  const resolvedSrc = triedUpper ? src.replace(/\.jpg$/i, ".JPG") : src;
+
+  if (error) {
     return (
       <div className={`bg-gray-100 flex items-center justify-center ${className ?? ""}`}>
         <span className="text-gray-400 text-xs font-light tracking-wide px-4 text-center">{alt}</span>
@@ -56,10 +60,16 @@ function Img({ src, alt, className }: { src: string; alt: string; className?: st
   }
   return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       className={className}
-      onError={() => setError(true)}
+      onError={() => {
+        if (!triedUpper) {
+          setTriedUpper(true);
+        } else {
+          setError(true);
+        }
+      }}
       loading="lazy"
     />
   );
