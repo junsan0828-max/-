@@ -296,31 +296,31 @@ function ProgramSection() {
   return (
     <section id="program" className="py-28 lg:py-40 bg-[#F7F7F5]">
       <div className="max-w-6xl mx-auto px-6 lg:px-8">
-        <div className="mb-16 lg:mb-20 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-          <div>
-            <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-4">Program</p>
-            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-[#0B1D3A]">운동 프로그램</h2>
-          </div>
-          <div className="flex border border-gray-200 self-start sm:self-auto">
-            <button
-              onClick={() => setBranch("b1")}
-              className={`px-5 py-2.5 text-xs tracking-widest transition-colors ${branch === "b1" ? "bg-[#0B1D3A] text-white" : "text-gray-400 hover:text-[#0B1D3A]"}`}
-            >
-              1호점
-            </button>
-            <button
-              onClick={() => setBranch("b2")}
-              className={`px-5 py-2.5 text-xs tracking-widest transition-colors border-l border-gray-200 ${branch === "b2" ? "bg-[#0B1D3A] text-white" : "text-gray-400 hover:text-[#0B1D3A]"}`}
-            >
-              2호점
-            </button>
-          </div>
+        <div className="mb-16 lg:mb-20">
+          <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-4">Program</p>
+          <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-[#0B1D3A]">운동 프로그램</h2>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1">
           {/* 헬스 이용권 */}
           <div className="bg-white p-10 lg:p-14">
-            <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-8">Membership</p>
+            <div className="flex items-center justify-between mb-8">
+              <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300">Membership</p>
+              <div className="flex border border-gray-200">
+                <button
+                  onClick={() => setBranch("b1")}
+                  className={`px-4 py-1.5 text-[10px] tracking-widest transition-colors ${branch === "b1" ? "bg-[#0B1D3A] text-white" : "text-gray-400 hover:text-[#0B1D3A]"}`}
+                >
+                  1호점
+                </button>
+                <button
+                  onClick={() => setBranch("b2")}
+                  className={`px-4 py-1.5 text-[10px] tracking-widest transition-colors border-l border-gray-200 ${branch === "b2" ? "bg-[#0B1D3A] text-white" : "text-gray-400 hover:text-[#0B1D3A]"}`}
+                >
+                  2호점
+                </button>
+              </div>
+            </div>
             <h3 className="text-2xl lg:text-3xl font-bold text-[#0B1D3A] mb-4">헬스 이용권</h3>
             <p className="text-gray-400 font-light leading-relaxed text-sm mb-10">
               체형분석 후 스스로 운동하고 싶은 분을 위한 이용권입니다.
