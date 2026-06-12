@@ -70,10 +70,10 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-// 카드/현금영수증/지역화폐는 부가세 10% 제외, 이체는 그대로
+// 카드/현금영수증/지역화폐는 부가세 10% 제외, 계좌이체/이체는 그대로
 function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string): number | undefined {
   if (!paymentAmount || !sessions || sessions <= 0) return undefined;
-  const base = paymentMethod === "이체" ? paymentAmount : Math.round(paymentAmount / 1.1);
+  const base = (paymentMethod === "이체" || paymentMethod === "계좌이체") ? paymentAmount : Math.round(paymentAmount / 1.1);
   return Math.round(base / sessions);
 }
 const authRouter = t.router({
