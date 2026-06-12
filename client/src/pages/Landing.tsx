@@ -14,7 +14,7 @@ const BRANCH = {
     name: "2호점",
     address: "경기도 시흥시 중심상가로 181, 삼화빌딩 4층",
     phone: "0507-1457-4003",
-    hours: { weekday: "08:00 – 23:00", sat: "10:00 – 17:00", sun: "휴무" },
+    hours: { weekday: "07:30 – 23:00", sat: "10:00 – 17:00", sun: "휴무" },
     naverUrl: "https://naver.me/51upjb7H",
     kakaoUrl: "http://pf.kakao.com/_hEHnX/chat",
   },
