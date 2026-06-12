@@ -59,9 +59,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [uniformPrice, setUniformPrice] = useState("");
   const [uniformEnd, setUniformEnd] = useState("");
 
-  // 헬스 담당 트레이너 (별도 지정 시)
-  const [healthTrainerId, setHealthTrainerId] = useState<number | null>(null);
-
   // 지점
   const [branchId, setBranchId] = useState<number | null>(null);
 
@@ -252,7 +249,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       subType: form.subType,
       primaryType,
       branchId: branchId ?? undefined,
-      healthTrainerId: (hasHealth && healthTrainerId != null) ? healthTrainerId : undefined,
       serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
         if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
         if (item === "헬스") {
@@ -574,46 +570,22 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     {hasHealth && <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
                   </button>
                   {hasHealth && (
-                    <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-3">
-                      <div>
-                        <label className="text-xs text-muted-foreground">이용 기간</label>
-                        <div className="flex gap-2 mt-1">
-                          {[1, 3, 6, 12].map(m => (
-                            <button key={m} type="button"
-                              onClick={() => {
-                                setHealthMonths(m);
-                                if (form.membershipStart) {
-                                  setForm(p => ({ ...p, membershipEnd: calcEndDateByMonths(p.membershipStart, m) }));
-                                }
-                              }}
-                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${healthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
-                              {m}개월
-                            </button>
-                          ))}
-                        </div>
+                    <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3">
+                      <label className="text-xs text-muted-foreground">이용 기간</label>
+                      <div className="flex gap-2 mt-1">
+                        {[1, 3, 6, 12].map(m => (
+                          <button key={m} type="button"
+                            onClick={() => {
+                              setHealthMonths(m);
+                              if (form.membershipStart) {
+                                setForm(p => ({ ...p, membershipEnd: calcEndDateByMonths(p.membershipStart, m) }));
+                              }
+                            }}
+                            className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${healthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                            {m}개월
+                          </button>
+                        ))}
                       </div>
-                      {currentUser?.role === "admin" && trainerList && trainerList.length > 0 && (
-                        <div>
-                          <label className="text-xs text-muted-foreground">헬스 담당 트레이너</label>
-                          <div className="flex gap-1.5 flex-wrap mt-1">
-                            <button type="button" onClick={() => setHealthTrainerId(null)}
-                              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${healthTrainerId === null ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground hover:border-emerald-500/40"}`}>
-                              기본
-                            </button>
-                            {trainerList.map((t: any) => (
-                              <button key={t.id} type="button" onClick={() => setHealthTrainerId(t.id)}
-                                className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${healthTrainerId === t.id ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground hover:border-emerald-500/40"}`}>
-                                {t.trainerName}
-                              </button>
-                            ))}
-                          </div>
-                          {healthTrainerId === null && form.adminTrainerId && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              담당 트레이너 적용됨: {trainerList.find((t: any) => String(t.id) === form.adminTrainerId)?.trainerName ?? "-"}
-                            </p>
-                          )}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>

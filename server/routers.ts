@@ -478,7 +478,6 @@ const membersRouter = t.router({
         paymentDate: z.string().optional(),
         paymentMemo: z.string().optional(),
         adminTrainerId: z.number().optional(),
-        healthTrainerId: z.number().optional(),
         branchId: z.number().optional(),
         primaryType: z.enum(["PT", "헬스", "기타"]).optional(),
         subType: z.enum(["신규", "재등록"]).default("신규"),
@@ -508,7 +507,6 @@ const membersRouter = t.router({
         paymentDate,
         paymentMemo,
         adminTrainerId: _,
-        healthTrainerId,
         subType,
         serviceItems,
         ...memberData
@@ -573,10 +571,9 @@ const membersRouter = t.router({
         if (existing.length > 0) {
           // 중복 항목 존재 — 새 항목 저장 생략
         } else {
-        const revenueTrainerId = (revenueType === "헬스" && healthTrainerId != null) ? healthTrainerId : trainerId;
         await db.insert(revenueEntries).values({
           memberId,
-          trainerId: revenueTrainerId,
+          trainerId,
           createdBy: ctx.user.id,
           customerName: memberData.name,
           phone: memberData.phone,
