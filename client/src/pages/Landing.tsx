@@ -5,17 +5,17 @@ const BRANCH = {
   b1: {
     name: "1호점",
     address: "경기도 시흥시 함송로 29번길 5, 다나빌딩 2/3층",
-    phone: "010-0000-0000",
+    phone: "0507-1482-3349",
     hours: { weekday: "08:00 – 23:00", sat: "10:00 – 17:00", sun: "휴무" },
-    naverUrl: "https://booking.naver.com/booking/13/bizes/YOUR_ID_1",
+    naverUrl: "https://naver.me/GALzXokD",
     kakaoUrl: "https://pf.kakao.com/_YOUR_ID_1",
   },
   b2: {
     name: "2호점",
     address: "경기도 시흥시 중심상가로 181, 삼화빌딩 4층",
-    phone: "010-0000-0000",
+    phone: "0507-1457-4003",
     hours: { weekday: "08:00 – 23:00", sat: "10:00 – 17:00", sun: "휴무" },
-    naverUrl: "https://booking.naver.com/booking/13/bizes/YOUR_ID_2",
+    naverUrl: "https://naver.me/51upjb7H",
     kakaoUrl: "https://pf.kakao.com/_YOUR_ID_2",
   },
 };
