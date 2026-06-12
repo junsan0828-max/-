@@ -59,6 +59,9 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const [uniformPrice, setUniformPrice] = useState("");
   const [uniformEnd, setUniformEnd] = useState("");
 
+  // 지점
+  const [branchId, setBranchId] = useState<number | null>(null);
+
   // 서비스 내역
   const [serviceItems, setServiceItems] = useState<string[]>([]);
   const [servicePtCount, setServicePtCount] = useState<number | undefined>(undefined);
@@ -245,6 +248,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       serviceSessionPrice: (hasPT && form.serviceSessionPrice) ? parseInt(form.serviceSessionPrice) : undefined,
       subType: form.subType,
       primaryType,
+      branchId: branchId ?? undefined,
       serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
         if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
         if (item === "헬스") {
@@ -732,6 +736,25 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
                 </div>
               </div>
+
+              {/* 지점 */}
+              {branchList && branchList.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted-foreground">지점</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    <button type="button" onClick={() => setBranchId(null)}
+                      className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${branchId === null ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                      미지정
+                    </button>
+                    {branchList.map((b: any) => (
+                      <button key={b.id} type="button" onClick={() => setBranchId(b.id)}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 결제 방법 */}
               <div>

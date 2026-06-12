@@ -109,7 +109,7 @@ export default function RegistrationManagement() {
     paymentMethod: "카드", startDate: todayStr, paymentDate: todayStr,
   });
   const [dayPassForm, setDayPassForm] = useState({
-    name: "", phone: "", amount: "", paymentMethod: "카드",
+    name: "", phone: "", amount: "", paymentMethod: "카드", branchId: null as number | null,
   });
 
   const utils = trpc.useUtils();
@@ -272,6 +272,7 @@ export default function RegistrationManagement() {
       unpaidAmount: 0,
       paymentMethod: dayPassForm.paymentMethod || undefined,
       paymentDate: new Date().toISOString().substring(0, 10),
+      branchId: dayPassForm.branchId ?? (selectedBranch ?? undefined),
     });
   }
 
@@ -720,6 +721,25 @@ export default function RegistrationManagement() {
                   <input type="number" value={dayPassForm.amount} onChange={e => setDayPassForm(f => ({ ...f, amount: e.target.value }))}
                     placeholder="0" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                 </div>
+                {branches.length > 0 && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">지점</label>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      <button type="button"
+                        onClick={() => setDayPassForm(f => ({ ...f, branchId: null }))}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${dayPassForm.branchId === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                        미지정
+                      </button>
+                      {branches.map(b => (
+                        <button key={b.id} type="button"
+                          onClick={() => setDayPassForm(f => ({ ...f, branchId: b.id }))}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${dayPassForm.branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                          {b.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs text-muted-foreground">결제 방법</label>
                   <div className="flex gap-2 mt-1 flex-wrap">

@@ -77,6 +77,7 @@ export default function MemberReRegister() {
   const [uniformPrice, setUniformPrice] = useState("");
 
   // 공통 결제
+  const [branchId, setBranchId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제">("");
   const [paymentDate, setPaymentDate] = useState(today);
   const [unpaidAmount, setUnpaidAmount] = useState("");
@@ -241,6 +242,7 @@ export default function MemberReRegister() {
             : (paymentMemo || undefined),
           subType: "재등록" as any,
           serviceItems: !addHealth ? siStr : undefined,
+          branchId: branchId ?? undefined,
         } as any);
       }
 
@@ -258,6 +260,7 @@ export default function MemberReRegister() {
           paymentMemo: paymentMemo || undefined,
           subType: "재등록" as any,
           serviceItems: siStr,
+          branchId: branchId ?? undefined,
         } as any);
       }
 
@@ -774,6 +777,23 @@ export default function MemberReRegister() {
               <CardTitle className="text-sm font-semibold">결제 정보</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {branchList && branchList.length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">지점 *</Label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    <button type="button" onClick={() => setBranchId(null)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${branchId === null ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                      미지정
+                    </button>
+                    {branchList.map((b: any) => (
+                      <button key={b.id} type="button" onClick={() => setBranchId(b.id)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${branchId === b.id ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-muted-foreground">결제방법 *</Label>
