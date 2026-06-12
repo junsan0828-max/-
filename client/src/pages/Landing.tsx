@@ -24,7 +24,7 @@ const BRANCH = {
 const IMG = {
   hero: "/images/hero/hero-main.jpg",
   intro: "/images/facility/facility-overview.jpg",
-  bodyAnalysis: "/images/training/body-analysis.jpg",
+  bodyAnalysis: "/images/training/body-analysis.JPG",
   ptSession: "/images/training/pt-session.JPG",
   memberWorkout: "/images/training/member-workout.jpg",
   beforeAfter: [
