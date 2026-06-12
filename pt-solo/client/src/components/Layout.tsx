@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
@@ -97,6 +97,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },
     { path: "/academy", label: "성장아카데미 관리", icon: GraduationCap },
     { path: "/workshop", label: "작업실 관리", icon: Wrench },
+    { path: "/admin/feedback", label: "작업/오류 데이터", icon: ClipboardList },
   ];
 
   const trainerNavItems = [
@@ -109,6 +110,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/settlement", label: "성장분석실", icon: TrendingUp },
     { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
     { path: "/profile", label: "내 프로필", icon: User },
+    { path: "/feedback", label: "작업/오류 수정", icon: MessageSquarePlus },
   ];
 
   const navItems = isAdmin ? adminNavItems : trainerNavItems;

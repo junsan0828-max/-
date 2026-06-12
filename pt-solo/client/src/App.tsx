@@ -34,6 +34,8 @@ import TrainerBrandPage from "./pages/TrainerBrandPage";
 import ClassBookingPage from "./pages/ClassBookingPage";
 import BookingManagementPage from "./pages/BookingManagementPage";
 import SurveyPage from "./pages/SurveyPage";
+import TrainerFeedback from "./pages/TrainerFeedback";
+import AdminFeedback from "./pages/AdminFeedback";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
 import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
@@ -190,6 +192,7 @@ function App() {
           <Route path="/booking">{() => <BookingManagementPage />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" />}</Route>
+          <Route path="/feedback">{() => <TrainerFeedback />}</Route>
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
           </Route>
@@ -199,6 +202,7 @@ function App() {
           <Route path="/admin/notices">{() => <AdminNotices />}</Route>
           <Route path="/admin/fit-step-plus">{() => <AdminFitStepPlus />}</Route>
           <Route path="/admin/plans">{() => <AdminPlans />}</Route>
+          <Route path="/admin/feedback">{() => <AdminFeedback />}</Route>
           <Route>{() => <Redirect to="/" />}</Route>
         </Switch>
       </ErrorBoundary>

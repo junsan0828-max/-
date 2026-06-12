@@ -1,4 +1,4 @@
-import { X, LayoutDashboard, Dumbbell, BookOpen, UserPlus, CalendarCheck, TrendingUp, GraduationCap, Wrench, User, ShieldCheck, CreditCard, Coins, Bell, Zap, type LucideIcon } from "lucide-react";
+import { X, LayoutDashboard, Dumbbell, BookOpen, UserPlus, CalendarCheck, TrendingUp, GraduationCap, Wrench, User, ShieldCheck, CreditCard, Coins, Bell, Zap, MessageSquarePlus, ClipboardList, type LucideIcon } from "lucide-react";
 
 interface PageGuide {
   icon: LucideIcon;
@@ -148,6 +148,28 @@ const GUIDES: Record<string, PageGuide> = {
     tips: [
       "새 공지를 작성하면 모든 STEPER의 대시보드에 표시됩니다.",
       "배너 이미지와 연결 링크를 설정하세요.",
+    ],
+  },
+  "/feedback": {
+    icon: MessageSquarePlus,
+    color: "bg-rose-500/15 text-rose-500",
+    title: "작업 / 오류 수정",
+    desc: "운영팀에 직접 오류 신고 및 작업 요청을 보냅니다.",
+    tips: [
+      "오류가 발생한 경우 재현 방법을 상세히 작성해 주세요.",
+      "기능 개선 아이디어나 작업 요청도 여기서 보낼 수 있습니다.",
+      "운영팀이 답변을 남기면 요청 목록에서 확인할 수 있습니다.",
+    ],
+  },
+  "/admin/feedback": {
+    icon: ClipboardList,
+    color: "bg-rose-500/15 text-rose-500",
+    title: "작업 / 오류 데이터",
+    desc: "STEPER가 보낸 요청과 오류 신고를 관리합니다.",
+    tips: [
+      "상태(접수됨/처리 중/완료/반려)를 변경하여 진행 상황을 알려주세요.",
+      "답변을 입력하면 STEPER의 요청 화면에 바로 표시됩니다.",
+      "유형 필터로 오류/작업/개선/문의를 구분하여 확인하세요.",
     ],
   },
   "/admin/fit-step-plus": {

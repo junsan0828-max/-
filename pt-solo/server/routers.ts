@@ -4656,6 +4656,59 @@ const academyRouter = t.router({
     }),
 });
 
+const trainerFeedbackRouter = t.router({
+  submit: protectedProcedure
+    .input(z.object({
+      category: z.enum(["bug", "task", "improvement", "question"]),
+      title: z.string().min(1).max(100),
+      content: z.string().min(1).max(2000),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const trainerRow = await pool.query<{ name: string; username: string }>(
+        `SELECT t.name, u.username FROM trainers t JOIN users u ON u."trainerId" = t.id WHERE t.id = $1 LIMIT 1`,
+        [trainerId]
+      );
+      const trainerName = trainerRow.rows[0]?.name ?? "unknown";
+      const username = trainerRow.rows[0]?.username ?? "unknown";
+      await pool.query(
+        `INSERT INTO trainer_feedbacks ("trainerId", "trainerName", username, category, title, content) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [trainerId, trainerName, username, input.category, input.title, input.content]
+      );
+      return { success: true };
+    }),
+
+  myList: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const result = await pool.query<{ id: number; category: string; title: string; content: string; status: string; adminNote: string | null; createdAt: string }>(
+      `SELECT id, category, title, content, status, "adminNote", "createdAt" FROM trainer_feedbacks WHERE "trainerId"=$1 ORDER BY "createdAt" DESC`,
+      [trainerId]
+    );
+    return result.rows;
+  }),
+
+  adminList: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+    const result = await pool.query<{ id: number; trainerId: number; trainerName: string; username: string; category: string; title: string; content: string; status: string; adminNote: string | null; createdAt: string; updatedAt: string }>(
+      `SELECT id, "trainerId", "trainerName", username, category, title, content, status, "adminNote", "createdAt", "updatedAt" FROM trainer_feedbacks ORDER BY "createdAt" DESC`
+    );
+    return result.rows;
+  }),
+
+  updateStatus: protectedProcedure
+    .input(z.object({ id: z.number(), status: z.enum(["pending", "in_progress", "done", "rejected"]), adminNote: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `UPDATE trainer_feedbacks SET status=$1, "adminNote"=$2, "updatedAt"=now()::text WHERE id=$3`,
+        [input.status, input.adminNote ?? null, input.id]
+      );
+      return { success: true };
+    }),
+});
+
 export const appRouter = t.router({
   auth: authRouter,
   members: membersRouter,
@@ -4685,6 +4738,7 @@ export const appRouter = t.router({
   academy: academyRouter,
   eContract: eContractRouter,
   booking: bookingRouter,
+  trainerFeedback: trainerFeedbackRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -956,6 +956,20 @@ async function initDatabase() {
     console.log("✅ admin 계정 role → admin 으로 업데이트");
   }
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS trainer_feedbacks (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    "trainerName" TEXT NOT NULL,
+    username TEXT NOT NULL,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    "adminNote" TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
   console.log("✨ DB 초기화 완료!");
 
   // 잘못된 daily_reset으로 적립포인트가 깎인 트레이너 자동 보정 (1회성)

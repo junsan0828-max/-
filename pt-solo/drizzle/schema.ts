@@ -316,3 +316,17 @@ export const fitStepPlusAttendance = pgTable("fit_step_plus_attendance", {
   attendDate: text("attendDate").notNull(),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+export const trainerFeedbacks = pgTable("trainer_feedbacks", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  trainerName: text("trainerName").notNull(),
+  username: text("username").notNull(),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  status: text("status").default("pending").notNull(),
+  adminNote: text("adminNote"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
