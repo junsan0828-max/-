@@ -290,38 +290,92 @@ const _RF_FIXED: RealFoodItem[] = [
 
 const REAL_FOOD_DB: RealFoodItem[] = [..._expand(_RFB), ..._RF_FIXED];
 
+// ─── 현실성 점수 (1~5, 일반 한국인 식단 친숙도) ─────────────────────────────────
+function getRealisticScore(name: string): number {
+  const HIGH = ["현미밥","백미밥","잡곡밥","보리밥","귀리밥","콩밥","찰밥","고구마","감자",
+    "바나나","사과","오트밀","식빵","통밀빵","베이글","옥수수",
+    "닭가슴살","삶은계란","두부","연어","고등어","참치","새우","소고기","돼지고기","삼겹살",
+    "그릭요거트","우유","두유","저지방우유",
+    "브로콜리","시금치","상추","오이","토마토","당근","양배추","콩나물","무","배추","버섯","파프리카",
+    "편의점","프로틴바","단백질","김치","된장"];
+  const LOW = ["검은콩","목이버섯","아마란스","타피오카","흑임자죽","흑임자","현미미숫가루",
+    "압맥","흰강낭콩","서리태","전복","우렁살","케피어","아마란스","퀴노아","스틸컷","곤약면","실곤약"];
+  if (HIGH.some(k => name.includes(k))) return 5;
+  if (LOW.some(k => name.includes(k))) return 2;
+  return 3;
+}
+
 function buildRealMeal(
   time: "breakfast"|"lunch"|"dinner"|"snack",
-  targetKcal: number
+  targetKcal: number,
+  style: "realistic"|"healthy",
+  goal: DietGoal | null
 ): MealEntry[] {
   if (targetKcal <= 0) return [];
-  const pool = REAL_FOOD_DB.filter(f => f.meals.includes(time));
-  const rand5 = (arr: RealFoodItem[], budget: number) => {
-    const sorted = [...arr].sort((a,b)=>Math.abs(a.kcal-budget)-Math.abs(b.kcal-budget));
-    const top = sorted.slice(0,5);
-    return top[Math.floor(Math.random()*top.length)] ?? null;
-  };
-  const toEntry = (f: RealFoodItem): MealEntry => ({name:f.name,serving:f.serving,kcal:f.kcal,carb:f.carb,protein:f.protein,fat:f.fat});
 
+  const pool = REAL_FOOD_DB.filter(f => f.meals.includes(time));
+  const toEntry = (f: RealFoodItem): MealEntry => ({
+    name: f.name, serving: f.serving, kcal: f.kcal, carb: f.carb, protein: f.protein, fat: f.fat
+  });
+
+  // 점수 기반 후보 선택 (상위 5개에서 랜덤)
+  const pick = (arr: RealFoodItem[], budget: number, minScore = 1): RealFoodItem | null => {
+    const filtered = arr.filter(f => getRealisticScore(f.name) >= minScore);
+    const base = filtered.length ? filtered : arr;
+    if (!base.length) return null;
+    const scored = base
+      .map(f => ({ f, s: Math.abs(f.kcal - budget) - (getRealisticScore(f.name) - 3) * 25 }))
+      .sort((a, b) => a.s - b.s)
+      .slice(0, 5);
+    return scored[Math.floor(Math.random() * scored.length)].f;
+  };
+
+  // healthy 모드 최소 점수 기준
+  const minScore = style === "healthy" ? 4 : 3;
+
+  // ── 간식 ───────────────────────────────────────────────────────────────────
   if (time === "snack") {
-    const snPool = pool.filter(f=>f.cat==="S"||f.cat==="F"||f.cat==="P");
-    if (!snPool.length) return [];
-    const first = rand5(snPool, targetKcal);
+    const snPool = pool.filter(f => f.cat === "S" || f.cat === "C" || f.cat === "P");
+    const first = pick(snPool, targetKcal, minScore);
     if (!first) return [];
     const rem = targetKcal - first.kcal;
-    if (rem > 60) {
-      const sec = rand5(snPool.filter(f=>f.name!==first.name && f.kcal<=rem*1.4), rem);
-      if (sec) return [toEntry(first),toEntry(sec)];
+    if (rem >= 60) {
+      const sec = pick(snPool.filter(f => f.name !== first.name && f.kcal <= rem * 1.4), rem, minScore);
+      if (sec) return [toEntry(first), toEntry(sec)];
     }
     return [toEntry(first)];
   }
 
-  // 일반 식사: 탄수 40% + 단백 35% + 채소 15% + 지방 10%(확률적)
-  const carb = rand5(pool.filter(f=>f.cat==="C"), targetKcal*0.40);
-  const prot = rand5(pool.filter(f=>f.cat==="P"), targetKcal*0.35);
-  const veg  = rand5(pool.filter(f=>f.cat==="V"), targetKcal*0.15);
-  const fat  = Math.random()>0.45 ? rand5(pool.filter(f=>f.cat==="F"), targetKcal*0.10) : null;
-  return [carb,prot,veg,fat].filter((x): x is RealFoodItem => x!==null).map(toEntry);
+  // ── 칼로리 배분 비율 ────────────────────────────────────────────────────────
+  const carbRatio = goal ? DIET_GOAL_CONFIG[goal].carb : 0.45;
+  const protRatio = goal ? DIET_GOAL_CONFIG[goal].prot : 0.30;
+
+  const carbBudget = targetKcal * carbRatio;
+  const protBudget = targetKcal * protRatio;
+  const vegBudget  = targetKcal * 0.12;
+
+  const carbPool = pool.filter(f => f.cat === "C");
+  const protPool = pool.filter(f => f.cat === "P");
+  const vegPool  = pool.filter(f => f.cat === "V");
+
+  const mainItem = pick(carbPool, carbBudget, minScore);
+  const protItem = pick(protPool, protBudget, minScore);
+  const veg1Item = pick(vegPool,  vegBudget,  minScore - 1);
+
+  const items: RealFoodItem[] = [mainItem, protItem, veg1Item]
+    .filter((x): x is RealFoodItem => x !== null);
+
+  // 점심/저녁: 채소/반찬 1개 추가
+  if (time !== "breakfast") {
+    const used = new Set(items.map(i => i.name));
+    const rem = Math.max(0, targetKcal - items.reduce((s, i) => s + i.kcal, 0));
+    if (rem >= 20) {
+      const veg2 = pick(vegPool.filter(f => !used.has(f.name)), rem * 0.5, minScore - 1);
+      if (veg2) items.push(veg2);
+    }
+  }
+
+  return items.map(toEntry);
 }
 
 
@@ -1693,7 +1747,7 @@ export default function DietPlanner() {
   const [height, setHeight] = useState("");
   const [activity, setActivity] = useState<"low" | "moderate" | "high">("moderate");
   const [dietGoal, setDietGoal] = useState<DietGoal | null>(null);
-  const [mealMode, setMealMode] = useState<"recommended"|"realistic">("recommended");
+  const [mealStyle, setMealStyle] = useState<"realistic"|"healthy">("realistic");
   const [includeFood, setIncludeFood] = useState("");
   const [excludeFood, setExcludeFood] = useState("");
   const [healthRatio, setHealthRatio] = useState(50); // 0=일반식, 100=건강식
@@ -1876,18 +1930,18 @@ export default function DietPlanner() {
     const excludeList = excludeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     const effectiveHealthRatio = goalCfg ? goalCfg.healthRatio : healthRatio;
     const base = adjustedTdee;
-    const plan: MealPlan = mealMode === "realistic"
+    const plan: MealPlan = mealStyle === "healthy"
       ? {
-          breakfast: buildRealMeal("breakfast", (base * pctBreakfast) / 100),
-          lunch:     buildRealMeal("lunch",     (base * pctLunch)     / 100),
-          dinner:    buildRealMeal("dinner",    (base * pctDinner)    / 100),
-          snack:     buildRealMeal("snack",     (base * pctSnack)     / 100),
+          breakfast: buildMealFromDB(dbItems, "breakfast", (base * pctBreakfast) / 100, includeList, excludeList, Math.max(effectiveHealthRatio, 70)),
+          lunch:     buildMealFromDB(dbItems, "lunch",     (base * pctLunch)     / 100, includeList, excludeList, Math.max(effectiveHealthRatio, 70)),
+          dinner:    buildMealFromDB(dbItems, "dinner",    (base * pctDinner)    / 100, includeList, excludeList, Math.max(effectiveHealthRatio, 70)),
+          snack:     buildMealFromDB(dbItems, "snack",     (base * pctSnack)     / 100, includeList, excludeList, Math.max(effectiveHealthRatio, 70)),
         }
       : {
-          breakfast: buildMealFromDB(dbItems, "breakfast", (base * pctBreakfast) / 100, includeList, excludeList, effectiveHealthRatio),
-          lunch:     buildMealFromDB(dbItems, "lunch",     (base * pctLunch)     / 100, includeList, excludeList, effectiveHealthRatio),
-          dinner:    buildMealFromDB(dbItems, "dinner",    (base * pctDinner)    / 100, includeList, excludeList, effectiveHealthRatio),
-          snack:     buildMealFromDB(dbItems, "snack",     (base * pctSnack)     / 100, includeList, excludeList, effectiveHealthRatio),
+          breakfast: buildRealMeal("breakfast", (base * pctBreakfast) / 100, mealStyle, dietGoal),
+          lunch:     buildRealMeal("lunch",     (base * pctLunch)     / 100, mealStyle, dietGoal),
+          dinner:    buildRealMeal("dinner",    (base * pctDinner)    / 100, mealStyle, dietGoal),
+          snack:     buildRealMeal("snack",     (base * pctSnack)     / 100, mealStyle, dietGoal),
         };
     setMealPlan(plan);
     const newCount = incGenCount();
@@ -2108,10 +2162,11 @@ export default function DietPlanner() {
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* ── 회원 기본 정보 ── */}
         <section className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-0.5">
             <User className="w-4 h-4 text-emerald-400" />
             <h2 className="text-sm font-semibold text-gray-200">회원 기본 정보</h2>
           </div>
+          <p className="text-[11px] text-gray-600 mb-3">신체 정보를 입력하면 기초대사량(BMR)과 권장칼로리(TDEE)를 자동으로 계산합니다.</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="block text-xs text-gray-400 mb-1">이름</label>
@@ -2246,36 +2301,38 @@ export default function DietPlanner() {
 
         {/* ── 음식 설정 ── */}
         <section className="bg-gray-900 rounded-2xl p-5 space-y-4 border border-gray-800">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-0.5">
             <Utensils className="w-4 h-4 text-orange-400" />
             <h2 className="text-sm font-semibold text-gray-200">음식 설정</h2>
           </div>
+          <p className="text-[11px] text-gray-600 mb-3">식단 스타일을 고르고 선호하거나 피하고 싶은 음식을 입력해주세요.</p>
 
-          {/* 식단 생성 방식 */}
+          {/* 식단 스타일 */}
           <div>
-            <label className="block text-xs text-gray-400 mb-2">식단 생성 방식</label>
+            <label className="block text-xs text-gray-400 mb-1">식단 스타일</label>
+            <p className="text-[11px] text-gray-600 mb-2">식단을 구성하는 방식을 선택해주세요. 현실식은 실제 한국인이 자주 먹는 조합으로, 건강식은 영양 밀도가 높은 음식 위주로 구성됩니다.</p>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { value:"recommended", label:"추천 식단", desc:"전문가 기준 칼로리·영양 균형 식단", sub:"닭가슴살 볶음밥 · 고단백 도시락" },
-                { value:"realistic",   label:"현실 식단", desc:"편의점·마트에서 바로 준비 가능한 조합", sub:"현미밥+닭가슴살+브로콜리" },
-              ] as const).map(({ value, label, desc, sub }) => (
+                { value:"realistic" as const, label:"현실식", desc:"실제 따라하기 쉬운 한국식 식단", sub:"잡곡밥 · 제육볶음 · 브로콜리" },
+                { value:"healthy"   as const, label:"건강식", desc:"영양 밀도 높은 클린 식단", sub:"오트밀 · 닭가슴살 · 채소" },
+              ]).map(({ value, label, desc, sub }) => (
                 <button
                   key={value}
-                  onClick={() => setMealMode(value)}
+                  onClick={() => setMealStyle(value)}
                   className={`text-left p-3.5 rounded-xl border transition-colors space-y-1 ${
-                    mealMode === value
+                    mealStyle === value
                       ? "bg-orange-500/10 border-orange-500/60"
                       : "bg-gray-800/50 border-gray-700/50"
                   }`}
                 >
-                  <p className={`text-xs font-bold ${mealMode===value?"text-orange-400":"text-gray-300"}`}>{label}</p>
+                  <p className={`text-xs font-bold ${mealStyle===value?"text-orange-400":"text-gray-300"}`}>{label}</p>
                   <p className="text-[10px] text-gray-500 leading-relaxed">{desc}</p>
                   <p className="text-[10px] text-gray-600 italic">{sub}</p>
                 </button>
               ))}
             </div>
           </div>
-          {mealMode === "recommended" && (<>
+          {mealStyle === "healthy" && (<>
           <div>
             <label className="block text-xs text-gray-400 mb-1">포함할 음식 <span className="text-gray-600">(쉼표로 구분)</span></label>
             <p className="text-[11px] text-gray-600 mb-1.5">식단에 반드시 넣고 싶은 재료나 음식을 입력하세요. 입력한 음식이 우선적으로 선택됩니다.</p>
@@ -2327,6 +2384,7 @@ export default function DietPlanner() {
               합계 {pctTotal}%
             </span>
           </div>
+          <p className="text-[11px] text-gray-600 mb-3">하루 권장칼로리를 끼니별로 배분합니다. 합계가 100%가 되어야 합니다.</p>
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: "🌅 아침", value: pctBreakfast, key: "breakfast" as const, color: "text-yellow-400" },
@@ -2414,6 +2472,10 @@ export default function DietPlanner() {
                       <span className="text-[11px] font-bold text-emerald-400">{goalCfg.label}</span>
                     </div>
                   )}
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] text-gray-500">식단 스타일</span>
+                    <span className="text-[11px] font-bold text-orange-400">{mealStyle === "realistic" ? "현실식" : "건강식"}</span>
+                  </div>
                   <div className="bg-gradient-to-r from-emerald-900/40 to-blue-900/40 border border-emerald-800/40 rounded-2xl p-4 grid grid-cols-4 gap-2 text-center">
                     <div>
                       <p className="text-xs text-gray-400 mb-0.5">총 칼로리</p>
