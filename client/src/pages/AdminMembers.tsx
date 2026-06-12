@@ -86,6 +86,13 @@ export default function AdminMembers() {
     },
     onError: (e) => toast.error(`재계산 오류: ${e.message}`),
   });
+  const syncPtMutation = trpc.gym.revenue.syncPtPackages.useMutation({
+    onSuccess: (data) => {
+      toast.success(`PT 프로그램 동기화 완료 (${data.created}건 생성)`);
+      utils.members.listAll.invalidate();
+    },
+    onError: (e) => toast.error(`동기화 오류: ${e.message}`),
+  });
 
   const [mergeResult, setMergeResult] = useState<string | null>(null);
   const mergeMutation = trpc.admin.mergeDuplicateMembers.useMutation({
@@ -291,13 +298,22 @@ export default function AdminMembers() {
     <div className="space-y-4 pb-20">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">회원 관리</h1>
-        <button
-          onClick={() => recomputeMutation.mutate()}
-          disabled={recomputeMutation.isPending}
-          className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-        >
-          {recomputeMutation.isPending ? "재계산 중..." : "만료일 재계산"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => syncPtMutation.mutate()}
+            disabled={syncPtMutation.isPending}
+            className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {syncPtMutation.isPending ? "동기화 중..." : "PT 프로그램 동기화"}
+          </button>
+          <button
+            onClick={() => recomputeMutation.mutate()}
+            disabled={recomputeMutation.isPending}
+            className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {recomputeMutation.isPending ? "재계산 중..." : "만료일 재계산"}
+          </button>
+        </div>
       </div>
 
       {/* 지점 필터 */}

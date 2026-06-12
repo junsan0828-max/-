@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, desc, sql, like, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, like, gte, lte, inArray, isNotNull } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "crypto";
 import { getDb, pool } from "./db";
@@ -511,10 +511,28 @@ const revenueRouter = t.router({
         return null;
       };
 
-      // PT 등록 시 회원 자동 생성
+      // PT 등록 시 회원 자동 생성 + ptPackage 생성
       if (input.type === "PT" && resolvedTrainerId && input.customerName && !input.memberId && input.subType !== "이전") {
         const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId, membershipStart: input.startDate ?? undefined });
-        if (newId) row.memberId = newId;
+        if (newId) {
+          row.memberId = newId;
+          const sessionCount = input.sessions ?? 0;
+          if (sessionCount > 0) {
+            await db.insert(ptPackages).values({
+              memberId: newId,
+              trainerId: resolvedTrainerId,
+              packageName: input.programDetail ?? undefined,
+              totalSessions: sessionCount,
+              usedSessions: 0,
+              startDate: input.startDate ?? undefined,
+              paymentAmount: input.paidAmount ?? input.amount ?? undefined,
+              unpaidAmount: input.unpaidAmount ?? 0,
+              paymentMethod: input.paymentMethod ?? undefined,
+              paymentDate: input.paymentDate ?? undefined,
+              memo: input.memo ?? undefined,
+            });
+          }
+        }
       }
 
       // 헬스 등록 시 회원 자동 생성
@@ -600,6 +618,31 @@ const revenueRouter = t.router({
 
       const [row] = await db.update(revenueEntries).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, id)).returning();
 
+      // PT 타입이고 회원이 새로 연결됐으면 ptPackage 생성 (없는 경우만)
+      const prevMemberId = existing[0]?.memberId;
+      if (row.type === "PT" && row.memberId && !prevMemberId && row.sessions && row.sessions > 0) {
+        const existingPkg = await db.select({ id: ptPackages.id }).from(ptPackages)
+          .where(and(
+            eq(ptPackages.memberId, row.memberId),
+            eq(ptPackages.startDate, row.startDate ?? ""),
+          )).limit(1);
+        if (existingPkg.length === 0) {
+          await db.insert(ptPackages).values({
+            memberId: row.memberId,
+            trainerId: row.trainerId ?? undefined,
+            packageName: row.programDetail ?? undefined,
+            totalSessions: row.sessions,
+            usedSessions: 0,
+            startDate: row.startDate ?? undefined,
+            paymentAmount: row.paidAmount ?? row.amount ?? undefined,
+            unpaidAmount: row.unpaidAmount ?? 0,
+            paymentMethod: row.paymentMethod ?? undefined,
+            paymentDate: row.paymentDate ?? undefined,
+            memo: row.memo ?? undefined,
+          });
+        }
+      }
+
       // 헬스 타입이고 회원이 연결되어 있으면 membershipEnd 재계산
       if (row.type === "헬스" && row.memberId && row.startDate) {
         let months = row.duration ?? 0;
@@ -679,6 +722,38 @@ const revenueRouter = t.router({
         updated++;
       }
       return { updated };
+    }),
+
+  syncPtPackages: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // PT 타입이고 memberId + sessions 있는 revenue entries 중 ptPackage 없는 것 찾아서 생성
+      const ptRevs = await db.select().from(revenueEntries)
+        .where(and(eq(revenueEntries.type, "PT"), isNotNull(revenueEntries.memberId)));
+      let created = 0;
+      for (const rev of ptRevs) {
+        if (!rev.memberId || !rev.sessions || rev.sessions <= 0) continue;
+        const existing = await db.select({ id: ptPackages.id }).from(ptPackages)
+          .where(eq(ptPackages.memberId, rev.memberId)).limit(1);
+        if (existing.length > 0) continue;
+        await db.insert(ptPackages).values({
+          memberId: rev.memberId,
+          trainerId: rev.trainerId ?? undefined,
+          packageName: rev.programDetail ?? undefined,
+          totalSessions: rev.sessions,
+          usedSessions: 0,
+          startDate: rev.startDate ?? undefined,
+          paymentAmount: rev.paidAmount ?? rev.amount ?? undefined,
+          unpaidAmount: rev.unpaidAmount ?? 0,
+          paymentMethod: rev.paymentMethod ?? undefined,
+          paymentDate: rev.paymentDate ?? undefined,
+          memo: rev.memo ?? undefined,
+        });
+        created++;
+      }
+      return { created };
     }),
 
   monthlySummary: protectedProcedure
