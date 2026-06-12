@@ -1724,6 +1724,11 @@ export default function DietPlanner() {
   // 사용자 유형
   const [userType, setUserType] = useState<UserType | null>(() => {
     const s = localStorage.getItem("dp_ut");
+    // dp_fitstep 플래그 + 로그인 상태면 항상 fitstep으로 업그레이드
+    if (localStorage.getItem("dp_fitstep") === "1" && localStorage.getItem("dp_kakao_user") && s !== "fitstep") {
+      localStorage.setItem("dp_ut", "fitstep");
+      return "fitstep";
+    }
     return s === "member" || s === "trainer" || s === "fitstep" ? s : null;
   });
   const [showTypeModal, setShowTypeModal] = useState(false);
