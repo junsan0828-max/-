@@ -25,7 +25,7 @@ const IMG = {
   hero: "/images/hero/hero-main.jpg",
   intro: "/images/facility/facility-overview.jpg",
   bodyAnalysis: "/images/training/body-analysis.jpg",
-  ptSession: "/images/training/pt-session.jpg",
+  ptSession: "/images/training/pt-session.JPG",
   memberWorkout: "/images/training/member-workout.jpg",
   beforeAfter: [
     { before: "/images/reviews/review-01-before.jpg", after: "/images/reviews/review-01-after.jpg", label: "3개월 체형교정" },
