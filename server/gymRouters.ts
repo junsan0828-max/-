@@ -24,6 +24,8 @@ import {
   healthReports,
   ptReports,
   ptPackages,
+  lockers,
+  uniforms,
 } from "../drizzle/schema";
 import type { ReportData } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
@@ -2742,6 +2744,348 @@ const refundContractRouter = t.router({
     }),
 });
 
+// ─── Unified Registration ─────────────────────────────────────────────────────
+const registerMutation = protectedProcedure
+  .input(z.object({
+    // 회원 식별 (있으면 재등록, 없으면 신규)
+    memberId: z.number().optional(),
+
+    // 기본 회원 정보
+    name: z.string().min(1),
+    phone: z.string().optional(),
+    email: z.string().email().optional(),
+    birthDate: z.string().optional(),
+    gender: z.enum(["male", "female", "other"]).optional(),
+    grade: z.enum(["basic", "premium", "vip"]).default("basic"),
+    status: z.enum(["active", "paused"]).default("active"),
+    profileNote: z.string().optional(),
+    visitRoute: z.string().optional(),
+    signatureDataUrl: z.string().optional(),
+
+    // 트레이너 / 지점 / 리드
+    trainerId: z.number().optional(),
+    branchId: z.number().optional(),
+    leadId: z.number().optional(),
+
+    // 회원권 날짜
+    membershipStart: z.string().optional(),
+    membershipEnd: z.string().optional(),
+
+    // 등록 유형
+    subType: z.enum(["신규", "재등록"]).default("신규"),
+
+    // 헬스권
+    addHealth: z.boolean().optional(),
+    healthMonths: z.number().optional(),
+    healthPrice: z.number().optional(),
+
+    // PT
+    addPt: z.boolean().optional(),
+    ptProgram: z.string().optional(),
+    ptSessions: z.number().optional(),
+    ptPrice: z.number().optional(),
+    isServiceSession: z.boolean().optional(),
+    serviceSessions: z.number().optional(),
+    serviceSessionPrice: z.number().optional(),
+
+    // 기타 (단일 타입 등록용, 예: MemberForm에서 "기타" 선택)
+    addOther: z.boolean().optional(),
+    otherDetail: z.string().optional(),
+    otherPrice: z.number().optional(),
+
+    // 락커
+    lockerId: z.number().optional(),
+    lockerStartDate: z.string().optional(),
+    lockerEndDate: z.string().optional(),
+    lockerRentalType: z.string().optional(),
+
+    // 운동복
+    addUniform: z.boolean().optional(),
+    uniformStartDate: z.string().optional(),
+    uniformEndDate: z.string().optional(),
+    uniformRentalType: z.string().optional(),
+    uniformPrice: z.number().optional(),
+
+    // 결제 공통
+    paymentMethod: z.string().optional(),
+    paymentDate: z.string().optional(),
+    unpaidAmount: z.number().optional(),
+    discountAmount: z.number().optional(),
+    paymentMemo: z.string().optional(),
+
+    // 서비스 항목 (배지용)
+    serviceItems: z.string().optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    const now = new Date().toISOString();
+    const today = now.substring(0, 10);
+
+    // 1. Resolve trainer ID
+    const isStaff = ctx.user.role === "admin" || ctx.user.role === "sub_admin" || ctx.user.role === "consultant";
+    const resolvedTrainerId: number | null = isStaff
+      ? (input.trainerId ?? null)
+      : ctx.user.trainerId ?? null;
+
+    // 2. Resolve branch ID
+    let resolvedBranchId: number | null = input.branchId ?? null;
+    if (!resolvedBranchId && resolvedTrainerId) {
+      const [tr] = await db.select({ branchId: trainers.branchId })
+        .from(trainers).where(eq(trainers.id, resolvedTrainerId)).limit(1);
+      if (tr?.branchId) resolvedBranchId = tr.branchId;
+    }
+
+    // 3. Find or create/update member
+    let memberId = input.memberId ?? null;
+    if (!memberId) {
+      // 신규: 이름+전화번호 중복 확인
+      if (input.phone) {
+        const [dup] = await db.select({ id: members.id })
+          .from(members)
+          .where(and(eq(members.name, input.name), eq(members.phone, input.phone)))
+          .limit(1);
+        if (dup) memberId = dup.id;
+      }
+      if (!memberId) {
+        const [created] = await db.insert(members).values({
+          name: input.name,
+          phone: input.phone ?? undefined,
+          email: input.email ?? undefined,
+          birthDate: input.birthDate ?? undefined,
+          gender: input.gender ?? undefined,
+          grade: input.grade ?? "basic",
+          status: input.status ?? "active",
+          profileNote: input.profileNote ?? undefined,
+          visitRoute: input.visitRoute ?? undefined,
+          signatureDataUrl: input.signatureDataUrl ?? undefined,
+          membershipStart: input.membershipStart ?? undefined,
+          membershipEnd: input.membershipEnd ?? undefined,
+          trainerId: resolvedTrainerId,
+          branchId: resolvedBranchId,
+          createdAt: now,
+          updatedAt: now,
+        }).returning({ id: members.id });
+        memberId = created.id;
+      }
+    } else {
+      // 재등록: 날짜 및 기본 정보 업데이트
+      const upd: Record<string, any> = { updatedAt: now };
+      if (input.membershipStart) upd.membershipStart = input.membershipStart;
+      if (input.membershipEnd) upd.membershipEnd = input.membershipEnd;
+      if (input.profileNote !== undefined) upd.profileNote = input.profileNote;
+      if (input.branchId !== undefined) upd.branchId = resolvedBranchId;
+      await db.update(members).set(upd).where(eq(members.id, memberId));
+    }
+
+    const revenueEntryIds: number[] = [];
+
+    // 4. 헬스권 처리
+    if (input.addHealth) {
+      const healthPrice = input.healthPrice ?? 0;
+      const discAmt = input.discountAmount ?? 0;
+      const unpaid = input.unpaidAmount ?? 0;
+      const paid = Math.max(0, healthPrice - discAmt - unpaid);
+      const months = input.healthMonths ?? 1;
+
+      // 재등록 시 membershipEnd 업데이트
+      if (input.memberId && input.membershipEnd) {
+        await db.update(members)
+          .set({ membershipEnd: input.membershipEnd, updatedAt: now })
+          .where(eq(members.id, memberId!));
+      }
+
+      if (healthPrice > 0 || input.serviceItems) {
+        const [healthRev] = await db.insert(revenueEntries).values({
+          memberId,
+          trainerId: resolvedTrainerId,
+          branchId: resolvedBranchId,
+          createdBy: ctx.user.id,
+          customerName: input.name,
+          phone: input.phone ?? null,
+          programDetail: `헬스 ${months}개월`,
+          duration: months,
+          type: "헬스",
+          subType: input.subType ?? "신규",
+          amount: healthPrice,
+          discountAmount: discAmt,
+          paidAmount: paid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.membershipStart ?? undefined,
+          memo: input.paymentMemo ?? null,
+          serviceItems: input.serviceItems || undefined,
+        }).returning({ id: revenueEntries.id });
+        if (healthRev) revenueEntryIds.push(healthRev.id);
+      }
+    }
+
+    // 5. PT 처리
+    if (input.addPt && input.ptSessions && input.ptSessions > 0) {
+      const sessionCount = input.ptSessions;
+      const svcSessions = input.serviceSessions ?? 0;
+      const ptPaid = input.isServiceSession ? 0 : (input.ptPrice ?? 0);
+      const discAmt = input.discountAmount ?? 0;
+      const unpaid = input.unpaidAmount ?? 0;
+      const paid = Math.max(0, ptPaid - discAmt - unpaid);
+      const totalSessions = sessionCount + svcSessions;
+
+      // ptPackage 생성 (중복 방지: memberId+startDate+totalSessions)
+      const [existingPkg] = await db.select({ id: ptPackages.id })
+        .from(ptPackages)
+        .where(and(
+          eq(ptPackages.memberId, memberId!),
+          eq(ptPackages.startDate, input.membershipStart ?? ""),
+          eq(ptPackages.totalSessions, totalSessions),
+        )).limit(1);
+
+      if (!existingPkg) {
+        await db.insert(ptPackages).values({
+          memberId: memberId!,
+          trainerId: resolvedTrainerId,
+          packageName: input.isServiceSession ? "서비스세션" : (input.ptProgram ?? undefined),
+          totalSessions,
+          serviceSessions: svcSessions,
+          serviceSessionPrice: input.serviceSessionPrice ?? undefined,
+          usedSessions: 0,
+          startDate: input.membershipStart ?? undefined,
+          paymentAmount: ptPaid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          paymentMemo: input.paymentMemo ?? undefined,
+        });
+      }
+
+      // 장부 항목 생성 (서비스세션이 아닐 때만)
+      if (!input.isServiceSession) {
+        const [ptRev] = await db.insert(revenueEntries).values({
+          memberId,
+          trainerId: resolvedTrainerId,
+          branchId: resolvedBranchId,
+          createdBy: ctx.user.id,
+          customerName: input.name,
+          phone: input.phone ?? null,
+          programDetail: input.ptProgram ?? `PT ${sessionCount}회`,
+          sessions: sessionCount,
+          type: "PT",
+          subType: input.subType ?? "신규",
+          amount: ptPaid,
+          discountAmount: discAmt,
+          paidAmount: paid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.membershipStart ?? undefined,
+          memo: input.paymentMemo ?? null,
+          serviceItems: input.serviceItems || undefined,
+        }).returning({ id: revenueEntries.id });
+        if (ptRev) revenueEntryIds.push(ptRev.id);
+      }
+    }
+
+    // 6. 기타 처리 (헬스/PT 아닌 단일 항목)
+    if (input.addOther) {
+      const price = input.otherPrice ?? 0;
+      const discAmt = input.discountAmount ?? 0;
+      const unpaid = input.unpaidAmount ?? 0;
+      const paid = Math.max(0, price - discAmt - unpaid);
+
+      if (price > 0 || input.serviceItems) {
+        const [otherRev] = await db.insert(revenueEntries).values({
+          memberId,
+          trainerId: resolvedTrainerId,
+          branchId: resolvedBranchId,
+          createdBy: ctx.user.id,
+          customerName: input.name,
+          phone: input.phone ?? null,
+          programDetail: input.otherDetail ?? undefined,
+          type: "기타",
+          subType: input.subType ?? "신규",
+          amount: price,
+          discountAmount: discAmt,
+          paidAmount: paid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.membershipStart ?? undefined,
+          memo: input.paymentMemo ?? null,
+          serviceItems: input.serviceItems || undefined,
+        }).returning({ id: revenueEntries.id });
+        if (otherRev) revenueEntryIds.push(otherRev.id);
+      }
+    }
+
+    // 7. 락커 배정
+    if (input.lockerId) {
+      await db.update(lockers).set({
+        memberId,
+        memberName: input.name,
+        memberPhone: input.phone ?? null,
+        isOccupied: 1,
+        startDate: input.lockerStartDate ?? input.membershipStart ?? undefined,
+        endDate: input.lockerEndDate ?? undefined,
+        rentalType: input.lockerRentalType ?? "service",
+        updatedAt: now,
+      }).where(eq(lockers.id, input.lockerId));
+    }
+
+    // 8. 운동복 생성
+    if (input.addUniform) {
+      const uniformPrice = input.uniformPrice ?? 0;
+      const rentalType = input.uniformRentalType ?? (uniformPrice > 0 ? "paid" : "service");
+      await db.insert(uniforms).values({
+        memberId,
+        memberName: input.name,
+        memberPhone: input.phone ?? null,
+        startDate: input.uniformStartDate ?? input.membershipStart ?? undefined,
+        endDate: input.uniformEndDate ?? undefined,
+        rentalType,
+        isPaid: uniformPrice > 0 ? 1 : 0,
+        paymentAmount: uniformPrice,
+        paymentDate: input.paymentDate ?? today,
+        isActive: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 유료 운동복이면 장부 자동 생성
+      if (rentalType === "paid" && uniformPrice > 0) {
+        await db.insert(revenueEntries).values({
+          memberId,
+          trainerId: resolvedTrainerId,
+          branchId: resolvedBranchId,
+          createdBy: ctx.user.id,
+          customerName: input.name,
+          phone: input.phone ?? null,
+          programDetail: "운동복",
+          type: "기타",
+          subType: "신규",
+          amount: uniformPrice,
+          discountAmount: 0,
+          paidAmount: uniformPrice,
+          unpaidAmount: 0,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.uniformStartDate ?? input.membershipStart ?? undefined,
+        });
+      }
+    }
+
+    // 9. 리드 상태 업데이트
+    if (input.leadId) {
+      await db.update(leads).set({
+        status: "registered",
+        registeredMemberId: memberId,
+        updatedAt: now,
+      }).where(eq(leads.id, input.leadId));
+    }
+
+    return { memberId: memberId!, revenueEntryIds };
+  });
+
 export const gymRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
@@ -2752,6 +3096,7 @@ export const gymRouter = t.router({
   work: workRouter,
   staff: staffRouter,
   settings: gymSettingsRouter,
+  register: registerMutation,
   createRefundContract: refundContractRouter.createRefundContract,
   getRefundContract: refundContractRouter.getRefundContract,
 });

@@ -129,7 +129,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     }
   }, [existingMember]);
 
-  const createMutation = trpc.members.create.useMutation({
+  const registerMutation = trpc.gym.register.useMutation({
     onError: (err) => toast.error(err.message || "등록 실패"),
   });
 
@@ -218,82 +218,101 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
     setErrors({});
 
-    // 항목 유형에서 primaryType 결정
-    const primaryType: "PT" | "헬스" | "기타" | undefined =
-      hasPT ? "PT" : hasHealth ? "헬스" : hasOther ? "기타" : undefined;
-
-    // PT 프로그램명 구성
     const resolvedPtProgram = hasPT ? form.ptProgram || undefined : undefined;
-
-    const payload = {
-      ...form,
-      ptSessions: (hasPT && form.ptSessions) ? form.ptSessions : undefined,
-      ptProgram: resolvedPtProgram,
-      gender: form.gender || undefined,
-      birthDate: form.birthDate || undefined,
-      membershipStart: form.membershipStart || today,
-      membershipEnd: form.membershipEnd || undefined,
-      email: form.email || undefined,
-      phone: form.phone || undefined,
-      profileNote: form.profileNote || undefined,
-      paymentAmount: form.paymentAmount ? parseInt(form.paymentAmount) : undefined,
-      discountAmount: form.discountAmount ? parseInt(form.discountAmount) : undefined,
-      unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
-      visitRoute: form.visitRoute || undefined,
-      paymentMethod: form.paymentMethod || undefined,
-      paymentDate: form.paymentDate || undefined,
-      paymentMemo: form.paymentMemo || undefined,
-      adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
-      serviceSessions: (hasPT && form.serviceSessions) ? parseInt(form.serviceSessions) : undefined,
-      serviceSessionPrice: (hasPT && form.serviceSessionPrice) ? parseInt(form.serviceSessionPrice) : undefined,
-      subType: form.subType,
-      primaryType,
-      branchId: branchId ?? undefined,
-      serviceItems: serviceItems.length > 0 ? serviceItems.map(item => {
-        if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
-        if (item === "헬스") {
-          const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : undefined);
-          return m ? `헬스(${m}개월)` : "헬스";
-        }
-        if (item === "락커" && serviceLockerNum) return `락커(${serviceLockerNum})`;
-        return item;
-      }).join(",") : undefined,
-    };
+    const siStr = serviceItems.length > 0 ? serviceItems.map(item => {
+      if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
+      if (item === "헬스") {
+        const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : undefined);
+        return m ? `헬스(${m}개월)` : "헬스";
+      }
+      if (item === "락커" && serviceLockerNum) return `락커(${serviceLockerNum})`;
+      return item;
+    }).join(",") : undefined;
 
     try {
       let savedMemberId: number;
       if (isEdit) {
+        const payload = {
+          ...form,
+          gender: form.gender || undefined,
+          birthDate: form.birthDate || undefined,
+          membershipStart: form.membershipStart || today,
+          membershipEnd: form.membershipEnd || undefined,
+          email: form.email || undefined,
+          phone: form.phone || undefined,
+          profileNote: form.profileNote || undefined,
+          paymentAmount: form.paymentAmount ? parseInt(form.paymentAmount) : undefined,
+          discountAmount: form.discountAmount ? parseInt(form.discountAmount) : undefined,
+          unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
+          visitRoute: form.visitRoute || undefined,
+          paymentMethod: form.paymentMethod || undefined,
+          paymentDate: form.paymentDate || undefined,
+          paymentMemo: form.paymentMemo || undefined,
+          adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
+          serviceSessions: (hasPT && form.serviceSessions) ? parseInt(form.serviceSessions) : undefined,
+          serviceSessionPrice: (hasPT && form.serviceSessionPrice) ? parseInt(form.serviceSessionPrice) : undefined,
+          subType: form.subType,
+          primaryType: hasPT ? "PT" : hasHealth ? "헬스" : hasOther ? "기타" : undefined,
+          branchId: branchId ?? undefined,
+          ptSessions: (hasPT && form.ptSessions) ? form.ptSessions : undefined,
+          ptProgram: resolvedPtProgram,
+          serviceItems: siStr,
+        };
         await updateMutation.mutateAsync({ id: memberId!, ...payload });
         savedMemberId = memberId!;
       } else {
-        const result = await createMutation.mutateAsync(payload as any);
-        savedMemberId = result.id;
-      }
-
-      if (addLocker && lockerId) {
-        await assignLockerMutation.mutateAsync({
-          lockerId: parseInt(lockerId),
-          memberId: savedMemberId,
-          memberName: form.name,
-          memberPhone: form.phone || undefined,
-          startDate: form.membershipStart || undefined,
-          endDate: lockerEnd || undefined,
-          rentalType: lockerPrice && parseInt(lockerPrice) > 0 ? "paid" : "service",
-        });
-      }
-
-      if (addUniform) {
-        await createUniformMutation.mutateAsync({
-          memberId: savedMemberId,
-          memberName: form.name,
-          memberPhone: form.phone || undefined,
-          startDate: form.membershipStart || undefined,
-          endDate: uniformEnd || undefined,
-          rentalType: uniformPrice && parseInt(uniformPrice) > 0 ? "paid" : "service",
-          isPaid: uniformPrice && parseInt(uniformPrice) > 0 ? 1 : 0,
-          paymentAmount: uniformPrice ? parseInt(uniformPrice) : 0,
+        // 신규 등록: gym.register (단일 원자 호출)
+        const paymentAmt = form.paymentAmount ? parseInt(form.paymentAmount) : 0;
+        const result = await registerMutation.mutateAsync({
+          name: form.name,
+          phone: form.phone || undefined,
+          email: form.email || undefined,
+          birthDate: form.birthDate || undefined,
+          gender: form.gender || undefined,
+          grade: form.grade,
+          status: form.status,
+          profileNote: form.profileNote || undefined,
+          visitRoute: form.visitRoute || undefined,
+          signatureDataUrl: undefined,
+          membershipStart: form.membershipStart || today,
+          membershipEnd: form.membershipEnd || undefined,
+          trainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
+          branchId: branchId ?? undefined,
+          subType: form.subType,
+          serviceItems: siStr,
           paymentMethod: form.paymentMethod || undefined,
+          paymentDate: form.paymentDate || undefined,
+          unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
+          discountAmount: form.discountAmount ? parseInt(form.discountAmount) : undefined,
+          paymentMemo: form.paymentMemo || undefined,
+          // 헬스권
+          addHealth: hasHealth || undefined,
+          healthMonths: hasHealth ? (typeof healthMonths === "number" ? healthMonths : 1) : undefined,
+          healthPrice: hasHealth ? paymentAmt : undefined,
+          // PT
+          addPt: hasPT || undefined,
+          ptProgram: resolvedPtProgram,
+          ptSessions: hasPT && form.ptSessions ? parseInt(form.ptSessions) : undefined,
+          ptPrice: hasPT ? paymentAmt : undefined,
+          serviceSessions: hasPT && form.serviceSessions ? parseInt(form.serviceSessions) : undefined,
+          serviceSessionPrice: hasPT && form.serviceSessionPrice ? parseInt(form.serviceSessionPrice) : undefined,
+          // 기타
+          addOther: hasOther || undefined,
+          otherDetail: hasOther ? form.ptProgram || undefined : undefined,
+          otherPrice: hasOther ? paymentAmt : undefined,
+          // 락커
+          lockerId: addLocker && lockerId ? parseInt(lockerId) : undefined,
+          lockerStartDate: addLocker ? form.membershipStart || today : undefined,
+          lockerEndDate: addLocker ? lockerEnd || undefined : undefined,
+          lockerRentalType: addLocker ? (lockerPrice && parseInt(lockerPrice) > 0 ? "paid" : "service") : undefined,
+          // 운동복
+          addUniform: addUniform || undefined,
+          uniformStartDate: addUniform ? form.membershipStart || today : undefined,
+          uniformEndDate: addUniform ? uniformEnd || undefined : undefined,
+          uniformRentalType: addUniform ? (uniformPrice && parseInt(uniformPrice) > 0 ? "paid" : "service") : undefined,
+          uniformPrice: addUniform ? (uniformPrice ? parseInt(uniformPrice) : 0) : undefined,
         });
+        savedMemberId = result.memberId;
       }
 
       toast.success(isEdit ? "회원 정보가 수정되었습니다." : "회원이 등록되었습니다.");
@@ -303,7 +322,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     }
   };
 
-  const isPending = createMutation.isPending || updateMutation.isPending || assignLockerMutation.isPending || createUniformMutation.isPending;
+  const isPending = registerMutation.isPending || updateMutation.isPending || assignLockerMutation.isPending || createUniformMutation.isPending;
 
   // 실결제 자동 계산
   const computedPaid = Math.max(0,

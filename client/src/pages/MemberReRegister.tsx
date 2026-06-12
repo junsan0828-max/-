@@ -181,17 +181,11 @@ export default function MemberReRegister() {
     (addUniform && !isNaN(parseInt(uniformPrice)) ? parseInt(uniformPrice) : 0);
 
   const anySelected = addPt || addHealth || addLocker || addUniform;
-  const updateMutation = trpc.members.update.useMutation({
+  const registerMutation = trpc.gym.register.useMutation({
     onError: (err) => toast.error((err as any).message || "등록 실패"),
   });
-  const assignLockerMutation = trpc.access.assignLocker.useMutation({
-    onError: (err) => toast.error("락커 배정 실패: " + ((err as any).message || "")),
-  });
-  const createUniformMutation = trpc.access.createUniform.useMutation({
-    onError: (err) => toast.error("운동복 등록 실패: " + ((err as any).message || "")),
-  });
 
-  const isPending = updateMutation.isPending || assignLockerMutation.isPending || createUniformMutation.isPending;
+  const isPending = registerMutation.isPending;
 
   const buildServiceItemsStr = () => {
     if (serviceItems.length === 0) return undefined;
@@ -223,78 +217,52 @@ export default function MemberReRegister() {
     const method = paymentMethod || undefined;
     const date = paymentDate || today;
 
+    // PT 종료일: 헬스 있으면 헬스 종료일 사용, 없으면 PT 세션 기반 계산
+    const ptEnd = addHealth ? membershipEnd : calcEndDateByPT(membershipStart, ptSessions);
+    // 최종 membershipEnd: PT+헬스 모두 있으면 헬스 기준, PT만 있으면 PT기준, 헬스만 있으면 헬스 기준
+    const finalMembershipEnd = addHealth ? membershipEnd : (addPt ? ptEnd : undefined);
+
     try {
-      if (addPt) {
-        const ptEnd = addHealth ? membershipEnd : calcEndDateByPT(membershipStart, ptSessions);
-        await updateMutation.mutateAsync({
-          id: parseInt(selectedMemberId),
-          name: selectedMember!.name,
-          membershipStart: membershipStart || undefined,
-          membershipEnd: ptEnd || undefined,
-          ptProgram: isServiceSession ? "서비스세션" : (ptProgram || undefined),
-          ptSessions: ptSessions ? parseInt(ptSessions) as any : undefined,
-          paymentAmount: isServiceSession ? 0 : (ptPrice ? parseInt(ptPrice) : undefined),
-          unpaidAmount: !addHealth && unpaidAmount ? parseInt(unpaidAmount) : undefined,
-          paymentMethod: method,
-          paymentDate: date,
-          paymentMemo: isServiceSession
-            ? `서비스세션 단가:${unitPrice}${paymentMemo ? ` / ${paymentMemo}` : ""}`
-            : (paymentMemo || undefined),
-          subType: "재등록" as any,
-          serviceItems: !addHealth ? siStr : undefined,
-          branchId: branchId ?? undefined,
-        } as any);
-      }
-
-      if (addHealth) {
-        await updateMutation.mutateAsync({
-          id: parseInt(selectedMemberId),
-          name: selectedMember!.name,
-          membershipStart: membershipStart || undefined,
-          membershipEnd: membershipEnd || undefined,
-          ptProgram: `헬스 ${healthMonths}개월`,
-          paymentAmount: healthPrice ? parseInt(healthPrice) : 0,
-          unpaidAmount: unpaidAmount ? parseInt(unpaidAmount) : undefined,
-          paymentMethod: method,
-          paymentDate: date,
-          paymentMemo: paymentMemo || undefined,
-          subType: "재등록" as any,
-          serviceItems: siStr,
-          branchId: branchId ?? undefined,
-        } as any);
-      }
-
-      await Promise.all([
-        addLocker && lockerId
-          ? assignLockerMutation.mutateAsync({
-              lockerId: parseInt(lockerId),
-              memberId: parseInt(selectedMemberId),
-              memberName: selectedMember!.name,
-              memberPhone: selectedMember?.phone ?? undefined,
-              startDate: membershipStart || undefined,
-              endDate: lockerEnd || undefined,
-              rentalType: "service",
-            })
-          : Promise.resolve(),
-        addUniform
-          ? createUniformMutation.mutateAsync({
-              memberId: parseInt(selectedMemberId),
-              memberName: selectedMember!.name,
-              memberPhone: selectedMember?.phone ?? undefined,
-              startDate: membershipStart || undefined,
-              endDate: uniformEnd || undefined,
-              rentalType: uniformPrice && parseInt(uniformPrice) > 0 ? "paid" : "service",
-              isPaid: uniformPrice && parseInt(uniformPrice) > 0 ? 1 : 0,
-              paymentAmount: uniformPrice ? parseInt(uniformPrice) : 0,
-              paymentMethod: method,
-            })
-          : Promise.resolve(),
-      ]);
+      await registerMutation.mutateAsync({
+        memberId: parseInt(selectedMemberId),
+        name: selectedMember!.name,
+        phone: selectedMember?.phone ?? undefined,
+        membershipStart: membershipStart || undefined,
+        membershipEnd: finalMembershipEnd || undefined,
+        subType: "재등록",
+        branchId: branchId ?? undefined,
+        paymentMethod: method,
+        paymentDate: date,
+        unpaidAmount: unpaidAmount ? parseInt(unpaidAmount) : undefined,
+        paymentMemo: paymentMemo || undefined,
+        serviceItems: siStr,
+        // 헬스권
+        addHealth: addHealth || undefined,
+        healthMonths: addHealth ? healthMonths : undefined,
+        healthPrice: addHealth ? (healthPrice ? parseInt(healthPrice) : 0) : undefined,
+        // PT
+        addPt: addPt || undefined,
+        ptProgram: addPt ? (isServiceSession ? "서비스세션" : (ptProgram || undefined)) : undefined,
+        ptSessions: addPt && ptSessions ? parseInt(ptSessions) : undefined,
+        ptPrice: addPt && !isServiceSession ? (ptPrice ? parseInt(ptPrice) : 0) : undefined,
+        isServiceSession: isServiceSession || undefined,
+        // 락커
+        lockerId: addLocker && lockerId ? parseInt(lockerId) : undefined,
+        lockerStartDate: addLocker ? membershipStart || undefined : undefined,
+        lockerEndDate: addLocker ? lockerEnd || undefined : undefined,
+        lockerRentalType: addLocker ? (lockerPrice && parseInt(lockerPrice) > 0 ? "paid" : "service") : undefined,
+        // 운동복
+        addUniform: addUniform || undefined,
+        uniformStartDate: addUniform ? membershipStart || undefined : undefined,
+        uniformEndDate: addUniform ? uniformEnd || undefined : undefined,
+        uniformRentalType: addUniform ? (uniformPrice && parseInt(uniformPrice) > 0 ? "paid" : "service") : undefined,
+        uniformPrice: addUniform ? (uniformPrice ? parseInt(uniformPrice) : 0) : undefined,
+      });
 
       toast.success("등록되었습니다.");
       setLocation(`/members/${selectedMemberId}`);
     } catch {
-      // individual mutations already toast
+      // mutation already toasts error
     }
   };
 
