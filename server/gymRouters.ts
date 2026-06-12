@@ -618,13 +618,13 @@ const revenueRouter = t.router({
 
       const [row] = await db.update(revenueEntries).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, id)).returning();
 
-      // PT 타입이고 회원이 새로 연결됐으면 ptPackage 생성 (없는 경우만)
-      const prevMemberId = existing[0]?.memberId;
-      if (row.type === "PT" && row.memberId && !prevMemberId && row.sessions && row.sessions > 0) {
+      // PT 타입이고 회원이 연결되어 있으면 ptPackage 생성 (startDate+sessions 기준 중복 방지)
+      if (row.type === "PT" && row.memberId && row.sessions && row.sessions > 0) {
         const existingPkg = await db.select({ id: ptPackages.id }).from(ptPackages)
           .where(and(
             eq(ptPackages.memberId, row.memberId),
             eq(ptPackages.startDate, row.startDate ?? ""),
+            eq(ptPackages.totalSessions, row.sessions),
           )).limit(1);
         if (existingPkg.length === 0) {
           await db.insert(ptPackages).values({
@@ -729,15 +729,24 @@ const revenueRouter = t.router({
       if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      // PT 타입이고 memberId + sessions 있는 revenue entries 중 ptPackage 없는 것 찾아서 생성
+      // PT 타입이고 memberId + sessions 있는 revenue entries 조회
       const ptRevs = await db.select().from(revenueEntries)
         .where(and(eq(revenueEntries.type, "PT"), isNotNull(revenueEntries.memberId)));
+      // 기존 ptPackages 전체 로드 (memberId + startDate + totalSessions 조합으로 중복 체크)
+      const existingPkgs = await db.select({
+        memberId: ptPackages.memberId,
+        startDate: ptPackages.startDate,
+        totalSessions: ptPackages.totalSessions,
+      }).from(ptPackages);
+      const pkgKey = (memberId: number, startDate: string | null, sessions: number) =>
+        `${memberId}|${startDate ?? ""}|${sessions}`;
+      const existingSet = new Set(existingPkgs.map(p => pkgKey(p.memberId, p.startDate, p.totalSessions)));
+
       let created = 0;
       for (const rev of ptRevs) {
         if (!rev.memberId || !rev.sessions || rev.sessions <= 0) continue;
-        const existing = await db.select({ id: ptPackages.id }).from(ptPackages)
-          .where(eq(ptPackages.memberId, rev.memberId)).limit(1);
-        if (existing.length > 0) continue;
+        const key = pkgKey(rev.memberId, rev.startDate, rev.sessions);
+        if (existingSet.has(key)) continue;
         await db.insert(ptPackages).values({
           memberId: rev.memberId,
           trainerId: rev.trainerId ?? undefined,
@@ -751,6 +760,7 @@ const revenueRouter = t.router({
           paymentDate: rev.paymentDate ?? undefined,
           paymentMemo: rev.memo ?? undefined,
         });
+        existingSet.add(key);
         created++;
       }
       return { created };
