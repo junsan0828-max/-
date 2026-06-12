@@ -276,12 +276,45 @@ function IntroSection() {
 
 // ─── Section 3: 운동 프로그램 ─────────────────────────────────────────────────
 function ProgramSection() {
+  const [branch, setBranch] = useState<"b1" | "b2">("b1");
+
+  const membershipPrices = {
+    b1: [
+      { period: "1개월", price: "80,000원" },
+      { period: "3개월", price: "159,000원" },
+      { period: "6개월", price: "216,000원" },
+      { period: "12개월", price: "312,000원" },
+    ],
+    b2: [
+      { period: "1개월", price: "60,000원" },
+      { period: "3개월", price: "120,000원" },
+      { period: "6개월", price: "180,000원" },
+      { period: "12개월", price: "280,000원" },
+    ],
+  };
+
   return (
     <section id="program" className="py-28 lg:py-40 bg-[#F7F7F5]">
       <div className="max-w-6xl mx-auto px-6 lg:px-8">
-        <div className="mb-16 lg:mb-20">
-          <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-4">Program</p>
-          <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-[#0B1D3A]">운동 프로그램</h2>
+        <div className="mb-16 lg:mb-20 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+          <div>
+            <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-4">Program</p>
+            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-[#0B1D3A]">운동 프로그램</h2>
+          </div>
+          <div className="flex border border-gray-200 self-start sm:self-auto">
+            <button
+              onClick={() => setBranch("b1")}
+              className={`px-5 py-2.5 text-xs tracking-widest transition-colors ${branch === "b1" ? "bg-[#0B1D3A] text-white" : "text-gray-400 hover:text-[#0B1D3A]"}`}
+            >
+              1호점
+            </button>
+            <button
+              onClick={() => setBranch("b2")}
+              className={`px-5 py-2.5 text-xs tracking-widest transition-colors border-l border-gray-200 ${branch === "b2" ? "bg-[#0B1D3A] text-white" : "text-gray-400 hover:text-[#0B1D3A]"}`}
+            >
+              2호점
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1">
@@ -294,12 +327,7 @@ function ProgramSection() {
               체성분 측정 및 운동 상담이 포함됩니다.
             </p>
             <div className="space-y-0 mb-10">
-              {[
-                { period: "1개월", price: "80,000원" },
-                { period: "3개월", price: "159,000원" },
-                { period: "6개월", price: "216,000원" },
-                { period: "12개월", price: "312,000원" },
-              ].map((p) => (
+              {membershipPrices[branch].map((p) => (
                 <div key={p.period} className="flex items-center justify-between py-4 border-b border-gray-100">
                   <span className="text-sm text-gray-400 font-light">{p.period}</span>
                   <span className="text-sm font-semibold text-[#0B1D3A]">{p.price}</span>
