@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bell, Plus, Pencil, Trash2, Pin, ExternalLink, ImageIcon, X, ClipboardList, ChevronDown, ChevronUp, Users } from "lucide-react";
+import { Bell, Plus, Pencil, Trash2, Pin, ExternalLink, ImageIcon, X, ClipboardList, ChevronDown, ChevronUp, Users, Check, Info } from "lucide-react";
 import { toast } from "sonner";
 
 type Notice = { id: number; title: string; content: string; isPinned: boolean; isActive: boolean; createdAt: string };
@@ -74,65 +74,111 @@ function TabBannerManager() {
   const utils = trpc.useUtils();
   const { data: allBanners } = trpc.tabBanner.listAll.useQuery();
   const upsertMutation = trpc.tabBanner.upsert.useMutation({
-    onSuccess: () => { toast.success("배너 저장 완료"); utils.tabBanner.listAll.invalidate(); utils.tabBanner.getByTab.invalidate(); },
     onError: e => toast.error(e.message),
   });
 
-  const [selectedTab, setSelectedTab] = useState("all");
-  const [fields, setFields] = useState<Record<string, FieldState>>({});
+  const [selectedTabs, setSelectedTabs] = useState<Set<string>>(new Set(["all"]));
+  const [editState, setEditState] = useState<FieldState>({
+    text: "", subText: "", link: "", bgColor: "#6366f1",
+    isActive: true, imageUrl: "", bannerHeight: "medium", textSize: "medium", textAlign: "left",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = useState(false);
 
-  const getField = (tabKey: string): FieldState => {
-    if (fields[tabKey]) return fields[tabKey];
-    const row = allBanners?.find(b => b.tabKey === tabKey);
-    return {
-      text: row?.text ?? "",
-      subText: row?.subText ?? "",
-      link: row?.link ?? "",
-      bgColor: row?.bgColor ?? "#6366f1",
-      isActive: row ? row.isActive === 1 : false,
-      imageUrl: (row as any)?.imageUrl ?? "",
-      bannerHeight: (row as any)?.bannerHeight ?? "medium",
-      textSize: (row as any)?.textSize ?? "medium",
-      textAlign: (row as any)?.textAlign ?? "left",
-    };
+  // 탭 선택 시 해당 탭의 기존 데이터 로드 (단일 탭 클릭 시)
+  const toggleTab = (key: string) => {
+    setSelectedTabs(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        // 처음 선택하는 탭이면 기존 데이터 로드
+        if (next.size === 0) {
+          const row = allBanners?.find(b => b.tabKey === key);
+          if (row) {
+            setEditState({
+              text: row.text ?? "",
+              subText: row.subText ?? "",
+              link: row.link ?? "",
+              bgColor: row.bgColor ?? "#6366f1",
+              isActive: row.isActive === 1,
+              imageUrl: (row as any).imageUrl ?? "",
+              bannerHeight: (row as any).bannerHeight ?? "medium",
+              textSize: (row as any).textSize ?? "medium",
+              textAlign: (row as any).textAlign ?? "left",
+            });
+          }
+        }
+        next.add(key);
+      }
+      return next;
+    });
   };
 
-  const setField = (tabKey: string, patch: Partial<FieldState>) => {
-    setFields(f => ({ ...f, [tabKey]: { ...getField(tabKey), ...patch } }));
+  // 단독 클릭(단일 선택 교체): Shift 없이 이미 선택된 탭 하나만 있을 때 다른 탭 클릭
+  const selectOnly = (key: string) => {
+    const row = allBanners?.find(b => b.tabKey === key);
+    if (row) {
+      setEditState({
+        text: row.text ?? "",
+        subText: row.subText ?? "",
+        link: row.link ?? "",
+        bgColor: row.bgColor ?? "#6366f1",
+        isActive: row.isActive === 1,
+        imageUrl: (row as any).imageUrl ?? "",
+        bannerHeight: (row as any).bannerHeight ?? "medium",
+        textSize: (row as any).textSize ?? "medium",
+        textAlign: (row as any).textAlign ?? "left",
+      });
+    } else {
+      setEditState({ text: "", subText: "", link: "", bgColor: "#6366f1", isActive: true, imageUrl: "", bannerHeight: "medium", textSize: "medium", textAlign: "left" });
+    }
+    setSelectedTabs(new Set([key]));
   };
 
-  const current = getField(selectedTab);
-  const tabLabel = TAB_OPTIONS.find(t => t.key === selectedTab)?.label ?? "";
+  const patch = (p: Partial<FieldState>) => setEditState(s => ({ ...s, ...p }));
 
   const heightPx: Record<string, string> = { small: "56px", medium: "96px", large: "140px" };
 
   const handleImageFile = (file: File) => {
     if (file.size > 5 * 1024 * 1024) { toast.error("이미지는 5MB 이하로 업로드해주세요"); return; }
     const reader = new FileReader();
-    reader.onload = (e) => {
-      setField(selectedTab, { imageUrl: e.target?.result as string });
-    };
+    reader.onload = (e) => patch({ imageUrl: e.target?.result as string });
     reader.readAsDataURL(file);
   };
 
-  const handleSave = () => {
-    if (!current.text.trim() && !current.imageUrl) {
+  const handleSave = async () => {
+    if (!editState.text.trim() && !editState.imageUrl) {
       toast.error("배너 텍스트 또는 이미지를 입력해주세요"); return;
     }
-    upsertMutation.mutate({
-      tabKey: selectedTab,
-      text: current.text,
-      subText: current.subText || undefined,
-      link: current.link || undefined,
-      bgColor: current.bgColor,
-      isActive: current.isActive,
-      imageUrl: current.imageUrl || undefined,
-      bannerHeight: current.bannerHeight,
-      textSize: current.textSize,
-      textAlign: current.textAlign,
-    });
+    if (selectedTabs.size === 0) { toast.error("저장할 탭을 선택해주세요"); return; }
+    setSaving(true);
+    try {
+      await Promise.all(Array.from(selectedTabs).map(tabKey =>
+        upsertMutation.mutateAsync({
+          tabKey,
+          text: editState.text,
+          subText: editState.subText || undefined,
+          link: editState.link || undefined,
+          bgColor: editState.bgColor,
+          isActive: editState.isActive,
+          imageUrl: editState.imageUrl || undefined,
+          bannerHeight: editState.bannerHeight,
+          textSize: editState.textSize,
+          textAlign: editState.textAlign,
+        })
+      ));
+      toast.success(`${selectedTabs.size}개 탭에 배너 저장 완료`);
+      utils.tabBanner.listAll.invalidate();
+      utils.tabBanner.getByTab.invalidate();
+    } catch {
+      // error already toasted by mutation
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const selectedLabels = Array.from(selectedTabs).map(k => TAB_OPTIONS.find(t => t.key === k)?.label ?? k).join(", ");
 
   return (
     <Card className="bg-card border-border">
@@ -140,215 +186,205 @@ function TabBannerManager() {
         <CardTitle className="text-sm flex items-center gap-2">
           <ExternalLink className="h-4 w-4 text-primary" />탭별 광고 배너
         </CardTitle>
-        <p className="text-xs text-muted-foreground">탭마다 다른 배너를 설정하거나, "전체(공통)"으로 모든 탭에 같은 배너를 표시하세요</p>
+        <p className="text-xs text-muted-foreground">탭을 하나 또는 여러 개 선택하여 같은 배너를 한 번에 저장할 수 있습니다</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 탭 선택 */}
-        <div className="flex flex-wrap gap-1.5">
-          {TAB_OPTIONS.map(t => {
-            const row = allBanners?.find(b => b.tabKey === t.key);
-            const hasActive = row?.isActive === 1 && ((row as any)?.text || (row as any)?.imageUrl);
-            return (
-              <button
-                key={t.key}
-                onClick={() => setSelectedTab(t.key)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors relative ${
-                  selectedTab === t.key
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border text-muted-foreground hover:border-primary/40"
-                }`}
-              >
-                {t.label}
-                {hasActive && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-400" />}
-              </button>
-            );
-          })}
+
+        {/* 우선순위 안내 */}
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+          <Info className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-amber-300 leading-relaxed">
+            <span className="font-semibold">우선순위:</span> 특정 탭 배너 &gt; 전체(공통) 배너<br />
+            특정 탭에 활성 배너가 있으면 전체 배너는 그 탭에서 표시되지 않습니다.
+          </p>
         </div>
 
-        {/* 미리보기 */}
-        <div className="rounded-xl overflow-hidden border border-border/40" style={{ height: heightPx[current.bannerHeight] ?? "96px" }}>
-          {current.imageUrl ? (
-            <img src={current.imageUrl} alt="미리보기" className="w-full h-full object-cover" />
-          ) : current.text ? (
-            <div
-              className={`w-full h-full flex items-center gap-3 px-4 ${
-                current.textAlign === "center" ? "justify-center text-center" : current.textAlign === "right" ? "justify-end text-right" : "justify-start text-left"
-              }`}
-              style={{ backgroundColor: current.bgColor }}
-            >
-              <div className="flex-1 min-w-0">
-                <p className={`font-bold text-white line-clamp-2 leading-tight ${current.textSize === "large" ? "text-lg" : current.textSize === "small" ? "text-xs" : "text-sm"}`}>{current.text}</p>
-                {current.subText && <p className="text-xs text-white/80 mt-0.5 line-clamp-2">{current.subText}</p>}
-              </div>
-              {current.link && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
-            </div>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted/30 text-xs text-muted-foreground">
-              미리보기
-            </div>
+        {/* 탭 다중 선택 */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">탭 선택 <span className="text-primary font-semibold">(복수 선택 가능)</span></p>
+            {selectedTabs.size > 0 && (
+              <button onClick={() => setSelectedTabs(new Set())} className="text-[10px] text-muted-foreground hover:text-foreground">전체 해제</button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {TAB_OPTIONS.map(t => {
+              const row = allBanners?.find(b => b.tabKey === t.key);
+              const hasActive = row?.isActive === 1 && ((row as any)?.text || (row as any)?.imageUrl);
+              const isSelected = selectedTabs.has(t.key);
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => {
+                    if (isSelected && selectedTabs.size === 1) {
+                      // 이미 단독 선택된 탭 클릭 → 해제 (아무것도 선택 안됨)
+                      setSelectedTabs(new Set());
+                    } else if (!isSelected && selectedTabs.size === 0) {
+                      selectOnly(t.key);
+                    } else {
+                      toggleTab(t.key);
+                    }
+                  }}
+                  className={`relative px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                    isSelected
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {isSelected && <Check className="inline h-3 w-3 mr-1" />}
+                  {t.label}
+                  {hasActive && !isSelected && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-400" />}
+                </button>
+              );
+            })}
+          </div>
+          {selectedTabs.size > 1 && (
+            <p className="text-[11px] text-primary font-medium">
+              ✓ {selectedTabs.size}개 탭 선택됨 — 저장 시 모든 탭에 동일하게 적용됩니다
+            </p>
           )}
         </div>
 
-        <div className="space-y-3">
-          <p className="text-xs font-medium text-muted-foreground">{tabLabel} 배너 설정</p>
-
-          {/* 배너 크기 */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">배너 크기</label>
-            <div className="flex gap-2">
-              {HEIGHT_OPTIONS.map(h => (
-                <button
-                  key={h.value}
-                  onClick={() => setField(selectedTab, { bannerHeight: h.value })}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
-                    current.bannerHeight === h.value
-                      ? "bg-primary/20 border-primary/40 text-primary"
-                      : "border-border text-muted-foreground hover:border-primary/30"
+        {selectedTabs.size === 0 ? (
+          <div className="py-6 text-center text-xs text-muted-foreground">탭을 선택하면 배너를 설정할 수 있습니다</div>
+        ) : (
+          <>
+            {/* 미리보기 */}
+            <div className="rounded-xl overflow-hidden border border-border/40" style={{ height: heightPx[editState.bannerHeight] ?? "96px" }}>
+              {editState.imageUrl ? (
+                <img src={editState.imageUrl} alt="미리보기" className="w-full h-auto" style={{ display: "block" }} />
+              ) : editState.text ? (
+                <div
+                  className={`w-full h-full flex items-center gap-3 px-4 ${
+                    editState.textAlign === "center" ? "justify-center text-center" : editState.textAlign === "right" ? "justify-end text-right" : "justify-start text-left"
                   }`}
+                  style={{ backgroundColor: editState.bgColor }}
                 >
-                  {h.label}
-                </button>
-              ))}
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-bold text-white line-clamp-2 leading-tight ${editState.textSize === "large" ? "text-lg" : editState.textSize === "small" ? "text-xs" : "text-sm"}`}>{editState.text}</p>
+                    {editState.subText && <p className="text-xs text-white/80 mt-0.5 line-clamp-2">{editState.subText}</p>}
+                  </div>
+                  {editState.link && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-muted/30 text-xs text-muted-foreground">미리보기</div>
+              )}
             </div>
-          </div>
 
-          {/* 글씨 크기 */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">글씨 크기</label>
-            <div className="flex gap-2">
-              {[{ value: "small", label: "소" }, { value: "medium", label: "중" }, { value: "large", label: "대" }].map(o => (
-                <button key={o.value} onClick={() => setField(selectedTab, { textSize: o.value })}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${current.textSize === o.value ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                {selectedLabels} 배너 설정
+              </p>
 
-          {/* 글씨 위치 */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">글씨 위치</label>
-            <div className="flex gap-2">
-              {[{ value: "left", label: "왼쪽" }, { value: "center", label: "가운데" }, { value: "right", label: "오른쪽" }].map(o => (
-                <button key={o.value} onClick={() => setField(selectedTab, { textAlign: o.value })}
-                  className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${current.textAlign === o.value ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 이미지 업로드 */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">배너 이미지 (선택)</label>
-            {current.imageUrl ? (
-              <div className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/20">
-                <img src={current.imageUrl} alt="이미지" className="h-10 w-16 object-cover rounded" />
-                <span className="text-xs text-muted-foreground flex-1">이미지 업로드됨</span>
-                <button
-                  onClick={() => setField(selectedTab, { imageUrl: "" })}
-                  className="text-muted-foreground hover:text-red-400"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-border text-muted-foreground hover:border-primary/40 text-sm transition-colors"
-              >
-                <ImageIcon className="h-4 w-4 shrink-0" />
-                이미지 파일 첨부 (JPG, PNG, GIF · 5MB 이하)
-              </button>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }}
-            />
-          </div>
-
-          {/* 텍스트 (이미지 없을 때만) */}
-          {!current.imageUrl && (
-            <>
-              <Input
-                value={current.text}
-                onChange={e => setField(selectedTab, { text: e.target.value })}
-                placeholder="배너 텍스트 *"
-                className="bg-input border-border"
-              />
-              <Input
-                value={current.subText}
-                onChange={e => setField(selectedTab, { subText: e.target.value })}
-                placeholder="서브 텍스트 (선택)"
-                className="bg-input border-border"
-              />
-              {/* 프리셋 디자인 */}
+              {/* 배너 크기 */}
               <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">빠른 색상 선택</label>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {[
-                    { bg: "#2563eb", label: "블루" },
-                    { bg: "#7c3aed", label: "퍼플" },
-                    { bg: "#059669", label: "그린" },
-                    { bg: "#dc2626", label: "레드" },
-                    { bg: "#d97706", label: "오렌지" },
-                    { bg: "#0891b2", label: "시안" },
-                    { bg: "#be185d", label: "핑크" },
-                    { bg: "#1e293b", label: "다크" },
-                    { bg: "#374151", label: "그레이" },
-                    { bg: "#1a3a6e", label: "네이비" },
-                  ].map(p => (
-                    <button
-                      key={p.bg}
-                      title={p.label}
-                      onClick={() => setField(selectedTab, { bgColor: p.bg })}
-                      className={`h-8 rounded-lg border-2 transition-all ${current.bgColor === p.bg ? "border-white scale-110" : "border-transparent"}`}
-                      style={{ backgroundColor: p.bg }}
-                    />
+                <label className="text-xs text-muted-foreground">배너 크기</label>
+                <div className="flex gap-2">
+                  {HEIGHT_OPTIONS.map(h => (
+                    <button key={h.value} onClick={() => patch({ bannerHeight: h.value })}
+                      className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${editState.bannerHeight === h.value ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>
+                      {h.label}
+                    </button>
                   ))}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <label className="text-xs text-muted-foreground shrink-0">직접 입력</label>
-                <input
-                  type="color"
-                  value={current.bgColor}
-                  onChange={e => setField(selectedTab, { bgColor: e.target.value })}
-                  className="h-8 w-12 rounded cursor-pointer border-0"
-                />
-                <span className="text-xs text-muted-foreground">{current.bgColor}</span>
+
+              {/* 글씨 크기 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">글씨 크기</label>
+                <div className="flex gap-2">
+                  {[{ value: "small", label: "소" }, { value: "medium", label: "중" }, { value: "large", label: "대" }].map(o => (
+                    <button key={o.value} onClick={() => patch({ textSize: o.value })}
+                      className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${editState.textSize === o.value ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </>
-          )}
 
-          <Input
-            value={current.link}
-            onChange={e => setField(selectedTab, { link: e.target.value })}
-            placeholder="링크 URL (선택)"
-            className="bg-input border-border"
-          />
+              {/* 글씨 위치 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">글씨 위치</label>
+                <div className="flex gap-2">
+                  {[{ value: "left", label: "왼쪽" }, { value: "center", label: "가운데" }, { value: "right", label: "오른쪽" }].map(o => (
+                    <button key={o.value} onClick={() => patch({ textAlign: o.value })}
+                      className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${editState.textAlign === o.value ? "bg-primary/20 border-primary/40 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={current.isActive}
-              onChange={e => setField(selectedTab, { isActive: e.target.checked })}
-              className="accent-primary"
-            />
-            배너 활성화
-          </label>
-          <Button
-            className="w-full"
-            size="sm"
-            onClick={handleSave}
-            disabled={upsertMutation.isPending}
-          >
-            {upsertMutation.isPending ? "저장 중..." : `"${tabLabel}" 배너 저장`}
-          </Button>
-        </div>
+              {/* 이미지 업로드 */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">배너 이미지 (선택)</label>
+                {editState.imageUrl ? (
+                  <div className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/20">
+                    <img src={editState.imageUrl} alt="이미지" className="h-10 w-16 object-cover rounded" />
+                    <span className="text-xs text-muted-foreground flex-1">이미지 업로드됨</span>
+                    <button onClick={() => patch({ imageUrl: "" })} className="text-muted-foreground hover:text-red-400">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-border text-muted-foreground hover:border-primary/40 text-sm transition-colors">
+                    <ImageIcon className="h-4 w-4 shrink-0" />
+                    이미지 파일 첨부 (JPG, PNG, GIF · 5MB 이하)
+                  </button>
+                )}
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = ""; }} />
+              </div>
+
+              {/* 텍스트 (이미지 없을 때만) */}
+              {!editState.imageUrl && (
+                <>
+                  <Input value={editState.text} onChange={e => patch({ text: e.target.value })}
+                    placeholder="배너 텍스트 *" className="bg-input border-border" />
+                  <Input value={editState.subText} onChange={e => patch({ subText: e.target.value })}
+                    placeholder="서브 텍스트 (선택)" className="bg-input border-border" />
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">빠른 색상 선택</label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[
+                        { bg: "#2563eb", label: "블루" }, { bg: "#7c3aed", label: "퍼플" },
+                        { bg: "#059669", label: "그린" }, { bg: "#dc2626", label: "레드" },
+                        { bg: "#d97706", label: "오렌지" }, { bg: "#0891b2", label: "시안" },
+                        { bg: "#be185d", label: "핑크" }, { bg: "#1e293b", label: "다크" },
+                        { bg: "#374151", label: "그레이" }, { bg: "#1a3a6e", label: "네이비" },
+                      ].map(p => (
+                        <button key={p.bg} title={p.label} onClick={() => patch({ bgColor: p.bg })}
+                          className={`h-8 rounded-lg border-2 transition-all ${editState.bgColor === p.bg ? "border-white scale-110" : "border-transparent"}`}
+                          style={{ backgroundColor: p.bg }} />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs text-muted-foreground shrink-0">직접 입력</label>
+                    <input type="color" value={editState.bgColor} onChange={e => patch({ bgColor: e.target.value })}
+                      className="h-8 w-12 rounded cursor-pointer border-0" />
+                    <span className="text-xs text-muted-foreground">{editState.bgColor}</span>
+                  </div>
+                </>
+              )}
+
+              <Input value={editState.link} onChange={e => patch({ link: e.target.value })}
+                placeholder="링크 URL (선택)" className="bg-input border-border" />
+
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={editState.isActive} onChange={e => patch({ isActive: e.target.checked })} className="accent-primary" />
+                배너 활성화
+              </label>
+
+              <Button className="w-full" size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? "저장 중..." : selectedTabs.size > 1
+                  ? `선택한 ${selectedTabs.size}개 탭에 저장`
+                  : `"${selectedLabels}" 배너 저장`}
+              </Button>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
