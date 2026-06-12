@@ -1737,7 +1737,9 @@ export default function DietPlanner() {
   const [visitorToday, setVisitorToday] = useState<number | null>(null);
   const [shareCount, setShareCount] = useState<number | null>(null);
   const [shareToday, setShareToday] = useState<number | null>(null);
-  const [kakaoUser, setKakaoUser] = useState<KakaoUser | null>(null);
+  const [kakaoUser, setKakaoUser] = useState<KakaoUser | null>(() => {
+    try { const s = localStorage.getItem("dp_kakao_user"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
   const [kakaoMsg, setKakaoMsg] = useState<string>("");
 
   const resultRef = useRef<HTMLDivElement>(null);
@@ -1771,6 +1773,11 @@ export default function DietPlanner() {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get("ref") === "fitstep" || searchParams.get("fitstep") === "1") {
       localStorage.setItem("dp_fitstep", "1");
+      // 이미 로그인된 상태면 즉시 fitstep으로 업그레이드
+      if (localStorage.getItem("dp_kakao_user") && localStorage.getItem("dp_ut") !== "fitstep") {
+        localStorage.setItem("dp_ut", "fitstep");
+        setUserType("fitstep");
+      }
     }
 
     // 카카오 PKCE 콜백 처리 (URL search params에서 code 추출)
@@ -1786,6 +1793,7 @@ export default function DietPlanner() {
           if (!token) { setKakaoMsg("❌ 토큰 교환 실패"); return; }
           fetchKakaoProfile(token).then((user) => {
             if (user) {
+              localStorage.setItem("dp_kakao_user", JSON.stringify(user));
               setKakaoUser(user);
               setKakaoMsg("");
               setName((prev) => prev || user.name);
@@ -1920,6 +1928,7 @@ export default function DietPlanner() {
   }
 
   function handleKakaoLogout() {
+    localStorage.removeItem("dp_kakao_user");
     setKakaoUser(null);
     setKakaoMsg("");
   }
