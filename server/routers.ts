@@ -70,9 +70,13 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-// 카드/현금영수증/지역화폐는 부가세 10% 제외, 계좌이체/이체는 그대로
-function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string): number | undefined {
+// 카드/현금영수증/지역화폐는 부가세 10% 제외, 계좌이체/이체는 그대로, 혼합은 이체분+카드분(VAT제외) 합산
+function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string, transferAmount?: number, cardAmount?: number): number | undefined {
   if (!paymentAmount || !sessions || sessions <= 0) return undefined;
+  if (paymentMethod === "혼합" && transferAmount != null && cardAmount != null) {
+    const base = transferAmount + Math.round(cardAmount / 1.1);
+    return Math.round(base / sessions);
+  }
   const base = (paymentMethod === "이체" || paymentMethod === "계좌이체") ? paymentAmount : Math.round(paymentAmount / 1.1);
   return Math.round(base / sessions);
 }
@@ -1180,7 +1184,9 @@ const ptRouter = t.router({
         expiryDate: z.string().optional(),
         paymentAmount: z.number().optional(),
         unpaidAmount: z.number().optional(),
-        paymentMethod: z.enum(["카드", "현금", "현금영수증", "계좌이체", "이체", "지역화폐", "분할결제"]).optional(),
+        paymentMethod: z.enum(["카드", "현금", "현금영수증", "계좌이체", "이체", "지역화폐", "분할결제", "혼합"]).optional(),
+        transferAmount: z.number().optional(),
+        cardAmount: z.number().optional(),
         paymentDate: z.string().optional(),
         paymentMemo: z.string().optional(),
       })
@@ -1203,7 +1209,7 @@ const ptRouter = t.router({
       const packageName = input.ptProgram || undefined;
       const svcSessions = input.serviceSessions ?? 0;
       // 단가는 서비스 횟수 제외한 결제 횟수 기준으로 계산
-      const pricePerSession = calcPricePerSession(input.paymentAmount, input.totalSessions, input.paymentMethod);
+      const pricePerSession = calcPricePerSession(input.paymentAmount, input.totalSessions, input.paymentMethod, input.transferAmount, input.cardAmount);
       const actualTotalSessions = input.totalSessions + svcSessions;
 
       await db.insert(ptPackages).values({
@@ -1220,6 +1226,8 @@ const ptRouter = t.router({
         paymentAmount: input.paymentAmount,
         unpaidAmount: input.unpaidAmount,
         paymentMethod: input.paymentMethod,
+        transferAmount: input.transferAmount ?? undefined,
+        cardAmount: input.cardAmount ?? undefined,
         paymentDate: input.paymentDate,
         paymentMemo: input.paymentMemo,
       });
@@ -1592,7 +1600,9 @@ const ptRouter = t.router({
       expiryDate: z.string().optional(),
       paymentAmount: z.number().min(0).optional(),
       unpaidAmount: z.number().min(0).optional(),
-      paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드"]).optional(),
+      paymentMethod: z.enum(["현금영수증", "이체", "지역화폐", "카드", "혼합"]).optional(),
+      transferAmount: z.number().optional(),
+      cardAmount: z.number().optional(),
       paymentDate: z.string().optional(),
       paymentMemo: z.string().optional(),
     }))
@@ -1602,7 +1612,7 @@ const ptRouter = t.router({
       const { packageId, ...fields } = input;
 
       // usedSessions 변경 시 status 자동 조정
-      const pkg = (fields.totalSessions !== undefined || fields.usedSessions !== undefined || fields.paymentAmount !== undefined || fields.unpaidAmount !== undefined || fields.paymentMethod !== undefined)
+      const pkg = (fields.totalSessions !== undefined || fields.usedSessions !== undefined || fields.paymentAmount !== undefined || fields.unpaidAmount !== undefined || fields.paymentMethod !== undefined || fields.transferAmount !== undefined || fields.cardAmount !== undefined)
         ? (await db.select().from(ptPackages).where(eq(ptPackages.id, packageId)).limit(1))[0]
         : null;
 
@@ -1614,8 +1624,10 @@ const ptRouter = t.router({
       const newPaymentAmount = fields.paymentAmount ?? pkg?.paymentAmount ?? undefined;
       const newTotalSessions = fields.totalSessions ?? pkg?.totalSessions ?? undefined;
       const newPaymentMethod = fields.paymentMethod ?? pkg?.paymentMethod ?? undefined;
-      const recalcPrice = (fields.paymentAmount !== undefined || fields.totalSessions !== undefined || fields.paymentMethod !== undefined)
-        ? calcPricePerSession(newPaymentAmount ?? undefined, newTotalSessions ?? undefined, newPaymentMethod ?? undefined)
+      const newTransferAmount = fields.transferAmount ?? pkg?.transferAmount ?? undefined;
+      const newCardAmount = fields.cardAmount ?? pkg?.cardAmount ?? undefined;
+      const recalcPrice = (fields.paymentAmount !== undefined || fields.totalSessions !== undefined || fields.paymentMethod !== undefined || fields.transferAmount !== undefined || fields.cardAmount !== undefined)
+        ? calcPricePerSession(newPaymentAmount ?? undefined, newTotalSessions ?? undefined, newPaymentMethod ?? undefined, newTransferAmount, newCardAmount)
         : undefined;
 
       await db.update(ptPackages).set({
@@ -2279,11 +2291,14 @@ const trainersRouter = t.router({
         if (l.isServiceSession === 1) {
           return l.serviceSessionPrice ?? 0;
         }
+        // 혼합 결제는 저장된 pricePerSession 직접 사용
+        if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
         // paymentAmount 기준 계산 우선 (pricePerSession은 갱신 안 됐을 수 있음)
         if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
           return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
         if (l.pricePerSession) return l.pricePerSession;
         const fb = memberPkgMap[l.memberId];
+        if (fb?.paymentMethod === "혼합") return fb.pricePerSession ?? 0;
         if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
           return Math.round(calcPricePerSession(fb.paymentAmount, fb.totalSessions, fb.paymentMethod ?? undefined) ?? 0);
         if (fb?.pricePerSession) return fb.pricePerSession;
@@ -3069,6 +3084,7 @@ const adminRouter = t.router({
           pricePerSession: ptPackages.pricePerSession,
           paymentAmount: ptPackages.paymentAmount,
           totalSessions: ptPackages.totalSessions,
+          paymentMethod: ptPackages.paymentMethod,
         })
           .from(ptSessionLogs)
           .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
@@ -3085,13 +3101,14 @@ const adminRouter = t.router({
       const noPackageMemberIds2 = [...new Set(
         monthLogs.filter(l => !l.pricePerSession && !l.paymentAmount).map(l => l.memberId)
       )];
-      const memberPkgMap2: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }> = {};
+      const memberPkgMap2: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod: string | null }> = {};
       if (noPackageMemberIds2.length > 0) {
         const fallbackPkgs = await db.select({
           memberId: ptPackages.memberId,
           pricePerSession: ptPackages.pricePerSession,
           paymentAmount: ptPackages.paymentAmount,
           totalSessions: ptPackages.totalSessions,
+          paymentMethod: ptPackages.paymentMethod,
         }).from(ptPackages).where(inArray(ptPackages.memberId, noPackageMemberIds2)).orderBy(desc(ptPackages.createdAt));
         for (const p of fallbackPkgs) {
           if (!memberPkgMap2[p.memberId]) memberPkgMap2[p.memberId] = p;
@@ -3099,10 +3116,12 @@ const adminRouter = t.router({
       }
 
       const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+        if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
         if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
           return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
         if (l.pricePerSession) return l.pricePerSession;
         const fb = memberPkgMap2[l.memberId];
+        if (fb?.paymentMethod === "혼합") return fb.pricePerSession ?? 0;
         if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
           return Math.round(calcPricePerSession(fb.paymentAmount, fb.totalSessions) ?? 0);
         if (fb?.pricePerSession) return fb.pricePerSession;
@@ -3224,6 +3243,7 @@ const adminRouter = t.router({
             pricePerSession: ptPackages.pricePerSession,
             paymentAmount: ptPackages.paymentAmount,
             totalSessions: ptPackages.totalSessions,
+            paymentMethod: ptPackages.paymentMethod,
           })
             .from(ptSessionLogs)
             .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
@@ -3236,13 +3256,14 @@ const adminRouter = t.router({
 
         // packageId 없는 세션은 회원 패키지로 단가 폴백
         const allLogMemberIds = [...new Set(logs.map(l => l.memberId))];
-        const memberPkgMap: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }> = {};
+        const memberPkgMap: Record<number, { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod: string | null }> = {};
         if (allLogMemberIds.length > 0) {
           const fallbackPkgs = await db.select({
             memberId: ptPackages.memberId,
             pricePerSession: ptPackages.pricePerSession,
             paymentAmount: ptPackages.paymentAmount,
             totalSessions: ptPackages.totalSessions,
+            paymentMethod: ptPackages.paymentMethod,
           }).from(ptPackages).where(inArray(ptPackages.memberId, allLogMemberIds)).orderBy(desc(ptPackages.createdAt));
           for (const p of fallbackPkgs) {
             if (!memberPkgMap[p.memberId]) memberPkgMap[p.memberId] = p;
@@ -3274,10 +3295,12 @@ const adminRouter = t.router({
 
         const rate = settings[0]?.settlementRate ?? 50;
         const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+          if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
           if (l.pricePerSession) return l.pricePerSession;
           if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
             return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
           const fb = memberPkgMap[l.memberId];
+          if (fb?.paymentMethod === "혼합") return fb.pricePerSession ?? 0;
           if (fb?.pricePerSession) return fb.pricePerSession;
           if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
             return Math.round(calcPricePerSession(fb.paymentAmount, fb.totalSessions) ?? 0);

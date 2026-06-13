@@ -252,7 +252,9 @@ export default function MemberDetail({ memberId }: Props) {
     expiryDate: "",
     paymentAmount: "",
     unpaidAmount: "",
-    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드" | "혼합",
+    transferAmount: "",
+    cardAmount: "",
     paymentDate: "",
     paymentMemo: "",
   });
@@ -1286,6 +1288,8 @@ export default function MemberDetail({ memberId }: Props) {
                                     paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
                                     unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
                                     paymentMethod: ((pkg.paymentMethod === "계좌이체" ? "이체" : pkg.paymentMethod) ?? "") as any,
+                                    transferAmount: (pkg as any).transferAmount ? String((pkg as any).transferAmount) : "",
+                                    cardAmount: (pkg as any).cardAmount ? String((pkg as any).cardAmount) : "",
                                     paymentDate: (pkg as any).paymentDate ?? "",
                                     paymentMemo: pkg.paymentMemo ?? "",
                                   });
@@ -2371,8 +2375,35 @@ export default function MemberDetail({ memberId }: Props) {
                   <SelectItem value="이체">계좌이체</SelectItem>
                   <SelectItem value="지역화폐">지역화폐</SelectItem>
                   <SelectItem value="카드">카드</SelectItem>
+                  <SelectItem value="혼합">혼합(이체+카드)</SelectItem>
                 </SelectContent>
               </Select>
+              {editPkgForm.paymentMethod === "혼합" && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">이체 금액</Label>
+                    <Input type="number" min="0" placeholder="0"
+                      value={editPkgForm.transferAmount}
+                      onChange={e => {
+                        const t = parseInt(e.target.value) || 0;
+                        const c = parseInt(editPkgForm.cardAmount) || 0;
+                        setEditPkgForm(p => ({ ...p, transferAmount: e.target.value, paymentAmount: String(t + c) }));
+                      }}
+                      className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">카드 금액</Label>
+                    <Input type="number" min="0" placeholder="0"
+                      value={editPkgForm.cardAmount}
+                      onChange={e => {
+                        const t = parseInt(editPkgForm.transferAmount) || 0;
+                        const c = parseInt(e.target.value) || 0;
+                        setEditPkgForm(p => ({ ...p, cardAmount: e.target.value, paymentAmount: String(t + c) }));
+                      }}
+                      className="h-9 text-sm" />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">결제일자</Label>
@@ -2397,6 +2428,8 @@ export default function MemberDetail({ memberId }: Props) {
                   paymentAmount: editPkgForm.paymentAmount ? parseInt(editPkgForm.paymentAmount) : undefined,
                   unpaidAmount: editPkgForm.unpaidAmount !== "" ? parseInt(editPkgForm.unpaidAmount) : undefined,
                   paymentMethod: editPkgForm.paymentMethod || undefined,
+                  transferAmount: editPkgForm.paymentMethod === "혼합" && editPkgForm.transferAmount ? parseInt(editPkgForm.transferAmount) : undefined,
+                  cardAmount: editPkgForm.paymentMethod === "혼합" && editPkgForm.cardAmount ? parseInt(editPkgForm.cardAmount) : undefined,
                   paymentDate: editPkgForm.paymentDate || undefined,
                   paymentMemo: editPkgForm.paymentMemo || undefined,
                 })}

@@ -585,6 +585,8 @@ async function initDatabase() {
     `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "rentalType" TEXT`,
     `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "isPaid" INTEGER DEFAULT 0`,
     `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "paymentAmount" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "transferAmount" INTEGER`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "cardAmount" INTEGER`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

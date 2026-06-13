@@ -92,6 +92,8 @@ export const ptPackages = pgTable("pt_packages", {
   paymentMethod: text("paymentMethod"),
   paymentDate: text("paymentDate"),
   paymentMemo: text("paymentMemo"),
+  transferAmount: integer("transferAmount"),
+  cardAmount: integer("cardAmount"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

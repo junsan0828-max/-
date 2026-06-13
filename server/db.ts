@@ -35,7 +35,11 @@ export function getDb() {
   return db;
 }
 
-function calcPricePerSession(paymentAmount: number, sessions: number, paymentMethod?: string | null) {
+function calcPricePerSession(paymentAmount: number, sessions: number, paymentMethod?: string | null, transferAmount?: number | null, cardAmount?: number | null) {
+  if (paymentMethod === "혼합" && transferAmount != null && cardAmount != null) {
+    const base = transferAmount + Math.round(cardAmount / 1.1);
+    return Math.round(base / sessions);
+  }
   const base = (paymentMethod === "이체" || paymentMethod === "계좌이체") ? paymentAmount : Math.round(paymentAmount / 1.1);
   return Math.round(base / sessions);
 }
@@ -138,10 +142,12 @@ export async function getDashboardStats(trainerId: number) {
 
     const calcPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
       if (l.isServiceSession === 1) return l.serviceSessionPrice ?? 0;
+      if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
       if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
         return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);
       if (l.pricePerSession) return l.pricePerSession;
       const fb = memberPkgMap[l.memberId];
+      if (fb?.paymentMethod === "혼합") return fb.pricePerSession ?? 0;
       if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
         return calcPricePerSession(fb.paymentAmount, fb.totalSessions, fb.paymentMethod);
       if (fb?.pricePerSession) return fb.pricePerSession;
@@ -166,10 +172,12 @@ export async function getDashboardStats(trainerId: number) {
 
     const calcTodayPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
       if (l.isServiceSession === 1) return l.serviceSessionPrice ?? 0;
+      if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
       if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
         return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);
       if (l.pricePerSession) return l.pricePerSession;
       const fb = todayPkgMap[l.memberId];
+      if (fb?.paymentMethod === "혼합") return fb.pricePerSession ?? 0;
       if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
         return calcPricePerSession(fb.paymentAmount, fb.totalSessions, fb.paymentMethod);
       if (fb?.pricePerSession) return fb.pricePerSession;

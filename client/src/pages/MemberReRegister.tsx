@@ -78,7 +78,9 @@ export default function MemberReRegister() {
 
   // 공통 결제
   const [branchId, setBranchId] = useState<number | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제">("");
+  const [paymentMethod, setPaymentMethod] = useState<"" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제" | "혼합">("");
+  const [ptTransferAmount, setPtTransferAmount] = useState("");
+  const [ptCardAmount, setPtCardAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(today);
   const [unpaidAmount, setUnpaidAmount] = useState("");
   const [paymentMemo, setPaymentMemo] = useState("");
@@ -236,6 +238,8 @@ export default function MemberReRegister() {
         unpaidAmount: unpaidAmount ? parseInt(unpaidAmount) : undefined,
         paymentMemo: paymentMemo || undefined,
         serviceItems: siStr,
+        ptTransferAmount: paymentMethod === "혼합" && ptTransferAmount ? parseInt(ptTransferAmount) : undefined,
+        ptCardAmount: paymentMethod === "혼합" && ptCardAmount ? parseInt(ptCardAmount) : undefined,
         // 헬스권
         addHealth: addHealth || undefined,
         healthMonths: addHealth ? healthMonths : undefined,
@@ -776,6 +780,7 @@ export default function MemberReRegister() {
                       <SelectItem value="계좌이체">계좌이체</SelectItem>
                       <SelectItem value="지역화폐">지역화폐</SelectItem>
                       <SelectItem value="분할결제">분할결제</SelectItem>
+                      <SelectItem value="혼합">혼합(이체+카드)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -786,6 +791,22 @@ export default function MemberReRegister() {
                     className="bg-input border-border mt-1" />
                 </div>
               </div>
+              {paymentMethod === "혼합" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">이체 금액</Label>
+                    <Input type="number" placeholder="0" value={ptTransferAmount}
+                      onChange={e => setPtTransferAmount(e.target.value)}
+                      className="bg-input border-border mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">카드 금액</Label>
+                    <Input type="number" placeholder="0" value={ptCardAmount}
+                      onChange={e => setPtCardAmount(e.target.value)}
+                      className="bg-input border-border mt-1" />
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-muted-foreground">미수금</Label>

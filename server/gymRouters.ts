@@ -2935,6 +2935,10 @@ const registerMutation = protectedProcedure
     discountAmount: z.number().optional(),
     paymentMemo: z.string().optional(),
 
+    // 혼합결제 분할 금액 (PT 패키지용)
+    ptTransferAmount: z.number().optional(),
+    ptCardAmount: z.number().optional(),
+
     // 서비스 항목 (배지용)
     serviceItems: z.string().optional(),
   }))
@@ -3064,6 +3068,16 @@ const registerMutation = protectedProcedure
         )).limit(1);
 
       if (!existingPkg) {
+        // 혼합결제 pricePerSession 계산
+        let ptPricePerSession: number | undefined;
+        if (input.paymentMethod === "혼합" && input.ptTransferAmount != null && input.ptCardAmount != null && sessionCount > 0) {
+          ptPricePerSession = Math.round((input.ptTransferAmount + Math.round(input.ptCardAmount / 1.1)) / sessionCount);
+        } else if (ptPaid && sessionCount > 0) {
+          const isTransfer = input.paymentMethod === "이체" || input.paymentMethod === "계좌이체";
+          const base = isTransfer ? ptPaid : Math.round(ptPaid / 1.1);
+          ptPricePerSession = Math.round(base / sessionCount);
+        }
+
         await db.insert(ptPackages).values({
           memberId: memberId!,
           trainerId: resolvedTrainerId,
@@ -3076,6 +3090,9 @@ const registerMutation = protectedProcedure
           paymentAmount: ptPaid,
           unpaidAmount: unpaid,
           paymentMethod: input.paymentMethod ?? undefined,
+          transferAmount: input.ptTransferAmount ?? undefined,
+          cardAmount: input.ptCardAmount ?? undefined,
+          pricePerSession: ptPricePerSession,
           paymentDate: input.paymentDate ?? today,
           paymentMemo: input.paymentMemo ?? undefined,
         });

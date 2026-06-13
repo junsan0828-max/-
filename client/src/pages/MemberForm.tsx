@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 
-const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제"] as const;
+const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제", "혼합"] as const;
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 
 interface Props {
@@ -86,7 +86,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     discountAmount: "",
     unpaidAmount: "",
     visitRoute: "",
-    paymentMethod: "" as "" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제",
+    paymentMethod: "" as "" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제" | "혼합",
     paymentDate: "",
     paymentMemo: "",
     adminTrainerId: defaultTrainerId ? String(defaultTrainerId) : "",
@@ -94,6 +94,9 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     serviceSessionPrice: "",
     subType: "신규" as "신규" | "재등록",
   });
+
+  const [ptTransferAmount, setPtTransferAmount] = useState("");
+  const [ptCardAmount, setPtCardAmount] = useState("");
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -285,6 +288,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           unpaidAmount: form.unpaidAmount ? parseInt(form.unpaidAmount) : undefined,
           discountAmount: form.discountAmount ? parseInt(form.discountAmount) : undefined,
           paymentMemo: form.paymentMemo || undefined,
+          ptTransferAmount: form.paymentMethod === "혼합" && ptTransferAmount ? parseInt(ptTransferAmount) : undefined,
+          ptCardAmount: form.paymentMethod === "혼합" && ptCardAmount ? parseInt(ptCardAmount) : undefined,
           // 헬스권
           addHealth: hasHealth || undefined,
           healthMonths: hasHealth ? (typeof healthMonths === "number" ? healthMonths : 1) : undefined,
@@ -760,7 +765,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
               <div>
                 <label className="text-xs text-muted-foreground">결제 방법 *</label>
                 {errors.paymentMethod && <p className="text-xs text-red-500">{errors.paymentMethod}</p>}
-                <div className="grid grid-cols-3 gap-2 mt-1">
+                <div className="grid grid-cols-4 gap-2 mt-1">
                   {PAYMENT_METHODS.map(m => (
                     <button key={m} type="button"
                       onClick={() => setForm(f => ({ ...f, paymentMethod: f.paymentMethod === m ? "" : m as any }))}
@@ -769,6 +774,34 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                     </button>
                   ))}
                 </div>
+                {form.paymentMethod === "혼합" && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">이체 금액</label>
+                      <input type="number" value={ptTransferAmount}
+                        onChange={e => {
+                          setPtTransferAmount(e.target.value);
+                          const t = parseInt(e.target.value) || 0;
+                          const c = parseInt(ptCardAmount) || 0;
+                          setForm(f => ({ ...f, paymentAmount: String(t + c) }));
+                        }}
+                        placeholder="0"
+                        className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">카드 금액</label>
+                      <input type="number" value={ptCardAmount}
+                        onChange={e => {
+                          setPtCardAmount(e.target.value);
+                          const t = parseInt(ptTransferAmount) || 0;
+                          const c = parseInt(e.target.value) || 0;
+                          setForm(f => ({ ...f, paymentAmount: String(t + c) }));
+                        }}
+                        placeholder="0"
+                        className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 등록 메모 */}
