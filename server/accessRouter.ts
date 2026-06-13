@@ -384,6 +384,37 @@ export const accessRouter = t.router({
       return updated;
     }),
 
+  // 락커 번호로 조회 후 회원 자동 연결 (serviceItems 배지 불일치 수정용)
+  fixLockerMismatch: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      memberName: z.string(),
+      memberPhone: z.string().optional(),
+      lockerNumber: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // lockerNumber로 락커 레코드 검색
+      const [locker] = await db.select()
+        .from(lockers)
+        .where(eq(lockers.lockerNumber, input.lockerNumber))
+        .limit(1);
+
+      if (!locker) throw new TRPCError({ code: "NOT_FOUND", message: `락커 번호 ${input.lockerNumber}를 찾을 수 없습니다.` });
+
+      const [updated] = await db.update(lockers).set({
+        memberId: input.memberId,
+        memberName: input.memberName,
+        memberPhone: input.memberPhone ?? null,
+        isOccupied: 1,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(lockers.id, locker.id)).returning();
+
+      return updated;
+    }),
+
   // 락커 구매 (배정 + 장부 자동 생성)
   purchaseLocker: protectedProcedure
     .input(z.object({
