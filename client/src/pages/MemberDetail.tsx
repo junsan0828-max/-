@@ -568,6 +568,15 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
+  const fixLockerMutation = trpc.access.fixLockerMismatch.useMutation({
+    onSuccess: (_, vars) => {
+      toast.success(`락커 ${vars.lockerNumber} 연결 완료`);
+      utils.members.getById.invalidate({ id: memberId });
+      utils.access.getMemberPrograms.invalidate({ memberId });
+    },
+    onError: (e) => toast.error(e.message || "락커 연결 실패"),
+  });
+
   const createRefundContractMutation = trpc.gym.createRefundContract.useMutation({
     onSuccess: (data) => {
       setRefundContractUrl(window.location.origin + data.contractUrl);
@@ -1692,37 +1701,27 @@ export default function MemberDetail({ memberId }: Props) {
                     </div>
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6">
-                    {lockerMismatch && (() => {
-                      const fixLockerMutation = trpc.access.fixLockerMismatch.useMutation({
-                        onSuccess: () => {
-                          toast.success(`락커 ${badgeLockerNum} 연결 완료`);
-                          utils.members.getById.invalidate({ id: memberId });
-                          utils.access.getMemberPrograms.invalidate({ memberId });
-                        },
-                        onError: (e) => toast.error(e.message || "락커 연결 실패"),
-                      });
-                      return (
-                        <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                          <span className="text-orange-400 text-sm shrink-0">⚠️</span>
-                          <div className="flex-1">
-                            <p className="text-xs font-medium text-orange-400">락커 연동 오류</p>
-                            <p className="text-xs text-orange-400/80 mt-0.5">락커 {badgeLockerNum} 배지가 감지됐지만 이 회원에 연결된 락커 데이터가 없습니다.</p>
-                          </div>
-                          <button
-                            onClick={() => fixLockerMutation.mutate({
-                              memberId,
-                              memberName: member.name ?? "",
-                              memberPhone: member.phone ?? undefined,
-                              lockerNumber: badgeLockerNum!,
-                            })}
-                            disabled={fixLockerMutation.isPending}
-                            className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-50"
-                          >
-                            {fixLockerMutation.isPending ? "연결 중..." : "자동 연결"}
-                          </button>
+                    {lockerMismatch && (
+                      <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                        <span className="text-orange-400 text-sm shrink-0">⚠️</span>
+                        <div className="flex-1">
+                          <p className="text-xs font-medium text-orange-400">락커 연동 오류</p>
+                          <p className="text-xs text-orange-400/80 mt-0.5">락커 {badgeLockerNum} 배지가 감지됐지만 이 회원에 연결된 락커 데이터가 없습니다.</p>
                         </div>
-                      );
-                    })()}
+                        <button
+                          onClick={() => fixLockerMutation.mutate({
+                            memberId,
+                            memberName: member.name ?? "",
+                            memberPhone: member.phone ?? undefined,
+                            lockerNumber: badgeLockerNum!,
+                          })}
+                          disabled={fixLockerMutation.isPending}
+                          className="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 transition-colors disabled:opacity-50"
+                        >
+                          {fixLockerMutation.isPending ? "연결 중..." : "자동 연결"}
+                        </button>
+                      </div>
+                    )}
                     {!hasLocker ? (
                       <p className="text-muted-foreground text-sm text-center py-6">배정된 락커가 없습니다.</p>
                     ) : (
