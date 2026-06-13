@@ -809,8 +809,6 @@ const revenueRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const today = new Date().toISOString().substring(0, 10);
-
       // ── Phase 1: memberId 없는 장부 항목 → 이름+전화번호로 회원 연결 ──────────
       const orphanRevs = await db.select({
         id: revenueEntries.id,
@@ -845,27 +843,22 @@ const revenueRouter = t.router({
       }
 
       // ── Phase 2: PT 패키지 있는데 장부 항목 없는 회원 → 장부 생성 ─────────────
-      // memberId 있는 모든 PT 패키지 로드 (결제금액 조건 없이)
       const pkgs = await db.select().from(ptPackages)
         .where(isNotNull(ptPackages.memberId));
 
-      // Phase 1 완료 후 재조회: PT 장부 항목 (memberId 있는 것)
       const existingRevs = await db.select({
         memberId: revenueEntries.memberId,
         paymentDate: revenueEntries.paymentDate,
       }).from(revenueEntries)
         .where(and(eq(revenueEntries.type, "PT"), isNotNull(revenueEntries.memberId)));
 
-      // 중복 키: memberId|paymentDate (같은 날짜 같은 회원은 1건만)
       const revKey = (memberId: number, paymentDate: string) => `${memberId}|${paymentDate}`;
       const existingRevSet = new Set(existingRevs.map(r => revKey(r.memberId!, r.paymentDate)));
-
-      // 회원별 이미 장부 항목 존재 여부 (날짜 무관)
       const memberIdsWithRev = new Set(existingRevs.map(r => r.memberId!));
 
       const allMemberIds = [...new Set(pkgs.map(p => p.memberId))];
       const memberRows = allMemberIds.length > 0
-        ? await db.select({ id: members.id, name: members.name, phone: members.phone, branchId: members.branchId })
+        ? await db.select({ id: members.id, name: members.name, phone: members.phone, branchId: members.branchId, membershipStart: members.membershipStart, createdAt: members.createdAt })
             .from(members).where(inArray(members.id, allMemberIds))
         : [];
       const memberMap = new Map(memberRows.map(m => [m.id, m]));
@@ -873,14 +866,17 @@ const revenueRouter = t.router({
       let created = 0;
       for (const pkg of pkgs) {
         if (!pkg.memberId) continue;
-        // 이미 이 회원의 PT 장부 항목이 존재하면 건너뜀
         if (memberIdsWithRev.has(pkg.memberId)) continue;
 
-        const payDate = pkg.paymentDate ?? pkg.startDate ?? today;
+        const mem = memberMap.get(pkg.memberId);
+        // 결제일: 패키지 결제일 → 패키지 시작일 → 회원 가입 시작일 → 회원 생성일
+        // 날짜를 확정할 수 없으면 생성 건너뜀 (오늘 날짜로 잘못 찍히는 것 방지)
+        const payDate = pkg.paymentDate ?? pkg.startDate ?? mem?.membershipStart ?? mem?.createdAt?.substring(0, 10);
+        if (!payDate) continue;
+
         const key = revKey(pkg.memberId, payDate);
         if (existingRevSet.has(key)) continue;
 
-        const mem = memberMap.get(pkg.memberId);
         const amount = pkg.paymentAmount ?? 0;
         await db.insert(revenueEntries).values({
           memberId: pkg.memberId,
@@ -907,6 +903,25 @@ const revenueRouter = t.router({
         created++;
       }
       return { linked, created };
+    }),
+
+  // 장부 역동기화로 잘못 생성된 오늘 날짜 항목 롤백
+  rollbackSyncRevenue: protectedProcedure
+    .input(z.object({ date: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const result = await db.delete(revenueEntries)
+        .where(and(
+          eq(revenueEntries.paymentDate, input.date),
+          eq(revenueEntries.type, "PT"),
+          eq(revenueEntries.subType, "신규"),
+          eq(revenueEntries.createdBy, ctx.user.id),
+        ))
+        .returning({ id: revenueEntries.id });
+      return { deleted: result.length };
     }),
 
   monthlySummary: protectedProcedure

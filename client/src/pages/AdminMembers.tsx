@@ -105,6 +105,13 @@ export default function AdminMembers() {
     },
     onError: (e) => toast.error(`장부 동기화 오류: ${e.message}`),
   });
+  const rollbackRevenueMutation = trpc.gym.revenue.rollbackSyncRevenue.useMutation({
+    onSuccess: (data) => {
+      toast.success(`롤백 완료 (${data.deleted}건 삭제)`);
+      utils.members.listAll.invalidate();
+    },
+    onError: (e) => toast.error(`롤백 오류: ${e.message}`),
+  });
 
   const [mergeResult, setMergeResult] = useState<string | null>(null);
   const mergeMutation = trpc.admin.mergeDuplicateMembers.useMutation({
@@ -311,6 +318,17 @@ export default function AdminMembers() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">회원 관리</h1>
         <div className="flex gap-2">
+          <button
+            onClick={() => {
+              const today = new Date().toISOString().substring(0, 10);
+              if (confirm(`오늘(${today}) 역동기화로 생성된 장부 항목을 삭제합니다. 계속하시겠습니까?`))
+                rollbackRevenueMutation.mutate({ date: today });
+            }}
+            disabled={rollbackRevenueMutation.isPending}
+            className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+          >
+            {rollbackRevenueMutation.isPending ? "롤백 중..." : "역동기화 롤백"}
+          </button>
           <button
             onClick={() => syncRevenueMutation.mutate()}
             disabled={syncRevenueMutation.isPending}
