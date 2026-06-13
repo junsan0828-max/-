@@ -320,9 +320,12 @@ export default function AdminMembers() {
         <div className="flex gap-2">
           <button
             onClick={() => {
-              const today = new Date().toISOString().substring(0, 10);
-              if (confirm(`오늘(${today}) 역동기화로 생성된 장부 항목을 삭제합니다. 계속하시겠습니까?`))
-                rollbackRevenueMutation.mutate({ date: today });
+              const yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+              const input = prompt("삭제할 날짜를 입력하세요 (YYYY-MM-DD)", yesterday);
+              if (!input) return;
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) { alert("날짜 형식이 올바르지 않습니다 (예: 2026-06-12)"); return; }
+              if (confirm(`${input} 역동기화로 생성된 장부 항목을 삭제합니다. 계속하시겠습니까?`))
+                rollbackRevenueMutation.mutate({ date: input });
             }}
             disabled={rollbackRevenueMutation.isPending}
             className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
