@@ -1611,10 +1611,8 @@ const ptRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { packageId, ...fields } = input;
 
-      // usedSessions 변경 시 status 자동 조정
-      const pkg = (fields.totalSessions !== undefined || fields.usedSessions !== undefined || fields.paymentAmount !== undefined || fields.unpaidAmount !== undefined || fields.paymentMethod !== undefined || fields.transferAmount !== undefined || fields.cardAmount !== undefined)
-        ? (await db.select().from(ptPackages).where(eq(ptPackages.id, packageId)).limit(1))[0]
-        : null;
+      // 동기화가 필요한 필드 변경 시 항상 기존 패키지를 조회
+      const pkg = (await db.select().from(ptPackages).where(eq(ptPackages.id, packageId)).limit(1))[0];
 
       const total = fields.totalSessions ?? pkg?.totalSessions ?? 1;
       const used = fields.usedSessions ?? pkg?.usedSessions ?? 0;
@@ -1636,48 +1634,81 @@ const ptRouter = t.router({
         ...(pkg ? { status: autoStatus } : {}),
       }).where(eq(ptPackages.id, packageId));
 
-      // paymentAmount 또는 unpaidAmount 변경 시 revenue_entries paidAmount 동기화
-      if ((fields.paymentAmount !== undefined || fields.unpaidAmount !== undefined) && pkg) {
-        const newAmount = fields.paymentAmount ?? pkg.paymentAmount ?? 0;
-        const newUnpaid = fields.unpaidAmount ?? pkg.unpaidAmount ?? 0;
-        const newPaid = Math.max(0, newAmount - newUnpaid);
-        const paymentDate = fields.paymentDate ?? pkg.paymentDate ?? new Date().toISOString().substring(0, 10);
+      // ── revenue_entries 전체 필드 동기화 ─────────────────────────────────────
+      if (pkg) {
+        const newAmount   = fields.paymentAmount ?? pkg.paymentAmount ?? 0;
+        const newUnpaid   = fields.unpaidAmount  ?? pkg.unpaidAmount  ?? 0;
+        const newPaid     = Math.max(0, newAmount - newUnpaid);
+        const paymentDate = fields.paymentDate   ?? pkg.paymentDate   ?? new Date().toISOString().substring(0, 10);
         const paymentMethod = fields.paymentMethod ?? pkg.paymentMethod ?? undefined;
-        const existing = await db.select({ id: revenueEntries.id }).from(revenueEntries)
+        const sessions    = fields.totalSessions ?? pkg.totalSessions;
+        const programDetail = fields.packageName ?? pkg.packageName ?? undefined;
+        const startDate   = fields.startDate     ?? pkg.startDate     ?? undefined;
+        const memo        = fields.paymentMemo   ?? pkg.paymentMemo   ?? undefined;
+
+        const existingRev = await db.select({ id: revenueEntries.id })
+          .from(revenueEntries)
           .where(and(eq(revenueEntries.memberId, pkg.memberId), eq(revenueEntries.type, "PT")))
           .orderBy(desc(revenueEntries.createdAt)).limit(1);
-        if (existing.length > 0) {
-          // 결제금액=0이면 paidAmount도 0으로 갱신 (건너뛰지 않음)
+
+        if (existingRev.length > 0) {
           await db.update(revenueEntries).set({
-            amount: newAmount,
-            paidAmount: newPaid,
-            unpaidAmount: newUnpaid,
+            amount:        newAmount,
+            paidAmount:    newPaid,
+            unpaidAmount:  newUnpaid,
             paymentMethod,
             paymentDate,
+            sessions,
+            programDetail,
+            startDate,
+            memo,
             updatedAt: new Date().toISOString(),
-          }).where(eq(revenueEntries.id, existing[0].id));
+          }).where(eq(revenueEntries.id, existingRev[0].id));
         } else if (newAmount > 0) {
-          const memberRow = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId, trainerId: members.trainerId }).from(members).where(eq(members.id, pkg.memberId)).limit(1);
+          const memberRow = await db.select({ name: members.name, phone: members.phone, branchId: members.branchId, trainerId: members.trainerId })
+            .from(members).where(eq(members.id, pkg.memberId)).limit(1);
           const m = memberRow[0];
           await db.insert(revenueEntries).values({
-            memberId: pkg.memberId,
-            trainerId: pkg.trainerId ?? m?.trainerId ?? undefined,
-            createdBy: ctx.user.id,
-            branchId: m?.branchId ?? undefined,
+            memberId:     pkg.memberId,
+            trainerId:    pkg.trainerId ?? m?.trainerId ?? undefined,
+            createdBy:    ctx.user.id,
+            branchId:     m?.branchId ?? undefined,
             customerName: m?.name,
-            phone: m?.phone,
-            programDetail: pkg.packageName ?? undefined,
-            sessions: pkg.totalSessions,
-            type: "PT",
-            subType: "재등록",
-            amount: newAmount,
+            phone:        m?.phone,
+            programDetail,
+            sessions,
+            type:         "PT",
+            subType:      "재등록",
+            amount:       newAmount,
             discountAmount: 0,
-            paidAmount: newPaid,
+            paidAmount:   newPaid,
             unpaidAmount: newUnpaid,
             paymentMethod,
             paymentDate,
-            memo: pkg.paymentMemo ?? undefined,
+            startDate,
+            memo,
           });
+        }
+
+        // ── members 날짜 동기화 ──────────────────────────────────────────────
+        const memberUpdate: Record<string, string> = {};
+        if (fields.startDate !== undefined) memberUpdate.membershipStart = fields.startDate;
+        if (fields.expiryDate !== undefined) {
+          memberUpdate.membershipEnd = fields.expiryDate;
+        } else if (fields.totalSessions !== undefined || fields.startDate !== undefined) {
+          const baseDate = fields.startDate ?? pkg.startDate;
+          const totalSess = fields.totalSessions ?? pkg.totalSessions;
+          if (baseDate && totalSess) {
+            const weeks = Math.round(totalSess / 2);
+            const d = new Date(baseDate);
+            d.setDate(d.getDate() + weeks * 7);
+            memberUpdate.membershipEnd = d.toISOString().substring(0, 10);
+          }
+        }
+        if (Object.keys(memberUpdate).length > 0) {
+          await db.update(members)
+            .set({ ...memberUpdate, updatedAt: new Date().toISOString() })
+            .where(eq(members.id, pkg.memberId));
         }
       }
 

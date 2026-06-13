@@ -620,38 +620,91 @@ const revenueRouter = t.router({
 
       const [row] = await db.update(revenueEntries).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, id)).returning();
 
-      // PT 타입이고 회원이 연결되어 있으면 ptPackage 생성/금액 동기화
-      if (row.type === "PT" && row.memberId && row.sessions && row.sessions > 0) {
-        const existingPkg = await db.select({ id: ptPackages.id, paymentAmount: ptPackages.paymentAmount })
+      // PT 타입이고 회원이 연결되어 있으면 ptPackage 전체 필드 동기화
+      if (row.type === "PT" && row.memberId) {
+        const oldSessions = existing[0]?.sessions;
+        const oldStartDate = existing[0]?.startDate;
+
+        // OLD 값으로 패키지 검색 — sessions/startDate 변경 시에도 기존 패키지를 찾을 수 있도록
+        const pkgCandidates = await db.select()
           .from(ptPackages)
-          .where(and(
-            eq(ptPackages.memberId, row.memberId),
-            eq(ptPackages.startDate, row.startDate ?? ""),
-            eq(ptPackages.totalSessions, row.sessions),
-          )).limit(1);
-        const newAmount = row.paidAmount ?? row.amount ?? undefined;
-        if (existingPkg.length === 0) {
-          await db.insert(ptPackages).values({
-            memberId: row.memberId,
-            trainerId: row.trainerId ?? undefined,
+          .where(eq(ptPackages.memberId, row.memberId))
+          .orderBy(desc(ptPackages.id));
+
+        const existingPkg = pkgCandidates.find(p =>
+          (oldStartDate ? p.startDate === oldStartDate : true) &&
+          (oldSessions ? p.totalSessions === oldSessions : true)
+        ) ?? pkgCandidates[0] ?? null;
+
+        const newSessions = row.sessions ?? 0;
+        const newAmount = row.paidAmount ?? row.amount ?? 0;
+
+        // pricePerSession 재계산
+        let newPricePerSession: number | undefined;
+        if (newSessions > 0) {
+          if (row.paymentMethod === "혼합") {
+            const tAmt = existingPkg?.transferAmount ?? null;
+            const cAmt = existingPkg?.cardAmount ?? null;
+            if (tAmt != null && cAmt != null) {
+              newPricePerSession = Math.round((tAmt + Math.round(cAmt / 1.1)) / newSessions);
+            }
+          }
+          if (newPricePerSession === undefined) {
+            const isTransfer = row.paymentMethod === "이체" || row.paymentMethod === "계좌이체";
+            const base = isTransfer ? newAmount : Math.round(newAmount / 1.1);
+            newPricePerSession = Math.round(base / newSessions);
+          }
+        }
+
+        if (newSessions > 0) {
+          const pkgFields: Record<string, any> = {
+            totalSessions: newSessions,
             packageName: row.programDetail ?? undefined,
-            totalSessions: row.sessions,
-            usedSessions: 0,
             startDate: row.startDate ?? undefined,
             paymentAmount: newAmount,
             unpaidAmount: row.unpaidAmount ?? 0,
             paymentMethod: row.paymentMethod ?? undefined,
             paymentDate: row.paymentDate ?? undefined,
             paymentMemo: row.memo ?? undefined,
-          });
-        } else if (newAmount != null && existingPkg[0].paymentAmount !== newAmount) {
-          // 장부 금액이 변경된 경우 패키지 금액도 동기화
-          await db.update(ptPackages).set({
-            paymentAmount: newAmount,
-            unpaidAmount: row.unpaidAmount ?? 0,
-            paymentMethod: row.paymentMethod ?? undefined,
-            paymentDate: row.paymentDate ?? undefined,
-          }).where(eq(ptPackages.id, existingPkg[0].id));
+            updatedAt: new Date().toISOString(),
+          };
+          if (newPricePerSession !== undefined) pkgFields.pricePerSession = newPricePerSession;
+
+          if (existingPkg) {
+            await db.update(ptPackages).set(pkgFields).where(eq(ptPackages.id, existingPkg.id));
+          } else {
+            await db.insert(ptPackages).values({
+              memberId: row.memberId,
+              trainerId: row.trainerId ?? undefined,
+              usedSessions: 0,
+              totalSessions: newSessions,
+              packageName: row.programDetail ?? undefined,
+              startDate: row.startDate ?? undefined,
+              paymentAmount: newAmount,
+              unpaidAmount: row.unpaidAmount ?? 0,
+              paymentMethod: row.paymentMethod ?? undefined,
+              paymentDate: row.paymentDate ?? undefined,
+              paymentMemo: row.memo ?? undefined,
+              ...(newPricePerSession !== undefined ? { pricePerSession: newPricePerSession } : {}),
+            });
+          }
+        }
+
+        // members 날짜 동기화
+        const memberUpdate: Record<string, string> = {};
+        if (row.startDate) memberUpdate.membershipStart = row.startDate;
+        const baseDate = row.startDate ?? existing[0]?.startDate;
+        const totalSess = row.sessions ?? existing[0]?.sessions;
+        if (baseDate && totalSess && totalSess > 0) {
+          const weeks = Math.round(totalSess / 2);
+          const d = new Date(baseDate);
+          d.setDate(d.getDate() + weeks * 7);
+          memberUpdate.membershipEnd = d.toISOString().substring(0, 10);
+        }
+        if (Object.keys(memberUpdate).length > 0) {
+          await db.update(members)
+            .set({ ...memberUpdate, updatedAt: new Date().toISOString() })
+            .where(eq(members.id, row.memberId));
         }
       }
 
