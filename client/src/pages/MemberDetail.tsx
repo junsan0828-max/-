@@ -575,13 +575,13 @@ export default function MemberDetail({ memberId }: Props) {
       // waiting for the refetch (handles slow/intermittent DB connections)
       if (data) {
         utils.access.getMemberPrograms.setData({ memberId }, (prev) => {
-          if (!prev) return prev;
-          const already = prev.lockers.some((l) => l.id === data.id);
+          const base = prev ?? { lockers: [], uniforms: [], healthRevenues: [] };
+          const already = base.lockers.some((l) => l.id === data.id);
           return {
-            ...prev,
+            ...base,
             lockers: already
-              ? prev.lockers.map((l) => (l.id === data.id ? data : l))
-              : [...prev.lockers, data],
+              ? base.lockers.map((l) => (l.id === data.id ? data : l))
+              : [...base.lockers, data],
           };
         });
       }
@@ -1514,7 +1514,12 @@ export default function MemberDetail({ memberId }: Props) {
             // 뱃지-상세 불일치 감지 (getById 계산값 vs 프로그램 탭 실제 데이터)
             const badgeLockerNum = (member as any).lockerNumber as string | null;
             const badgeHasUniform = !!(member as any).hasUniform;
-            const lockerMismatch = !!badgeLockerNum && !hasLocker;
+            // lockerMismatch: 뱃지에 락커 번호가 있는데, lockers 테이블에 이 회원의 해당 락커 레코드가 없는 경우
+            // memberPrograms가 아직 로딩 중(undefined)이면 오탐 방지를 위해 false
+            const lockerInTable = (memberPrograms?.lockers ?? []).some(
+              (l) => l.lockerNumber === badgeLockerNum
+            );
+            const lockerMismatch = memberPrograms !== undefined && !!badgeLockerNum && !lockerInTable;
             const uniformMismatch = !!memberPrograms && badgeHasUniform && !hasUniform;
 
             return (
