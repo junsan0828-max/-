@@ -412,6 +412,7 @@ export const accessRouter = t.router({
         updatedAt: new Date().toISOString(),
       }).where(eq(lockers.id, locker.id)).returning();
 
+      if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "락커 업데이트가 반영되지 않았습니다." });
       return updated;
     }),
 

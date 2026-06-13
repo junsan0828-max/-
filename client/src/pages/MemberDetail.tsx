@@ -569,8 +569,22 @@ export default function MemberDetail({ memberId }: Props) {
   });
 
   const fixLockerMutation = trpc.access.fixLockerMismatch.useMutation({
-    onSuccess: (_, vars) => {
+    onSuccess: (data, vars) => {
       toast.success(`락커 ${vars.lockerNumber} 연결 완료`);
+      // Optimistically patch the memberPrograms cache so the UI clears without
+      // waiting for the refetch (handles slow/intermittent DB connections)
+      if (data) {
+        utils.access.getMemberPrograms.setData({ memberId }, (prev) => {
+          if (!prev) return prev;
+          const already = prev.lockers.some((l) => l.id === data.id);
+          return {
+            ...prev,
+            lockers: already
+              ? prev.lockers.map((l) => (l.id === data.id ? data : l))
+              : [...prev.lockers, data],
+          };
+        });
+      }
       utils.members.getById.invalidate({ id: memberId });
       utils.access.getMemberPrograms.invalidate({ memberId });
     },
