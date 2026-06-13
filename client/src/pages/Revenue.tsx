@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { parseServiceItems, SERVICE_COLORS, type ServiceType } from "@/lib/memberServices";
 
-const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제"];
+const PAYMENT_METHODS = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제", "혼합"];
 const CATEGORIES = ["PT", "헬스", "기타"] as const;
 const SUB_TYPES = ["신규", "재등록", "이전"] as const;
 const DURATIONS = [1, 3, 6, 12];

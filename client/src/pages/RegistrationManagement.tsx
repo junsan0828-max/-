@@ -557,7 +557,7 @@ export default function RegistrationManagement() {
                 <div>
                   <label className="text-xs text-muted-foreground">결제 방법 *</label>
                   <div className="flex gap-2 mt-1 flex-wrap">
-                    {["카드", "현금", "현금영수증", "계좌이체", "지역화폐"].map(m => (
+                    {["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "혼합"].map(m => (
                       <button key={m} type="button"
                         onClick={() => setLockerForm(f => ({ ...f, paymentMethod: m }))}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${lockerForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
@@ -660,7 +660,7 @@ export default function RegistrationManagement() {
                 <div>
                   <label className="text-xs text-muted-foreground">결제 방법 *</label>
                   <div className="flex gap-2 mt-1 flex-wrap">
-                    {["카드", "현금", "현금영수증", "계좌이체", "지역화폐"].map(m => (
+                    {["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "혼합"].map(m => (
                       <button key={m} type="button"
                         onClick={() => setUniformQForm(f => ({ ...f, paymentMethod: m }))}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${uniformQForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
@@ -743,7 +743,7 @@ export default function RegistrationManagement() {
                 <div>
                   <label className="text-xs text-muted-foreground">결제 방법</label>
                   <div className="flex gap-2 mt-1 flex-wrap">
-                    {["카드", "현금영수증", "이체", "지역화폐"].map(m => (
+                    {["카드", "현금영수증", "이체", "지역화폐", "혼합"].map(m => (
                       <button key={m} type="button"
                         onClick={() => setDayPassForm(f => ({ ...f, paymentMethod: m }))}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${dayPassForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>

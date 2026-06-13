@@ -37,7 +37,7 @@ const EXERCISE_PURPOSES = [
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 const PT_SESSIONS = [10, 20, 30, 40, 50];
 const DURATIONS = [1, 3, 6, 12];
-const PAYMENT_METHODS_REG = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제"];
+const PAYMENT_METHODS_REG = ["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제", "혼합"];
 const PAYMENT_METHOD_LABELS: Record<string, string> = {};
 
 type RegForm = {
@@ -248,7 +248,7 @@ export default function LeadsPage() {
     healthServiceDays: "",
     otherItem: "",
     paymentAmount: "", unpaidAmount: "",
-    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드" | "혼합",
     paymentDate: "", paymentMemo: "",
     branchId: "" as string,
   };
@@ -265,7 +265,7 @@ export default function LeadsPage() {
     healthServiceDays: "",
     otherItem: "",
     paymentAmount: "", unpaidAmount: "",
-    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드" | "혼합",
     paymentDate: "", paymentMemo: "",
     branchId: "" as string,
   };
@@ -1978,7 +1978,7 @@ export default function LeadsPage() {
                       <select value={reRegForm.paymentMethod} onChange={e => setReRegForm(f => ({ ...f, paymentMethod: e.target.value as any }))}
                         className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none">
                         <option value="">결제방법 선택</option>
-                        {["현금영수증", "이체", "지역화폐", "카드"].map(m => <option key={m} value={m}>{m}</option>)}
+                        {["현금영수증", "이체", "지역화폐", "카드", "혼합"].map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                     </div>
                     <div className="space-y-1.5">
@@ -2343,7 +2343,7 @@ export default function LeadsPage() {
                 <select value={directForm.paymentMethod} onChange={e => setDirectForm(f => ({ ...f, paymentMethod: e.target.value as any }))}
                   className="w-full rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none">
                   <option value="">결제방법 선택</option>
-                  {["현금영수증", "이체", "지역화폐", "카드"].map(m => <option key={m} value={m}>{m}</option>)}
+                  {["현금영수증", "이체", "지역화폐", "카드", "혼합"].map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               {/* 결제일자 */}
