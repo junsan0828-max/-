@@ -24,13 +24,16 @@ app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+const pgStore = new PgSession({
+  pool,
+  tableName: "session",
+  createTableIfMissing: true,
+  errorLog: (err: Error) => console.error("session store error:", err.message),
+});
+
 app.use(
   session({
-    store: new PgSession({
-      pool,
-      tableName: "session",
-      createTableIfMissing: true,
-    }),
+    store: pgStore,
     secret: process.env.SESSION_SECRET || "trainer-app-secret",
     resave: false,
     saveUninitialized: false,

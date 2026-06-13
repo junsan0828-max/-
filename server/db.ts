@@ -20,6 +20,13 @@ const dbUrl = process.env.DATABASE_URL || "postgresql://localhost/fallback";
 export const pool = new Pool({
   connectionString: dbUrl,
   ssl: dbUrl.includes("localhost") ? false : { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 15000,
+});
+
+pool.on("error", (err) => {
+  console.error("pg pool error:", err.message);
 });
 
 export const db = drizzle(pool);
@@ -29,7 +36,7 @@ export function getDb() {
 }
 
 function calcPricePerSession(paymentAmount: number, sessions: number, paymentMethod?: string | null) {
-  const base = paymentMethod === "이체" ? paymentAmount : Math.round(paymentAmount / 1.1);
+  const base = (paymentMethod === "이체" || paymentMethod === "계좌이체") ? paymentAmount : Math.round(paymentAmount / 1.1);
   return Math.round(base / sessions);
 }
 
