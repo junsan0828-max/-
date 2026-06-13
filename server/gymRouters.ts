@@ -391,10 +391,10 @@ const revenueRouter = t.router({
       branchId: z.number().optional(),
       channelId: z.number().optional(),
       type: z.enum(["PT", "헬스", "기타"]),
-      subType: z.enum(["신규", "재등록", "이전"]),
+      subType: z.enum(["신규", "재등록", "이전", "환불"]),
       amount: z.number().min(0),
       discountAmount: z.number().min(0).default(0),
-      paidAmount: z.number().min(0),
+      paidAmount: z.number(),
       unpaidAmount: z.number().min(0).default(0),
       refundAmount: z.number().min(0).default(0),
       paymentMethod: z.string().optional(),
@@ -514,7 +514,7 @@ const revenueRouter = t.router({
       };
 
       // PT 등록 시 회원 자동 생성 + ptPackage 생성
-      if (input.type === "PT" && resolvedTrainerId && input.customerName && !input.memberId && input.subType !== "이전") {
+      if (input.type === "PT" && resolvedTrainerId && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
         const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId, membershipStart: input.startDate ?? undefined });
         if (newId) {
           row.memberId = newId;
@@ -538,7 +538,7 @@ const revenueRouter = t.router({
       }
 
       // 헬스 등록 시 회원 자동 생성
-      if (input.type === "헬스" && input.customerName && !input.memberId && input.subType !== "이전") {
+      if (input.type === "헬스" && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
         let membershipEnd: string | undefined;
         if (input.startDate && input.duration) {
           const [yr, mo, dy] = input.startDate.split("-").map(Number);
@@ -996,7 +996,7 @@ const revenueRouter = t.router({
       for (const entry of allEntries) {
         const month = parseInt(entry.paymentDate.substring(5, 7));
         if (!monthly[month]) continue;
-        if (entry.subType === "이전") continue;
+        if (entry.subType === "이전" || entry.subType === "환불") continue;
         monthly[month].total += entry.amount;
         monthly[month].paid += entry.paidAmount;
         monthly[month].unpaid += entry.unpaidAmount;
