@@ -259,6 +259,13 @@ export default function MemberDetail({ memberId }: Props) {
     paymentMemo: "",
   });
 
+  // 패키지 환불 등록 상태
+  const [refundPkgOpen, setRefundPkgOpen] = useState(false);
+  const [refundPkgForm, setRefundPkgForm] = useState({
+    packageId: 0, packageName: "", originalAmount: 0,
+    refundAmount: "", paymentDate: new Date().toISOString().substring(0, 10), memo: "",
+  });
+
   const [calendarDate, setCalendarDate] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -690,6 +697,16 @@ export default function MemberDetail({ memberId }: Props) {
       refetchPt();
     },
     onError: (err) => toast.error(err.message || "수정 실패"),
+  });
+
+  const utils = trpc.useUtils();
+  const refundPkgMutation = trpc.gym.revenue.create.useMutation({
+    onSuccess: () => {
+      toast.success("환불이 등록되었습니다");
+      setRefundPkgOpen(false);
+      utils.gym.revenue.invalidate();
+    },
+    onError: (err) => toast.error(err.message || "환불 등록 실패"),
   });
 
   // 달력 계산 (hooks는 조건부 return 이전에 호출해야 함)
@@ -1298,6 +1315,22 @@ export default function MemberDetail({ memberId }: Props) {
                                 className="text-xs text-primary underline hover:text-primary/70 transition-colors"
                               >
                                 수정
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setRefundPkgForm({
+                                    packageId: pkg.id,
+                                    packageName: pkg.packageName || "PT 프로그램",
+                                    originalAmount: pkg.paymentAmount ?? 0,
+                                    refundAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
+                                    paymentDate: new Date().toISOString().substring(0, 10),
+                                    memo: "",
+                                  });
+                                  setRefundPkgOpen(true);
+                                }}
+                                className="text-xs text-orange-400 underline hover:text-orange-300 transition-colors"
+                              >
+                                환불
                               </button>
                               <button
                                 onClick={() => {
@@ -2313,6 +2346,63 @@ export default function MemberDetail({ memberId }: Props) {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* PT 패키지 환불 다이얼로그 */}
+      <Dialog open={refundPkgOpen} onOpenChange={setRefundPkgOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>환불 등록</DialogTitle>
+            <DialogDescription>{refundPkgForm.packageName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {refundPkgForm.originalAmount > 0 && (
+              <div className="bg-muted/30 rounded-lg px-3 py-2 text-xs text-muted-foreground">
+                결제 금액: <span className="font-medium text-foreground">{refundPkgForm.originalAmount.toLocaleString()}원</span>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">환불 금액 *</Label>
+              <Input type="number" min="0" placeholder="0"
+                value={refundPkgForm.refundAmount}
+                onChange={e => setRefundPkgForm(f => ({ ...f, refundAmount: e.target.value }))}
+                className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">환불일 *</Label>
+              <Input type="date" value={refundPkgForm.paymentDate}
+                onChange={e => setRefundPkgForm(f => ({ ...f, paymentDate: e.target.value }))}
+                className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">사유 / 메모</Label>
+              <Input placeholder="환불 사유" value={refundPkgForm.memo}
+                onChange={e => setRefundPkgForm(f => ({ ...f, memo: e.target.value }))}
+                className="h-9 text-sm" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setRefundPkgOpen(false)}>취소</Button>
+              <Button
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                disabled={!refundPkgForm.refundAmount || refundPkgMutation.isPending}
+                onClick={() => {
+                  const amount = parseInt(refundPkgForm.refundAmount);
+                  if (!amount || amount <= 0) return toast.error("환불 금액을 입력해주세요");
+                  refundPkgMutation.mutate({
+                    customerName: member?.name ?? "",
+                    type: "기타", subType: "환불",
+                    amount, discountAmount: 0, paidAmount: -amount, unpaidAmount: 0, refundAmount: amount,
+                    paymentDate: refundPkgForm.paymentDate,
+                    memo: refundPkgForm.memo || `${refundPkgForm.packageName} 환불`,
+                    memberId: member?.id,
+                  });
+                }}
+              >
+                {refundPkgMutation.isPending ? "등록 중..." : "환불 등록"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* PT 패키지 수정 다이얼로그 */}
       <Dialog open={editPkgOpen} onOpenChange={setEditPkgOpen}>

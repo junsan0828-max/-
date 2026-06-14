@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import ExpensesPage from "./Expenses";
 import {
   ChevronLeft, ChevronRight, Search, AlertCircle,
-  TrendingUp, TrendingDown, DollarSign, RefreshCw, X,
+  TrendingUp, TrendingDown, DollarSign, RefreshCw,
 } from "lucide-react";
 import { parseServiceItems, SERVICE_COLORS, type ServiceType } from "@/lib/memberServices";
 
@@ -83,25 +83,11 @@ function RevenueTab() {
   const [filterPayment, setFilterPayment]   = useState("");
   const [filterTrainer, setFilterTrainer]   = useState<number | "">("");
   const [branchFilter, setBranchFilter]     = useState<number | null>(null);
-  const [showRefund, setShowRefund]         = useState(false);
-  const [refundForm, setRefundForm]         = useState({ customerName: "", amount: "", paymentDate: now.toISOString().substring(0, 10), memo: "" });
-
-  const utils = trpc.useUtils();
   const { data: me }        = trpc.auth.me.useQuery();
   const isAdmin             = me?.role === "admin" || me?.role === "sub_admin";
   const { data: entries, isLoading } = trpc.gym.revenue.list.useQuery({ year, month });
   const { data: trainers }  = trpc.trainers.list.useQuery();
   const { data: branchList }= trpc.gym.staff.listBranches.useQuery();
-
-  const refundMutation = trpc.gym.revenue.create.useMutation({
-    onSuccess: () => {
-      toast.success("환불이 등록되었습니다");
-      utils.gym.revenue.invalidate();
-      setShowRefund(false);
-      setRefundForm({ customerName: "", amount: "", paymentDate: now.toISOString().substring(0, 10), memo: "" });
-    },
-    onError: (e) => toast.error(e.message),
-  });
 
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
@@ -137,32 +123,11 @@ function RevenueTab() {
   const totalRefund  = refundRows.reduce((s, r) => s + Math.abs(r.entry.paidAmount), 0);
   const netRevenue   = totalRevenue - totalRefund;
 
-  function submitRefund() {
-    const amount = parseInt(refundForm.amount);
-    if (!refundForm.customerName.trim()) return toast.error("회원 이름을 입력해주세요");
-    if (!amount || amount <= 0)           return toast.error("환불 금액을 입력해주세요");
-    refundMutation.mutate({
-      customerName: refundForm.customerName,
-      type: "기타", subType: "환불",
-      amount, discountAmount: 0, paidAmount: -amount, unpaidAmount: 0, refundAmount: amount,
-      paymentDate: refundForm.paymentDate,
-      memo: refundForm.memo || "환불",
-    });
-  }
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">매출 장부</h1>
-          <p className="text-xs text-muted-foreground">등록관리 기반 · 읽기 전용</p>
-        </div>
-        {isAdmin && (
-          <button onClick={() => setShowRefund(true)}
-            className="px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/20">
-            환불 등록
-          </button>
-        )}
+      <div>
+        <h1 className="text-xl font-bold">매출 장부</h1>
+        <p className="text-xs text-muted-foreground">등록관리 기반 · 읽기 전용</p>
       </div>
 
       {/* 지점 필터 */}
@@ -340,45 +305,6 @@ function RevenueTab() {
         </div>
       )}
 
-      {/* 환불 등록 모달 */}
-      {showRefund && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="font-semibold">환불 / 금액 조정 등록</h2>
-              <button onClick={() => setShowRefund(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="text-xs text-muted-foreground">회원 이름 *</label>
-                <input value={refundForm.customerName} onChange={e => setRefundForm(f => ({ ...f, customerName: e.target.value }))} placeholder="홍길동"
-                  className="w-full mt-1 bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground">환불 금액 *</label>
-                  <input type="number" value={refundForm.amount} onChange={e => setRefundForm(f => ({ ...f, amount: e.target.value }))} placeholder="0"
-                    className="w-full mt-1 bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">날짜 *</label>
-                  <input type="date" value={refundForm.paymentDate} onChange={e => setRefundForm(f => ({ ...f, paymentDate: e.target.value }))}
-                    className="w-full mt-1 bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">사유 / 메모</label>
-                <textarea value={refundForm.memo} onChange={e => setRefundForm(f => ({ ...f, memo: e.target.value }))} rows={2} placeholder="환불 사유"
-                  className="w-full mt-1 bg-input border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
-              </div>
-              <button onClick={submitRefund} disabled={refundMutation.isPending}
-                className="w-full bg-red-500 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-red-600 disabled:opacity-50">
-                {refundMutation.isPending ? "등록 중..." : "환불 등록"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
