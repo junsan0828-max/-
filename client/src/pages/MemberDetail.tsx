@@ -699,7 +699,6 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "수정 실패"),
   });
 
-  const utils = trpc.useUtils();
   const refundPkgMutation = trpc.gym.revenue.create.useMutation({
     onSuccess: () => {
       toast.success("환불이 등록되었습니다");

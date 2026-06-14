@@ -10,7 +10,6 @@ import {
 import Logo from "./Logo";
 import NoticeLoginPopup from "./NoticeLoginPopup";
 
-const GYMPLUS_URL_KEY = "ziantgym_gymplus_url";
 const GYMPLUS_URL_DEFAULT = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -107,7 +106,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     : user?.role === "consultant" ? "컨설턴트"
     : "트레이너";
 
-  const gymplusUrl = localStorage.getItem(GYMPLUS_URL_KEY) ?? GYMPLUS_URL_DEFAULT;
+  const gymplusUrl = GYMPLUS_URL_DEFAULT;
 
   // iOS 좌측 엣지 스와이프 뒤로가기
   const mainRef = useRef<HTMLElement>(null);
