@@ -321,7 +321,7 @@ export default function PostureAnalysis() {
             <ChevronLeft size={18} />
           </a>
           <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 14, flex: 1 }}>🏋️ 자세 분석</span>
-          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
           <IconBtn icon={<Upload size={16} />} label="사진" onClick={() => fileInputRef.current?.click()} />
           <IconBtn icon={<RotateCcw size={16} />} label="취소" onClick={handleUndo} disabled={history.length === 0} />
           <IconBtn icon={<Download size={16} />} label="저장" onClick={handleSave} disabled={!bgImage} />
