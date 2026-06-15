@@ -1,5 +1,24 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X } from "lucide-react";
+import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell } from "lucide-react";
+
+// ── 카카오 PKCE ──────────────────────────────────────────────────────────────
+function generateCodeVerifier(): string {
+  const a = new Uint8Array(32);
+  crypto.getRandomValues(a);
+  return btoa(String.fromCharCode(...a)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+}
+async function generateCodeChallenge(v: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
+  return btoa(String.fromCharCode(...new Uint8Array(d))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+}
+
+// ── 사용자 유형 & 한도 ───────────────────────────────────────────────────────
+type UserType = "member" | "trainer" | "fitstep";
+interface KakaoUser { name: string; thumbnail?: string }
+const LIMITS: Record<string, number> = { guest: 2, member: 5, trainer: 10, fitstep: 99999 };
+function todayGenKey() { return `pa_gen_${new Date().toISOString().slice(0,10).replace(/-/g,"")}`; }
+function getGenCount() { return parseInt(localStorage.getItem(todayGenKey()) || "0"); }
+function incGenCount() { const k = todayGenKey(); const n = getGenCount()+1; localStorage.setItem(k,String(n)); return n; }
 
 type ToolType = "hline" | "vline" | "line" | "angle" | "text" | "erase";
 type LineStyle = "solid" | "dashed" | "dotted";
@@ -44,6 +63,59 @@ export default function PostureAnalysis() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── 인증 상태 ──────────────────────────────────────────────────────────────
+  const [kakaoUser, setKakaoUser] = useState<KakaoUser | null>(() => {
+    try { const s = localStorage.getItem("dp_kakao_user"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const [userType, setUserType] = useState<UserType | null>(() => {
+    const s = localStorage.getItem("dp_ut");
+    if (localStorage.getItem("dp_fitstep") === "1" && localStorage.getItem("dp_kakao_user") && s !== "fitstep") {
+      localStorage.setItem("dp_ut", "fitstep"); return "fitstep";
+    }
+    return s === "member" || s === "trainer" || s === "fitstep" ? s : null;
+  });
+  const [todayCount, setTodayCount] = useState(getGenCount);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showTypeModal, setShowTypeModal] = useState(false);
+
+  // FIT STEP 레퍼럴 감지
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("ref") === "fitstep" || sp.get("fitstep") === "1") {
+      localStorage.setItem("dp_fitstep", "1");
+      if (localStorage.getItem("dp_kakao_user") && localStorage.getItem("dp_ut") !== "fitstep") {
+        localStorage.setItem("dp_ut", "fitstep"); setUserType("fitstep");
+      }
+    }
+  }, []);
+
+  async function handleKakaoLogin() {
+    const appKey = import.meta.env.VITE_KAKAO_APP_KEY as string | undefined;
+    if (!appKey) return;
+    const verifier = generateCodeVerifier();
+    sessionStorage.setItem("kakao_pkce_verifier", verifier);
+    sessionStorage.setItem("login_return", "/posture");
+    const challenge = await generateCodeChallenge(verifier);
+    const redirectUri = window.location.origin + "/";
+    window.location.href =
+      `https://kauth.kakao.com/oauth/authorize?client_id=${appKey}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=code&code_challenge=${challenge}&code_challenge_method=S256` +
+      `&scope=profile_nickname,profile_image`;
+  }
+
+  function handleKakaoLogout() {
+    localStorage.removeItem("dp_kakao_user");
+    setKakaoUser(null);
+  }
+
+  function selectUserType(t: UserType) {
+    localStorage.setItem("dp_ut", t);
+    setUserType(t);
+    setShowTypeModal(false);
+  }
+
+  // ── 캔버스/도구 상태 ──────────────────────────────────────────────────────
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
   const [lines, setLines] = useState<DrawnItem[]>([]);
   const [history, setHistory] = useState<DrawnItem[][]>([]);
@@ -440,6 +512,11 @@ export default function PostureAnalysis() {
   }, []);
 
   function loadImageFile(file: File) {
+    const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
+    const limit = LIMITS[effectiveType] ?? 2;
+    if (todayCount >= limit) { setShowLimitModal(true); return; }
+    incGenCount();
+    setTodayCount(c => c + 1);
     const reader = new FileReader();
     reader.onload = ev => {
       const img = new Image();
@@ -515,6 +592,20 @@ export default function PostureAnalysis() {
           </a>
           <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 14, flex: 1 }}>🏋️ 자세 분석</span>
           <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
+          {/* 사용자 배지 */}
+          {kakaoUser ? (
+            <button onClick={handleKakaoLogout}
+              style={{ display:"flex", alignItems:"center", gap:4, background:"#065f46", border:"none", borderRadius:8, padding:"5px 8px", color:"#34d399", fontSize:11, cursor:"pointer" }}>
+              {kakaoUser.thumbnail ? <img src={kakaoUser.thumbnail} alt="" style={{width:16,height:16,borderRadius:"50%",objectFit:"cover"}} /> : <User size={12}/>}
+              <span style={{maxWidth:56,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{kakaoUser.name}</span>
+              {userType === "fitstep" && <Zap size={10} color="#fbbf24"/>}
+            </button>
+          ) : (
+            <button onClick={handleKakaoLogin}
+              style={{ display:"flex", alignItems:"center", gap:4, background:"#1e293b", border:"1px solid #334155", borderRadius:8, padding:"5px 8px", color:"#94a3b8", fontSize:11, cursor:"pointer" }}>
+              <User size={12}/>로그인
+            </button>
+          )}
           <IconBtn icon={<Upload size={16} />} label="사진" onClick={() => fileInputRef.current?.click()} />
           <IconBtn icon={<RotateCcw size={16} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
           <IconBtn icon={<Download size={16} />} label="저장" onClick={handleSave} disabled={!bgImage} />
@@ -586,6 +677,56 @@ export default function PostureAnalysis() {
           ))}
         </div>
 
+        {/* 한도 초과 모달 */}
+        {showLimitModal && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:400 }}>
+            <div style={{ background:"#1e293b", border:"2px solid #e94560", borderRadius:"16px 16px 0 0", padding:"24px 20px 36px", width:"100%" }}>
+              <div style={{ textAlign:"center", marginBottom:16 }}>
+                <div style={{ fontSize:40, marginBottom:8 }}>🔒</div>
+                <h3 style={{ color:"#f1f5f9", fontSize:17, fontWeight:700, margin:0 }}>오늘 사용 한도 초과</h3>
+                <p style={{ color:"#64748b", fontSize:13, margin:"8px 0 0" }}>
+                  {kakaoUser ? `오늘 ${LIMITS[userType ?? "member"]}회 모두 사용했습니다.` : "비로그인 시 하루 2회까지 사용 가능합니다."}
+                </p>
+              </div>
+              <div style={{ background:"#0f172a", borderRadius:10, padding:14, marginBottom:16 }}>
+                {[{icon:<Lock size={14}/>,label:"비로그인",count:"2회/일",color:"#6b7280"},{icon:<User size={14}/>,label:"로그인 회원",count:"5회/일",color:"#34d399"},{icon:<Dumbbell size={14}/>,label:"운동전문가",count:"10회/일",color:"#60a5fa"},{icon:<Zap size={14}/>,label:"FIT STEP",count:"무제한",color:"#f59e0b"}].map(t=>(
+                  <div key={t.label} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1e293b"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,color:"#94a3b8",fontSize:12}}>{t.icon}{t.label}</div>
+                    <span style={{color:t.color,fontSize:12,fontWeight:700}}>{t.count}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={() => setShowLimitModal(false)}
+                  style={{ flex:1, padding:"12px", background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer", fontSize:14 }}>닫기</button>
+                {!kakaoUser && (
+                  <button onClick={handleKakaoLogin}
+                    style={{ flex:2, padding:"12px", background:"#f59e0b", border:"none", color:"#000", borderRadius:8, cursor:"pointer", fontSize:14, fontWeight:700 }}>카카오 로그인</button>
+                )}
+                <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer"
+                  style={{ flex:2, padding:"12px", background:"#059669", border:"none", color:"#fff", borderRadius:8, cursor:"pointer", fontSize:14, fontWeight:700, textDecoration:"none", textAlign:"center" }}>
+                  ⚡ FIT STEP 무제한
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 유형 선택 모달 (첫 로그인) */}
+        {showTypeModal && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:400 }}>
+            <div style={{ background:"#1e293b", border:"2px solid #334155", borderRadius:"16px 16px 0 0", padding:"24px 20px 36px", width:"100%" }}>
+              <h3 style={{ color:"#f1f5f9", fontSize:16, fontWeight:700, margin:"0 0 16px" }}>회원 유형 선택</h3>
+              {([["member","일반 회원","5회/일","#34d399"],["trainer","운동전문가","10회/일","#60a5fa"]] as const).map(([t,l,c,col])=>(
+                <button key={t} onClick={() => selectUserType(t)}
+                  style={{ display:"flex", justifyContent:"space-between", alignItems:"center", width:"100%", background:"#0f172a", border:"1px solid #334155", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:14, cursor:"pointer", marginBottom:10 }}>
+                  <span>{l}</span><span style={{color:col,fontWeight:700}}>{c}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Text modal */}
         {showTextModal && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 300 }}>
@@ -624,7 +765,63 @@ export default function PostureAnalysis() {
         </a>
         <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 15 }}>🏋️ 자세 분석 라인 드로잉</span>
         <span style={{ background: "#0f3460", color: "#60a5fa", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700 }}>BETA</span>
+        <span style={{ flex: 1 }} />
+        {/* 사용 횟수 */}
+        <span style={{ color: "#475569", fontSize: 12 }}>
+          오늘 {todayCount} / {LIMITS[kakaoUser ? (userType ?? "member") : "guest"]}회
+        </span>
+        {kakaoUser ? (
+          <div style={{ display:"flex", alignItems:"center", gap:6, background:"#065f46", borderRadius:8, padding:"5px 10px" }}>
+            {kakaoUser.thumbnail ? <img src={kakaoUser.thumbnail} alt="" style={{width:18,height:18,borderRadius:"50%",objectFit:"cover"}} /> : <User size={14} color="#34d399"/>}
+            <span style={{ color:"#34d399", fontSize:12 }}>{kakaoUser.name}</span>
+            {userType === "fitstep" && <Zap size={11} color="#fbbf24"/>}
+            <button onClick={handleKakaoLogout}
+              style={{ background:"none", border:"none", color:"#64748b", fontSize:11, cursor:"pointer", padding:0 }}>로그아웃</button>
+          </div>
+        ) : (
+          <button onClick={handleKakaoLogin}
+            style={{ display:"flex", alignItems:"center", gap:5, background:"#f59e0b", border:"none", borderRadius:8, padding:"6px 12px", color:"#000", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+            <User size={13}/>카카오 로그인
+          </button>
+        )}
       </div>
+
+      {/* 한도 초과 모달 (데스크톱) */}
+      {showLimitModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }}>
+          <div style={{ background:"#1e293b", border:"2px solid #e94560", borderRadius:16, padding:32, width:360 }}>
+            <div style={{ textAlign:"center", marginBottom:20 }}>
+              <div style={{ fontSize:40 }}>🔒</div>
+              <h3 style={{ color:"#f1f5f9", fontSize:17, fontWeight:700, margin:"8px 0 0" }}>오늘 사용 한도 초과</h3>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
+              {[{l:"비로그인",c:"2회/일",col:"#6b7280"},{l:"로그인 회원",c:"5회/일",col:"#34d399"},{l:"운동전문가",c:"10회/일",col:"#60a5fa"},{l:"FIT STEP",c:"무제한",col:"#f59e0b"}].map(t=>(
+                <div key={t.l} style={{display:"flex",justifyContent:"space-between",color:"#94a3b8",fontSize:13}}>
+                  <span>{t.l}</span><span style={{color:t.col,fontWeight:700}}>{t.c}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => setShowLimitModal(false)} style={{ flex:1, padding:"10px", background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer" }}>닫기</button>
+              {!kakaoUser && <button onClick={handleKakaoLogin} style={{ flex:2, padding:"10px", background:"#f59e0b", border:"none", color:"#000", borderRadius:8, cursor:"pointer", fontWeight:700 }}>카카오 로그인</button>}
+              <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer" style={{ flex:2, padding:"10px", background:"#059669", color:"#fff", borderRadius:8, textDecoration:"none", textAlign:"center", fontWeight:700, fontSize:13 }}>⚡ FIT STEP</a>
+            </div>
+          </div>
+        </div>
+      )}
+      {showTypeModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }}>
+          <div style={{ background:"#1e293b", border:"2px solid #334155", borderRadius:16, padding:32, width:320 }}>
+            <h3 style={{ color:"#f1f5f9", fontSize:16, fontWeight:700, margin:"0 0 20px" }}>회원 유형 선택</h3>
+            {([["member","일반 회원","5회/일","#34d399"],["trainer","운동전문가","10회/일","#60a5fa"]] as const).map(([t,l,c,col])=>(
+              <button key={t} onClick={() => selectUserType(t)}
+                style={{ display:"flex", justifyContent:"space-between", width:"100%", background:"#0f172a", border:"1px solid #334155", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:14, cursor:"pointer", marginBottom:10 }}>
+                <span>{l}</span><span style={{color:col,fontWeight:700}}>{c}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", padding: "10px 16px", background: "#16213e", borderBottom: "1px solid #0f3460", position: "sticky", top: 0, zIndex: 100 }}>

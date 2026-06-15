@@ -1877,6 +1877,13 @@ export default function DietPlanner() {
                 // 최초 로그인 시 유형 선택 모달
                 setShowTypeModal(true);
               }
+              // 다른 페이지에서 로그인 요청 → 돌아가기
+              const returnPath = sessionStorage.getItem("login_return");
+              if (returnPath) {
+                sessionStorage.removeItem("login_return");
+                window.location.href = returnPath;
+                return;
+              }
             } else {
               setKakaoMsg("❌ 프로필 조회 실패");
             }
