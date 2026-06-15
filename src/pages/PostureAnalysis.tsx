@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell } from "lucide-react";
+import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell, Camera, Move, Ruler, Eraser, TrendingUp, Minus } from "lucide-react";
 
 // ── 카카오 PKCE ──────────────────────────────────────────────────────────────
 function generateCodeVerifier(): string {
@@ -42,14 +42,14 @@ function calcAngle3(x1: number, y1: number, x2: number, y2: number, x3: number, 
   return Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180 / Math.PI;
 }
 
-const TOOLS: { id: ToolType; emoji: string; label: string; key: string }[] = [
-  { id: "pan",   emoji: "✋", label: "이동",    key: "m" },
-  { id: "hline", emoji: "—",  label: "수평선",  key: "1" },
-  { id: "vline", emoji: "|",  label: "수직선",  key: "2" },
-  { id: "line",  emoji: "↗",  label: "기울기선", key: "3" },
-  { id: "angle", emoji: "📐", label: "각도선",  key: "4" },
-  { id: "text",  emoji: "T",  label: "텍스트",  key: "5" },
-  { id: "erase", emoji: "🧹", label: "지우개",  key: "e" },
+const TOOLS: { id: ToolType; icon: React.ReactNode; label: string; key: string }[] = [
+  { id: "pan",   icon: <Move size={17}/>,       label: "이동",    key: "m" },
+  { id: "hline", icon: <Minus size={17}/>,       label: "수평선",  key: "1" },
+  { id: "vline", icon: <span style={{fontWeight:700,fontSize:17,lineHeight:1}}>|</span>, label: "수직선", key: "2" },
+  { id: "line",  icon: <TrendingUp size={17}/>,  label: "기울기선", key: "3" },
+  { id: "angle", icon: <Ruler size={17}/>,       label: "각도선",  key: "4" },
+  { id: "text",  icon: <span style={{fontWeight:700,fontSize:15,lineHeight:1}}>T</span>, label: "텍스트", key: "5" },
+  { id: "erase", icon: <Eraser size={17}/>,      label: "지우개",  key: "e" },
 ];
 
 function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
@@ -617,7 +617,7 @@ export default function PostureAnalysis() {
             {/* 헤더 */}
             <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 46, height: 46, background: "#1e3a5f", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🏋️</div>
+                <div style={{ width: 46, height: 46, background: "#1e3a5f", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Dumbbell size={24} color="#93c5fd"/></div>
                 <div>
                   <h1 style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 700, margin: 0 }}>체형 분석 드로잉</h1>
                   <p style={{ color: "#64748b", fontSize: 11, margin: 0 }}>사진 위에 선을 그어 체형을 분석하세요</p>
@@ -633,7 +633,7 @@ export default function PostureAnalysis() {
               ) : (
                 <button onClick={handleKakaoLogin}
                   style={{ display:"flex", alignItems:"center", gap:5, background:"#FEE500", border:"none", borderRadius:10, padding:"9px 14px", color:"#000", fontSize:13, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
-                  💬 로그인
+                  <User size={14}/> 로그인
                 </button>
               )}
             </div>
@@ -681,7 +681,7 @@ export default function PostureAnalysis() {
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
               <div onClick={() => fileInputRef.current?.click()}
                 style={{ border: "2px dashed #1e3a5f", borderRadius: 16, padding: "40px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                <div style={{ fontSize: 52 }}>📷</div>
+                <Camera size={52} color="#334155"/>
                 <p style={{ color: "#94a3b8", fontSize: 16, fontWeight: 600, margin: 0 }}>사진을 탭하여 업로드</p>
                 <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>카메라 촬영 또는 갤러리에서 선택</p>
               </div>
@@ -698,7 +698,10 @@ export default function PostureAnalysis() {
                 style={{ display:"flex", alignItems:"center", gap:4, background:"#0f3460", border:"none", borderRadius:6, padding:"6px 8px", color:"#aaa", fontSize:11, cursor:"pointer" }}>
                 <ChevronLeft size={14}/>새 사진
               </button>
-              <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 13, flex: 1 }}>🏋️ 체형 분석</span>
+              <div style={{ display:"flex", alignItems:"center", gap:6, flex:1 }}>
+                <Dumbbell size={15} color="#93c5fd"/>
+                <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 13 }}>체형 분석</span>
+              </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
               <IconBtn icon={<RotateCcw size={15} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
               <IconBtn icon={<Download size={15} />} label="저장" onClick={handleSave} />
@@ -746,14 +749,14 @@ export default function PostureAnalysis() {
           <>
             {currentTool === "angle" && angleStep > 0 && (
               <div style={{ background: "#0f3460", borderTop: "1px solid #1e40af", padding: "6px 16px", textAlign: "center", fontSize: 12, color: "#93c5fd", flexShrink: 0 }}>
-                {angleStep === 1 ? "✅ 1번 점 완료 → 꼭짓점을 탭하세요" : "✅ 꼭짓점 완료 → 3번째 점을 탭하세요"}
+                {angleStep === 1 ? "● 1번 점 완료 → 꼭짓점을 탭하세요" : "● 꼭짓점 완료 → 3번째 점을 탭하세요"}
               </div>
             )}
             <div style={{ background: "#16213e", borderTop: "1px solid #0f3460", padding: "8px 4px", display: "flex", justifyContent: "space-around", flexShrink: 0 }}>
               {TOOLS.map(t => (
                 <button key={t.id} onClick={() => setCurrentTool(t.id)}
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "7px 8px", background: currentTool === t.id ? "#e94560" : "#0f3460", border: "none", borderRadius: 10, cursor: "pointer", color: "#eee", minWidth: 40, transition: "all 0.15s" }}>
-                  <span style={{ fontSize: 17, lineHeight: 1 }}>{t.emoji}</span>
+                  {t.icon}
                   <span style={{ fontSize: 9 }}>{t.label}</span>
                 </button>
               ))}
@@ -766,7 +769,7 @@ export default function PostureAnalysis() {
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:400 }}>
             <div style={{ background:"#1e293b", border:"2px solid #e94560", borderRadius:"16px 16px 0 0", padding:"24px 20px 36px", width:"100%" }}>
               <div style={{ textAlign:"center", marginBottom:16 }}>
-                <div style={{ fontSize:40, marginBottom:8 }}>🔒</div>
+                <Lock size={40} color="#64748b" style={{marginBottom:8}}/>
                 <h3 style={{ color:"#f1f5f9", fontSize:17, fontWeight:700, margin:0 }}>오늘 사용 한도 초과</h3>
                 <p style={{ color:"#64748b", fontSize:13, margin:"8px 0 0" }}>
                   {kakaoUser ? `오늘 ${LIMITS[userType ?? "member"]}회 모두 사용했습니다.` : "비로그인 시 하루 2회까지 사용 가능합니다."}
@@ -789,7 +792,7 @@ export default function PostureAnalysis() {
                 )}
                 <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer"
                   style={{ flex:2, padding:"12px", background:"#059669", border:"none", color:"#fff", borderRadius:8, cursor:"pointer", fontSize:14, fontWeight:700, textDecoration:"none", textAlign:"center" }}>
-                  ⚡ FIT STEP 무제한
+                  FIT STEP 무제한
                 </a>
               </div>
             </div>
@@ -847,7 +850,7 @@ export default function PostureAnalysis() {
         <a href="/" style={{ display: "flex", alignItems: "center", gap: 6, color: "#aaa", textDecoration: "none", fontSize: 13, background: "#0f3460", borderRadius: 6, padding: "5px 10px" }}>
           <ChevronLeft size={14} /> 식단 플래너
         </a>
-        <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 15 }}>🏋️ 자세 분석 라인 드로잉</span>
+        <span style={{ display:"flex", alignItems:"center", gap:6, color: "#f1f5f9", fontWeight: 700, fontSize: 15 }}><Dumbbell size={15} color="#93c5fd"/> 자세 분석 라인 드로잉</span>
         <span style={{ background: "#0f3460", color: "#60a5fa", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700 }}>BETA</span>
         <span style={{ flex: 1 }} />
         {/* 사용 횟수 */}
@@ -875,7 +878,7 @@ export default function PostureAnalysis() {
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }}>
           <div style={{ background:"#1e293b", border:"2px solid #e94560", borderRadius:16, padding:32, width:360 }}>
             <div style={{ textAlign:"center", marginBottom:20 }}>
-              <div style={{ fontSize:40 }}>🔒</div>
+              <Lock size={40} color="#64748b" style={{marginBottom:8}}/>
               <h3 style={{ color:"#f1f5f9", fontSize:17, fontWeight:700, margin:"8px 0 0" }}>오늘 사용 한도 초과</h3>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
@@ -888,7 +891,7 @@ export default function PostureAnalysis() {
             <div style={{ display:"flex", gap:8 }}>
               <button onClick={() => setShowLimitModal(false)} style={{ flex:1, padding:"10px", background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer" }}>닫기</button>
               {!kakaoUser && <button onClick={handleKakaoLogin} style={{ flex:2, padding:"10px", background:"#f59e0b", border:"none", color:"#000", borderRadius:8, cursor:"pointer", fontWeight:700 }}>카카오 로그인</button>}
-              <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer" style={{ flex:2, padding:"10px", background:"#059669", color:"#fff", borderRadius:8, textDecoration:"none", textAlign:"center", fontWeight:700, fontSize:13 }}>⚡ FIT STEP</a>
+              <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer" style={{ flex:2, padding:"10px", background:"#059669", color:"#fff", borderRadius:8, textDecoration:"none", textAlign:"center", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><Zap size={13}/> FIT STEP</a>
             </div>
           </div>
         </div>
@@ -920,7 +923,7 @@ export default function PostureAnalysis() {
           {TOOLS.map(t => (
             <button key={t.id} onClick={() => setCurrentTool(t.id)}
               style={{ padding: "5px 10px", border: "1px solid #0f3460", background: currentTool === t.id ? "#e94560" : "#0f3460", color: "#eee", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>
-              {t.emoji} {t.label}
+              {t.icon} {t.label}
             </button>
           ))}
         </div>
@@ -953,7 +956,7 @@ export default function PostureAnalysis() {
           {!bgImage && (
             <div onClick={() => fileInputRef.current?.click()}
               style={{ width: 500, height: 500, border: "3px dashed #0f3460", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, color: "#aaa", borderRadius: 12, cursor: "pointer" }}>
-              <div style={{ fontSize: 64 }}>🖼️</div>
+              <Upload size={64} color="#334155" />
               <p style={{ fontSize: 18 }}>사진을 클릭하거나 드래그해서 업로드</p>
               <small style={{ fontSize: 13, color: "#666" }}>JPG · PNG · WEBP 지원</small>
             </div>
@@ -964,8 +967,8 @@ export default function PostureAnalysis() {
 
       {/* Info bar */}
       <div style={{ position: "fixed", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", padding: "6px 18px", borderRadius: 20, fontSize: 12, color: "#aaa", pointerEvents: "none" }}>
-        {currentTool === "angle" && angleStep === 1 && "📐 꼭짓점(중간점)을 클릭하세요"}
-        {currentTool === "angle" && angleStep === 2 && "📐 3번째 점을 클릭하세요"}
+        {currentTool === "angle" && angleStep === 1 && "꼭짓점(중간점)을 클릭하세요"}
+        {currentTool === "angle" && angleStep === 2 && "3번째 점을 클릭하세요"}
         {(currentTool !== "angle" || angleStep === 0) && `현재 도구: ${TOOLS.find(t => t.id === currentTool)?.label}`}
       </div>
 
