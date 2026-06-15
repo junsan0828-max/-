@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, ExternalLink, Link2, Share2 } from "lucide-react";
+import { CalendarCheck, ExternalLink, Link2, Share2, AlertCircle } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -113,7 +113,7 @@ export default function BookingManagementPage() {
           <h1 className="text-lg font-bold">수업 예약 관리</h1>
           <p className="text-xs text-muted-foreground">시간 관리 · 예약 확인</p>
         </div>
-        {brand?.username && (
+        {brand?.username && brand?.brandIsPublic === 1 && (
           <button
             onClick={() => window.open(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`, "_blank")}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/5 transition-colors shrink-0"
@@ -134,14 +134,30 @@ export default function BookingManagementPage() {
         ))}
       </div>
 
+      {/* ── 브랜드 페이지 미공개 경고 ── */}
+      {brand && !brand.brandIsPublic && (
+        <div className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3.5 py-3">
+          <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-amber-600">브랜드 페이지 공개 필요</p>
+            <p className="text-[11px] text-amber-600/80 mt-0.5 leading-relaxed">
+              작업실 → 브랜드 페이지에서 <strong>공개 설정</strong>을 켜야 예약 링크가 활성화됩니다.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── 예약 링크 공유 (모든 탭 공통) ── */}
-      {brand?.username && (
+      {brand?.username && brand?.brandIsPublic === 1 && (
         <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-2.5">
-          <div className="flex items-center gap-2">
-            <Link2 className="h-4 w-4 text-primary" />
-            <p className="text-sm font-bold text-primary">예약 링크 공유하기</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Link2 className="h-4 w-4 text-primary" />
+              <p className="text-sm font-bold text-primary">예약 링크 공유하기</p>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">회원에게 아래 링크를 공유하면 바로 예약할 수 있습니다.</p>
+          <p className="text-[11px] text-muted-foreground/70">버튼 문구·안내 문구·프로그램 옵션 등 상세 설정은 <span className="font-semibold">작업실</span>에서 해주세요.</p>
           <div className="flex gap-2 items-center bg-background border border-border rounded-xl px-3 py-2">
             <span className="text-xs flex-1 truncate text-foreground/70 font-mono">
               {window.location.origin}/c/{encodeURIComponent(brand.username)}
