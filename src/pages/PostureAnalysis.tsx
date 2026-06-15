@@ -8,9 +8,19 @@ interface DrawnItem {
   type: ToolType | "text";
   x1: number; y1: number;
   x2: number; y2: number;
+  x3?: number; y3?: number; // 3번째 점 (각도선용)
   color: string; width: number; style: LineStyle;
   label?: string | null; labelX?: number; labelY?: number;
   text?: string; fontSize?: number;
+}
+
+function calcAngle3(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number) {
+  const v1x = x1 - x2, v1y = y1 - y2;
+  const v2x = x3 - x2, v2y = y3 - y2;
+  const dot = v1x * v2x + v1y * v2y;
+  const mag = Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y);
+  if (mag === 0) return 0;
+  return Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180 / Math.PI;
 }
 
 const TOOLS: { id: ToolType; emoji: string; label: string; key: string }[] = [
@@ -52,6 +62,10 @@ export default function PostureAnalysis() {
   const startRef = useRef({ x: 0, y: 0 });
   const movingIdxRef = useRef<number | null>(null);
   const moveLastRef = useRef({ x: 0, y: 0 });
+  // 3점 각도: 0=대기, 1=1번점 찍음, 2=2번점 찍음
+  const [angleStep, setAngleStep] = useState(0);
+  const angleStepRef = useRef(0);
+  const anglePtsRef = useRef<{ x: number; y: number }[]>([]);
   const linesRef = useRef<DrawnItem[]>([]);
   const historyRef = useRef<DrawnItem[][]>([]);
   const bgRef = useRef<HTMLImageElement | null>(null);
@@ -93,6 +107,23 @@ export default function PostureAnalysis() {
         ctx.setLineDash([]);
         ctx.strokeText(l.text!, l.x1, l.y1);
         ctx.fillText(l.text!, l.x1, l.y1);
+      } else if (l.type === "angle" && l.x3 !== undefined) {
+        // 3점 각도선: p1→p2(꼭짓점)→p3
+        applyLineStyle(ctx, l.color, l.width, l.style);
+        ctx.beginPath(); ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(l.x2, l.y2); ctx.lineTo(l.x3!, l.y3!); ctx.stroke();
+        // 꼭짓점 점
+        ctx.setLineDash([]);
+        ctx.fillStyle = l.color;
+        ctx.beginPath(); ctx.arc(l.x2, l.y2, l.width + 3, 0, Math.PI * 2); ctx.fill();
+        // 각도 표시
+        if (l.label) {
+          ctx.font = `bold ${fontRef.current}px Arial`;
+          ctx.strokeStyle = "rgba(0,0,0,0.8)";
+          ctx.lineWidth = 3;
+          ctx.strokeText(l.label, l.labelX!, l.labelY!);
+          ctx.fillText(l.label, l.labelX!, l.labelY!);
+        }
       } else {
         applyLineStyle(ctx, l.color, l.width, l.style);
         ctx.beginPath(); ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); ctx.stroke();
@@ -110,6 +141,16 @@ export default function PostureAnalysis() {
     });
     if (extraPreview) extraPreview();
   }, [applyLineStyle]);
+
+  // 각도 도구에서 다른 도구로 전환 시 진행 상태 + 미리보기 초기화
+  useEffect(() => {
+    if (currentTool !== "angle") {
+      anglePtsRef.current = [];
+      angleStepRef.current = 0;
+      setAngleStep(0);
+      render();
+    }
+  }, [currentTool, render]);
 
   const getPos = useCallback((e: MouseEvent | TouchEvent) => {
     const canvas = canvasRef.current!;
@@ -164,6 +205,42 @@ export default function PostureAnalysis() {
       return;
     }
 
+    // 각도 도구: 3점 탭 방식
+    if (toolRef.current === "angle") {
+      const step = angleStepRef.current;
+      if (step === 0) {
+        // 1번째 점
+        anglePtsRef.current = [pos];
+        angleStepRef.current = 1;
+        setAngleStep(1);
+      } else if (step === 1) {
+        // 2번째 점 (꼭짓점)
+        anglePtsRef.current = [...anglePtsRef.current, pos];
+        angleStepRef.current = 2;
+        setAngleStep(2);
+      } else {
+        // 3번째 점 → 각도 확정
+        const [p1, p2] = anglePtsRef.current;
+        const p3 = pos;
+        const angle = calcAngle3(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+        const item: DrawnItem = {
+          type: "angle", x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, x3: p3.x, y3: p3.y,
+          color: colorRef.current, width: widthRef.current, style: styleRef.current,
+          label: angle.toFixed(1) + "°", labelX: p2.x + 10, labelY: p2.y - 10,
+        };
+        const next = [...linesRef.current, item];
+        historyRef.current = [...historyRef.current, linesRef.current];
+        setHistory([...historyRef.current]);
+        linesRef.current = next;
+        setLines(next);
+        anglePtsRef.current = [];
+        angleStepRef.current = 0;
+        setAngleStep(0);
+        render();
+      }
+      return;
+    }
+
     // 기존 선 근처 → 이동 모드
     const nearIdx = findNearLine(pos.x, pos.y);
     if (nearIdx !== null) {
@@ -182,6 +259,41 @@ export default function PostureAnalysis() {
     if (!bgRef.current) return;
     const pos = getPos(e);
 
+    // 각도 도구 미리보기
+    if (toolRef.current === "angle" && angleStepRef.current > 0) {
+      const pts = anglePtsRef.current;
+      const canvas = canvasRef.current!;
+      const ctx = canvas.getContext("2d")!;
+      render(() => {
+        ctx.save();
+        applyLineStyle(ctx, colorRef.current, widthRef.current, styleRef.current);
+        // 1번째 점 표시
+        ctx.fillStyle = colorRef.current;
+        ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, widthRef.current + 3, 0, Math.PI * 2); ctx.fill();
+        if (angleStepRef.current === 1) {
+          // p1 → cursor (첫 번째 선 미리보기)
+          ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+        } else if (angleStepRef.current === 2) {
+          // p1 → p2 + p2 → cursor
+          ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(pts[1].x, pts[1].y); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+          ctx.beginPath(); ctx.arc(pts[1].x, pts[1].y, widthRef.current + 3, 0, Math.PI * 2); ctx.fill();
+          // 실시간 각도 표시
+          const a = calcAngle3(pts[0].x, pts[0].y, pts[1].x, pts[1].y, pos.x, pos.y);
+          ctx.setLineDash([]);
+          ctx.font = `bold ${fontRef.current}px Arial`;
+          ctx.strokeStyle = "rgba(0,0,0,0.8)";
+          ctx.lineWidth = 3;
+          const lx = pts[1].x + 10, ly = pts[1].y - 10;
+          ctx.strokeText(a.toFixed(1) + "°", lx, ly);
+          ctx.fillStyle = colorRef.current;
+          ctx.fillText(a.toFixed(1) + "°", lx, ly);
+        }
+        ctx.restore();
+      });
+      return;
+    }
+
     // 이동 모드
     if (movingIdxRef.current !== null) {
       const dx = pos.x - moveLastRef.current.x;
@@ -194,6 +306,7 @@ export default function PostureAnalysis() {
         else if (n.type === "vline") { n.x1 += dx; n.x2 += dx; }
         else {
           n.x1 += dx; n.y1 += dy; n.x2 += dx; n.y2 += dy;
+          if (n.x3 !== undefined) { n.x3! += dx; n.y3! += dy; }
           if (n.labelX !== undefined) { n.labelX! += dx; n.labelY! += dy; }
         }
         return n;
@@ -434,6 +547,13 @@ export default function PostureAnalysis() {
           <canvas ref={canvasRef} style={{ display: bgImage ? "block" : "none", width: "100%", touchAction: "none" }} />
         </div>
 
+        {/* 각도 진행 힌트 */}
+        {currentTool === "angle" && angleStep > 0 && (
+          <div style={{ background: "#0f3460", borderTop: "1px solid #1e40af", padding: "6px 16px", textAlign: "center", fontSize: 12, color: "#93c5fd", flexShrink: 0 }}>
+            {angleStep === 1 ? "✅ 1번 점 완료 → 꼭짓점(중간점)을 탭하세요" : "✅ 꼭짓점 완료 → 3번째 점을 탭하세요"}
+          </div>
+        )}
+
         {/* Bottom toolbar */}
         <div style={{ background: "#16213e", borderTop: "1px solid #0f3460", padding: "8px 6px", display: "flex", justifyContent: "space-around", flexShrink: 0 }}>
           {TOOLS.map(t => (
@@ -541,8 +661,10 @@ export default function PostureAnalysis() {
       </div>
 
       {/* Info bar */}
-      <div style={{ position: "fixed", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.7)", padding: "6px 16px", borderRadius: 20, fontSize: 12, color: "#aaa", pointerEvents: "none" }}>
-        현재 도구: {TOOLS.find(t => t.id === currentTool)?.label}
+      <div style={{ position: "fixed", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", padding: "6px 18px", borderRadius: 20, fontSize: 12, color: "#aaa", pointerEvents: "none" }}>
+        {currentTool === "angle" && angleStep === 1 && "📐 꼭짓점(중간점)을 클릭하세요"}
+        {currentTool === "angle" && angleStep === 2 && "📐 3번째 점을 클릭하세요"}
+        {(currentTool !== "angle" || angleStep === 0) && `현재 도구: ${TOOLS.find(t => t.id === currentTool)?.label}`}
       </div>
 
       {/* Text modal */}
