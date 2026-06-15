@@ -1,6 +1,21 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell, Camera, Move, Ruler, Eraser, TrendingUp, Minus, Share2, Grid3X3 } from "lucide-react";
 
+// ── Supabase 카운터 ──────────────────────────────────────────────────────────
+const _PA_SB_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "";
+const _PA_SB_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? "";
+const _PA_HDR = () => ({ "Content-Type": "application/json", apikey: _PA_SB_KEY, Authorization: `Bearer ${_PA_SB_KEY}` });
+function _paTodayKey() { return new Date().toISOString().slice(0, 10).replace(/-/g, ""); }
+async function paInc(key: string) {
+  if (!_PA_SB_URL || !_PA_SB_KEY) return;
+  try {
+    await fetch(`${_PA_SB_URL}/rest/v1/rpc/dp_inc_counter`, {
+      method: "POST", headers: _PA_HDR(),
+      body: JSON.stringify({ p_key: key }),
+    });
+  } catch { /* ignore */ }
+}
+
 // ── 카카오 PKCE ──────────────────────────────────────────────────────────────
 function generateCodeVerifier(): string {
   const a = new Uint8Array(32);
@@ -80,6 +95,16 @@ export default function PostureAnalysis() {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showTypeModal, setShowTypeModal] = useState(false);
 
+  // 방문자 카운터 (세션당 1회)
+  useEffect(() => {
+    if (!sessionStorage.getItem("pa-visited")) {
+      sessionStorage.setItem("pa-visited", "1");
+      const tdk = _paTodayKey();
+      paInc("pa_vc");
+      paInc(`pa_vt_${tdk}`);
+    }
+  }, []);
+
   // FIT STEP 레퍼럴 감지
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
@@ -134,6 +159,9 @@ export default function PostureAnalysis() {
   const [urlCopied, setUrlCopied] = useState(false);
 
   async function handleShareUrl(url: string, title: string) {
+    const tdk = _paTodayKey();
+    paInc("pa_sc");
+    paInc(`pa_st_${tdk}`);
     if (navigator.share) {
       try { await navigator.share({ title, text: title, url }); } catch {}
     } else {
