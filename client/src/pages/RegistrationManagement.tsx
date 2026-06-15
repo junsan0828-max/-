@@ -17,6 +17,8 @@ import {
   CalendarDays,
   Key,
   Search,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 type Branch = { id: number; name: string };
@@ -61,6 +63,19 @@ export default function RegistrationManagement() {
   const [tab, setTab] = useState<"members" | "lockers" | "uniforms" | "services">("members");
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
+
+  // 등록 내역
+  const [regSearch, setRegSearch] = useState("");
+  const [regStatusFilter, setRegStatusFilter] = useState<"all" | "active" | "completed">("all");
+  const [editPkg, setEditPkg] = useState<any | null>(null);
+  const [editPkgForm, setEditPkgForm] = useState({
+    packageName: "", totalSessions: "", usedSessions: "",
+    startDate: "", expiryDate: "",
+    paymentAmount: "", unpaidAmount: "",
+    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드" | "혼합",
+    transferAmount: "", cardAmount: "",
+    paymentDate: "", paymentMemo: "",
+  });
   const [serviceModal, setServiceModal] = useState<ServiceModal>(null);
   const { data: memberRevenue, isLoading: memberRevenueLoading } = trpc.gym.revenue.getByMember.useQuery(
     { memberId: serviceModal?.memberId ?? 0 },
@@ -113,6 +128,16 @@ export default function RegistrationManagement() {
   });
 
   const utils = trpc.useUtils();
+
+  const ptListQuery = trpc.pt.list.useQuery(undefined, { enabled: tab === "members" });
+  const updatePackageMutation = trpc.pt.updatePackage.useMutation({
+    onSuccess: () => {
+      toast.success("수정 완료");
+      setEditPkg(null);
+      ptListQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message || "수정 실패"),
+  });
 
   const branchesQuery = trpc.access.getBranches.useQuery();
   const lockersQuery = trpc.access.getLockers.useQuery();
@@ -455,6 +480,236 @@ export default function RegistrationManagement() {
               </button>
             </div>
           </div>
+
+          {/* 등록 내역 */}
+          {(() => {
+            const allPkgs: any[] = ptListQuery.data ?? [];
+            const filtered = allPkgs.filter((p) => {
+              const q = regSearch.toLowerCase();
+              const nameMatch = (p.memberName ?? "").toLowerCase().includes(q) || (p.packageName ?? "").toLowerCase().includes(q);
+              const statusMatch =
+                regStatusFilter === "all" ? true :
+                regStatusFilter === "active" ? p.status === "active" :
+                p.status !== "active";
+              return nameMatch && statusMatch;
+            });
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-foreground">등록 내역</p>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={regStatusFilter}
+                      onChange={e => setRegStatusFilter(e.target.value as any)}
+                      className="text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-muted-foreground"
+                    >
+                      <option value="all">전체</option>
+                      <option value="active">진행중</option>
+                      <option value="completed">완료</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    value={regSearch}
+                    onChange={e => setRegSearch(e.target.value)}
+                    placeholder="회원명 또는 프로그램명 검색"
+                    className="w-full pl-8 pr-3 py-2 text-sm bg-background border border-border rounded-lg"
+                  />
+                </div>
+                {ptListQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
+                ) : filtered.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">등록 내역이 없습니다.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {filtered.slice(0, 50).map((pkg: any) => {
+                      const remaining = pkg.totalSessions - pkg.usedSessions;
+                      const isActive = pkg.status === "active";
+                      return (
+                        <div key={pkg.id} className="bg-card border border-border rounded-xl px-4 py-3 space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-sm text-foreground">{pkg.memberName ?? "—"}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isActive ? "bg-green-500/10 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                                  {isActive ? "진행중" : "완료"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{pkg.packageName || "PT 프로그램"}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-semibold text-foreground">{remaining}회 남음</p>
+                              <p className="text-xs text-muted-foreground">{pkg.usedSessions}/{pkg.totalSessions}회</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{pkg.startDate ?? "—"} ~ {pkg.expiryDate ?? "—"}</span>
+                            <span>{pkg.paymentAmount ? `${pkg.paymentAmount.toLocaleString()}원` : "—"}</span>
+                          </div>
+                          {(pkg.unpaidAmount ?? 0) > 0 && (
+                            <p className="text-xs text-red-400 font-medium">미수금 {pkg.unpaidAmount.toLocaleString()}원</p>
+                          )}
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => {
+                                setEditPkg(pkg);
+                                setEditPkgForm({
+                                  packageName: pkg.packageName ?? "",
+                                  totalSessions: String(pkg.totalSessions),
+                                  usedSessions: String(pkg.usedSessions),
+                                  startDate: pkg.startDate ?? "",
+                                  expiryDate: pkg.expiryDate ?? "",
+                                  paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
+                                  unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
+                                  paymentMethod: ((pkg.paymentMethod === "계좌이체" ? "이체" : pkg.paymentMethod) ?? "") as any,
+                                  transferAmount: pkg.transferAmount ? String(pkg.transferAmount) : "",
+                                  cardAmount: pkg.cardAmount ? String(pkg.cardAmount) : "",
+                                  paymentDate: pkg.paymentDate ?? "",
+                                  paymentMemo: pkg.paymentMemo ?? "",
+                                });
+                              }}
+                              className="text-xs text-primary underline hover:text-primary/70 transition-colors"
+                            >
+                              수정
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filtered.length > 50 && (
+                      <p className="text-xs text-muted-foreground text-center py-2">최근 50건 표시</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 수정 다이얼로그 */}
+          {editPkg && (
+            <Portal>
+              <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setEditPkg(null)}>
+                <div className="bg-card border border-border rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                  <div className="sticky top-0 bg-card border-b border-border px-5 py-4 flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-foreground">프로그램 수정</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{editPkg.memberName} · {editPkg.packageName || "PT 프로그램"}</p>
+                    </div>
+                    <button onClick={() => setEditPkg(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+                  </div>
+                  <div className="px-5 py-4 space-y-4">
+                    <div>
+                      <label className="text-xs text-muted-foreground">프로그램명</label>
+                      <input value={editPkgForm.packageName} onChange={e => setEditPkgForm(f => ({ ...f, packageName: e.target.value }))}
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">총 횟수</label>
+                        <input type="number" value={editPkgForm.totalSessions} onChange={e => setEditPkgForm(f => ({ ...f, totalSessions: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">사용 횟수</label>
+                        <input type="number" value={editPkgForm.usedSessions} onChange={e => setEditPkgForm(f => ({ ...f, usedSessions: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">시작일</label>
+                        <input type="date" value={editPkgForm.startDate} onChange={e => setEditPkgForm(f => ({ ...f, startDate: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">만료일</label>
+                        <input type="date" value={editPkgForm.expiryDate} onChange={e => setEditPkgForm(f => ({ ...f, expiryDate: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">결제 금액</label>
+                        <input type="number" value={editPkgForm.paymentAmount} onChange={e => setEditPkgForm(f => ({ ...f, paymentAmount: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">미수금</label>
+                        <input type="number" value={editPkgForm.unpaidAmount} onChange={e => setEditPkgForm(f => ({ ...f, unpaidAmount: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">결제 방법</label>
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                        {(["현금영수증", "이체", "지역화폐", "카드", "혼합"] as const).map(m => (
+                          <button key={m} type="button"
+                            onClick={() => setEditPkgForm(f => ({ ...f, paymentMethod: m }))}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editPkgForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {editPkgForm.paymentMethod === "혼합" && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground">이체 금액</label>
+                          <input type="number" value={editPkgForm.transferAmount} onChange={e => setEditPkgForm(f => ({ ...f, transferAmount: e.target.value }))}
+                            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">카드 금액</label>
+                          <input type="number" value={editPkgForm.cardAmount} onChange={e => setEditPkgForm(f => ({ ...f, cardAmount: e.target.value }))}
+                            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs text-muted-foreground">결제일</label>
+                      <input type="date" value={editPkgForm.paymentDate} onChange={e => setEditPkgForm(f => ({ ...f, paymentDate: e.target.value }))}
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">메모</label>
+                      <textarea value={editPkgForm.paymentMemo} onChange={e => setEditPkgForm(f => ({ ...f, paymentMemo: e.target.value }))}
+                        rows={2} className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm resize-none" />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => setEditPkg(null)}
+                        className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground">
+                        취소
+                      </button>
+                      <button
+                        onClick={() => {
+                          updatePackageMutation.mutate({
+                            packageId: editPkg.id,
+                            packageName: editPkgForm.packageName || undefined,
+                            totalSessions: editPkgForm.totalSessions ? Number(editPkgForm.totalSessions) : undefined,
+                            usedSessions: editPkgForm.usedSessions !== "" ? Number(editPkgForm.usedSessions) : undefined,
+                            startDate: editPkgForm.startDate || undefined,
+                            expiryDate: editPkgForm.expiryDate || undefined,
+                            paymentAmount: editPkgForm.paymentAmount !== "" ? Number(editPkgForm.paymentAmount) : undefined,
+                            unpaidAmount: editPkgForm.unpaidAmount !== "" ? Number(editPkgForm.unpaidAmount) : undefined,
+                            paymentMethod: editPkgForm.paymentMethod || undefined,
+                            transferAmount: editPkgForm.transferAmount !== "" ? Number(editPkgForm.transferAmount) : undefined,
+                            cardAmount: editPkgForm.cardAmount !== "" ? Number(editPkgForm.cardAmount) : undefined,
+                            paymentDate: editPkgForm.paymentDate || undefined,
+                            paymentMemo: editPkgForm.paymentMemo || undefined,
+                          });
+                        }}
+                        disabled={updatePackageMutation.isPending}
+                        className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+                        {updatePackageMutation.isPending ? "저장 중..." : "저장"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Portal>
+          )}
 
           {/* 락커 구매 모달 */}
           {quickModal === "locker" && (
