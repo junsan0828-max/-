@@ -492,20 +492,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             </CardHeader>
             <CardContent className="space-y-4">
 
-              {/* 구분 */}
-              <div>
-                <label className="text-xs text-muted-foreground">구분 *</label>
-                <div className="flex gap-2 mt-1">
-                  {(["신규", "재등록"] as const).map(s => (
-                    <button key={s} type="button"
-                      onClick={() => setForm(f => ({ ...f, subType: s }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.subType === s ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* 항목 유형 */}
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">항목 유형 * (복수 선택 가능)</label>
