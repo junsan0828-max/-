@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { X, CalendarCheck, ExternalLink, Link2, Share2 } from "lucide-react";
+import { CalendarCheck, ExternalLink, Link2, Share2 } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -21,55 +21,10 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   noshow:    { label: "노쇼",       cls: "bg-amber-500/15 text-amber-600" },
 };
 
-function ProgramAddInput({ onAdd }: { onAdd: (name: string) => void }) {
-  const [val, setVal] = useState("");
-  return (
-    <div className="flex gap-2">
-      <input value={val} onChange={e => setVal(e.target.value)}
-        onKeyDown={e => { if (e.key === "Enter" && val.trim()) { onAdd(val.trim()); setVal(""); } }}
-        placeholder="프로그램명 입력 후 Enter"
-        className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-      <button onClick={() => { if (val.trim()) { onAdd(val.trim()); setVal(""); } }}
-        className="px-3 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">추가</button>
-    </div>
-  );
-}
-
 export default function BookingManagementPage() {
-  const utils = trpc.useUtils();
   const { data: brand, isLoading: brandLoading } = trpc.brand.getMyBrand.useQuery();
-  const updateBrandMutation = trpc.brand.updateMyBrand.useMutation({
-    onSuccess: () => { toast.success("저장되었습니다."); utils.brand.getMyBrand.invalidate(); },
-    onError: e => toast.error(e.message),
-  });
 
-  const [tab, setTab] = useState<"settings" | "schedule" | "list">("list");
-
-  // ── 설정 탭 ──
-  const [bkData, setBkData] = useState<any>(null);
-  useEffect(() => {
-    if (!brand || bkData !== null) return;
-    const parsed = brand.brandBlocks ? (() => { try { return JSON.parse(brand.brandBlocks); } catch { return null; } })() : null;
-    const bkBlock = parsed?.find((b: any) => b.type === "booking");
-    setBkData(bkBlock?.data ?? { enabled: brand.bookingEnabled === 1, message: brand.bookingMessage ?? "", programs: ["PT (퍼스널 트레이닝)", "필라테스", "기타"], buttonText: "", guideText: "" });
-  }, [brand]);
-
-  function saveSettings() {
-    if (!brand || !bkData) return;
-    const parsed = brand.brandBlocks ? (() => { try { return JSON.parse(brand.brandBlocks); } catch { return null; } })() : null;
-    let blocks = parsed ?? [];
-    if (blocks.some((b: any) => b.type === "booking")) {
-      blocks = blocks.map((b: any) => b.type === "booking" ? { ...b, data: bkData } : b);
-    } else {
-      blocks = [...blocks, { id: "booking", type: "booking", visible: true, data: bkData }];
-    }
-    updateBrandMutation.mutate({
-      bookingEnabled: bkData.enabled ? 1 : 0,
-      bookingMessage: bkData.message ?? "",
-      brandIsPublic: brand.brandIsPublic ?? 0,
-      brandBlocks: JSON.stringify(blocks),
-    } as any);
-  }
+  const [tab, setTab] = useState<"schedule" | "list">("list");
 
   // ── 시간 관리 탭 ──
   const { data: recurring, refetch: refetchRecurring } = trpc.booking.getRecurring.useQuery();
@@ -156,7 +111,7 @@ export default function BookingManagementPage() {
         </div>
         <div className="flex-1">
           <h1 className="text-lg font-bold">수업 예약 관리</h1>
-          <p className="text-xs text-muted-foreground">예약 설정 · 시간 관리 · 예약 확인</p>
+          <p className="text-xs text-muted-foreground">시간 관리 · 예약 확인</p>
         </div>
         {brand?.username && (
           <button
@@ -171,10 +126,10 @@ export default function BookingManagementPage() {
 
       {/* 탭 */}
       <div className="flex gap-1 bg-muted rounded-xl p-1">
-        {(["list", "settings", "schedule"] as const).map(t => (
+        {(["list", "schedule"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === t ? "bg-background shadow text-foreground" : "text-muted-foreground"}`}>
-            {t === "list" ? "예약 목록" : t === "settings" ? "예약 설정" : "시간 관리"}
+            {t === "list" ? "예약 목록" : "시간 관리"}
           </button>
         ))}
       </div>
@@ -275,48 +230,6 @@ export default function BookingManagementPage() {
               </div>
             ))
           }
-        </div>
-      )}
-
-      {/* ── 예약 설정 탭 ── */}
-      {tab === "settings" && bkData && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">예약 받기 활성화</p>
-            <button onClick={() => setBkData((p: any) => ({ ...p, enabled: !p.enabled }))}
-              className={`relative rounded-full transition-colors ${bkData.enabled ? "bg-primary" : "bg-muted"}`}
-              style={{ width: 40, height: 22 }}>
-              <span className="absolute top-0.5 bg-white rounded-full shadow transition-all"
-                style={{ width: 18, height: 18, left: bkData.enabled ? 20 : 2 }} />
-            </button>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground font-semibold">버튼 문구</label>
-            <input value={bkData.buttonText ?? ""} onChange={e => setBkData((p: any) => ({ ...p, buttonText: e.target.value }))}
-              placeholder="상담 예약하기"
-              className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground font-semibold">예약 안내 문구</label>
-            <textarea value={bkData.guideText ?? bkData.message ?? ""} rows={2}
-              onChange={e => setBkData((p: any) => ({ ...p, guideText: e.target.value, message: e.target.value }))}
-              placeholder="예약 후 연락드립니다. 체험 수업은 예약제로 운영됩니다."
-              className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground font-semibold">관심 프로그램 옵션</label>
-            {(bkData.programs ?? []).map((p: string, i: number) => (
-              <div key={i} className="flex items-center gap-2 bg-accent/30 rounded-xl px-3 py-2">
-                <span className="text-xs flex-1">{p}</span>
-                <button onClick={() => setBkData((prev: any) => ({ ...prev, programs: prev.programs.filter((_: any, j: number) => j !== i) }))}
-                  className="text-muted-foreground hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
-              </div>
-            ))}
-            <ProgramAddInput onAdd={name => setBkData((p: any) => ({ ...p, programs: [...(p.programs ?? []), name] }))} />
-          </div>
-          <Button size="sm" className="w-full" disabled={updateBrandMutation.isPending} onClick={saveSettings}>
-            {updateBrandMutation.isPending ? "저장 중..." : "저장"}
-          </Button>
         </div>
       )}
 
