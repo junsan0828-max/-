@@ -1241,12 +1241,6 @@ export default function MemberDetail({ memberId }: Props) {
                   >
                     <ArrowRightLeft className="h-3 w-3" /> 양도
                   </button>
-                  <button
-                    onClick={() => setAddPkgOpen(true)}
-                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                  >
-                    <Plus className="h-3 w-3" /> 프로그램 추가
-                  </button>
                 </div>
               </div>
             </CardHeader>
@@ -1292,29 +1286,6 @@ export default function MemberDetail({ memberId }: Props) {
                               <p className="text-xs text-muted-foreground">잔여 / {pkg.totalSessions}회</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setEditPkgForm({
-                                    packageId: pkg.id,
-                                    packageName: pkg.packageName ?? "",
-                                    totalSessions: String(pkg.totalSessions),
-                                    usedSessions: String(pkg.usedSessions),
-                                    startDate: pkg.startDate ?? "",
-                                    expiryDate: pkg.expiryDate ?? "",
-                                    paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
-                                    unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
-                                    paymentMethod: ((pkg.paymentMethod === "계좌이체" ? "이체" : pkg.paymentMethod) ?? "") as any,
-                                    transferAmount: (pkg as any).transferAmount ? String((pkg as any).transferAmount) : "",
-                                    cardAmount: (pkg as any).cardAmount ? String((pkg as any).cardAmount) : "",
-                                    paymentDate: (pkg as any).paymentDate ?? "",
-                                    paymentMemo: pkg.paymentMemo ?? "",
-                                  });
-                                  setEditPkgOpen(true);
-                                }}
-                                className="text-xs text-primary underline hover:text-primary/70 transition-colors"
-                              >
-                                수정
-                              </button>
                               <button
                                 onClick={() => {
                                   setRefundPkgForm({
@@ -1590,12 +1561,6 @@ export default function MemberDetail({ memberId }: Props) {
                           className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors"
                         >
                           <ArrowRightLeft className="h-3 w-3" /> 양도
-                        </button>
-                        <button
-                          onClick={() => setLocation(`/members/re-register?memberId=${memberId}`)}
-                          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                        >
-                          <Plus className="h-3 w-3" /> 프로그램 추가
                         </button>
                       </div>
                     </div>
