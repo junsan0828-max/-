@@ -50,6 +50,8 @@ export default function PostureAnalysis() {
 
   const drawingRef = useRef(false);
   const startRef = useRef({ x: 0, y: 0 });
+  const movingIdxRef = useRef<number | null>(null);
+  const moveLastRef = useRef({ x: 0, y: 0 });
   const linesRef = useRef<DrawnItem[]>([]);
   const historyRef = useRef<DrawnItem[][]>([]);
   const bgRef = useRef<HTMLImageElement | null>(null);
@@ -119,38 +121,91 @@ export default function PostureAnalysis() {
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }, []);
 
-  const eraseAt = useCallback((x: number, y: number) => {
-    const prev = linesRef.current;
-    const next = prev.filter(l => {
-      if (l.type === "text") return !(Math.abs(x - l.x1) < 80 && Math.abs(y - l.y1) < 30);
-      return distToSegment(x, y, l.x1, l.y1, l.x2, l.y2) > 15;
-    });
-    if (next.length < prev.length) {
-      historyRef.current = [...historyRef.current, prev];
-      setHistory([...historyRef.current]);
-      linesRef.current = next;
-      setLines(next);
-      render();
+  // 기존 선 근처인지 확인 (모바일은 더 넓은 감지 범위)
+  const findNearLine = useCallback((x: number, y: number): number | null => {
+    const threshold = isMobile ? 28 : 14;
+    const items = linesRef.current;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const l = items[i];
+      if (l.type === "text") {
+        if (Math.abs(x - l.x1) < 80 && Math.abs(y - l.y1) < 36) return i;
+      } else {
+        if (distToSegment(x, y, l.x1, l.y1, l.x2, l.y2) <= threshold) return i;
+      }
     }
-  }, [render]);
+    return null;
+  }, [isMobile]);
 
   const onDown = useCallback((e: MouseEvent | TouchEvent) => {
     if (!bgRef.current) return;
     const pos = getPos(e);
     startRef.current = pos;
-    if (toolRef.current === "erase") { eraseAt(pos.x, pos.y); return; }
+
+    // 삭제 도구: 탭한 선 즉시 삭제
+    if (toolRef.current === "erase") {
+      const idx = findNearLine(pos.x, pos.y);
+      if (idx !== null) {
+        const prev = linesRef.current;
+        const next = prev.filter((_, i) => i !== idx);
+        historyRef.current = [...historyRef.current, prev];
+        setHistory([...historyRef.current]);
+        linesRef.current = next;
+        setLines(next);
+        render();
+      }
+      return;
+    }
+
+    // 텍스트 도구: 탭한 위치에 텍스트 추가
     if (toolRef.current === "text") {
       setPendingPos(pos);
       setTextInput("");
       setShowTextModal(true);
       return;
     }
+
+    // 기존 선 근처 → 이동 모드
+    const nearIdx = findNearLine(pos.x, pos.y);
+    if (nearIdx !== null) {
+      historyRef.current = [...historyRef.current, linesRef.current];
+      setHistory([...historyRef.current]);
+      movingIdxRef.current = nearIdx;
+      moveLastRef.current = pos;
+      return;
+    }
+
+    // 빈 공간 → 새 선 그리기 모드
     drawingRef.current = true;
-  }, [getPos, eraseAt]);
+  }, [getPos, findNearLine, render]);
 
   const onMove = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!bgRef.current || !drawingRef.current) return;
+    if (!bgRef.current) return;
     const pos = getPos(e);
+
+    // 이동 모드
+    if (movingIdxRef.current !== null) {
+      const dx = pos.x - moveLastRef.current.x;
+      const dy = pos.y - moveLastRef.current.y;
+      moveLastRef.current = pos;
+      const items = linesRef.current.map((l, i) => {
+        if (i !== movingIdxRef.current) return l;
+        const n = { ...l };
+        if (n.type === "hline") { n.y1 += dy; n.y2 += dy; }
+        else if (n.type === "vline") { n.x1 += dx; n.x2 += dx; }
+        else {
+          n.x1 += dx; n.y1 += dy; n.x2 += dx; n.y2 += dy;
+          if (n.labelX !== undefined) { n.labelX! += dx; n.labelY! += dy; }
+        }
+        return n;
+      });
+      linesRef.current = items;
+      setLines(items);
+      render();
+      return;
+    }
+
+    // 그리기 미리보기
+    if (!drawingRef.current) return;
     const tool = toolRef.current;
     const { x: sx, y: sy } = startRef.current;
     const canvas = canvasRef.current!;
@@ -168,25 +223,29 @@ export default function PostureAnalysis() {
   }, [getPos, render, applyLineStyle]);
 
   const onUp = useCallback((e: MouseEvent | TouchEvent) => {
+    // 이동 모드 종료
+    if (movingIdxRef.current !== null) {
+      movingIdxRef.current = null;
+      return;
+    }
+
     if (!drawingRef.current) return;
     drawingRef.current = false;
-    // touchend has no touches[] — use changedTouches
+
     let pos: { x: number; y: number };
     if ("changedTouches" in e && e.changedTouches.length > 0) {
       const canvas = canvasRef.current!;
       const rect = canvas.getBoundingClientRect();
       const t = e.changedTouches[0];
-      pos = {
-        x: (t.clientX - rect.left) * (canvas.width / rect.width),
-        y: (t.clientY - rect.top) * (canvas.height / rect.height),
-      };
+      pos = { x: (t.clientX - rect.left) * (canvas.width / rect.width), y: (t.clientY - rect.top) * (canvas.height / rect.height) };
     } else {
       pos = getPos(e);
     }
+
     const { x: sx, y: sy } = startRef.current;
     const canvas = canvasRef.current!;
     const tool = toolRef.current;
-    if (Math.abs(pos.x - sx) < 3 && Math.abs(pos.y - sy) < 3) return;
+    if (Math.abs(pos.x - sx) < 4 && Math.abs(pos.y - sy) < 4) return;
 
     let item: DrawnItem = {
       type: tool, x1: sx, y1: sy, x2: pos.x, y2: pos.y,
