@@ -78,6 +78,13 @@ export default function AdminPage() {
   const [stats, setStats] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 700);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -371,7 +378,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, marginBottom: 40 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: 20, marginBottom: 40 }}>
           {SERVICES.map((svc) => (
             <div
               key={svc.id}
@@ -413,7 +420,7 @@ export default function AdminPage() {
               </div>
 
               {/* Per-service stat grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
                 {[
                   { key: svc.vcKey, label: "누적 방문", color: "#34d399", Icon: Users },
                   { key: svc.vtKey, label: "오늘 방문", color: "#60a5fa", Icon: Activity },
