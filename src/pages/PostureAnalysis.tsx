@@ -26,7 +26,7 @@ function calcAngle3(x1: number, y1: number, x2: number, y2: number, x3: number, 
 const TOOLS: { id: ToolType; emoji: string; label: string; key: string }[] = [
   { id: "hline", emoji: "—",  label: "수평선",  key: "1" },
   { id: "vline", emoji: "|",  label: "수직선",  key: "2" },
-  { id: "line",  emoji: "／", label: "자유선",  key: "3" },
+  { id: "line",  emoji: "↗",  label: "기울기선", key: "3" },
   { id: "angle", emoji: "📐", label: "각도선",  key: "4" },
   { id: "text",  emoji: "T",  label: "텍스트",  key: "5" },
   { id: "erase", emoji: "🧹", label: "지우개",  key: "e" },
@@ -329,8 +329,25 @@ export default function PostureAnalysis() {
       ctx.beginPath();
       if (tool === "hline") { ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy); }
       else if (tool === "vline") { ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height); }
-      else { ctx.moveTo(sx, sy); ctx.lineTo(pos.x, pos.y); }
-      ctx.stroke();
+      else {
+        ctx.moveTo(sx, sy); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+        // 기울기선 실시간 높이차 미리보기
+        if (toolRef.current === "line") {
+          const leftY  = sx < pos.x ? sy : pos.y;
+          const rightY = sx < pos.x ? pos.y : sy;
+          const diff = Math.abs(leftY - rightY);
+          const side = leftY < rightY ? "왼쪽↑" : rightY < leftY ? "오른쪽↑" : "수평";
+          const txt = diff < 2 ? "수평" : `${side}  △${Math.round(diff)}px`;
+          ctx.setLineDash([]);
+          ctx.font = `bold ${fontRef.current}px Arial`;
+          ctx.fillStyle = colorRef.current;
+          ctx.strokeStyle = "rgba(0,0,0,0.8)";
+          ctx.lineWidth = 3;
+          const lx = (sx + pos.x) / 2, ly = Math.min(sy, pos.y) - 10;
+          ctx.strokeText(txt, lx, ly);
+          ctx.fillText(txt, lx, ly);
+        }
+      }
       ctx.restore();
     });
   }, [getPos, render, applyLineStyle]);
@@ -366,11 +383,15 @@ export default function PostureAnalysis() {
     };
     if (tool === "hline") { item.x1 = 0; item.x2 = canvas.width; item.y1 = sy; item.y2 = sy; }
     if (tool === "vline") { item.x1 = sx; item.x2 = sx; item.y1 = 0; item.y2 = canvas.height; }
-    if (tool === "angle") {
-      const angle = Math.abs(Math.atan2(pos.y - sy, pos.x - sx) * 180 / Math.PI);
-      item.label = angle.toFixed(1) + "°";
+    if (tool === "line") {
+      // x 기준 왼쪽/오른쪽 판별 (y가 작을수록 위쪽)
+      const leftY  = sx < pos.x ? sy : pos.y;
+      const rightY = sx < pos.x ? pos.y : sy;
+      const diff = Math.abs(leftY - rightY);
+      const side = leftY < rightY ? "왼쪽↑" : rightY < leftY ? "오른쪽↑" : "수평";
+      item.label  = diff < 2 ? "수평" : `${side}  △${Math.round(diff)}px`;
       item.labelX = (sx + pos.x) / 2;
-      item.labelY = (sy + pos.y) / 2 - 12;
+      item.labelY = Math.min(sy, pos.y) - 10;
     }
     const next = [...linesRef.current, item];
     historyRef.current = [...historyRef.current, linesRef.current];
