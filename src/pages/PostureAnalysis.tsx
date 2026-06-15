@@ -619,8 +619,8 @@ export default function PostureAnalysis() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 46, height: 46, background: "#1e3a5f", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Dumbbell size={24} color="#93c5fd"/></div>
                 <div>
-                  <h1 style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 700, margin: 0 }}>체형 분석 드로잉</h1>
-                  <p style={{ color: "#64748b", fontSize: 11, margin: 0 }}>사진 위에 선을 그어 체형을 분석하세요</p>
+                  <p style={{ color: "#059669", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
+                  <h1 style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 700, margin: 0 }}>체형 분석 라인 드로잉</h1>
                 </div>
               </div>
               {kakaoUser ? (
@@ -700,7 +700,10 @@ export default function PostureAnalysis() {
               </button>
               <div style={{ display:"flex", alignItems:"center", gap:6, flex:1 }}>
                 <Dumbbell size={15} color="#93c5fd"/>
-                <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 13 }}>체형 분석</span>
+                <div>
+                  <p style={{ color: "#059669", fontSize: 9, fontWeight: 800, margin: 0, letterSpacing: "0.12em", lineHeight: 1 }}>FIT STEP</p>
+                  <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 12, lineHeight: 1 }}>체형 분석 라인 드로잉</span>
+                </div>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
               <IconBtn icon={<RotateCcw size={15} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
@@ -850,7 +853,10 @@ export default function PostureAnalysis() {
         <a href="/" style={{ display: "flex", alignItems: "center", gap: 6, color: "#aaa", textDecoration: "none", fontSize: 13, background: "#0f3460", borderRadius: 6, padding: "5px 10px" }}>
           <ChevronLeft size={14} /> 식단 플래너
         </a>
-        <span style={{ display:"flex", alignItems:"center", gap:6, color: "#f1f5f9", fontWeight: 700, fontSize: 15 }}><Dumbbell size={15} color="#93c5fd"/> 자세 분석 라인 드로잉</span>
+        <div>
+          <p style={{ color: "#059669", fontSize: 10, fontWeight: 800, margin: 0, letterSpacing: "0.12em" }}>FIT STEP</p>
+          <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 14 }}>체형 분석 라인 드로잉</span>
+        </div>
         <span style={{ background: "#0f3460", color: "#60a5fa", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700 }}>BETA</span>
         <span style={{ flex: 1 }} />
         {/* 사용 횟수 */}

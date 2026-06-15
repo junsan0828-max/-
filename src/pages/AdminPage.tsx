@@ -61,7 +61,7 @@ interface Service {
 const SERVICES: Service[] = [
   {
     id: "diet-planner",
-    name: "맞춤 식단 플래너",
+    name: "FIT STEP 맞춤 식단 플래너",
     desc: "개인 맞춤형 AI 식단 생성 서비스. 식단 목적 · 현실식/건강식 스타일 지원.",
     status: "active",
     link: "/",
@@ -70,8 +70,8 @@ const SERVICES: Service[] = [
   },
   {
     id: "posture-line",
-    name: "자세 분석 라인 드로잉",
-    desc: "사진 위에 수평·수직·각도선을 그어 자세를 분석하는 도구. PNG 저장 지원.",
+    name: "FIT STEP 체형 분석 라인 드로잉",
+    desc: "사진 위에 수평·수직·각도선을 그어 체형을 분석하는 도구. PNG 저장 지원.",
     status: "active",
     link: "/posture",
     icon: "🏋️",
