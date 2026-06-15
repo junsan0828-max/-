@@ -19,11 +19,11 @@ async function sbGet(key: string): Promise<number> {
   if (!_SB_URL || !_SB_KEY) return 0;
   try {
     const r = await fetch(
-      `${_SB_URL}/rest/v1/dp_counters?key=eq.${key}&select=val`,
+      `${_SB_URL}/rest/v1/dp_counters?key=eq.${key}&select=value`,
       { headers: _SB_HDR() }
     );
     const d = await r.json();
-    return Array.isArray(d) && d.length ? (d[0].val ?? 0) : 0;
+    return Array.isArray(d) && d.length ? (d[0].value ?? 0) : 0;
   } catch {
     return 0;
   }
@@ -33,49 +33,37 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, "");
 }
 
-interface StatCard {
-  key: string;
-  label: string;
-  sub: string;
-  color: string;
-  Icon: React.ElementType;
-}
-
-const STAT_CARDS: StatCard[] = [
-  { key: "visit_total",        label: "방문자 누적",  sub: "전체 기간",  color: "#34d399", Icon: Users },
-  { key: `visit_${todayKey()}`, label: "오늘 방문자", sub: "오늘",       color: "#60a5fa", Icon: Activity },
-  { key: "share_total",        label: "공유 누적",   sub: "전체 기간",  color: "#f472b6", Icon: Share2 },
-  { key: `share_${todayKey()}`, label: "오늘 공유",  sub: "오늘",       color: "#fb923c", Icon: TrendingUp },
-];
-
-interface Service {
+interface ServiceDef {
   id: string;
   name: string;
   desc: string;
-  status: "active" | "pending";
-  link: string | null;
-  icon: string;
-  badge?: string;
+  link: string;
+  vcKey: string;
+  vtKey: string;
+  scKey: string;
+  stKey: string;
 }
 
-const SERVICES: Service[] = [
+const SERVICES: ServiceDef[] = [
   {
     id: "diet-planner",
     name: "FIT STEP 맞춤 식단 플래너",
     desc: "개인 맞춤형 AI 식단 생성 서비스. 식단 목적 · 현실식/건강식 스타일 지원.",
-    status: "active",
     link: "/",
-    icon: "🥗",
-    badge: "운영중",
+    vcKey: "dp_vc",
+    vtKey: `dp_vt_${todayKey()}`,
+    scKey: "dp_sc",
+    stKey: `dp_st_${todayKey()}`,
   },
   {
     id: "posture-line",
     name: "FIT STEP 체형 분석 라인 드로잉",
     desc: "사진 위에 수평·수직·각도선을 그어 체형을 분석하는 도구. PNG 저장 지원.",
-    status: "active",
     link: "/posture",
-    icon: "🏋️",
-    badge: "운영중",
+    vcKey: "pa_vc",
+    vtKey: `pa_vt_${todayKey()}`,
+    scKey: "pa_sc",
+    stKey: `pa_st_${todayKey()}`,
   },
 ];
 
@@ -111,12 +99,9 @@ export default function AdminPage() {
 
   async function fetchStats() {
     setLoading(true);
+    const keys = SERVICES.flatMap((s) => [s.vcKey, s.vtKey, s.scKey, s.stKey]);
     const results: Record<string, number> = {};
-    await Promise.all(
-      STAT_CARDS.map(async ({ key }) => {
-        results[key] = await sbGet(key);
-      })
-    );
+    await Promise.all(keys.map(async (k) => { results[k] = await sbGet(k); }));
     setStats(results);
     setLastRefresh(new Date());
     setLoading(false);
@@ -386,158 +371,76 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 14,
-            marginBottom: 40,
-          }}
-        >
-          {STAT_CARDS.map(({ key, label, sub, color, Icon }) => (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, marginBottom: 40 }}>
+          {SERVICES.map((svc) => (
             <div
-              key={key}
+              key={svc.id}
               style={{
                 background: "#1e293b",
-                borderRadius: 12,
-                padding: "20px 18px",
-                borderTop: `3px solid ${color}`,
-                border: `1px solid #334155`,
-                borderTopColor: color,
+                borderRadius: 14,
+                padding: 24,
+                border: "1px solid #065f46",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 12,
-                }}
-              >
-                <span style={{ color: "#64748b", fontSize: 12 }}>{label}</span>
-                <Icon size={15} color={color} />
-              </div>
-              <p
-                style={{
-                  color: color,
-                  fontSize: 26,
-                  fontWeight: 700,
-                  margin: "0 0 4px",
-                  lineHeight: 1,
-                }}
-              >
-                {loading ? "…" : (stats[key] ?? 0).toLocaleString()}
-              </p>
-              <p style={{ color: "#475569", fontSize: 11, margin: 0 }}>{sub}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Services Section */}
-        <h2
-          style={{
-            color: "#f1f5f9",
-            fontSize: 15,
-            fontWeight: 700,
-            margin: "0 0 16px",
-          }}
-        >
-          서비스 관리
-        </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-          {SERVICES.map((svc) => {
-            const isActive = svc.status === "active";
-            return (
-              <div
-                key={svc.id}
-                style={{
-                  background: "#1e293b",
-                  borderRadius: 14,
-                  padding: 24,
-                  border: `1px solid ${isActive ? "#065f46" : "#334155"}`,
-                }}
-              >
-                <div
+              {/* Service header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div>
+                  <h3 style={{ color: "#f1f5f9", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
+                    {svc.name}
+                  </h3>
+                  <p style={{ color: "#64748b", fontSize: 12, margin: 0 }}>{svc.desc}</p>
+                </div>
+                <a
+                  href={svc.link}
                   style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    marginBottom: 16,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    background: "#064e3b",
+                    color: "#34d399",
+                    textDecoration: "none",
+                    borderRadius: 8,
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    flexShrink: 0,
+                    marginLeft: 12,
                   }}
                 >
-                  <div>
-                    <span style={{ fontSize: 32 }}>{svc.icon}</span>
-                    <h3
-                      style={{
-                        color: "#f1f5f9",
-                        fontSize: 16,
-                        fontWeight: 700,
-                        margin: "10px 0 6px",
-                      }}
-                    >
-                      {svc.name}
-                    </h3>
-                    <p style={{ color: "#64748b", fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-                      {svc.desc}
+                  <ExternalLink size={12} />
+                  열기
+                </a>
+              </div>
+
+              {/* Per-service stat grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                {[
+                  { key: svc.vcKey, label: "누적 방문", color: "#34d399", Icon: Users },
+                  { key: svc.vtKey, label: "오늘 방문", color: "#60a5fa", Icon: Activity },
+                  { key: svc.scKey, label: "누적 공유", color: "#f472b6", Icon: Share2 },
+                  { key: svc.stKey, label: "오늘 공유", color: "#fb923c", Icon: TrendingUp },
+                ].map(({ key, label, color, Icon }) => (
+                  <div
+                    key={key}
+                    style={{
+                      background: "#0f172a",
+                      borderRadius: 10,
+                      padding: "14px 12px",
+                      borderTop: `3px solid ${color}`,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                      <span style={{ color: "#64748b", fontSize: 11 }}>{label}</span>
+                      <Icon size={13} color={color} />
+                    </div>
+                    <p style={{ color, fontSize: 22, fontWeight: 700, margin: 0, lineHeight: 1 }}>
+                      {loading ? "…" : (stats[key] ?? 0).toLocaleString()}
                     </p>
                   </div>
-                  <span
-                    style={{
-                      background: isActive ? "#064e3b" : "#1e293b",
-                      color: isActive ? "#34d399" : "#64748b",
-                      fontSize: 11,
-                      padding: "3px 10px",
-                      borderRadius: 20,
-                      fontWeight: 700,
-                      border: `1px solid ${isActive ? "#065f46" : "#334155"}`,
-                      whiteSpace: "nowrap",
-                      marginLeft: 12,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {svc.badge}
-                  </span>
-                </div>
-
-                {svc.link ? (
-                  <a
-                    href={svc.link}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      background: "#059669",
-                      color: "#fff",
-                      textDecoration: "none",
-                      borderRadius: 8,
-                      padding: "8px 16px",
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    <ExternalLink size={13} />
-                    서비스 열기
-                  </a>
-                ) : (
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      background: "#1e293b",
-                      color: "#475569",
-                      borderRadius: 8,
-                      padding: "8px 16px",
-                      fontSize: 13,
-                      border: "1px solid #334155",
-                    }}
-                  >
-                    통합 예정
-                  </span>
-                )}
+                ))}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
 
         {/* Footer hint */}
