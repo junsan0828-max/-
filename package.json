@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/post-build.js",
-    "start": "serve -s dist"
+    "start": "serve dist"
   },
   "dependencies": {
     "lucide-react": "^0.441.0",

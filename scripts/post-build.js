@@ -35,3 +35,14 @@ for (const { dir, title, description, url } of routes) {
   fs.writeFileSync(path.join(outDir, "index.html"), html);
   console.log(`✓ dist/${dir}/index.html`);
 }
+
+// serve.json: 라우트별 HTML 매핑 (SPA 모드 대신 명시적 rewrite)
+const serveConfig = {
+  rewrites: [
+    { source: "/posture", destination: "/posture/index.html" },
+    { source: "/admin",   destination: "/admin/index.html" },
+    { source: "/**",      destination: "/index.html" },
+  ],
+};
+fs.writeFileSync(path.join(distDir, "serve.json"), JSON.stringify(serveConfig, null, 2));
+console.log("✓ dist/serve.json");
