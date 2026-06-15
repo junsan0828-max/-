@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell, Camera, Move, Ruler, Eraser, TrendingUp, Minus, Share2 } from "lucide-react";
+import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell, Camera, Move, Ruler, Eraser, TrendingUp, Minus, Share2, Grid3X3 } from "lucide-react";
 
 // ── 카카오 PKCE ──────────────────────────────────────────────────────────────
 function generateCodeVerifier(): string {
@@ -20,7 +20,7 @@ function todayGenKey() { return `pa_gen_${new Date().toISOString().slice(0,10).r
 function getGenCount() { return parseInt(localStorage.getItem(todayGenKey()) || "0"); }
 function incGenCount() { const k = todayGenKey(); const n = getGenCount()+1; localStorage.setItem(k,String(n)); return n; }
 
-type ToolType = "hline" | "vline" | "line" | "angle" | "text" | "erase" | "pan";
+type ToolType = "hline" | "vline" | "line" | "angle" | "text" | "erase" | "pan" | "mosaic";
 type LineStyle = "solid" | "dashed" | "dotted";
 
 interface DrawnItem {
@@ -50,6 +50,7 @@ const TOOLS: { id: ToolType; icon: React.ReactNode; label: string; key: string }
   { id: "angle", icon: <Ruler size={17}/>,       label: "각도선",  key: "4" },
   { id: "text",  icon: <span style={{fontWeight:700,fontSize:15,lineHeight:1}}>T</span>, label: "텍스트", key: "5" },
   { id: "erase", icon: <Eraser size={17}/>,      label: "지우개",  key: "e" },
+  { id: "mosaic", icon: <Grid3X3 size={17}/>,   label: "모자이크", key: "f" },
 ];
 
 function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
@@ -177,6 +178,28 @@ export default function PostureAnalysis() {
     ctx.setLineDash(s === "dashed" ? [8, 6] : s === "dotted" ? [2, 4] : []);
   }, []);
 
+  const applyMosaicRect = useCallback((ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) => {
+    const x = Math.round(Math.min(x1, x2));
+    const y = Math.round(Math.min(y1, y2));
+    const w = Math.round(Math.abs(x2 - x1));
+    const h = Math.round(Math.abs(y2 - y1));
+    if (w < 4 || h < 4) return;
+    const block = 16;
+    try {
+      const id = ctx.getImageData(x, y, w, h);
+      const d = id.data;
+      for (let by = 0; by < h; by += block) {
+        for (let bx = 0; bx < w; bx += block) {
+          const cx = Math.min(bx + (block >> 1), w - 1);
+          const cy = Math.min(by + (block >> 1), h - 1);
+          const i = (cy * w + cx) * 4;
+          ctx.fillStyle = `rgb(${d[i]},${d[i+1]},${d[i+2]})`;
+          ctx.fillRect(x + bx, y + by, Math.min(block, w - bx), Math.min(block, h - by));
+        }
+      }
+    } catch { /* cross-origin guard */ }
+  }, []);
+
   const render = useCallback((extraPreview?: () => void) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -184,7 +207,12 @@ export default function PostureAnalysis() {
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (bgRef.current) ctx.drawImage(bgRef.current, 0, 0, canvas.width, canvas.height);
+    // 모자이크를 먼저 적용 (배경 위, 선 아래)
     linesRef.current.forEach(l => {
+      if (l.type === "mosaic") applyMosaicRect(ctx, l.x1, l.y1, l.x2, l.y2);
+    });
+    linesRef.current.forEach(l => {
+      if (l.type === "mosaic") return;
       ctx.save();
       if (l.type === "text") {
         ctx.font = `bold ${l.fontSize || 18}px Arial`;
@@ -227,7 +255,7 @@ export default function PostureAnalysis() {
       ctx.restore();
     });
     if (extraPreview) extraPreview();
-  }, [applyLineStyle]);
+  }, [applyLineStyle, applyMosaicRect]);
 
   // 각도 도구에서 다른 도구로 전환 시 진행 상태 + 미리보기 초기화
   useEffect(() => {
@@ -336,8 +364,8 @@ export default function PostureAnalysis() {
       return;
     }
 
-    // 기존 선 근처 → 이동 모드
-    const nearIdx = findNearLine(pos.x, pos.y);
+    // 기존 선 근처 → 이동 모드 (모자이크 도구는 항상 새로 그리기)
+    const nearIdx = toolRef.current === "mosaic" ? null : findNearLine(pos.x, pos.y);
     if (nearIdx !== null) {
       historyRef.current = [...historyRef.current, linesRef.current];
       setHistory([...historyRef.current]);
@@ -428,6 +456,22 @@ export default function PostureAnalysis() {
     const { x: sx, y: sy } = startRef.current;
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
+
+    // 모자이크 드래그 미리보기
+    if (tool === "mosaic") {
+      render(() => {
+        applyMosaicRect(ctx, sx, sy, pos.x, pos.y);
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.85)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        const rx = Math.min(sx, pos.x), ry = Math.min(sy, pos.y);
+        ctx.strokeRect(rx, ry, Math.abs(pos.x - sx), Math.abs(pos.y - sy));
+        ctx.restore();
+      });
+      return;
+    }
+
     render(() => {
       ctx.save();
       applyLineStyle(ctx, colorRef.current, widthRef.current, styleRef.current);
@@ -455,7 +499,7 @@ export default function PostureAnalysis() {
       }
       ctx.restore();
     });
-  }, [getPos, render, applyLineStyle]);
+  }, [getPos, render, applyLineStyle, applyMosaicRect]);
 
   const onUp = useCallback((e: MouseEvent | TouchEvent) => {
     // pan 모드 종료
@@ -482,7 +526,8 @@ export default function PostureAnalysis() {
     const { x: sx, y: sy } = startRef.current;
     const canvas = canvasRef.current!;
     const tool = toolRef.current;
-    if (Math.abs(pos.x - sx) < 4 && Math.abs(pos.y - sy) < 4) return;
+    const minDist = tool === "mosaic" ? 4 : 4;
+    if (Math.abs(pos.x - sx) < minDist && Math.abs(pos.y - sy) < minDist) return;
 
     let item: DrawnItem = {
       type: tool, x1: sx, y1: sy, x2: pos.x, y2: pos.y,
