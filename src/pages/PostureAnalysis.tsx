@@ -14,12 +14,12 @@ interface DrawnItem {
 }
 
 const TOOLS: { id: ToolType; emoji: string; label: string; key: string }[] = [
-  { id: "hline", emoji: "—", label: "수평선", key: "1" },
-  { id: "vline", emoji: "|",  label: "수직선", key: "2" },
-  { id: "line",  emoji: "／", label: "자유선", key: "3" },
-  { id: "angle", emoji: "📐", label: "각도",  key: "4" },
-  { id: "text",  emoji: "T",  label: "텍스트", key: "5" },
-  { id: "erase", emoji: "✕",  label: "삭제",  key: "e" },
+  { id: "hline", emoji: "—",  label: "수평선",  key: "1" },
+  { id: "vline", emoji: "|",  label: "수직선",  key: "2" },
+  { id: "line",  emoji: "／", label: "자유선",  key: "3" },
+  { id: "angle", emoji: "📐", label: "각도선",  key: "4" },
+  { id: "text",  emoji: "T",  label: "텍스트",  key: "5" },
+  { id: "erase", emoji: "🧹", label: "지우개",  key: "e" },
 ];
 
 function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
@@ -382,7 +382,7 @@ export default function PostureAnalysis() {
           <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 14, flex: 1 }}>🏋️ 자세 분석</span>
           <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
           <IconBtn icon={<Upload size={16} />} label="사진" onClick={() => fileInputRef.current?.click()} />
-          <IconBtn icon={<RotateCcw size={16} />} label="취소" onClick={handleUndo} disabled={history.length === 0} />
+          <IconBtn icon={<RotateCcw size={16} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
           <IconBtn icon={<Download size={16} />} label="저장" onClick={handleSave} disabled={!bgImage} />
           <IconBtn icon={<Settings size={16} />} label="설정" onClick={() => setShowSettings(v => !v)} active={showSettings} />
         </div>
@@ -415,8 +415,8 @@ export default function PostureAnalysis() {
                 style={{ width: 56, padding: "5px 6px", background: "#0f3460", border: "1px solid #555", color: "#eee", borderRadius: 6, fontSize: 13 }} />
             </div>
             <button onClick={handleClearAll} disabled={lines.length === 0}
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: lines.length ? "#7f1d1d" : "#1e293b", border: "1px solid #555", color: lines.length ? "#fca5a5" : "#555", borderRadius: 6, cursor: lines.length ? "pointer" : "not-allowed", fontSize: 13 }}>
-              <Trash2 size={13} />전체삭제
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: lines.length ? "#7f1d1d" : "#1e293b", border: "1px solid #991b1b", color: lines.length ? "#fca5a5" : "#555", borderRadius: 6, cursor: lines.length ? "pointer" : "not-allowed", fontSize: 13 }}>
+              <Trash2 size={13} />전체 초기화
             </button>
           </div>
         )}
@@ -491,8 +491,8 @@ export default function PostureAnalysis() {
           <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
           <DeskBtn icon={<Upload size={13} />} label="사진 열기" onClick={() => fileInputRef.current?.click()} />
           <DeskBtn icon={<Download size={13} />} label="저장" onClick={handleSave} disabled={!bgImage} />
-          <DeskBtn icon={<RotateCcw size={13} />} label="실행취소" onClick={handleUndo} disabled={history.length === 0} />
-          <DeskBtn icon={<Trash2 size={13} />} label="전체삭제" onClick={handleClearAll} disabled={lines.length === 0} />
+          <DeskBtn icon={<RotateCcw size={13} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
+          <DeskBtn icon={<Trash2 size={13} />} label="전체 초기화" onClick={handleClearAll} disabled={lines.length === 0} />
         </div>
         <div style={{ display: "flex", gap: 4, paddingRight: 10, marginRight: 2, borderRight: "1px solid #0f3460" }}>
           {TOOLS.map(t => (
