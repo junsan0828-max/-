@@ -1,4 +1,4 @@
-const CACHE_NAME = "fitstep-v1";
+const CACHE_NAME = "fitstep-v2";
 const STATIC_ASSETS = ["/", "/manifest.json"];
 
 self.addEventListener("install", (e) => {
