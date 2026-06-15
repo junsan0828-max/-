@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>자세 분석 선 긋기 도구</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+
+    #toolbar {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      padding: 10px 16px; background: #16213e; border-bottom: 2px solid #0f3460;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .tool-group {
+      display: flex; gap: 4px; align-items: center;
+      border-right: 1px solid #0f3460; padding-right: 10px; margin-right: 2px;
+    }
+    .tool-group:last-child { border-right: none; }
+    button {
+      padding: 6px 12px; border: 1px solid #0f3460; background: #0f3460;
+      color: #eee; border-radius: 6px; cursor: pointer; font-size: 13px;
+      transition: all 0.2s;
+    }
+    button:hover { background: #e94560; border-color: #e94560; }
+    button.active { background: #e94560; border-color: #e94560; }
+    label { font-size: 13px; color: #aaa; }
+    input[type="color"] { width: 32px; height: 28px; border: 1px solid #0f3460; border-radius: 4px; cursor: pointer; background: none; }
+    input[type="range"] { width: 80px; }
+    input[type="number"] { width: 50px; padding: 4px 6px; background: #0f3460; border: 1px solid #555; color: #eee; border-radius: 4px; font-size: 13px; }
+    select { padding: 5px 8px; background: #0f3460; border: 1px solid #555; color: #eee; border-radius: 4px; font-size: 13px; }
+
+    #canvas-container {
+      display: flex; justify-content: center; align-items: flex-start;
+      padding: 20px; min-height: calc(100vh - 60px); overflow: auto;
+    }
+    #canvas-wrapper {
+      position: relative; display: inline-block; cursor: crosshair;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+    }
+    canvas { display: block; }
+    #upload-area {
+      width: 500px; height: 600px; border: 3px dashed #0f3460;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; color: #aaa; border-radius: 12px; cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    #upload-area:hover { border-color: #e94560; }
+    #upload-area .icon { font-size: 64px; }
+    #upload-area p { font-size: 18px; }
+    #upload-area small { font-size: 13px; color: #666; }
+
+    #info-bar {
+      position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.7); padding: 6px 16px; border-radius: 20px;
+      font-size: 12px; color: #aaa; pointer-events: none;
+    }
+
+    #label-input-overlay {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      background: #16213e; border: 2px solid #e94560; border-radius: 12px;
+      padding: 20px; z-index: 200; min-width: 300px;
+    }
+    #label-input-overlay h3 { margin-bottom: 12px; color: #e94560; }
+    #label-input-overlay input[type="text"] {
+      width: 100%; padding: 8px; background: #0f3460; border: 1px solid #555;
+      color: #eee; border-radius: 6px; font-size: 14px; margin-bottom: 12px;
+    }
+    #label-input-overlay .btns { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+
+<div id="toolbar">
+  <div class="tool-group">
+    <button onclick="document.getElementById('fileInput').click()">📂 사진 열기</button>
+    <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="loadImage(event)">
+    <button onclick="saveImage()">💾 저장</button>
+    <button onclick="undo()">↩ 실행취소</button>
+    <button onclick="clearAll()">🗑 전체삭제</button>
+  </div>
+
+  <div class="tool-group">
+    <label>도구:</label>
+    <button id="tool-hline" class="active" onclick="setTool('hline')">― 수평선</button>
+    <button id="tool-vline" onclick="setTool('vline')">| 수직선</button>
+    <button id="tool-line" onclick="setTool('line')">／ 자유선</button>
+    <button id="tool-angle" onclick="setTool('angle')">📐 각도선</button>
+    <button id="tool-text" onclick="setTool('text')">T 텍스트</button>
+    <button id="tool-erase" onclick="setTool('erase')">✕ 삭제</button>
+  </div>
+
+  <div class="tool-group">
+    <label>색상:</label>
+    <input type="color" id="lineColor" value="#ffff00">
+    <label>굵기:</label>
+    <input type="range" id="lineWidth" min="1" max="10" value="2">
+    <span id="widthVal">2</span>
+  </div>
+
+  <div class="tool-group">
+    <label>스타일:</label>
+    <select id="lineStyle">
+      <option value="solid">실선</option>
+      <option value="dashed">점선</option>
+      <option value="dotted">점점선</option>
+    </select>
+  </div>
+
+  <div class="tool-group">
+    <label>글자크기:</label>
+    <input type="number" id="fontSize" value="14" min="8" max="72">
+  </div>
+</div>
+
+<div id="canvas-container">
+  <div id="canvas-wrapper">
+    <div id="upload-area" onclick="document.getElementById('fileInput').click()">
+      <div class="icon">🖼️</div>
+      <p>사진을 클릭하거나 드래그해서 업로드</p>
+      <small>JPG, PNG, WEBP 지원</small>
+    </div>
+    <canvas id="mainCanvas" style="display:none"></canvas>
+  </div>
+</div>
+
+<div id="info-bar">좌표: (0, 0) | 도구: 수평선</div>
+
+<div id="label-input-overlay">
+  <h3>텍스트 입력</h3>
+  <input type="text" id="labelText" placeholder="예: 6° / 10mm" />
+  <div class="btns">
+    <button onclick="cancelLabel()">취소</button>
+    <button onclick="confirmLabel()">확인</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+let bgImage = null;
+let lines = [];
+let history = [];
+let currentTool = 'hline';
+let drawing = false;
+let startX, startY;
+let pendingLabel = null;
+
+const colorInput = document.getElementById('lineColor');
+const widthInput = document.getElementById('lineWidth');
+const widthVal = document.getElementById('widthVal');
+const styleSelect = document.getElementById('lineStyle');
+const fontSizeInput = document.getElementById('fontSize');
+const infoBar = document.getElementById('info-bar');
+
+widthInput.oninput = () => { widthVal.textContent = widthInput.value; };
+
+// Drag & drop
+const uploadArea = document.getElementById('upload-area');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.borderColor = '#e94560'; });
+uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = '#0f3460'; });
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadImageFile(file);
+});
+
+function loadImage(event) {
+  const file = event.target.files[0];
+  if (file) loadImageFile(file);
+}
+
+function loadImageFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      bgImage = img;
+      const maxW = Math.min(img.width, window.innerWidth - 80);
+      const scale = maxW / img.width;
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      lines = [];
+      history = [];
+      document.getElementById('upload-area').style.display = 'none';
+      canvas.style.display = 'block';
+      render();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('[id^="tool-"]').forEach(b => b.classList.remove('active'));
+  document.getElementById('tool-' + tool).classList.add('active');
+}
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
+canvas.addEventListener('mousedown', onDown);
+canvas.addEventListener('mousemove', onMove);
+canvas.addEventListener('mouseup', onUp);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onDown(e); }, { passive: false });
+canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(e); }, { passive: false });
+canvas.addEventListener('touchend', e => { e.preventDefault(); onUp(e); }, { passive: false });
+
+function onDown(e) {
+  if (!bgImage) return;
+  const pos = getPos(e);
+  startX = pos.x; startY = pos.y;
+
+  if (currentTool === 'erase') {
+    eraseAt(pos.x, pos.y);
+    return;
+  }
+  if (currentTool === 'text') {
+    pendingLabel = { x: pos.x, y: pos.y };
+    showLabelInput();
+    return;
+  }
+  drawing = true;
+}
+
+function onMove(e) {
+  if (!bgImage) return;
+  const pos = getPos(e);
+  infoBar.textContent = `좌표: (${Math.round(pos.x)}, ${Math.round(pos.y)}) | 도구: ${toolName(currentTool)}`;
+
+  if (!drawing) return;
+  render();
+  drawPreview(startX, startY, pos.x, pos.y);
+}
+
+function onUp(e) {
+  if (!drawing) return;
+  drawing = false;
+  const pos = getPos(e);
+  const endX = pos.x, endY = pos.y;
+
+  if (Math.abs(endX - startX) < 2 && Math.abs(endY - startY) < 2) return;
+
+  const line = {
+    type: currentTool,
+    x1: startX, y1: startY,
+    x2: currentTool === 'hline' ? canvas.width : (currentTool === 'vline' ? startX : endX),
+    y2: currentTool === 'hline' ? startY : (currentTool === 'vline' ? canvas.height : endY),
+    color: colorInput.value,
+    width: parseInt(widthInput.value),
+    style: styleSelect.value,
+    label: null
+  };
+
+  // For hline: extend full width at startY; for vline: extend full height at startX
+  if (currentTool === 'hline') { line.x1 = 0; line.x2 = canvas.width; line.y1 = startY; line.y2 = startY; }
+  if (currentTool === 'vline') { line.x1 = startX; line.x2 = startX; line.y1 = 0; line.y2 = canvas.height; }
+
+  history.push(JSON.parse(JSON.stringify(lines)));
+  lines.push(line);
+
+  if (currentTool === 'angle') {
+    const angle = calcAngle(startX, startY, endX, endY);
+    line.label = angle.toFixed(1) + '°';
+    line.labelX = (startX + endX) / 2;
+    line.labelY = (startY + endY) / 2 - 10;
+  }
+
+  render();
+}
+
+function drawPreview(x1, y1, x2, y2) {
+  ctx.save();
+  applyLineStyle(colorInput.value, parseInt(widthInput.value), styleSelect.value);
+  ctx.beginPath();
+  if (currentTool === 'hline') {
+    ctx.moveTo(0, y1); ctx.lineTo(canvas.width, y1);
+  } else if (currentTool === 'vline') {
+    ctx.moveTo(x1, 0); ctx.lineTo(x1, canvas.height);
+  } else {
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function applyLineStyle(color, width, style) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  if (style === 'dashed') ctx.setLineDash([8, 6]);
+  else if (style === 'dotted') ctx.setLineDash([2, 4]);
+  else ctx.setLineDash([]);
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (bgImage) ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+
+  lines.forEach(l => {
+    ctx.save();
+    if (l.type === 'text') {
+      ctx.font = `bold ${l.fontSize || 14}px Arial`;
+      ctx.fillStyle = l.color;
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(l.text, l.x1, l.y1);
+      ctx.fillText(l.text, l.x1, l.y1);
+    } else {
+      applyLineStyle(l.color, l.width, l.style);
+      ctx.beginPath();
+      ctx.moveTo(l.x1, l.y1);
+      ctx.lineTo(l.x2, l.y2);
+      ctx.stroke();
+      if (l.label) {
+        ctx.setLineDash([]);
+        ctx.font = `bold ${parseInt(fontSizeInput.value)}px Arial`;
+        ctx.fillStyle = l.color;
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.lineWidth = 3;
+        ctx.strokeText(l.label, l.labelX, l.labelY);
+        ctx.fillText(l.label, l.labelX, l.labelY);
+      }
+    }
+    ctx.restore();
+  });
+}
+
+function calcAngle(x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  return Math.abs(angle);
+}
+
+function eraseAt(x, y) {
+  const threshold = 10;
+  const before = lines.length;
+  lines = lines.filter(l => {
+    if (l.type === 'text') {
+      return !(Math.abs(x - l.x1) < 60 && Math.abs(y - l.y1) < 20);
+    }
+    const d = distToSegment(x, y, l.x1, l.y1, l.x2, l.y2);
+    return d > threshold;
+  });
+  if (lines.length < before) render();
+}
+
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+function showLabelInput() {
+  document.getElementById('labelText').value = '';
+  document.getElementById('label-input-overlay').style.display = 'block';
+  document.getElementById('labelText').focus();
+}
+
+function confirmLabel() {
+  const text = document.getElementById('labelText').value.trim();
+  document.getElementById('label-input-overlay').style.display = 'none';
+  if (!text || !pendingLabel) return;
+  history.push(JSON.parse(JSON.stringify(lines)));
+  lines.push({
+    type: 'text',
+    x1: pendingLabel.x, y1: pendingLabel.y,
+    text: text,
+    color: colorInput.value,
+    fontSize: parseInt(fontSizeInput.value)
+  });
+  pendingLabel = null;
+  render();
+}
+
+function cancelLabel() {
+  document.getElementById('label-input-overlay').style.display = 'none';
+  pendingLabel = null;
+}
+
+document.getElementById('labelText').addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmLabel();
+  if (e.key === 'Escape') cancelLabel();
+});
+
+function undo() {
+  if (history.length === 0) return;
+  lines = history.pop();
+  render();
+}
+
+function clearAll() {
+  if (!confirm('모든 선을 삭제하시겠습니까?')) return;
+  history.push(JSON.parse(JSON.stringify(lines)));
+  lines = [];
+  render();
+}
+
+function saveImage() {
+  const link = document.createElement('a');
+  link.download = 'posture-analysis.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function toolName(t) {
+  const names = { hline: '수평선', vline: '수직선', line: '자유선', angle: '각도선', text: '텍스트', erase: '삭제' };
+  return names[t] || t;
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'z' && (e.ctrlKey || e.metaKey)) undo();
+  if (e.key === '1') setTool('hline');
+  if (e.key === '2') setTool('vline');
+  if (e.key === '3') setTool('line');
+  if (e.key === '4') setTool('angle');
+  if (e.key === '5') setTool('text');
+  if (e.key === 'e') setTool('erase');
+});
+</script>
+</body>
+</html>
