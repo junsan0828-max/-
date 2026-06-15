@@ -796,7 +796,7 @@ export default function PostureAnalysis() {
                 <Dumbbell size={15} color="#93c5fd" style={{ flexShrink:0 }}/>
                 <div style={{ minWidth:0 }}>
                   <p style={{ color: "#059669", fontSize: 9, fontWeight: 800, margin: 0, letterSpacing: "0.12em", lineHeight: 1 }}>FIT STEP</p>
-                  <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 12, lineHeight: 1, whiteSpace: "nowrap" }}>라인 드로잉</span>
+                  <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 12, lineHeight: 1, whiteSpace: "nowrap" }}>체형 분석 드로잉</span>
                 </div>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
