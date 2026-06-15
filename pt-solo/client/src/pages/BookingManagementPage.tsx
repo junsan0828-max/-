@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { X, CalendarCheck, ExternalLink } from "lucide-react";
+import { X, CalendarCheck, ExternalLink, Link2, Share2 } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -179,6 +179,49 @@ export default function BookingManagementPage() {
         ))}
       </div>
 
+      {/* ── 예약 링크 공유 (모든 탭 공통) ── */}
+      {brand?.username && (
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-primary" />
+            <p className="text-sm font-bold text-primary">예약 링크 공유하기</p>
+          </div>
+          <p className="text-xs text-muted-foreground">회원에게 아래 링크를 공유하면 바로 예약할 수 있습니다.</p>
+          <div className="flex gap-2 items-center bg-background border border-border rounded-xl px-3 py-2">
+            <span className="text-xs flex-1 truncate text-foreground/70 font-mono">
+              {window.location.origin}/c/{encodeURIComponent(brand.username)}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`);
+                toast.success("링크가 복사되었습니다");
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              링크 복사
+            </button>
+            <button
+              onClick={async () => {
+                const url = `${window.location.origin}/c/${encodeURIComponent(brand.username)}`;
+                if (navigator.share) {
+                  try { await navigator.share({ title: "수업 예약하기", url }); } catch {}
+                } else {
+                  navigator.clipboard.writeText(url);
+                  toast.success("링크가 복사되었습니다");
+                }
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-primary/30 text-primary text-xs font-semibold hover:bg-primary/5 transition-colors"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              공유하기
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 예약 목록 탭 ── */}
       {tab === "list" && (
         <div className="space-y-3">
@@ -274,17 +317,6 @@ export default function BookingManagementPage() {
           <Button size="sm" className="w-full" disabled={updateBrandMutation.isPending} onClick={saveSettings}>
             {updateBrandMutation.isPending ? "저장 중..." : "저장"}
           </Button>
-          {brand?.username && (
-            <div className="space-y-1.5 border-t border-border pt-4">
-              <p className="text-xs font-semibold text-muted-foreground">기존 회원 수업 예약 링크</p>
-              <p className="text-[11px] text-muted-foreground">기존 회원에게 공유하는 수업 예약 전용 페이지입니다.</p>
-              <div className="flex gap-2 items-center bg-accent/40 rounded-xl px-3 py-2">
-                <span className="text-xs flex-1 truncate text-foreground/70 font-mono">{window.location.origin}/c/{encodeURIComponent(brand.username)}</span>
-                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`); toast.success("링크 복사됨"); }}
-                  className="text-[11px] font-semibold text-primary shrink-0 hover:underline">복사</button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
