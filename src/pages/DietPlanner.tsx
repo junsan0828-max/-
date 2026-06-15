@@ -1800,7 +1800,7 @@ export default function DietPlanner() {
     return s === "member" || s === "trainer" || s === "fitstep" ? s : null;
   });
   const [showTypeModal, setShowTypeModal] = useState(false);
-  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitReached, setLimitReached] = useState(false);
   const [todayCount, setTodayCount] = useState(() => getGenCount());
 
   const [dbItems, setDbItems] = useState<MealDBItem[]>(BUILT_IN_FOOD_DB);
@@ -1875,8 +1875,8 @@ export default function DietPlanner() {
                 localStorage.setItem("dp_ut", "fitstep");
                 setUserType("fitstep");
               } else if (!localStorage.getItem("dp_ut")) {
-                // 최초 로그인 시 유형 선택 모달
-                setShowTypeModal(true);
+                localStorage.setItem("dp_ut", "member");
+                setUserType("member");
               }
               // 다른 페이지에서 로그인 요청 → 돌아가기
               const returnPath = sessionStorage.getItem("login_return");
@@ -1932,7 +1932,8 @@ export default function DietPlanner() {
     if (!dietGoal) return;
     const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
     const limit = DAILY_LIMITS[effectiveType] ?? 2;
-    if (todayCount >= limit) { setShowLimitModal(true); return; }
+    if (todayCount >= limit) { setLimitReached(true); return; }
+    setLimitReached(false);
     setRatioError(false);
     const includeList = includeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     const excludeList = excludeFood.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
@@ -2036,7 +2037,6 @@ export default function DietPlanner() {
   function handleUserTypeSelect(type: UserType) {
     localStorage.setItem("dp_ut", type);
     setUserType(type);
-    setShowTypeModal(false);
   }
 
   const totalFoodCount = dbItems.length + REAL_FOOD_DB.length;
@@ -2054,144 +2054,105 @@ export default function DietPlanner() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 pb-20">
-      {showWelcome && (
-        <WelcomeModal onClose={() => {
-          sessionStorage.setItem("dp-welcomed", "1");
-          setShowWelcome(false);
-        }} />
-      )}
-      {showTypeModal && <UserTypeModal onSelect={handleUserTypeSelect} />}
-      {showLimitModal && (
-        <LimitReachedModal
-          effectiveType={kakaoUser ? (userType ?? "member") : "guest"}
-          onClose={() => setShowLimitModal(false)}
-          onLogin={handleKakaoLogin}
-        />
-      )}
-      {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3">
-        <div className="max-w-3xl mx-auto space-y-2">
-          {/* Row 1: 로고+타이틀 / 카카오 버튼 */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
-              <Salad className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-sm font-bold text-white leading-tight whitespace-nowrap">맞춤 식단 플래너</h1>
-              <p className="text-[10px] text-gray-400 leading-tight whitespace-nowrap">회원 정보 입력 → 하루 식단 자동 구성</p>
-            </div>
-            {/* 사용자 유형 뱃지 (로그인 후) */}
-            {kakaoUser && (
-              userType === "fitstep" ? (
-                <div
-                  className="shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border"
-                  style={{ background: "rgba(5,150,105,0.18)", color: "#34d399", borderColor: "rgba(5,150,105,0.35)" }}
-                >
-                  <Zap className="w-3 h-3" strokeWidth={2} />FIT STEP
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowTypeModal(true)}
-                  className="shrink-0 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors"
-                  style={userType === "trainer"
-                    ? { background: "rgba(59,130,246,0.15)", color: "#93c5fd", borderColor: "rgba(59,130,246,0.3)" }
-                    : { background: "rgba(16,185,129,0.15)", color: "#6ee7b7", borderColor: "rgba(16,185,129,0.3)" }}
-                >
-                  {userType === "trainer"
-                    ? <><Dumbbell className="w-3 h-3" strokeWidth={2} />운동전문가</>
-                    : <><User className="w-3 h-3" strokeWidth={2} />일반 회원</>}
-                </button>
-              )
-            )}
-            {/* 카카오 로그인 버튼 */}
-            <div className="flex flex-col items-end gap-0.5 shrink-0">
-              {kakaoUser ? (
-                <button
-                  onClick={handleKakaoLogout}
-                  title="로그아웃"
-                  className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold pl-1.5 pr-2.5 py-1.5 rounded-lg transition-colors"
-                >
-                  {kakaoUser.thumbnail ? (
-                    <img src={kakaoUser.thumbnail} alt="" className="w-5 h-5 rounded-full object-cover" />
-                  ) : (
-                    <KakaoIcon />
-                  )}
-                  <span className="max-w-[72px] truncate">{kakaoUser.name}</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleKakaoLogin}
-                  className="flex items-center gap-1.5 bg-[#FEE500] hover:bg-[#F5DC00] active:bg-[#EDD000] text-[#3A1D1D] text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
-                >
-                  <KakaoIcon />
-                  <span>로그인</span>
-                </button>
-              )}
-              {kakaoMsg && (
-                <span className="text-[10px] text-red-400 max-w-[140px] truncate">{kakaoMsg}</span>
-              )}
-            </div>
+      {/* ── 헤더 ── */}
+      <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#0f172a" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 46, height: 46, background: "#064e3b", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Salad size={24} color="#34d399" strokeWidth={1.5} />
           </div>
-          {/* Row 2: 카운터 + DB */}
-          <div className="flex items-center justify-between gap-2">
-            {/* 방문자·공유 카운터 */}
-            <div className="flex items-center gap-1.5">
-              {/* 방문자 */}
-              <div className="flex items-center gap-1.5 bg-gray-800/60 rounded-lg px-2.5 py-1.5">
-                <User className="w-3 h-3 text-gray-500 shrink-0" strokeWidth={1.5} />
-                <span className="tabular-nums text-[11px] font-semibold text-white">{visitorCount ?? "—"}</span>
-                <span className="text-[10px] text-gray-600">누적</span>
-                <span className="w-px h-3 bg-gray-700" />
-                <span className="tabular-nums text-[11px] font-semibold text-emerald-400">{visitorToday ?? "—"}</span>
-                <span className="text-[10px] text-gray-600">오늘</span>
-              </div>
-              {/* 공유 */}
-              <div className="flex items-center gap-1.5 bg-gray-800/60 rounded-lg px-2.5 py-1.5">
-                <Share2 className="w-3 h-3 text-gray-500 shrink-0" strokeWidth={1.5} />
-                <span className="tabular-nums text-[11px] font-semibold text-white">{shareCount ?? "—"}</span>
-                <span className="text-[10px] text-gray-600">누적</span>
-                <span className="w-px h-3 bg-gray-700" />
-                <span className="tabular-nums text-[11px] font-semibold text-emerald-400">{shareToday ?? "—"}</span>
-                <span className="text-[10px] text-gray-600">오늘</span>
-              </div>
-            </div>
-            {/* DB 현황 */}
-            <div className="shrink-0 flex items-center gap-1">
-              {dbLoading ? (
-                <span className="flex items-center gap-1 text-[11px] text-gray-400">
-                  <Loader2 className="w-3 h-3 animate-spin" />로딩 중
-                </span>
-              ) : (
-                <span className="text-[11px] text-emerald-400 font-medium">{dbLabel}</span>
-              )}
-              {dbError && (
-                <button onClick={loadDB} className="flex items-center gap-0.5 text-[11px] text-red-400 hover:text-red-300">
-                  <RefreshCw className="w-3 h-3" />재시도
-                </button>
-              )}
-            </div>
+          <div>
+            <p style={{ color: "#059669", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
+            <h1 style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 700, margin: 0 }}>맞춤 식단 플래너</h1>
           </div>
         </div>
+        {kakaoUser ? (
+          <button onClick={handleKakaoLogout}
+            style={{ display: "flex", alignItems: "center", gap: 5, background: "#065f46", border: "none", borderRadius: 10, padding: "7px 10px", color: "#34d399", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
+            {kakaoUser.thumbnail
+              ? <img src={kakaoUser.thumbnail} alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover" }} />
+              : <User size={14} />}
+            <span style={{ maxWidth: 70, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{kakaoUser.name}</span>
+            {userType === "fitstep" && <Zap size={11} color="#fbbf24" />}
+          </button>
+        ) : (
+          <button onClick={handleKakaoLogin}
+            style={{ display: "flex", alignItems: "center", gap: 5, background: "#FEE500", border: "none", borderRadius: 10, padding: "9px 14px", color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+            <KakaoIcon /> 로그인
+          </button>
+        )}
       </div>
 
-      {/* ── FIT STEP 프로모션 배너 ── */}
-      <PromoBanner />
+      {/* ── 사용량 ── */}
+      {(() => {
+        const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
+        const limit = DAILY_LIMITS[effectiveType] ?? 2;
+        return (
+          <div style={{ padding: "0 16px 14px" }}>
+            <div style={{ background: "#1e293b", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <span style={{ color: "#64748b", fontSize: 11 }}>오늘 사용</span>
+                <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 20, margin: "0 4px 0 8px" }}>{todayCount}</span>
+              </div>
+              <div style={{ width: 1, height: 28, background: "#334155" }} />
+              <div style={{ flex: 1, textAlign: "right" }}>
+                <span style={{ color: "#64748b", fontSize: 11 }}>한도 </span>
+                <span style={{ color: limit >= 99999 ? "#f59e0b" : "#34d399", fontWeight: 700, fontSize: 20, margin: "0 0 0 4px" }}>
+                  {limit >= 99999 ? "∞" : limit}
+                </span>
+                <span style={{ color: "#64748b", fontSize: 11 }}>회/일</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
-      {/* ── 서비스 URL 공유 버튼 ── */}
-      <div className="max-w-3xl mx-auto px-4 pt-4">
-        <button
-          onClick={() => handleShareUrl(window.location.origin + "/", "FIT STEP 맞춤 식단 플래너")}
-          className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all"
-          style={{
-            background: urlCopied ? "#065f46" : "#1e293b",
-            border: `1px solid ${urlCopied ? "#059669" : "#334155"}`,
-            color: urlCopied ? "#34d399" : "#94a3b8",
-          }}
-        >
-          <Share2 className="w-4 h-4" />
+      {/* ── 회원 유형 선택 ── */}
+      {kakaoUser && userType !== "fitstep" && (
+        <div style={{ margin: "0 16px 14px", background: "#1e293b", borderRadius: 12, padding: "12px 14px" }}>
+          <p style={{ color: "#64748b", fontSize: 11, margin: "0 0 8px" }}>회원 유형</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            {(["member", "trainer"] as const).map((t) => {
+              const label = t === "member" ? "일반 회원" : "운동전문가";
+              const count = t === "member" ? "5회/일" : "10회/일";
+              const col = t === "member" ? "#34d399" : "#60a5fa";
+              return (
+                <button key={t} onClick={() => handleUserTypeSelect(t)}
+                  style={{ flex: 1, padding: "9px 8px", borderRadius: 8, border: `1px solid ${userType === t ? col : "#334155"}`, background: userType === t ? col + "22" : "#0f172a", color: userType === t ? col : "#64748b", fontSize: 12, fontWeight: userType === t ? 700 : 400, cursor: "pointer" }}>
+                  {label}<br /><span style={{ fontSize: 10, opacity: 0.8 }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── FIT STEP 배너 ── */}
+      <div style={{ margin: "0 16px 14px", background: "#fff", borderRadius: 16, padding: "14px 14px 12px", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+          <div style={{ width: 40, height: 40, background: "#d1fae5", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Zap size={20} color="#059669" />
+          </div>
+          <div>
+            <p style={{ color: "#059669", fontWeight: 700, fontSize: 11, margin: "0 0 2px", letterSpacing: "0.05em" }}>FIT STEP</p>
+            <p style={{ color: "#111827", fontWeight: 700, fontSize: 14, margin: "0 0 3px", wordBreak: "keep-all", lineHeight: 1.4 }}>식단 생성 무제한. 회원관리까지 하나로.</p>
+            <p style={{ color: "#6b7280", fontSize: 11, margin: 0 }}>운동전문가를 위한 올인원 성장 플랫폼</p>
+          </div>
+        </div>
+        <a href="https://fitstep.co.kr/?ref=diet" target="_blank" rel="noreferrer"
+          style={{ display: "block", background: "#059669", color: "#fff", textDecoration: "none", borderRadius: 10, padding: "11px 0", textAlign: "center", fontWeight: 700, fontSize: 14 }}>
+          무료로 시작하기 →
+        </a>
+      </div>
+
+      {/* ── 공유 버튼 ── */}
+      <div style={{ padding: "0 16px 16px" }}>
+        <button onClick={() => handleShareUrl(window.location.origin + "/", "FIT STEP 맞춤 식단 플래너")}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: urlCopied ? "#065f46" : "#1e293b", border: `1px solid ${urlCopied ? "#059669" : "#334155"}`, borderRadius: 12, padding: "14px 0", color: urlCopied ? "#34d399" : "#94a3b8", fontSize: 14, fontWeight: 600, cursor: "pointer", boxSizing: "border-box" as const }}>
+          <Share2 size={16} />
           {urlCopied ? "링크 복사됨!" : "FIT STEP 맞춤 식단 플래너 공유하기"}
         </button>
       </div>
+
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* ── 회원 기본 정보 ── */}
@@ -2445,21 +2406,6 @@ export default function DietPlanner() {
           </div>
         </section>
 
-        {/* 이용 횟수 표시 */}
-        {(() => {
-          const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
-          const limit = DAILY_LIMITS[effectiveType] ?? 2;
-          const label = effectiveType === "guest" ? "비로그인" : effectiveType === "trainer" ? "운동전문가" : effectiveType === "fitstep" ? "FIT STEP 회원" : "일반 회원";
-          return (
-            <div className="flex items-center justify-between text-xs px-1">
-              <span className="text-gray-500">{label}</span>
-              <span className={todayCount >= limit ? "text-red-400 font-bold" : "text-gray-400"}>
-                오늘 {todayCount} / {limit}회 이용
-              </span>
-            </div>
-          );
-        })()}
-
         {/* 생성 버튼 */}
         <button
           onClick={handleGenerate}
@@ -2476,6 +2422,27 @@ export default function DietPlanner() {
             ? "식단 다시 생성"
             : "식단 자동 생성"}
         </button>
+
+        {/* 한도 초과 인라인 메시지 */}
+        {limitReached && (
+          <div style={{ background: "#1e293b", borderRadius: 12, padding: 16, border: "1px solid #334155" }}>
+            <p style={{ color: "#f1f5f9", fontSize: 14, fontWeight: 700, margin: "0 0 10px" }}>오늘 사용 한도 초과</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
+              {[{l:"비로그인",c:"2회/일",col:"#6b7280"},{l:"일반 회원",c:"5회/일",col:"#34d399"},{l:"운동전문가",c:"10회/일",col:"#60a5fa"},{l:"FIT STEP",c:"무제한",col:"#f59e0b"}].map(t=>(
+                <div key={t.l} style={{display:"flex",justifyContent:"space-between",color:"#94a3b8",fontSize:12}}>
+                  <span>{t.l}</span><span style={{color:t.col,fontWeight:700}}>{t.c}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setLimitReached(false)} style={{ flex:1, padding:"10px", background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer", fontSize:13 }}>닫기</button>
+              {!kakaoUser && <button onClick={handleKakaoLogin} style={{ flex:2, padding:"10px", background:"#FEE500", border:"none", color:"#000", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:13 }}>카카오 로그인</button>}
+              <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer" style={{ flex:2, padding:"10px", background:"#059669", color:"#fff", borderRadius:8, textDecoration:"none", textAlign:"center", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                <Zap size={13}/> FIT STEP
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* ── 식단 결과 ── */}
         {mealPlan && (
