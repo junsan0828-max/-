@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell, Camera, Move, Ruler, Eraser, TrendingUp, Minus } from "lucide-react";
+import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell, Camera, Move, Ruler, Eraser, TrendingUp, Minus, Share2 } from "lucide-react";
 
 // ── 카카오 PKCE ──────────────────────────────────────────────────────────────
 function generateCodeVerifier(): string {
@@ -130,6 +130,17 @@ export default function PostureAnalysis() {
   const [pendingPos, setPendingPos] = useState<{ x: number; y: number } | null>(null);
   const [textInput, setTextInput] = useState("");
   const [isMobile] = useState(() => window.innerWidth < 768);
+  const [urlCopied, setUrlCopied] = useState(false);
+
+  async function handleShareUrl(url: string, title: string) {
+    if (navigator.share) {
+      try { await navigator.share({ title, text: title, url }); } catch {}
+    } else {
+      await navigator.clipboard.writeText(url);
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 2000);
+    }
+  }
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const panningRef = useRef(false);
@@ -674,6 +685,16 @@ export default function PostureAnalysis() {
                 style={{ display: "block", background: "#059669", color: "#fff", textDecoration: "none", borderRadius: 10, padding: "13px 0", textAlign: "center", fontWeight: 700, fontSize: 15 }}>
                 무료로 시작하기 →
               </a>
+            </div>
+
+            {/* 공유 버튼 */}
+            <div style={{ padding: "0 16px 16px" }}>
+              <button
+                onClick={() => handleShareUrl(window.location.origin + "/posture", "FIT STEP 체형 분석 라인 드로잉")}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: urlCopied ? "#065f46" : "#1e293b", border: `1px solid ${urlCopied ? "#059669" : "#334155"}`, borderRadius: 12, padding: "14px 0", color: urlCopied ? "#34d399" : "#94a3b8", fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
+                <Share2 size={16} />
+                {urlCopied ? "링크 복사됨!" : "FIT STEP 체형 분석 드로잉 공유하기"}
+              </button>
             </div>
 
             {/* 사진 업로드 */}

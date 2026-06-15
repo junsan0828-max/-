@@ -1784,6 +1784,7 @@ export default function DietPlanner() {
   const [mealPlan, setMealPlan] = useState<MealPlan | null>(null);
   const [ratioError, setRatioError] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
 
   // 입장 환영 모달 (세션당 1회)
   const [showWelcome, setShowWelcome] = useState(() => !sessionStorage.getItem("dp-welcomed"));
@@ -2000,6 +2001,16 @@ export default function DietPlanner() {
     }
   }
 
+  async function handleShareUrl(url: string, title: string) {
+    if (navigator.share) {
+      try { await navigator.share({ title, text: title, url }); } catch {}
+    } else {
+      await navigator.clipboard.writeText(url);
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 2000);
+    }
+  }
+
   async function handleKakaoLogin() {
     const appKey = import.meta.env.VITE_KAKAO_APP_KEY;
     if (!appKey) { setKakaoMsg("❌ 앱 키 미설정 (VITE_KAKAO_APP_KEY)"); return; }
@@ -2165,6 +2176,22 @@ export default function DietPlanner() {
 
       {/* ── FIT STEP 프로모션 배너 ── */}
       <PromoBanner />
+
+      {/* ── 서비스 URL 공유 버튼 ── */}
+      <div className="max-w-3xl mx-auto px-4 pt-4">
+        <button
+          onClick={() => handleShareUrl(window.location.origin + "/", "FIT STEP 맞춤 식단 플래너")}
+          className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all"
+          style={{
+            background: urlCopied ? "#065f46" : "#1e293b",
+            border: `1px solid ${urlCopied ? "#059669" : "#334155"}`,
+            color: urlCopied ? "#34d399" : "#94a3b8",
+          }}
+        >
+          <Share2 className="w-4 h-4" />
+          {urlCopied ? "링크 복사됨!" : "FIT STEP 맞춤 식단 플래너 공유하기"}
+        </button>
+      </div>
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* ── 회원 기본 정보 ── */}
