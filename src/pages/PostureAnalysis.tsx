@@ -606,100 +606,160 @@ export default function PostureAnalysis() {
 
   /* ── MOBILE LAYOUT ── */
   if (isMobile) {
+    const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
+    const limit = LIMITS[effectiveType] ?? 2;
     return (
-      <div style={{ height: "100dvh", background: "#1a1a2e", color: "#eee", display: "flex", flexDirection: "column", fontFamily: "'Noto Sans KR', sans-serif", overflow: "hidden" }}>
+      <div style={{ height: "100dvh", background: "#0f172a", color: "#eee", display: "flex", flexDirection: "column", fontFamily: "'Noto Sans KR', sans-serif", overflow: "hidden" }}>
 
-        {/* Top bar */}
-        <div style={{ background: "#16213e", borderBottom: "1px solid #0f3460", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <a href="/" style={{ color: "#aaa", textDecoration: "none", padding: "6px 8px", background: "#0f3460", borderRadius: 6, display: "flex", alignItems: "center" }}>
-            <ChevronLeft size={18} />
-          </a>
-          <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 14, flex: 1 }}>🏋️ 자세 분석</span>
-          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
-          {/* 사용자 배지 */}
-          {kakaoUser ? (
-            <button onClick={handleKakaoLogout}
-              style={{ display:"flex", alignItems:"center", gap:4, background:"#065f46", border:"none", borderRadius:8, padding:"5px 8px", color:"#34d399", fontSize:11, cursor:"pointer" }}>
-              {kakaoUser.thumbnail ? <img src={kakaoUser.thumbnail} alt="" style={{width:16,height:16,borderRadius:"50%",objectFit:"cover"}} /> : <User size={12}/>}
-              <span style={{maxWidth:56,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{kakaoUser.name}</span>
-              {userType === "fitstep" && <Zap size={10} color="#fbbf24"/>}
-            </button>
-          ) : (
-            <button onClick={handleKakaoLogin}
-              style={{ display:"flex", alignItems:"center", gap:4, background:"#1e293b", border:"1px solid #334155", borderRadius:8, padding:"5px 8px", color:"#94a3b8", fontSize:11, cursor:"pointer" }}>
-              <User size={12}/>로그인
-            </button>
-          )}
-          <IconBtn icon={<Upload size={16} />} label="사진" onClick={() => fileInputRef.current?.click()} />
-          <IconBtn icon={<RotateCcw size={16} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
-          <IconBtn icon={<Download size={16} />} label="저장" onClick={handleSave} disabled={!bgImage} />
-          <IconBtn icon={<Settings size={16} />} label="설정" onClick={() => setShowSettings(v => !v)} active={showSettings} />
-        </div>
+        {/* ── 랜딩 페이지 (사진 없을 때) ── */}
+        {!bgImage && (
+          <div style={{ flex: 1, overflow: "auto" }}>
+            {/* 헤더 */}
+            <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 46, height: 46, background: "#1e3a5f", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🏋️</div>
+                <div>
+                  <h1 style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 700, margin: 0 }}>체형 분석 드로잉</h1>
+                  <p style={{ color: "#64748b", fontSize: 11, margin: 0 }}>사진 위에 선을 그어 체형을 분석하세요</p>
+                </div>
+              </div>
+              {kakaoUser ? (
+                <button onClick={handleKakaoLogout}
+                  style={{ display:"flex", alignItems:"center", gap:5, background:"#065f46", border:"none", borderRadius:10, padding:"7px 10px", color:"#34d399", fontSize:12, cursor:"pointer", flexShrink:0 }}>
+                  {kakaoUser.thumbnail ? <img src={kakaoUser.thumbnail} alt="" style={{width:18,height:18,borderRadius:"50%",objectFit:"cover"}} /> : <User size={14}/>}
+                  <span style={{maxWidth:60,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{kakaoUser.name}</span>
+                  {userType==="fitstep" && <Zap size={11} color="#fbbf24"/>}
+                </button>
+              ) : (
+                <button onClick={handleKakaoLogin}
+                  style={{ display:"flex", alignItems:"center", gap:5, background:"#FEE500", border:"none", borderRadius:10, padding:"9px 14px", color:"#000", fontSize:13, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
+                  💬 로그인
+                </button>
+              )}
+            </div>
 
-        {/* Settings panel (collapsible) */}
-        {showSettings && (
-          <div style={{ background: "#16213e", borderBottom: "1px solid #0f3460", padding: "10px 14px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "#aaa" }}>색상</span>
-              <input type="color" value={color} onChange={e => setColor(e.target.value)}
-                style={{ width: 36, height: 32, border: "1px solid #0f3460", borderRadius: 6, cursor: "pointer", background: "none" }} />
+            {/* 사용량 */}
+            <div style={{ padding: "0 16px 14px" }}>
+              <div style={{ background: "#1e293b", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <span style={{ color: "#64748b", fontSize: 11 }}>오늘 사용</span>
+                  <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 20, margin: "0 4px 0 8px" }}>{todayCount}</span>
+                </div>
+                <div style={{ width: 1, height: 28, background: "#334155" }} />
+                <div style={{ flex: 1, textAlign: "right" }}>
+                  <span style={{ color: "#64748b", fontSize: 11 }}>한도</span>
+                  <span style={{ color: limit >= 99999 ? "#f59e0b" : "#34d399", fontWeight: 700, fontSize: 20, margin: "0 0 0 8px" }}>
+                    {limit >= 99999 ? "∞" : limit}
+                  </span>
+                  <span style={{ color: "#64748b", fontSize: 11 }}>회/일</span>
+                </div>
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 140 }}>
-              <span style={{ fontSize: 12, color: "#aaa" }}>굵기 {lineWidth}</span>
-              <input type="range" min={1} max={12} value={lineWidth} onChange={e => setLineWidth(Number(e.target.value))}
-                style={{ flex: 1, accentColor: "#e94560" }} />
+
+            {/* FIT STEP 배너 */}
+            <div style={{ margin: "0 16px 16px", background: "#fff", borderRadius: 16, padding: "16px 16px 14px", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+                <div style={{ width: 44, height: 44, background: "#d1fae5", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Zap size={22} color="#059669" />
+                </div>
+                <div>
+                  <p style={{ color: "#059669", fontWeight: 700, fontSize: 12, margin: "0 0 3px", letterSpacing: "0.05em" }}>FIT STEP</p>
+                  <p style={{ color: "#111827", fontWeight: 700, fontSize: 15, margin: "0 0 4px", wordBreak: "keep-all" as const, lineHeight: 1.4 }}>
+                    체형 분석 무제한. 회원관리까지 하나로.
+                  </p>
+                  <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>운동전문가를 위한 올인원 성장 플랫폼</p>
+                </div>
+              </div>
+              <a href="https://fitstep.co.kr/?ref=posture" target="_blank" rel="noreferrer"
+                style={{ display: "block", background: "#059669", color: "#fff", textDecoration: "none", borderRadius: 10, padding: "13px 0", textAlign: "center", fontWeight: 700, fontSize: 15 }}>
+                무료로 시작하기 →
+              </a>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "#aaa" }}>스타일</span>
-              <select value={lineStyle} onChange={e => setLineStyle(e.target.value as LineStyle)}
-                style={{ padding: "5px 8px", background: "#0f3460", border: "1px solid #555", color: "#eee", borderRadius: 6, fontSize: 13 }}>
-                <option value="solid">실선</option>
-                <option value="dashed">점선</option>
-                <option value="dotted">점점선</option>
-              </select>
+
+            {/* 사진 업로드 */}
+            <div style={{ padding: "0 16px 40px" }}>
+              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
+              <div onClick={() => fileInputRef.current?.click()}
+                style={{ border: "2px dashed #1e3a5f", borderRadius: 16, padding: "40px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <div style={{ fontSize: 52 }}>📷</div>
+                <p style={{ color: "#94a3b8", fontSize: 16, fontWeight: 600, margin: 0 }}>사진을 탭하여 업로드</p>
+                <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>카메라 촬영 또는 갤러리에서 선택</p>
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "#aaa" }}>글자크기</span>
-              <input type="number" min={10} max={80} value={fontSize} onChange={e => setFontSize(Number(e.target.value))}
-                style={{ width: 56, padding: "5px 6px", background: "#0f3460", border: "1px solid #555", color: "#eee", borderRadius: 6, fontSize: 13 }} />
-            </div>
-            <button onClick={handleClearAll} disabled={lines.length === 0}
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: lines.length ? "#7f1d1d" : "#1e293b", border: "1px solid #991b1b", color: lines.length ? "#fca5a5" : "#555", borderRadius: 6, cursor: lines.length ? "pointer" : "not-allowed", fontSize: 13 }}>
-              <Trash2 size={13} />전체 초기화
-            </button>
           </div>
         )}
 
-        {/* Canvas area */}
-        <div ref={scrollContainerRef} style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "center", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
-          {!bgImage && (
-            <div onClick={() => fileInputRef.current?.click()}
-              style={{ margin: 20, width: "calc(100% - 40px)", minHeight: 300, border: "3px dashed #0f3460", borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#aaa", cursor: "pointer" }}>
-              <div style={{ fontSize: 56 }}>📷</div>
-              <p style={{ fontSize: 16, textAlign: "center", margin: 0 }}>사진을 탭하여 업로드</p>
-              <small style={{ fontSize: 12, color: "#555" }}>카메라 촬영 또는 갤러리에서 선택</small>
+        {/* ── 드로잉 모드 (사진 로드 후) ── */}
+        {bgImage && (
+          <>
+            {/* 상단 바 */}
+            <div style={{ background: "#16213e", borderBottom: "1px solid #0f3460", padding: "8px 10px", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+              <button onClick={() => { linesRef.current=[]; historyRef.current=[]; setLines([]); setHistory([]); bgRef.current=null; setBgImage(null); }}
+                style={{ display:"flex", alignItems:"center", gap:4, background:"#0f3460", border:"none", borderRadius:6, padding:"6px 8px", color:"#aaa", fontSize:11, cursor:"pointer" }}>
+                <ChevronLeft size={14}/>새 사진
+              </button>
+              <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 13, flex: 1 }}>🏋️ 체형 분석</span>
+              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
+              <IconBtn icon={<RotateCcw size={15} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
+              <IconBtn icon={<Download size={15} />} label="저장" onClick={handleSave} />
+              <IconBtn icon={<Settings size={15} />} label="설정" onClick={() => setShowSettings(v => !v)} active={showSettings} />
             </div>
-          )}
+
+            {/* 설정 패널 */}
+            {showSettings && (
+              <div style={{ background: "#16213e", borderBottom: "1px solid #0f3460", padding: "10px 14px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "#aaa" }}>색상</span>
+                  <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: 36, height: 32, border: "1px solid #0f3460", borderRadius: 6, cursor: "pointer", background: "none" }} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 140 }}>
+                  <span style={{ fontSize: 12, color: "#aaa" }}>굵기 {lineWidth}</span>
+                  <input type="range" min={1} max={12} value={lineWidth} onChange={e => setLineWidth(Number(e.target.value))} style={{ flex: 1, accentColor: "#e94560" }} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "#aaa" }}>스타일</span>
+                  <select value={lineStyle} onChange={e => setLineStyle(e.target.value as LineStyle)}
+                    style={{ padding: "5px 8px", background: "#0f3460", border: "1px solid #555", color: "#eee", borderRadius: 6, fontSize: 13 }}>
+                    <option value="solid">실선</option><option value="dashed">점선</option><option value="dotted">점점선</option>
+                  </select>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "#aaa" }}>글자크기</span>
+                  <input type="number" min={10} max={80} value={fontSize} onChange={e => setFontSize(Number(e.target.value))} style={{ width: 56, padding: "5px 6px", background: "#0f3460", border: "1px solid #555", color: "#eee", borderRadius: 6, fontSize: 13 }} />
+                </div>
+                <button onClick={handleClearAll} disabled={lines.length === 0}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: lines.length ? "#7f1d1d" : "#1e293b", border: "1px solid #991b1b", color: lines.length ? "#fca5a5" : "#555", borderRadius: 6, cursor: lines.length ? "pointer" : "not-allowed", fontSize: 13 }}>
+                  <Trash2 size={13} />전체 초기화
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 캔버스 영역 (항상 렌더링, 랜딩에서는 숨김) */}
+        <div ref={scrollContainerRef} style={{ flex: bgImage ? 1 : 0, overflow: bgImage ? "auto" : "hidden", display: "flex", flexDirection: "column", alignItems: "center", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
           <canvas ref={canvasRef} style={{ display: bgImage ? "block" : "none", width: "100%", touchAction: "none", cursor: currentTool === "pan" ? "grab" : "crosshair" }} />
         </div>
 
-        {/* 각도 진행 힌트 */}
-        {currentTool === "angle" && angleStep > 0 && (
-          <div style={{ background: "#0f3460", borderTop: "1px solid #1e40af", padding: "6px 16px", textAlign: "center", fontSize: 12, color: "#93c5fd", flexShrink: 0 }}>
-            {angleStep === 1 ? "✅ 1번 점 완료 → 꼭짓점(중간점)을 탭하세요" : "✅ 꼭짓점 완료 → 3번째 점을 탭하세요"}
-          </div>
+        {/* 각도 진행 힌트 + 하단 툴바 (드로잉 모드만) */}
+        {bgImage && (
+          <>
+            {currentTool === "angle" && angleStep > 0 && (
+              <div style={{ background: "#0f3460", borderTop: "1px solid #1e40af", padding: "6px 16px", textAlign: "center", fontSize: 12, color: "#93c5fd", flexShrink: 0 }}>
+                {angleStep === 1 ? "✅ 1번 점 완료 → 꼭짓점을 탭하세요" : "✅ 꼭짓점 완료 → 3번째 점을 탭하세요"}
+              </div>
+            )}
+            <div style={{ background: "#16213e", borderTop: "1px solid #0f3460", padding: "8px 4px", display: "flex", justifyContent: "space-around", flexShrink: 0 }}>
+              {TOOLS.map(t => (
+                <button key={t.id} onClick={() => setCurrentTool(t.id)}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "7px 8px", background: currentTool === t.id ? "#e94560" : "#0f3460", border: "none", borderRadius: 10, cursor: "pointer", color: "#eee", minWidth: 40, transition: "all 0.15s" }}>
+                  <span style={{ fontSize: 17, lineHeight: 1 }}>{t.emoji}</span>
+                  <span style={{ fontSize: 9 }}>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </>
         )}
-
-        {/* Bottom toolbar */}
-        <div style={{ background: "#16213e", borderTop: "1px solid #0f3460", padding: "8px 6px", display: "flex", justifyContent: "space-around", flexShrink: 0 }}>
-          {TOOLS.map(t => (
-            <button key={t.id} onClick={() => setCurrentTool(t.id)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "8px 10px", background: currentTool === t.id ? "#e94560" : "#0f3460", border: "none", borderRadius: 10, cursor: "pointer", color: "#eee", minWidth: 44, transition: "all 0.15s" }}>
-              <span style={{ fontSize: 18, lineHeight: 1 }}>{t.emoji}</span>
-              <span style={{ fontSize: 10 }}>{t.label}</span>
-            </button>
-          ))}
-        </div>
 
         {/* 한도 초과 모달 */}
         {showLimitModal && (
