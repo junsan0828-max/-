@@ -508,13 +508,15 @@ export default function PostureAnalysis() {
       else if (tool === "vline") { ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height); }
       else {
         ctx.moveTo(sx, sy); ctx.lineTo(pos.x, pos.y); ctx.stroke();
-        // 기울기선 실시간 높이차 미리보기
+        // 기울기선 실시간 각도 미리보기
         if (toolRef.current === "line") {
+          const dx = Math.abs(pos.x - sx);
+          const dy = Math.abs(pos.y - sy);
+          const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
           const leftY  = sx < pos.x ? sy : pos.y;
           const rightY = sx < pos.x ? pos.y : sy;
-          const diff = Math.abs(leftY - rightY);
           const side = leftY < rightY ? "왼쪽↑" : rightY < leftY ? "오른쪽↑" : "수평";
-          const txt = diff < 2 ? "수평" : `${side}  △${Math.round(diff)}px`;
+          const txt = angleDeg < 1 ? "수평" : `${side}  △${angleDeg.toFixed(1)}°`;
           ctx.setLineDash([]);
           ctx.font = `bold ${fontRef.current}px Arial`;
           ctx.fillStyle = colorRef.current;
@@ -565,11 +567,13 @@ export default function PostureAnalysis() {
     if (tool === "vline") { item.x1 = sx; item.x2 = sx; item.y1 = 0; item.y2 = canvas.height; }
     if (tool === "line") {
       // x 기준 왼쪽/오른쪽 판별 (y가 작을수록 위쪽)
+      const dx2 = Math.abs(pos.x - sx);
+      const dy2 = Math.abs(pos.y - sy);
+      const angleDeg2 = Math.atan2(dy2, dx2) * 180 / Math.PI;
       const leftY  = sx < pos.x ? sy : pos.y;
       const rightY = sx < pos.x ? pos.y : sy;
-      const diff = Math.abs(leftY - rightY);
       const side = leftY < rightY ? "왼쪽↑" : rightY < leftY ? "오른쪽↑" : "수평";
-      item.label  = diff < 2 ? "수평" : `${side}  △${Math.round(diff)}px`;
+      item.label  = angleDeg2 < 1 ? "수평" : `${side}  △${angleDeg2.toFixed(1)}°`;
       item.labelX = (sx + pos.x) / 2;
       item.labelY = Math.min(sy, pos.y) - 10;
     }
