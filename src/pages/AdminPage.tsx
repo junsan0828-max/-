@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 
 const ADMIN_ID = (import.meta.env.VITE_ADMIN_ID as string | undefined) ?? "admin";
-const ADMIN_PW = (import.meta.env.VITE_ADMIN_PW as string | undefined) ?? "admin1234";
+const ADMIN_PW = (import.meta.env.VITE_ADMIN_PW as string | undefined) ?? "admin123";
 
 const _SB_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "";
 const _SB_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? "";
