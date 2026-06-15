@@ -302,12 +302,12 @@ function TrainerDashboard() {
             href="https://noble-unity-production-8100.up.railway.app/posture"
             target="_blank"
             rel="noreferrer"
-            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:bg-violet-500/15 hover:border-violet-500/40 transition-all active:scale-95"
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
           >
-            <div className="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/30 transition-colors">
-              <ScanLine className="h-4.5 w-4.5 text-violet-400" style={{ width: "1.1rem", height: "1.1rem" }} />
+            <div className="w-9 h-9 rounded-xl bg-white/8 border border-white/10 flex items-center justify-center group-hover:bg-white/15 transition-colors">
+              <ScanLine className="h-4 w-4 text-white/70 group-hover:text-white transition-colors" />
             </div>
-            <span className="text-[11px] font-semibold text-white/80 group-hover:text-white transition-colors">체형 분석</span>
+            <span className="text-[11px] font-semibold text-white/55 group-hover:text-white/90 transition-colors">체형 분석</span>
           </a>
 
           {/* 맞춤 식단 */}
@@ -315,23 +315,23 @@ function TrainerDashboard() {
             href="https://noble-unity-production-8100.up.railway.app/?ref=fitstep"
             target="_blank"
             rel="noreferrer"
-            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:bg-emerald-500/15 hover:border-emerald-500/40 transition-all active:scale-95"
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/5 border border-white/8 hover:bg-white/10 hover:border-white/20 transition-all active:scale-95"
           >
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/30 transition-colors">
-              <UtensilsCrossed className="h-4 w-4 text-emerald-400" />
+            <div className="w-9 h-9 rounded-xl bg-white/8 border border-white/10 flex items-center justify-center group-hover:bg-white/15 transition-colors">
+              <UtensilsCrossed className="h-4 w-4 text-white/70 group-hover:text-white transition-colors" />
             </div>
-            <span className="text-[11px] font-semibold text-white/80 group-hover:text-white transition-colors">맞춤 식단</span>
+            <span className="text-[11px] font-semibold text-white/55 group-hover:text-white/90 transition-colors">맞춤 식단</span>
           </a>
 
           {/* 수업 하기 */}
           <button
             onClick={() => setLocation("/attendance")}
-            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 hover:border-primary/50 transition-all active:scale-95"
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/10 border border-white/20 hover:bg-white/15 hover:border-white/30 transition-all active:scale-95"
           >
-            <div className="w-9 h-9 rounded-xl bg-primary/30 border border-primary/30 flex items-center justify-center group-hover:bg-primary/40 transition-colors">
-              <Dumbbell className="h-4 w-4 text-primary" />
+            <div className="w-9 h-9 rounded-xl bg-white/12 border border-white/15 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+              <Dumbbell className="h-4 w-4 text-white group-hover:text-white transition-colors" />
             </div>
-            <span className="text-[11px] font-bold text-primary">수업 하기</span>
+            <span className="text-[11px] font-bold text-white/80 group-hover:text-white transition-colors">수업 하기</span>
           </button>
         </div>
       </div>
