@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
-  Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed,
+  Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed, ScanLine,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -281,20 +281,58 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+
+      {/* 수업 도구 */}
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#0f1724] via-[#131e2e] to-[#0f1724] border border-white/8 p-4">
+        {/* 글로우 */}
+        <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-primary/15 blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-cyan-500/10 blur-2xl pointer-events-none" />
+
+        <div className="relative flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <Dumbbell className="h-3.5 w-3.5 text-primary" />
+            <span className="text-[11px] font-bold text-primary tracking-widest uppercase">수업 도구</span>
+          </div>
+        </div>
+
+        <div className="relative grid grid-cols-3 gap-2">
+          {/* 체형 분석 */}
+          <a
+            href="https://noble-unity-production-8100.up.railway.app/posture"
+            target="_blank"
+            rel="noreferrer"
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:bg-violet-500/15 hover:border-violet-500/40 transition-all active:scale-95"
+          >
+            <div className="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/20 flex items-center justify-center group-hover:bg-violet-500/30 transition-colors">
+              <ScanLine className="h-4.5 w-4.5 text-violet-400" style={{ width: "1.1rem", height: "1.1rem" }} />
+            </div>
+            <span className="text-[11px] font-semibold text-white/80 group-hover:text-white transition-colors">체형 분석</span>
+          </a>
+
+          {/* 맞춤 식단 */}
           <a
             href="https://noble-unity-production-8100.up.railway.app/?ref=fitstep"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 transition-colors"
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-white/5 border border-white/10 hover:bg-emerald-500/15 hover:border-emerald-500/40 transition-all active:scale-95"
           >
-            <UtensilsCrossed className="h-4 w-4" />
-            맞춤 식단
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/30 transition-colors">
+              <UtensilsCrossed className="h-4 w-4 text-emerald-400" />
+            </div>
+            <span className="text-[11px] font-semibold text-white/80 group-hover:text-white transition-colors">맞춤 식단</span>
           </a>
-          <Button onClick={() => setLocation("/attendance")} className="gap-2">
-            <Dumbbell className="h-4 w-4" />
-            수업 하기
-          </Button>
+
+          {/* 수업 하기 */}
+          <button
+            onClick={() => setLocation("/attendance")}
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-primary/20 border border-primary/30 hover:bg-primary/30 hover:border-primary/50 transition-all active:scale-95"
+          >
+            <div className="w-9 h-9 rounded-xl bg-primary/30 border border-primary/30 flex items-center justify-center group-hover:bg-primary/40 transition-colors">
+              <Dumbbell className="h-4 w-4 text-primary" />
+            </div>
+            <span className="text-[11px] font-bold text-primary">수업 하기</span>
+          </button>
         </div>
       </div>
 
