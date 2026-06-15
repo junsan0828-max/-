@@ -20,7 +20,7 @@ function todayGenKey() { return `pa_gen_${new Date().toISOString().slice(0,10).r
 function getGenCount() { return parseInt(localStorage.getItem(todayGenKey()) || "0"); }
 function incGenCount() { const k = todayGenKey(); const n = getGenCount()+1; localStorage.setItem(k,String(n)); return n; }
 
-type ToolType = "hline" | "vline" | "line" | "angle" | "text" | "erase";
+type ToolType = "hline" | "vline" | "line" | "angle" | "text" | "erase" | "pan";
 type LineStyle = "solid" | "dashed" | "dotted";
 
 interface DrawnItem {
@@ -43,6 +43,7 @@ function calcAngle3(x1: number, y1: number, x2: number, y2: number, x3: number, 
 }
 
 const TOOLS: { id: ToolType; emoji: string; label: string; key: string }[] = [
+  { id: "pan",   emoji: "✋", label: "이동",    key: "m" },
   { id: "hline", emoji: "—",  label: "수평선",  key: "1" },
   { id: "vline", emoji: "|",  label: "수직선",  key: "2" },
   { id: "line",  emoji: "↗",  label: "기울기선", key: "3" },
@@ -130,6 +131,9 @@ export default function PostureAnalysis() {
   const [textInput, setTextInput] = useState("");
   const [isMobile] = useState(() => window.innerWidth < 768);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const panningRef = useRef(false);
+  const panStartRef = useRef(0); // screen Y
   const drawingRef = useRef(false);
   const startRef = useRef({ x: 0, y: 0 });
   const movingIdxRef = useRef<number | null>(null);
@@ -251,6 +255,14 @@ export default function PostureAnalysis() {
 
   const onDown = useCallback((e: MouseEvent | TouchEvent) => {
     if (!bgRef.current) return;
+
+    // 이동(pan) 모드: 선 그리기 없이 스크롤만
+    if (toolRef.current === "pan") {
+      panningRef.current = true;
+      panStartRef.current = "touches" in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+      return;
+    }
+
     const pos = getPos(e);
     startRef.current = pos;
 
@@ -329,6 +341,16 @@ export default function PostureAnalysis() {
 
   const onMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!bgRef.current) return;
+
+    // 이동(pan) 모드: 스크롤 컨테이너를 드래그로 이동
+    if (toolRef.current === "pan" && panningRef.current) {
+      const screenY = "touches" in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+      const dy = panStartRef.current - screenY;
+      panStartRef.current = screenY;
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop += dy;
+      return;
+    }
+
     const pos = getPos(e);
 
     // 각도 도구 미리보기
@@ -425,7 +447,9 @@ export default function PostureAnalysis() {
   }, [getPos, render, applyLineStyle]);
 
   const onUp = useCallback((e: MouseEvent | TouchEvent) => {
-    // 이동 모드 종료
+    // pan 모드 종료
+    if (panningRef.current) { panningRef.current = false; return; }
+    // 선 이동 모드 종료
     if (movingIdxRef.current !== null) {
       movingIdxRef.current = null;
       return;
@@ -647,7 +671,7 @@ export default function PostureAnalysis() {
         )}
 
         {/* Canvas area */}
-        <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "center", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+        <div ref={scrollContainerRef} style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "center", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
           {!bgImage && (
             <div onClick={() => fileInputRef.current?.click()}
               style={{ margin: 20, width: "calc(100% - 40px)", minHeight: 300, border: "3px dashed #0f3460", borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#aaa", cursor: "pointer" }}>
@@ -656,7 +680,7 @@ export default function PostureAnalysis() {
               <small style={{ fontSize: 12, color: "#555" }}>카메라 촬영 또는 갤러리에서 선택</small>
             </div>
           )}
-          <canvas ref={canvasRef} style={{ display: bgImage ? "block" : "none", width: "100%", touchAction: "none" }} />
+          <canvas ref={canvasRef} style={{ display: bgImage ? "block" : "none", width: "100%", touchAction: "none", cursor: currentTool === "pan" ? "grab" : "crosshair" }} />
         </div>
 
         {/* 각도 진행 힌트 */}
@@ -862,7 +886,7 @@ export default function PostureAnalysis() {
       </div>
 
       {/* Canvas area */}
-      <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "flex-start", padding: 20, overflow: "auto" }}
+      <div ref={scrollContainerRef} style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "flex-start", padding: 20, overflow: "auto" }}
         onDragOver={e => e.preventDefault()}
         onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type.startsWith("image/")) loadImageFile(f); }}>
         <div style={{ position: "relative", display: "inline-block", cursor: bgImage ? "crosshair" : "default" }}>
