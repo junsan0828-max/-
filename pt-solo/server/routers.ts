@@ -4488,8 +4488,8 @@ const brandRouter = t.router({
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
     const row = await pool.query<any>(
-      `SELECT "brandBio","brandSpecialties","brandColor","brandInstagram","brandKakao","brandYoutube","brandIsPublic","bookingEnabled","bookingMessage","brandMessage","trainerName","profileImage","activityArea","jobType","careerRange","brandBlocks"
-       FROM trainers WHERE id=$1`,
+      `SELECT t."brandBio",t."brandSpecialties",t."brandColor",t."brandInstagram",t."brandKakao",t."brandYoutube",t."brandIsPublic",t."bookingEnabled",t."bookingMessage",t."brandMessage",t."trainerName",t."profileImage",t."activityArea",t."jobType",t."careerRange",t."brandBlocks",u.username
+       FROM trainers t JOIN users u ON t."userId"=u.id WHERE t.id=$1`,
       [trainerId]
     );
     return row.rows[0] ?? {};
