@@ -412,40 +412,6 @@ export default function AdminMembers() {
             ))}
           </div>
 
-          {/* 차트 2개 */}
-          {stats.genderData.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* 성별 비율 */}
-              <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">활성 회원 성별 비율</p>
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie data={stats.genderData} dataKey="value" cx="50%" cy="50%" outerRadius={60} innerRadius={30} paddingAngle={2}>
-                      {stats.genderData.map((_, i) => <Cell key={i} fill={GENDER_COLORS[i % GENDER_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: any) => [`${v}명`, ""]} />
-                    <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-muted-foreground">{v}</span>} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* 연령대 비율 */}
-              {stats.ageData.length > 0 && (
-                <div className="bg-card border border-border rounded-xl p-4">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">활성 회원 연령대</p>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <PieChart>
-                      <Pie data={stats.ageData} dataKey="value" cx="50%" cy="50%" outerRadius={60} innerRadius={30} paddingAngle={2}>
-                        {stats.ageData.map((_, i) => <Cell key={i} fill={AGE_COLORS[i % AGE_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: any) => [`${v}명`, ""]} />
-                      <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-muted-foreground">{v}</span>} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 
