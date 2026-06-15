@@ -3,11 +3,15 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import DietPlanner from "./pages/DietPlanner";
 import AdminPage from "./pages/AdminPage";
+import PostureAnalysis from "./pages/PostureAnalysis";
 
-const isAdmin = window.location.pathname.startsWith("/admin");
+const path = window.location.pathname;
+const App = path.startsWith("/admin") ? AdminPage
+           : path.startsWith("/posture") ? PostureAnalysis
+           : DietPlanner;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {isAdmin ? <AdminPage /> : <DietPlanner />}
+    <App />
   </StrictMode>
 );

@@ -71,11 +71,11 @@ const SERVICES: Service[] = [
   {
     id: "posture-line",
     name: "자세 분석 라인 드로잉",
-    desc: "신체 자세 분석 및 시각화 도구. PR #25 코드 통합 예정.",
-    status: "pending",
-    link: null,
+    desc: "사진 위에 수평·수직·각도선을 그어 자세를 분석하는 도구. PNG 저장 지원.",
+    status: "active",
+    link: "/posture",
     icon: "🏋️",
-    badge: "준비중",
+    badge: "운영중",
   },
 ];
 
