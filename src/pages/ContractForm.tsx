@@ -44,8 +44,9 @@ async function generateCodeChallenge(v: string) {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const DAILY_FREE = 2;
-const POINT_COST = 300;
+const DAILY_FREE   = 2;
+const POINT_COST   = 300;  // 일반 회원
+const FS_POINT_COST = 150; // 핏스텝 회원 50% 할인
 
 function todayKey() { return new Date().toISOString().slice(0, 10).replace(/-/g, ""); }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -209,7 +210,7 @@ function ContractPreviewModal({ onStart }: { onStart: () => void }) {
           전자계약서 제작하기 →
         </button>
         <p style={{ color:"#94a3b8", fontSize:11, textAlign:"center", margin:"12px 0 0" }}>
-          하루 2회 무료 · 이후 건당 300 핏포인트
+          하루 2회 무료 · 이후 300P/건 (핏스텝 회원 150P)
         </p>
       </div>
     </div>
@@ -335,11 +336,12 @@ export default function ContractForm() {
     const uid = kakaoUser.id;
     const t   = todayKey();
 
+    const cost = userType === "fitstep" ? FS_POINT_COST : POINT_COST;
     if (freeUsed < DAILY_FREE) {
       await dbInc(`ct_df_${uid}_${t}`);
       setFreeUsed(f => f + 1);
-    } else if (points >= POINT_COST) {
-      const np = points - POINT_COST;
+    } else if (points >= cost) {
+      const np = points - cost;
       await dbSet(`ct_pt_${uid}`, np);
       setPoints(np);
     } else {
@@ -357,8 +359,9 @@ export default function ContractForm() {
     window.location.href = `/contract?${p.toString()}`;
   }
 
+  const pointCost  = userType === "fitstep" ? FS_POINT_COST : POINT_COST;
   const isFree     = freeUsed < DAILY_FREE;
-  const canGen     = !!kakaoUser && (isFree || points >= POINT_COST);
+  const canGen     = !!kakaoUser && (isFree || points >= pointCost);
 
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
@@ -398,16 +401,16 @@ export default function ContractForm() {
             </div>
             <div style={{ flex:1 }}>
               <p style={{ color:"#bfdbfe", fontWeight:800, fontSize:11, margin:"0 0 2px", letterSpacing:"0.1em" }}>FIT STEP 회원 혜택</p>
-              <p style={{ color:"#fff", fontWeight:800, fontSize:15, margin:0, lineHeight:1.3, wordBreak:"keep-all" as const }}>전자계약서 무제한 무료!</p>
+              <p style={{ color:"#fff", fontWeight:800, fontSize:15, margin:0, lineHeight:1.3, wordBreak:"keep-all" as const }}>전자계약서 50% 할인!</p>
             </div>
           </div>
           <p style={{ color:"#dbeafe", fontSize:12, margin:"0 0 14px", lineHeight:1.6 }}>
-            핏스텝 회원은 계약서 생성 횟수 제한 없이 <strong style={{ color:"#ffffff" }}>완전 무료</strong>로 이용할 수 있습니다.<br/>
-            비회원은 하루 2회 무료 · 이후 300P/건
+            핏스텝 회원은 건당 <strong style={{ color:"#ffffff" }}>{FS_POINT_COST}P</strong>로 이용 가능 (일반 {POINT_COST}P의 50% 할인).<br/>
+            비회원은 하루 {DAILY_FREE}회 무료 · 이후 {POINT_COST}P/건
           </p>
           <a href="https://fitstep.co.kr/?ref=contract" target="_blank" rel="noreferrer"
             style={{ display:"block", background:"#ffffff", color:"#2563eb", textDecoration:"none", borderRadius:10, padding:"12px 0", textAlign:"center", fontWeight:800, fontSize:14, letterSpacing:"0.02em" }}>
-            핏스텝 무료로 시작하기 →
+            핏스텝 회원 가입하기 →
           </a>
         </div>
 
@@ -430,9 +433,10 @@ export default function ContractForm() {
               </div>
               <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
               <div style={{ flex: 1, textAlign: "right" }}>
-                <p style={{ color: "#94a3b8", fontSize: 11, margin: "0 0 2px" }}>초과 시 차감</p>
+                <p style={{ color: "#94a3b8", fontSize: 11, margin: "0 0 2px" }}>건당 차감</p>
                 <p style={{ color: "#2563eb", fontWeight: 700, fontSize: 18, margin: 0 }}>
-                  {POINT_COST}<span style={{ color: "#94a3b8", fontSize: 12 }}> P</span>
+                  {pointCost}<span style={{ color: "#94a3b8", fontSize: 12 }}> P</span>
+                  {userType === "fitstep" && <span style={{ color: "#f59e0b", fontSize: 10, marginLeft: 4 }}>50%↓</span>}
                 </p>
               </div>
             </div>
@@ -582,7 +586,7 @@ export default function ContractForm() {
                 : isFree
                   ? `계약서 생성 (무료 ${freeUsed + 1}/${DAILY_FREE}회)`
                   : canGen
-                    ? `계약서 생성 (${POINT_COST}P 차감)`
+                    ? `계약서 생성 (${pointCost}P 차감)`
                     : `포인트 부족 — 충전 필요`}
             </button>
           </div>
