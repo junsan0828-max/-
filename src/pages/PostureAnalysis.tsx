@@ -283,6 +283,25 @@ export default function PostureAnalysis() {
       ctx.restore();
     });
     if (extraPreview) extraPreview();
+
+    // R / L 코너 마커 (이미지 있을 때만)
+    if (bgRef.current) {
+      const mSize = Math.max(14, Math.min(28, canvas.width * 0.04));
+      const pad   = mSize * 0.6;
+      ctx.save();
+      ctx.font        = `bold ${mSize}px Arial`;
+      ctx.textBaseline = "bottom";
+      ctx.lineWidth   = mSize * 0.18;
+      // R — 우측 하단
+      ctx.strokeStyle = "rgba(0,0,0,0.7)";
+      ctx.fillStyle   = "#ffffff";
+      ctx.strokeText("R", canvas.width - pad - mSize, canvas.height - pad);
+      ctx.fillText  ("R", canvas.width - pad - mSize, canvas.height - pad);
+      // L — 좌측 하단
+      ctx.strokeText("L", pad, canvas.height - pad);
+      ctx.fillText  ("L", pad, canvas.height - pad);
+      ctx.restore();
+    }
   }, [applyLineStyle, applyMosaicRect]);
 
   // 각도 도구에서 다른 도구로 전환 시 진행 상태 + 미리보기 초기화
@@ -515,7 +534,7 @@ export default function PostureAnalysis() {
           const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
           const leftY  = sx < pos.x ? sy : pos.y;
           const rightY = sx < pos.x ? pos.y : sy;
-          const side = leftY < rightY ? "왼쪽↑" : rightY < leftY ? "오른쪽↑" : "수평";
+          const side = leftY > rightY ? "왼쪽↓" : leftY < rightY ? "오른쪽↓" : "수평";
           const txt = angleDeg < 1 ? "수평" : `${side}  △${angleDeg.toFixed(1)}°`;
           ctx.setLineDash([]);
           ctx.font = `bold ${fontRef.current}px Arial`;
