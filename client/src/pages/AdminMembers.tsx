@@ -112,6 +112,10 @@ export default function AdminMembers() {
     },
     onError: (e) => toast.error(`롤백 오류: ${e.message}`),
   });
+  const deleteNullNameMutation = trpc.gym.revenue.deleteNullNameEntries.useMutation({
+    onSuccess: (data) => toast.success(`이름 없는 장부 항목 ${data.deleted}건 삭제 완료`),
+    onError: (e) => toast.error(`삭제 오류: ${e.message}`),
+  });
 
   const [mergeResult, setMergeResult] = useState<string | null>(null);
   const mergeMutation = trpc.admin.mergeDuplicateMembers.useMutation({
@@ -331,6 +335,16 @@ export default function AdminMembers() {
             className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
           >
             {rollbackRevenueMutation.isPending ? "롤백 중..." : "역동기화 롤백"}
+          </button>
+          <button
+            onClick={() => {
+              if (confirm("이름(customerName)이 없는 장부 항목을 모두 삭제합니다. 계속하시겠습니까?"))
+                deleteNullNameMutation.mutate();
+            }}
+            disabled={deleteNullNameMutation.isPending}
+            className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+          >
+            {deleteNullNameMutation.isPending ? "삭제 중..." : "이름없음 삭제"}
           </button>
           <button
             onClick={() => syncRevenueMutation.mutate()}

@@ -978,6 +978,18 @@ const revenueRouter = t.router({
       return { deleted: result.length };
     }),
 
+  deleteNullNameEntries: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const result = await db.delete(revenueEntries)
+        .where(sql`${revenueEntries.customerName} IS NULL OR ${revenueEntries.customerName} = ''`)
+        .returning({ id: revenueEntries.id });
+      return { deleted: result.length };
+    }),
+
   monthlySummary: protectedProcedure
     .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {
