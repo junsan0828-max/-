@@ -67,6 +67,7 @@ export default function RegistrationManagement() {
   // 등록 내역
   const [regSearch, setRegSearch] = useState("");
   const [regTypeFilter, setRegTypeFilter] = useState<"all" | "PT" | "헬스" | "기타">("all");
+  const [regShowNullOnly, setRegShowNullOnly] = useState(false);
   const [editRev, setEditRev] = useState<any | null>(null);
   const [editRevForm, setEditRevForm] = useState({
     programDetail: "", sessions: "", duration: "",
@@ -129,12 +130,12 @@ export default function RegistrationManagement() {
 
   const revListQuery = trpc.gym.revenue.list.useQuery(undefined, { enabled: tab === "members" });
   const updateRevMutation = trpc.gym.revenue.update.useMutation({
-    onSuccess: () => {
-      toast.success("수정 완료");
-      setEditRev(null);
-      revListQuery.refetch();
-    },
+    onSuccess: () => { toast.success("수정 완료"); setEditRev(null); revListQuery.refetch(); },
     onError: (e) => toast.error(e.message || "수정 실패"),
+  });
+  const deleteRevMutation = trpc.gym.revenue.delete.useMutation({
+    onSuccess: () => { toast.success("삭제됐습니다"); revListQuery.refetch(); },
+    onError: (e) => toast.error(e.message || "삭제 실패"),
   });
 
   const branchesQuery = trpc.access.getBranches.useQuery();
@@ -484,15 +485,25 @@ export default function RegistrationManagement() {
             const allRevs: any[] = (revListQuery.data ?? []).map((r: any) => ({ ...r.entry, memberName: r.memberName, trainerName: r.trainerName }));
             const filtered = allRevs.filter((r) => {
               const q = regSearch.toLowerCase();
-              const nameMatch = (r.customerName ?? r.memberName ?? "").toLowerCase().includes(q) || (r.programDetail ?? "").toLowerCase().includes(q);
+              const name = r.customerName ?? r.memberName ?? "";
+              const nameMatch = name.toLowerCase().includes(q) || (r.programDetail ?? "").toLowerCase().includes(q);
               const typeMatch = regTypeFilter === "all" ? true : r.type === regTypeFilter;
-              return nameMatch && typeMatch;
+              const nullMatch = regShowNullOnly ? (!r.customerName && !r.memberName) : true;
+              return nameMatch && typeMatch && nullMatch;
             });
+            const nullCount = allRevs.filter(r => !r.customerName && !r.memberName).length;
             const typeColor: Record<string, string> = { PT: "bg-blue-500/10 text-blue-400", "헬스": "bg-green-500/10 text-green-400", "기타": "bg-muted text-muted-foreground" };
             return (
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <p className="text-sm font-semibold text-foreground">등록 내역</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setRegShowNullOnly(v => !v)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${regShowNullOnly ? "bg-red-500/20 border-red-500/50 text-red-400" : "border-border text-muted-foreground hover:text-foreground"}`}
+                    >
+                      이름없음 {nullCount > 0 && <span className="font-bold">{nullCount}건</span>}
+                    </button>
                   <select
                     value={regTypeFilter}
                     onChange={e => setRegTypeFilter(e.target.value as any)}
@@ -503,6 +514,7 @@ export default function RegistrationManagement() {
                     <option value="헬스">헬스</option>
                     <option value="기타">기타</option>
                   </select>
+                  </div>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -555,6 +567,13 @@ export default function RegistrationManagement() {
                             }}
                             className="text-xs text-primary underline hover:text-primary/70 transition-colors"
                           >수정</button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`"${r.customerName || r.memberName}" 항목을 삭제하시겠습니까?`))
+                                deleteRevMutation.mutate({ id: r.id });
+                            }}
+                            className="text-xs text-red-400 underline hover:text-red-300 transition-colors"
+                          >삭제</button>
                         </div>
                       </div>
                     ))}
