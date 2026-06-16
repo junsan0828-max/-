@@ -124,6 +124,9 @@ export default function ContractForm() {
   const [terms, setTerms] = useState<{ title: string; body: string }[]>(loadSavedTerms);
   const [termsSaved, setTermsSaved] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+  const [reqAmount, setReqAmount] = useState("");
+  const [reqDone, setReqDone] = useState(false);
+  const [reqBusy, setReqBusy] = useState(false);
   const [error,     setError]     = useState("");
   const [generating, setGenerating] = useState(false);
 
@@ -208,6 +211,17 @@ export default function ContractForm() {
     setTermsSaved(true);
     setTimeout(() => setTermsSaved(false), 2000);
   }
+  async function submitChargeRequest() {
+    if (!kakaoUser?.id || !reqAmount) return;
+    setReqBusy(true);
+    const now = new Date();
+    const ts = now.toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+    const key = `ct_req__${ts}__${kakaoUser.id}__${reqAmount}__${kakaoUser.name}`;
+    await dbSet(key, 1);
+    setReqDone(true);
+    setReqBusy(false);
+  }
+
   function copyKakaoId() {
     if (kakaoUser?.id) {
       navigator.clipboard.writeText(kakaoUser.id).catch(() => {});
@@ -464,22 +478,41 @@ export default function ContractForm() {
           </button>
           {showPurchase && (
             <div style={{ background:"#0f172a", padding:"16px", borderTop:"1px solid #334155" }}>
-              <p style={{ color:"#64748b", fontSize:12, margin:"0 0 12px" }}>아래 계좌로 입금 후 카카오채널로 문의해 주세요.</p>
+              {/* 계좌 */}
               <div style={{ background:"#1e293b", borderRadius:10, padding:"14px 16px", marginBottom:12 }}>
                 <p style={{ color:"#64748b", fontSize:11, margin:"0 0 4px" }}>입금 계좌 (카카오뱅크)</p>
                 <p style={{ color:"#f1f5f9", fontWeight:700, fontSize:16, margin:0, letterSpacing:"0.05em" }}>3333-37-4826334</p>
               </div>
+              {/* 금액 선택 */}
+              <p style={{ color:"#64748b", fontSize:11, margin:"0 0 8px", fontWeight:600 }}>충전할 금액을 선택하세요</p>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
-                {[{ w:"5,000원", p:"5,000 P" },{ w:"10,000원", p:"12,000 P", bonus:true }].map(({ w, p, bonus }) => (
-                  <div key={w} style={{ background:"#1e293b", borderRadius:10, padding:"12px 14px", border:`1px solid ${bonus?"#854d0e":"#334155"}` }}>
-                    <p style={{ color:"#64748b", fontSize:11, margin:"0 0 4px" }}>입금액</p>
-                    <p style={{ color:"#f1f5f9", fontWeight:700, fontSize:14, margin:"0 0 6px" }}>{w}</p>
-                    <p style={{ color:"#fbbf24", fontWeight:700, fontSize:13, margin:0 }}>→ {p} {bonus && <span style={{ color:"#fb923c", fontSize:11 }}>+보너스</span>}</p>
-                  </div>
+                {[{ won:"5000", label:"5,000원", points:"5,000 P" },{ won:"10000", label:"10,000원", points:"12,000 P", bonus:true }].map(({ won, label, points, bonus }) => (
+                  <button key={won} onClick={() => { setReqAmount(won); setReqDone(false); }}
+                    style={{ background: reqAmount===won ? (bonus?"#431407":"#042f2e") : "#1e293b", borderRadius:10, padding:"12px 14px", border:`2px solid ${reqAmount===won?(bonus?"#ea580c":"#059669"):(bonus?"#854d0e":"#334155")}`, cursor:"pointer", textAlign:"left" as const }}>
+                    <p style={{ color:"#64748b", fontSize:11, margin:"0 0 3px" }}>입금액</p>
+                    <p style={{ color:"#f1f5f9", fontWeight:700, fontSize:14, margin:"0 0 4px" }}>{label}</p>
+                    <p style={{ color:"#fbbf24", fontWeight:700, fontSize:13, margin:0 }}>→ {points} {bonus && <span style={{ color:"#fb923c", fontSize:11 }}>+보너스</span>}</p>
+                  </button>
                 ))}
               </div>
+              {/* 신청 버튼 — 로그인한 경우만 */}
+              {kakaoUser ? (
+                reqDone ? (
+                  <div style={{ background:"#042f2e", borderRadius:10, padding:"14px 16px", textAlign:"center", border:"1px solid #059669" }}>
+                    <p style={{ color:"#34d399", fontWeight:700, fontSize:14, margin:"0 0 4px" }}>✓ 충전 신청 완료!</p>
+                    <p style={{ color:"#64748b", fontSize:12, margin:0 }}>입금 확인 후 담당자가 포인트를 지급해 드립니다.</p>
+                  </div>
+                ) : (
+                  <button onClick={submitChargeRequest} disabled={!reqAmount || reqBusy}
+                    style={{ width:"100%", background: reqAmount ? "linear-gradient(135deg,#d97706,#b45309)" : "#1e293b", border: reqAmount ? "none" : "1px solid #334155", borderRadius:10, padding:"13px 0", color: reqAmount?"#fff":"#475569", fontSize:14, fontWeight:700, cursor: reqAmount?"pointer":"not-allowed" }}>
+                    {reqBusy ? "신청 중..." : reqAmount ? `${Number(reqAmount).toLocaleString()}원 충전 신청` : "금액을 먼저 선택하세요"}
+                  </button>
+                )
+              ) : (
+                <p style={{ color:"#475569", fontSize:12, textAlign:"center", margin:0 }}>로그인 후 충전 신청이 가능합니다.</p>
+              )}
               {userType === "fitstep" && (
-                <p style={{ color:"#fbbf24", fontSize:12, textAlign:"center", margin:0 }}>★ FIT STEP 회원 — 매일 로그인 시 {FS_BONUS}P 자동 지급</p>
+                <p style={{ color:"#fbbf24", fontSize:12, textAlign:"center", margin:"12px 0 0" }}>★ FIT STEP 회원 — 매일 로그인 시 {FS_BONUS}P 자동 지급</p>
               )}
             </div>
           )}

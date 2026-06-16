@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, LogOut, RefreshCw, ExternalLink,
-  Eye, EyeOff, Users, Share2, TrendingUp, Activity, CreditCard, Check,
+  Eye, EyeOff, Users, Share2, TrendingUp, Activity, CreditCard, Check, Bell,
 } from "lucide-react";
 
 const ADMIN_ID = (import.meta.env.VITE_ADMIN_ID as string | undefined) ?? "admin";
@@ -27,6 +27,17 @@ async function sbGet(key: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+async function sbList(prefix: string): Promise<{ key: string; value: number }[]> {
+  if (!_SB_URL || !_SB_KEY) return [];
+  try {
+    const r = await fetch(
+      `${_SB_URL}/rest/v1/dp_counters?key=like.${encodeURIComponent(prefix + "%")}&select=key,value&order=key.desc&limit=100`,
+      { headers: _SB_HDR() }
+    );
+    const d = await r.json();
+    return Array.isArray(d) ? d : [];
+  } catch { return []; }
 }
 async function sbSet(key: string, value: number): Promise<void> {
   if (!_SB_URL || !_SB_KEY) return;
@@ -473,6 +484,9 @@ export default function AdminPage() {
         {/* 포인트 지급 */}
         <PointPanel sbGet={sbGet} sbSet={sbSet} />
 
+        {/* 충전 신청 목록 */}
+        <ChargeRequestPanel sbList={sbList} sbGet={sbGet} sbSet={sbSet} />
+
         {/* Footer hint */}
         <p style={{ color: "#334155", fontSize: 12, textAlign: "center", marginTop: 48 }}>
           Railway 환경변수 VITE_ADMIN_ID · VITE_ADMIN_PW 설정으로 계정을 변경할 수 있습니다
@@ -563,6 +577,142 @@ function PointPanel({ sbGet, sbSet }: {
             회원이 /contract 페이지에 로그인하면 화면에 본인 ID가 표시됩니다. 그 번호를 여기에 입력하면 됩니다.
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 충전 신청 목록 패널 ────────────────────────────────────────────────────
+interface ReqRow { key: string; value: number; ts: string; userId: string; won: string; name: string; }
+
+function parseReqKey(key: string): Omit<ReqRow, "value"> | null {
+  const parts = key.split("__");
+  if (parts.length < 5 || parts[0] !== "ct_req") return null;
+  const [, ts, userId, won, ...nameParts] = parts;
+  return { key, ts, userId, won, name: nameParts.join("__") };
+}
+
+function fmtTs(ts: string) {
+  if (ts.length < 8) return ts;
+  return `${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)} ${ts.slice(8, 10)}:${ts.slice(10, 12)}`;
+}
+
+function wonToPoints(won: string): number {
+  return won === "10000" ? 12000 : Number(won);
+}
+
+function ChargeRequestPanel({ sbList, sbGet, sbSet }: {
+  sbList: (prefix: string) => Promise<{ key: string; value: number }[]>;
+  sbGet: (k: string) => Promise<number>;
+  sbSet: (k: string, v: number) => Promise<void>;
+}) {
+  const [rows, setRows]   = useState<ReqRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy]   = useState<string>("");
+  const [msg, setMsg]     = useState("");
+
+  async function load() {
+    setLoading(true); setMsg("");
+    const raw = await sbList("ct_req__");
+    const parsed = raw.flatMap(r => {
+      const p = parseReqKey(r.key);
+      return p ? [{ ...p, value: r.value }] : [];
+    });
+    setRows(parsed);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function grantAndClose(row: ReqRow) {
+    setBusy(row.key);
+    const pts = wonToPoints(row.won);
+    const ptKey = `ct_pt_${row.userId}`;
+    const cur = await sbGet(ptKey);
+    await sbSet(ptKey, cur + pts);
+    await sbSet(row.key, 2);
+    setMsg(`✓ ${row.name}님께 ${pts.toLocaleString()}P 지급 완료`);
+    setRows(prev => prev.map(r => r.key === row.key ? { ...r, value: 2 } : r));
+    setBusy("");
+  }
+
+  const pending = rows.filter(r => r.value === 1);
+  const done    = rows.filter(r => r.value === 2);
+
+  const cardStyle = (isDone: boolean): React.CSSProperties => ({
+    background: isDone ? "#0f172a" : "#1e2d1e",
+    borderRadius: 10,
+    padding: "14px",
+    border: `1px solid ${isDone ? "#1e293b" : "#166534"}`,
+    marginBottom: 8,
+  });
+
+  return (
+    <div style={{ marginTop: 40 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+        <h2 style={{ color:"#f1f5f9", fontSize:15, fontWeight:700, margin:0, display:"flex", alignItems:"center", gap:8 }}>
+          <Bell size={16} color="#fb923c"/>
+          포인트 충전 신청
+          {pending.length > 0 && (
+            <span style={{ background:"#ea580c", color:"#fff", fontSize:11, fontWeight:700, borderRadius:20, padding:"2px 8px" }}>{pending.length}</span>
+          )}
+        </h2>
+        <button onClick={load} disabled={loading}
+          style={{ display:"flex", alignItems:"center", gap:5, background:"#1e293b", border:"1px solid #334155", borderRadius:8, padding:"6px 12px", color:"#94a3b8", fontSize:12, cursor:"pointer" }}>
+          <RefreshCw size={12} style={{ transform: loading ? "rotate(360deg)" : "none", transition:"transform 0.3s" }}/>
+          새로고침
+        </button>
+      </div>
+      <div style={{ background:"#1e293b", borderRadius:14, padding:24, border:"1px solid #334155" }}>
+        {loading && <p style={{ color:"#475569", fontSize:13, textAlign:"center", margin:0 }}>불러오는 중…</p>}
+        {!loading && rows.length === 0 && <p style={{ color:"#475569", fontSize:13, textAlign:"center", margin:0 }}>아직 충전 신청이 없습니다.</p>}
+
+        {pending.length > 0 && (
+          <>
+            <p style={{ color:"#fb923c", fontSize:11, fontWeight:700, margin:"0 0 10px", letterSpacing:"0.06em" }}>신청 대기 ({pending.length}건)</p>
+            {pending.map(row => (
+              <div key={row.key} style={cardStyle(false)}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap" as const, gap:8 }}>
+                  <div>
+                    <p style={{ color:"#f1f5f9", fontWeight:700, fontSize:14, margin:"0 0 2px" }}>
+                      {row.name} <span style={{ color:"#64748b", fontSize:11, fontWeight:400 }}>{row.userId}</span>
+                    </p>
+                    <p style={{ color:"#64748b", fontSize:11, margin:"0 0 4px" }}>{fmtTs(row.ts)}</p>
+                    <p style={{ color:"#fbbf24", fontWeight:700, fontSize:13, margin:0 }}>
+                      {Number(row.won).toLocaleString()}원 입금 → {wonToPoints(row.won).toLocaleString()}P 지급 예정
+                    </p>
+                  </div>
+                  <button onClick={() => grantAndClose(row)} disabled={busy === row.key}
+                    style={{ display:"flex", alignItems:"center", gap:5, background:"#059669", border:"none", borderRadius:8, padding:"10px 16px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
+                    <Check size={14}/>
+                    {busy === row.key ? "처리 중…" : "입금 확인·지급"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {done.length > 0 && (
+          <>
+            <p style={{ color:"#475569", fontSize:11, fontWeight:700, margin:"16px 0 10px", letterSpacing:"0.06em" }}>완료 내역</p>
+            {done.map(row => (
+              <div key={row.key} style={cardStyle(true)}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div>
+                    <p style={{ color:"#64748b", fontWeight:600, fontSize:13, margin:"0 0 2px" }}>
+                      {row.name} <span style={{ fontSize:11, fontWeight:400 }}>{row.userId}</span>
+                    </p>
+                    <p style={{ color:"#475569", fontSize:11, margin:0 }}>{fmtTs(row.ts)} · {Number(row.won).toLocaleString()}원 → {wonToPoints(row.won).toLocaleString()}P</p>
+                  </div>
+                  <span style={{ color:"#34d399", fontSize:12, fontWeight:700 }}>✓ 완료</span>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {msg && <p style={{ color:"#34d399", fontSize:13, margin:"12px 0 0" }}>{msg}</p>}
       </div>
     </div>
   );
