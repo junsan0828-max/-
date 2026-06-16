@@ -66,15 +66,13 @@ export default function RegistrationManagement() {
 
   // 등록 내역
   const [regSearch, setRegSearch] = useState("");
-  const [regStatusFilter, setRegStatusFilter] = useState<"all" | "active" | "completed">("all");
-  const [editPkg, setEditPkg] = useState<any | null>(null);
-  const [editPkgForm, setEditPkgForm] = useState({
-    packageName: "", totalSessions: "", usedSessions: "",
-    startDate: "", expiryDate: "",
-    paymentAmount: "", unpaidAmount: "",
+  const [regTypeFilter, setRegTypeFilter] = useState<"all" | "PT" | "헬스" | "기타">("all");
+  const [editRev, setEditRev] = useState<any | null>(null);
+  const [editRevForm, setEditRevForm] = useState({
+    programDetail: "", sessions: "", duration: "",
+    startDate: "", amount: "", unpaidAmount: "",
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드" | "혼합",
-    transferAmount: "", cardAmount: "",
-    paymentDate: "", paymentMemo: "",
+    paymentDate: "", memo: "",
   });
   const [serviceModal, setServiceModal] = useState<ServiceModal>(null);
   const { data: memberRevenue, isLoading: memberRevenueLoading } = trpc.gym.revenue.getByMember.useQuery(
@@ -129,12 +127,12 @@ export default function RegistrationManagement() {
 
   const utils = trpc.useUtils();
 
-  const ptListQuery = trpc.pt.list.useQuery(undefined, { enabled: tab === "members" });
-  const updatePackageMutation = trpc.pt.updatePackage.useMutation({
+  const revListQuery = trpc.gym.revenue.list.useQuery(undefined, { enabled: tab === "members" });
+  const updateRevMutation = trpc.gym.revenue.update.useMutation({
     onSuccess: () => {
       toast.success("수정 완료");
-      setEditPkg(null);
-      ptListQuery.refetch();
+      setEditRev(null);
+      revListQuery.refetch();
     },
     onError: (e) => toast.error(e.message || "수정 실패"),
   });
@@ -483,31 +481,28 @@ export default function RegistrationManagement() {
 
           {/* 등록 내역 */}
           {(() => {
-            const allPkgs: any[] = ptListQuery.data ?? [];
-            const filtered = allPkgs.filter((p) => {
+            const allRevs: any[] = (revListQuery.data ?? []).map((r: any) => ({ ...r.entry, memberName: r.memberName, trainerName: r.trainerName }));
+            const filtered = allRevs.filter((r) => {
               const q = regSearch.toLowerCase();
-              const nameMatch = (p.memberName ?? "").toLowerCase().includes(q) || (p.packageName ?? "").toLowerCase().includes(q);
-              const statusMatch =
-                regStatusFilter === "all" ? true :
-                regStatusFilter === "active" ? p.status === "active" :
-                p.status !== "active";
-              return nameMatch && statusMatch;
+              const nameMatch = (r.customerName ?? r.memberName ?? "").toLowerCase().includes(q) || (r.programDetail ?? "").toLowerCase().includes(q);
+              const typeMatch = regTypeFilter === "all" ? true : r.type === regTypeFilter;
+              return nameMatch && typeMatch;
             });
+            const typeColor: Record<string, string> = { PT: "bg-blue-500/10 text-blue-400", "헬스": "bg-green-500/10 text-green-400", "기타": "bg-muted text-muted-foreground" };
             return (
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-foreground">등록 내역</p>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={regStatusFilter}
-                      onChange={e => setRegStatusFilter(e.target.value as any)}
-                      className="text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-muted-foreground"
-                    >
-                      <option value="all">전체</option>
-                      <option value="active">진행중</option>
-                      <option value="completed">완료</option>
-                    </select>
-                  </div>
+                  <select
+                    value={regTypeFilter}
+                    onChange={e => setRegTypeFilter(e.target.value as any)}
+                    className="text-xs bg-background border border-border rounded-lg px-2 py-1.5 text-muted-foreground"
+                  >
+                    <option value="all">전체</option>
+                    <option value="PT">PT</option>
+                    <option value="헬스">헬스</option>
+                    <option value="기타">기타</option>
+                  </select>
                 </div>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -518,69 +513,52 @@ export default function RegistrationManagement() {
                     className="w-full pl-8 pr-3 py-2 text-sm bg-background border border-border rounded-lg"
                   />
                 </div>
-                {ptListQuery.isLoading ? (
+                {revListQuery.isLoading ? (
                   <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
                 ) : filtered.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-6">등록 내역이 없습니다.</p>
                 ) : (
                   <div className="space-y-2">
-                    {filtered.slice(0, 50).map((pkg: any) => {
-                      const remaining = pkg.totalSessions - pkg.usedSessions;
-                      const isActive = pkg.status === "active";
-                      return (
-                        <div key={pkg.id} className="bg-card border border-border rounded-xl px-4 py-3 space-y-1.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-medium text-sm text-foreground">{pkg.memberName ?? "—"}</span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${isActive ? "bg-green-500/10 text-green-400" : "bg-muted text-muted-foreground"}`}>
-                                  {isActive ? "진행중" : "완료"}
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-0.5">{pkg.packageName || "PT 프로그램"}</p>
+                    {filtered.slice(0, 100).map((r: any) => (
+                      <div key={r.id} className="bg-card border border-border rounded-xl px-4 py-3 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm text-foreground">{r.customerName || r.memberName || "—"}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeColor[r.type] ?? typeColor["기타"]}`}>{r.type}</span>
+                              {r.subType && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{r.subType}</span>}
                             </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-sm font-semibold text-foreground">{remaining}회 남음</p>
-                              <p className="text-xs text-muted-foreground">{pkg.usedSessions}/{pkg.totalSessions}회</p>
-                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{r.programDetail || "—"}</p>
                           </div>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{pkg.startDate ?? "—"} ~ {pkg.expiryDate ?? "—"}</span>
-                            <span>{pkg.paymentAmount ? `${pkg.paymentAmount.toLocaleString()}원` : "—"}</span>
-                          </div>
-                          {(pkg.unpaidAmount ?? 0) > 0 && (
-                            <p className="text-xs text-red-400 font-medium">미수금 {pkg.unpaidAmount.toLocaleString()}원</p>
-                          )}
-                          <div className="flex justify-end">
-                            <button
-                              onClick={() => {
-                                setEditPkg(pkg);
-                                setEditPkgForm({
-                                  packageName: pkg.packageName ?? "",
-                                  totalSessions: String(pkg.totalSessions),
-                                  usedSessions: String(pkg.usedSessions),
-                                  startDate: pkg.startDate ?? "",
-                                  expiryDate: pkg.expiryDate ?? "",
-                                  paymentAmount: pkg.paymentAmount ? String(pkg.paymentAmount) : "",
-                                  unpaidAmount: pkg.unpaidAmount ? String(pkg.unpaidAmount) : "",
-                                  paymentMethod: ((pkg.paymentMethod === "계좌이체" ? "이체" : pkg.paymentMethod) ?? "") as any,
-                                  transferAmount: pkg.transferAmount ? String(pkg.transferAmount) : "",
-                                  cardAmount: pkg.cardAmount ? String(pkg.cardAmount) : "",
-                                  paymentDate: pkg.paymentDate ?? "",
-                                  paymentMemo: pkg.paymentMemo ?? "",
-                                });
-                              }}
-                              className="text-xs text-primary underline hover:text-primary/70 transition-colors"
-                            >
-                              수정
-                            </button>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold text-foreground">{(r.paidAmount ?? 0).toLocaleString()}원</p>
+                            <p className="text-xs text-muted-foreground">{r.paymentDate || "—"}</p>
                           </div>
                         </div>
-                      );
-                    })}
-                    {filtered.length > 50 && (
-                      <p className="text-xs text-muted-foreground text-center py-2">최근 50건 표시</p>
-                    )}
+                        {r.startDate && <p className="text-xs text-muted-foreground">시작일: {r.startDate}</p>}
+                        {(r.unpaidAmount ?? 0) > 0 && <p className="text-xs text-red-400 font-medium">미수금 {r.unpaidAmount.toLocaleString()}원</p>}
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => {
+                              setEditRev(r);
+                              setEditRevForm({
+                                programDetail: r.programDetail ?? "",
+                                sessions: r.sessions ? String(r.sessions) : "",
+                                duration: r.duration ? String(r.duration) : "",
+                                startDate: r.startDate ?? "",
+                                amount: r.amount ? String(r.amount) : "",
+                                unpaidAmount: r.unpaidAmount ? String(r.unpaidAmount) : "",
+                                paymentMethod: ((r.paymentMethod === "계좌이체" ? "이체" : r.paymentMethod) ?? "") as any,
+                                paymentDate: r.paymentDate ?? "",
+                                memo: r.memo ?? "",
+                              });
+                            }}
+                            className="text-xs text-primary underline hover:text-primary/70 transition-colors"
+                          >수정</button>
+                        </div>
+                      </div>
+                    ))}
+                    {filtered.length > 100 && <p className="text-xs text-muted-foreground text-center py-2">최근 100건 표시</p>}
                   </div>
                 )}
               </div>
@@ -588,56 +566,51 @@ export default function RegistrationManagement() {
           })()}
 
           {/* 수정 다이얼로그 */}
-          {editPkg && (
+          {editRev && (
             <Portal>
-              <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setEditPkg(null)}>
+              <div className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center p-4" onClick={() => setEditRev(null)}>
                 <div className="bg-card border border-border rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                   <div className="sticky top-0 bg-card border-b border-border px-5 py-4 flex items-center justify-between">
                     <div>
-                      <p className="font-semibold text-foreground">프로그램 수정</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{editPkg.memberName} · {editPkg.packageName || "PT 프로그램"}</p>
+                      <p className="font-semibold text-foreground">등록 수정</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{editRev.customerName || editRev.memberName} · {editRev.type}</p>
                     </div>
-                    <button onClick={() => setEditPkg(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+                    <button onClick={() => setEditRev(null)} className="text-muted-foreground hover:text-foreground">✕</button>
                   </div>
                   <div className="px-5 py-4 space-y-4">
                     <div>
                       <label className="text-xs text-muted-foreground">프로그램명</label>
-                      <input value={editPkgForm.packageName} onChange={e => setEditPkgForm(f => ({ ...f, packageName: e.target.value }))}
+                      <input value={editRevForm.programDetail} onChange={e => setEditRevForm(f => ({ ...f, programDetail: e.target.value }))}
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    {editRev.type === "PT" && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">횟수</label>
+                        <input type="number" value={editRevForm.sessions} onChange={e => setEditRevForm(f => ({ ...f, sessions: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    )}
+                    {editRev.type === "헬스" && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">기간(개월)</label>
+                        <input type="number" value={editRevForm.duration} onChange={e => setEditRevForm(f => ({ ...f, duration: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs text-muted-foreground">시작일</label>
+                      <input type="date" value={editRevForm.startDate} onChange={e => setEditRevForm(f => ({ ...f, startDate: e.target.value }))}
                         className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-muted-foreground">총 횟수</label>
-                        <input type="number" value={editPkgForm.totalSessions} onChange={e => setEditPkgForm(f => ({ ...f, totalSessions: e.target.value }))}
-                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">사용 횟수</label>
-                        <input type="number" value={editPkgForm.usedSessions} onChange={e => setEditPkgForm(f => ({ ...f, usedSessions: e.target.value }))}
-                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-muted-foreground">시작일</label>
-                        <input type="date" value={editPkgForm.startDate} onChange={e => setEditPkgForm(f => ({ ...f, startDate: e.target.value }))}
-                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">만료일</label>
-                        <input type="date" value={editPkgForm.expiryDate} onChange={e => setEditPkgForm(f => ({ ...f, expiryDate: e.target.value }))}
-                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
                         <label className="text-xs text-muted-foreground">결제 금액</label>
-                        <input type="number" value={editPkgForm.paymentAmount} onChange={e => setEditPkgForm(f => ({ ...f, paymentAmount: e.target.value }))}
+                        <input type="number" value={editRevForm.amount} onChange={e => setEditRevForm(f => ({ ...f, amount: e.target.value }))}
                           className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                       <div>
                         <label className="text-xs text-muted-foreground">미수금</label>
-                        <input type="number" value={editPkgForm.unpaidAmount} onChange={e => setEditPkgForm(f => ({ ...f, unpaidAmount: e.target.value }))}
+                        <input type="number" value={editRevForm.unpaidAmount} onChange={e => setEditRevForm(f => ({ ...f, unpaidAmount: e.target.value }))}
                           className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                     </div>
@@ -646,63 +619,47 @@ export default function RegistrationManagement() {
                       <div className="flex gap-2 mt-1 flex-wrap">
                         {(["현금영수증", "이체", "지역화폐", "카드", "혼합"] as const).map(m => (
                           <button key={m} type="button"
-                            onClick={() => setEditPkgForm(f => ({ ...f, paymentMethod: m }))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editPkgForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                            onClick={() => setEditRevForm(f => ({ ...f, paymentMethod: m }))}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editRevForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                             {m}
                           </button>
                         ))}
                       </div>
                     </div>
-                    {editPkgForm.paymentMethod === "혼합" && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs text-muted-foreground">이체 금액</label>
-                          <input type="number" value={editPkgForm.transferAmount} onChange={e => setEditPkgForm(f => ({ ...f, transferAmount: e.target.value }))}
-                            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground">카드 금액</label>
-                          <input type="number" value={editPkgForm.cardAmount} onChange={e => setEditPkgForm(f => ({ ...f, cardAmount: e.target.value }))}
-                            className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                        </div>
-                      </div>
-                    )}
                     <div>
                       <label className="text-xs text-muted-foreground">결제일</label>
-                      <input type="date" value={editPkgForm.paymentDate} onChange={e => setEditPkgForm(f => ({ ...f, paymentDate: e.target.value }))}
+                      <input type="date" value={editRevForm.paymentDate} onChange={e => setEditRevForm(f => ({ ...f, paymentDate: e.target.value }))}
                         className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground">메모</label>
-                      <textarea value={editPkgForm.paymentMemo} onChange={e => setEditPkgForm(f => ({ ...f, paymentMemo: e.target.value }))}
+                      <textarea value={editRevForm.memo} onChange={e => setEditRevForm(f => ({ ...f, memo: e.target.value }))}
                         rows={2} className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm resize-none" />
                     </div>
                     <div className="flex gap-2 pt-1">
-                      <button onClick={() => setEditPkg(null)}
-                        className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground">
-                        취소
-                      </button>
+                      <button onClick={() => setEditRev(null)}
+                        className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground">취소</button>
                       <button
                         onClick={() => {
-                          updatePackageMutation.mutate({
-                            packageId: editPkg.id,
-                            packageName: editPkgForm.packageName || undefined,
-                            totalSessions: editPkgForm.totalSessions ? Number(editPkgForm.totalSessions) : undefined,
-                            usedSessions: editPkgForm.usedSessions !== "" ? Number(editPkgForm.usedSessions) : undefined,
-                            startDate: editPkgForm.startDate || undefined,
-                            expiryDate: editPkgForm.expiryDate || undefined,
-                            paymentAmount: editPkgForm.paymentAmount !== "" ? Number(editPkgForm.paymentAmount) : undefined,
-                            unpaidAmount: editPkgForm.unpaidAmount !== "" ? Number(editPkgForm.unpaidAmount) : undefined,
-                            paymentMethod: editPkgForm.paymentMethod || undefined,
-                            transferAmount: editPkgForm.transferAmount !== "" ? Number(editPkgForm.transferAmount) : undefined,
-                            cardAmount: editPkgForm.cardAmount !== "" ? Number(editPkgForm.cardAmount) : undefined,
-                            paymentDate: editPkgForm.paymentDate || undefined,
-                            paymentMemo: editPkgForm.paymentMemo || undefined,
+                          const amt = editRevForm.amount !== "" ? Number(editRevForm.amount) : undefined;
+                          const unpaid = editRevForm.unpaidAmount !== "" ? Number(editRevForm.unpaidAmount) : undefined;
+                          updateRevMutation.mutate({
+                            id: editRev.id,
+                            programDetail: editRevForm.programDetail || undefined,
+                            sessions: editRevForm.sessions !== "" ? Number(editRevForm.sessions) : undefined,
+                            duration: editRevForm.duration !== "" ? Number(editRevForm.duration) : undefined,
+                            startDate: editRevForm.startDate || undefined,
+                            amount: amt,
+                            paidAmount: (amt !== undefined && unpaid !== undefined) ? Math.max(0, amt - unpaid) : undefined,
+                            unpaidAmount: unpaid,
+                            paymentMethod: editRevForm.paymentMethod || undefined,
+                            paymentDate: editRevForm.paymentDate || undefined,
+                            memo: editRevForm.memo || undefined,
                           });
                         }}
-                        disabled={updatePackageMutation.isPending}
+                        disabled={updateRevMutation.isPending}
                         className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-                        {updatePackageMutation.isPending ? "저장 중..." : "저장"}
+                        {updateRevMutation.isPending ? "저장 중..." : "저장"}
                       </button>
                     </div>
                   </div>
