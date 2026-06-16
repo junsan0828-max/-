@@ -476,12 +476,14 @@ export default function LeadsPage() {
     const serviceHealthMatch = si.find((s: string) => s.startsWith("헬스("))?.match(/헬스\((\d+)개월\)/);
     const serviceLockerMatch = si.find((s: string) => s.startsWith("락커("))?.match(/락커\(([^)]+)\)/);
 
+    const knownPrograms = ["케어피티", "웨이트피티", "이벤트피티"];
+    const detectedKey = knownPrograms.find(k => (revenue.programDetail ?? "") === k || (revenue.programDetail ?? "").startsWith(k + " ") || (revenue.programDetail ?? "").startsWith(k + "+")) ?? "기타";
     setRegForm({
       ...defaultRegForm,
       itemTypes: [revenue.type as string],
       subType: (revenue.subType ?? "신규") as "신규" | "재등록",
-      programKey: "기타",
-      programCustom: revenue.programDetail ?? "",
+      programKey: detectedKey,
+      programCustom: detectedKey === "기타" ? (revenue.programDetail ?? "") : "",
       sessions: revenue.sessions ?? undefined,
       serviceSessions: revenue.serviceSessions ?? 0,
       duration: revenue.duration ?? undefined,
