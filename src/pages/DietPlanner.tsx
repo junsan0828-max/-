@@ -1517,13 +1517,13 @@ function SharedMealView({ data }: { data: SharePayload }) {
         {/* 헤더 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: 2, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#2563eb", letterSpacing: 2, marginBottom: 6 }}>
               FIT STEP · 맞춤 식단 플래너
             </div>
             <h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0, lineHeight: 1.3 }}>
               {data.n}님의 하루 식단
             </h1>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
               권장 칼로리: {data.t.toLocaleString()} kcal
             </div>
           </div>
@@ -1549,15 +1549,15 @@ function SharedMealView({ data }: { data: SharePayload }) {
           boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
         }}>
           {[
-            { label: "총 칼로리", val: `${total.kcal.toLocaleString()}`, unit: "kcal", color: "#059669" },
+            { label: "총 칼로리", val: `${total.kcal.toLocaleString()}`, unit: "kcal", color: "#2563eb" },
             { label: "탄수화물", val: `${total.carb}g`, unit: "", color: "#f59e0b" },
             { label: "단백질",   val: `${total.protein}g`, unit: "", color: "#3b82f6" },
             { label: "지방",     val: `${total.fat}g`, unit: "", color: "#ef4444" },
           ].map(({ label, val, unit, color }) => (
             <div key={label} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>{label}</div>
               <div style={{ fontSize: 16, fontWeight: 800, color }}>{val}</div>
-              {unit && <div style={{ fontSize: 10, color: "#9ca3af" }}>{unit}</div>}
+              {unit && <div style={{ fontSize: 10, color: "#64748b" }}>{unit}</div>}
             </div>
           ))}
         </div>
@@ -1576,11 +1576,11 @@ function SharedMealView({ data }: { data: SharePayload }) {
               <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "12px 16px", borderTop: i > 0 ? "1px solid #f3f4f6" : "none" }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{e.name}</div>
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{e.serving}</div>
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{e.serving}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#059669" }}>{e.kcal} kcal</div>
-                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>탄{e.carb}g · 단{e.protein}g · 지{e.fat}g</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#2563eb" }}>{e.kcal} kcal</div>
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>탄{e.carb}g · 단{e.protein}g · 지{e.fat}g</div>
                 </div>
               </div>
             ))}
@@ -1589,7 +1589,7 @@ function SharedMealView({ data }: { data: SharePayload }) {
 
         {/* 푸터 */}
         <div style={{ textAlign: "center", marginTop: 32, paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
-          <div style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>FIT STEP</div>
+          <div style={{ fontSize: 11, color: "#2563eb", fontWeight: 700 }}>FIT STEP</div>
           <div style={{ fontSize: 10, color: "#d1d5db", marginTop: 2 }}>fitstep.co.kr · 맞춤 식단 플래너</div>
         </div>
       </div>
@@ -1701,11 +1701,11 @@ function PromoBanner() {
               marginTop: 1,
             }}
           >
-            <Zap className="w-4 h-4" style={{ color: "#059669" }} strokeWidth={2.5} />
+            <Zap className="w-4 h-4" style={{ color: "#2563eb" }} strokeWidth={2.5} />
           </div>
 
           <div style={{ flex: 1, wordBreak: "keep-all" }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "#059669", letterSpacing: "0.12em", marginBottom: 4 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "#2563eb", letterSpacing: "0.12em", marginBottom: 4 }}>
               FIT STEP
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", lineHeight: 1.45, marginBottom: 3 }}>
@@ -1721,7 +1721,7 @@ function PromoBanner() {
         <div
           className="transition-all group-hover:brightness-110 group-active:scale-95"
           style={{
-            background: "#059669",
+            background: "#2563eb",
             color: "#ffffff",
             fontSize: 12,
             fontWeight: 700,
@@ -2055,19 +2055,19 @@ export default function DietPlanner() {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 pb-20">
       {/* ── 헤더 ── */}
-      <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#0f172a" }}>
+      <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f8fafc" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 46, height: 46, background: "#064e3b", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 46, height: 46, background: "#eff6ff", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Salad size={24} color="#34d399" strokeWidth={1.5} />
           </div>
           <div>
-            <p style={{ color: "#059669", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
-            <h1 style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 700, margin: 0 }}>맞춤 식단 플래너</h1>
+            <p style={{ color: "#2563eb", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
+            <h1 style={{ color: "#0f172a", fontSize: 16, fontWeight: 700, margin: 0 }}>맞춤 식단 플래너</h1>
           </div>
         </div>
         {kakaoUser ? (
           <button onClick={handleKakaoLogout}
-            style={{ display: "flex", alignItems: "center", gap: 5, background: "#065f46", border: "none", borderRadius: 10, padding: "7px 10px", color: "#34d399", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
+            style={{ display: "flex", alignItems: "center", gap: 5, background: "#dbeafe", border: "none", borderRadius: 10, padding: "7px 10px", color: "#2563eb", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>
             {kakaoUser.thumbnail
               ? <img src={kakaoUser.thumbnail} alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover" }} />
               : <User size={14} />}
@@ -2088,18 +2088,18 @@ export default function DietPlanner() {
         const limit = DAILY_LIMITS[effectiveType] ?? 2;
         return (
           <div style={{ padding: "0 16px 14px" }}>
-            <div style={{ background: "#1e293b", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ background: "#ffffff", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ flex: 1 }}>
-                <span style={{ color: "#64748b", fontSize: 11 }}>오늘 사용</span>
-                <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 20, margin: "0 4px 0 8px" }}>{todayCount}</span>
+                <span style={{ color: "#475569", fontSize: 11 }}>오늘 사용</span>
+                <span style={{ color: "#0f172a", fontWeight: 700, fontSize: 20, margin: "0 4px 0 8px" }}>{todayCount}</span>
               </div>
-              <div style={{ width: 1, height: 28, background: "#334155" }} />
+              <div style={{ width: 1, height: 28, background: "#e2e8f0" }} />
               <div style={{ flex: 1, textAlign: "right" }}>
-                <span style={{ color: "#64748b", fontSize: 11 }}>한도 </span>
+                <span style={{ color: "#475569", fontSize: 11 }}>한도 </span>
                 <span style={{ color: limit >= 99999 ? "#f59e0b" : "#34d399", fontWeight: 700, fontSize: 20, margin: "0 0 0 4px" }}>
                   {limit >= 99999 ? "∞" : limit}
                 </span>
-                <span style={{ color: "#64748b", fontSize: 11 }}>회/일</span>
+                <span style={{ color: "#475569", fontSize: 11 }}>회/일</span>
               </div>
             </div>
           </div>
@@ -2108,8 +2108,8 @@ export default function DietPlanner() {
 
       {/* ── 회원 유형 선택 ── */}
       {kakaoUser && userType !== "fitstep" && (
-        <div style={{ margin: "0 16px 14px", background: "#1e293b", borderRadius: 12, padding: "12px 14px" }}>
-          <p style={{ color: "#64748b", fontSize: 11, margin: "0 0 8px" }}>회원 유형</p>
+        <div style={{ margin: "0 16px 14px", background: "#ffffff", borderRadius: 12, padding: "12px 14px" }}>
+          <p style={{ color: "#475569", fontSize: 11, margin: "0 0 8px" }}>회원 유형</p>
           <div style={{ display: "flex", gap: 8 }}>
             {(["member", "trainer"] as const).map((t) => {
               const label = t === "member" ? "일반 회원" : "운동전문가";
@@ -2117,7 +2117,7 @@ export default function DietPlanner() {
               const col = t === "member" ? "#34d399" : "#60a5fa";
               return (
                 <button key={t} onClick={() => handleUserTypeSelect(t)}
-                  style={{ flex: 1, padding: "9px 8px", borderRadius: 8, border: `1px solid ${userType === t ? col : "#334155"}`, background: userType === t ? col + "22" : "#0f172a", color: userType === t ? col : "#64748b", fontSize: 12, fontWeight: userType === t ? 700 : 400, cursor: "pointer" }}>
+                  style={{ flex: 1, padding: "9px 8px", borderRadius: 8, border: `1px solid ${userType === t ? col : "#e2e8f0"}`, background: userType === t ? col + "15" : "#f8fafc", color: userType === t ? col : "#64748b", fontSize: 12, fontWeight: userType === t ? 700 : 400, cursor: "pointer" }}>
                   {label}<br /><span style={{ fontSize: 10, opacity: 0.8 }}>{count}</span>
                 </button>
               );
@@ -2133,13 +2133,13 @@ export default function DietPlanner() {
             <Zap size={20} color="#059669" />
           </div>
           <div>
-            <p style={{ color: "#059669", fontWeight: 700, fontSize: 11, margin: "0 0 2px", letterSpacing: "0.05em" }}>FIT STEP</p>
+            <p style={{ color: "#2563eb", fontWeight: 700, fontSize: 11, margin: "0 0 2px", letterSpacing: "0.05em" }}>FIT STEP</p>
             <p style={{ color: "#111827", fontWeight: 700, fontSize: 14, margin: "0 0 3px", wordBreak: "keep-all", lineHeight: 1.4 }}>식단 생성 무제한. 회원관리까지 하나로.</p>
-            <p style={{ color: "#6b7280", fontSize: 11, margin: 0 }}>운동전문가를 위한 올인원 성장 플랫폼</p>
+            <p style={{ color: "#475569", fontSize: 11, margin: 0 }}>운동전문가를 위한 올인원 성장 플랫폼</p>
           </div>
         </div>
         <a href="https://fitstep.co.kr/?ref=diet" target="_blank" rel="noreferrer"
-          style={{ display: "block", background: "#059669", color: "#fff", textDecoration: "none", borderRadius: 10, padding: "11px 0", textAlign: "center", fontWeight: 700, fontSize: 14 }}>
+          style={{ display: "block", background: "#2563eb", color: "#fff", textDecoration: "none", borderRadius: 10, padding: "11px 0", textAlign: "center", fontWeight: 700, fontSize: 14 }}>
           무료로 시작하기 →
         </a>
       </div>
@@ -2147,7 +2147,7 @@ export default function DietPlanner() {
       {/* ── 공유 버튼 ── */}
       <div style={{ padding: "0 16px 16px" }}>
         <button onClick={() => handleShareUrl(window.location.origin + "/", "FIT STEP 맞춤 식단 플래너")}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: urlCopied ? "#065f46" : "#1e293b", border: `1px solid ${urlCopied ? "#059669" : "#334155"}`, borderRadius: 12, padding: "14px 0", color: urlCopied ? "#34d399" : "#94a3b8", fontSize: 14, fontWeight: 600, cursor: "pointer", boxSizing: "border-box" as const }}>
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: urlCopied ? "#eff6ff" : "#f8fafc", border: `1px solid ${urlCopied ? "#2563eb" : "#e2e8f0"}`, borderRadius: 12, padding: "14px 0", color: urlCopied ? "#2563eb" : "#64748b", fontSize: 14, fontWeight: 600, cursor: "pointer", boxSizing: "border-box" as const }}>
           <Share2 size={16} />
           {urlCopied ? "링크 복사됨!" : "FIT STEP 맞춤 식단 플래너 공유하기"}
         </button>
@@ -2425,8 +2425,8 @@ export default function DietPlanner() {
 
         {/* 한도 초과 인라인 메시지 */}
         {limitReached && (
-          <div style={{ background: "#1e293b", borderRadius: 12, padding: 16, border: "1px solid #334155" }}>
-            <p style={{ color: "#f1f5f9", fontSize: 14, fontWeight: 700, margin: "0 0 10px" }}>오늘 사용 한도 초과</p>
+          <div style={{ background: "#ffffff", borderRadius: 12, padding: 16, border: "1px solid #e2e8f0" }}>
+            <p style={{ color: "#0f172a", fontSize: 14, fontWeight: 700, margin: "0 0 10px" }}>오늘 사용 한도 초과</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
               {[{l:"비로그인",c:"2회/일",col:"#6b7280"},{l:"일반 회원",c:"5회/일",col:"#34d399"},{l:"운동전문가",c:"10회/일",col:"#60a5fa"},{l:"FIT STEP",c:"무제한",col:"#f59e0b"}].map(t=>(
                 <div key={t.l} style={{display:"flex",justifyContent:"space-between",color:"#94a3b8",fontSize:12}}>
@@ -2435,9 +2435,9 @@ export default function DietPlanner() {
               ))}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setLimitReached(false)} style={{ flex:1, padding:"10px", background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer", fontSize:13 }}>닫기</button>
+              <button onClick={() => setLimitReached(false)} style={{ flex:1, padding:"10px", background:"#f1f5f9", border:"none", color:"#475569", borderRadius:8, cursor:"pointer", fontSize:13 }}>닫기</button>
               {!kakaoUser && <button onClick={handleKakaoLogin} style={{ flex:2, padding:"10px", background:"#FEE500", border:"none", color:"#000", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:13 }}>카카오 로그인</button>}
-              <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer" style={{ flex:2, padding:"10px", background:"#059669", color:"#fff", borderRadius:8, textDecoration:"none", textAlign:"center", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+              <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer" style={{ flex:2, padding:"10px", background:"#2563eb", color:"#fff", borderRadius:8, textDecoration:"none", textAlign:"center", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
                 <Zap size={13}/> FIT STEP
               </a>
             </div>

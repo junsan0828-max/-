@@ -84,16 +84,16 @@ function loadSavedTerms() {
 
 // ── Inline style helpers ──────────────────────────────────────────────────────
 const IS: React.CSSProperties = {
-  width: "100%", background: "#0f172a", border: "1px solid #334155",
-  borderRadius: 8, padding: "10px 12px", color: "#f1f5f9", fontSize: 14,
+  width: "100%", background: "#ffffff", border: "1px solid #e2e8f0",
+  borderRadius: 8, padding: "10px 12px", color: "#0f172a", fontSize: 14,
   boxSizing: "border-box", outline: "none",
 };
-const IS_G: React.CSSProperties = { ...IS, color: "#34d399" };
+const IS_G: React.CSSProperties = { ...IS, color: "#2563eb", fontWeight: 600 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: "#1e293b", borderRadius: 14, padding: "16px", border: "1px solid #334155" }}>
-      <p style={{ color: "#34d399", fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", margin: "0 0 12px" }}>{title}</p>
+    <div style={{ background: "#ffffff", borderRadius: 14, padding: "16px", border: "1px solid #e2e8f0", boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)" }}>
+      <p style={{ color: "#2563eb", fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", margin: "0 0 12px", textTransform: "uppercase" as const }}>{title}</p>
       {children}
     </div>
   );
@@ -104,7 +104,7 @@ function Row({ children }: { children: React.ReactNode }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p style={{ color: "#64748b", fontSize: 11, fontWeight: 600, margin: "0 0 5px" }}>{label}</p>
+      <p style={{ color: "#475569", fontSize: 11, fontWeight: 600, margin: "0 0 5px" }}>{label}</p>
       {children}
     </div>
   );
@@ -114,16 +114,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ContractPreviewModal({ onStart }: { onStart: () => void }) {
   return (
     <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000,
+      position: "fixed", inset: 0, background: "rgba(15,23,42,0.7)", zIndex: 1000,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       padding: "20px 16px", overflowY: "auto",
     }}>
       <div style={{ maxWidth: 380, width: "100%" }}>
         {/* 타이틀 */}
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <p style={{ color: "#34d399", fontSize: 11, fontWeight: 800, letterSpacing: "0.15em", margin: "0 0 6px" }}>FIT STEP</p>
+          <p style={{ color: "#93c5fd", fontSize: 11, fontWeight: 800, letterSpacing: "0.15em", margin: "0 0 6px" }}>FIT STEP</p>
           <h1 style={{ color: "#f1f5f9", fontSize: 22, fontWeight: 800, margin: "0 0 8px", lineHeight: 1.3 }}>전자 회원 계약서</h1>
-          <p style={{ color: "#64748b", fontSize: 13, margin: 0, lineHeight: 1.6 }}>회원 정보를 입력하면 아래와 같은<br/>계약서가 즉시 생성됩니다</p>
+          <p style={{ color: "#94a3b8", fontSize: 13, margin: 0, lineHeight: 1.6 }}>회원 정보를 입력하면 아래와 같은<br/>계약서가 즉시 생성됩니다</p>
         </div>
 
         {/* 계약서 미니 프리뷰 */}
@@ -135,13 +135,13 @@ function ContractPreviewModal({ onStart }: { onStart: () => void }) {
         }}>
           {/* 계약서 헤더 */}
           <div style={{ borderBottom: "2px solid #111", paddingBottom: 8, marginBottom: 10, textAlign: "center" }}>
-            <p style={{ fontSize: 7, color: "#059669", fontWeight: 800, letterSpacing: "0.1em", margin: "0 0 2px" }}>FIT STEP</p>
+            <p style={{ fontSize: 7, color: "#2563eb", fontWeight: 800, letterSpacing: "0.1em", margin: "0 0 2px" }}>FIT STEP</p>
             <p style={{ fontSize: 13, fontWeight: 800, color: "#111", margin: "0 0 2px" }}>회 원 계 약 서</p>
             <p style={{ fontSize: 7, color: "#555", margin: 0 }}>Member Contract</p>
           </div>
 
           {/* 회원 정보 섹션 */}
-          <p style={{ fontSize: 7, fontWeight: 800, color: "#059669", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 회원 정보</p>
+          <p style={{ fontSize: 7, fontWeight: 800, color: "#2563eb", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 회원 정보</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 8 }}>
             {[["성명", "홍 길 동"],["연락처", "010-0000-0000"],["계약일", "2026-06-16"],["담당 운동전문가", "김트레이너"]].map(([l,v]) => (
               <div key={l} style={{ borderBottom: "1px solid #ddd", paddingBottom: 3 }}>
@@ -152,7 +152,7 @@ function ContractPreviewModal({ onStart }: { onStart: () => void }) {
           </div>
 
           {/* 등록 내역 */}
-          <p style={{ fontSize: 7, fontWeight: 800, color: "#059669", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 등록 내역</p>
+          <p style={{ fontSize: 7, fontWeight: 800, color: "#2563eb", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 등록 내역</p>
           <div style={{ background: "#f8f8f8", borderRadius: 4, padding: "5px 6px", marginBottom: 8 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
               {[["프로그램","PT 12회"],["정가","300,000원"],["실결제","250,000원"]].map(([l,v]) => (
@@ -165,7 +165,7 @@ function ContractPreviewModal({ onStart }: { onStart: () => void }) {
           </div>
 
           {/* 이용약관 */}
-          <p style={{ fontSize: 7, fontWeight: 800, color: "#059669", letterSpacing: "0.08em", margin: "0 0 4px" }}>▪ 이용약관</p>
+          <p style={{ fontSize: 7, fontWeight: 800, color: "#2563eb", letterSpacing: "0.08em", margin: "0 0 4px" }}>▪ 이용약관</p>
           {["제1조 이용 목적","제2조 환불 규정","제3조 시설 이용 규칙"].map(t => (
             <div key={t} style={{ borderBottom: "1px solid #eee", paddingBottom: 3, marginBottom: 3 }}>
               <p style={{ fontSize: 6.5, fontWeight: 700, color: "#333", margin: "0 0 1px" }}>{t}</p>
@@ -176,7 +176,7 @@ function ContractPreviewModal({ onStart }: { onStart: () => void }) {
           <p style={{ fontSize: 6, color: "#aaa", margin: "3px 0 8px" }}>…외 3개 조항</p>
 
           {/* 서명 */}
-          <p style={{ fontSize: 7, fontWeight: 800, color: "#059669", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 서명</p>
+          <p style={{ fontSize: 7, fontWeight: 800, color: "#2563eb", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 서명</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ border: "1px solid #ddd", borderRadius: 4, padding: "4px 6px" }}>
               <p style={{ fontSize: 6, color: "#888", margin: "0 0 2px" }}>회원 서명</p>
@@ -205,10 +205,10 @@ function ContractPreviewModal({ onStart }: { onStart: () => void }) {
 
         {/* CTA 버튼 */}
         <button onClick={onStart}
-          style={{ width:"100%", background:"linear-gradient(135deg,#059669,#047857)", border:"none", borderRadius:14, padding:"18px 0", color:"#fff", fontSize:17, fontWeight:800, cursor:"pointer", letterSpacing:"0.02em", boxShadow:"0 4px 20px rgba(5,150,105,0.4)" }}>
+          style={{ width:"100%", background:"linear-gradient(135deg,#2563eb,#1d4ed8)", border:"none", borderRadius:14, padding:"18px 0", color:"#fff", fontSize:17, fontWeight:800, cursor:"pointer", letterSpacing:"0.02em", boxShadow:"0 4px 20px rgba(37,99,235,0.15)" }}>
           전자계약서 제작하기 →
         </button>
-        <p style={{ color:"#475569", fontSize:11, textAlign:"center", margin:"12px 0 0" }}>
+        <p style={{ color:"#94a3b8", fontSize:11, textAlign:"center", margin:"12px 0 0" }}>
           하루 2회 무료 · 이후 건당 300 핏포인트
         </p>
       </div>
@@ -361,25 +361,25 @@ export default function ContractForm() {
   const canGen     = !!kakaoUser && (isFree || points >= POINT_COST);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f172a", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
+    <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
       {showIntro && <ContractPreviewModal onStart={() => setShowIntro(false)} />}
 
       {/* Header */}
-      <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #1e293b" }}>
+      <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e2e8f0", background: "#ffffff" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 46, height: 46, background: "#064e3b", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <FileText size={24} color="#34d399" />
+          <div style={{ width: 46, height: 46, background: "#eff6ff", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <FileText size={24} color="#2563eb" />
           </div>
           <div>
-            <p style={{ color: "#059669", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
-            <h1 style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 700, margin: 0 }}>전자 회원 계약서</h1>
+            <p style={{ color: "#2563eb", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
+            <h1 style={{ color: "#0f172a", fontSize: 16, fontWeight: 700, margin: 0 }}>전자 회원 계약서</h1>
           </div>
         </div>
         {kakaoUser ? (
-          <button onClick={handleLogout} style={{ display:"flex", alignItems:"center", gap:5, background:"#065f46", border:"none", borderRadius:10, padding:"7px 10px", color:"#34d399", fontSize:12, cursor:"pointer", flexShrink:0 }}>
+          <button onClick={handleLogout} style={{ display:"flex", alignItems:"center", gap:5, background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:10, padding:"7px 10px", color:"#2563eb", fontSize:12, cursor:"pointer", flexShrink:0 }}>
             {kakaoUser.thumbnail ? <img src={kakaoUser.thumbnail} alt="" style={{ width:18, height:18, borderRadius:"50%", objectFit:"cover" }} /> : <User size={14}/>}
             <span style={{ maxWidth:60, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{kakaoUser.name}</span>
-            {userType === "fitstep" && <Zap size={11} color="#fbbf24"/>}
+            {userType === "fitstep" && <Zap size={11} color="#f59e0b"/>}
           </button>
         ) : (
           <button onClick={handleKakaoLogin} style={{ display:"flex", alignItems:"center", gap:5, background:"#FEE500", border:"none", borderRadius:10, padding:"9px 14px", color:"#000", fontSize:13, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
@@ -391,22 +391,22 @@ export default function ContractForm() {
       <div style={{ padding: "0 16px" }}>
 
         {/* FIT STEP 배너 */}
-        <div style={{ background:"linear-gradient(135deg,#064e3b,#065f46)", borderRadius:16, padding:"16px", margin:"14px 0 4px", border:"1px solid #059669" }}>
+        <div style={{ background:"linear-gradient(135deg,#1d4ed8,#2563eb)", borderRadius:16, padding:"16px", margin:"14px 0 4px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
-            <div style={{ width:42, height:42, background:"rgba(255,255,255,0.12)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <Zap size={22} color="#34d399"/>
+            <div style={{ width:42, height:42, background:"rgba(255,255,255,0.15)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <Zap size={22} color="#ffffff"/>
             </div>
             <div style={{ flex:1 }}>
-              <p style={{ color:"#6ee7b7", fontWeight:800, fontSize:11, margin:"0 0 2px", letterSpacing:"0.1em" }}>FIT STEP 회원 혜택</p>
+              <p style={{ color:"#bfdbfe", fontWeight:800, fontSize:11, margin:"0 0 2px", letterSpacing:"0.1em" }}>FIT STEP 회원 혜택</p>
               <p style={{ color:"#fff", fontWeight:800, fontSize:15, margin:0, lineHeight:1.3, wordBreak:"keep-all" as const }}>전자계약서 무제한 무료!</p>
             </div>
           </div>
-          <p style={{ color:"#a7f3d0", fontSize:12, margin:"0 0 14px", lineHeight:1.6 }}>
-            핏스텝 회원은 계약서 생성 횟수 제한 없이 <strong style={{ color:"#34d399" }}>완전 무료</strong>로 이용할 수 있습니다.<br/>
+          <p style={{ color:"#dbeafe", fontSize:12, margin:"0 0 14px", lineHeight:1.6 }}>
+            핏스텝 회원은 계약서 생성 횟수 제한 없이 <strong style={{ color:"#ffffff" }}>완전 무료</strong>로 이용할 수 있습니다.<br/>
             비회원은 하루 2회 무료 · 이후 300P/건
           </p>
           <a href="https://fitstep.co.kr/?ref=contract" target="_blank" rel="noreferrer"
-            style={{ display:"block", background:"#34d399", color:"#064e3b", textDecoration:"none", borderRadius:10, padding:"12px 0", textAlign:"center", fontWeight:800, fontSize:14, letterSpacing:"0.02em" }}>
+            style={{ display:"block", background:"#ffffff", color:"#2563eb", textDecoration:"none", borderRadius:10, padding:"12px 0", textAlign:"center", fontWeight:800, fontSize:14, letterSpacing:"0.02em" }}>
             핏스텝 무료로 시작하기 →
           </a>
         </div>
@@ -414,37 +414,37 @@ export default function ContractForm() {
         {/* 사용량 & 포인트 */}
         {kakaoUser && (
           <div style={{ padding: "12px 0" }}>
-            <div style={{ background: "#1e293b", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center" }}>
+            <div style={{ background: "#ffffff", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", border: "1px solid #e2e8f0", boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)" }}>
               <div style={{ flex: 1 }}>
-                <p style={{ color: "#64748b", fontSize: 11, margin: "0 0 2px" }}>오늘 무료</p>
-                <p style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 18, margin: 0 }}>
-                  {loading ? "…" : freeUsed}<span style={{ color: "#475569", fontSize: 12 }}>/{DAILY_FREE}회</span>
+                <p style={{ color: "#94a3b8", fontSize: 11, margin: "0 0 2px" }}>오늘 무료</p>
+                <p style={{ color: "#0f172a", fontWeight: 700, fontSize: 18, margin: 0 }}>
+                  {loading ? "…" : freeUsed}<span style={{ color: "#94a3b8", fontSize: 12 }}>/{DAILY_FREE}회</span>
                 </p>
               </div>
-              <div style={{ width: 1, height: 32, background: "#334155" }} />
+              <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
               <div style={{ flex: 1, textAlign: "center" }}>
-                <p style={{ color: "#64748b", fontSize: 11, margin: "0 0 2px" }}>핏포인트</p>
-                <p style={{ color: "#fbbf24", fontWeight: 700, fontSize: 18, margin: 0 }}>
-                  {loading ? "…" : points.toLocaleString()}<span style={{ color: "#475569", fontSize: 12 }}> P</span>
+                <p style={{ color: "#94a3b8", fontSize: 11, margin: "0 0 2px" }}>핏포인트</p>
+                <p style={{ color: "#f59e0b", fontWeight: 700, fontSize: 18, margin: 0 }}>
+                  {loading ? "…" : points.toLocaleString()}<span style={{ color: "#94a3b8", fontSize: 12 }}> P</span>
                 </p>
               </div>
-              <div style={{ width: 1, height: 32, background: "#334155" }} />
+              <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
               <div style={{ flex: 1, textAlign: "right" }}>
-                <p style={{ color: "#64748b", fontSize: 11, margin: "0 0 2px" }}>초과 시 차감</p>
-                <p style={{ color: "#94a3b8", fontWeight: 700, fontSize: 18, margin: 0 }}>
-                  {POINT_COST}<span style={{ color: "#475569", fontSize: 12 }}> P</span>
+                <p style={{ color: "#94a3b8", fontSize: 11, margin: "0 0 2px" }}>초과 시 차감</p>
+                <p style={{ color: "#2563eb", fontWeight: 700, fontSize: 18, margin: 0 }}>
+                  {POINT_COST}<span style={{ color: "#94a3b8", fontSize: 12 }}> P</span>
                 </p>
               </div>
             </div>
             {/* Kakao ID row — for admin point grant */}
             {kakaoUser.id && (
-              <div style={{ marginTop: 8, background: "#1e293b", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #334155" }}>
+              <div style={{ marginTop: 8, background: "#eff6ff", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #bfdbfe" }}>
                 <div>
-                  <p style={{ color: "#64748b", fontSize: 10, margin: "0 0 2px" }}>카카오 ID (포인트 충전 시 어드민에 전달)</p>
-                  <p style={{ color: "#94a3b8", fontWeight: 700, fontSize: 14, margin: 0, fontFamily: "monospace" }}>{kakaoUser.id}</p>
+                  <p style={{ color: "#475569", fontSize: 10, margin: "0 0 2px" }}>카카오 ID (포인트 충전 시 어드민에 전달)</p>
+                  <p style={{ color: "#2563eb", fontWeight: 700, fontSize: 14, margin: 0, fontFamily: "monospace" }}>{kakaoUser.id}</p>
                 </div>
                 <button onClick={copyKakaoId}
-                  style={{ display:"flex", alignItems:"center", gap:4, background: copiedId ? "#064e3b" : "#0f172a", border:"1px solid #334155", borderRadius:8, padding:"7px 12px", color: copiedId ? "#34d399" : "#94a3b8", fontSize:12, cursor:"pointer" }}>
+                  style={{ display:"flex", alignItems:"center", gap:4, background: copiedId ? "#eff6ff" : "#ffffff", border:`1px solid ${copiedId ? "#2563eb" : "#e2e8f0"}`, borderRadius:8, padding:"7px 12px", color: copiedId ? "#2563eb" : "#475569", fontSize:12, cursor:"pointer" }}>
                   {copiedId ? <CheckIcon size={13}/> : <Copy size={13}/>}
                   {copiedId ? "복사됨" : "복사"}
                 </button>
@@ -456,9 +456,9 @@ export default function ContractForm() {
         {/* 로그인 필요 */}
         {!kakaoUser && (
           <div style={{ padding: "24px 0" }}>
-            <div style={{ background: "#1e293b", borderRadius: 14, padding: "28px 16px", textAlign: "center", border: "1px solid #334155" }}>
-              <Lock size={36} color="#475569" style={{ marginBottom: 14 }} />
-              <p style={{ color: "#94a3b8", fontSize: 14, margin: "0 0 20px", lineHeight: 1.6 }}>계약서를 작성하려면<br/>카카오 로그인이 필요합니다</p>
+            <div style={{ background: "#ffffff", borderRadius: 14, padding: "28px 16px", textAlign: "center", border: "1px solid #e2e8f0", boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)" }}>
+              <Lock size={36} color="#94a3b8" style={{ marginBottom: 14 }} />
+              <p style={{ color: "#475569", fontSize: 14, margin: "0 0 20px", lineHeight: 1.6 }}>계약서를 작성하려면<br/>카카오 로그인이 필요합니다</p>
               <button onClick={handleKakaoLogin} style={{ background: "#FEE500", border: "none", borderRadius: 10, padding: "13px 36px", color: "#000", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
                 카카오 로그인
               </button>
@@ -522,7 +522,7 @@ export default function ContractForm() {
             <div style={{ display: "flex", gap: 10 }}>
               {[{ v:"yes",l:"동의함" },{ v:"no",l:"동의하지 않음" }].map(({ v, l }) => (
                 <button key={v} onClick={() => set("adConsent", v)}
-                  style={{ flex:1, padding:"10px 0", borderRadius:8, border:`2px solid ${form.adConsent===v?"#059669":"#334155"}`, background: form.adConsent===v?"#064e3b":"#0f172a", color: form.adConsent===v?"#34d399":"#64748b", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                  style={{ flex:1, padding:"10px 0", borderRadius:8, border:`2px solid ${form.adConsent===v?"#2563eb":"#e2e8f0"}`, background: form.adConsent===v?"#eff6ff":"#ffffff", color: form.adConsent===v?"#2563eb":"#94a3b8", fontSize:13, fontWeight:600, cursor:"pointer" }}>
                   {l}
                 </button>
               ))}
@@ -531,18 +531,18 @@ export default function ContractForm() {
         </div>
 
         {/* ── 이용약관 설정 ── */}
-        <div style={{ border:"1px solid #334155", borderRadius:14, overflow:"hidden", marginBottom:12 }}>
+        <div style={{ border:"1px solid #e2e8f0", borderRadius:14, overflow:"hidden", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)" }}>
           <button onClick={() => setShowTermsEdit(v => !v)}
-            style={{ width:"100%", background:"#1e293b", border:"none", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", color:"#94a3b8", fontSize:13, fontWeight:600, cursor:"pointer" }}>
-            <span style={{ display:"flex", alignItems:"center", gap:6 }}><Settings size={15} color="#60a5fa"/> 이용약관 설정</span>
-            {showTermsEdit ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+            style={{ width:"100%", background:"#ffffff", border:"none", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", color:"#475569", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+            <span style={{ display:"flex", alignItems:"center", gap:6 }}><Settings size={15} color="#2563eb"/> 이용약관 설정</span>
+            {showTermsEdit ? <ChevronUp size={15} color="#94a3b8"/> : <ChevronDown size={15} color="#94a3b8"/>}
           </button>
           {showTermsEdit && (
-            <div style={{ background:"#0f172a", padding:"16px", borderTop:"1px solid #334155" }}>
-              <p style={{ color:"#475569", fontSize:11, margin:"0 0 14px" }}>수정 후 저장하면 이후 생성되는 모든 계약서에 적용됩니다.</p>
+            <div style={{ background:"#f8fafc", padding:"16px", borderTop:"1px solid #e2e8f0" }}>
+              <p style={{ color:"#94a3b8", fontSize:11, margin:"0 0 14px" }}>수정 후 저장하면 이후 생성되는 모든 계약서에 적용됩니다.</p>
               {terms.map((term, idx) => (
-                <div key={idx} style={{ marginBottom: 16, background:"#1e293b", borderRadius:10, padding:"12px 14px", border:"1px solid #334155" }}>
-                  <p style={{ color:"#60a5fa", fontSize:10, fontWeight:700, margin:"0 0 6px" }}>제{idx+1}조</p>
+                <div key={idx} style={{ marginBottom: 16, background:"#ffffff", borderRadius:10, padding:"12px 14px", border:"1px solid #e2e8f0" }}>
+                  <p style={{ color:"#2563eb", fontSize:10, fontWeight:700, margin:"0 0 6px" }}>제{idx+1}조</p>
                   <input
                     value={term.title}
                     onChange={e => setTerm(idx, "title", e.target.value)}
@@ -559,11 +559,11 @@ export default function ContractForm() {
               ))}
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={saveTerms}
-                  style={{ flex:2, background: termsSaved ? "#064e3b" : "linear-gradient(135deg,#2563eb,#1d4ed8)", border:"none", borderRadius:10, padding:"12px 0", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                  style={{ flex:2, background: termsSaved ? "#eff6ff" : "linear-gradient(135deg,#2563eb,#1d4ed8)", border: termsSaved ? "1px solid #2563eb" : "none", borderRadius:10, padding:"12px 0", color: termsSaved ? "#2563eb" : "#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>
                   {termsSaved ? "저장됨 ✓" : "저장"}
                 </button>
                 <button onClick={resetTerms}
-                  style={{ flex:1, background:"#1e293b", border:"1px solid #475569", borderRadius:10, padding:"12px 0", color:"#64748b", fontSize:13, cursor:"pointer" }}>
+                  style={{ flex:1, background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:10, padding:"12px 0", color:"#475569", fontSize:13, cursor:"pointer" }}>
                   기본값 복원
                 </button>
               </div>
@@ -574,9 +574,9 @@ export default function ContractForm() {
         {/* ── 계약서 생성 버튼 ── */}
         {kakaoUser && (
           <div style={{ marginBottom: 12 }}>
-            {error && <p style={{ color:"#f87171", fontSize:13, margin:"0 0 10px", textAlign:"center" }}>{error}</p>}
+            {error && <p style={{ color:"#ef4444", fontSize:13, margin:"0 0 10px", textAlign:"center" }}>{error}</p>}
             <button onClick={handleGenerate} disabled={generating || !canGen}
-              style={{ width:"100%", background: canGen ? "linear-gradient(135deg,#059669,#047857)" : "#1e293b", border: canGen ? "none" : "1px solid #334155", borderRadius:14, padding:"17px 0", color: canGen?"#fff":"#475569", fontSize:16, fontWeight:700, cursor: canGen?"pointer":"not-allowed" }}>
+              style={{ width:"100%", background: canGen ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "#f1f5f9", border: canGen ? "none" : "1px solid #e2e8f0", borderRadius:14, padding:"17px 0", color: canGen?"#fff":"#94a3b8", fontSize:16, fontWeight:700, cursor: canGen?"pointer":"not-allowed", boxShadow: canGen ? "0 4px 20px rgba(37,99,235,0.15)" : "none" }}>
               {generating
                 ? "생성 중..."
                 : isFree
@@ -589,46 +589,46 @@ export default function ContractForm() {
         )}
 
         {/* ── 포인트 충전 안내 ── */}
-        <div style={{ border:"1px solid #334155", borderRadius:14, overflow:"hidden", marginBottom:12 }}>
+        <div style={{ border:"1px solid #e2e8f0", borderRadius:14, overflow:"hidden", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)" }}>
           <button onClick={() => setShowPurchase(v => !v)}
-            style={{ width:"100%", background:"#1e293b", border:"none", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", color:"#94a3b8", fontSize:13, fontWeight:600, cursor:"pointer" }}>
-            <span style={{ display:"flex", alignItems:"center", gap:6 }}><CreditCard size={15} color="#fbbf24"/> 핏포인트 충전 안내</span>
-            {showPurchase ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+            style={{ width:"100%", background:"#ffffff", border:"none", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", color:"#475569", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+            <span style={{ display:"flex", alignItems:"center", gap:6 }}><CreditCard size={15} color="#f59e0b"/> 핏포인트 충전 안내</span>
+            {showPurchase ? <ChevronUp size={15} color="#94a3b8"/> : <ChevronDown size={15} color="#94a3b8"/>}
           </button>
           {showPurchase && (
-            <div style={{ background:"#0f172a", padding:"16px", borderTop:"1px solid #334155" }}>
+            <div style={{ background:"#f8fafc", padding:"16px", borderTop:"1px solid #e2e8f0" }}>
               {/* 계좌 */}
-              <div style={{ background:"#1e293b", borderRadius:10, padding:"14px 16px", marginBottom:12 }}>
-                <p style={{ color:"#64748b", fontSize:11, margin:"0 0 4px" }}>입금 계좌 (카카오뱅크)</p>
-                <p style={{ color:"#f1f5f9", fontWeight:700, fontSize:16, margin:0, letterSpacing:"0.05em" }}>3333-37-4826334</p>
+              <div style={{ background:"#ffffff", borderRadius:10, padding:"14px 16px", marginBottom:12, border:"1px solid #e2e8f0" }}>
+                <p style={{ color:"#94a3b8", fontSize:11, margin:"0 0 4px" }}>입금 계좌 (카카오뱅크)</p>
+                <p style={{ color:"#0f172a", fontWeight:700, fontSize:16, margin:0, letterSpacing:"0.05em" }}>3333-37-4826334</p>
               </div>
               {/* 금액 선택 */}
-              <p style={{ color:"#64748b", fontSize:11, margin:"0 0 8px", fontWeight:600 }}>충전할 금액을 선택하세요</p>
+              <p style={{ color:"#475569", fontSize:11, margin:"0 0 8px", fontWeight:600 }}>충전할 금액을 선택하세요</p>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
                 {[{ won:"5000", label:"5,000원", points:"5,000 P" },{ won:"10000", label:"10,000원", points:"12,000 P", bonus:true }].map(({ won, label, points, bonus }) => (
                   <button key={won} onClick={() => { setReqAmount(won); setReqDone(false); }}
-                    style={{ background: reqAmount===won ? (bonus?"#431407":"#042f2e") : "#1e293b", borderRadius:10, padding:"12px 14px", border:`2px solid ${reqAmount===won?(bonus?"#ea580c":"#059669"):(bonus?"#854d0e":"#334155")}`, cursor:"pointer", textAlign:"left" as const }}>
-                    <p style={{ color:"#64748b", fontSize:11, margin:"0 0 3px" }}>입금액</p>
-                    <p style={{ color:"#f1f5f9", fontWeight:700, fontSize:14, margin:"0 0 4px" }}>{label}</p>
-                    <p style={{ color:"#fbbf24", fontWeight:700, fontSize:13, margin:0 }}>→ {points} {bonus && <span style={{ color:"#fb923c", fontSize:11 }}>+보너스</span>}</p>
+                    style={{ background: reqAmount===won ? (bonus?"#fff7ed":"#eff6ff") : "#ffffff", borderRadius:10, padding:"12px 14px", border:`2px solid ${reqAmount===won?(bonus?"#f59e0b":"#2563eb"):(bonus?"#fde68a":"#e2e8f0")}`, cursor:"pointer", textAlign:"left" as const }}>
+                    <p style={{ color:"#94a3b8", fontSize:11, margin:"0 0 3px" }}>입금액</p>
+                    <p style={{ color:"#0f172a", fontWeight:700, fontSize:14, margin:"0 0 4px" }}>{label}</p>
+                    <p style={{ color:"#f59e0b", fontWeight:700, fontSize:13, margin:0 }}>→ {points} {bonus && <span style={{ color:"#f97316", fontSize:11 }}>+보너스</span>}</p>
                   </button>
                 ))}
               </div>
               {/* 신청 버튼 — 로그인한 경우만 */}
               {kakaoUser ? (
                 reqDone ? (
-                  <div style={{ background:"#042f2e", borderRadius:10, padding:"14px 16px", textAlign:"center", border:"1px solid #059669" }}>
-                    <p style={{ color:"#34d399", fontWeight:700, fontSize:14, margin:"0 0 4px" }}>✓ 충전 신청 완료!</p>
-                    <p style={{ color:"#64748b", fontSize:12, margin:0 }}>입금 확인 후 담당자가 포인트를 지급해 드립니다.</p>
+                  <div style={{ background:"#eff6ff", borderRadius:10, padding:"14px 16px", textAlign:"center", border:"1px solid #bfdbfe" }}>
+                    <p style={{ color:"#2563eb", fontWeight:700, fontSize:14, margin:"0 0 4px" }}>✓ 충전 신청 완료!</p>
+                    <p style={{ color:"#475569", fontSize:12, margin:0 }}>입금 확인 후 담당자가 포인트를 지급해 드립니다.</p>
                   </div>
                 ) : (
                   <button onClick={submitChargeRequest} disabled={!reqAmount || reqBusy}
-                    style={{ width:"100%", background: reqAmount ? "linear-gradient(135deg,#d97706,#b45309)" : "#1e293b", border: reqAmount ? "none" : "1px solid #334155", borderRadius:10, padding:"13px 0", color: reqAmount?"#fff":"#475569", fontSize:14, fontWeight:700, cursor: reqAmount?"pointer":"not-allowed" }}>
+                    style={{ width:"100%", background: reqAmount ? "linear-gradient(135deg,#d97706,#b45309)" : "#f1f5f9", border: reqAmount ? "none" : "1px solid #e2e8f0", borderRadius:10, padding:"13px 0", color: reqAmount?"#fff":"#94a3b8", fontSize:14, fontWeight:700, cursor: reqAmount?"pointer":"not-allowed" }}>
                     {reqBusy ? "신청 중..." : reqAmount ? `${Number(reqAmount).toLocaleString()}원 충전 신청` : "금액을 먼저 선택하세요"}
                   </button>
                 )
               ) : (
-                <p style={{ color:"#475569", fontSize:12, textAlign:"center", margin:0 }}>로그인 후 충전 신청이 가능합니다.</p>
+                <p style={{ color:"#94a3b8", fontSize:12, textAlign:"center", margin:0 }}>로그인 후 충전 신청이 가능합니다.</p>
               )}
             </div>
           )}

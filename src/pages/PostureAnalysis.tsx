@@ -716,7 +716,7 @@ export default function PostureAnalysis() {
     const effectiveType = kakaoUser ? (userType ?? "member") : "guest";
     const limit = LIMITS[effectiveType] ?? 2;
     return (
-      <div style={{ height: "100dvh", background: "#0f172a", color: "#eee", display: "flex", flexDirection: "column", fontFamily: "'Noto Sans KR', sans-serif", overflow: "hidden" }}>
+      <div style={{ height: "100dvh", background: "#f8fafc", color: "#eee", display: "flex", flexDirection: "column", fontFamily: "'Noto Sans KR', sans-serif", overflow: "hidden" }}>
 
         {/* ── 랜딩 페이지 (사진 없을 때) ── */}
         {!bgImage && (
@@ -726,13 +726,13 @@ export default function PostureAnalysis() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 46, height: 46, background: "#1e3a5f", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Dumbbell size={24} color="#93c5fd"/></div>
                 <div>
-                  <p style={{ color: "#059669", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
-                  <h1 style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 700, margin: 0 }}>체형 분석 라인 드로잉</h1>
+                  <p style={{ color: "#2563eb", fontSize: 10, fontWeight: 800, margin: "0 0 2px", letterSpacing: "0.12em" }}>FIT STEP</p>
+                  <h1 style={{ color: "#0f172a", fontSize: 16, fontWeight: 700, margin: 0 }}>체형 분석 라인 드로잉</h1>
                 </div>
               </div>
               {kakaoUser ? (
                 <button onClick={handleKakaoLogout}
-                  style={{ display:"flex", alignItems:"center", gap:5, background:"#065f46", border:"none", borderRadius:10, padding:"7px 10px", color:"#34d399", fontSize:12, cursor:"pointer", flexShrink:0 }}>
+                  style={{ display:"flex", alignItems:"center", gap:5, background:"#dbeafe", border:"none", borderRadius:10, padding:"7px 10px", color:"#34d399", fontSize:12, cursor:"pointer", flexShrink:0 }}>
                   {kakaoUser.thumbnail ? <img src={kakaoUser.thumbnail} alt="" style={{width:18,height:18,borderRadius:"50%",objectFit:"cover"}} /> : <User size={14}/>}
                   <span style={{maxWidth:60,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{kakaoUser.name}</span>
                   {userType==="fitstep" && <Zap size={11} color="#fbbf24"/>}
@@ -747,18 +747,18 @@ export default function PostureAnalysis() {
 
             {/* 사용량 */}
             <div style={{ padding: "0 16px 14px" }}>
-              <div style={{ background: "#1e293b", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ background: "#ffffff", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ flex: 1 }}>
-                  <span style={{ color: "#64748b", fontSize: 11 }}>오늘 사용</span>
-                  <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 20, margin: "0 4px 0 8px" }}>{todayCount}</span>
+                  <span style={{ color: "#475569", fontSize: 11 }}>오늘 사용</span>
+                  <span style={{ color: "#0f172a", fontWeight: 700, fontSize: 20, margin: "0 4px 0 8px" }}>{todayCount}</span>
                 </div>
-                <div style={{ width: 1, height: 28, background: "#334155" }} />
+                <div style={{ width: 1, height: 28, background: "#f1f5f9" }} />
                 <div style={{ flex: 1, textAlign: "right" }}>
-                  <span style={{ color: "#64748b", fontSize: 11 }}>한도</span>
+                  <span style={{ color: "#475569", fontSize: 11 }}>한도</span>
                   <span style={{ color: limit >= 99999 ? "#f59e0b" : "#34d399", fontWeight: 700, fontSize: 20, margin: "0 0 0 8px" }}>
                     {limit >= 99999 ? "∞" : limit}
                   </span>
-                  <span style={{ color: "#64748b", fontSize: 11 }}>회/일</span>
+                  <span style={{ color: "#475569", fontSize: 11 }}>회/일</span>
                 </div>
               </div>
             </div>
@@ -770,15 +770,15 @@ export default function PostureAnalysis() {
                   <Zap size={22} color="#059669" />
                 </div>
                 <div>
-                  <p style={{ color: "#059669", fontWeight: 700, fontSize: 12, margin: "0 0 3px", letterSpacing: "0.05em" }}>FIT STEP</p>
+                  <p style={{ color: "#2563eb", fontWeight: 700, fontSize: 12, margin: "0 0 3px", letterSpacing: "0.05em" }}>FIT STEP</p>
                   <p style={{ color: "#111827", fontWeight: 700, fontSize: 15, margin: "0 0 4px", wordBreak: "keep-all" as const, lineHeight: 1.4 }}>
                     체형 분석 무제한. 회원관리까지 하나로.
                   </p>
-                  <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>운동전문가를 위한 올인원 성장 플랫폼</p>
+                  <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>운동전문가를 위한 올인원 성장 플랫폼</p>
                 </div>
               </div>
               <a href="https://fitstep.co.kr/?ref=posture" target="_blank" rel="noreferrer"
-                style={{ display: "block", background: "#059669", color: "#fff", textDecoration: "none", borderRadius: 10, padding: "13px 0", textAlign: "center", fontWeight: 700, fontSize: 15 }}>
+                style={{ display: "block", background: "#2563eb", color: "#fff", textDecoration: "none", borderRadius: 10, padding: "13px 0", textAlign: "center", fontWeight: 700, fontSize: 15 }}>
                 무료로 시작하기 →
               </a>
             </div>
@@ -787,7 +787,7 @@ export default function PostureAnalysis() {
             <div style={{ padding: "0 16px 16px" }}>
               <button
                 onClick={() => handleShareUrl(window.location.origin + "/posture", "FIT STEP 체형 분석 라인 드로잉")}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: urlCopied ? "#065f46" : "#1e293b", border: `1px solid ${urlCopied ? "#059669" : "#334155"}`, borderRadius: 12, padding: "14px 0", color: urlCopied ? "#34d399" : "#94a3b8", fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", background: urlCopied ? "#eff6ff" : "#f8fafc", border: `1px solid ${urlCopied ? "#2563eb" : "#e2e8f0"}`, borderRadius: 12, padding: "14px 0", color: urlCopied ? "#2563eb" : "#64748b", fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}>
                 <Share2 size={16} />
                 {urlCopied ? "링크 복사됨!" : "FIT STEP 체형 분석 드로잉 공유하기"}
               </button>
@@ -798,8 +798,8 @@ export default function PostureAnalysis() {
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
               <div onClick={() => fileInputRef.current?.click()}
                 style={{ border: "2px dashed #1e3a5f", borderRadius: 16, padding: "40px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                <Camera size={52} color="#334155"/>
-                <p style={{ color: "#94a3b8", fontSize: 16, fontWeight: 600, margin: 0 }}>사진을 탭하여 업로드</p>
+                <Camera size={52} color="#cbd5e1"/>
+                <p style={{ color: "#475569", fontSize: 16, fontWeight: 600, margin: 0 }}>사진을 탭하여 업로드</p>
                 <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>카메라 촬영 또는 갤러리에서 선택</p>
               </div>
             </div>
@@ -818,8 +818,8 @@ export default function PostureAnalysis() {
               <div style={{ display:"flex", alignItems:"center", gap:6, flex:1, minWidth:0, overflow:"hidden" }}>
                 <Dumbbell size={15} color="#93c5fd" style={{ flexShrink:0 }}/>
                 <div style={{ minWidth:0 }}>
-                  <p style={{ color: "#059669", fontSize: 9, fontWeight: 800, margin: 0, letterSpacing: "0.12em", lineHeight: 1 }}>FIT STEP</p>
-                  <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 12, lineHeight: 1, whiteSpace: "nowrap" }}>체형 분석 드로잉</span>
+                  <p style={{ color: "#2563eb", fontSize: 9, fontWeight: 800, margin: 0, letterSpacing: "0.12em", lineHeight: 1 }}>FIT STEP</p>
+                  <span style={{ color: "#0f172a", fontWeight: 700, fontSize: 12, lineHeight: 1, whiteSpace: "nowrap" }}>체형 분석 드로잉</span>
                 </div>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
@@ -851,7 +851,7 @@ export default function PostureAnalysis() {
                   <input type="number" min={10} max={80} value={fontSize} onChange={e => setFontSize(Number(e.target.value))} style={{ width: 56, padding: "5px 6px", background: "#0f3460", border: "1px solid #555", color: "#eee", borderRadius: 6, fontSize: 13 }} />
                 </div>
                 <button onClick={handleClearAll} disabled={lines.length === 0}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: lines.length ? "#7f1d1d" : "#1e293b", border: "1px solid #991b1b", color: lines.length ? "#fca5a5" : "#555", borderRadius: 6, cursor: lines.length ? "pointer" : "not-allowed", fontSize: 13 }}>
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: lines.length ? "#fef2f2" : "#f8fafc", border: "1px solid #991b1b", color: lines.length ? "#dc2626" : "#94a3b8", borderRadius: 6, cursor: lines.length ? "pointer" : "not-allowed", fontSize: 13 }}>
                   <Trash2 size={13} />전체 초기화
                 </button>
               </div>
@@ -887,7 +887,7 @@ export default function PostureAnalysis() {
         {/* 한도 초과 모달 */}
         {showLimitModal && (
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:400 }}>
-            <div style={{ background:"#1e293b", border:"2px solid #e94560", borderRadius:"16px 16px 0 0", padding:"24px 20px 36px", width:"100%" }}>
+            <div style={{ background:"#ffffff", border:"2px solid #e94560", borderRadius:"16px 16px 0 0", padding:"24px 20px 36px", width:"100%" }}>
               <div style={{ textAlign:"center", marginBottom:16 }}>
                 <Lock size={40} color="#64748b" style={{marginBottom:8}}/>
                 <h3 style={{ color:"#f1f5f9", fontSize:17, fontWeight:700, margin:0 }}>오늘 사용 한도 초과</h3>
@@ -895,7 +895,7 @@ export default function PostureAnalysis() {
                   {kakaoUser ? `오늘 ${LIMITS[userType ?? "member"]}회 모두 사용했습니다.` : "비로그인 시 하루 2회까지 사용 가능합니다."}
                 </p>
               </div>
-              <div style={{ background:"#0f172a", borderRadius:10, padding:14, marginBottom:16 }}>
+              <div style={{ background:"#f8fafc", borderRadius:10, padding:14, marginBottom:16 }}>
                 {[{icon:<Lock size={14}/>,label:"비로그인",count:"2회/일",color:"#6b7280"},{icon:<User size={14}/>,label:"로그인 회원",count:"5회/일",color:"#34d399"},{icon:<Dumbbell size={14}/>,label:"운동전문가",count:"10회/일",color:"#60a5fa"},{icon:<Zap size={14}/>,label:"FIT STEP",count:"무제한",color:"#f59e0b"}].map(t=>(
                   <div key={t.label} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #1e293b"}}>
                     <div style={{display:"flex",alignItems:"center",gap:6,color:"#94a3b8",fontSize:12}}>{t.icon}{t.label}</div>
@@ -905,13 +905,13 @@ export default function PostureAnalysis() {
               </div>
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={() => setShowLimitModal(false)}
-                  style={{ flex:1, padding:"12px", background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer", fontSize:14 }}>닫기</button>
+                  style={{ flex:1, padding:"12px", background:"#f1f5f9", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer", fontSize:14 }}>닫기</button>
                 {!kakaoUser && (
                   <button onClick={handleKakaoLogin}
                     style={{ flex:2, padding:"12px", background:"#f59e0b", border:"none", color:"#000", borderRadius:8, cursor:"pointer", fontSize:14, fontWeight:700 }}>카카오 로그인</button>
                 )}
                 <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer"
-                  style={{ flex:2, padding:"12px", background:"#059669", border:"none", color:"#fff", borderRadius:8, cursor:"pointer", fontSize:14, fontWeight:700, textDecoration:"none", textAlign:"center" }}>
+                  style={{ flex:2, padding:"12px", background:"#2563eb", border:"none", color:"#fff", borderRadius:8, cursor:"pointer", fontSize:14, fontWeight:700, textDecoration:"none", textAlign:"center" }}>
                   FIT STEP 무제한
                 </a>
               </div>
@@ -922,11 +922,11 @@ export default function PostureAnalysis() {
         {/* 유형 선택 모달 (첫 로그인) */}
         {showTypeModal && (
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:400 }}>
-            <div style={{ background:"#1e293b", border:"2px solid #334155", borderRadius:"16px 16px 0 0", padding:"24px 20px 36px", width:"100%" }}>
+            <div style={{ background:"#ffffff", border:"2px solid #334155", borderRadius:"16px 16px 0 0", padding:"24px 20px 36px", width:"100%" }}>
               <h3 style={{ color:"#f1f5f9", fontSize:16, fontWeight:700, margin:"0 0 16px" }}>회원 유형 선택</h3>
               {([["member","일반 회원","5회/일","#34d399"],["trainer","운동전문가","10회/일","#60a5fa"]] as const).map(([t,l,c,col])=>(
                 <button key={t} onClick={() => selectUserType(t)}
-                  style={{ display:"flex", justifyContent:"space-between", alignItems:"center", width:"100%", background:"#0f172a", border:"1px solid #334155", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:14, cursor:"pointer", marginBottom:10 }}>
+                  style={{ display:"flex", justifyContent:"space-between", alignItems:"center", width:"100%", background:"#f8fafc", border:"1px solid #334155", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:14, cursor:"pointer", marginBottom:10 }}>
                   <span>{l}</span><span style={{color:col,fontWeight:700}}>{c}</span>
                 </button>
               ))}
@@ -971,8 +971,8 @@ export default function PostureAnalysis() {
           <ChevronLeft size={14} /> 식단 플래너
         </a>
         <div>
-          <p style={{ color: "#059669", fontSize: 10, fontWeight: 800, margin: 0, letterSpacing: "0.12em" }}>FIT STEP</p>
-          <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 14 }}>체형 분석 라인 드로잉</span>
+          <p style={{ color: "#2563eb", fontSize: 10, fontWeight: 800, margin: 0, letterSpacing: "0.12em" }}>FIT STEP</p>
+          <span style={{ color: "#0f172a", fontWeight: 700, fontSize: 14 }}>체형 분석 라인 드로잉</span>
         </div>
         <span style={{ background: "#0f3460", color: "#60a5fa", fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700 }}>BETA</span>
         <span style={{ flex: 1 }} />
@@ -981,7 +981,7 @@ export default function PostureAnalysis() {
           오늘 {todayCount} / {LIMITS[kakaoUser ? (userType ?? "member") : "guest"]}회
         </span>
         {kakaoUser ? (
-          <div style={{ display:"flex", alignItems:"center", gap:6, background:"#065f46", borderRadius:8, padding:"5px 10px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, background:"#dbeafe", borderRadius:8, padding:"5px 10px" }}>
             {kakaoUser.thumbnail ? <img src={kakaoUser.thumbnail} alt="" style={{width:18,height:18,borderRadius:"50%",objectFit:"cover"}} /> : <User size={14} color="#34d399"/>}
             <span style={{ color:"#34d399", fontSize:12 }}>{kakaoUser.name}</span>
             {userType === "fitstep" && <Zap size={11} color="#fbbf24"/>}
@@ -999,7 +999,7 @@ export default function PostureAnalysis() {
       {/* 한도 초과 모달 (데스크톱) */}
       {showLimitModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }}>
-          <div style={{ background:"#1e293b", border:"2px solid #e94560", borderRadius:16, padding:32, width:360 }}>
+          <div style={{ background:"#ffffff", border:"2px solid #e94560", borderRadius:16, padding:32, width:360 }}>
             <div style={{ textAlign:"center", marginBottom:20 }}>
               <Lock size={40} color="#64748b" style={{marginBottom:8}}/>
               <h3 style={{ color:"#f1f5f9", fontSize:17, fontWeight:700, margin:"8px 0 0" }}>오늘 사용 한도 초과</h3>
@@ -1012,20 +1012,20 @@ export default function PostureAnalysis() {
               ))}
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              <button onClick={() => setShowLimitModal(false)} style={{ flex:1, padding:"10px", background:"#334155", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer" }}>닫기</button>
+              <button onClick={() => setShowLimitModal(false)} style={{ flex:1, padding:"10px", background:"#f1f5f9", border:"none", color:"#94a3b8", borderRadius:8, cursor:"pointer" }}>닫기</button>
               {!kakaoUser && <button onClick={handleKakaoLogin} style={{ flex:2, padding:"10px", background:"#f59e0b", border:"none", color:"#000", borderRadius:8, cursor:"pointer", fontWeight:700 }}>카카오 로그인</button>}
-              <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer" style={{ flex:2, padding:"10px", background:"#059669", color:"#fff", borderRadius:8, textDecoration:"none", textAlign:"center", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><Zap size={13}/> FIT STEP</a>
+              <a href="https://fitstep.co.kr/" target="_blank" rel="noreferrer" style={{ flex:2, padding:"10px", background:"#2563eb", color:"#fff", borderRadius:8, textDecoration:"none", textAlign:"center", fontWeight:700, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><Zap size={13}/> FIT STEP</a>
             </div>
           </div>
         </div>
       )}
       {showTypeModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }}>
-          <div style={{ background:"#1e293b", border:"2px solid #334155", borderRadius:16, padding:32, width:320 }}>
+          <div style={{ background:"#ffffff", border:"2px solid #334155", borderRadius:16, padding:32, width:320 }}>
             <h3 style={{ color:"#f1f5f9", fontSize:16, fontWeight:700, margin:"0 0 20px" }}>회원 유형 선택</h3>
             {([["member","일반 회원","5회/일","#34d399"],["trainer","운동전문가","10회/일","#60a5fa"]] as const).map(([t,l,c,col])=>(
               <button key={t} onClick={() => selectUserType(t)}
-                style={{ display:"flex", justifyContent:"space-between", width:"100%", background:"#0f172a", border:"1px solid #334155", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:14, cursor:"pointer", marginBottom:10 }}>
+                style={{ display:"flex", justifyContent:"space-between", width:"100%", background:"#f8fafc", border:"1px solid #334155", borderRadius:10, padding:"14px 16px", color:"#f1f5f9", fontSize:14, cursor:"pointer", marginBottom:10 }}>
                 <span>{l}</span><span style={{color:col,fontWeight:700}}>{c}</span>
               </button>
             ))}
@@ -1079,7 +1079,7 @@ export default function PostureAnalysis() {
           {!bgImage && (
             <div onClick={() => fileInputRef.current?.click()}
               style={{ width: 500, height: 500, border: "3px dashed #0f3460", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, color: "#aaa", borderRadius: 12, cursor: "pointer" }}>
-              <Upload size={64} color="#334155" />
+              <Upload size={64} color="#cbd5e1" />
               <p style={{ fontSize: 18 }}>사진을 클릭하거나 드래그해서 업로드</p>
               <small style={{ fontSize: 13, color: "#666" }}>JPG · PNG · WEBP 지원</small>
             </div>
