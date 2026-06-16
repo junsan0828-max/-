@@ -58,6 +58,8 @@ type RegForm = {
   paidAmount: string;
   unpaidAmount: string;
   paymentMethod: string;
+  transferAmount: string;
+  cardAmount: string;
   paymentDate: string;
   startDate: string;
   memo: string;
@@ -83,6 +85,8 @@ const defaultRegForm: RegForm = {
   paidAmount: "",
   unpaidAmount: "0",
   paymentMethod: "",
+  transferAmount: "",
+  cardAmount: "",
   paymentDate: new Date().toISOString().substring(0, 10),
   startDate: new Date().toISOString().substring(0, 10),
   memo: "",
@@ -1238,11 +1242,16 @@ export default function LeadsPage() {
                       )}
                       <div>
                         <label className="text-xs text-muted-foreground">PT 횟수 *</label>
-                        <div className="flex gap-2 mt-1">
+                        <input type="number" min="1"
+                          value={regForm.sessions ?? ""}
+                          onChange={e => setRegForm(f => ({ ...f, sessions: e.target.value ? parseInt(e.target.value) : undefined }))}
+                          placeholder="횟수 직접 입력"
+                          className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-background border border-border focus:outline-none" />
+                        <div className="flex gap-1.5 flex-wrap mt-1.5">
                           {PT_SESSIONS.map(n => (
                             <button key={n} type="button"
                               onClick={() => setRegForm(f => ({ ...f, sessions: f.sessions === n ? undefined : n }))}
-                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.sessions === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${regForm.sessions === n ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
                               {n}회
                             </button>
                           ))}
@@ -1326,49 +1335,50 @@ export default function LeadsPage() {
                     onChange={e => {
                       const amt = e.target.value;
                       const disc = Number(regForm.discountAmount) || 0;
-                      const paid = Math.max(0, Number(amt) - disc);
-                      setRegForm(f => ({ ...f, amount: amt, paidAmount: String(paid), unpaidAmount: "0" }));
+                      const unpaid = Number(regForm.unpaidAmount) || 0;
+                      const paid = Math.max(0, Number(amt) - disc - unpaid);
+                      setRegForm(f => ({ ...f, amount: amt, paidAmount: String(paid) }));
                     }}
                     placeholder="0"
-                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">할인 (원)</label>
                   <input type="number" value={regForm.discountAmount}
                     onChange={e => {
                       const disc = e.target.value;
-                      const paid = Math.max(0, Number(regForm.amount) - Number(disc));
+                      const unpaid = Number(regForm.unpaidAmount) || 0;
+                      const paid = Math.max(0, Number(regForm.amount) - Number(disc) - unpaid);
                       setRegForm(f => ({ ...f, discountAmount: disc, paidAmount: String(paid) }));
                     }}
                     placeholder="0"
-                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted-foreground">실결제 * (원)</label>
-                  <input type="number" value={regForm.paidAmount}
-                    onChange={e => {
-                      const paid = e.target.value;
-                      const unpaid = Math.max(0, Number(regForm.amount) - Number(regForm.discountAmount) - Number(paid));
-                      setRegForm(f => ({ ...f, paidAmount: paid, unpaidAmount: String(unpaid) }));
-                    }}
-                    placeholder="0"
-                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
+                  <label className="text-xs text-muted-foreground">실결제 (원)</label>
+                  <div className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-background border border-border opacity-70">
+                    {Math.max(0, (Number(regForm.amount) || 0) - (Number(regForm.discountAmount) || 0) - (Number(regForm.unpaidAmount) || 0)).toLocaleString()}
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">미수금 (원)</label>
                   <input type="number" value={regForm.unpaidAmount}
-                    onChange={e => setRegForm(f => ({ ...f, unpaidAmount: e.target.value }))}
+                    onChange={e => {
+                      const unpaid = e.target.value;
+                      const paid = Math.max(0, Number(regForm.amount) - Number(regForm.discountAmount) - Number(unpaid));
+                      setRegForm(f => ({ ...f, unpaidAmount: unpaid, paidAmount: String(paid) }));
+                    }}
                     placeholder="0"
-                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:outline-none" />
+                    className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none" />
                 </div>
               </div>
 
               {/* 결제 방법 */}
               <div>
                 <label className="text-xs text-muted-foreground">결제 방법 *</label>
-                <div className="grid grid-cols-3 gap-2 mt-1">
+                <div className="grid grid-cols-4 gap-2 mt-1">
                   {PAYMENT_METHODS_REG.map(m => (
                     <button key={m} type="button"
                       onClick={() => setRegForm(f => ({ ...f, paymentMethod: f.paymentMethod === m ? "" : m }))}
@@ -1377,6 +1387,38 @@ export default function LeadsPage() {
                     </button>
                   ))}
                 </div>
+                {regForm.paymentMethod === "혼합" && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">이체 금액</label>
+                      <input type="number" value={regForm.transferAmount}
+                        onChange={e => {
+                          const t = e.target.value;
+                          const c = Number(regForm.cardAmount) || 0;
+                          const amt = String((Number(t) || 0) + c);
+                          const unpaid = Number(regForm.unpaidAmount) || 0;
+                          const paid = Math.max(0, Number(amt) - Number(regForm.discountAmount) - unpaid);
+                          setRegForm(f => ({ ...f, transferAmount: t, amount: amt, paidAmount: String(paid) }));
+                        }}
+                        placeholder="0"
+                        className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-background border border-border focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">카드 금액</label>
+                      <input type="number" value={regForm.cardAmount}
+                        onChange={e => {
+                          const c = e.target.value;
+                          const t = Number(regForm.transferAmount) || 0;
+                          const amt = String(t + (Number(c) || 0));
+                          const unpaid = Number(regForm.unpaidAmount) || 0;
+                          const paid = Math.max(0, Number(amt) - Number(regForm.discountAmount) - unpaid);
+                          setRegForm(f => ({ ...f, cardAmount: c, amount: amt, paidAmount: String(paid) }));
+                        }}
+                        placeholder="0"
+                        className="w-full mt-1 rounded-lg px-3 py-2 text-sm text-foreground bg-background border border-border focus:outline-none" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 날짜 */}

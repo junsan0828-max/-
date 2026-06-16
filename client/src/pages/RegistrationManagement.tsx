@@ -71,9 +71,9 @@ export default function RegistrationManagement() {
   const [editRev, setEditRev] = useState<any | null>(null);
   const [editRevForm, setEditRevForm] = useState({
     programDetail: "", sessions: "", duration: "",
-    startDate: "", amount: "", unpaidAmount: "",
-    paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드" | "혼합",
-    paymentDate: "", memo: "",
+    startDate: "", amount: "", discountAmount: "", unpaidAmount: "",
+    paymentMethod: "" as "" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제" | "혼합",
+    paymentDate: "", memo: "", transferAmount: "", cardAmount: "",
   });
   const [serviceModal, setServiceModal] = useState<ServiceModal>(null);
   const { data: memberRevenue, isLoading: memberRevenueLoading } = trpc.gym.revenue.getByMember.useQuery(
@@ -559,10 +559,12 @@ export default function RegistrationManagement() {
                                 duration: r.duration ? String(r.duration) : "",
                                 startDate: r.startDate ?? "",
                                 amount: r.amount ? String(r.amount) : "",
+                                discountAmount: r.discountAmount ? String(r.discountAmount) : "",
                                 unpaidAmount: r.unpaidAmount ? String(r.unpaidAmount) : "",
-                                paymentMethod: ((r.paymentMethod === "계좌이체" ? "이체" : r.paymentMethod) ?? "") as any,
+                                paymentMethod: ((r.paymentMethod === "이체" ? "계좌이체" : r.paymentMethod) ?? "") as any,
                                 paymentDate: r.paymentDate ?? "",
                                 memo: r.memo ?? "",
+                                transferAmount: "", cardAmount: "",
                               });
                             }}
                             className="text-xs text-primary underline hover:text-primary/70 transition-colors"
@@ -597,58 +599,125 @@ export default function RegistrationManagement() {
                     <button onClick={() => setEditRev(null)} className="text-muted-foreground hover:text-foreground">✕</button>
                   </div>
                   <div className="px-5 py-4 space-y-4">
+                    {/* PT 프로그램 */}
+                    {editRev.type === "PT" && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">PT 프로그램</label>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          {["케어피티", "웨이트피티", "이벤트피티", "기타"].map(p => (
+                            <button key={p} type="button"
+                              onClick={() => setEditRevForm(f => ({ ...f, programDetail: p !== "기타" ? p : f.programDetail }))}
+                              className={`py-2 rounded-lg text-sm font-medium border transition-colors ${editRevForm.programDetail === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs text-muted-foreground">프로그램명</label>
                       <input value={editRevForm.programDetail} onChange={e => setEditRevForm(f => ({ ...f, programDetail: e.target.value }))}
                         className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                     </div>
+                    {/* PT 횟수 */}
                     {editRev.type === "PT" && (
                       <div>
-                        <label className="text-xs text-muted-foreground">횟수</label>
+                        <label className="text-xs text-muted-foreground">PT 횟수</label>
                         <input type="number" value={editRevForm.sessions} onChange={e => setEditRevForm(f => ({ ...f, sessions: e.target.value }))}
-                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                          placeholder="직접 입력" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                        <div className="flex gap-1.5 flex-wrap mt-1.5">
+                          {["10", "20", "30", "40", "50"].map(preset => (
+                            <button key={preset} type="button"
+                              onClick={() => setEditRevForm(f => ({ ...f, sessions: f.sessions === preset ? "" : preset }))}
+                              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${editRevForm.sessions === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                              {preset}회
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
+                    {/* 헬스 기간 */}
                     {editRev.type === "헬스" && (
                       <div>
-                        <label className="text-xs text-muted-foreground">기간(개월)</label>
-                        <input type="number" value={editRevForm.duration} onChange={e => setEditRevForm(f => ({ ...f, duration: e.target.value }))}
-                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                        <label className="text-xs text-muted-foreground">이용 기간</label>
+                        <div className="flex gap-2 mt-1">
+                          {["1", "3", "6", "12"].map(m => (
+                            <button key={m} type="button"
+                              onClick={() => setEditRevForm(f => ({ ...f, duration: f.duration === m ? "" : m }))}
+                              className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${editRevForm.duration === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                              {m}개월
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
-                    <div>
-                      <label className="text-xs text-muted-foreground">시작일</label>
-                      <input type="date" value={editRevForm.startDate} onChange={e => setEditRevForm(f => ({ ...f, startDate: e.target.value }))}
-                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
-                    </div>
+                    {/* 날짜 */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-muted-foreground">결제 금액</label>
+                        <label className="text-xs text-muted-foreground">결제일</label>
+                        <input type="date" value={editRevForm.paymentDate} onChange={e => setEditRevForm(f => ({ ...f, paymentDate: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">시작일</label>
+                        <input type="date" value={editRevForm.startDate} onChange={e => setEditRevForm(f => ({ ...f, startDate: e.target.value }))}
+                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+                    {/* 금액 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">정가 (원)</label>
                         <input type="number" value={editRevForm.amount} onChange={e => setEditRevForm(f => ({ ...f, amount: e.target.value }))}
                           className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">미수금</label>
-                        <input type="number" value={editRevForm.unpaidAmount} onChange={e => setEditRevForm(f => ({ ...f, unpaidAmount: e.target.value }))}
-                          className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                        <label className="text-xs text-muted-foreground">할인 (원)</label>
+                        <input type="number" value={editRevForm.discountAmount} onChange={e => setEditRevForm(f => ({ ...f, discountAmount: e.target.value }))}
+                          placeholder="0" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">실결제 (원)</label>
+                        <div className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm opacity-70">
+                          {Math.max(0, (Number(editRevForm.amount) || 0) - (Number(editRevForm.discountAmount) || 0) - (Number(editRevForm.unpaidAmount) || 0)).toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">미수금 (원)</label>
+                        <input type="number" value={editRevForm.unpaidAmount} onChange={e => setEditRevForm(f => ({ ...f, unpaidAmount: e.target.value }))}
+                          placeholder="0" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                    </div>
+                    {/* 결제 방법 */}
                     <div>
                       <label className="text-xs text-muted-foreground">결제 방법</label>
-                      <div className="flex gap-2 mt-1 flex-wrap">
-                        {(["현금영수증", "이체", "지역화폐", "카드", "혼합"] as const).map(m => (
+                      <div className="grid grid-cols-4 gap-2 mt-1">
+                        {(["카드", "현금", "현금영수증", "계좌이체", "지역화폐", "분할결제", "혼합"] as const).map(m => (
                           <button key={m} type="button"
-                            onClick={() => setEditRevForm(f => ({ ...f, paymentMethod: m }))}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${editRevForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
+                            onClick={() => setEditRevForm(f => ({ ...f, paymentMethod: f.paymentMethod === m ? "" : m }))}
+                            className={`py-2 rounded-lg text-xs font-medium border transition-colors ${editRevForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
                             {m}
                           </button>
                         ))}
                       </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">결제일</label>
-                      <input type="date" value={editRevForm.paymentDate} onChange={e => setEditRevForm(f => ({ ...f, paymentDate: e.target.value }))}
-                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                      {editRevForm.paymentMethod === "혼합" && (
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-muted-foreground">이체 금액</label>
+                            <input type="number" value={editRevForm.transferAmount}
+                              onChange={e => { const t = e.target.value; const c = Number(editRevForm.cardAmount) || 0; setEditRevForm(f => ({ ...f, transferAmount: t, amount: String((Number(t) || 0) + c) })); }}
+                              placeholder="0" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">카드 금액</label>
+                            <input type="number" value={editRevForm.cardAmount}
+                              onChange={e => { const c = e.target.value; const t = Number(editRevForm.transferAmount) || 0; setEditRevForm(f => ({ ...f, cardAmount: c, amount: String(t + (Number(c) || 0)) })); }}
+                              placeholder="0" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground">메모</label>
@@ -661,7 +730,9 @@ export default function RegistrationManagement() {
                       <button
                         onClick={() => {
                           const amt = editRevForm.amount !== "" ? Number(editRevForm.amount) : undefined;
+                          const disc = editRevForm.discountAmount !== "" ? Number(editRevForm.discountAmount) : undefined;
                           const unpaid = editRevForm.unpaidAmount !== "" ? Number(editRevForm.unpaidAmount) : undefined;
+                          const paid = (amt !== undefined && unpaid !== undefined) ? Math.max(0, amt - (disc ?? 0) - unpaid) : undefined;
                           updateRevMutation.mutate({
                             id: editRev.id,
                             programDetail: editRevForm.programDetail || undefined,
@@ -669,7 +740,8 @@ export default function RegistrationManagement() {
                             duration: editRevForm.duration !== "" ? Number(editRevForm.duration) : undefined,
                             startDate: editRevForm.startDate || undefined,
                             amount: amt,
-                            paidAmount: (amt !== undefined && unpaid !== undefined) ? Math.max(0, amt - unpaid) : undefined,
+                            discountAmount: disc,
+                            paidAmount: paid,
                             unpaidAmount: unpaid,
                             paymentMethod: editRevForm.paymentMethod || undefined,
                             paymentDate: editRevForm.paymentDate || undefined,
