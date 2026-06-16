@@ -116,6 +116,10 @@ export default function AdminMembers() {
     onSuccess: (data) => toast.success(`이름 없는 장부 항목 ${data.deleted}건 삭제 완료`),
     onError: (e) => toast.error(`삭제 오류: ${e.message}`),
   });
+  const deduplicateMutation = trpc.gym.revenue.deduplicateRevenue.useMutation({
+    onSuccess: (data) => toast.success(data.deleted > 0 ? `중복 장부 항목 ${data.deleted}건 삭제 완료` : "중복 항목 없음"),
+    onError: (e) => toast.error(`중복 제거 오류: ${e.message}`),
+  });
 
   const [mergeResult, setMergeResult] = useState<string | null>(null);
   const mergeMutation = trpc.admin.mergeDuplicateMembers.useMutation({
@@ -345,6 +349,16 @@ export default function AdminMembers() {
             className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
           >
             {deleteNullNameMutation.isPending ? "삭제 중..." : "이름없음 삭제"}
+          </button>
+          <button
+            onClick={() => {
+              if (confirm("같은 회원·종류·날짜·금액이 중복된 장부 항목을 삭제합니다. 계속하시겠습니까?"))
+                deduplicateMutation.mutate();
+            }}
+            disabled={deduplicateMutation.isPending}
+            className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+          >
+            {deduplicateMutation.isPending ? "처리 중..." : "중복 제거"}
           </button>
           <button
             onClick={() => syncRevenueMutation.mutate()}

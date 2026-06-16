@@ -978,6 +978,39 @@ const revenueRouter = t.router({
       return { deleted: result.length };
     }),
 
+  deduplicateRevenue: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 같은 memberId + type + paymentDate + paidAmount 조합에서 id가 가장 큰 것(최신)을 제외하고 삭제
+      const all = await db.select({
+        id: revenueEntries.id,
+        memberId: revenueEntries.memberId,
+        type: revenueEntries.type,
+        paymentDate: revenueEntries.paymentDate,
+        paidAmount: revenueEntries.paidAmount,
+      }).from(revenueEntries)
+        .where(isNotNull(revenueEntries.memberId))
+        .orderBy(revenueEntries.id);
+
+      const seen = new Map<string, number>();
+      const toDelete: number[] = [];
+      for (const r of all) {
+        const key = `${r.memberId}|${r.type}|${r.paymentDate}|${r.paidAmount}`;
+        if (seen.has(key)) {
+          toDelete.push(r.id);
+        } else {
+          seen.set(key, r.id);
+        }
+      }
+      if (toDelete.length === 0) return { deleted: 0 };
+      await db.delete(revenueEntries).where(inArray(revenueEntries.id, toDelete));
+      return { deleted: toDelete.length };
+    }),
+
   deleteNullNameEntries: protectedProcedure
     .mutation(async ({ ctx }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
@@ -3089,6 +3122,16 @@ const registerMutation = protectedProcedure
       }
 
       if (healthPrice > 0 || input.serviceItems) {
+        // 중복 방지: 같은 회원 + 헬스 + 결제일 + 금액이 이미 있으면 스킵
+        const [existingHealth] = await db.select({ id: revenueEntries.id })
+          .from(revenueEntries)
+          .where(and(
+            eq(revenueEntries.memberId, memberId!),
+            eq(revenueEntries.type, "헬스"),
+            eq(revenueEntries.paymentDate, input.paymentDate ?? today),
+            eq(revenueEntries.paidAmount, paid),
+          )).limit(1);
+        if (!existingHealth) {
         const [healthRev] = await db.insert(revenueEntries).values({
           memberId,
           trainerId: resolvedTrainerId,
@@ -3111,6 +3154,7 @@ const registerMutation = protectedProcedure
           serviceItems: input.serviceItems || undefined,
         }).returning({ id: revenueEntries.id });
         if (healthRev) revenueEntryIds.push(healthRev.id);
+        } // end existingHealth check
       }
     }
 
@@ -3164,8 +3208,17 @@ const registerMutation = protectedProcedure
         });
       }
 
-      // 장부 항목 생성 (서비스세션이 아닐 때만)
+      // 장부 항목 생성 (서비스세션이 아닐 때만, 중복 방지)
       if (!input.isServiceSession) {
+        const [existingPtRev] = await db.select({ id: revenueEntries.id })
+          .from(revenueEntries)
+          .where(and(
+            eq(revenueEntries.memberId, memberId!),
+            eq(revenueEntries.type, "PT"),
+            eq(revenueEntries.paymentDate, input.paymentDate ?? today),
+            eq(revenueEntries.paidAmount, Math.max(0, (input.ptPrice ?? 0) - (input.discountAmount ?? 0) - (input.unpaidAmount ?? 0))),
+          )).limit(1);
+        if (existingPtRev) { /* 이미 존재 — 스킵 */ } else {
         const [ptRev] = await db.insert(revenueEntries).values({
           memberId,
           trainerId: resolvedTrainerId,
@@ -3188,6 +3241,7 @@ const registerMutation = protectedProcedure
           serviceItems: input.serviceItems || undefined,
         }).returning({ id: revenueEntries.id });
         if (ptRev) revenueEntryIds.push(ptRev.id);
+        } // end existingPtRev check
       }
     }
 
