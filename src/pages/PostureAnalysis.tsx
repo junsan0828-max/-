@@ -292,14 +292,14 @@ export default function PostureAnalysis() {
       ctx.font        = `bold ${mSize}px Arial`;
       ctx.textBaseline = "bottom";
       ctx.lineWidth   = mSize * 0.18;
-      // R — 우측 하단
       ctx.strokeStyle = "rgba(0,0,0,0.7)";
       ctx.fillStyle   = "#ffffff";
-      ctx.strokeText("R", canvas.width - pad - mSize, canvas.height - pad);
-      ctx.fillText  ("R", canvas.width - pad - mSize, canvas.height - pad);
-      // L — 좌측 하단
-      ctx.strokeText("L", pad, canvas.height - pad);
-      ctx.fillText  ("L", pad, canvas.height - pad);
+      // R — 좌측 하단 (피사체의 오른쪽은 화면 왼쪽)
+      ctx.strokeText("R", pad, canvas.height - pad);
+      ctx.fillText  ("R", pad, canvas.height - pad);
+      // L — 우측 하단 (피사체의 왼쪽은 화면 오른쪽)
+      ctx.strokeText("L", canvas.width - pad - mSize, canvas.height - pad);
+      ctx.fillText  ("L", canvas.width - pad - mSize, canvas.height - pad);
       ctx.restore();
     }
   }, [applyLineStyle, applyMosaicRect]);
@@ -534,7 +534,7 @@ export default function PostureAnalysis() {
           const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
           const leftY  = sx < pos.x ? sy : pos.y;
           const rightY = sx < pos.x ? pos.y : sy;
-          const side = leftY > rightY ? "왼쪽↓" : leftY < rightY ? "오른쪽↓" : "수평";
+          const side = leftY > rightY ? "오른쪽↓" : leftY < rightY ? "왼쪽↓" : "수평";
           const txt = angleDeg < 1 ? "수평" : `${side}  △${angleDeg.toFixed(1)}°`;
           ctx.setLineDash([]);
           ctx.font = `bold ${fontRef.current}px Arial`;
