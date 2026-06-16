@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, LogOut, RefreshCw, ExternalLink,
-  Eye, EyeOff, Users, Share2, TrendingUp, Activity,
+  Eye, EyeOff, Users, Share2, TrendingUp, Activity, CreditCard, Check,
 } from "lucide-react";
 
 const ADMIN_ID = (import.meta.env.VITE_ADMIN_ID as string | undefined) ?? "admin";
@@ -19,7 +19,7 @@ async function sbGet(key: string): Promise<number> {
   if (!_SB_URL || !_SB_KEY) return 0;
   try {
     const r = await fetch(
-      `${_SB_URL}/rest/v1/dp_counters?key=eq.${key}&select=value`,
+      `${_SB_URL}/rest/v1/dp_counters?key=eq.${encodeURIComponent(key)}&select=value`,
       { headers: _SB_HDR() }
     );
     const d = await r.json();
@@ -27,6 +27,16 @@ async function sbGet(key: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+async function sbSet(key: string, value: number): Promise<void> {
+  if (!_SB_URL || !_SB_KEY) return;
+  try {
+    await fetch(`${_SB_URL}/rest/v1/dp_counters`, {
+      method: "POST",
+      headers: { ..._SB_HDR(), "Prefer": "resolution=merge-duplicates" },
+      body: JSON.stringify({ key, value }),
+    });
+  } catch {}
 }
 
 function todayKey() {
@@ -460,11 +470,97 @@ export default function AdminPage() {
           ))}
         </div>
 
+        {/* 포인트 지급 */}
+        <PointPanel sbGet={sbGet} sbSet={sbSet} />
+
         {/* Footer hint */}
         <p style={{ color: "#334155", fontSize: 12, textAlign: "center", marginTop: 48 }}>
           Railway 환경변수 VITE_ADMIN_ID · VITE_ADMIN_PW 설정으로 계정을 변경할 수 있습니다
         </p>
       </main>
+    </div>
+  );
+}
+
+// ── 포인트 지급 패널 ────────────────────────────────────────────────────────
+function PointPanel({ sbGet, sbSet }: {
+  sbGet: (k: string) => Promise<number>;
+  sbSet: (k: string, v: number) => Promise<void>;
+}) {
+  const [userId, setUserId]   = useState("");
+  const [amount, setAmount]   = useState("5000");
+  const [current, setCurrent] = useState<number | null>(null);
+  const [msg, setMsg]         = useState("");
+  const [busy, setBusy]       = useState(false);
+
+  async function lookup() {
+    if (!userId.trim()) return;
+    setBusy(true); setMsg("");
+    const pts = await sbGet(`ct_pt_${userId.trim()}`);
+    setCurrent(pts);
+    setBusy(false);
+  }
+
+  async function grant() {
+    if (!userId.trim() || !amount) return;
+    setBusy(true); setMsg("");
+    const key = `ct_pt_${userId.trim()}`;
+    const cur = await sbGet(key);
+    const next = cur + Number(amount);
+    await sbSet(key, next);
+    setCurrent(next);
+    setMsg(`✓ ${Number(amount).toLocaleString()}P 지급 완료 (잔액: ${next.toLocaleString()}P)`);
+    setBusy(false);
+  }
+
+  const iStyle2: React.CSSProperties = {
+    background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
+    padding: "9px 12px", color: "#f1f5f9", fontSize: 14, outline: "none",
+  };
+
+  return (
+    <div style={{ marginTop: 40 }}>
+      <h2 style={{ color: "#f1f5f9", fontSize: 15, fontWeight: 700, margin: "0 0 16px" }}>
+        <CreditCard size={16} color="#fbbf24" style={{ verticalAlign: "middle", marginRight: 6 }} />
+        핏포인트 지급
+      </h2>
+      <div style={{ background: "#1e293b", borderRadius: 14, padding: 24, border: "1px solid #334155" }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" as const }}>
+          <input
+            value={userId} onChange={e => { setUserId(e.target.value); setCurrent(null); setMsg(""); }}
+            placeholder="카카오 user ID"
+            style={{ ...iStyle2, flex: 2, minWidth: 160 }}
+          />
+          <button onClick={lookup} disabled={busy}
+            style={{ background: "#334155", border: "none", borderRadius: 8, padding: "9px 16px", color: "#94a3b8", fontSize: 13, cursor: "pointer" }}>
+            조회
+          </button>
+        </div>
+        {current !== null && (
+          <p style={{ color: "#fbbf24", fontSize: 13, margin: "0 0 12px" }}>현재 잔액: {current.toLocaleString()} P</p>
+        )}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const }}>
+          <input
+            type="number" value={amount} onChange={e => setAmount(e.target.value)}
+            placeholder="지급 포인트"
+            style={{ ...iStyle2, flex: 1, minWidth: 120 }}
+          />
+          {[5000,12000].map(v => (
+            <button key={v} onClick={() => setAmount(String(v))}
+              style={{ background: amount===String(v)?"#854d0e":"#1e293b", border:"1px solid #854d0e", borderRadius:8, padding:"9px 14px", color:"#fbbf24", fontSize:13, cursor:"pointer", fontWeight:600 }}>
+              {v.toLocaleString()}P
+            </button>
+          ))}
+          <button onClick={grant} disabled={busy || !userId.trim()}
+            style={{ display:"flex", alignItems:"center", gap:5, background:"#059669", border:"none", borderRadius:8, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+            <Check size={14}/> 지급
+          </button>
+        </div>
+        {msg && <p style={{ color: "#34d399", fontSize: 13, margin: "12px 0 0" }}>{msg}</p>}
+        <p style={{ color: "#475569", fontSize: 11, margin: "12px 0 0" }}>
+          카카오 user ID는 회원이 계약서 폼에 로그인하면 Supabase dp_counters에 ct_pt_&#123;ID&#125; 키로 저장됩니다.
+        </p>
+      </div>
     </div>
   );
 }
