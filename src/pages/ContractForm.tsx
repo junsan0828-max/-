@@ -111,6 +111,112 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// ── Contract Preview Modal ────────────────────────────────────────────────────
+function ContractPreviewModal({ onStart }: { onStart: () => void }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "20px 16px", overflowY: "auto",
+    }}>
+      <div style={{ maxWidth: 380, width: "100%" }}>
+        {/* 타이틀 */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <p style={{ color: "#34d399", fontSize: 11, fontWeight: 800, letterSpacing: "0.15em", margin: "0 0 6px" }}>FIT STEP</p>
+          <h1 style={{ color: "#f1f5f9", fontSize: 22, fontWeight: 800, margin: "0 0 8px", lineHeight: 1.3 }}>전자 회원 계약서</h1>
+          <p style={{ color: "#64748b", fontSize: 13, margin: 0, lineHeight: 1.6 }}>회원 정보를 입력하면 아래와 같은<br/>계약서가 즉시 생성됩니다</p>
+        </div>
+
+        {/* 계약서 미니 프리뷰 */}
+        <div style={{
+          background: "#fff", borderRadius: 12, padding: "16px 14px", marginBottom: 20,
+          boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+          fontFamily: "'Noto Sans KR', sans-serif",
+          transform: "scale(1)", transformOrigin: "top center",
+        }}>
+          {/* 계약서 헤더 */}
+          <div style={{ borderBottom: "2px solid #111", paddingBottom: 8, marginBottom: 10, textAlign: "center" }}>
+            <p style={{ fontSize: 7, color: "#059669", fontWeight: 800, letterSpacing: "0.1em", margin: "0 0 2px" }}>FIT STEP</p>
+            <p style={{ fontSize: 13, fontWeight: 800, color: "#111", margin: "0 0 2px" }}>회 원 계 약 서</p>
+            <p style={{ fontSize: 7, color: "#555", margin: 0 }}>Member Contract</p>
+          </div>
+
+          {/* 회원 정보 섹션 */}
+          <p style={{ fontSize: 7, fontWeight: 800, color: "#059669", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 회원 정보</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 8 }}>
+            {[["성명", "홍 길 동"],["연락처", "010-0000-0000"],["계약일", "2026-06-16"],["담당 운동전문가", "김트레이너"]].map(([l,v]) => (
+              <div key={l} style={{ borderBottom: "1px solid #ddd", paddingBottom: 3 }}>
+                <p style={{ fontSize: 6, color: "#888", margin: "0 0 1px" }}>{l}</p>
+                <p style={{ fontSize: 8, fontWeight: 700, color: "#111", margin: 0 }}>{v}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 등록 내역 */}
+          <p style={{ fontSize: 7, fontWeight: 800, color: "#059669", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 등록 내역</p>
+          <div style={{ background: "#f8f8f8", borderRadius: 4, padding: "5px 6px", marginBottom: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
+              {[["프로그램","PT 12회"],["정가","300,000원"],["실결제","250,000원"]].map(([l,v]) => (
+                <div key={l}>
+                  <p style={{ fontSize: 5.5, color: "#888", margin: "0 0 1px" }}>{l}</p>
+                  <p style={{ fontSize: 7.5, fontWeight: 700, color: "#111", margin: 0 }}>{v}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 이용약관 */}
+          <p style={{ fontSize: 7, fontWeight: 800, color: "#059669", letterSpacing: "0.08em", margin: "0 0 4px" }}>▪ 이용약관</p>
+          {["제1조 이용 목적","제2조 환불 규정","제3조 시설 이용 규칙"].map(t => (
+            <div key={t} style={{ borderBottom: "1px solid #eee", paddingBottom: 3, marginBottom: 3 }}>
+              <p style={{ fontSize: 6.5, fontWeight: 700, color: "#333", margin: "0 0 1px" }}>{t}</p>
+              <div style={{ height: 5, background: "#f0f0f0", borderRadius: 2, marginBottom: 1 }} />
+              <div style={{ height: 4, background: "#f0f0f0", borderRadius: 2, width: "80%" }} />
+            </div>
+          ))}
+          <p style={{ fontSize: 6, color: "#aaa", margin: "3px 0 8px" }}>…외 3개 조항</p>
+
+          {/* 서명 */}
+          <p style={{ fontSize: 7, fontWeight: 800, color: "#059669", letterSpacing: "0.08em", margin: "0 0 5px" }}>▪ 서명</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ border: "1px solid #ddd", borderRadius: 4, padding: "4px 6px" }}>
+              <p style={{ fontSize: 6, color: "#888", margin: "0 0 2px" }}>회원 서명</p>
+              <div style={{ height: 20, background: "#fafafa", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="60" height="16" viewBox="0 0 60 16">
+                  <path d="M5,12 Q15,2 25,8 Q35,14 45,4 Q52,1 58,6" stroke="#1a1a1a" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                </svg>
+              </div>
+            </div>
+            <div style={{ border: "1px solid #ddd", borderRadius: 4, padding: "4px 6px" }}>
+              <p style={{ fontSize: 6, color: "#888", margin: "0 0 1px" }}>담당 운동전문가</p>
+              <p style={{ fontSize: 8, fontWeight: 700, color: "#111", margin: 0 }}>김트레이너</p>
+            </div>
+          </div>
+
+          {/* 인쇄/공유 버튼 힌트 */}
+          <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
+            <div style={{ flex:1, background:"#1a1a1a", borderRadius:3, padding:"4px 0", textAlign:"center" }}>
+              <p style={{ fontSize:7, color:"#fff", fontWeight:700, margin:0 }}>🖨 인쇄</p>
+            </div>
+            <div style={{ flex:1, background:"#FEE500", borderRadius:3, padding:"4px 0", textAlign:"center" }}>
+              <p style={{ fontSize:7, color:"#000", fontWeight:700, margin:0 }}>📤 카카오 공유</p>
+            </div>
+          </div>
+        </div>
+
+        {/* CTA 버튼 */}
+        <button onClick={onStart}
+          style={{ width:"100%", background:"linear-gradient(135deg,#059669,#047857)", border:"none", borderRadius:14, padding:"18px 0", color:"#fff", fontSize:17, fontWeight:800, cursor:"pointer", letterSpacing:"0.02em", boxShadow:"0 4px 20px rgba(5,150,105,0.4)" }}>
+          전자계약서 제작하기 →
+        </button>
+        <p style={{ color:"#475569", fontSize:11, textAlign:"center", margin:"12px 0 0" }}>
+          하루 2회 무료 · 이후 건당 300 핏포인트
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ContractForm() {
   const [kakaoUser, setKakaoUser] = useState<KakaoUser | null>(null);
@@ -119,6 +225,7 @@ export default function ContractForm() {
   const [points,    setPoints]    = useState(0);
   const [loading,   setLoading]   = useState(false);
   const [form,      setForm]      = useState<F>(DEF);
+  const [showIntro,    setShowIntro]    = useState(true);
   const [showPurchase, setShowPurchase] = useState(false);
   const [showTermsEdit, setShowTermsEdit] = useState(false);
   const [terms, setTerms] = useState<{ title: string; body: string }[]>(loadSavedTerms);
@@ -265,6 +372,7 @@ export default function ContractForm() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#0f172a", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
+      {showIntro && <ContractPreviewModal onStart={() => setShowIntro(false)} />}
 
       {/* Header */}
       <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #1e293b" }}>
