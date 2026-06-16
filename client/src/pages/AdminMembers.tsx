@@ -320,11 +320,11 @@ export default function AdminMembers() {
         <div className="flex gap-2">
           <button
             onClick={() => {
-              const yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
-              const input = prompt("삭제할 날짜를 입력하세요 (YYYY-MM-DD)", yesterday);
+              const today = new Date().toISOString().substring(0, 10);
+              const input = prompt("역동기화 실행 날짜를 입력하세요 (YYYY-MM-DD)\n해당 날짜에 생성된 PT 신규 장부 항목이 모두 삭제됩니다.", today);
               if (!input) return;
-              if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) { alert("날짜 형식이 올바르지 않습니다 (예: 2026-06-12)"); return; }
-              if (confirm(`${input} 역동기화로 생성된 장부 항목을 삭제합니다. 계속하시겠습니까?`))
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) { alert("날짜 형식이 올바르지 않습니다 (예: 2026-05-20)"); return; }
+              if (confirm(`${input}에 역동기화로 생성된 장부 항목을 모두 삭제합니다. 계속하시겠습니까?`))
                 rollbackRevenueMutation.mutate({ date: input });
             }}
             disabled={rollbackRevenueMutation.isPending}

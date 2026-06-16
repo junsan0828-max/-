@@ -958,7 +958,7 @@ const revenueRouter = t.router({
       return { linked, created };
     }),
 
-  // 장부 역동기화로 잘못 생성된 오늘 날짜 항목 롤백
+  // 장부 역동기화로 잘못 생성된 항목 롤백 (생성일 기준)
   rollbackSyncRevenue: protectedProcedure
     .input(z.object({ date: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -966,9 +966,10 @@ const revenueRouter = t.router({
         throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // createdAt 기준으로 삭제 (역동기화로 생성된 항목은 같은 날 일괄 생성됨)
       const result = await db.delete(revenueEntries)
         .where(and(
-          eq(revenueEntries.paymentDate, input.date),
+          like(revenueEntries.createdAt, `${input.date}%`),
           eq(revenueEntries.type, "PT"),
           eq(revenueEntries.subType, "신규"),
           eq(revenueEntries.createdBy, ctx.user.id),
