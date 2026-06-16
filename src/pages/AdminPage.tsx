@@ -155,7 +155,7 @@ export default function AdminPage() {
       <div
         style={{
           minHeight: "100vh",
-          background: "#0f172a",
+          background: "#f8fafc",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -164,22 +164,22 @@ export default function AdminPage() {
       >
         <div
           style={{
-            background: "#1e293b",
+            background: "#ffffff",
             borderRadius: 18,
             padding: "40px 36px",
             width: 360,
-            boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
-            border: "1px solid #334155",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
+            border: "1px solid #e2e8f0",
           }}
         >
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <div style={{ fontSize: 42, marginBottom: 10 }}>🔐</div>
             <h1
-              style={{ color: "#f1f5f9", fontSize: 20, fontWeight: 700, margin: 0 }}
+              style={{ color: "#0f172a", fontSize: 20, fontWeight: 700, margin: 0 }}
             >
               어드민 로그인
             </h1>
-            <p style={{ color: "#64748b", fontSize: 13, margin: "8px 0 0" }}>
+            <p style={{ color: "#475569", fontSize: 13, margin: "8px 0 0" }}>
               서비스 관리자 전용 페이지입니다
             </p>
           </div>
@@ -188,7 +188,7 @@ export default function AdminPage() {
             <div style={{ marginBottom: 14 }}>
               <label
                 style={{
-                  color: "#94a3b8",
+                  color: "#475569",
                   fontSize: 12,
                   fontWeight: 600,
                   display: "block",
@@ -205,11 +205,11 @@ export default function AdminPage() {
                 placeholder="아이디를 입력하세요"
                 style={{
                   width: "100%",
-                  background: "#0f172a",
-                  border: "1px solid #334155",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
                   borderRadius: 8,
                   padding: "11px 12px",
-                  color: "#f1f5f9",
+                  color: "#0f172a",
                   fontSize: 14,
                   boxSizing: "border-box",
                   outline: "none",
@@ -220,7 +220,7 @@ export default function AdminPage() {
             <div style={{ marginBottom: 24, position: "relative" }}>
               <label
                 style={{
-                  color: "#94a3b8",
+                  color: "#475569",
                   fontSize: 12,
                   fontWeight: 600,
                   display: "block",
@@ -237,11 +237,11 @@ export default function AdminPage() {
                 placeholder="비밀번호를 입력하세요"
                 style={{
                   width: "100%",
-                  background: "#0f172a",
-                  border: "1px solid #334155",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
                   borderRadius: 8,
                   padding: "11px 40px 11px 12px",
-                  color: "#f1f5f9",
+                  color: "#0f172a",
                   fontSize: 14,
                   boxSizing: "border-box",
                   outline: "none",
@@ -256,7 +256,7 @@ export default function AdminPage() {
                   bottom: 11,
                   background: "none",
                   border: "none",
-                  color: "#64748b",
+                  color: "#94a3b8",
                   cursor: "pointer",
                   padding: 2,
                   display: "flex",
@@ -283,7 +283,7 @@ export default function AdminPage() {
               type="submit"
               style={{
                 width: "100%",
-                background: "linear-gradient(135deg, #059669, #047857)",
+                background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
                 border: "none",
                 borderRadius: 8,
                 padding: "13px 0",
@@ -292,6 +292,7 @@ export default function AdminPage() {
                 fontWeight: 700,
                 cursor: "pointer",
                 letterSpacing: "0.02em",
+                boxShadow: "0 4px 20px rgba(37,99,235,0.15)",
               }}
             >
               로그인
@@ -307,15 +308,15 @@ export default function AdminPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#0f172a",
+        background: "#f8fafc",
         fontFamily: "'Noto Sans KR', sans-serif",
       }}
     >
       {/* Header */}
       <header
         style={{
-          background: "#1e293b",
-          borderBottom: "1px solid #334155",
+          background: "#ffffff",
+          borderBottom: "1px solid #e2e8f0",
           padding: "0 28px",
           height: 60,
           display: "flex",
@@ -324,19 +325,20 @@ export default function AdminPage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <LayoutDashboard size={20} color="#34d399" />
-          <span style={{ color: "#f1f5f9", fontSize: 17, fontWeight: 700 }}>
+          <LayoutDashboard size={20} color="#2563eb" />
+          <span style={{ color: "#0f172a", fontSize: 17, fontWeight: 700 }}>
             어드민 대시보드
           </span>
           <span
             style={{
-              background: "#064e3b",
-              color: "#34d399",
+              background: "#eff6ff",
+              color: "#2563eb",
               fontSize: 10,
               padding: "2px 8px",
               borderRadius: 20,
               fontWeight: 700,
               letterSpacing: "0.05em",
+              border: "1px solid #bfdbfe",
             }}
           >
             BETA
@@ -348,11 +350,11 @@ export default function AdminPage() {
             display: "flex",
             alignItems: "center",
             gap: 6,
-            background: "#334155",
-            border: "none",
+            background: "#f1f5f9",
+            border: "1px solid #e2e8f0",
             borderRadius: 8,
             padding: "8px 14px",
-            color: "#94a3b8",
+            color: "#475569",
             fontSize: 13,
             cursor: "pointer",
           }}
@@ -372,12 +374,12 @@ export default function AdminPage() {
             marginBottom: 16,
           }}
         >
-          <h2 style={{ color: "#f1f5f9", fontSize: 15, fontWeight: 700, margin: 0 }}>
+          <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: 0 }}>
             통계 현황
           </h2>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {lastRefresh && (
-              <span style={{ color: "#475569", fontSize: 12 }}>
+              <span style={{ color: "#94a3b8", fontSize: 12 }}>
                 갱신: {lastRefresh.toLocaleTimeString("ko-KR")}
               </span>
             )}
@@ -388,11 +390,11 @@ export default function AdminPage() {
                 display: "flex",
                 alignItems: "center",
                 gap: 5,
-                background: "#1e293b",
-                border: "1px solid #334155",
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
                 borderRadius: 8,
                 padding: "6px 12px",
-                color: "#94a3b8",
+                color: "#475569",
                 fontSize: 12,
                 cursor: "pointer",
               }}
@@ -414,19 +416,20 @@ export default function AdminPage() {
             <div
               key={svc.id}
               style={{
-                background: "#1e293b",
-                borderRadius: 14,
+                background: "#ffffff",
+                borderRadius: 16,
                 padding: 24,
-                border: "1px solid #065f46",
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
               }}
             >
               {/* Service header */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
                 <div>
-                  <h3 style={{ color: "#f1f5f9", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
+                  <h3 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
                     {svc.name}
                   </h3>
-                  <p style={{ color: "#64748b", fontSize: 12, margin: 0 }}>{svc.desc}</p>
+                  <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>{svc.desc}</p>
                 </div>
                 <a
                   href={svc.link}
@@ -434,8 +437,8 @@ export default function AdminPage() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 5,
-                    background: "#064e3b",
-                    color: "#34d399",
+                    background: "#eff6ff",
+                    color: "#2563eb",
                     textDecoration: "none",
                     borderRadius: 8,
                     padding: "6px 12px",
@@ -443,6 +446,7 @@ export default function AdminPage() {
                     fontWeight: 600,
                     flexShrink: 0,
                     marginLeft: 12,
+                    border: "1px solid #bfdbfe",
                   }}
                 >
                   <ExternalLink size={12} />
@@ -453,22 +457,23 @@ export default function AdminPage() {
               {/* Per-service stat grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
                 {[
-                  { key: svc.vcKey, label: "누적 방문", color: "#34d399", Icon: Users },
-                  { key: svc.vtKey, label: "오늘 방문", color: "#60a5fa", Icon: Activity },
+                  { key: svc.vcKey, label: "누적 방문", color: "#2563eb", Icon: Users },
+                  { key: svc.vtKey, label: "오늘 방문", color: "#2563eb", Icon: Activity },
                   { key: svc.scKey, label: "누적 공유", color: "#f472b6", Icon: Share2 },
                   { key: svc.stKey, label: "오늘 공유", color: "#fb923c", Icon: TrendingUp },
                 ].map(({ key, label, color, Icon }) => (
                   <div
                     key={key}
                     style={{
-                      background: "#0f172a",
-                      borderRadius: 10,
+                      background: "#f8fafc",
+                      borderRadius: 12,
                       padding: "14px 12px",
+                      border: "1px solid #e2e8f0",
                       borderTop: `3px solid ${color}`,
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ color: "#64748b", fontSize: 11 }}>{label}</span>
+                      <span style={{ color: "#475569", fontSize: 11 }}>{label}</span>
                       <Icon size={13} color={color} />
                     </div>
                     <p style={{ color, fontSize: 22, fontWeight: 700, margin: 0, lineHeight: 1 }}>
@@ -488,7 +493,7 @@ export default function AdminPage() {
         <ChargeRequestPanel sbList={sbList} sbGet={sbGet} sbSet={sbSet} />
 
         {/* Footer hint */}
-        <p style={{ color: "#334155", fontSize: 12, textAlign: "center", marginTop: 48 }}>
+        <p style={{ color: "#94a3b8", fontSize: 12, textAlign: "center", marginTop: 48 }}>
           Railway 환경변수 VITE_ADMIN_ID · VITE_ADMIN_PW 설정으로 계정을 변경할 수 있습니다
         </p>
       </main>
@@ -528,17 +533,17 @@ function PointPanel({ sbGet, sbSet }: {
   }
 
   const iStyle2: React.CSSProperties = {
-    background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
-    padding: "9px 12px", color: "#f1f5f9", fontSize: 14, outline: "none",
+    background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8,
+    padding: "9px 12px", color: "#0f172a", fontSize: 14, outline: "none",
   };
 
   return (
     <div style={{ marginTop: 40 }}>
-      <h2 style={{ color: "#f1f5f9", fontSize: 15, fontWeight: 700, margin: "0 0 16px" }}>
-        <CreditCard size={16} color="#fbbf24" style={{ verticalAlign: "middle", marginRight: 6 }} />
+      <h2 style={{ color: "#0f172a", fontSize: 15, fontWeight: 700, margin: "0 0 16px" }}>
+        <CreditCard size={16} color="#f59e0b" style={{ verticalAlign: "middle", marginRight: 6 }} />
         핏포인트 지급
       </h2>
-      <div style={{ background: "#1e293b", borderRadius: 14, padding: 24, border: "1px solid #334155" }}>
+      <div style={{ background: "#ffffff", borderRadius: 16, padding: 24, border: "1px solid #e2e8f0", boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)" }}>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" as const }}>
           <input
             value={userId} onChange={e => { setUserId(e.target.value); setCurrent(null); setMsg(""); }}
@@ -546,12 +551,12 @@ function PointPanel({ sbGet, sbSet }: {
             style={{ ...iStyle2, flex: 2, minWidth: 160 }}
           />
           <button onClick={lookup} disabled={busy}
-            style={{ background: "#334155", border: "none", borderRadius: 8, padding: "9px 16px", color: "#94a3b8", fontSize: 13, cursor: "pointer" }}>
+            style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "9px 16px", color: "#475569", fontSize: 13, cursor: "pointer" }}>
             조회
           </button>
         </div>
         {current !== null && (
-          <p style={{ color: "#fbbf24", fontSize: 13, margin: "0 0 12px" }}>현재 잔액: {current.toLocaleString()} P</p>
+          <p style={{ color: "#f59e0b", fontSize: 13, margin: "0 0 12px" }}>현재 잔액: {current.toLocaleString()} P</p>
         )}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const }}>
           <input
@@ -561,19 +566,19 @@ function PointPanel({ sbGet, sbSet }: {
           />
           {[5000,12000].map(v => (
             <button key={v} onClick={() => setAmount(String(v))}
-              style={{ background: amount===String(v)?"#854d0e":"#1e293b", border:"1px solid #854d0e", borderRadius:8, padding:"9px 14px", color:"#fbbf24", fontSize:13, cursor:"pointer", fontWeight:600 }}>
+              style={{ background: amount===String(v)?"#fef3c7":"#ffffff", border:"1px solid #f59e0b", borderRadius:8, padding:"9px 14px", color:"#b45309", fontSize:13, cursor:"pointer", fontWeight:600 }}>
               {v.toLocaleString()}P
             </button>
           ))}
           <button onClick={grant} disabled={busy || !userId.trim()}
-            style={{ display:"flex", alignItems:"center", gap:5, background:"#059669", border:"none", borderRadius:8, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+            style={{ display:"flex", alignItems:"center", gap:5, background:"linear-gradient(135deg,#2563eb,#1d4ed8)", border:"none", borderRadius:8, padding:"9px 18px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 20px rgba(37,99,235,0.15)" }}>
             <Check size={14}/> 지급
           </button>
         </div>
-        {msg && <p style={{ color: "#34d399", fontSize: 13, margin: "12px 0 0" }}>{msg}</p>}
-        <div style={{ background: "#0f172a", borderRadius: 8, padding: "10px 12px", marginTop: 12, borderLeft: "3px solid #60a5fa" }}>
-          <p style={{ color: "#64748b", fontSize: 11, margin: 0, lineHeight: 1.7 }}>
-            이름이 아닌 <span style={{ color: "#60a5fa", fontWeight: 700 }}>카카오 숫자 ID</span>를 입력하세요.<br/>
+        {msg && <p style={{ color: "#2563eb", fontSize: 13, margin: "12px 0 0" }}>{msg}</p>}
+        <div style={{ background: "#eff6ff", borderRadius: 8, padding: "10px 12px", marginTop: 12, borderLeft: "3px solid #2563eb" }}>
+          <p style={{ color: "#475569", fontSize: 11, margin: 0, lineHeight: 1.7 }}>
+            이름이 아닌 <span style={{ color: "#2563eb", fontWeight: 700 }}>카카오 숫자 ID</span>를 입력하세요.<br/>
             회원이 /contract 페이지에 로그인하면 화면에 본인 ID가 표시됩니다. 그 번호를 여기에 입력하면 됩니다.
           </p>
         </div>
@@ -640,17 +645,17 @@ function ChargeRequestPanel({ sbList, sbGet, sbSet }: {
   const done    = rows.filter(r => r.value === 2);
 
   const cardStyle = (isDone: boolean): React.CSSProperties => ({
-    background: isDone ? "#0f172a" : "#1e2d1e",
+    background: isDone ? "#f8fafc" : "#eff6ff",
     borderRadius: 10,
     padding: "14px",
-    border: `1px solid ${isDone ? "#1e293b" : "#166534"}`,
+    border: `1px solid ${isDone ? "#e2e8f0" : "#bfdbfe"}`,
     marginBottom: 8,
   });
 
   return (
     <div style={{ marginTop: 40 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-        <h2 style={{ color:"#f1f5f9", fontSize:15, fontWeight:700, margin:0, display:"flex", alignItems:"center", gap:8 }}>
+        <h2 style={{ color:"#0f172a", fontSize:15, fontWeight:700, margin:0, display:"flex", alignItems:"center", gap:8 }}>
           <Bell size={16} color="#fb923c"/>
           포인트 충전 신청
           {pending.length > 0 && (
@@ -658,14 +663,14 @@ function ChargeRequestPanel({ sbList, sbGet, sbSet }: {
           )}
         </h2>
         <button onClick={load} disabled={loading}
-          style={{ display:"flex", alignItems:"center", gap:5, background:"#1e293b", border:"1px solid #334155", borderRadius:8, padding:"6px 12px", color:"#94a3b8", fontSize:12, cursor:"pointer" }}>
+          style={{ display:"flex", alignItems:"center", gap:5, background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:8, padding:"6px 12px", color:"#475569", fontSize:12, cursor:"pointer" }}>
           <RefreshCw size={12} style={{ transform: loading ? "rotate(360deg)" : "none", transition:"transform 0.3s" }}/>
           새로고침
         </button>
       </div>
-      <div style={{ background:"#1e293b", borderRadius:14, padding:24, border:"1px solid #334155" }}>
-        {loading && <p style={{ color:"#475569", fontSize:13, textAlign:"center", margin:0 }}>불러오는 중…</p>}
-        {!loading && rows.length === 0 && <p style={{ color:"#475569", fontSize:13, textAlign:"center", margin:0 }}>아직 충전 신청이 없습니다.</p>}
+      <div style={{ background:"#ffffff", borderRadius:16, padding:24, border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)" }}>
+        {loading && <p style={{ color:"#94a3b8", fontSize:13, textAlign:"center", margin:0 }}>불러오는 중…</p>}
+        {!loading && rows.length === 0 && <p style={{ color:"#94a3b8", fontSize:13, textAlign:"center", margin:0 }}>아직 충전 신청이 없습니다.</p>}
 
         {pending.length > 0 && (
           <>
@@ -674,16 +679,16 @@ function ChargeRequestPanel({ sbList, sbGet, sbSet }: {
               <div key={row.key} style={cardStyle(false)}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap" as const, gap:8 }}>
                   <div>
-                    <p style={{ color:"#f1f5f9", fontWeight:700, fontSize:14, margin:"0 0 2px" }}>
-                      {row.name} <span style={{ color:"#64748b", fontSize:11, fontWeight:400 }}>{row.userId}</span>
+                    <p style={{ color:"#0f172a", fontWeight:700, fontSize:14, margin:"0 0 2px" }}>
+                      {row.name} <span style={{ color:"#94a3b8", fontSize:11, fontWeight:400 }}>{row.userId}</span>
                     </p>
-                    <p style={{ color:"#64748b", fontSize:11, margin:"0 0 4px" }}>{fmtTs(row.ts)}</p>
-                    <p style={{ color:"#fbbf24", fontWeight:700, fontSize:13, margin:0 }}>
+                    <p style={{ color:"#475569", fontSize:11, margin:"0 0 4px" }}>{fmtTs(row.ts)}</p>
+                    <p style={{ color:"#f59e0b", fontWeight:700, fontSize:13, margin:0 }}>
                       {Number(row.won).toLocaleString()}원 입금 → {wonToPoints(row.won).toLocaleString()}P 지급 예정
                     </p>
                   </div>
                   <button onClick={() => grantAndClose(row)} disabled={busy === row.key}
-                    style={{ display:"flex", alignItems:"center", gap:5, background:"#059669", border:"none", borderRadius:8, padding:"10px 16px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", flexShrink:0 }}>
+                    style={{ display:"flex", alignItems:"center", gap:5, background:"linear-gradient(135deg,#2563eb,#1d4ed8)", border:"none", borderRadius:8, padding:"10px 16px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", flexShrink:0, boxShadow:"0 4px 20px rgba(37,99,235,0.15)" }}>
                     <Check size={14}/>
                     {busy === row.key ? "처리 중…" : "입금 확인·지급"}
                   </button>
@@ -695,24 +700,24 @@ function ChargeRequestPanel({ sbList, sbGet, sbSet }: {
 
         {done.length > 0 && (
           <>
-            <p style={{ color:"#475569", fontSize:11, fontWeight:700, margin:"16px 0 10px", letterSpacing:"0.06em" }}>완료 내역</p>
+            <p style={{ color:"#94a3b8", fontSize:11, fontWeight:700, margin:"16px 0 10px", letterSpacing:"0.06em" }}>완료 내역</p>
             {done.map(row => (
               <div key={row.key} style={cardStyle(true)}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <div>
-                    <p style={{ color:"#64748b", fontWeight:600, fontSize:13, margin:"0 0 2px" }}>
+                    <p style={{ color:"#475569", fontWeight:600, fontSize:13, margin:"0 0 2px" }}>
                       {row.name} <span style={{ fontSize:11, fontWeight:400 }}>{row.userId}</span>
                     </p>
-                    <p style={{ color:"#475569", fontSize:11, margin:0 }}>{fmtTs(row.ts)} · {Number(row.won).toLocaleString()}원 → {wonToPoints(row.won).toLocaleString()}P</p>
+                    <p style={{ color:"#94a3b8", fontSize:11, margin:0 }}>{fmtTs(row.ts)} · {Number(row.won).toLocaleString()}원 → {wonToPoints(row.won).toLocaleString()}P</p>
                   </div>
-                  <span style={{ color:"#34d399", fontSize:12, fontWeight:700 }}>✓ 완료</span>
+                  <span style={{ color:"#059669", fontSize:12, fontWeight:700 }}>✓ 완료</span>
                 </div>
               </div>
             ))}
           </>
         )}
 
-        {msg && <p style={{ color:"#34d399", fontSize:13, margin:"12px 0 0" }}>{msg}</p>}
+        {msg && <p style={{ color:"#2563eb", fontSize:13, margin:"12px 0 0" }}>{msg}</p>}
       </div>
     </div>
   );
