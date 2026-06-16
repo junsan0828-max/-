@@ -250,7 +250,7 @@ export default function ContractPrint() {
             </tr>
             <tr>
               <th style={S.th}>계약일</th><td style={S.td}>{contractDate || "—"}</td>
-              <th style={S.th}>담당 트레이너</th><td style={S.td}>{trainer || "—"}</td>
+              <th style={S.th}>담당 운동전문가</th><td style={S.td}>{trainer || "—"}</td>
             </tr>
           </tbody></table>
 
@@ -333,7 +333,7 @@ export default function ContractPrint() {
 
           {/* ── 서명란 ── */}
           <h2 style={S.h2}>서명</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 32 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 32 }}>
 
             {/* 회원 서명 */}
             <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "14px 16px" }}>
@@ -394,11 +394,10 @@ export default function ContractPrint() {
               <p style={{ fontSize: 13, color: "#1e293b", margin: "8px 0 0", textAlign: "center" }}>{name || ""}</p>
             </div>
 
-            {/* 트레이너 서명 */}
-            <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "14px 16px" }}>
-              <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 8px", fontWeight: 600 }}>담당 트레이너</p>
-              <div style={{ height: 140, borderRadius: 6, border: "1.5px dashed #e2e8f0", marginBottom: 8 }} />
-              <p style={{ fontSize: 13, color: "#1e293b", margin: "8px 0 0", textAlign: "center" }}>{trainer || ""}</p>
+            {/* 운동전문가 */}
+            <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>담당 운동전문가</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#1e293b" }}>{trainer || "—"}</span>
             </div>
           </div>
 
