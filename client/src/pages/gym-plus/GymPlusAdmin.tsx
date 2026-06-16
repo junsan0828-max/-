@@ -518,7 +518,7 @@ export function GymPlusEventsAdmin() {
     }
   }
 
-  const typeLabel: Record<string, string> = { notice: "📢 공지", event: "🎉 이벤트", promotion: "🎁 프로모션" };
+  const typeLabel: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션" };
 
   return (
     <div className="space-y-3">

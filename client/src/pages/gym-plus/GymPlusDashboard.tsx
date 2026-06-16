@@ -97,7 +97,7 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
     });
   }
 
-  const conditionEmoji = ["", "😴", "😔", "😐", "😊", "💪"];
+  const conditionDots = ["", "●", "●●", "●●●", "●●●●", "●●●●●"];
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -118,7 +118,7 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
                     className={`flex flex-col items-center py-2 rounded-xl border text-sm transition-colors ${conditionScore === n ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
                     onClick={() => setConditionScore(n)}
                   >
-                    <span className="text-lg">{conditionEmoji[n]}</span>
+                    <span className="text-[10px] tracking-tighter text-primary/70">{conditionDots[n]}</span>
                     <span className="text-[10px] mt-0.5">{n}점</span>
                   </button>
                 ))}
@@ -219,15 +219,15 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <DialogHeader>
-              <h2 className="font-bold text-base">✅ 출석 완료!</h2>
+              <h2 className="font-bold text-base">출석 완료</h2>
               <p className="text-xs text-muted-foreground">오늘 컨디션 기반 추천 운동 영상이에요</p>
             </DialogHeader>
 
             {/* 컨디션 요약 */}
             <div className="flex gap-2 flex-wrap">
               <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {conditionScore}/5</span>
-              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">😴 {sleepHours}</span>
-              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">⚡ {energyLevel}</span>
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">수면 {sleepHours}</span>
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">에너지 {energyLevel}</span>
               {intensity && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">강도 {intensity}</span>}
               {selectedBodyParts.length > 0 && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{selectedBodyParts.slice(0, 3).join(", ")}{selectedBodyParts.length > 3 ? " +" + (selectedBodyParts.length - 3) : ""}</span>}
               {selectedThemes.length > 0 && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{selectedThemes.join(", ")}</span>}
@@ -339,7 +339,7 @@ export default function GymPlusDashboard() {
                     e.eventType === "event" ? "bg-green-500/20" :
                     e.eventType === "promotion" ? "bg-orange-500/20" : "bg-blue-500/20"
                   }`}>
-                    {e.eventType === "event" ? "🎉" : e.eventType === "promotion" ? "🎁" : "📢"}
+                    {e.eventType === "event" ? "이" : e.eventType === "promotion" ? "프" : "공"}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -357,7 +357,7 @@ export default function GymPlusDashboard() {
 
       {/* 인사 카드 */}
       <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-2xl px-4 py-3 border border-primary/20">
-        <p className="text-muted-foreground text-xs mb-0.5">안녕하세요 👋</p>
+        <p className="text-muted-foreground text-xs mb-0.5">안녕하세요</p>
         <p className="font-bold text-lg text-foreground">{member?.name ?? "회원"}님</p>
       </div>
 
@@ -386,7 +386,7 @@ export default function GymPlusDashboard() {
               </div>
               {bonus && bonus.days > 0 && (
                 <div className="text-right">
-                  <p className={`text-xs font-bold ${bonus.color}`}>🎁 {bonus.label}</p>
+                  <p className={`text-xs font-bold ${bonus.color}`}>{bonus.label}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc}</p>
                   <p className="text-[10px] text-muted-foreground">탭하여 재등록 신청 →</p>
                 </div>
@@ -412,18 +412,18 @@ export default function GymPlusDashboard() {
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -translate-y-8 translate-x-8" />
             <p className="text-[10px] text-primary/80 font-semibold tracking-widest uppercase mb-1">Today's Workout</p>
-            <p className="font-bold text-xl text-foreground mb-3">{todayLog.title || "오늘 운동 완료 💪"}</p>
+            <p className="font-bold text-xl text-foreground mb-3">{todayLog.title || "오늘 운동 완료"}</p>
             <div className="flex gap-4">
               {todayLog.durationMinutes ? (
                 <div>
                   <p className="text-[10px] text-muted-foreground">운동 시간</p>
-                  <p className="text-base font-bold text-primary">⏱ {todayLog.durationMinutes}분</p>
+                  <p className="text-base font-bold text-primary">{todayLog.durationMinutes}분</p>
                 </div>
               ) : null}
               {todayLog.caloriesBurned ? (
                 <div>
                   <p className="text-[10px] text-muted-foreground">소모 칼로리</p>
-                  <p className="text-base font-bold text-orange-400">🔥 {todayLog.caloriesBurned}kcal</p>
+                  <p className="text-base font-bold text-orange-400">{todayLog.caloriesBurned} kcal</p>
                 </div>
               ) : null}
               {!todayLog.durationMinutes && !todayLog.caloriesBurned && (
@@ -462,7 +462,7 @@ export default function GymPlusDashboard() {
                 className="w-full flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors text-left"
                 onClick={() => { setShowWorkoutChoice(false); navigate("/gym-plus/workout"); }}
               >
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0 text-xl">🆕</div>
+                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0 text-sm font-bold text-primary">NEW</div>
                 <div>
                   <p className="font-semibold text-sm">새로운 운동</p>
                   <p className="text-xs text-muted-foreground mt-0.5">직접 종목을 입력하고 운동 계획 작성</p>
@@ -479,7 +479,7 @@ export default function GymPlusDashboard() {
                 }`}
                 onClick={() => { if (hasRec) { setShowWorkoutChoice(false); navigate("/gym-plus/videos"); } }}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${hasRec ? "bg-yellow-500/20" : "bg-muted"}`}>⭐</div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold ${hasRec ? "bg-yellow-500/20 text-yellow-600" : "bg-muted text-muted-foreground"}`}>추천</div>
                 <div className="flex-1">
                   <p className="font-semibold text-sm">추천 운동</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -499,7 +499,7 @@ export default function GymPlusDashboard() {
                 }`}
                 onClick={() => { if (canRepeat) { setShowWorkoutChoice(false); navigate("/gym-plus/workout?tab=history"); } }}
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${canRepeat ? "bg-blue-500/20" : "bg-muted"}`}>🔄</div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold ${canRepeat ? "bg-blue-500/20 text-blue-600" : "bg-muted text-muted-foreground"}`}>이전</div>
                 <div className="flex-1">
                   <p className="font-semibold text-sm">이전 운동</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -520,7 +520,11 @@ export default function GymPlusDashboard() {
           className="w-full bg-gradient-to-r from-primary to-primary/70 rounded-2xl p-5 flex items-center gap-4 text-left hover:opacity-90 transition-opacity"
           onClick={() => setShowCheckIn(true)}
         >
-          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 text-2xl">👋</div>
+          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="white" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          </div>
           <div className="flex-1">
             <p className="font-bold text-base text-white">출석하기</p>
             <p className="text-xs text-white/70 mt-0.5">오늘의 컨디션을 체크하고 맞춤 운동을 받아보세요</p>
@@ -561,7 +565,11 @@ export default function GymPlusDashboard() {
         </div>
       ) : (
         <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0 text-2xl">✅</div>
+          <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-green-500">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          </div>
           <div>
             <p className="font-bold text-base text-green-400">출석 완료!</p>
             <p className="text-xs text-muted-foreground mt-0.5">오늘 출석이 완료되었습니다</p>

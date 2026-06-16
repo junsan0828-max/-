@@ -34,7 +34,7 @@ const CARDIO_INTENSITY_MAP: Record<string, { label: string; met: number }[]> = {
   "로잉머신":[{ label: "저강도", met: 7.0 }, { label: "중강도", met: 8.5 }, { label: "고강도", met: 12.0 }],
 };
 const CARDIO_TYPES = Object.keys(CARDIO_INTENSITY_MAP);
-const CARDIO_EMOJI: Record<string, string> = { "걷기": "🚶", "조깅": "🏃", "러닝": "⚡", "자전거": "🚴", "로잉머신": "🚣" };
+const CARDIO_EMOJI: Record<string, string> = {};
 
 const BODY_PARTS = [
   "전신", "상체", "하체",
@@ -303,7 +303,7 @@ function CardioSettingsModal({
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <h2 className="font-bold text-base">🏃 유산소운동 설정</h2>
+          <h2 className="font-bold text-base">유산소운동 설정</h2>
           <p className="text-xs text-muted-foreground">운동 종류와 속도를 선택하고 시작하세요</p>
         </DialogHeader>
         <div className="space-y-4 pt-1">
@@ -492,7 +492,9 @@ function ActiveWorkoutModal({
         <DialogContent className="max-w-sm max-h-[92vh] overflow-y-auto p-0 [&>button]:hidden">
           {/* 결과 헤더 */}
           <div className="bg-green-500/10 border-b border-green-500/20 px-4 py-5 text-center">
-            <p className="text-2xl mb-1">🏆</p>
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-8 h-8 text-green-500 mx-auto mb-1">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
             <p className="font-bold text-lg text-foreground">운동 완료!</p>
             <p className="text-xs text-muted-foreground mt-0.5">{log.title || "운동 기록"}</p>
           </div>
@@ -921,10 +923,10 @@ export default function GymPlusWorkout() {
             <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {(log as any).conditionScore}/5</span>
           )}
           {(log as any).sleepHours && (
-            <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">😴 {(log as any).sleepHours}</span>
+            <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">수면 {(log as any).sleepHours}</span>
           )}
           {(log as any).energyLevel && (
-            <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">⚡ {(log as any).energyLevel}</span>
+            <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">에너지 {(log as any).energyLevel}</span>
           )}
           {parsedBodyParts.map((p) => (
             <span key={p} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">{p}</span>
@@ -933,7 +935,7 @@ export default function GymPlusWorkout() {
             <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">⏱ {log.durationMinutes}분</span>
           )}
           {log.caloriesBurned && (
-            <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">🔥 {log.caloriesBurned}kcal</span>
+            <span className="text-[10px] bg-orange-500/20 text-orange-600 px-2 py-0.5 rounded-full">{log.caloriesBurned} kcal</span>
           )}
         </div>
 
@@ -991,7 +993,7 @@ export default function GymPlusWorkout() {
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🔥</span>
+                <span className="w-5 h-5 rounded bg-orange-500/20 text-orange-600 text-[10px] font-bold flex items-center justify-center">준비</span>
                 <div>
                   <p className="font-semibold text-sm">준비운동</p>
                   <p className="text-[10px] text-muted-foreground">10분 스트레칭 · 부상 예방</p>
@@ -1065,7 +1067,9 @@ export default function GymPlusWorkout() {
               {warmupStatus === "done" && (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl">✅</span>
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5 text-green-500 flex-shrink-0">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
                     <div>
                       <p className="text-sm font-semibold text-green-400">준비운동 완료!</p>
                       <p className="text-[10px] text-muted-foreground">근력·유산소 운동을 시작하세요</p>
@@ -1081,7 +1085,7 @@ export default function GymPlusWorkout() {
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <span className="text-lg">💪</span>
+                <span className="w-5 h-5 rounded bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">근력</span>
                 <div>
                   <p className="font-semibold text-sm">근력운동</p>
                   <p className="text-[10px] text-muted-foreground">운동 계획 · 세트 기록</p>
@@ -1114,7 +1118,7 @@ export default function GymPlusWorkout() {
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🏃</span>
+                <span className="w-5 h-5 rounded bg-green-500/20 text-green-600 text-[10px] font-bold flex items-center justify-center">유산</span>
                 <div>
                   <p className="font-semibold text-sm">유산소운동</p>
                   <p className="text-[10px] text-muted-foreground">걷기 · 조깅 · 러닝 · 자전거 · 로잉</p>
@@ -1226,7 +1230,7 @@ export default function GymPlusWorkout() {
 
             {patternLoading && (
               <div className="p-6 text-center space-y-2">
-                <div className="text-2xl animate-pulse">🏋️</div>
+                <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin mx-auto" />
                 <p className="text-sm text-muted-foreground">운동 데이터를 분석하고 있어요...</p>
               </div>
             )}
@@ -1277,7 +1281,7 @@ export default function GymPlusWorkout() {
                     {/* 미훈련 부위 경고 */}
                     {patternData.stats.missingParts.length > 0 && (
                       <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
-                        <p className="text-xs font-medium text-yellow-400 mb-1.5">⚠️ 훈련이 부족한 부위</p>
+                        <p className="text-xs font-medium text-yellow-600 mb-1.5">훈련이 부족한 부위</p>
                         <div className="flex flex-wrap gap-1">
                           {patternData.stats.missingParts.map(p => (
                             <span key={p} className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">{p}</span>

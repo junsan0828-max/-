@@ -144,7 +144,11 @@ export default function GymPlusVideos() {
             /* 잠금 상태 */
             <div className="space-y-4 pt-2">
               <div className="bg-card border border-border rounded-2xl p-6 flex flex-col items-center gap-3 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center text-3xl">🔒</div>
+                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-7 h-7 text-muted-foreground">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                </div>
                 <p className="font-bold text-base">맞춤운동 잠금 중</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   내 정보 탭에서 미션 3가지를 완료하면<br />나에게 딱 맞는 맞춤 운동이 열립니다
@@ -161,9 +165,9 @@ export default function GymPlusVideos() {
               {/* 미션 진행 상태 */}
               <div className="space-y-2">
                 {[
-                  { label: "📏 신체정보 입력", done: !!(health?.height && health?.weight) },
-                  { label: "🩺 사전 건강검사 (PAR-Q)", done: !!health?.parqSubmittedAt },
-                  { label: "📊 체형분석 데이터 신청", done: !!health?.bodyAnalysisRequested },
+                  { label: "신체정보 입력", done: !!(health?.height && health?.weight) },
+                  { label: "사전 건강검사 (PAR-Q)", done: !!health?.parqSubmittedAt },
+                  { label: "체형분석 데이터 신청", done: !!health?.bodyAnalysisRequested },
                 ].map((m) => (
                   <div key={m.label} className={`flex items-center gap-3 p-3 rounded-xl border ${m.done ? "border-green-500/30 bg-green-500/10" : "border-border bg-card"}`}>
                     <span className={`text-xs font-medium flex-1`}>{m.label}</span>
@@ -201,7 +205,11 @@ export default function GymPlusVideos() {
                 </div>
               ) : (
                 <div className="bg-card border border-dashed border-border rounded-xl p-6 text-center space-y-2">
-                  <p className="text-2xl">🎯</p>
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mx-auto">
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-muted-foreground">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  </div>
                   <p className="text-sm font-medium">출석체크 후 추천 운동이 표시됩니다</p>
                   <p className="text-xs text-muted-foreground">홈에서 출석체크 후 오늘의 맞춤 운동을 확인하세요</p>
                 </div>

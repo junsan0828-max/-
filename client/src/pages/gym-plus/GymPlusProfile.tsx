@@ -499,7 +499,7 @@ export default function GymPlusProfile() {
               </p>
               {bonus.days > 0 && (
                 <div className="mt-2 pt-2 border-t border-white/10">
-                  <p className={`text-xs font-semibold ${bonus.color}`}>🎁 지금 재등록하면 {bonus.label}!</p>
+                  <p className={`text-xs font-semibold ${bonus.color}`}>지금 재등록하면 {bonus.label}!</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc} · 탭하여 재등록 신청</p>
                 </div>
               )}
@@ -525,27 +525,27 @@ export default function GymPlusProfile() {
 
         {allMissionsDone && (
           <div className="bg-green-500/10 border border-green-500/30 rounded-xl px-3 py-2 text-center">
-            <p className="text-xs text-green-400 font-semibold">✅ 모든 미션 완료! 추천 운동이 활성화됩니다</p>
+            <p className="text-xs text-green-600 font-semibold">모든 미션 완료 · 추천 운동이 활성화됩니다</p>
           </div>
         )}
 
         <div className="space-y-2">
           <MissionCard
-            icon="📋"
+            icon="①"
             title="센터 이용규정 안내 동의"
             description={mission1Done ? "이용규정 동의 완료" : "자이언트짐+ 센터 이용규정을 확인하고 동의하세요"}
             done={mission1Done}
             onPress={() => setShowGymRules(true)}
           />
           <MissionCard
-            icon="📱"
+            icon="②"
             title="자이언트짐+ 이용방법 안내 확인"
             description={mission2Done ? "이용방법 안내 확인 완료" : "앱 사용법 및 센터 이용 안내를 확인하세요"}
             done={mission2Done}
             onPress={() => setShowAppGuide(true)}
           />
           <MissionCard
-            icon="🩺"
+            icon="③"
             title="PAR-Q 완료"
             description={mission3Done ? "사전 건강설문 완료" : "운동 시작 전 건강 상태를 알려주세요"}
             done={mission3Done}
@@ -628,7 +628,7 @@ export default function GymPlusProfile() {
         <Dialog open onOpenChange={(o) => { if (!o) setShowGymRules(false); }}>
           <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <h2 className="font-bold text-base">📋 센터 이용규정 안내</h2>
+              <h2 className="font-bold text-base">센터 이용규정 안내</h2>
               <p className="text-xs text-muted-foreground">아래 이용규정을 확인하고 동의해 주세요</p>
             </DialogHeader>
             <div className="space-y-4 pt-1">
@@ -690,7 +690,7 @@ export default function GymPlusProfile() {
         <Dialog open onOpenChange={(o) => { if (!o) setShowAppGuide(false); }}>
           <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <h2 className="font-bold text-base">📱 자이언트짐+ 이용방법 안내</h2>
+              <h2 className="font-bold text-base">자이언트짐+ 이용방법 안내</h2>
               <p className="text-xs text-muted-foreground">앱 사용법 및 센터 이용 방법을 확인해 주세요</p>
             </DialogHeader>
             <div className="space-y-4 pt-1">
@@ -698,7 +698,7 @@ export default function GymPlusProfile() {
               <div className="space-y-3">
                 {[
                   {
-                    icon: "🏋️",
+                    icon: "01",
                     title: "트레이닝 일지 확인",
                     desc: "트레이너가 전송한 운동 프로그램을 '운동' 탭에서 확인하세요. 운동 시작 버튼을 눌러 실시간으로 세트/횟수/무게를 기록할 수 있습니다.",
                   },
@@ -708,22 +708,22 @@ export default function GymPlusProfile() {
                     desc: "트레이닝 일지에서 '▶ 운동 시작' 버튼을 탭하면 운동 타이머와 세트 기록 화면이 열립니다. 각 세트 완료 후 체크하고 운동을 기록하세요.",
                   },
                   {
-                    icon: "📊",
+                    icon: "02",
                     title: "운동 기록 관리",
                     desc: "완료된 운동은 자동으로 기록되며, 날짜별로 이력을 확인할 수 있습니다. 체중·컨디션·수면 정보도 함께 기록해 보세요.",
                   },
                   {
-                    icon: "🎯",
+                    icon: "03",
                     title: "추천 운동 활성화",
                     desc: "3가지 미션(이용규정 동의, 이용방법 확인, PAR-Q)을 완료하면 맞춤형 추천 운동이 활성화됩니다.",
                   },
                   {
-                    icon: "🔔",
+                    icon: "04",
                     title: "센터 출입 확인",
                     desc: "센터 방문 시 QR코드 또는 앱을 통해 출입을 확인할 수 있습니다.",
                   },
                   {
-                    icon: "📅",
+                    icon: "05",
                     title: "회원권 재등록",
                     desc: "'내 정보' 탭에서 회원권 만료일을 확인하고 온라인으로 재등록 신청을 할 수 있습니다. 만료 전 재등록 시 추가 혜택이 있습니다.",
                   },
@@ -739,7 +739,7 @@ export default function GymPlusProfile() {
               </div>
 
               <div className="bg-primary/10 border border-primary/20 rounded-xl p-3">
-                <p className="text-xs text-primary font-semibold">💡 문의 및 도움말</p>
+                <p className="text-xs text-primary font-semibold">문의 및 도움말</p>
                 <p className="text-xs text-muted-foreground mt-0.5">앱 사용 중 궁금한 점은 센터 담당 트레이너에게 문의해 주세요.</p>
               </div>
 
@@ -759,7 +759,7 @@ export default function GymPlusProfile() {
         <Dialog open onOpenChange={(o) => { if (!o) setShowParq(false); }}>
           <DialogContent className="max-w-sm max-h-[92vh] overflow-y-auto">
             <DialogHeader>
-              <h2 className="font-bold text-base">🩺 PAR-Q 건강설문</h2>
+              <h2 className="font-bold text-base">PAR-Q 건강설문</h2>
               <p className="text-xs text-muted-foreground">운동 시작 전 건강 상태를 알려주세요. 더 안전하고 효과적인 운동 계획 수립에 활용됩니다.</p>
             </DialogHeader>
 
@@ -1082,7 +1082,7 @@ export default function GymPlusProfile() {
               {renewalStep === 1 && (
                 <>
                   <DialogHeader>
-                    <h2 className="font-bold text-base">📋 재등록 신청</h2>
+                    <h2 className="font-bold text-base">재등록 신청</h2>
                     <p className="text-xs text-muted-foreground">아래 내용을 확인하고 재등록을 신청하세요</p>
                   </DialogHeader>
                   <div className="space-y-4 pt-1">
@@ -1095,7 +1095,7 @@ export default function GymPlusProfile() {
 
                     {bonus.days > 0 && (
                       <div className={`rounded-xl p-3 border ${bonus.color === "text-green-400" ? "bg-green-500/10 border-green-500/30" : bonus.color === "text-blue-400" ? "bg-blue-500/10 border-blue-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
-                        <p className={`text-xs font-semibold ${bonus.color}`}>🎁 {bonus.label} 적용!</p>
+                        <p className={`text-xs font-semibold ${bonus.color}`}>{bonus.label} 적용!</p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">{bonus.desc} — 재등록 기간에 {bonus.days}일이 추가됩니다</p>
                       </div>
                     )}
@@ -1177,7 +1177,7 @@ export default function GymPlusProfile() {
                           onClick={() => { navigator.clipboard.writeText("333305266409"); toast.success("계좌번호가 복사되었습니다"); }}
                           className="w-full py-2 rounded-lg bg-yellow-400/20 border border-yellow-400/30 text-yellow-500 text-xs font-semibold"
                         >
-                          📋 계좌번호 복사하기
+                          계좌번호 복사하기
                         </button>
                       )}
 
@@ -1319,7 +1319,7 @@ export default function GymPlusProfile() {
               {renewalStep === 5 && (
                 <>
                   <DialogHeader>
-                    <h2 className="font-bold text-base">✅ 재등록 신청 완료</h2>
+                    <h2 className="font-bold text-base">재등록 신청 완료</h2>
                   </DialogHeader>
                   <div className="space-y-4 pt-1">
                     <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 space-y-2 text-xs">

@@ -9,15 +9,15 @@ const eventTypeLabel: Record<string, string> = {
 };
 
 const eventTypeStyle: Record<string, string> = {
-  notice: "bg-blue-500/20 text-blue-400",
-  event: "bg-green-500/20 text-green-400",
-  promotion: "bg-orange-500/20 text-orange-400",
+  notice: "bg-blue-500/20 text-blue-600",
+  event: "bg-green-500/20 text-green-600",
+  promotion: "bg-orange-500/20 text-orange-600",
 };
 
-const eventTypeEmoji: Record<string, string> = {
-  notice: "📢",
-  event: "🎉",
-  promotion: "🎁",
+const eventTypeShort: Record<string, string> = {
+  notice: "공",
+  event: "이",
+  promotion: "프",
 };
 
 export default function GymPlusEvents() {
@@ -62,12 +62,12 @@ export default function GymPlusEvents() {
               onClick={() => navigate(`/gym-plus/events/${e.id}`)}
             >
               <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted"}`}>
-                  {eventTypeEmoji[e.eventType ?? "notice"] ?? "📌"}
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted"}`}>
+                  {eventTypeShort[e.eventType ?? "notice"] ?? "공"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    {e.isPinned ? <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">📌 고정</span> : null}
+                    {e.isPinned ? <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">고정</span> : null}
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
                       {eventTypeLabel[e.eventType ?? "notice"] ?? e.eventType}
                     </span>

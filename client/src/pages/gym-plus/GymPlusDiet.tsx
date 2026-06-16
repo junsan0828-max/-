@@ -211,7 +211,7 @@ export default function GymPlusDiet() {
       {/* 신체정보 없을 때 안내 */}
       {hasMissingBodyInfo && (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 space-y-2">
-          <p className="text-xs font-semibold text-yellow-400">⚠️ 신체정보 입력 필요</p>
+          <p className="text-xs font-semibold text-yellow-600">신체정보 입력 필요</p>
           <p className="text-xs text-muted-foreground">기초대사량 자동 계산을 위해 내정보에서 키·몸무게·출생연도·성별을 입력해 주세요.</p>
           <button
             onClick={() => navigate("/gym-plus/profile")}
@@ -310,7 +310,7 @@ export default function GymPlusDiet() {
               onClick={handleGenerate}
               disabled={generatePlan.isPending || !tdee}
             >
-              {generatePlan.isPending ? "생성 중..." : plan ? "🔄 식단 다시 생성" : "✨ 오늘의 식단 생성"}
+              {generatePlan.isPending ? "생성 중..." : plan ? "식단 다시 생성" : "오늘의 식단 생성"}
             </Button>
           </div>
         )}
@@ -372,7 +372,7 @@ export default function GymPlusDiet() {
               {/* 성공 섭취 */}
               {todayReport.done.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-xs font-semibold text-green-400">✅ 성공 섭취 ({todayReport.done.length}건)</p>
+                  <p className="text-xs font-semibold text-green-600">성공 섭취 ({todayReport.done.length}건)</p>
                   {todayReport.done.map((x) => (
                     <div key={x.label} className="flex items-center justify-between text-xs bg-green-500/5 border border-green-500/20 rounded-lg px-3 py-1.5">
                       <span className="text-muted-foreground">{x.label}</span>
