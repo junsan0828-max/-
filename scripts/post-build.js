@@ -17,6 +17,12 @@ const routes = [
     description: "FIT STEP 서비스 관리자 페이지",
     url: "https://noble-unity-production-8100.up.railway.app/admin",
   },
+  {
+    dir: "contract",
+    title: "FIT STEP 전자 회원 계약서",
+    description: "FIT STEP 헬스장 회원 계약서. 계약 내역·약관·서명을 포함한 전자 계약서를 인쇄하거나 공유하세요.",
+    url: "https://noble-unity-production-8100.up.railway.app/contract",
+  },
 ];
 
 for (const { dir, title, description, url } of routes) {
@@ -39,9 +45,10 @@ for (const { dir, title, description, url } of routes) {
 // serve.json: 라우트별 HTML 매핑 (SPA 모드 대신 명시적 rewrite)
 const serveConfig = {
   rewrites: [
-    { source: "/posture", destination: "/posture/index.html" },
-    { source: "/admin",   destination: "/admin/index.html" },
-    { source: "/**",      destination: "/index.html" },
+    { source: "/posture",  destination: "/posture/index.html" },
+    { source: "/admin",    destination: "/admin/index.html" },
+    { source: "/contract", destination: "/contract/index.html" },
+    { source: "/**",       destination: "/index.html" },
   ],
 };
 fs.writeFileSync(path.join(distDir, "serve.json"), JSON.stringify(serveConfig, null, 2));

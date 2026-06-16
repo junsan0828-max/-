@@ -1,7 +1,8 @@
 {
   "rewrites": [
-    { "source": "/posture", "destination": "/posture/index.html" },
-    { "source": "/admin",   "destination": "/admin/index.html" },
-    { "source": "/**",      "destination": "/index.html" }
+    { "source": "/posture",  "destination": "/posture/index.html" },
+    { "source": "/admin",    "destination": "/admin/index.html" },
+    { "source": "/contract", "destination": "/contract/index.html" },
+    { "source": "/**",       "destination": "/index.html" }
   ]
 }

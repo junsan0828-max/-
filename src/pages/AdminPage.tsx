@@ -65,6 +65,16 @@ const SERVICES: ServiceDef[] = [
     scKey: "pa_sc",
     stKey: `pa_st_${todayKey()}`,
   },
+  {
+    id: "contract",
+    name: "FIT STEP 전자 회원 계약서",
+    desc: "URL 파라미터로 계약 정보를 전달해 계약서를 생성·인쇄·공유. 서명 이미지 지원.",
+    link: "/contract",
+    vcKey: "ct_vc",
+    vtKey: `ct_vt_${todayKey()}`,
+    scKey: "ct_sc",
+    stKey: `ct_st_${todayKey()}`,
+  },
 ];
 
 export default function AdminPage() {
