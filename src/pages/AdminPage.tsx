@@ -528,7 +528,7 @@ function PointPanel({ sbGet, sbSet }: {
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" as const }}>
           <input
             value={userId} onChange={e => { setUserId(e.target.value); setCurrent(null); setMsg(""); }}
-            placeholder="카카오 user ID"
+            placeholder="카카오 숫자 ID (예: 3712345678)"
             style={{ ...iStyle2, flex: 2, minWidth: 160 }}
           />
           <button onClick={lookup} disabled={busy}
@@ -557,9 +557,12 @@ function PointPanel({ sbGet, sbSet }: {
           </button>
         </div>
         {msg && <p style={{ color: "#34d399", fontSize: 13, margin: "12px 0 0" }}>{msg}</p>}
-        <p style={{ color: "#475569", fontSize: 11, margin: "12px 0 0" }}>
-          카카오 user ID는 회원이 계약서 폼에 로그인하면 Supabase dp_counters에 ct_pt_&#123;ID&#125; 키로 저장됩니다.
-        </p>
+        <div style={{ background: "#0f172a", borderRadius: 8, padding: "10px 12px", marginTop: 12, borderLeft: "3px solid #60a5fa" }}>
+          <p style={{ color: "#64748b", fontSize: 11, margin: 0, lineHeight: 1.7 }}>
+            이름이 아닌 <span style={{ color: "#60a5fa", fontWeight: 700 }}>카카오 숫자 ID</span>를 입력하세요.<br/>
+            회원이 /contract 페이지에 로그인하면 화면에 본인 ID가 표시됩니다. 그 번호를 여기에 입력하면 됩니다.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -23,7 +23,7 @@ function fmt(v: string) {
   return isNaN(n) || v === "" ? (v || "—") : n.toLocaleString() + "원";
 }
 
-const TERMS = [
+const DEFAULT_TERMS = [
   { no: "제1조", title: "이용 목적",     body: "회원은 본 센터의 시설 및 서비스를 건강 증진 및 체력 향상의 목적으로만 이용하여야 하며, 타인에게 방해가 되는 행위를 하여서는 아니 됩니다." },
   { no: "제2조", title: "환불 규정",     body: "등록 후 7일 이내 미이용 시 전액 환불이 가능합니다. 이용 개시 후에는 소비자보호법 및 공정거래위원회 지침에 따라 잔여 기간에 대한 비례 환불이 적용됩니다. 단, 회원의 귀책사유로 인한 중도 해지 시 위약금이 발생할 수 있습니다." },
   { no: "제3조", title: "시설 이용 규칙", body: "회원은 센터 내 기구 및 시설을 지정된 방법으로 사용하여야 하며, 사용 후 정리정돈을 철저히 하여야 합니다. 운동복 및 운동화 착용은 필수이며, 타인을 배려하는 에티켓을 준수하여야 합니다." },
@@ -31,6 +31,25 @@ const TERMS = [
   { no: "제5조", title: "개인 용품 및 귀중품", body: "센터 내 귀중품 분실에 대하여 센터는 책임을 지지 않습니다. 귀중품은 반드시 사물함에 보관하시고, 분실 방지를 위해 개인 관리를 철저히 하여 주시기 바랍니다." },
   { no: "제6조", title: "계약 변경 및 양도", body: "본 계약의 내용을 변경하거나 회원권을 타인에게 양도하고자 할 경우에는 센터 운영자와 협의하여 서면으로 처리하여야 합니다. 무단 양도 시 계약이 해지될 수 있습니다." },
 ];
+
+function loadTerms() {
+  try {
+    const saved = localStorage.getItem("ct_terms");
+    if (saved) {
+      const parsed = JSON.parse(saved) as { title: string; body: string }[];
+      if (Array.isArray(parsed) && parsed.length === DEFAULT_TERMS.length) {
+        return DEFAULT_TERMS.map((d, i) => ({
+          no: d.no,
+          title: parsed[i].title || d.title,
+          body:  parsed[i].body  || d.body,
+        }));
+      }
+    }
+  } catch {}
+  return DEFAULT_TERMS;
+}
+
+const TERMS = loadTerms();
 
 export default function ContractPrint() {
   const name         = qp("name");

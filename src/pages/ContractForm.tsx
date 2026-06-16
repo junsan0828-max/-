@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { User, Zap, FileText, CreditCard, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { User, Zap, FileText, CreditCard, ChevronDown, ChevronUp, Lock, Settings, Copy, Check as CheckIcon } from "lucide-react";
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 const _SB  = (import.meta.env.VITE_SUPABASE_URL  as string | undefined) ?? "";
@@ -66,6 +66,23 @@ const DEF: F = {
   startDate: todayISO(), center: "FIT STEP", trainer: "", adConsent: "yes",
 };
 
+// ── Default Terms ─────────────────────────────────────────────────────────────
+const DEFAULT_TERMS_CF = [
+  { title: "이용 목적",     body: "회원은 본 센터의 시설 및 서비스를 건강 증진 및 체력 향상의 목적으로만 이용하여야 하며, 타인에게 방해가 되는 행위를 하여서는 아니 됩니다." },
+  { title: "환불 규정",     body: "등록 후 7일 이내 미이용 시 전액 환불이 가능합니다. 이용 개시 후에는 소비자보호법 및 공정거래위원회 지침에 따라 잔여 기간에 대한 비례 환불이 적용됩니다. 단, 회원의 귀책사유로 인한 중도 해지 시 위약금이 발생할 수 있습니다." },
+  { title: "시설 이용 규칙", body: "회원은 센터 내 기구 및 시설을 지정된 방법으로 사용하여야 하며, 사용 후 정리정돈을 철저히 하여야 합니다. 운동복 및 운동화 착용은 필수이며, 타인을 배려하는 에티켓을 준수하여야 합니다." },
+  { title: "부상 및 사고",  body: "운동 중 발생하는 부상에 대하여 회원은 사전에 본인의 건강 상태를 확인하고 무리한 운동을 자제하여야 합니다. 센터는 회원의 안전을 위해 최선을 다하나, 회원의 과실로 인한 부상에 대해서는 책임을 지지 않습니다." },
+  { title: "개인 용품 및 귀중품", body: "센터 내 귀중품 분실에 대하여 센터는 책임을 지지 않습니다. 귀중품은 반드시 사물함에 보관하시고, 분실 방지를 위해 개인 관리를 철저히 하여 주시기 바랍니다." },
+  { title: "계약 변경 및 양도", body: "본 계약의 내용을 변경하거나 회원권을 타인에게 양도하고자 할 경우에는 센터 운영자와 협의하여 서면으로 처리하여야 합니다. 무단 양도 시 계약이 해지될 수 있습니다." },
+];
+function loadSavedTerms() {
+  try {
+    const s = localStorage.getItem("ct_terms");
+    if (s) { const p = JSON.parse(s); if (Array.isArray(p) && p.length === 6) return p as { title: string; body: string }[]; }
+  } catch {}
+  return DEFAULT_TERMS_CF.map(t => ({ ...t }));
+}
+
 // ── Inline style helpers ──────────────────────────────────────────────────────
 const IS: React.CSSProperties = {
   width: "100%", background: "#0f172a", border: "1px solid #334155",
@@ -103,6 +120,10 @@ export default function ContractForm() {
   const [loading,   setLoading]   = useState(false);
   const [form,      setForm]      = useState<F>(DEF);
   const [showPurchase, setShowPurchase] = useState(false);
+  const [showTermsEdit, setShowTermsEdit] = useState(false);
+  const [terms, setTerms] = useState<{ title: string; body: string }[]>(loadSavedTerms);
+  const [termsSaved, setTermsSaved] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
   const [error,     setError]     = useState("");
   const [generating, setGenerating] = useState(false);
 
@@ -169,6 +190,30 @@ export default function ContractForm() {
       }
       return n;
     });
+  }
+
+  function setTerm(idx: number, field: "title" | "body", val: string) {
+    setTerms(prev => prev.map((t, i) => i === idx ? { ...t, [field]: val } : t));
+    setTermsSaved(false);
+  }
+  function saveTerms() {
+    localStorage.setItem("ct_terms", JSON.stringify(terms));
+    setTermsSaved(true);
+    setTimeout(() => setTermsSaved(false), 2000);
+  }
+  function resetTerms() {
+    const def = DEFAULT_TERMS_CF.map(t => ({ ...t }));
+    setTerms(def);
+    localStorage.setItem("ct_terms", JSON.stringify(def));
+    setTermsSaved(true);
+    setTimeout(() => setTermsSaved(false), 2000);
+  }
+  function copyKakaoId() {
+    if (kakaoUser?.id) {
+      navigator.clipboard.writeText(kakaoUser.id).catch(() => {});
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    }
   }
 
   async function handleGenerate() {
@@ -258,6 +303,20 @@ export default function ContractForm() {
                 </p>
               </div>
             </div>
+            {/* Kakao ID row — for admin point grant */}
+            {kakaoUser.id && (
+              <div style={{ marginTop: 8, background: "#1e293b", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #334155" }}>
+                <div>
+                  <p style={{ color: "#64748b", fontSize: 10, margin: "0 0 2px" }}>카카오 ID (포인트 충전 시 어드민에 전달)</p>
+                  <p style={{ color: "#94a3b8", fontWeight: 700, fontSize: 14, margin: 0, fontFamily: "monospace" }}>{kakaoUser.id}</p>
+                </div>
+                <button onClick={copyKakaoId}
+                  style={{ display:"flex", alignItems:"center", gap:4, background: copiedId ? "#064e3b" : "#0f172a", border:"1px solid #334155", borderRadius:8, padding:"7px 12px", color: copiedId ? "#34d399" : "#94a3b8", fontSize:12, cursor:"pointer" }}>
+                  {copiedId ? <CheckIcon size={13}/> : <Copy size={13}/>}
+                  {copiedId ? "복사됨" : "복사"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -336,6 +395,47 @@ export default function ContractForm() {
               ))}
             </div>
           </Section>
+        </div>
+
+        {/* ── 이용약관 설정 ── */}
+        <div style={{ border:"1px solid #334155", borderRadius:14, overflow:"hidden", marginBottom:12 }}>
+          <button onClick={() => setShowTermsEdit(v => !v)}
+            style={{ width:"100%", background:"#1e293b", border:"none", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", color:"#94a3b8", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+            <span style={{ display:"flex", alignItems:"center", gap:6 }}><Settings size={15} color="#60a5fa"/> 이용약관 설정</span>
+            {showTermsEdit ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+          </button>
+          {showTermsEdit && (
+            <div style={{ background:"#0f172a", padding:"16px", borderTop:"1px solid #334155" }}>
+              <p style={{ color:"#475569", fontSize:11, margin:"0 0 14px" }}>수정 후 저장하면 이후 생성되는 모든 계약서에 적용됩니다.</p>
+              {terms.map((term, idx) => (
+                <div key={idx} style={{ marginBottom: 16, background:"#1e293b", borderRadius:10, padding:"12px 14px", border:"1px solid #334155" }}>
+                  <p style={{ color:"#60a5fa", fontSize:10, fontWeight:700, margin:"0 0 6px" }}>제{idx+1}조</p>
+                  <input
+                    value={term.title}
+                    onChange={e => setTerm(idx, "title", e.target.value)}
+                    placeholder={`제${idx+1}조 제목`}
+                    style={{ ...IS, marginBottom:8, fontSize:12, fontWeight:600 }}
+                  />
+                  <textarea
+                    value={term.body}
+                    onChange={e => setTerm(idx, "body", e.target.value)}
+                    rows={3}
+                    style={{ ...IS, resize:"vertical" as const, lineHeight:1.6 }}
+                  />
+                </div>
+              ))}
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={saveTerms}
+                  style={{ flex:2, background: termsSaved ? "#064e3b" : "linear-gradient(135deg,#2563eb,#1d4ed8)", border:"none", borderRadius:10, padding:"12px 0", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                  {termsSaved ? "저장됨 ✓" : "저장"}
+                </button>
+                <button onClick={resetTerms}
+                  style={{ flex:1, background:"#1e293b", border:"1px solid #475569", borderRadius:10, padding:"12px 0", color:"#64748b", fontSize:13, cursor:"pointer" }}>
+                  기본값 복원
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── 계약서 생성 버튼 ── */}
