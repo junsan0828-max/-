@@ -38,7 +38,7 @@ export default function GymPlusLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="gymplus-light min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* 로고 */}
         <div className="flex flex-col items-center mb-10">
