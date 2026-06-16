@@ -390,6 +390,27 @@ export default function ContractForm() {
 
       <div style={{ padding: "0 16px" }}>
 
+        {/* FIT STEP 배너 */}
+        <div style={{ background:"linear-gradient(135deg,#064e3b,#065f46)", borderRadius:16, padding:"16px", margin:"14px 0 4px", border:"1px solid #059669" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
+            <div style={{ width:42, height:42, background:"rgba(255,255,255,0.12)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <Zap size={22} color="#34d399"/>
+            </div>
+            <div style={{ flex:1 }}>
+              <p style={{ color:"#6ee7b7", fontWeight:800, fontSize:11, margin:"0 0 2px", letterSpacing:"0.1em" }}>FIT STEP 회원 혜택</p>
+              <p style={{ color:"#fff", fontWeight:800, fontSize:15, margin:0, lineHeight:1.3, wordBreak:"keep-all" as const }}>전자계약서 무제한 무료!</p>
+            </div>
+          </div>
+          <p style={{ color:"#a7f3d0", fontSize:12, margin:"0 0 14px", lineHeight:1.6 }}>
+            핏스텝 회원은 계약서 생성 횟수 제한 없이 <strong style={{ color:"#34d399" }}>완전 무료</strong>로 이용할 수 있습니다.<br/>
+            비회원은 하루 2회 무료 · 이후 300P/건
+          </p>
+          <a href="https://fitstep.co.kr/?ref=contract" target="_blank" rel="noreferrer"
+            style={{ display:"block", background:"#34d399", color:"#064e3b", textDecoration:"none", borderRadius:10, padding:"12px 0", textAlign:"center", fontWeight:800, fontSize:14, letterSpacing:"0.02em" }}>
+            핏스텝 무료로 시작하기 →
+          </a>
+        </div>
+
         {/* 사용량 & 포인트 */}
         {kakaoUser && (
           <div style={{ padding: "12px 0" }}>
@@ -613,23 +634,6 @@ export default function ContractForm() {
           )}
         </div>
 
-        {/* FIT STEP 배너 */}
-        <div style={{ background:"#fff", borderRadius:16, padding:"16px", marginBottom:8 }}>
-          <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:14 }}>
-            <div style={{ width:44, height:44, background:"#d1fae5", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <Zap size={22} color="#059669"/>
-            </div>
-            <div>
-              <p style={{ color:"#059669", fontWeight:700, fontSize:12, margin:"0 0 3px" }}>FIT STEP</p>
-              <p style={{ color:"#111827", fontWeight:700, fontSize:15, margin:"0 0 4px", wordBreak:"keep-all" as const }}>회원관리부터 계약서까지 하나로.</p>
-              <p style={{ color:"#6b7280", fontSize:12, margin:0 }}>핏스텝 회원 전용 전자계약서 서비스</p>
-            </div>
-          </div>
-          <a href="https://fitstep.co.kr/?ref=contract" target="_blank" rel="noreferrer"
-            style={{ display:"block", background:"#059669", color:"#fff", textDecoration:"none", borderRadius:10, padding:"13px 0", textAlign:"center", fontWeight:700, fontSize:15 }}>
-            무료로 시작하기 →
-          </a>
-        </div>
       </div>
     </div>
   );
