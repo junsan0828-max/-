@@ -543,7 +543,7 @@ export default function RegistrationManagement() {
                             <p className="text-xs text-muted-foreground mt-0.5">{r.programDetail || "—"}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold text-foreground">{(r.paidAmount ?? 0).toLocaleString()}원</p>
+                            <p className="text-sm font-semibold text-foreground">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</p>
                             <p className="text-xs text-muted-foreground">{r.paymentDate || "—"}</p>
                           </div>
                         </div>
@@ -1843,7 +1843,7 @@ export default function RegistrationManagement() {
                               <p className="text-xs text-muted-foreground">{r.paymentDate} · {r.subType}</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <p className="text-sm font-semibold text-foreground">{(r.paidAmount ?? 0).toLocaleString()}원</p>
+                              <p className="text-sm font-semibold text-foreground">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</p>
                               {hasUnpaid && (
                                 <p className="text-xs font-semibold text-red-400">미수 {(r.unpaidAmount).toLocaleString()}원</p>
                               )}
