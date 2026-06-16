@@ -1023,6 +1023,26 @@ const revenueRouter = t.router({
       return { deleted: result.length };
     }),
 
+  cumulativeUnpaid: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({
+        id: revenueEntries.id,
+        customerName: revenueEntries.customerName,
+        programDetail: revenueEntries.programDetail,
+        unpaidAmount: revenueEntries.unpaidAmount,
+        paymentDate: revenueEntries.paymentDate,
+        branchId: revenueEntries.branchId,
+        memberId: revenueEntries.memberId,
+      }).from(revenueEntries)
+        .where(sql`${revenueEntries.unpaidAmount} > 0`);
+      const filtered = input?.branchId ? rows.filter(r => r.branchId === input.branchId) : rows;
+      const total = filtered.reduce((s, r) => s + (r.unpaidAmount ?? 0), 0);
+      return { total, count: filtered.length, entries: filtered };
+    }),
+
   monthlySummary: protectedProcedure
     .input(z.object({ year: z.number(), branchId: z.number().optional() }))
     .query(async ({ input }) => {

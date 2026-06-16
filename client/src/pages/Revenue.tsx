@@ -88,6 +88,9 @@ function RevenueTab() {
   const { data: entries, isLoading } = trpc.gym.revenue.list.useQuery({ year, month });
   const { data: trainers }  = trpc.trainers.list.useQuery();
   const { data: branchList }= trpc.gym.staff.listBranches.useQuery();
+  const { data: cumulativeUnpaidData } = trpc.gym.revenue.cumulativeUnpaid.useQuery(
+    branchFilter ? { branchId: branchFilter } : undefined
+  );
 
   function prevMonth() { if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1); }
   function nextMonth() { if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1); }
@@ -119,7 +122,8 @@ function RevenueTab() {
   const regularRows = deduped.filter(r => r.entry.subType !== "환불");
   const refundRows  = deduped.filter(r => r.entry.subType === "환불");
   const totalRevenue = regularRows.reduce((s, r) => s + r.entry.paidAmount, 0);
-  const totalUnpaid  = regularRows.reduce((s, r) => s + r.entry.unpaidAmount, 0);
+  const monthUnpaid  = regularRows.reduce((s, r) => s + r.entry.unpaidAmount, 0);
+  const cumulativeUnpaid = cumulativeUnpaidData?.total ?? monthUnpaid;
   const totalRefund  = refundRows.reduce((s, r) => s + Math.abs(r.entry.paidAmount), 0);
   const netRevenue   = totalRevenue - totalRefund;
 
@@ -156,11 +160,14 @@ function RevenueTab() {
           <div className="text-lg font-bold text-emerald-400">{fmt(totalRevenue)}원</div>
           <div className="text-xs text-muted-foreground">{regularRows.length}건</div>
         </div>
-        <div className={`bg-card border rounded-xl p-3 ${totalUnpaid > 0 ? "border-red-500/30" : "border-border"}`}>
+        <div className={`bg-card border rounded-xl p-3 ${cumulativeUnpaid > 0 ? "border-red-500/30" : "border-border"}`}>
           <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-            {totalUnpaid > 0 && <AlertCircle className="h-3 w-3 text-red-400" />}미수금
+            {cumulativeUnpaid > 0 && <AlertCircle className="h-3 w-3 text-red-400" />}미수금 (누적)
           </div>
-          <div className={`text-lg font-bold ${totalUnpaid > 0 ? "text-red-400" : "text-muted-foreground"}`}>{fmt(totalUnpaid)}원</div>
+          <div className={`text-lg font-bold ${cumulativeUnpaid > 0 ? "text-red-400" : "text-muted-foreground"}`}>{fmt(cumulativeUnpaid)}원</div>
+          {monthUnpaid > 0 && monthUnpaid !== cumulativeUnpaid && (
+            <div className="text-xs text-red-400/70 mt-0.5">이번 달 {fmt(monthUnpaid)}원</div>
+          )}
         </div>
         <div className="bg-card border border-border rounded-xl p-3">
           <div className="text-xs text-muted-foreground mb-1">환불/조정</div>
