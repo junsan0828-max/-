@@ -46,7 +46,6 @@ async function generateCodeChallenge(v: string) {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DAILY_FREE = 2;
 const POINT_COST = 300;
-const FS_BONUS   = 150;
 
 function todayKey() { return new Date().toISOString().slice(0, 10).replace(/-/g, ""); }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
@@ -245,29 +244,20 @@ export default function ContractForm() {
         setKakaoUser(u);
         const ut = localStorage.getItem("dp_ut") || "member";
         setUserType(ut);
-        if (u.id) loadStats(u.id, ut);
+        if (u.id) loadStats(u.id);
       }
     } catch {}
   }, []);
 
-  async function loadStats(userId: string, ut: string) {
+  async function loadStats(userId: string) {
     setLoading(true);
     const t = todayKey();
     const [free, pts] = await Promise.all([
       dbGet(`ct_df_${userId}_${t}`),
       dbGet(`ct_pt_${userId}`),
     ]);
-    let finalPts = pts;
-    if (ut === "fitstep") {
-      const bonusKey = `ct_bonus_${userId}_${t}`;
-      const given = await dbGet(bonusKey);
-      if (!given) {
-        finalPts = pts + FS_BONUS;
-        await Promise.all([dbSet(bonusKey, 1), dbSet(`ct_pt_${userId}`, finalPts)]);
-      }
-    }
     setFreeUsed(free);
-    setPoints(finalPts);
+    setPoints(pts);
     setLoading(false);
   }
 
@@ -619,9 +609,6 @@ export default function ContractForm() {
               ) : (
                 <p style={{ color:"#475569", fontSize:12, textAlign:"center", margin:0 }}>로그인 후 충전 신청이 가능합니다.</p>
               )}
-              {userType === "fitstep" && (
-                <p style={{ color:"#fbbf24", fontSize:12, textAlign:"center", margin:"12px 0 0" }}>★ FIT STEP 회원 — 매일 로그인 시 {FS_BONUS}P 자동 지급</p>
-              )}
             </div>
           )}
         </div>
@@ -635,7 +622,7 @@ export default function ContractForm() {
             <div>
               <p style={{ color:"#059669", fontWeight:700, fontSize:12, margin:"0 0 3px" }}>FIT STEP</p>
               <p style={{ color:"#111827", fontWeight:700, fontSize:15, margin:"0 0 4px", wordBreak:"keep-all" as const }}>회원관리부터 계약서까지 하나로.</p>
-              <p style={{ color:"#6b7280", fontSize:12, margin:0 }}>핏스텝 회원은 매일 {FS_BONUS}P 자동 지급</p>
+              <p style={{ color:"#6b7280", fontSize:12, margin:0 }}>핏스텝 회원 전용 전자계약서 서비스</p>
             </div>
           </div>
           <a href="https://fitstep.co.kr/?ref=contract" target="_blank" rel="noreferrer"
