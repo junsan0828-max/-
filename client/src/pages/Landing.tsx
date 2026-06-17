@@ -103,99 +103,129 @@ function Nav() {
   ];
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled ? "bg-white border-b border-gray-100" : "bg-transparent"
-      }`}
-    >
-      <div className="max-w-6xl mx-auto px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 lg:h-20">
-          <button
-            onClick={() => scrollTo("hero")}
-            className={`text-sm font-bold tracking-[0.2em] uppercase transition-colors ${
-              scrolled ? "text-[#0B1D3A]" : "text-white"
-            }`}
-          >
-            ZIANTGYM
-          </button>
-
-          <nav className="hidden lg:flex items-center gap-8">
-            {links.map((link) => (
-              <button
-                key={link.id}
-                onClick={() => scrollTo(link.id)}
-                className={`text-xs tracking-widest uppercase transition-colors ${
-                  scrolled ? "text-gray-400 hover:text-[#0B1D3A]" : "text-white/60 hover:text-white"
-                }`}
-              >
-                {link.label}
-              </button>
-            ))}
-          </nav>
-
-          <div className="hidden lg:flex items-center gap-6">
+    <>
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+          scrolled ? "bg-white border-b border-gray-100" : "bg-transparent"
+        }`}
+      >
+        <div className="max-w-6xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 lg:h-20">
             <button
-              onClick={() => scrollTo("contact")}
-              className={`text-xs font-medium px-5 py-2.5 tracking-wide transition-all border ${
-                scrolled
-                  ? "border-[#0B1D3A] text-[#0B1D3A] hover:bg-[#0B1D3A] hover:text-white"
-                  : "border-white text-white hover:bg-white hover:text-[#0B1D3A]"
+              onClick={() => scrollTo("hero")}
+              className={`text-sm font-bold tracking-[0.2em] uppercase transition-colors ${
+                scrolled ? "text-[#0B1D3A]" : "text-white"
               }`}
             >
-              무료 상담 예약
+              ZIANTGYM
             </button>
-            <a
-              href="/gym-plus"
-              className={`text-xs tracking-widest transition-colors ${
-                scrolled ? "text-gray-300 hover:text-gray-600" : "text-white/30 hover:text-white/60"
-              }`}
-            >
-              짐플러스
-            </a>
-          </div>
 
-          <button
-            className="lg:hidden p-2"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="메뉴"
-          >
-            <div className="flex flex-col gap-1.5 w-5">
-              <span className={`block h-px transition-all origin-center ${scrolled ? "bg-gray-800" : "bg-white"} ${menuOpen ? "rotate-45 translate-y-2" : ""}`} />
-              <span className={`block h-px transition-all ${scrolled ? "bg-gray-800" : "bg-white"} ${menuOpen ? "opacity-0" : ""}`} />
-              <span className={`block h-px transition-all origin-center ${scrolled ? "bg-gray-800" : "bg-white"} ${menuOpen ? "-rotate-45 -translate-y-2" : ""}`} />
-            </div>
-          </button>
-        </div>
+            <nav className="hidden lg:flex items-center gap-8">
+              {links.map((link) => (
+                <button
+                  key={link.id}
+                  onClick={() => scrollTo(link.id)}
+                  className={`text-xs tracking-widest uppercase transition-colors ${
+                    scrolled ? "text-gray-400 hover:text-[#0B1D3A]" : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  {link.label}
+                </button>
+              ))}
+            </nav>
 
-        {menuOpen && (
-          <div className="lg:hidden bg-white border-t border-gray-100 py-6">
-            {links.map((link) => (
+            <div className="hidden lg:flex items-center gap-6">
               <button
-                key={link.id}
-                onClick={() => { scrollTo(link.id); setMenuOpen(false); }}
-                className="w-full text-left py-3.5 text-xs tracking-widest uppercase text-gray-400 hover:text-[#0B1D3A] border-b border-gray-50 transition-colors"
-              >
-                {link.label}
-              </button>
-            ))}
-            <div className="mt-6 flex flex-col gap-3">
-              <button
-                onClick={() => { scrollTo("contact"); setMenuOpen(false); }}
-                className="w-full py-3.5 bg-[#0B1D3A] text-white text-xs font-medium tracking-widest"
+                onClick={() => scrollTo("contact")}
+                className={`text-xs font-medium px-5 py-2.5 tracking-wide transition-all border ${
+                  scrolled
+                    ? "border-[#0B1D3A] text-[#0B1D3A] hover:bg-[#0B1D3A] hover:text-white"
+                    : "border-white text-white hover:bg-white hover:text-[#0B1D3A]"
+                }`}
               >
                 무료 상담 예약
               </button>
               <a
                 href="/gym-plus"
-                className="w-full py-3.5 text-center text-xs text-gray-300 tracking-widest border border-gray-100"
+                className={`text-xs tracking-widest transition-colors ${
+                  scrolled ? "text-gray-300 hover:text-gray-600" : "text-white/30 hover:text-white/60"
+                }`}
+              >
+                짐플러스
+              </a>
+            </div>
+
+            <button
+              className="lg:hidden p-2"
+              onClick={() => setMenuOpen(true)}
+              aria-label="메뉴"
+            >
+              <div className="flex flex-col gap-1.5 w-5">
+                <span className={`block h-px ${scrolled ? "bg-gray-800" : "bg-white"}`} />
+                <span className={`block h-px ${scrolled ? "bg-gray-800" : "bg-white"}`} />
+                <span className={`block h-px ${scrolled ? "bg-gray-800" : "bg-white"}`} />
+              </div>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* 모바일 풀스크린 오버레이 메뉴 */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-[100] lg:hidden">
+          {/* 배경 dimmer */}
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMenuOpen(false)}
+          />
+          {/* 드로어 패널 */}
+          <div className="absolute top-0 right-0 bottom-0 w-4/5 max-w-xs bg-white flex flex-col shadow-2xl">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-6 h-16 border-b border-gray-100 flex-shrink-0">
+              <span className="text-sm font-bold tracking-[0.2em] uppercase text-[#0B1D3A]">ZIANTGYM</span>
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="p-2 text-gray-400 hover:text-gray-700"
+                aria-label="닫기"
+              >
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* 링크 목록 */}
+            <nav className="flex-1 overflow-y-auto px-6 py-4">
+              {links.map((link) => (
+                <button
+                  key={link.id}
+                  onClick={() => { scrollTo(link.id); setMenuOpen(false); }}
+                  className="w-full text-left py-4 text-sm tracking-widest uppercase text-gray-400 hover:text-[#0B1D3A] border-b border-gray-50 transition-colors"
+                >
+                  {link.label}
+                </button>
+              ))}
+            </nav>
+
+            {/* 하단 CTA */}
+            <div className="px-6 py-6 flex flex-col gap-3 flex-shrink-0 border-t border-gray-100">
+              <button
+                onClick={() => { scrollTo("contact"); setMenuOpen(false); }}
+                className="w-full py-4 bg-[#0B1D3A] text-white text-xs font-semibold tracking-widest"
+              >
+                무료 상담 예약
+              </button>
+              <a
+                href="/gym-plus"
+                className="w-full py-4 text-center text-xs text-gray-400 tracking-widest border border-gray-200 hover:border-gray-400 transition-colors"
               >
                 짐플러스 회원 로그인
               </a>
             </div>
           </div>
-        )}
-      </div>
-    </header>
+        </div>
+      )}
+    </>
   );
 }
 
