@@ -220,13 +220,13 @@ export default function ContractPrint() {
   const unpaidNum = Number(unpaid.replace(/,/g, ""));
 
   const S = {
-    wrap: { maxWidth: 820, margin: "0 auto", padding: "24px 20px", fontFamily: "'Noto Sans KR', sans-serif" },
-    doc:  { background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "48px 52px" },
-    h2:   { fontSize: 14, fontWeight: 700, margin: "0 0 10px", color: "#1e293b", borderLeft: "3px solid #059669", paddingLeft: 8 } as React.CSSProperties,
-    tbl:  { width: "100%", borderCollapse: "collapse" as const, marginBottom: 22, fontSize: 13 },
-    th:   { background: "#f1f5f9", fontWeight: 600, padding: "8px 12px", border: "1px solid #cbd5e1", width: 120, textAlign: "left" as const, color: "#374151" },
-    td:   { padding: "8px 12px", border: "1px solid #cbd5e1", color: "#1e293b" },
-    box:  { border: "1px solid #cbd5e1", borderRadius: 6, padding: "14px 18px", marginBottom: 20, background: "#f8fafc", fontSize: 12, color: "#475569", lineHeight: 1.8 as const },
+    wrap: { maxWidth: 780, margin: "0 auto", padding: "28px 16px 48px", fontFamily: "'Noto Sans KR', sans-serif" } as React.CSSProperties,
+    doc:  { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "40px 36px", boxShadow: "0 4px 32px rgba(0,0,0,0.07)" } as React.CSSProperties,
+    h2:   { fontSize: 13, fontWeight: 800, margin: "24px 0 10px", color: "#0f172a", borderLeft: "3px solid #2563eb", paddingLeft: 10, letterSpacing: "0.04em" } as React.CSSProperties,
+    tbl:  { width: "100%", borderCollapse: "collapse" as const, marginBottom: 4, fontSize: 13 },
+    th:   { background: "#f8fafc", fontWeight: 600, padding: "9px 14px", border: "1px solid #e2e8f0", whiteSpace: "nowrap" as const, width: "1%", textAlign: "left" as const, color: "#475569", fontSize: 12 },
+    td:   { padding: "9px 14px", border: "1px solid #e2e8f0", color: "#0f172a", wordBreak: "break-all" as const },
+    box:  { border: "1px solid #e2e8f0", borderRadius: 10, padding: "16px 18px", marginBottom: 4, background: "#f8fafc", fontSize: 12.5, color: "#475569", lineHeight: 1.85 as const },
   };
 
   return (
@@ -245,11 +245,11 @@ export default function ContractPrint() {
       `}</style>
 
       {/* Action bar */}
-      <div className="no-print" style={{ background: "#1e293b", padding: "12px 20px", display: "flex", gap: 10, justifyContent: "flex-end", position: "sticky", top: 0, zIndex: 10 }}>
-        <button onClick={() => window.print()} style={{ display: "flex", alignItems: "center", gap: 6, background: "#059669", border: "none", borderRadius: 8, padding: "10px 20px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+      <div className="no-print" style={{ background: "#ffffff", borderBottom: "1px solid #e2e8f0", padding: "12px 20px", display: "flex", gap: 10, justifyContent: "flex-end", position: "sticky", top: 0, zIndex: 10, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+        <button onClick={() => window.print()} style={{ display: "flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, padding: "10px 20px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(37,99,235,0.3)" }}>
           <Printer size={16} /> 인쇄 / PDF 저장
         </button>
-        <button onClick={handleShare} style={{ display: "flex", alignItems: "center", gap: 6, background: copied ? "#065f46" : "#334155", border: "none", borderRadius: 8, padding: "10px 20px", color: copied ? "#34d399" : "#94a3b8", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+        <button onClick={handleShare} style={{ display: "flex", alignItems: "center", gap: 6, background: copied ? "#eff6ff" : "#f1f5f9", border: `1px solid ${copied ? "#bfdbfe" : "#e2e8f0"}`, borderRadius: 8, padding: "10px 20px", color: copied ? "#2563eb" : "#64748b", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
           <Share2 size={16} /> {copied ? "링크 복사됨!" : "공유하기"}
         </button>
       </div>
@@ -258,14 +258,14 @@ export default function ContractPrint() {
         <div className="contract-doc" style={S.doc}>
 
           {/* Header */}
-          <div style={{ textAlign: "center", marginBottom: 36, borderBottom: "2px solid #1e293b", paddingBottom: 22 }}>
-            <p style={{ color: "#059669", fontSize: 11, fontWeight: 800, letterSpacing: "0.2em", margin: "0 0 6px" }}>FIT STEP</p>
-            <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 6px", color: "#0f172a", letterSpacing: "0.05em" }}>회 원 계 약 서</h1>
-            <p style={{ color: "#64748b", fontSize: 13, margin: 0 }}>{center}</p>
+          <div style={{ textAlign: "center", marginBottom: 32, paddingBottom: 24, borderBottom: "2px solid #0f172a" }}>
+            <p style={{ color: "#2563eb", fontSize: 10, fontWeight: 900, letterSpacing: "0.3em", margin: "0 0 10px", textTransform: "uppercase" as const }}>F I T &nbsp; S T E P</p>
+            <h1 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 8px", color: "#0f172a", letterSpacing: "0.18em" }}>회 원 계 약 서</h1>
+            <p style={{ color: "#94a3b8", fontSize: 12, margin: 0, letterSpacing: "0.06em" }}>{center}</p>
           </div>
 
           {/* 회원 정보 */}
-          <h2 style={S.h2}>회원 정보</h2>
+          <h2 style={{ ...S.h2, marginTop: 0 }}>회원 정보</h2>
           <table style={S.tbl}><tbody>
             <tr>
               <th style={S.th}>성명</th><td style={S.td}>{name || "—"}</td>
@@ -290,7 +290,7 @@ export default function ContractPrint() {
             </tr>
             <tr>
               <th style={S.th}>실결제</th>
-              <td style={{ ...S.td, fontWeight: 700, color: "#059669" }}>{fmt(paidAmount)}</td>
+              <td style={{ ...S.td, fontWeight: 700, color: "#2563eb" }}>{fmt(paidAmount)}</td>
               <th style={S.th}>미수금</th>
               <td style={{ ...S.td, color: unpaidNum > 0 ? "#dc2626" : "inherit", fontWeight: unpaidNum > 0 ? 700 : 400 }}>{fmt(unpaid)}</td>
             </tr>
@@ -346,8 +346,8 @@ export default function ContractPrint() {
               ※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으나, 동의 거부 시 서비스 제공이 제한될 수 있습니다.
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid #1e293b", borderRadius: 2, background: "#1e293b", flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>동의함 (필수)</span>
+              <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid #2563eb", borderRadius: 2, background: "#2563eb", flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>동의함 (필수)</span>
             </div>
           </div>
 
@@ -356,7 +356,7 @@ export default function ContractPrint() {
           <div style={S.box}>
             <p style={{ margin: "0 0 12px" }}>본 센터의 이벤트, 프로모션, 건강 정보 등 광고성 정보를 SMS·카카오톡 등을 통해 수신하는 것에 동의합니다.</p>
             <div style={{ display: "flex", gap: 24 }}>
-              {[{ val: "yes", label: "동의함", col: "#059669" }, { val: "no", label: "동의하지 않음", col: "#475569" }].map(({ val, label, col }) => (
+              {[{ val: "yes", label: "동의함", col: "#2563eb" }, { val: "no", label: "동의하지 않음", col: "#475569" }].map(({ val, label, col }) => (
                 <div key={val} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ display: "inline-block", width: 15, height: 15, border: `2px solid ${adConsent === val ? col : "#cbd5e1"}`, borderRadius: 2, background: adConsent === val ? col : "#fff", flexShrink: 0 }} />
                   <span style={{ fontSize: 13, fontWeight: 700, color: adConsent === val ? col : "#94a3b8" }}>{label}</span>
@@ -367,11 +367,11 @@ export default function ContractPrint() {
 
           {/* ── 서명란 ── */}
           <h2 style={S.h2}>서명</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 32 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 32 }}>
 
             {/* 회원 서명 */}
-            <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "14px 16px" }}>
-              <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 8px", fontWeight: 600 }}>회원 서명</p>
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+              <p style={{ fontSize: 11, color: "#94a3b8", margin: "0 0 10px", fontWeight: 700, letterSpacing: "0.06em" }}>회원 서명</p>
 
               {/* 서명 패드 (화면 전용) */}
               <div className="sig-pad-wrap">
@@ -384,7 +384,7 @@ export default function ContractPrint() {
                   onMouseLeave={onMouseUp}
                   style={{
                     width: "100%", height: 140,
-                    border: confirmed ? "1.5px solid #059669" : "1.5px dashed #94a3b8",
+                    border: confirmed ? "2px solid #2563eb" : "1.5px dashed #bfdbfe",
                     borderRadius: 6,
                     background: "#fafafa",
                     cursor: "crosshair",
@@ -409,9 +409,9 @@ export default function ContractPrint() {
                   <button
                     onClick={confirmSig}
                     disabled={!hasSig}
-                    style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: hasSig ? "#059669" : "#e2e8f0", border: "none", borderRadius: 6, padding: "7px 0", fontSize: 12, color: hasSig ? "#fff" : "#94a3b8", cursor: hasSig ? "pointer" : "not-allowed", fontWeight: 700 }}
+                    style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: hasSig ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "#e2e8f0", border: "none", borderRadius: 6, padding: "8px 0", fontSize: 12, color: hasSig ? "#fff" : "#94a3b8", cursor: hasSig ? "pointer" : "not-allowed", fontWeight: 700 }}
                   >
-                    <Check size={12} /> {confirmed ? "서명 완료 ✓" : "서명 확인"}
+                    <Check size={12} /> {confirmed ? "서명 완료 ✓" : "서명 완료 ✓"}
                   </button>
                 </div>
               </div>
@@ -429,9 +429,9 @@ export default function ContractPrint() {
             </div>
 
             {/* 운동전문가 */}
-            <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>담당 운동전문가</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: "#1e293b" }}>{trainer || "—"}</span>
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+              <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, letterSpacing: "0.06em" }}>담당 운동전문가</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>{trainer || "—"}</span>
             </div>
           </div>
 
