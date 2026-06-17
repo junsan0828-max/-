@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { useLocation } from "wouter";
 import { ExternalLink } from "lucide-react";
 
 const HEIGHT_MAP: Record<string, string> = {
@@ -7,8 +8,28 @@ const HEIGHT_MAP: Record<string, string> = {
   large: "140px",
 };
 
+function isInternalLink(link: string): boolean {
+  if (link.startsWith("/")) return true;
+  try {
+    return new URL(link).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function internalPath(link: string): string {
+  if (link.startsWith("/")) return link;
+  try {
+    const u = new URL(link);
+    return u.pathname + u.search + u.hash;
+  } catch {
+    return link;
+  }
+}
+
 export default function TabBanner({ tabKey }: { tabKey: string }) {
   const { data: banner } = trpc.tabBanner.getByTab.useQuery({ tabKey });
+  const [, setLocation] = useLocation();
 
   if (!banner || !banner.isActive) return null;
   if (!banner.text && !banner.imageUrl) return null;
@@ -37,7 +58,7 @@ export default function TabBanner({ tabKey }: { tabKey: string }) {
         }`}>{banner.text}</p>
         {banner.subText && <p className="text-xs text-white/80 mt-0.5 line-clamp-2">{banner.subText}</p>}
       </div>
-      {banner.link && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
+      {banner.link && !isInternalLink(banner.link) && <ExternalLink className="h-4 w-4 text-white/80 shrink-0" />}
     </div>
   );
 
@@ -45,6 +66,13 @@ export default function TabBanner({ tabKey }: { tabKey: string }) {
   const clsStatic = "rounded-xl overflow-hidden mb-4";
 
   if (banner.link) {
+    if (isInternalLink(banner.link)) {
+      return (
+        <div className={cls} onClick={() => setLocation(internalPath(banner.link!))}>
+          {inner}
+        </div>
+      );
+    }
     return (
       <a href={banner.link} target="_blank" rel="noreferrer" className={cls}>
         {inner}
