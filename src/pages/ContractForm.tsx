@@ -324,6 +324,19 @@ export default function ContractForm() {
     setTermsSaved(true);
     setTimeout(() => setTermsSaved(false), 2000);
   }
+  function formatPhone(v: string) {
+    const d = v.replace(/\D/g, "").slice(0, 11);
+    if (d.length <= 3) return d;
+    if (d.startsWith("02")) {
+      if (d.length <= 5) return `${d.slice(0,2)}-${d.slice(2)}`;
+      if (d.length <= 9) return `${d.slice(0,2)}-${d.slice(2,5)}-${d.slice(5)}`;
+      return `${d.slice(0,2)}-${d.slice(2,6)}-${d.slice(6)}`;
+    }
+    if (d.length <= 6) return `${d.slice(0,3)}-${d.slice(3)}`;
+    if (d.length <= 10) return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+    return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
+  }
+
   async function submitChargeRequest() {
     if (!kakaoUser?.id || !reqAmount) return;
     setReqBusy(true);
@@ -490,7 +503,7 @@ export default function ContractForm() {
           <Section title="회원 정보">
             <Row>
               <Field label="성명 *"><input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="홍길동" style={IS} /></Field>
-              <Field label="연락처"><input value={form.phone} onChange={e=>set("phone",e.target.value)} placeholder="010-0000-0000" style={IS} /></Field>
+              <Field label="연락처"><input value={form.phone} onChange={e=>set("phone", formatPhone(e.target.value))} placeholder="010-0000-0000" inputMode="numeric" style={IS} /></Field>
             </Row>
             <Row>
               <Field label="계약일"><input type="date" value={form.contractDate} onChange={e=>set("contractDate",e.target.value)} style={IS} /></Field>
