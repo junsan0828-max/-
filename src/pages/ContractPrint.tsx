@@ -285,15 +285,9 @@ export default function ContractPrint() {
 
       {/* Action bar */}
       <div className="no-print" style={{ background: "#ffffff", borderBottom: "1px solid #e2e8f0", padding: "12px 20px", display: "flex", gap: 10, justifyContent: "flex-end", position: "sticky", top: 0, zIndex: 10, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
-        <button onClick={() => window.print()} style={{ display: "flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, padding: "10px 20px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(37,99,235,0.3)" }}>
-          <Printer size={16} /> 인쇄 / PDF 저장
-        </button>
         <button onClick={handleKakaoShare} style={{ display: "flex", alignItems: "center", gap: 6, background: "#FEE500", border: "none", borderRadius: 8, padding: "10px 20px", color: "#191919", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(254,229,0,0.4)" }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="#191919"><path d="M12 3C6.477 3 2 6.477 2 10.5c0 2.548 1.516 4.787 3.813 6.15l-.972 3.6a.375.375 0 0 0 .545.423l4.23-2.82A11.6 11.6 0 0 0 12 18c5.523 0 10-3.477 10-7.5S17.523 3 12 3z"/></svg>
           카카오톡 공유
-        </button>
-        <button onClick={handleShare} style={{ display: "flex", alignItems: "center", gap: 6, background: copied ? "#eff6ff" : "#f1f5f9", border: `1px solid ${copied ? "#bfdbfe" : "#e2e8f0"}`, borderRadius: 8, padding: "10px 20px", color: copied ? "#2563eb" : "#64748b", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-          <Share2 size={16} /> {copied ? "링크 복사됨!" : "링크 복사"}
         </button>
       </div>
 
@@ -433,19 +427,19 @@ export default function ContractPrint() {
                   </p>
                 )}
                 {/* 버튼 */}
-                <div className="no-print" style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <div className="no-print" style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button
                     onClick={clearSig}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 6, padding: "7px 0", fontSize: 12, color: "#64748b", cursor: "pointer", fontWeight: 600 }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 8, padding: "10px 18px", fontSize: 13, color: "#64748b", cursor: "pointer", fontWeight: 600 }}
                   >
-                    <RotateCcw size={12} /> 지우기
+                    <RotateCcw size={13} /> 지우기
                   </button>
                   <button
                     onClick={confirmSig}
-                    disabled={!hasSig}
-                    style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: hasSig ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "#e2e8f0", border: "none", borderRadius: 6, padding: "8px 0", fontSize: 12, color: hasSig ? "#fff" : "#94a3b8", cursor: hasSig ? "pointer" : "not-allowed", fontWeight: 700 }}
+                    disabled={!hasSig || confirmed}
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: confirmed ? "#16a34a" : hasSig ? "linear-gradient(135deg,#2563eb,#1d4ed8)" : "#e2e8f0", border: "none", borderRadius: 8, padding: "11px 0", fontSize: 14, color: hasSig ? "#fff" : "#94a3b8", cursor: (hasSig && !confirmed) ? "pointer" : "not-allowed", fontWeight: 700, boxShadow: hasSig && !confirmed ? "0 2px 8px rgba(37,99,235,0.3)" : "none" }}
                   >
-                    <Check size={12} /> {confirmed ? "서명 완료 ✓" : "서명 완료 ✓"}
+                    <Check size={15} /> {confirmed ? "서명 확인 완료" : "확인"}
                   </button>
                 </div>
               </div>
