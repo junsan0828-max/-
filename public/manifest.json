@@ -1,6 +1,6 @@
 {
-  "name": "핏스텝 체형분석 라인드로잉",
-  "short_name": "체형분석",
+  "name": "핏스텝 체형분석 편집기",
+  "short_name": "핏스텝 체형분석 편집기",
   "description": "FIT STEP 체형분석 라인드로잉 — 사진 위에 체형 분석 라인을 그리고 저장하는 전문가용 도구",
   "start_url": "/posture",
   "scope": "/posture",
