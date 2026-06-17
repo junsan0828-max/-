@@ -14,7 +14,8 @@ export default function Login() {
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
-      window.location.href = "/";
+      const params = new URLSearchParams(window.location.search);
+      window.location.href = params.get("redirect") || "/";
     },
     onError: (err) => {
       setErrorMsg(err.message || "로그인 실패. 아이디/비밀번호를 확인하세요.");

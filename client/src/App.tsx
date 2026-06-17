@@ -139,6 +139,11 @@ function App() {
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
     if (window.location.pathname === "/login") return <Login />;
+    const intended = window.location.pathname;
+    if (intended !== "/" && intended !== "/landing") {
+      window.location.href = `/login?redirect=${encodeURIComponent(intended)}`;
+      return null;
+    }
     return <Landing />;
   }
 
