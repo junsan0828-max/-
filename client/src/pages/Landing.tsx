@@ -652,6 +652,169 @@ function EventSection() {
   );
 }
 
+// ─── Section 5.7: 미션 혜택 ──────────────────────────────────────────────────
+function MissionSection() {
+  const missions = [
+    {
+      step: "01",
+      title: "네이버 플레이스 저장",
+      desc: "자이언트짐 플레이스를 저장해주세요.",
+      reward: "+ 2주 이용권",
+      btnLabel: "플레이스 저장하기",
+      href: BRANCH.b1.naverUrl,
+    },
+    {
+      step: "02",
+      title: "1만원 체험 예약",
+      desc: "체형분석 및 상담 예약",
+      reward: "+ 2주 이용권",
+      btnLabel: "예약하기",
+      href: null,
+    },
+    {
+      step: "03",
+      title: "네이버 영수증 리뷰",
+      desc: "센터 방문 후 리뷰 작성",
+      reward: "+ 2주 이용권",
+      btnLabel: "리뷰 작성하기",
+      href: BRANCH.b1.naverUrl,
+    },
+  ];
+
+  return (
+    <section id="mission" className="py-24 lg:py-36 bg-[#080F1A] relative overflow-hidden">
+      {/* 백그라운드 글로우 */}
+      <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-[#1D4ED8]/8 blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-[#1D4ED8]/6 blur-[80px] pointer-events-none" />
+
+      <div className="relative z-10 max-w-xl mx-auto px-6 lg:px-8">
+
+        {/* 상단 배지 + 헤드라인 */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 mb-8">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#60A5FA]" />
+            <span className="text-[10px] font-bold tracking-[0.3em] text-[#60A5FA] uppercase">회원 혜택 미션</span>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-[1.1] mb-4 tracking-tight">
+            미션 달성하고<br />
+            <span className="text-[#60A5FA]">추가 혜택</span> 받기
+          </h2>
+          <p className="text-white/40 text-sm leading-relaxed">
+            간단한 참여만으로<br />헬스 이용 혜택을 받아보세요.
+          </p>
+        </div>
+
+        {/* 진행 현황 카드 */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-white/40 text-[10px] tracking-widest uppercase mb-1">현재 달성 혜택</p>
+              <p className="text-white/30 text-2xl font-black">0주 추가</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[#60A5FA] text-[10px] tracking-widest uppercase mb-1">미션 완료 시 최대</p>
+              <p className="text-[#60A5FA] text-2xl font-black">6주 추가</p>
+            </div>
+          </div>
+          {/* 프로그레스 바 */}
+          <div className="w-full bg-white/10 rounded-full h-1.5 mb-2">
+            <div className="bg-gradient-to-r from-[#1D4ED8] to-[#60A5FA] h-1.5 rounded-full" style={{ width: "0%" }} />
+          </div>
+          <p className="text-white/25 text-[11px] text-right tracking-wide">0 / 3 완료</p>
+        </div>
+
+        {/* 퍼널 흐름 레이블 */}
+        <div className="flex items-center gap-2 mb-5">
+          <div className="flex-1 h-px bg-white/10" />
+          <p className="text-white/20 text-[10px] tracking-widest uppercase flex-shrink-0">Mission Flow</p>
+          <div className="flex-1 h-px bg-white/10" />
+        </div>
+
+        {/* 미션 카드들 */}
+        <div className="space-y-3 mb-8">
+          {missions.map((m, i) => (
+            <div key={m.step} className="relative">
+              {/* 연결선 */}
+              {i < missions.length - 1 && (
+                <div className="absolute left-6 top-full w-px h-3 bg-white/10 z-10" />
+              )}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 flex items-center gap-4">
+                {/* 스텝 번호 */}
+                <div className="w-10 h-10 rounded-xl border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[#60A5FA] text-[11px] font-bold">{m.step}</span>
+                </div>
+                {/* 내용 */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-[13px] font-bold mb-0.5">{m.title}</p>
+                  <p className="text-white/40 text-xs">{m.desc}</p>
+                </div>
+                {/* 리워드 배지 */}
+                <div className="text-right flex-shrink-0">
+                  <span className="inline-block px-2.5 py-1 rounded-lg bg-[#1D4ED8]/20 border border-[#1D4ED8]/30 text-[#60A5FA] text-[11px] font-bold">{m.reward}</span>
+                </div>
+              </div>
+              {/* 버튼 */}
+              <div className="mt-2 ml-14">
+                {m.href ? (
+                  <a
+                    href={m.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-[#60A5FA]/70 hover:text-[#60A5FA] transition-colors"
+                  >
+                    {m.btnLabel}
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => scrollTo("contact")}
+                    className="inline-flex items-center gap-1.5 text-xs text-[#60A5FA]/70 hover:text-[#60A5FA] transition-colors"
+                  >
+                    {m.btnLabel}
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 완료 보상 카드 */}
+        <div className="rounded-2xl border border-[#1D4ED8]/40 bg-gradient-to-br from-[#1D4ED8]/15 to-[#1D4ED8]/5 p-6 mb-8 text-center shadow-[0_0_40px_rgba(29,78,216,0.15)]">
+          <span className="inline-block px-3 py-1 rounded-full bg-[#1D4ED8] text-white text-[9px] font-bold tracking-[0.25em] uppercase mb-4">Mission Complete</span>
+          <p className="text-white/50 text-xs mb-3">3개 미션 모두 완료 시</p>
+          <p className="text-white font-black text-3xl mb-2">총 6주 추가 제공</p>
+          <div className="flex items-center gap-3 justify-center my-4">
+            <div className="flex-1 h-px bg-white/10" />
+            <p className="text-white/30 text-[10px]">또는</p>
+            <div className="flex-1 h-px bg-white/10" />
+          </div>
+          <p className="text-[#60A5FA] font-bold text-lg">헬스 1개월 추가 제공</p>
+        </div>
+
+        {/* CTA */}
+        <button
+          onClick={() => scrollTo("contact")}
+          className="w-full py-4 bg-white text-[#0B1D3A] font-bold text-sm tracking-wide hover:bg-white/90 transition-colors rounded-xl shadow-lg"
+        >
+          지금 혜택 시작하기 →
+        </button>
+        <button
+          onClick={() => scrollTo("contact")}
+          className="w-full mt-3 py-3.5 border border-white/20 text-white/60 text-sm hover:text-white hover:border-white/40 transition-colors rounded-xl"
+        >
+          무료 상담 예약
+        </button>
+
+      </div>
+    </section>
+  );
+}
+
 // ─── Section 6: 짐플러스 ──────────────────────────────────────────────────────
 function GymPlusSection() {
   const features = [
@@ -1002,6 +1165,7 @@ export default function Landing() {
       <AnalysisSection />
       <ReviewsSection />
       <EventSection />
+      <MissionSection />
       <GymPlusSection />
       <BranchSection />
       <ContactSection />
