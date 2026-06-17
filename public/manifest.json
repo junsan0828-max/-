@@ -1,0 +1,21 @@
+{
+  "name": "핏스텝 체형분석 라인드로잉",
+  "short_name": "체형분석",
+  "description": "FIT STEP 체형분석 라인드로잉 — 사진 위에 체형 분석 라인을 그리고 저장하는 전문가용 도구",
+  "start_url": "/posture",
+  "scope": "/posture",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "lang": "ko",
+  "icons": [
+    { "src": "/icon-48.png",  "sizes": "48x48",   "type": "image/png" },
+    { "src": "/icon-72.png",  "sizes": "72x72",   "type": "image/png" },
+    { "src": "/icon-96.png",  "sizes": "96x96",   "type": "image/png" },
+    { "src": "/icon-144.png", "sizes": "144x144", "type": "image/png" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["health", "fitness", "medical"]
+}
