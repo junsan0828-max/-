@@ -240,34 +240,9 @@ export default function ContractPrint() {
 
   async function handleKakaoShare() {
     ctInc("ct_sc"); ctInc(`ct_st_${_ctToday()}`);
-    const { url, title, desc } = _shareText();
-
-    // Kakao SDK — 노란 카드 + 탭 가능한 링크 (도메인 등록 필요)
-    if (_CT_KAKAO_KEY) {
-      await initKakaoSdk();
-      const Kakao = (window as unknown as Record<string, unknown>)["Kakao"] as Record<string, unknown> | undefined;
-      const share = (Kakao?.["Share"] as Record<string, unknown> | undefined);
-      if (share?.["sendDefault"]) {
-        try {
-          (share["sendDefault"] as (o: unknown) => void)({
-            objectType: "feed",
-            content: {
-              title,
-              description: desc || "FIT STEP 전자 회원 계약서",
-              imageUrl: `${window.location.origin}/og-fitstep.png`,
-              imageWidth: 1200,
-              imageHeight: 630,
-              link: { mobileWebUrl: url, webUrl: url },
-            },
-            buttons: [{ title: "계약서 보기", link: { mobileWebUrl: url, webUrl: url } }],
-          });
-          return;
-        } catch {}
-      }
-    }
-    // Kakao 앱키 없거나 SDK 실패 → 모바일 시스템 공유 fallback
+    const { url, title } = _shareText();
     if (navigator.share) {
-      try { await navigator.share({ title, text: desc, url }); return; } catch (e) {
+      try { await navigator.share({ title, url }); return; } catch (e) {
         if ((e as DOMException)?.name === "AbortError") return;
       }
     }
