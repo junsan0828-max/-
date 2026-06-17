@@ -1151,7 +1151,7 @@ export default function Admin() {
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{r.customerName ?? "이름 없음"} · {r.type} {r.subType}</p>
                     <p className="text-xs text-muted-foreground">
-                      {r.paymentDate} · {r.paidAmount.toLocaleString()}원
+                      {r.paymentDate} · {(r.amount ?? r.paidAmount).toLocaleString()}원
                       {r.trainerName && ` · ${r.trainerName}`}
                     </p>
                   </div>

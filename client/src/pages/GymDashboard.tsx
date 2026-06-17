@@ -98,7 +98,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       title: "오늘 매출 내역",
       rows: todayEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
-        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        value: `${(r.entry.amount ?? r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.type, r.entry.subType ?? ""]),
         warn: !r.entry.branchId,
       })),
@@ -108,7 +108,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       title: `${month}월 누적 매출 내역`,
       rows: monthEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
-        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        value: `${(r.entry.amount ?? r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type, r.entry.subType ?? ""]),
         warn: !r.entry.branchId,
       })),
@@ -118,7 +118,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       title: `${month}월 신규 매출`,
       rows: newEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
-        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        value: `${(r.entry.amount ?? r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type]),
         warn: !r.entry.branchId,
       })),
@@ -128,7 +128,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       title: `${month}월 재등록 매출`,
       rows: renewalEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
-        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        value: `${(r.entry.amount ?? r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.type]),
         warn: !r.entry.branchId,
       })),
@@ -138,7 +138,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       title: `${month}월 PT 매출`,
       rows: ptEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
-        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        value: `${(r.entry.amount ?? r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.subType ?? ""]),
         warn: !r.entry.branchId,
       })),
@@ -148,7 +148,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
       title: `${month}월 헬스 매출`,
       rows: healthEntries.map(r => ({
         label: r.memberName ?? r.entry.customerName ?? "-",
-        value: `${(r.entry.paidAmount ?? 0).toLocaleString()}원`,
+        value: `${(r.entry.amount ?? r.entry.paidAmount ?? 0).toLocaleString()}원`,
         sub: rowSub(r, [r.entry.paymentDate, r.entry.subType ?? ""]),
         warn: !r.entry.branchId,
       })),

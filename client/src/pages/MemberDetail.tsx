@@ -1644,7 +1644,7 @@ export default function MemberDetail({ memberId }: Props) {
                               </div>
                               <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                 {(r.startDate || r.endDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {r.endDate ?? "-"}</div>}
-                                <div>결제 <span className="text-foreground font-medium">{r.paidAmount.toLocaleString()}원</span></div>
+                                <div>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></div>
                                 {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
                                 {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
                                 {r.memo && <div className="col-span-2 text-muted-foreground/70">{r.memo}</div>}
@@ -1676,7 +1676,7 @@ export default function MemberDetail({ memberId }: Props) {
                                 {isService && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">서비스</span>}
                               </div>
                               <div className="mt-2 text-xs text-muted-foreground">
-                                <span>결제 <span className="text-foreground font-medium">{r.paidAmount.toLocaleString()}원</span></span>
+                                <span>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></span>
                                 {r.unpaidAmount > 0 && <span className="ml-3">미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></span>}
                               </div>
                             </div>
@@ -3277,7 +3277,7 @@ export default function MemberDetail({ memberId }: Props) {
                 return rev ? (
                   <div className="bg-accent/20 rounded-lg p-3 space-y-1.5 text-xs">
                     <div className="flex justify-between"><span className="text-muted-foreground">프로그램명</span><span className="font-medium">헬스권{rev.subType ? ` (${rev.subType})` : ""}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{(rev.paidAmount ?? 0).toLocaleString()}원</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">결제 금액</span><span className="font-medium">{(rev.amount ?? rev.paidAmount ?? 0).toLocaleString()}원</span></div>
                     {(rev.startDate || rev.endDate) && <div className="flex justify-between"><span className="text-muted-foreground">기간</span><span className="font-medium">{rev.startDate ?? "-"} ~ {rev.endDate ?? "-"}</span></div>}
                   </div>
                 ) : null;
