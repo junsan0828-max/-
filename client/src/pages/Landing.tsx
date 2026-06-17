@@ -566,6 +566,92 @@ function ReviewsSection() {
   );
 }
 
+// ─── Section 5.5: 친구 이벤트 ────────────────────────────────────────────────
+function EventSection() {
+  return (
+    <section id="event" className="py-24 lg:py-36 bg-[#06111F] relative overflow-hidden">
+      {/* 백그라운드 글로우 */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#1D4ED8]/10 blur-[120px] pointer-events-none" />
+
+      <div className="relative z-10 max-w-xl mx-auto px-6 lg:px-8 flex flex-col items-center text-center">
+
+        {/* 배지 */}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#1D4ED8]/40 bg-[#1D4ED8]/10 mb-10">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#60A5FA] animate-pulse" />
+          <span className="text-[10px] font-bold tracking-[0.3em] text-[#60A5FA] uppercase">Special Event</span>
+        </div>
+
+        {/* 헤드라인 */}
+        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-[1.1] mb-5 tracking-tight">
+          친구와 함께 등록하면<br />
+          <span className="text-[#60A5FA]">두 사람 모두</span> 1개월 추가
+        </h2>
+        <p className="text-white/50 text-sm lg:text-base font-light leading-relaxed mb-14 max-w-sm">
+          혼자보다 함께 시작하면 더 오래 갑니다.<br />
+          친구, 가족, 연인과 함께 운동을 시작해보세요.
+        </p>
+
+        {/* 카드 영역 */}
+        <div className="w-full grid grid-cols-2 gap-3 mb-4">
+
+          {/* 1인 등록 */}
+          <div className="relative rounded-2xl border border-white/10 bg-white/5 p-5 flex flex-col items-center gap-3 text-center">
+            <p className="text-[10px] tracking-[0.25em] text-white/30 uppercase font-medium">1인 등록</p>
+            <p className="text-white font-bold text-base leading-snug">헬스 12개월</p>
+            <div className="w-full border-t border-white/10 pt-3 mt-auto">
+              <p className="text-white/40 text-xs">12개월 이용</p>
+            </div>
+          </div>
+
+          {/* 2인 동시 등록 BEST */}
+          <div className="relative rounded-2xl border border-[#1D4ED8]/60 bg-gradient-to-b from-[#1D4ED8]/20 to-[#1D4ED8]/5 p-5 flex flex-col items-center gap-3 text-center shadow-[0_0_30px_rgba(29,78,216,0.2)]">
+            {/* BEST 배지 */}
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-[#1D4ED8] text-white text-[9px] font-bold tracking-widest rounded-full">BEST</span>
+            <p className="text-[10px] tracking-[0.25em] text-[#60A5FA] uppercase font-medium mt-1">2인 동시 등록</p>
+            <p className="text-white font-bold text-base leading-snug">두 사람 모두<br />1개월 추가 제공</p>
+            <div className="w-full border-t border-[#1D4ED8]/30 pt-3 mt-auto space-y-1">
+              <p className="text-white/40 text-xs line-through">12개월</p>
+              <p className="text-[#60A5FA] font-black text-xl tracking-tight">13개월 이용</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 하이라이트 박스 */}
+        <div className="w-full rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 flex items-center justify-between mb-10">
+          <p className="text-white/70 text-sm text-left leading-snug">
+            친구와 함께 등록 시<br />
+            <span className="text-white font-semibold">각각 1개월 추가</span>
+          </p>
+          <div className="text-right flex-shrink-0">
+            <p className="text-[#60A5FA] font-black text-3xl leading-none">+1</p>
+            <p className="text-[#60A5FA]/60 text-[10px] font-medium tracking-wide">개월</p>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <button
+          onClick={() => scrollTo("contact")}
+          className="w-full max-w-sm py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-bold text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-6"
+        >
+          무료 상담 예약하기 →
+        </button>
+
+        {/* 주의사항 */}
+        <div className="space-y-1">
+          {[
+            "두 분 모두 12개월 회원권 등록 시 적용",
+            "친구, 가족, 연인 모두 가능",
+            "이벤트는 기간 한정으로 진행될 수 있습니다",
+          ].map((note) => (
+            <p key={note} className="text-white/25 text-[11px] tracking-wide">* {note}</p>
+          ))}
+        </div>
+
+      </div>
+    </section>
+  );
+}
+
 // ─── Section 6: 짐플러스 ──────────────────────────────────────────────────────
 function GymPlusSection() {
   const features = [
@@ -915,6 +1001,7 @@ export default function Landing() {
       <ProgramSection />
       <AnalysisSection />
       <ReviewsSection />
+      <EventSection />
       <GymPlusSection />
       <BranchSection />
       <ContactSection />
