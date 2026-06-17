@@ -15,6 +15,26 @@ async function ctInc(key: string) {
   } catch {}
 }
 
+const _CT_KAKAO_KEY = (import.meta.env.VITE_KAKAO_APP_KEY as string | undefined) ?? "";
+
+// Kakao SDK를 동적 로드 + 초기화
+function initKakaoSdk(): Promise<void> {
+  return new Promise((resolve) => {
+    const w = window as unknown as Record<string, unknown>;
+    if (w["Kakao"] && (w["Kakao"] as Record<string, () => boolean>)["isInitialized"]?.()) { resolve(); return; }
+    if (document.getElementById("kakao-sdk")) { resolve(); return; }
+    const s = document.createElement("script");
+    s.id = "kakao-sdk";
+    s.src = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js";
+    s.crossOrigin = "anonymous";
+    s.onload = () => {
+      try { (w["Kakao"] as Record<string, (...a: unknown[]) => void>)?.["init"](_CT_KAKAO_KEY); } catch {}
+      resolve();
+    };
+    s.onerror = () => resolve();
+    document.head.appendChild(s);
+  });
+}
 function qp(key: string) {
   return new URLSearchParams(window.location.search).get(key) ?? "";
 }
@@ -209,12 +229,42 @@ export default function ContractPrint() {
   async function handleShare() {
     ctInc("ct_sc"); ctInc(`ct_st_${_ctToday()}`);
     const url   = window.location.href;
-    const title = name ? `${name} 회원 계약서` : "회원 계약서";
-    if (navigator.share) { try { await navigator.share({ title, text: title, url }); } catch {} }
-    else {
-      await navigator.clipboard.writeText(url);
-      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    const title = name ? `${name}님 회원 계약서` : "회원 계약서";
+    const desc  = [
+      program   && `프로그램: ${program}`,
+      contractDate && `계약일: ${contractDate}`,
+      trainer   && `담당: ${trainer}`,
+      paidAmount && `결제: ${fmt(paidAmount)}`,
+    ].filter(Boolean).join(" · ");
+
+    // Kakao SDK 공유 — 제목·설명을 동적으로 설정하여 미리보기에 회원 이름 표시
+    if (_CT_KAKAO_KEY) {
+      await initKakaoSdk();
+      const Kakao = (window as unknown as Record<string, unknown>)["Kakao"] as Record<string, unknown> | undefined;
+      const share = (Kakao?.["Share"] as Record<string, unknown> | undefined);
+      if (share?.["sendDefault"]) {
+        try {
+          (share["sendDefault"] as (o: unknown) => void)({
+            objectType: "feed",
+            content: {
+              title,
+              description: desc || "FIT STEP 전자 회원 계약서",
+              imageUrl: `${window.location.origin}/og-fitstep.png`,
+              imageWidth: 1200,
+              imageHeight: 630,
+              link: { mobileWebUrl: url, webUrl: url },
+            },
+            buttons: [{ title: "계약서 보기", link: { mobileWebUrl: url, webUrl: url } }],
+          });
+          return;
+        } catch {}
+      }
     }
+
+    // fallback: 시스템 공유 → 클립보드
+    if (navigator.share) { try { await navigator.share({ title, text: desc, url }); return; } catch {} }
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setCopied(true); setTimeout(() => setCopied(false), 2500);
   }
 
   const unpaidNum = Number(unpaid.replace(/,/g, ""));
