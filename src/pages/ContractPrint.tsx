@@ -223,9 +223,9 @@ export default function ContractPrint() {
     wrap: { maxWidth: 780, margin: "0 auto", padding: "28px 16px 48px", fontFamily: "'Noto Sans KR', sans-serif" } as React.CSSProperties,
     doc:  { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "40px 36px", boxShadow: "0 4px 32px rgba(0,0,0,0.07)" } as React.CSSProperties,
     h2:   { fontSize: 13, fontWeight: 800, margin: "24px 0 10px", color: "#0f172a", borderLeft: "3px solid #2563eb", paddingLeft: 10, letterSpacing: "0.04em" } as React.CSSProperties,
-    tbl:  { width: "100%", borderCollapse: "collapse" as const, marginBottom: 4, fontSize: 13 },
-    th:   { background: "#f8fafc", fontWeight: 600, padding: "9px 14px", border: "1px solid #e2e8f0", whiteSpace: "nowrap" as const, width: "1%", textAlign: "left" as const, color: "#475569", fontSize: 12 },
-    td:   { padding: "9px 14px", border: "1px solid #e2e8f0", color: "#0f172a", wordBreak: "break-all" as const },
+    tbl:  { width: "100%", borderCollapse: "collapse" as const, marginBottom: 16, fontSize: 13 },
+    th:   { background: "#f8fafc", fontWeight: 600, padding: "10px 16px", border: "1px solid #e2e8f0", whiteSpace: "nowrap" as const, width: "1%", textAlign: "left" as const, color: "#475569", fontSize: 12, verticalAlign: "middle" as const },
+    td:   { padding: "10px 16px", border: "1px solid #e2e8f0", color: "#0f172a", verticalAlign: "middle" as const },
     box:  { border: "1px solid #e2e8f0", borderRadius: 10, padding: "16px 18px", marginBottom: 4, background: "#f8fafc", fontSize: 12.5, color: "#475569", lineHeight: 1.85 as const },
   };
 
@@ -267,30 +267,24 @@ export default function ContractPrint() {
           {/* 회원 정보 */}
           <h2 style={{ ...S.h2, marginTop: 0 }}>회원 정보</h2>
           <table style={S.tbl}><tbody>
-            <tr>
-              <th style={S.th}>성명</th><td style={S.td}>{name || "—"}</td>
-              <th style={S.th}>연락처</th><td style={S.td}>{phone || "—"}</td>
-            </tr>
-            <tr>
-              <th style={S.th}>계약일</th><td style={S.td}>{contractDate || "—"}</td>
-              <th style={S.th}>담당 운동전문가</th><td style={S.td}>{trainer || "—"}</td>
-            </tr>
+            <tr><th style={S.th}>성명</th><td style={S.td}>{name || "—"}</td></tr>
+            <tr><th style={S.th}>연락처</th><td style={S.td}>{phone || "—"}</td></tr>
+            <tr><th style={S.th}>계약일</th><td style={S.td}>{contractDate || "—"}</td></tr>
+            <tr><th style={S.th}>담당 운동전문가</th><td style={S.td}>{trainer || "—"}</td></tr>
           </tbody></table>
 
           {/* 등록 내역 */}
           <h2 style={S.h2}>등록 내역</h2>
           <table style={S.tbl}><tbody>
-            <tr>
-              <th style={S.th}>구분</th><td style={S.td}>{type || "—"}</td>
-              <th style={S.th}>프로그램</th><td style={S.td}>{program || "—"}</td>
-            </tr>
-            <tr>
-              <th style={S.th}>정가</th><td style={S.td}>{fmt(listPrice)}</td>
-              <th style={S.th}>할인</th><td style={S.td}>{fmt(discount)}</td>
-            </tr>
+            <tr><th style={S.th}>구분</th><td style={S.td}>{type || "—"}</td></tr>
+            <tr><th style={S.th}>프로그램</th><td style={S.td}>{program || "—"}</td></tr>
+            <tr><th style={S.th}>정가</th><td style={S.td}>{fmt(listPrice)}</td></tr>
+            <tr><th style={S.th}>할인</th><td style={S.td}>{fmt(discount)}</td></tr>
             <tr>
               <th style={S.th}>실결제</th>
-              <td style={{ ...S.td, fontWeight: 700, color: "#2563eb" }}>{fmt(paidAmount)}</td>
+              <td style={{ ...S.td, fontWeight: 700, color: "#2563eb", fontSize: 14 }}>{fmt(paidAmount)}</td>
+            </tr>
+            <tr>
               <th style={S.th}>미수금</th>
               <td style={{ ...S.td, color: unpaidNum > 0 ? "#dc2626" : "inherit", fontWeight: unpaidNum > 0 ? 700 : 400 }}>{fmt(unpaid)}</td>
             </tr>
@@ -298,20 +292,16 @@ export default function ContractPrint() {
               <th style={S.th}>결제방법</th>
               <td style={S.td}>
                 {payMethod === "혼합결제" && payMethod1 && payMethod2
-                  ? <span style={{ lineHeight: 1.6 }}>
-                      혼합결제<br/>
-                      <span style={{ fontSize:"0.85em", color:"#555" }}>
-                        {payMethod1}{payAmount1 ? ` ${Number(payAmount1).toLocaleString()}원` : ""}<br/>
-                        {payMethod2}{payAmount2 ? ` + ${Number(payAmount2).toLocaleString()}원` : ""}
+                  ? <span>혼합결제<br/>
+                      <span style={{ fontSize: 12, color: "#475569" }}>
+                        {payMethod1} {payAmount1 ? Number(payAmount1).toLocaleString()+"원" : ""} + {payMethod2} {payAmount2 ? Number(payAmount2).toLocaleString()+"원" : ""}
                       </span>
                     </span>
                   : (payMethod || "—")}
               </td>
-              <th style={S.th}>결제일</th><td style={S.td}>{payDate || "—"}</td>
             </tr>
-            <tr>
-              <th style={S.th}>시작일</th><td style={S.td} colSpan={3}>{startDate || "—"}</td>
-            </tr>
+            <tr><th style={S.th}>결제일</th><td style={S.td}>{payDate || "—"}</td></tr>
+            <tr><th style={S.th}>시작일</th><td style={S.td}>{startDate || "—"}</td></tr>
           </tbody></table>
 
           {/* 이용약관 */}
@@ -329,16 +319,17 @@ export default function ContractPrint() {
           <h2 style={S.h2}>개인정보 수집·이용 동의서</h2>
           <div style={S.box}>
             <p style={{ margin: "0 0 10px" }}>본 센터는 회원 서비스 제공을 위해 아래와 같이 개인정보를 수집·이용합니다.</p>
-            <table style={{ ...S.tbl, marginBottom: 10 }}><thead>
+            <table style={{ ...S.tbl, marginBottom: 10 }}><tbody>
               <tr>
-                <th style={{ ...S.th, background: "#e2e8f0", width: "auto" }}>수집 항목</th>
-                <th style={{ ...S.th, background: "#e2e8f0", width: "auto" }}>수집 목적</th>
-                <th style={{ ...S.th, background: "#e2e8f0", width: "auto" }}>보유 기간</th>
-              </tr>
-            </thead><tbody>
-              <tr>
+                <th style={{ ...S.th, background: "#e2e8f0" }}>수집 항목</th>
                 <td style={S.td}>성명, 연락처, 계약 내역</td>
+              </tr>
+              <tr>
+                <th style={{ ...S.th, background: "#e2e8f0" }}>수집 목적</th>
                 <td style={S.td}>회원 관리, 계약 이행</td>
+              </tr>
+              <tr>
+                <th style={{ ...S.th, background: "#e2e8f0" }}>보유 기간</th>
                 <td style={S.td}>계약 종료 후 1년</td>
               </tr>
             </tbody></table>
