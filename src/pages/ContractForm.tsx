@@ -58,12 +58,14 @@ interface F {
   type: string; program: string; listPrice: string; discount: string;
   paidAmount: string; unpaid: string; payMethod: string; payDate: string;
   startDate: string; center: string; trainer: string; adConsent: string;
+  payMethod1: string; payMethod2: string; payAmount1: string; payAmount2: string;
 }
 const DEF: F = {
   name: "", phone: "", contractDate: todayISO(),
   type: "신규", program: "", listPrice: "", discount: "0",
   paidAmount: "", unpaid: "0", payMethod: "카드", payDate: todayISO(),
   startDate: todayISO(), center: "FIT STEP", trainer: "", adConsent: "yes",
+  payMethod1: "카드", payMethod2: "현금", payAmount1: "", payAmount2: "",
 };
 
 // ── Default Terms ─────────────────────────────────────────────────────────────
@@ -289,9 +291,22 @@ export default function ContractForm() {
         const dc = Number((k === "discount"  ? v : n.discount ).replace(/,/g, ""));
         if (!isNaN(lp) && !isNaN(dc)) n.paidAmount = String(lp - dc);
       }
+      // 혼합결제: amount1 입력 시 amount2 자동 계산
+      if (k === "payAmount1") {
+        const paid = Number(n.paidAmount);
+        const a1   = Number(v);
+        if (!isNaN(paid) && !isNaN(a1) && paid > 0) n.payAmount2 = String(paid - a1);
+      }
+      if (k === "payAmount2") {
+        const paid = Number(n.paidAmount);
+        const a2   = Number(v);
+        if (!isNaN(paid) && !isNaN(a2) && paid > 0) n.payAmount1 = String(paid - a2);
+      }
       return n;
     });
   }
+
+  const SUB_METHODS = ["카드", "현금", "계좌이체", "지역화폐", "현금영수증", "기타"];
 
   function setTerm(idx: number, field: "title" | "body", val: string) {
     setTerms(prev => prev.map((t, i) => i === idx ? { ...t, [field]: val } : t));
@@ -509,11 +524,44 @@ export default function ContractForm() {
             <Row>
               <Field label="결제방법">
                 <select value={form.payMethod} onChange={e=>set("payMethod",e.target.value)} style={IS}>
-                  {["카드","현금","계좌이체","기타"].map(v=><option key={v}>{v}</option>)}
+                  {["카드","현금","계좌이체","지역화폐","현금영수증","기타","혼합결제"].map(v=><option key={v}>{v}</option>)}
                 </select>
               </Field>
               <Field label="결제일"><input type="date" value={form.payDate} onChange={e=>set("payDate",e.target.value)} style={IS} /></Field>
             </Row>
+            {/* 혼합결제 상세 */}
+            {form.payMethod === "혼합결제" && (
+              <div style={{ background:"#eff6ff", borderRadius:10, padding:"12px 14px", marginBottom:10, border:"1px solid #bfdbfe" }}>
+                <p style={{ color:"#2563eb", fontSize:11, fontWeight:700, margin:"0 0 10px", letterSpacing:"0.05em" }}>혼합결제 구성</p>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:8 }}>
+                  <Field label="결제수단 ①">
+                    <select value={form.payMethod1} onChange={e=>set("payMethod1",e.target.value)} style={IS}>
+                      {SUB_METHODS.map(v=><option key={v}>{v}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="금액 ①">
+                    <input type="number" value={form.payAmount1} onChange={e=>set("payAmount1",e.target.value)} placeholder="0" style={IS} />
+                  </Field>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                  <Field label="결제수단 ②">
+                    <select value={form.payMethod2} onChange={e=>set("payMethod2",e.target.value)} style={IS}>
+                      {SUB_METHODS.map(v=><option key={v}>{v}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="금액 ②">
+                    <input type="number" value={form.payAmount2} onChange={e=>set("payAmount2",e.target.value)} placeholder="0" style={IS} />
+                  </Field>
+                </div>
+                {form.paidAmount && form.payAmount1 && form.payAmount2 && (
+                  <p style={{ color: Number(form.payAmount1)+Number(form.payAmount2)===Number(form.paidAmount) ? "#059669" : "#dc2626", fontSize:11, margin:"8px 0 0", fontWeight:600 }}>
+                    {Number(form.payAmount1)+Number(form.payAmount2)===Number(form.paidAmount)
+                      ? `✓ 합계 ${Number(form.paidAmount).toLocaleString()}원 일치`
+                      : `⚠ 합계 ${(Number(form.payAmount1)+Number(form.payAmount2)).toLocaleString()}원 — 실결제 ${Number(form.paidAmount).toLocaleString()}원과 다름`}
+                  </p>
+                )}
+              </div>
+            )}
             <Row>
               <Field label="시작일"><input type="date" value={form.startDate} onChange={e=>set("startDate",e.target.value)} style={IS} /></Field>
             </Row>

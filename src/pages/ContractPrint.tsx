@@ -62,6 +62,10 @@ export default function ContractPrint() {
   const paidAmount   = qp("paidAmount");
   const unpaid       = qp("unpaid");
   const payMethod    = qp("payMethod");
+  const payMethod1   = qp("payMethod1");
+  const payMethod2   = qp("payMethod2");
+  const payAmount1   = qp("payAmount1");
+  const payAmount2   = qp("payAmount2");
   const payDate      = qp("payDate");
   const startDate    = qp("startDate");
   const adConsent    = qp("adConsent");
@@ -291,7 +295,18 @@ export default function ContractPrint() {
               <td style={{ ...S.td, color: unpaidNum > 0 ? "#dc2626" : "inherit", fontWeight: unpaidNum > 0 ? 700 : 400 }}>{fmt(unpaid)}</td>
             </tr>
             <tr>
-              <th style={S.th}>결제방법</th><td style={S.td}>{payMethod || "—"}</td>
+              <th style={S.th}>결제방법</th>
+              <td style={S.td}>
+                {payMethod === "혼합결제" && payMethod1 && payMethod2
+                  ? <span style={{ lineHeight: 1.6 }}>
+                      혼합결제<br/>
+                      <span style={{ fontSize:"0.85em", color:"#555" }}>
+                        {payMethod1}{payAmount1 ? ` ${Number(payAmount1).toLocaleString()}원` : ""}<br/>
+                        {payMethod2}{payAmount2 ? ` + ${Number(payAmount2).toLocaleString()}원` : ""}
+                      </span>
+                    </span>
+                  : (payMethod || "—")}
+              </td>
               <th style={S.th}>결제일</th><td style={S.td}>{payDate || "—"}</td>
             </tr>
             <tr>
