@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { ChevronLeft, RotateCcw, Trash2, Download, Upload, Settings, X, User, Zap, Lock, Dumbbell, Camera, Move, Ruler, Eraser, TrendingUp, Minus, Share2, Grid3X3 } from "lucide-react";
 
 // ── Supabase 카운터 ──────────────────────────────────────────────────────────

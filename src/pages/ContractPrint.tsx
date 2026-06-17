@@ -237,7 +237,18 @@ export default function ContractPrint() {
       paidAmount && `결제: ${fmt(paidAmount)}`,
     ].filter(Boolean).join(" · ");
 
-    // Kakao SDK 공유 — 제목·설명을 동적으로 설정하여 미리보기에 회원 이름 표시
+    // 1순위: 모바일 시스템 공유 (카카오톡으로 전달 시 탭 가능한 링크로 전송)
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text: desc, url });
+        return;
+      } catch (e) {
+        // 사용자가 취소한 경우 아무 것도 하지 않음
+        if ((e as DOMException)?.name === "AbortError") return;
+      }
+    }
+
+    // 2순위: Kakao SDK (PC/데스크탑 환경, 도메인 등록 필요)
     if (_CT_KAKAO_KEY) {
       await initKakaoSdk();
       const Kakao = (window as unknown as Record<string, unknown>)["Kakao"] as Record<string, unknown> | undefined;
@@ -261,8 +272,7 @@ export default function ContractPrint() {
       }
     }
 
-    // fallback: 시스템 공유 → 클립보드
-    if (navigator.share) { try { await navigator.share({ title, text: desc, url }); return; } catch {} }
+    // 3순위: 클립보드 복사
     await navigator.clipboard.writeText(url).catch(() => {});
     setCopied(true); setTimeout(() => setCopied(false), 2500);
   }
