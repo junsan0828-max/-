@@ -1,7 +1,7 @@
 {
   "name": "핏스텝 회원관리 프로그램",
-  "short_name": "핏스텝",
-  "description": "성장하는 운동전문가 플랫폼 · PT 회원관리 프로그램",
+  "short_name": "핏스텝 회원관리",
+  "description": "성장하는 운동전문가 플랫폼 · PT/필라테스 회원관리 프로그램",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a00ff",
