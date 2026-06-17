@@ -255,7 +255,7 @@ function RevenueTab() {
                   </div>
                   <div className="text-right shrink-0">
                     <div className={`text-base font-bold whitespace-nowrap ${isRefund ? "text-orange-400" : "text-foreground"}`}>
-                      {isRefund ? "-" : ""}{fmt(Math.abs(row.entry.paidAmount))}원
+                      {isRefund ? "-" : ""}{fmt(Math.abs(row.entry.amount ?? row.entry.paidAmount))}원
                     </div>
                     {row.entry.unpaidAmount > 0 && (
                       <div className="text-xs text-red-400 flex items-center gap-0.5 justify-end">
