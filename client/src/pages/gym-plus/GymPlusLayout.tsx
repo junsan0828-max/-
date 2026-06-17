@@ -1,6 +1,7 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import GymPlusOnboarding from "./GymPlusOnboarding";
 
 const navItems = [
   {
@@ -63,6 +64,13 @@ const navItems = [
 export default function GymPlusLayout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const [onboardingDone, setOnboardingDone] = useState(false);
+
+  const { data: health, isLoading: healthLoading } = trpc.gymPlus.getHealth.useQuery();
+
+  const needsOnboarding = !healthLoading && !onboardingDone && (
+    !health?.gymRulesAgreed || !health?.appGuideConfirmed || !health?.parqSubmittedAt
+  );
 
   const logoutMutation = trpc.gymPlus.memberLogout.useMutation({
     onSuccess: () => {
@@ -93,6 +101,14 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 overflow-y-auto bg-[#f8f9fc]" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}>
         {children}
       </main>
+
+      {/* 온보딩 모달 */}
+      {needsOnboarding && (
+        <GymPlusOnboarding
+          health={health ?? null}
+          onComplete={() => { setOnboardingDone(true); utils.gymPlus.getHealth.invalidate(); }}
+        />
+      )}
 
       {/* 하단 네비게이션 */}
       <nav
