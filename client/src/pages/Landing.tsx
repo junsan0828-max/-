@@ -235,17 +235,17 @@ function HeroSection() {
     <section id="hero" className="relative h-screen min-h-[640px] flex items-end overflow-hidden">
       <div className="absolute inset-0">
         <Img src={IMG.hero} alt="자이언트짐 센터 전경" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/20" />
       </div>
 
       <div className="relative z-10 w-full max-w-6xl mx-auto px-6 lg:px-8 pb-20 lg:pb-32">
-        <p className="text-white/40 text-xs tracking-[0.4em] uppercase mb-8">
+        <p className="text-white/70 text-xs tracking-[0.4em] uppercase mb-8">
           경기도 시흥시 정왕동 · 맞춤운동센터
         </p>
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-[1.05] mb-8 max-w-2xl">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-[1.05] mb-8 max-w-2xl drop-shadow-lg">
           내 몸에 맞는<br />운동을<br />시작합니다.
         </h1>
-        <p className="text-white/55 text-base lg:text-lg font-light mb-12 max-w-md leading-relaxed">
+        <p className="text-white/80 text-base lg:text-lg font-light mb-12 max-w-md leading-relaxed drop-shadow">
           체형 분석부터 운동 방향 설정까지.<br />
           자이언트짐
         </p>
@@ -258,8 +258,8 @@ function HeroSection() {
       </div>
 
       <div className="absolute bottom-8 right-8 lg:right-12 flex flex-col items-center gap-2 z-10">
-        <span className="text-white/30 text-[10px] tracking-[0.3em] uppercase writing-mode-vertical" style={{ writingMode: "vertical-rl" }}>Scroll</span>
-        <div className="w-px h-12 bg-white/20" />
+        <span className="text-white/50 text-[10px] tracking-[0.3em] uppercase writing-mode-vertical" style={{ writingMode: "vertical-rl" }}>Scroll</span>
+        <div className="w-px h-12 bg-white/40" />
       </div>
     </section>
   );
