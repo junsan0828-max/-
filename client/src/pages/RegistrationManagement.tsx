@@ -604,13 +604,22 @@ export default function RegistrationManagement() {
                       <div>
                         <label className="text-xs text-muted-foreground">PT 프로그램</label>
                         <div className="grid grid-cols-2 gap-2 mt-1">
-                          {["케어피티", "웨이트피티", "이벤트피티", "기타"].map(p => (
-                            <button key={p} type="button"
-                              onClick={() => setEditRevForm(f => ({ ...f, programDetail: p !== "기타" ? p : f.programDetail }))}
-                              className={`py-2 rounded-lg text-sm font-medium border transition-colors ${editRevForm.programDetail === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                              {p}
-                            </button>
-                          ))}
+                          {["케어피티", "웨이트피티", "이벤트피티", "기타"].map(p => {
+                            const presets = ["케어피티", "웨이트피티", "이벤트피티"];
+                            const isActive = p === "기타"
+                              ? !presets.includes(editRevForm.programDetail)
+                              : editRevForm.programDetail === p;
+                            return (
+                              <button key={p} type="button"
+                                onClick={() => setEditRevForm(f => ({
+                                  ...f,
+                                  programDetail: p !== "기타" ? p : (presets.includes(f.programDetail) ? "" : f.programDetail),
+                                }))}
+                                className={`py-2 rounded-lg text-sm font-medium border transition-colors ${isActive ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                                {p}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -730,7 +739,7 @@ export default function RegistrationManagement() {
                       <button
                         onClick={() => {
                           const amt = editRevForm.amount !== "" ? Number(editRevForm.amount) : undefined;
-                          const disc = editRevForm.discountAmount !== "" ? Number(editRevForm.discountAmount) : undefined;
+                          const disc = editRevForm.discountAmount !== "" ? Number(editRevForm.discountAmount) : 0;
                           const unpaid = editRevForm.unpaidAmount !== "" ? Number(editRevForm.unpaidAmount) : undefined;
                           const paid = (amt !== undefined && unpaid !== undefined) ? Math.max(0, amt - (disc ?? 0) - unpaid) : undefined;
                           updateRevMutation.mutate({
@@ -740,7 +749,7 @@ export default function RegistrationManagement() {
                             duration: editRevForm.duration !== "" ? Number(editRevForm.duration) : undefined,
                             startDate: editRevForm.startDate || undefined,
                             amount: amt,
-                            discountAmount: disc,
+                            discountAmount: disc ?? 0,
                             paidAmount: paid,
                             unpaidAmount: unpaid,
                             paymentMethod: editRevForm.paymentMethod || undefined,
