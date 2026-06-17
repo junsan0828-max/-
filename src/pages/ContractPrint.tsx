@@ -97,6 +97,9 @@ export default function ContractPrint() {
   const [hasSig, setHasSig]           = useState(false);
   const [confirmed, setConfirmed]     = useState(false);
   const [capturedSig, setCapturedSig] = useState<string>("");
+  const [showDoneModal, setShowDoneModal] = useState(false);
+
+  const _sigKey = `ct_sig__${name}__${contractDate}`;
 
   const sigPadRef  = useRef<HTMLCanvasElement>(null);
   const isDrawing  = useRef(false);
@@ -114,13 +117,17 @@ export default function ContractPrint() {
     ctx.lineJoin    = "round";
     ctx.fillStyle   = "#1e293b";
 
-    if (urlSig.startsWith("data:image")) {
+    // URL 파라미터 서명 또는 localStorage 저장 서명 복원
+    const savedSig = localStorage.getItem(_sigKey) || (urlSig.startsWith("data:image") ? urlSig : "");
+    if (savedSig) {
       const img = new Image();
       img.onload = () => {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         setHasSig(true);
+        setCapturedSig(savedSig);
+        setConfirmed(true);
       };
-      img.src = urlSig;
+      img.src = savedSig;
     }
   }, []);
 
@@ -215,8 +222,11 @@ export default function ContractPrint() {
   function confirmSig() {
     const canvas = sigPadRef.current;
     if (!canvas || !hasSig) return;
-    setCapturedSig(canvas.toDataURL("image/png"));
+    const png = canvas.toDataURL("image/png");
+    setCapturedSig(png);
     setConfirmed(true);
+    try { localStorage.setItem(_sigKey, png); } catch {}
+    setShowDoneModal(true);
   }
 
   useEffect(() => {
@@ -270,6 +280,28 @@ export default function ContractPrint() {
 
   return (
     <>
+      {/* 서명 완료 모달 */}
+      {showDoneModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: "40px 32px", textAlign: "center", maxWidth: 320, width: "90%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Check size={32} color="#16a34a" strokeWidth={3} />
+            </div>
+            <p style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", margin: "0 0 8px" }}>서명이 완료되었습니다</p>
+            <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 28px", lineHeight: 1.6 }}>
+              {name && <><strong style={{ color: "#0f172a" }}>{name}</strong>님의 서명이<br/></>}
+              안전하게 저장되었습니다.
+            </p>
+            <button
+              onClick={() => setShowDoneModal(false)}
+              style={{ width: "100%", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 10, padding: "13px 0", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @media print {
           .no-print { display: none !important; }
