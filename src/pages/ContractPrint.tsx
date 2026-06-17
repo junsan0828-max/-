@@ -226,29 +226,23 @@ export default function ContractPrint() {
     }
   }, []);
 
-  async function handleShare() {
-    ctInc("ct_sc"); ctInc(`ct_st_${_ctToday()}`);
+  function _shareText() {
     const url   = window.location.href;
     const title = name ? `${name}님 회원 계약서` : "회원 계약서";
     const desc  = [
-      program   && `프로그램: ${program}`,
+      program      && `프로그램: ${program}`,
       contractDate && `계약일: ${contractDate}`,
-      trainer   && `담당: ${trainer}`,
-      paidAmount && `결제: ${fmt(paidAmount)}`,
+      trainer      && `담당: ${trainer}`,
+      paidAmount   && `결제: ${fmt(paidAmount)}`,
     ].filter(Boolean).join(" · ");
+    return { url, title, desc };
+  }
 
-    // 1순위: 모바일 시스템 공유 (카카오톡으로 전달 시 탭 가능한 링크로 전송)
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text: desc, url });
-        return;
-      } catch (e) {
-        // 사용자가 취소한 경우 아무 것도 하지 않음
-        if ((e as DOMException)?.name === "AbortError") return;
-      }
-    }
+  async function handleKakaoShare() {
+    ctInc("ct_sc"); ctInc(`ct_st_${_ctToday()}`);
+    const { url, title, desc } = _shareText();
 
-    // 2순위: Kakao SDK (PC/데스크탑 환경, 도메인 등록 필요)
+    // Kakao SDK — 노란 카드 + 탭 가능한 링크 (도메인 등록 필요)
     if (_CT_KAKAO_KEY) {
       await initKakaoSdk();
       const Kakao = (window as unknown as Record<string, unknown>)["Kakao"] as Record<string, unknown> | undefined;
@@ -271,8 +265,18 @@ export default function ContractPrint() {
         } catch {}
       }
     }
+    // Kakao 앱키 없거나 SDK 실패 → 모바일 시스템 공유 fallback
+    if (navigator.share) {
+      try { await navigator.share({ title, text: desc, url }); return; } catch (e) {
+        if ((e as DOMException)?.name === "AbortError") return;
+      }
+    }
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setCopied(true); setTimeout(() => setCopied(false), 2500);
+  }
 
-    // 3순위: 클립보드 복사
+  async function handleShare() {
+    const { url } = _shareText();
     await navigator.clipboard.writeText(url).catch(() => {});
     setCopied(true); setTimeout(() => setCopied(false), 2500);
   }
@@ -309,8 +313,12 @@ export default function ContractPrint() {
         <button onClick={() => window.print()} style={{ display: "flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, padding: "10px 20px", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(37,99,235,0.3)" }}>
           <Printer size={16} /> 인쇄 / PDF 저장
         </button>
+        <button onClick={handleKakaoShare} style={{ display: "flex", alignItems: "center", gap: 6, background: "#FEE500", border: "none", borderRadius: 8, padding: "10px 20px", color: "#191919", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(254,229,0,0.4)" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#191919"><path d="M12 3C6.477 3 2 6.477 2 10.5c0 2.548 1.516 4.787 3.813 6.15l-.972 3.6a.375.375 0 0 0 .545.423l4.23-2.82A11.6 11.6 0 0 0 12 18c5.523 0 10-3.477 10-7.5S17.523 3 12 3z"/></svg>
+          카카오톡 공유
+        </button>
         <button onClick={handleShare} style={{ display: "flex", alignItems: "center", gap: 6, background: copied ? "#eff6ff" : "#f1f5f9", border: `1px solid ${copied ? "#bfdbfe" : "#e2e8f0"}`, borderRadius: 8, padding: "10px 20px", color: copied ? "#2563eb" : "#64748b", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
-          <Share2 size={16} /> {copied ? "링크 복사됨!" : "공유하기"}
+          <Share2 size={16} /> {copied ? "링크 복사됨!" : "링크 복사"}
         </button>
       </div>
 
