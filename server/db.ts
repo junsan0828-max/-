@@ -20,9 +20,11 @@ const dbUrl = process.env.DATABASE_URL || "postgresql://localhost/fallback";
 export const pool = new Pool({
   connectionString: dbUrl,
   ssl: dbUrl.includes("localhost") ? false : { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 15000,
+  max: 5,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 10000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 });
 
 pool.on("error", (err) => {

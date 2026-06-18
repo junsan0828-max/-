@@ -28,7 +28,12 @@ const pgStore = new PgSession({
   pool,
   tableName: "session",
   createTableIfMissing: true,
+  disableTouch: true,
   errorLog: (err: Error) => console.error("session store error:", err.message),
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
 });
 
 app.use(
