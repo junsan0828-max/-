@@ -3034,6 +3034,7 @@ const adminRouter = t.router({
         customerName: revenueEntries.customerName,
         type: revenueEntries.type,
         subType: revenueEntries.subType,
+        amount: revenueEntries.amount,
         paidAmount: revenueEntries.paidAmount,
         paymentDate: revenueEntries.paymentDate,
         trainerName: trainers.trainerName,
