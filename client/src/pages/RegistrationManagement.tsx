@@ -1749,11 +1749,11 @@ export default function RegistrationManagement() {
                         {filteredServiceHealths.map((h: any) => (
                           <ServiceCard key={`sh-${h.id}`} id={`sh-${h.id}`}
                             name={h.memberName ?? "—"} phone={h.memberPhone ?? null}
-                            label={`헬스 ${h.serviceHealthDuration}개월`}
+                            label={`헬스 ${h.serviceHealthDuration}일`}
                             badgeBg="bg-emerald-500/20" badgeText="text-emerald-400"
                             subInfo={dateRange(h.startDate, h.endDate) || undefined}
                             endDate={h.endDate}
-                            onClick={() => setServiceModal({ memberId: h.memberId, memberName: h.memberName ?? "—", memberPhone: h.memberPhone, serviceType: "서비스 헬스", details: `${h.startDate ?? "-"} ~ ${h.endDate} · ${h.serviceHealthDuration}개월` })}
+                            onClick={() => setServiceModal({ memberId: h.memberId, memberName: h.memberName ?? "—", memberPhone: h.memberPhone, serviceType: "서비스 헬스", details: `${h.startDate ?? "-"} ~ ${h.endDate} · ${h.serviceHealthDuration}일` })}
                           />
                         ))}
                       </div>

@@ -225,7 +225,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
       if (item === "헬스") {
         const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : undefined);
-        return m ? `헬스(${m}개월)` : "헬스";
+        return m ? `헬스(${m}일)` : "헬스";
       }
       if (item === "락커" && serviceLockerNum) return `락커(${serviceLockerNum})`;
       return item;
@@ -854,19 +854,19 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                       </button>
                       {sel && (
                         <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
-                          <Label className="text-xs text-muted-foreground">제공 개월 수</Label>
+                          <Label className="text-xs text-muted-foreground">제공 일 수</Label>
                           <div className="flex gap-2">
-                            {[1, 3, 6, 12].map(m => (
-                              <button key={m} type="button"
-                                onClick={() => { setServiceHealthMonths(v => v === m ? undefined : m); setServiceHealthCustom(""); }}
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
-                                {m}개월
+                            {[7, 14, 30, 90].map(d => (
+                              <button key={d} type="button"
+                                onClick={() => { setServiceHealthMonths(v => v === d ? undefined : d); setServiceHealthCustom(""); }}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${serviceHealthMonths === d ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                {d}일
                               </button>
                             ))}
                           </div>
                           <Input type="number" min={1} value={serviceHealthCustom}
                             onChange={e => { setServiceHealthCustom(e.target.value); setServiceHealthMonths(undefined); }}
-                            placeholder="직접 입력 (개월)" className="bg-input border-border text-sm" />
+                            placeholder="직접 입력 (일)" className="bg-input border-border text-sm" />
                         </div>
                       )}
                     </div>
@@ -941,7 +941,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                       if (item === "PT" && servicePtCount) label = `🎁 PT +${servicePtCount}회`;
                       else if (item === "헬스") {
                         const m = serviceHealthMonths ?? (serviceHealthCustom ? parseInt(serviceHealthCustom) : 0);
-                        if (m) label = `🎁 헬스 +${m}개월`;
+                        if (m) label = `🎁 헬스 +${m}일`;
                       } else if (item === "락커" && serviceLockerNum) label = `🎁 락커 #${serviceLockerNum}`;
                       const style = item === "PT" ? "bg-blue-500/20 text-blue-400"
                         : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"

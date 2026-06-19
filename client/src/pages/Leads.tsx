@@ -66,8 +66,8 @@ type RegForm = {
   branchId?: number;
   serviceItems: string[];       // 서비스 제공 항목: PT / 헬스 / 락커 / 운동복
   servicePtCount?: number;      // 서비스 PT 횟수
-  serviceHealthMonths?: number; // 서비스 헬스 개월 수
-  serviceHealthMonthsCustom: string; // 직접 입력
+  serviceHealthDays?: number; // 서비스 헬스 일 수
+  serviceHealthDaysCustom: string; // 직접 입력
   serviceLockerNum: string;     // 서비스 락커 번호
 };
 
@@ -93,8 +93,8 @@ const defaultRegForm: RegForm = {
   branchId: undefined,
   serviceItems: [],
   servicePtCount: undefined,
-  serviceHealthMonths: undefined,
-  serviceHealthMonthsCustom: "",
+  serviceHealthDays: undefined,
+  serviceHealthDaysCustom: "",
   serviceLockerNum: "",
 };
 
@@ -423,8 +423,8 @@ export default function LeadsPage() {
       cardAmount: "",
       serviceItems: [],
       servicePtCount: undefined,
-      serviceHealthMonths: undefined,
-      serviceHealthMonthsCustom: "",
+      serviceHealthDays: undefined,
+      serviceHealthDaysCustom: "",
       serviceLockerNum: "",
     });
     setSigContext("direct");
@@ -461,8 +461,8 @@ export default function LeadsPage() {
       cardAmount: "",
       serviceItems: [],
       servicePtCount: undefined,
-      serviceHealthMonths: undefined,
-      serviceHealthMonthsCustom: "",
+      serviceHealthDays: undefined,
+      serviceHealthDaysCustom: "",
       serviceLockerNum: "",
     });
     setSigContext("rereg");
@@ -477,7 +477,7 @@ export default function LeadsPage() {
       s.startsWith("PT") ? "PT" : s.startsWith("헬스") ? "헬스" : s.startsWith("락커") ? "락커" : s.startsWith("운동복") ? "운동복" : s
     );
     const servicePtMatch = si.find((s: string) => s.startsWith("PT("))?.match(/PT\((\d+)회\)/);
-    const serviceHealthMatch = si.find((s: string) => s.startsWith("헬스("))?.match(/헬스\((\d+)개월\)/);
+    const serviceHealthMatch = si.find((s: string) => s.startsWith("헬스("))?.match(/헬스\((\d+)일\)/);
     const serviceLockerMatch = si.find((s: string) => s.startsWith("락커("))?.match(/락커\(([^)]+)\)/);
 
     const knownPrograms = ["케어피티", "웨이트피티", "이벤트피티"];
@@ -502,7 +502,7 @@ export default function LeadsPage() {
       branchId: revenue.branchId ?? undefined,
       serviceItems: siCategories,
       servicePtCount: servicePtMatch ? parseInt(servicePtMatch[1]) : undefined,
-      serviceHealthMonths: serviceHealthMatch ? parseInt(serviceHealthMatch[1]) : undefined,
+      serviceHealthDays: serviceHealthMatch ? parseInt(serviceHealthMatch[1]) : undefined,
       serviceLockerNum: serviceLockerMatch ? serviceLockerMatch[1] : "",
     });
     setEditingRevenueId(revenue.id);
@@ -687,8 +687,8 @@ export default function LeadsPage() {
       serviceItems: reg.serviceItems.length > 0 ? reg.serviceItems.map(item => {
         if (item === "PT" && reg.servicePtCount) return `PT(${reg.servicePtCount}회)`;
         if (item === "헬스") {
-          const months = reg.serviceHealthMonths ?? (reg.serviceHealthMonthsCustom ? parseInt(reg.serviceHealthMonthsCustom) : undefined);
-          return months ? `헬스(${months}개월)` : "헬스";
+          const days = reg.serviceHealthDays ?? (reg.serviceHealthDaysCustom ? parseInt(reg.serviceHealthDaysCustom) : undefined);
+          return days ? `헬스(${days}일)` : "헬스";
         }
         if (item === "락커" && reg.serviceLockerNum) return `락커(${reg.serviceLockerNum})`;
         return item;
@@ -1523,28 +1523,28 @@ export default function LeadsPage() {
                   return (
                     <div className={`rounded-xl border transition-colors ${selected ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
                       <button type="button"
-                        onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "헬스") : [...f.serviceItems, "헬스"], serviceHealthMonths: undefined, serviceHealthMonthsCustom: "" }))}
+                        onClick={() => setRegForm(f => ({ ...f, serviceItems: selected ? f.serviceItems.filter(s => s !== "헬스") : [...f.serviceItems, "헬스"], serviceHealthDays: undefined, serviceHealthDaysCustom: "" }))}
                         className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
                         <span className={selected ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
                       </button>
                       {selected && (
                         <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
-                          <label className="text-xs text-muted-foreground">제공 개월 수</label>
+                          <label className="text-xs text-muted-foreground">제공 일 수</label>
                           <div className="flex gap-2 flex-wrap">
-                            {[1, 3, 6, 12].map(m => (
-                              <button key={m} type="button"
-                                onClick={() => setRegForm(f => ({ ...f, serviceHealthMonths: f.serviceHealthMonths === m ? undefined : m, serviceHealthMonthsCustom: "" }))}
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
-                                {m}개월
+                            {[7, 14, 30, 90].map(d => (
+                              <button key={d} type="button"
+                                onClick={() => setRegForm(f => ({ ...f, serviceHealthDays: f.serviceHealthDays === d ? undefined : d, serviceHealthDaysCustom: "" }))}
+                                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.serviceHealthDays === d ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                {d}일
                               </button>
                             ))}
                           </div>
                           <input
                             type="number"
                             min={1}
-                            value={regForm.serviceHealthMonthsCustom}
-                            onChange={e => setRegForm(f => ({ ...f, serviceHealthMonthsCustom: e.target.value, serviceHealthMonths: undefined }))}
-                            placeholder="직접 입력 (개월)"
+                            value={regForm.serviceHealthDaysCustom}
+                            onChange={e => setRegForm(f => ({ ...f, serviceHealthDaysCustom: e.target.value, serviceHealthDays: undefined }))}
+                            placeholder="직접 입력 (일)"
                             className="w-full py-2 px-3 rounded-lg text-sm text-foreground border border-border bg-background focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                         </div>
                       )}
@@ -1626,8 +1626,8 @@ export default function LeadsPage() {
                       let label = `🎁 서비스 ${item}`;
                       if (item === "PT" && regForm.servicePtCount) label = `🎁 PT +${regForm.servicePtCount}회`;
                       else if (item === "헬스") {
-                        const m = regForm.serviceHealthMonths ?? (regForm.serviceHealthMonthsCustom ? parseInt(regForm.serviceHealthMonthsCustom) : 0);
-                        if (m) label = `🎁 헬스 +${m}개월`;
+                        const d = regForm.serviceHealthDays ?? (regForm.serviceHealthDaysCustom ? parseInt(regForm.serviceHealthDaysCustom) : 0);
+                        if (d) label = `🎁 헬스 +${d}일`;
                       } else if (item === "락커" && regForm.serviceLockerNum) label = `🎁 락커 #${regForm.serviceLockerNum}`;
                       const badgeStyle = item === "PT" ? "bg-blue-500/20 text-blue-400"
                         : item === "헬스" ? "bg-emerald-500/20 text-emerald-400"
@@ -1673,8 +1673,8 @@ export default function LeadsPage() {
                     serviceItems: reg.serviceItems.length > 0 ? reg.serviceItems.map((item: string) => {
                       if (item === "PT" && reg.servicePtCount) return `PT(${reg.servicePtCount}회)`;
                       if (item === "헬스") {
-                        const months = reg.serviceHealthMonths ?? (reg.serviceHealthMonthsCustom ? parseInt(reg.serviceHealthMonthsCustom) : undefined);
-                        return months ? `헬스(${months}개월)` : "헬스";
+                        const days = reg.serviceHealthDays ?? (reg.serviceHealthDaysCustom ? parseInt(reg.serviceHealthDaysCustom) : undefined);
+                        return days ? `헬스(${days}일)` : "헬스";
                       }
                       if (item === "락커" && reg.serviceLockerNum) return `락커(${reg.serviceLockerNum})`;
                       return item;
