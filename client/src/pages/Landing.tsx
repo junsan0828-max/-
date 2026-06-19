@@ -616,15 +616,30 @@ function EventSection() {
           </div>
         </div>
 
-        {/* 하이라이트 박스 */}
-        <div className="w-full rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 flex items-center justify-between mb-10">
-          <p className="text-white/70 text-sm text-left leading-snug">
-            친구와 함께 등록 시<br />
-            <span className="text-white font-semibold">각각 1개월 추가</span>
-          </p>
-          <div className="text-right flex-shrink-0">
-            <p className="text-[#60A5FA] font-black text-3xl leading-none">+1</p>
-            <p className="text-[#60A5FA]/60 text-[10px] font-medium tracking-wide">개월</p>
+        {/* 혜택 박스들 */}
+        <div className="w-full flex flex-col gap-3 mb-10">
+          <div className="rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 flex items-center justify-between">
+            <p className="text-white/70 text-sm text-left leading-snug">
+              친구와 함께 등록 시<br />
+              <span className="text-white font-semibold">각각 1개월 추가</span>
+            </p>
+            <div className="text-right flex-shrink-0">
+              <p className="text-[#60A5FA] font-black text-3xl leading-none">+1</p>
+              <p className="text-[#60A5FA]/60 text-[10px] font-medium tracking-wide">개월</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 flex items-center justify-between">
+            <p className="text-white/70 text-sm text-left leading-snug">
+              2인 동시 등록 시<br />
+              <span className="text-white font-semibold">운동복 서비스 제공</span>
+            </p>
+            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-white/50">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8l-5-5H9Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v5h6" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 13h8M8 17h5" />
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -641,6 +656,7 @@ function EventSection() {
           {[
             "두 분 모두 12개월 회원권 등록 시 적용",
             "친구, 가족, 연인 모두 가능",
+            "운동복 서비스는 수량 한정 제공",
             "이벤트는 기간 한정으로 진행될 수 있습니다",
           ].map((note) => (
             <p key={note} className="text-white/25 text-[11px] tracking-wide">* {note}</p>
