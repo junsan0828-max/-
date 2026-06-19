@@ -195,7 +195,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
     if (!form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
-    if (currentUser?.role === "admin" && !isEdit && !form.adminTrainerId) newErrors.adminTrainerId = "담당 트레이너를 선택해주세요.";
     if (!isEdit && itemTypes.length === 0) newErrors.itemTypes = "항목 유형을 선택해주세요.";
     if (!isEdit && form.paymentAmount && parseInt(form.paymentAmount) > 0) {
       if (!form.paymentMethod) newErrors.paymentMethod = "결제 방법을 선택해주세요.";
@@ -356,14 +355,14 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             {currentUser?.role === "admin" && !isEdit && (
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">
-                  담당 트레이너 <span className="text-primary">*</span>
+                  상담 담당자
                 </Label>
                 <Select
                   value={form.adminTrainerId}
                   onValueChange={(v) => setForm((p) => ({ ...p, adminTrainerId: v }))}
                 >
-                  <SelectTrigger className={`bg-input border-border ${errors.adminTrainerId ? "border-red-500" : ""}`}>
-                    <SelectValue placeholder="트레이너 선택" />
+                  <SelectTrigger className="bg-input border-border">
+                    <SelectValue placeholder="담당자 선택 (선택사항)" />
                   </SelectTrigger>
                   <SelectContent>
                     {trainerList?.map((t) => (
