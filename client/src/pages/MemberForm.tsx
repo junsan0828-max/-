@@ -353,7 +353,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             <CardTitle className="text-base font-semibold">기본 정보</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {currentUser?.role === "admin" && !isEdit && hasPT && (
+            {currentUser?.role === "admin" && !isEdit && (
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">
                   담당 트레이너 <span className="text-primary">*</span>
@@ -472,6 +472,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                 <option value="유튜브">유튜브</option>
                 <option value="블로그">블로그</option>
                 <option value="현수막/전단지">현수막/전단지</option>
+                <option value="워크인">워크인</option>
                 <option value="재등록">재등록</option>
                 <option value="기타">기타</option>
               </select>
