@@ -10,7 +10,7 @@ import {
 const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "분할결제"];
 const CATEGORIES = ["PT", "헬스", "기타"] as const;
 const SUB_TYPES = ["신규", "재등록", "이전"] as const;
-const DURATIONS = [1, 3, 6, 12];
+const DURATIONS = [30, 60, 90, 180, 365];
 const OTHER_ITEMS = ["락커", "운동복"];
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 const PT_SESSIONS = [10, 20, 30, 40, 50];
@@ -318,7 +318,7 @@ function RevenueContent() {
                     </span>
                     <span className="text-sm font-medium text-foreground">{row.entry.customerName || row.memberName || "—"}</span>
                     {row.entry.programDetail && <span className="text-xs text-muted-foreground">{row.entry.programDetail}</span>}
-                    {row.entry.duration && <span className="text-xs text-muted-foreground">{row.entry.duration}개월</span>}
+                    {row.entry.duration && <span className="text-xs text-muted-foreground">{row.entry.duration}일</span>}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                     {row.entry.type === "PT" && !row.entry.trainerId && (
@@ -442,15 +442,23 @@ function RevenueContent() {
               {/* 헬스: 이용 기간 */}
               {form.type === "헬스" && (
                 <div>
-                  <label className="text-xs text-muted-foreground">이용 기간 *</label>
-                  <div className="flex gap-2 mt-1">
+                  <label className="text-xs text-muted-foreground">이용 기간 (일) *</label>
+                  <div className="flex gap-2 mt-1 flex-wrap">
                     {DURATIONS.map(d => (
                       <button key={d} type="button" onClick={() => setForm(f => ({ ...f, duration: String(d) }))}
                         className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.duration === String(d) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                        {d}개월
+                        {d}일
                       </button>
                     ))}
                   </div>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="직접 입력 (일)"
+                    value={DURATIONS.includes(Number(form.duration)) ? "" : form.duration}
+                    onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
+                    className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
                 </div>
               )}
 
@@ -469,15 +477,23 @@ function RevenueContent() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">이용 기간</label>
-                    <div className="flex gap-2 mt-1">
+                    <label className="text-xs text-muted-foreground">이용 기간 (일)</label>
+                    <div className="flex gap-2 mt-1 flex-wrap">
                       {DURATIONS.map(d => (
                         <button key={d} type="button" onClick={() => setForm(f => ({ ...f, duration: String(d) }))}
                           className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${form.duration === String(d) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"}`}>
-                          {d}개월
+                          {d}일
                         </button>
                       ))}
                     </div>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="직접 입력 (일)"
+                      value={DURATIONS.includes(Number(form.duration)) ? "" : form.duration}
+                      onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
+                      className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
                   </div>
                 </div>
               )}
