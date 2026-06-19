@@ -633,12 +633,9 @@ function EventSection() {
               2인 동시 등록 시<br />
               <span className="text-white font-semibold">운동복 서비스 제공</span>
             </p>
-            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5 text-white/50">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8l-5-5H9Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v5h6" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 13h8M8 17h5" />
-              </svg>
+            <div className="text-right flex-shrink-0">
+              <p className="text-white/50 font-black text-3xl leading-none">+</p>
+              <p className="text-white/30 text-[10px] font-medium tracking-wide">운동복</p>
             </div>
           </div>
         </div>
