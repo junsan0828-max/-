@@ -287,7 +287,18 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
             <div className="space-y-1.5">
               <Label htmlFor="visitRoute" className="text-sm text-muted-foreground">유입경로</Label>
-              <Input id="visitRoute" value={form.visitRoute} onChange={(e) => setForm((p) => ({ ...p, visitRoute: e.target.value }))} placeholder="지인 소개, SNS, 검색 등" className="bg-input border-border"/>
+              <Select value={form.visitRoute} onValueChange={(v) => setForm((p) => ({ ...p, visitRoute: v }))}>
+                <SelectTrigger className="bg-input border-border">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="워크인">워크인</SelectItem>
+                  <SelectItem value="지인 소개">지인 소개</SelectItem>
+                  <SelectItem value="SNS">SNS</SelectItem>
+                  <SelectItem value="검색">검색</SelectItem>
+                  <SelectItem value="기타">기타</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
