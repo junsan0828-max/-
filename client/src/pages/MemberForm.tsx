@@ -93,7 +93,6 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
-    if (currentUser?.role === "admin" && !isEdit && !form.adminTrainerId) newErrors.adminTrainerId = "담당 트레이너를 선택해주세요.";
     return newErrors;
   };
 
@@ -155,11 +154,11 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
             <CardTitle className="text-base font-semibold">기본 정보</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* 관리자: 담당 트레이너 선택 */}
+            {/* 관리자: 담당 트레이너 선택 (선택사항) */}
             {currentUser?.role === "admin" && !isEdit && (
               <div className="space-y-1.5">
                 <Label className="text-sm text-muted-foreground">
-                  담당 트레이너 <span className="text-primary">*</span>
+                  담당 트레이너
                 </Label>
                 <Select
                   value={form.adminTrainerId}
