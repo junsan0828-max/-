@@ -194,7 +194,7 @@ export default function MemberReRegister() {
     return serviceItems.map(item => {
       if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
       if (item === "헬스") {
-        if (serviceHealthMonths) return `헬스(${serviceHealthMonths}개월)`;
+        if (serviceHealthMonths) return `헬스(${serviceHealthMonths}일)`;
         if (serviceHealthCustom) return `헬스(${serviceHealthCustom}일)`;
         return "헬스";
       }
@@ -711,11 +711,11 @@ export default function MemberReRegister() {
                     {sel && id === "헬스" && (
                       <div className="px-4 pb-3 border-t border-emerald-500/20 pt-2 space-y-2">
                         <div className="flex gap-2">
-                          {[1, 3, 6, 12].map(m => (
-                            <button key={m} type="button"
-                              onClick={() => { setServiceHealthMonths(v => v === m ? undefined : m); setServiceHealthCustom(""); }}
-                              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border ${serviceHealthMonths === m ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
-                              {m}개월
+                          {[7, 14, 30, 90].map(d => (
+                            <button key={d} type="button"
+                              onClick={() => { setServiceHealthMonths(v => v === d ? undefined : d); setServiceHealthCustom(""); }}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border ${serviceHealthMonths === d ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                              {d}일
                             </button>
                           ))}
                         </div>

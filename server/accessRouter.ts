@@ -898,7 +898,7 @@ export const accessRouter = t.router({
       const result = await pool.query(
         `SELECT r.id, r."memberId", r."customerName" as "memberName", r.phone as "memberPhone",
                 r."startDate", r."serviceHealthDuration",
-                (r."startDate"::date + (r."serviceHealthDuration" || ' months')::interval)::date AS "endDate"
+                (r."startDate"::date + (r."serviceHealthDuration" || ' days')::interval)::date AS "endDate"
          FROM revenue_entries r
          WHERE r."serviceHealthDuration" > 0
            AND r.type = 'PT'
