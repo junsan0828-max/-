@@ -75,6 +75,9 @@ export default function RegistrationManagement() {
     paymentMethod: "" as "" | "카드" | "현금" | "현금영수증" | "계좌이체" | "지역화폐" | "분할결제" | "혼합",
     paymentDate: "", memo: "", transferAmount: "", cardAmount: "",
   });
+  const [editServiceItems, setEditServiceItems] = useState<string[]>([]);
+  const [editServiceHealthDays, setEditServiceHealthDays] = useState<number | undefined>(undefined);
+  const [editServiceHealthCustom, setEditServiceHealthCustom] = useState("");
   const [serviceModal, setServiceModal] = useState<ServiceModal>(null);
   const { data: memberRevenue, isLoading: memberRevenueLoading } = trpc.gym.revenue.getByMember.useQuery(
     { memberId: serviceModal?.memberId ?? 0 },
@@ -566,6 +569,14 @@ export default function RegistrationManagement() {
                                 memo: r.memo ?? "",
                                 transferAmount: "", cardAmount: "",
                               });
+                              const siParts = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
+                              const siCategories = siParts.map((s: string) =>
+                                s.startsWith("PT") ? "PT" : s.startsWith("헬스") ? "헬스" : s.startsWith("락커") ? "락커" : s.startsWith("운동복") ? "운동복" : s
+                              );
+                              const healthMatch = siParts.find((s: string) => s.startsWith("헬스("))?.match(/헬스\((\d+)일\)/);
+                              setEditServiceItems(siCategories);
+                              setEditServiceHealthDays(healthMatch ? parseInt(healthMatch[1]) : undefined);
+                              setEditServiceHealthCustom("");
                             }}
                             className="text-xs text-primary underline hover:text-primary/70 transition-colors"
                           >수정</button>
@@ -733,6 +744,62 @@ export default function RegistrationManagement() {
                       <textarea value={editRevForm.memo} onChange={e => setEditRevForm(f => ({ ...f, memo: e.target.value }))}
                         rows={2} className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm resize-none" />
                     </div>
+                    {/* 서비스 내역 */}
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground font-medium">서비스 내역 (무료 제공 항목)</label>
+                      <div className="space-y-2">
+                        {/* 헬스 */}
+                        <div className={`rounded-xl border transition-colors ${editServiceItems.includes("헬스") ? "border-emerald-500/60 bg-emerald-500/5" : "border-border"}`}>
+                          <button type="button"
+                            onClick={() => { setEditServiceItems(s => s.includes("헬스") ? s.filter(x => x !== "헬스") : [...s, "헬스"]); setEditServiceHealthDays(undefined); setEditServiceHealthCustom(""); }}
+                            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                            <span className={editServiceItems.includes("헬스") ? "text-emerald-400" : "text-muted-foreground"}>헬스</span>
+                            {editServiceItems.includes("헬스") && <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                          </button>
+                          {editServiceItems.includes("헬스") && (
+                            <div className="px-4 pb-4 border-t border-emerald-500/20 pt-3 space-y-2">
+                              <label className="text-xs text-muted-foreground">제공 일 수</label>
+                              <div className="flex gap-2">
+                                {[7, 14, 30, 90].map(d => (
+                                  <button key={d} type="button"
+                                    onClick={() => { setEditServiceHealthDays(v => v === d ? undefined : d); setEditServiceHealthCustom(""); }}
+                                    className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${editServiceHealthDays === d ? "bg-emerald-500 text-white border-emerald-500" : "bg-background border-border text-muted-foreground"}`}>
+                                    {d}일
+                                  </button>
+                                ))}
+                              </div>
+                              <input type="number" min={1} value={editServiceHealthCustom}
+                                onChange={e => { setEditServiceHealthCustom(e.target.value); setEditServiceHealthDays(undefined); }}
+                                placeholder="직접 입력 (일)" className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm" />
+                            </div>
+                          )}
+                        </div>
+                        {/* PT */}
+                        <button type="button"
+                          onClick={() => setEditServiceItems(s => s.includes("PT") ? s.filter(x => x !== "PT") : [...s, "PT"])}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${editServiceItems.includes("PT") ? "border-blue-500/60 bg-blue-500/5 text-blue-400" : "border-border text-muted-foreground"}`}>
+                          PT
+                          {editServiceItems.includes("PT") && <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                        </button>
+                        {/* 운동복 */}
+                        <button type="button"
+                          onClick={() => setEditServiceItems(s => s.includes("운동복") ? s.filter(x => x !== "운동복") : [...s, "운동복"])}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold border transition-colors ${editServiceItems.includes("운동복") ? "border-purple-500/60 bg-purple-500/5 text-purple-400" : "border-border text-muted-foreground"}`}>
+                          운동복
+                          {editServiceItems.includes("운동복") && <span className="text-[10px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
+                        </button>
+                      </div>
+                      {editServiceItems.length > 0 && (
+                        <div className="flex gap-1.5 flex-wrap mt-1">
+                          {editServiceItems.map(item => {
+                            const d = editServiceHealthDays ?? (editServiceHealthCustom ? parseInt(editServiceHealthCustom) : 0);
+                            const label = item === "헬스" && d ? `🎁 헬스 +${d}일` : `🎁 서비스 ${item}`;
+                            const style = item === "PT" ? "bg-blue-500/20 text-blue-400" : item === "헬스" ? "bg-emerald-500/20 text-emerald-400" : "bg-purple-500/20 text-purple-400";
+                            return <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${style}`}>{label}</span>;
+                          })}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex gap-2 pt-1">
                       <button onClick={() => setEditRev(null)}
                         className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground">취소</button>
@@ -742,6 +809,13 @@ export default function RegistrationManagement() {
                           const disc = editRevForm.discountAmount !== "" ? Number(editRevForm.discountAmount) : 0;
                           const unpaid = editRevForm.unpaidAmount !== "" ? Number(editRevForm.unpaidAmount) : undefined;
                           const paid = (amt !== undefined && unpaid !== undefined) ? Math.max(0, amt - (disc ?? 0) - unpaid) : undefined;
+                          const siStr = editServiceItems.length > 0 ? editServiceItems.map(item => {
+                            if (item === "헬스") {
+                              const d = editServiceHealthDays ?? (editServiceHealthCustom ? parseInt(editServiceHealthCustom) : undefined);
+                              return d ? `헬스(${d}일)` : "헬스";
+                            }
+                            return item;
+                          }).join(",") : undefined;
                           updateRevMutation.mutate({
                             id: editRev.id,
                             programDetail: editRevForm.programDetail || undefined,
@@ -755,6 +829,7 @@ export default function RegistrationManagement() {
                             paymentMethod: editRevForm.paymentMethod || undefined,
                             paymentDate: editRevForm.paymentDate || undefined,
                             memo: editRevForm.memo || undefined,
+                            serviceItems: siStr,
                           });
                         }}
                         disabled={updateRevMutation.isPending}
