@@ -35,7 +35,7 @@ const EXERCISE_PURPOSES = [
 
 const PT_PROGRAMS = ["케어피티", "웨이트피티", "이벤트피티", "기타"];
 const PT_SESSIONS = [10, 20, 30, 40, 50];
-const DURATIONS = [1, 3, 6, 12];
+const DURATIONS = [30, 60, 90, 180, 365];
 const PAYMENT_METHODS_REG = ["카드", "현금", "계좌이체", "지역화폐"];
 
 type RegForm = {
@@ -276,7 +276,7 @@ export default function LeadsPage() {
       parts.push(reg.programKey === "기타" ? (reg.programCustom || "기타PT") : reg.programKey);
     }
     if (reg.itemTypes.includes("헬스") && reg.duration) {
-      parts.push(`헬스 ${reg.duration}개월`);
+      parts.push(`헬스 ${reg.duration}일`);
     }
     if (reg.itemTypes.includes("기타") && reg.otherItem) {
       parts.push(reg.otherItem);
@@ -699,7 +699,7 @@ export default function LeadsPage() {
                       <button key={d} type="button"
                         onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
                         className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                        {d}개월
+                        {d}일
                       </button>
                     ))}
                   </div>
