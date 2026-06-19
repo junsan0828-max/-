@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 
 interface Props {
@@ -163,7 +164,18 @@ export default function ParQ({ memberId }: Props) {
             <Field label="직업"><Input value={form.occupation} onChange={set("occupation")} placeholder="예: 사무직" /></Field>
             <Field label="근무 환경"><Input value={form.workEnvironment} onChange={set("workEnvironment")} placeholder="예: 앉음/서있음" /></Field>
             <Field label="운동 경험"><Input value={form.exerciseExperience} onChange={set("exerciseExperience")} placeholder="예: 달음/보름/직음" /></Field>
-            <Field label="방문 경로"><Input value={form.visitRoute} onChange={set("visitRoute")} placeholder="예: 친구 소개" /></Field>
+            <Field label="방문 경로">
+              <Select value={form.visitRoute} onValueChange={(v) => setForm((p) => ({ ...p, visitRoute: v }))}>
+                <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="워크인">워크인</SelectItem>
+                  <SelectItem value="지인 소개">지인 소개</SelectItem>
+                  <SelectItem value="SNS">SNS</SelectItem>
+                  <SelectItem value="검색">검색</SelectItem>
+                  <SelectItem value="기타">기타</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
         </Section>
 
