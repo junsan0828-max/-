@@ -818,6 +818,36 @@ async function initDatabase() {
     console.error("PT 매출 누락 회원 생성 오류:", e);
   }
 
+  // ── 헬스 매출 중 memberId 없는 항목을 기존 회원과 자동 연결 (backfill) ──────
+  try {
+    const unlinkedHealth = await pool.query<{
+      id: number; customerName: string | null; phone: string | null;
+    }>(
+      `SELECT id, "customerName", phone FROM revenue_entries
+       WHERE type = '헬스' AND "memberId" IS NULL AND "customerName" IS NOT NULL`
+    );
+    for (const entry of unlinkedHealth.rows) {
+      if (!entry.customerName) continue;
+      const { rows: matched } = await pool.query<{ id: number }>(
+        `SELECT id FROM members
+         WHERE name = $1
+           AND ($2::text IS NULL OR phone = $2 OR phone IS NULL OR $2 = '')
+         ORDER BY "membershipEnd" DESC NULLS LAST
+         LIMIT 1`,
+        [entry.customerName, entry.phone || null]
+      );
+      if (matched[0]) {
+        await pool.query(
+          `UPDATE revenue_entries SET "memberId" = $1 WHERE id = $2`,
+          [matched[0].id, entry.id]
+        );
+        console.log(`✅ 헬스 매출 id=${entry.id} → 회원 id=${matched[0].id} (${entry.customerName}) 자동 연결`);
+      }
+    }
+  } catch (e) {
+    console.error("헬스 매출 회원 자동 연결 오류:", e);
+  }
+
   // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
   try {
     const ptRevs = await db
