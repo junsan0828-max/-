@@ -811,13 +811,17 @@ export const accessRouter = t.router({
         pool.query(
           `SELECT r.id, r.type, r."subType", r.amount, r."paidAmount", r."unpaidAmount", r."paymentDate",
                   r.memo, r."programDetail", r."startDate", r."endDate", r."serviceSessions",
-                  r."serviceHealthDuration", r."createdAt", r."serviceItems", r.duration
+                  r."serviceHealthDuration", r."createdAt", r."serviceItems", r.duration,
+                  r."memberId", r."customerName"
            FROM revenue_entries r
            WHERE r."memberId" = $1
               OR r."customerName" = (SELECT name FROM members WHERE id = $1 LIMIT 1)
            ORDER BY r."createdAt" DESC`,
           [input.memberId]
-        ),
+        ).then(result => {
+          console.log(`[getMemberPrograms] memberId=${input.memberId} → ${result.rows.length}건:`, result.rows.map(r => ({ id: r.id, type: r.type, memberId: (r as any).memberId ?? 'N/A', customerName: (r as any).customerName ?? '?', serviceItems: r.serviceItems })));
+          return result;
+        }),
       ]);
       return {
         lockers: memberLockers,
