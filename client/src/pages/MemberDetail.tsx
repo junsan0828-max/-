@@ -1576,7 +1576,7 @@ export default function MemberDetail({ memberId }: Props) {
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-medium text-sm text-foreground">
-                                  헬스권{healthDurationMonths ? ` ${healthDurationMonths}개월` : ""}
+                                  헬스권
                                 </p>
                                 {healthDaysLeft !== null && healthDaysLeft > 0 ? (
                                   <span className={`text-xs px-1.5 py-0.5 rounded-full border ${

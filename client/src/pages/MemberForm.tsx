@@ -317,6 +317,19 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           uniformPrice: addUniform ? (uniformPrice ? parseInt(uniformPrice) : 0) : undefined,
         });
         savedMemberId = result.memberId;
+        // 서비스 락커 실제 배정
+        if (serviceItems.includes("락커") && serviceLockerNum && savedMemberId) {
+          const lockerToAssign = (allLockers ?? []).find((l: any) => l.lockerNumber === serviceLockerNum);
+          if (lockerToAssign) {
+            await assignLockerMutation.mutateAsync({
+              lockerId: lockerToAssign.id,
+              memberId: savedMemberId,
+              memberName: form.name,
+              memberPhone: form.phone || undefined,
+              rentalType: "service",
+            });
+          }
+        }
       }
 
       toast.success(isEdit ? "회원 정보가 수정되었습니다." : "회원이 등록되었습니다.");

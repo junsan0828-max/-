@@ -78,6 +78,8 @@ export default function RegistrationManagement() {
   const [editServiceItems, setEditServiceItems] = useState<string[]>([]);
   const [editServiceHealthDays, setEditServiceHealthDays] = useState<number | undefined>(undefined);
   const [editServiceHealthCustom, setEditServiceHealthCustom] = useState("");
+  const [editServiceLockerId, setEditServiceLockerId] = useState<string>("");
+  const [editServiceLockerNum, setEditServiceLockerNum] = useState<string>("");
   const [serviceModal, setServiceModal] = useState<ServiceModal>(null);
   const { data: memberRevenue, isLoading: memberRevenueLoading } = trpc.gym.revenue.getByMember.useQuery(
     { memberId: serviceModal?.memberId ?? 0 },
@@ -135,6 +137,10 @@ export default function RegistrationManagement() {
   const updateRevMutation = trpc.gym.revenue.update.useMutation({
     onSuccess: () => { toast.success("수정 완료"); setEditRev(null); revListQuery.refetch(); },
     onError: (e) => toast.error(e.message || "수정 실패"),
+  });
+  const editAssignLockerMutation = trpc.access.assignLocker.useMutation({
+    onSuccess: () => { toast.success("락커 배정 완료"); },
+    onError: (e) => toast.error("락커 배정 실패: " + (e.message || "")),
   });
   const deleteRevMutation = trpc.gym.revenue.delete.useMutation({
     onSuccess: () => { toast.success("삭제됐습니다"); revListQuery.refetch(); },
@@ -574,9 +580,12 @@ export default function RegistrationManagement() {
                                 s.startsWith("PT") ? "PT" : s.startsWith("헬스") ? "헬스" : s.startsWith("락커") ? "락커" : s.startsWith("운동복") ? "운동복" : s
                               );
                               const healthMatch = siParts.find((s: string) => s.startsWith("헬스("))?.match(/헬스\((\d+)일\)/);
+                              const lockerMatch = siParts.find((s: string) => s.startsWith("락커("))?.match(/락커\(([^)]+)\)/);
                               setEditServiceItems(siCategories);
                               setEditServiceHealthDays(healthMatch ? parseInt(healthMatch[1]) : undefined);
                               setEditServiceHealthCustom("");
+                              setEditServiceLockerId("");
+                              setEditServiceLockerNum(lockerMatch ? lockerMatch[1] : "");
                             }}
                             className="text-xs text-primary underline hover:text-primary/70 transition-colors"
                           >수정</button>
@@ -781,6 +790,42 @@ export default function RegistrationManagement() {
                           PT
                           {editServiceItems.includes("PT") && <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">선택됨</span>}
                         </button>
+                        {/* 락커 */}
+                        {(() => {
+                          const selLocker = editServiceItems.includes("락커");
+                          const availLockers = allLockers.filter((l: any) => !l.isOccupied);
+                          return (
+                            <div className={`rounded-xl border transition-colors ${selLocker ? "border-amber-500/60 bg-amber-500/5" : "border-border"}`}>
+                              <button type="button"
+                                onClick={() => { setEditServiceItems(s => selLocker ? s.filter(x => x !== "락커") : [...s, "락커"]); setEditServiceLockerId(""); setEditServiceLockerNum(""); }}
+                                className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold">
+                                <span className={selLocker ? "text-amber-400" : "text-muted-foreground"}>락커</span>
+                                {availLockers.length > 0 && <span className="text-[10px] text-muted-foreground">사용 가능 {availLockers.length}개</span>}
+                              </button>
+                              {selLocker && (
+                                <div className="px-4 pb-4 border-t border-amber-500/20 pt-3 space-y-2">
+                                  <label className="text-xs text-muted-foreground">락커 선택 (실제 배정됩니다)</label>
+                                  <select value={editServiceLockerId}
+                                    onChange={e => {
+                                      const id = e.target.value;
+                                      setEditServiceLockerId(id);
+                                      const found = allLockers.find((l: any) => String(l.id) === id);
+                                      setEditServiceLockerNum(found ? found.lockerNumber : "");
+                                    }}
+                                    className="w-full bg-background border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none">
+                                    <option value="">락커 선택</option>
+                                    {availLockers.map((l: any) => (
+                                      <option key={l.id} value={String(l.id)}>
+                                        {l.lockerNumber}{l.branchId ? ` (지점 ${l.branchId})` : ""}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {editServiceLockerNum && <p className="text-xs text-amber-400">락커 {editServiceLockerNum} 배정 예정</p>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {/* 운동복 */}
                         <button type="button"
                           onClick={() => setEditServiceItems(s => s.includes("운동복") ? s.filter(x => x !== "운동복") : [...s, "운동복"])}
@@ -793,8 +838,10 @@ export default function RegistrationManagement() {
                         <div className="flex gap-1.5 flex-wrap mt-1">
                           {editServiceItems.map(item => {
                             const d = editServiceHealthDays ?? (editServiceHealthCustom ? parseInt(editServiceHealthCustom) : 0);
-                            const label = item === "헬스" && d ? `🎁 헬스 +${d}일` : `🎁 서비스 ${item}`;
-                            const style = item === "PT" ? "bg-blue-500/20 text-blue-400" : item === "헬스" ? "bg-emerald-500/20 text-emerald-400" : "bg-purple-500/20 text-purple-400";
+                            const label = item === "헬스" && d ? `🎁 헬스 +${d}일`
+                              : item === "락커" && editServiceLockerNum ? `🎁 락커 ${editServiceLockerNum}`
+                              : `🎁 서비스 ${item}`;
+                            const style = item === "PT" ? "bg-blue-500/20 text-blue-400" : item === "헬스" ? "bg-emerald-500/20 text-emerald-400" : item === "락커" ? "bg-amber-500/20 text-amber-400" : "bg-purple-500/20 text-purple-400";
                             return <span key={item} className={`text-xs px-2 py-0.5 rounded-full font-medium ${style}`}>{label}</span>;
                           })}
                         </div>
@@ -814,8 +861,21 @@ export default function RegistrationManagement() {
                               const d = editServiceHealthDays ?? (editServiceHealthCustom ? parseInt(editServiceHealthCustom) : undefined);
                               return d ? `헬스(${d}일)` : "헬스";
                             }
+                            if (item === "락커") {
+                              return editServiceLockerNum ? `락커(${editServiceLockerNum})` : "락커";
+                            }
                             return item;
                           }).join(",") : undefined;
+                          // 락커가 선택됐고 memberId가 있으면 실제 배정
+                          if (editServiceItems.includes("락커") && editServiceLockerId && editRev.memberId) {
+                            editAssignLockerMutation.mutate({
+                              lockerId: parseInt(editServiceLockerId),
+                              memberId: editRev.memberId,
+                              memberName: editRev.customerName ?? "",
+                              memberPhone: editRev.phone ?? undefined,
+                              rentalType: "service",
+                            });
+                          }
                           updateRevMutation.mutate({
                             id: editRev.id,
                             programDetail: editRevForm.programDetail || undefined,
