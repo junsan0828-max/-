@@ -899,6 +899,50 @@ async function initDatabase() {
     console.error("헬스 매출 잘못 연결된 항목 재연결 오류:", e);
   }
 
+  // ── membershipEnd 있으나 헬스 매출 기록 없는 회원 → 이전 기록 자동 생성 ────
+  try {
+    const membersWithHealth = await pool.query<{
+      id: number; name: string; phone: string | null;
+      membershipStart: string | null; membershipEnd: string | null;
+    }>(
+      `SELECT id, name, phone, "membershipStart", "membershipEnd"
+       FROM members
+       WHERE "membershipEnd" IS NOT NULL
+         AND "membershipStart" IS NOT NULL
+         AND id NOT IN (
+           SELECT DISTINCT "memberId" FROM revenue_entries
+           WHERE type = '헬스' AND "memberId" IS NOT NULL
+         )`
+    );
+    for (const m of membersWithHealth.rows) {
+      if (!m.membershipStart || !m.membershipEnd) continue;
+      const start = new Date(m.membershipStart);
+      const end = new Date(m.membershipEnd);
+      // 정수 개월 계산
+      const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+      if (months <= 0) continue;
+      // 기본 개월 종료일
+      const baseEnd = new Date(start);
+      baseEnd.setMonth(baseEnd.getMonth() + months);
+      // 서비스 일수 = 실제 종료 - 기본 종료
+      const serviceDays = Math.round((end.getTime() - baseEnd.getTime()) / 86400000);
+      const serviceItems = serviceDays > 0 ? `헬스(${serviceDays}일)` : undefined;
+      const today = new Date().toISOString().substring(0, 10);
+      await pool.query(
+        `INSERT INTO revenue_entries
+           ("memberId", "customerName", phone, type, "subType", amount, "discountAmount",
+            "paidAmount", "unpaidAmount", "refundAmount", "paymentDate", "startDate",
+            duration, "serviceItems", "programDetail", "createdAt", "updatedAt")
+         VALUES ($1,$2,$3,'헬스','이전',0,0,0,0,0,$4,$5,$6,$7,$8,now()::text,now()::text)`,
+        [m.id, m.name, m.phone || null, today, m.membershipStart,
+         months, serviceItems || null, `헬스 ${months}개월`]
+      );
+      console.log(`✅ 헬스 이전 기록 생성: ${m.name} (id=${m.id}) ${months}개월${serviceDays > 0 ? ` +서비스 ${serviceDays}일` : ""}`);
+    }
+  } catch (e) {
+    console.error("헬스 이전 기록 자동 생성 오류:", e);
+  }
+
   // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
   try {
     const ptRevs = await db
