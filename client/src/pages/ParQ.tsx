@@ -2,57 +2,320 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 
-interface Props {
-  memberId: number;
-}
+interface Props { memberId: number; }
 
 type FormState = {
-  height: string; weight: string; muscleMass: string;
-  bodyFatPercent: string; bodyFatKg: string; waistCircumference: string;
-  systolicBp: string; diastolicBp: string; totalCholesterol: string;
-  hdlCholesterol: string; ldlCholesterol: string; triglycerides: string;
-  fastingBloodSugar: string; postMealBloodSugar: string; hba1c: string; boneDensity: string;
-  occupation: string; workEnvironment: string; exerciseExperience: string; visitRoute: string;
+  height: string; weight: string;
+  occupation: string; workEnvironment: string;
+  exerciseExperience: string;
   goal1: string; goal2: string; goal3: string;
-  dietIssues: string; alcoholIssues: string; sleepIssues: string; activityIssues: string;
-  chronicDiseases: string; musculoskeletalIssues: string; posturalIssues: string;
+  dietIssues: string; alcoholIssues: string;
+  sleepIssues: string; activityIssues: string;
+  chronicDiseases: string;
+  systolicBp: string; diastolicBp: string;
+  waistCircumference: string;
+  totalCholesterol: string; hdlCholesterol: string; ldlCholesterol: string;
+  triglycerides: string; fastingBloodSugar: string;
+  postMealBloodSugar: string; hba1c: string; boneDensity: string;
+  musculoskeletalIssues: string; posturalIssues: string;
+  // unused but kept for DB compat
+  muscleMass: string; bodyFatPercent: string; bodyFatKg: string; visitRoute: string;
 };
 
 const empty: FormState = {
-  height: "", weight: "", muscleMass: "",
-  bodyFatPercent: "", bodyFatKg: "", waistCircumference: "",
-  systolicBp: "", diastolicBp: "", totalCholesterol: "",
-  hdlCholesterol: "", ldlCholesterol: "", triglycerides: "",
-  fastingBloodSugar: "", postMealBloodSugar: "", hba1c: "", boneDensity: "",
-  occupation: "", workEnvironment: "", exerciseExperience: "", visitRoute: "",
+  height: "", weight: "",
+  occupation: "", workEnvironment: "", exerciseExperience: "",
   goal1: "", goal2: "", goal3: "",
   dietIssues: "", alcoholIssues: "", sleepIssues: "", activityIssues: "",
-  chronicDiseases: "", musculoskeletalIssues: "", posturalIssues: "",
+  chronicDiseases: "",
+  systolicBp: "", diastolicBp: "",
+  waistCircumference: "", totalCholesterol: "", hdlCholesterol: "",
+  ldlCholesterol: "", triglycerides: "", fastingBloodSugar: "",
+  postMealBloodSugar: "", hba1c: "", boneDensity: "",
+  musculoskeletalIssues: "", posturalIssues: "",
+  muscleMass: "", bodyFatPercent: "", bodyFatKg: "", visitRoute: "",
 };
 
+// ─── 상수 ─────────────────────────────────────────────────────────────────────
+const HEIGHT_OPTS = Array.from({ length: 81 }, (_, i) => `${140 + i}`);
+const WEIGHT_OPTS = Array.from({ length: 121 }, (_, i) => `${30 + i}`);
+
+const GOAL_OPTS = [
+  "자세교정", "다이어트", "근력 증가", "근육량 증가",
+  "기초체력 증가", "운동 습관", "통증 감소", "재활 운동",
+];
+
+const DIET_ITEMS = [
+  "A. 하루 식사 시간이 일정하지 않거나 끼니를 자주 거른다.",
+  "B. 하루 단백질 섭취량이 부족하거나(체중 x 1g 이하) 식단 구성이 한쪽으로 치우친다.",
+  "C. 스트레스나 감정 변화로 인해 폭식 또는 과식을 경험한다.",
+  "D. 저녁 9시 이후 야식 또는 고칼로리 간식을 자주 섭취한다.",
+];
+const ALCOHOL_ITEMS = [
+  "A. 주 3회 이상 음주하거나 1회 음주량이 평균 3잔 이상이다.",
+  "B. 한 번 술을 마시면 마무리가 잘 안 되어 과음하는 경우가 있다.",
+  "C. 스트레스 해소를 술에 의존하는 편이다.",
+  "D. 회식·약속 등으로 인해 운동 다음 날 컨디션이 떨어지는 경우가 잦다.",
+];
+const SLEEP_ITEMS = [
+  "A. 밤에 자주 깨거나(2회 이상) 수면 중단이 반복된다.",
+  "B. 아침에 일어나도 개운하지 않고 지속적으로 피곤하다.",
+  "C. 잠드는 데 30분 이상 걸리거나 누워도 쉽게 잠들지 못한다.",
+  "D. 수면 시간이 일정하지 않거나 6시간 미만으로 자는 날이 많다.",
+];
+const ACTIVITY_ITEMS = [
+  "A. 하루 활동량(걸음 수)이 5,000보 미만인 날이 많다.",
+  "B. 하루 중 앉아 있는 시간이 6시간 이상으로 길다.",
+  "C. 주 2회 이상 규칙적인 운동(근력 또는 유산소)을 하지 않는다.",
+  "D. 계단 오르기 / 짧은 거리 이동 등 기본 활동에서도 숨이 차거나 피로를 느낀다.",
+];
+
+const HOSPITAL_DIAGNOSES = [
+  "해당 사항 없음",
+  "대사증후군", "고혈압", "당뇨", "고지혈증(이상지질)",
+  "당뇨병(2형)", "비만", "골다공증", "근감소증",
+];
+
+const BODY_PARTS_NO_HEAD = [
+  "목관절", "어깨관절", "팔꿈치관절", "손목관절",
+  "척추", "등(근육)", "허리(근육)", "골반/엉치",
+  "고관절", "무릎관절", "발목관절", "하퇴(근육)", "발",
+];
+
+const BODY_PARTS_WITH_HEAD = ["머리", ...BODY_PARTS_NO_HEAD];
+
+const FRONT_PARTS = ["목", "어깨", "가슴", "팔/팔꿈치", "복부", "골반", "고관절", "대퇴", "무릎위", "무릎", "무릎아래", "정강이", "발목", "발"];
+const BACK_PARTS = ["목", "상부등", "등", "팔/팔꿈치", "허리", "엉치", "엉덩이", "장경인대", "햄스트링", "오금", "무릎아래", "종아리", "발목", "발"];
+
+// ─── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-bold text-primary border-b border-border pb-2">{title}</h2>
+      <h2 className="text-sm font-bold text-primary border-b border-primary/30 pb-2 uppercase tracking-wide">{title}</h2>
       {children}
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Dropdown({ label, value, options, onChange, placeholder }: {
+  label: string; value: string; options: string[];
+  onChange: (v: string) => void; placeholder?: string;
+}) {
   return (
     <div className="space-y-1.5">
-      <label className="text-sm text-muted-foreground">{label}</label>
-      {children}
+      <label className="text-xs text-muted-foreground">{label}</label>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+        <option value="">{placeholder ?? "선택"}</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
     </div>
   );
 }
 
+function CheckboxGroup({ title, items, value, onChange }: {
+  title: string; items: string[]; value: string; onChange: (v: string) => void;
+}) {
+  const letters = ["A", "B", "C", "D"];
+  const checked = value ? value.split(",").filter(Boolean) : [];
+  const toggle = (l: string) => {
+    const next = checked.includes(l) ? checked.filter(x => x !== l) : [...checked, l];
+    onChange(next.join(","));
+  };
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <div className="space-y-2.5">
+        {items.map((item, i) => {
+          const l = letters[i];
+          const on = checked.includes(l);
+          return (
+            <label key={l} onClick={() => toggle(l)}
+              className="flex items-start gap-3 cursor-pointer group">
+              <div className={`mt-0.5 w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${on ? "bg-primary border-primary" : "border-border group-hover:border-primary/50"}`}>
+                {on && <svg className="w-2.5 h-2.5 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
+                  <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
+                </svg>}
+              </div>
+              <span className="text-sm text-foreground leading-snug">{item}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RtLtGrid({ title, parts, rtValue, ltValue, onRtChange, onLtChange }: {
+  title: string; parts: string[];
+  rtValue: string; ltValue: string;
+  onRtChange: (v: string) => void; onLtChange: (v: string) => void;
+}) {
+  const rtSel = rtValue ? rtValue.split(",").filter(Boolean) : [];
+  const ltSel = ltValue ? ltValue.split(",").filter(Boolean) : [];
+  const toggleRt = (p: string) => {
+    const n = rtSel.includes(p) ? rtSel.filter(x => x !== p) : [...rtSel, p];
+    onRtChange(n.join(","));
+  };
+  const toggleLt = (p: string) => {
+    const n = ltSel.includes(p) ? ltSel.filter(x => x !== p) : [...ltSel, p];
+    onLtChange(n.join(","));
+  };
+  const Cb = ({ on, onToggle }: { on: boolean; onToggle: () => void }) => (
+    <button type="button" onClick={onToggle}
+      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${on ? "bg-primary border-primary" : "border-border hover:border-primary/50"}`}>
+      {on && <svg className="w-3 h-3 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
+        <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
+      </svg>}
+    </button>
+  );
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="grid grid-cols-3 bg-muted/30 border-b border-border">
+          <div className="px-3 py-2" />
+          <div className="py-2 text-xs font-semibold text-muted-foreground text-center">RT</div>
+          <div className="py-2 text-xs font-semibold text-muted-foreground text-center">LT</div>
+        </div>
+        {parts.map((part, i) => (
+          <div key={part} className={`grid grid-cols-3 items-center ${i < parts.length - 1 ? "border-b border-border/40" : ""} ${i % 2 === 1 ? "bg-muted/10" : ""}`}>
+            <div className="px-3 py-2.5 text-sm text-foreground">{part}</div>
+            <div className="flex justify-center py-2.5"><Cb on={rtSel.includes(part)} onToggle={() => toggleRt(part)} /></div>
+            <div className="flex justify-center py-2.5"><Cb on={ltSel.includes(part)} onToggle={() => toggleLt(part)} /></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MultiCheckbox({ title, items, value, onChange, noneItem }: {
+  title?: string; items: string[]; value: string;
+  onChange: (v: string) => void; noneItem?: string;
+}) {
+  const selected = value ? value.split(",").filter(Boolean) : [];
+  const toggle = (item: string) => {
+    if (noneItem && item === noneItem) {
+      onChange(selected.includes(noneItem) ? "" : noneItem);
+      return;
+    }
+    const without = selected.filter(x => x !== (noneItem ?? "__none__"));
+    const next = without.includes(item) ? without.filter(x => x !== item) : [...without, item];
+    onChange(next.join(","));
+  };
+  return (
+    <div className="space-y-2">
+      {title && <p className="text-sm font-medium text-foreground">{title}</p>}
+      <div className="space-y-2.5">
+        {items.map(item => {
+          const on = selected.includes(item);
+          return (
+            <label key={item} onClick={() => toggle(item)} className="flex items-center gap-3 cursor-pointer group">
+              <div className={`w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors ${on ? "bg-primary border-primary" : "border-border group-hover:border-primary/50"}`}>
+                {on && <svg className="w-2.5 h-2.5 text-primary-foreground" fill="currentColor" viewBox="0 0 12 12">
+                  <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
+                </svg>}
+              </div>
+              <span className="text-sm text-foreground">{item}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HealthRow({ label, hint, value, onChange, unit }: {
+  label: string; hint?: string; value: string; onChange: (v: string) => void; unit?: string;
+}) {
+  const isNormal = value === "이상없음";
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex-1 space-y-1">
+        <div className="text-xs text-muted-foreground leading-snug">
+          {label}
+          {hint && <span className="text-primary ml-1">({hint})</span>}
+          {unit && <span className="text-muted-foreground ml-1">{unit}</span>}
+        </div>
+        <Input value={isNormal ? "" : value} onChange={e => onChange(e.target.value)}
+          disabled={isNormal} placeholder="직접 입력"
+          className={`h-9 text-sm ${isNormal ? "opacity-40" : ""}`} />
+      </div>
+      <button type="button" onClick={() => onChange(isNormal ? "" : "이상없음")}
+        className={`mt-5 shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
+          isNormal ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "border-border text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-400"
+        }`}>
+        {isNormal && <CheckCircle2 className="h-3 w-3" />}
+        이상없음
+      </button>
+    </div>
+  );
+}
+
+function BpRow({ systolic, diastolic, onSystolic, onDiastolic }: {
+  systolic: string; diastolic: string;
+  onSystolic: (v: string) => void; onDiastolic: (v: string) => void;
+}) {
+  const isNormal = systolic === "이상없음";
+  const toggle = () => {
+    if (isNormal) { onSystolic(""); onDiastolic(""); }
+    else { onSystolic("이상없음"); onDiastolic("이상없음"); }
+  };
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-muted-foreground">수축기혈압 / 이완기혈압 <span className="text-primary">(120/80 정상)</span> <span>mmHg</span></div>
+        <button type="button" onClick={toggle}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs border transition-colors ${isNormal ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "border-border text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-400"}`}>
+          {isNormal && <CheckCircle2 className="h-3 w-3" />}이상없음
+        </button>
+      </div>
+      <div className="flex gap-2">
+        <Input value={isNormal ? "" : systolic} onChange={e => onSystolic(e.target.value)}
+          disabled={isNormal} placeholder="수축기" className={`h-9 text-sm ${isNormal ? "opacity-40" : ""}`} />
+        <span className="self-center text-muted-foreground">/</span>
+        <Input value={isNormal ? "" : diastolic} onChange={e => onDiastolic(e.target.value)}
+          disabled={isNormal} placeholder="이완기" className={`h-9 text-sm ${isNormal ? "opacity-40" : ""}`} />
+      </div>
+    </div>
+  );
+}
+
+// ─── 만나이 계산 ──────────────────────────────────────────────────────────────
+function calcKoreanAge(birthDate: string | null | undefined): string {
+  if (!birthDate) return "-";
+  try {
+    const b = new Date(birthDate);
+    const t = new Date();
+    let age = t.getFullYear() - b.getFullYear();
+    if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--;
+    return `${age}세`;
+  } catch { return "-"; }
+}
+
+function formatBirthDate(s: string | null | undefined): string {
+  if (!s) return "-";
+  try { return new Date(s).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }); }
+  catch { return s; }
+}
+
+// ─── 자동 연동 읽기 전용 행 ───────────────────────────────────────────────────
+function AutoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="h-9 flex items-center px-3 bg-muted/30 border border-border/50 rounded-lg text-sm text-foreground">
+        {value || <span className="text-muted-foreground/60">미입력</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 export default function ParQ({ memberId }: Props) {
   const [, setLocation] = useLocation();
   const [form, setForm] = useState<FormState>(empty);
@@ -60,29 +323,24 @@ export default function ParQ({ memberId }: Props) {
   const { data: member } = trpc.members.getById.useQuery({ id: memberId });
   const { data: existing } = trpc.parQ.get.useQuery({ memberId });
 
+  const [birthDateInput, setBirthDateInput] = useState("");
+
+  // member 로드 시 birthDate 초기화
+  useEffect(() => {
+    if (member?.birthDate && !birthDateInput) {
+      const d = member.birthDate.substring(0, 10);
+      setBirthDateInput(d);
+    }
+  }, [member]);
+
   useEffect(() => {
     if (existing) {
       setForm({
         height: existing.height ?? "",
         weight: existing.weight ?? "",
-        muscleMass: existing.muscleMass ?? "",
-        bodyFatPercent: existing.bodyFatPercent ?? "",
-        bodyFatKg: existing.bodyFatKg ?? "",
-        waistCircumference: existing.waistCircumference ?? "",
-        systolicBp: existing.systolicBp ?? "",
-        diastolicBp: existing.diastolicBp ?? "",
-        totalCholesterol: existing.totalCholesterol ?? "",
-        hdlCholesterol: existing.hdlCholesterol ?? "",
-        ldlCholesterol: existing.ldlCholesterol ?? "",
-        triglycerides: existing.triglycerides ?? "",
-        fastingBloodSugar: existing.fastingBloodSugar ?? "",
-        postMealBloodSugar: existing.postMealBloodSugar ?? "",
-        hba1c: existing.hba1c ?? "",
-        boneDensity: existing.boneDensity ?? "",
         occupation: existing.occupation ?? "",
         workEnvironment: existing.workEnvironment ?? "",
         exerciseExperience: existing.exerciseExperience ?? "",
-        visitRoute: existing.visitRoute ?? "",
         goal1: existing.goal1 ?? "",
         goal2: existing.goal2 ?? "",
         goal3: existing.goal3 ?? "",
@@ -91,131 +349,274 @@ export default function ParQ({ memberId }: Props) {
         sleepIssues: existing.sleepIssues ?? "",
         activityIssues: existing.activityIssues ?? "",
         chronicDiseases: existing.chronicDiseases ?? "",
+        systolicBp: existing.systolicBp ?? "",
+        diastolicBp: existing.diastolicBp ?? "",
+        waistCircumference: existing.waistCircumference ?? "",
+        totalCholesterol: existing.totalCholesterol ?? "",
+        hdlCholesterol: existing.hdlCholesterol ?? "",
+        ldlCholesterol: existing.ldlCholesterol ?? "",
+        triglycerides: existing.triglycerides ?? "",
+        fastingBloodSugar: existing.fastingBloodSugar ?? "",
+        postMealBloodSugar: existing.postMealBloodSugar ?? "",
+        hba1c: existing.hba1c ?? "",
+        boneDensity: existing.boneDensity ?? "",
         musculoskeletalIssues: existing.musculoskeletalIssues ?? "",
         posturalIssues: existing.posturalIssues ?? "",
+        muscleMass: existing.muscleMass ?? "",
+        bodyFatPercent: existing.bodyFatPercent ?? "",
+        bodyFatKg: existing.bodyFatKg ?? "",
+        visitRoute: existing.visitRoute ?? "",
       });
     }
   }, [existing]);
 
+  const updateMemberMutation = trpc.members.update.useMutation();
+
   const upsertMutation = trpc.parQ.upsert.useMutation({
-    onSuccess: () => {
-      toast.success("PAR-Q가 저장되었습니다.");
-      setLocation(`/members/${memberId}`);
-    },
+    onSuccess: () => { toast.success("저장되었습니다."); setLocation(`/members/${memberId}`); },
     onError: (err) => toast.error(err.message || "저장 실패"),
   });
 
-  const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((p) => ({ ...p, [key]: e.target.value }));
-
-  const handleSave = () => {
+  const handleSave = async () => {
+    // birthDate가 변경된 경우 members 테이블에도 저장
+    const originalBirth = member?.birthDate?.substring(0, 10) ?? "";
+    if (birthDateInput && birthDateInput !== originalBirth) {
+      await updateMemberMutation.mutateAsync({ id: memberId, birthDate: birthDateInput });
+    }
     upsertMutation.mutate({ memberId, ...form });
   };
 
+  const set = (key: keyof FormState) => (v: string) => setForm(p => ({ ...p, [key]: v }));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-8">
       {/* 헤더 */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => setLocation(`/members/${memberId}`)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <button onClick={() => setLocation(`/members/${memberId}`)} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h1 className="text-base font-bold">{member?.name ?? "..."} - 사전건강검사 (PAR-Q)</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-base font-bold">{member?.name ?? "..."}</h1>
+            {member?.phone && <span className="text-xs text-muted-foreground">{member.phone}</span>}
+          </div>
+          <p className="text-xs text-muted-foreground">사전건강검사 (PAR-Q)</p>
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-5 space-y-8">
+      <div className="space-y-6">
 
-        {/* 신체 정보 */}
-        <Section title="신체 정보">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <Field label="키 (cm)"><Input value={form.height} onChange={set("height")} placeholder="예: 170" /></Field>
-            <Field label="체중 (kg)"><Input value={form.weight} onChange={set("weight")} placeholder="예: 70" /></Field>
-            <Field label="근육량 (kg)"><Input value={form.muscleMass} onChange={set("muscleMass")} placeholder="예: 30" /></Field>
-            <Field label="체지방률 (%)"><Input value={form.bodyFatPercent} onChange={set("bodyFatPercent")} placeholder="예: 15" /></Field>
-            <Field label="체지방량 (kg)"><Input value={form.bodyFatKg} onChange={set("bodyFatKg")} placeholder="예: 10" /></Field>
-            <Field label="허리둘레 (cm)"><Input value={form.waistCircumference} onChange={set("waistCircumference")} placeholder="예: 80" /></Field>
-          </div>
-        </Section>
+        {/* ① 기본 정보 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-5">
+          <Section title="기본 정보">
 
-        {/* 건강 정보 */}
-        <Section title="건강 정보">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <Field label="수축기 혈압 (mmHg)"><Input value={form.systolicBp} onChange={set("systolicBp")} placeholder="예: 120" /></Field>
-            <Field label="이완기 혈압 (mmHg)"><Input value={form.diastolicBp} onChange={set("diastolicBp")} placeholder="예: 80" /></Field>
-            <Field label="총 콜레스테롤 (mg/dL)"><Input value={form.totalCholesterol} onChange={set("totalCholesterol")} placeholder="예: 200" /></Field>
-            <Field label="HDL 콜레스테롤"><Input value={form.hdlCholesterol} onChange={set("hdlCholesterol")} placeholder="예: 50" /></Field>
-            <Field label="LDL 콜레스테롤"><Input value={form.ldlCholesterol} onChange={set("ldlCholesterol")} placeholder="예: 130" /></Field>
-            <Field label="중성지방 (mg/dL)"><Input value={form.triglycerides} onChange={set("triglycerides")} placeholder="예: 150" /></Field>
-            <Field label="공복 혈당 (mg/dL)"><Input value={form.fastingBloodSugar} onChange={set("fastingBloodSugar")} placeholder="예: 100" /></Field>
-            <Field label="식후 2시간 혈당 (mg/dL)"><Input value={form.postMealBloodSugar} onChange={set("postMealBloodSugar")} placeholder="예: 140" /></Field>
-            <Field label="당화혈색소 (HbA1c)"><Input value={form.hba1c} onChange={set("hba1c")} placeholder="예: 5" /></Field>
-            <Field label="골밀도 (T-Score)"><Input value={form.boneDensity} onChange={set("boneDensity")} placeholder="예: 0" /></Field>
-          </div>
-        </Section>
+            {/* 체성분 검사 / 근골격분석 검사 */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide border-b border-border/40 pb-1.5">
+                체성분 검사 / 근골격분석 검사
+              </p>
+              {/* 직접 입력 */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">생년월일</label>
+                  <Input
+                    type="date"
+                    value={birthDateInput}
+                    onChange={e => setBirthDateInput(e.target.value)}
+                    className="text-sm h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">만나이 (자동)</label>
+                  <div className="h-9 flex items-center px-3 bg-muted/30 border border-border/50 rounded-lg text-sm text-foreground">
+                    {birthDateInput ? calcKoreanAge(birthDateInput) : <span className="text-muted-foreground/60">생년월일 입력 후 계산</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Dropdown label="키 (cm)" value={form.height} options={HEIGHT_OPTS} onChange={set("height")} placeholder="선택" />
+                <Dropdown label="체중 (kg)" value={form.weight} options={WEIGHT_OPTS} onChange={set("weight")} placeholder="선택" />
+              </div>
+            </div>
 
-        {/* 직업 및 생활 정보 */}
-        <Section title="직업 및 생활 정보">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="직업"><Input value={form.occupation} onChange={set("occupation")} placeholder="예: 사무직" /></Field>
-            <Field label="근무 환경"><Input value={form.workEnvironment} onChange={set("workEnvironment")} placeholder="예: 앉음/서있음" /></Field>
-            <Field label="운동 경험"><Input value={form.exerciseExperience} onChange={set("exerciseExperience")} placeholder="예: 달음/보름/직음" /></Field>
-            <Field label="방문 경로"><Input value={form.visitRoute} onChange={set("visitRoute")} placeholder="예: 친구 소개" /></Field>
-          </div>
-        </Section>
-
-        {/* 운동 목적 */}
-        <Section title="운동 목적">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Field label="목적 1"><Input value={form.goal1} onChange={set("goal1")} placeholder="예: 체중 감량" /></Field>
-            <Field label="목적 2"><Input value={form.goal2} onChange={set("goal2")} placeholder="예: 근력 증가" /></Field>
-            <Field label="목적 3"><Input value={form.goal3} onChange={set("goal3")} placeholder="예: 건강 증진" /></Field>
-          </div>
-        </Section>
-
-        {/* 생활 습관 및 문제 */}
-        <Section title="생활 습관 및 문제">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="식단 문제">
-              <Textarea value={form.dietIssues} onChange={set("dietIssues")} placeholder="식단 관련 문제 기록" rows={3} />
-            </Field>
-            <Field label="음주 문제">
-              <Textarea value={form.alcoholIssues} onChange={set("alcoholIssues")} placeholder="음주 관련 문제 기록" rows={3} />
-            </Field>
-            <Field label="수면 문제">
-              <Textarea value={form.sleepIssues} onChange={set("sleepIssues")} placeholder="수면 관련 문제 기록" rows={3} />
-            </Field>
-            <Field label="활동 문제">
-              <Textarea value={form.activityIssues} onChange={set("activityIssues")} placeholder="활동 관련 문제 기록" rows={3} />
-            </Field>
-          </div>
-        </Section>
-
-        {/* 질환 정보 */}
-        <Section title="질환 정보">
-          <div className="space-y-4">
-            <Field label="만성 질환">
-              <Textarea value={form.chronicDiseases} onChange={set("chronicDiseases")} placeholder="예: 고혈압, 당뇨병 등" rows={3} />
-            </Field>
-            <Field label="근골격계 질환">
-              <Textarea value={form.musculoskeletalIssues} onChange={set("musculoskeletalIssues")} placeholder="예: 요통, 목 통증 등" rows={3} />
-            </Field>
-            <Field label="체형 문제">
-              <Textarea value={form.posturalIssues} onChange={set("posturalIssues")} placeholder="예: 거북목, 라운드숄더 등" rows={3} />
-            </Field>
-          </div>
-        </Section>
-
-        {/* 버튼 */}
-        <div className="flex gap-3 pt-2">
-          <Button onClick={handleSave} disabled={upsertMutation.isPending}>
-            {upsertMutation.isPending ? "저장 중..." : "저장"}
-          </Button>
-          <Button variant="outline" onClick={() => setLocation(`/members/${memberId}`)}>취소</Button>
+            {/* 생활 정보 */}
+            <div className="space-y-3 border-t border-border/40 pt-4">
+              <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide pb-1">
+                생활 정보
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">직업</label>
+                <Input value={form.occupation} onChange={e => set("occupation")(e.target.value)} placeholder="예: 사무직" className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">근무 환경</label>
+                <Input value={form.workEnvironment} onChange={e => set("workEnvironment")(e.target.value)} placeholder="예: 장시간 앉아서 근무" className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">운동 경험</label>
+                <Input value={form.exerciseExperience} onChange={e => set("exerciseExperience")(e.target.value)} placeholder="예: 헬스 1년, 수영 6개월" className="text-sm" />
+              </div>
+            </div>
+          </Section>
         </div>
+
+        {/* ② 운동 목적 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+          <Section title="운동 목적">
+            <Dropdown label="운동 목적 1" value={form.goal1} options={GOAL_OPTS} onChange={set("goal1")} placeholder="선택 안함" />
+            <Dropdown label="운동 목적 2" value={form.goal2} options={GOAL_OPTS} onChange={set("goal2")} placeholder="선택 안함" />
+            <Dropdown label="운동 목적 3" value={form.goal3} options={GOAL_OPTS} onChange={set("goal3")} placeholder="선택 안함" />
+          </Section>
+        </div>
+
+        {/* ③ 생활 습관 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-5">
+          <Section title="생활 습관">
+            <CheckboxGroup title="식단 문제 체크" items={DIET_ITEMS} value={form.dietIssues} onChange={set("dietIssues")} />
+            <div className="border-t border-border/50 pt-4">
+              <CheckboxGroup title="음주 문제 체크" items={ALCOHOL_ITEMS} value={form.alcoholIssues} onChange={set("alcoholIssues")} />
+            </div>
+            <div className="border-t border-border/50 pt-4">
+              <CheckboxGroup title="수면 문제 체크" items={SLEEP_ITEMS} value={form.sleepIssues} onChange={set("sleepIssues")} />
+            </div>
+            <div className="border-t border-border/50 pt-4">
+              <CheckboxGroup title="활동 문제 체크" items={ACTIVITY_ITEMS} value={form.activityIssues} onChange={set("activityIssues")} />
+            </div>
+          </Section>
+        </div>
+
+        {/* ④ 병원 진단 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+          <Section title="병원 진단">
+            <MultiCheckbox
+              title="병원에서 진단 받으신 내용 있으신가요?"
+              items={HOSPITAL_DIAGNOSES}
+              value={form.chronicDiseases}
+              onChange={set("chronicDiseases")}
+              noneItem="해당 사항 없음"
+            />
+          </Section>
+        </div>
+
+        {/* ⑤ 질환 정보 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+          <Section title="질환 정보">
+            <BpRow systolic={form.systolicBp} diastolic={form.diastolicBp}
+              onSystolic={set("systolicBp")} onDiastolic={set("diastolicBp")} />
+            <HealthRow label="허리둘레" hint="남 85 이하 정상, 여 80 이하 정상" unit="cm"
+              value={form.waistCircumference} onChange={set("waistCircumference")} />
+            <HealthRow label="총콜레스테롤" hint="200 이하 정상" unit="mg/dL"
+              value={form.totalCholesterol} onChange={set("totalCholesterol")} />
+            <HealthRow label="HDL콜레스테롤" hint="60 이상 정상" unit="mg/dL"
+              value={form.hdlCholesterol} onChange={set("hdlCholesterol")} />
+            <HealthRow label="LDL콜레스테롤" hint="100 이하 정상" unit="mg/dL"
+              value={form.ldlCholesterol} onChange={set("ldlCholesterol")} />
+            <HealthRow label="중성지방" hint="150 이하 정상" unit="mg/dL"
+              value={form.triglycerides} onChange={set("triglycerides")} />
+            <HealthRow label="공복 혈당" hint="100 이하 정상" unit="mg/dL"
+              value={form.fastingBloodSugar} onChange={set("fastingBloodSugar")} />
+            <HealthRow label="식후 2시간 혈당" hint="140 이하 정상" unit="mg/dL"
+              value={form.postMealBloodSugar} onChange={set("postMealBloodSugar")} />
+            <HealthRow label="당화혈색소 (HbA1c)" hint="5.7 이하 정상" unit="%"
+              value={form.hba1c} onChange={set("hba1c")} />
+            <HealthRow label="골밀도 T-score" hint="-1.0 이상 정상"
+              value={form.boneDensity} onChange={set("boneDensity")} />
+          </Section>
+        </div>
+
+        {/* ⑥ 근골격계 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-5">
+          <Section title="근골격계">
+            <MultiCheckbox
+              title="'불균형'이라고 느끼는 부위를 선택해주세요."
+              items={BODY_PARTS_NO_HEAD}
+              value={form.musculoskeletalIssues.split("|")[0] ?? ""}
+              onChange={v => {
+                const p = form.musculoskeletalIssues.split("|");
+                p[0] = v; p[1] = p[1] ?? ""; p[2] = p[2] ?? "";
+                set("musculoskeletalIssues")(p.join("|"));
+              }}
+            />
+            <div className="border-t border-border/50 pt-4">
+              <MultiCheckbox
+                title="'급성 통증' 및 '외상(부상)' 부위를 선택해주세요."
+                items={BODY_PARTS_WITH_HEAD}
+                value={form.musculoskeletalIssues.split("|")[1] ?? ""}
+                onChange={v => {
+                  const p = form.musculoskeletalIssues.split("|");
+                  p[0] = p[0] ?? ""; p[1] = v; p[2] = p[2] ?? "";
+                  set("musculoskeletalIssues")(p.join("|"));
+                }}
+              />
+            </div>
+            <div className="border-t border-border/50 pt-4">
+              <MultiCheckbox
+                title="'만성 통증' 부위를 선택해주세요."
+                items={BODY_PARTS_WITH_HEAD}
+                value={form.musculoskeletalIssues.split("|")[2] ?? ""}
+                onChange={v => {
+                  const p = form.musculoskeletalIssues.split("|");
+                  p[0] = p[0] ?? ""; p[1] = p[1] ?? ""; p[2] = v;
+                  set("musculoskeletalIssues")(p.join("|"));
+                }}
+              />
+            </div>
+          </Section>
+        </div>
+
+        {/* ⑦ 체형 문제 */}
+        <div className="bg-card border border-border rounded-xl p-4 space-y-5">
+          <Section title="체형 문제">
+            <RtLtGrid
+              title="전면 체형 문제 확인"
+              parts={FRONT_PARTS}
+              rtValue={form.posturalIssues.split("|")[0] ?? ""}
+              ltValue={form.posturalIssues.split("|")[1] ?? ""}
+              onRtChange={v => {
+                const p = form.posturalIssues.split("|");
+                p[0] = v; p[1] = p[1] ?? ""; p[2] = p[2] ?? ""; p[3] = p[3] ?? "";
+                set("posturalIssues")(p.join("|"));
+              }}
+              onLtChange={v => {
+                const p = form.posturalIssues.split("|");
+                p[0] = p[0] ?? ""; p[1] = v; p[2] = p[2] ?? ""; p[3] = p[3] ?? "";
+                set("posturalIssues")(p.join("|"));
+              }}
+            />
+            <div className="border-t border-border/50 pt-4">
+              <RtLtGrid
+                title="후면 체형 문제 확인"
+                parts={BACK_PARTS}
+                rtValue={form.posturalIssues.split("|")[2] ?? ""}
+                ltValue={form.posturalIssues.split("|")[3] ?? ""}
+                onRtChange={v => {
+                  const p = form.posturalIssues.split("|");
+                  p[0] = p[0] ?? ""; p[1] = p[1] ?? ""; p[2] = v; p[3] = p[3] ?? "";
+                  set("posturalIssues")(p.join("|"));
+                }}
+                onLtChange={v => {
+                  const p = form.posturalIssues.split("|");
+                  p[0] = p[0] ?? ""; p[1] = p[1] ?? ""; p[2] = p[2] ?? ""; p[3] = v;
+                  set("posturalIssues")(p.join("|"));
+                }}
+              />
+            </div>
+          </Section>
+        </div>
+
+      </div>
+
+      {/* 저장 버튼 */}
+      <div className="flex gap-3 pt-2">
+        <button onClick={handleSave}
+          disabled={upsertMutation.isPending || updateMemberMutation.isPending}
+          className="flex-1 bg-primary text-primary-foreground rounded-xl py-3 text-sm font-bold disabled:opacity-50 hover:bg-primary/90 transition-colors">
+          {(upsertMutation.isPending || updateMemberMutation.isPending) ? "저장 중..." : "저장"}
+        </button>
+        <button onClick={() => setLocation(`/members/${memberId}`)}
+          className="flex-1 border border-border text-muted-foreground rounded-xl py-3 text-sm font-medium hover:bg-muted/30">
+          취소
+        </button>
       </div>
     </div>
   );

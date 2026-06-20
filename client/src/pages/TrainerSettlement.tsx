@@ -2,7 +2,8 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, FileSpreadsheet, FileText, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, FileSpreadsheet, FileText, Calendar, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 function fmt(n: number) { return n.toLocaleString(); }
@@ -30,16 +31,25 @@ export default function TrainerSettlement() {
   const initialView = (new URLSearchParams(window.location.search).get("view") === "daily" ? "daily" : "monthly") as "monthly" | "daily";
   const [view, setView] = useState<"monthly" | "daily">(initialView);
 
-  const { data: monthly } = trpc.trainers.getMonthlySettlement.useQuery(
+  const utils = trpc.useUtils();
+  const { data: monthly, refetch: refetchMonthly } = trpc.trainers.getMonthlySettlement.useQuery(
     { trainerId, yearMonth },
     { enabled: !!trainerId && view === "monthly" }
   );
-  const { data: daily } = trpc.trainers.getMonthlySettlement.useQuery(
+  const { data: daily, refetch: refetchDaily } = trpc.trainers.getMonthlySettlement.useQuery(
     { trainerId, yearMonth, dateFilter: todayStr },
     { enabled: !!trainerId && view === "daily" }
   );
 
   const data = view === "monthly" ? monthly : daily;
+
+  const deleteLogMutation = trpc.pt.deleteLog.useMutation({
+    onSuccess: () => {
+      toast.success("세션이 삭제되었습니다.");
+      if (view === "monthly") refetchMonthly(); else refetchDaily();
+    },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
 
   const exportExcel = () => {
     if (!data) return;
@@ -220,15 +230,24 @@ export default function TrainerSettlement() {
         <div className="space-y-2">
           <p className="text-sm font-semibold">세션 상세 내역</p>
           {data.logs.map((l, i) => (
-            <div key={l.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border">
-              <div>
+            <div key={l.id} className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-accent/20 border border-border">
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{l.memberName ?? "-"}</p>
                 <p className="text-xs text-muted-foreground">{l.sessionDate} · {l.packageName ?? "PT"}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <p className="text-sm font-semibold text-primary">{fmt(Math.round(l.effectivePrice * data.settlementRate / 100))}원</p>
                 <p className="text-xs text-muted-foreground">단가 {fmt(l.effectivePrice)}원</p>
               </div>
+              <button
+                className="shrink-0 p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                onClick={() => {
+                  if (!confirm(`${l.memberName ?? "이 회원"}의 ${l.sessionDate} 세션을 삭제할까요?`)) return;
+                  deleteLogMutation.mutate({ id: l.id });
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </div>
           ))}
         </div>

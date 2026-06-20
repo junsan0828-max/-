@@ -41,8 +41,8 @@ export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eventTypeStyle[event.eventType] ?? "bg-muted text-muted-foreground"}`}>
-            {eventTypeLabel[event.eventType] ?? event.eventType}
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eventTypeStyle[event.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
+            {eventTypeLabel[event.eventType ?? "notice"] ?? event.eventType}
           </span>
           {event.isPinned ? <span className="text-xs text-yellow-400">📌 고정</span> : null}
         </div>

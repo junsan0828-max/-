@@ -92,8 +92,8 @@ export default function GymPlusVideos() {
               <div className="p-2 space-y-1">
                 <p className="text-xs font-semibold line-clamp-2 leading-snug">{v.title}</p>
                 <div className="flex items-center gap-1 flex-wrap">
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${levelColor[v.level] ?? ""}`}>
-                    {levelLabel[v.level] ?? v.level}
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${levelColor[v.level ?? "beginner"] ?? ""}`}>
+                    {levelLabel[v.level ?? "beginner"] ?? v.level}
                   </span>
                   {v.bodyPart && (
                     <span className="text-[9px] text-muted-foreground">{v.bodyPart}</span>

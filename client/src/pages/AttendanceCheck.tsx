@@ -1,18 +1,42 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, X, Dumbbell } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Dumbbell } from "lucide-react";
 
 interface Props {
   memberId: number;
 }
 
 type Status = "attended" | "noshow" | "cancelled";
+
+const DIET_CATEGORIES = [
+  "인스턴트탄수화물",
+  "건강식탄수화물",
+  "인스턴트단백질",
+  "건강식단백질",
+  "인스턴트지방",
+  "건강식지방",
+  "미섭취",
+];
+
+const PAIN_AREAS = [
+  "목", "상부등", "중부등", "어깨 전면", "어깨 후면",
+  "기립근", "엉치", "고관절", "무릎", "발목",
+  "발바닥", "팔꿈치", "손목", "기타",
+];
+
+const SLEEP_OPTIONS = [
+  { label: "4h↓", value: "4" },
+  { label: "5h", value: "5" },
+  { label: "6h", value: "6" },
+  { label: "7h", value: "7" },
+  { label: "8h", value: "8" },
+  { label: "9h+", value: "9" },
+];
 
 function nowTimeStr() {
   const d = new Date();
@@ -21,17 +45,8 @@ function nowTimeStr() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-4">
-      <h2 className="text-base font-bold text-primary">{title}</h2>
-      {children}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-sm text-muted-foreground">{label}</label>
+    <div className="space-y-3">
+      <h2 className="text-sm font-bold text-primary">{title}</h2>
       {children}
     </div>
   );
@@ -46,16 +61,25 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [status, setStatus] = useState<Status>("attended");
   const [checkDate, setCheckDate] = useState(dateParam);
   const [checkTime, setCheckTime] = useState(nowTimeStr());
+
+  // 컨디션 평가
   const [conditionScore, setConditionScore] = useState("");
   const [sleepHours, setSleepHours] = useState("");
   const [energyLevel, setEnergyLevel] = useState("");
-  const [dietItems, setDietItems] = useState<string[]>([""]);
+
+  // 식단 (카테고리 중복선택)
+  const [dietCategories, setDietCategories] = useState<string[]>([]);
+
+  // 통증
   const [painLevel, setPainLevel] = useState("");
-  const [painArea, setPainArea] = useState("");
-  const [painSide, setPainSide] = useState("");
+  const [selectedPainAreas, setSelectedPainAreas] = useState<string[]>([]);
+  const [painAreaOther, setPainAreaOther] = useState("");
+  const [painAreaOpen, setPainAreaOpen] = useState(false);
+
   const [notes, setNotes] = useState("");
   const [deductSession, setDeductSession] = useState(false);
   const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
+  const savingRef = useRef(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: member } = trpc.members.getById.useQuery({ id: memberId });
@@ -67,7 +91,6 @@ export default function AttendanceCheck({ memberId }: Props) {
     (p) => p.status === "active" && p.totalSessions > p.usedSessions
   ) ?? [];
 
-  // 이 날짜에 이미 세션 차감 기록이 있는지 확인
   const alreadyDeducted = sessionLogs?.some((l) => l.sessionDate === dateParam) ?? false;
 
   useEffect(() => {
@@ -76,17 +99,10 @@ export default function AttendanceCheck({ memberId }: Props) {
     }
   }, [activePkgs.length]);
 
-  // 활성 패키지 있고 기존 기록 없을 때 → 세션 차감 기본 ON
-  // 이미 차감된 날이면 → OFF (중복 방지)
   useEffect(() => {
     if (ptPackageList === undefined) return;
-    if (alreadyDeducted) {
-      setDeductSession(false);
-      return;
-    }
-    if (activePkgs.length > 0 && !existing) {
-      setDeductSession(true);
-    }
+    if (alreadyDeducted) { setDeductSession(false); return; }
+    if (activePkgs.length > 0 && !existing) setDeductSession(true);
   }, [ptPackageList, existing, alreadyDeducted]);
 
   useEffect(() => {
@@ -97,10 +113,15 @@ export default function AttendanceCheck({ memberId }: Props) {
     setConditionScore(existing.conditionScore != null ? String(existing.conditionScore) : "");
     setSleepHours(existing.sleepHours ?? "");
     setEnergyLevel(existing.energyLevel ?? "");
-    setDietItems(existing.diet ? JSON.parse(existing.diet) : [""]);
+    try {
+      setDietCategories(existing.diet ? JSON.parse(existing.diet) : []);
+    } catch {
+      setDietCategories([]);
+    }
     setPainLevel(existing.painLevel != null ? String(existing.painLevel) : "");
-    setPainArea(existing.painArea ?? "");
-    setPainSide(existing.painSide ?? "");
+    const areas = existing.painArea ? existing.painArea.split(", ").filter(Boolean) : [];
+    setSelectedPainAreas(areas);
+    setPainAreaOther(existing.painSide ?? "");
     setNotes(existing.notes ?? "");
   }, [existing]);
 
@@ -123,21 +144,25 @@ export default function AttendanceCheck({ memberId }: Props) {
           { packageId: selectedPkgId, memberId, sessionDate: checkDate },
           {
             onSettled: () => {
+              savingRef.current = false;
               toast.success("출석 및 세션이 저장되었습니다.");
               setLocation(`/attendance?date=${checkDate}`);
             },
           }
         );
       } else {
+        savingRef.current = false;
         toast.success("출석이 저장되었습니다.");
         setLocation(`/attendance?date=${checkDate}`);
       }
     },
-    onError: (err) => toast.error(err.message || "저장 실패"),
+    onError: (err) => { savingRef.current = false; toast.error(err.message || "저장 실패"); },
   });
 
   const handleSave = () => {
-    const filledDiet = dietItems.filter((d) => d.trim());
+    if (savingRef.current) return;
+    savingRef.current = true;
+    const painAreaStr = selectedPainAreas.length ? selectedPainAreas.join(", ") : undefined;
     upsertMutation.mutate({
       memberId,
       checkDate,
@@ -146,20 +171,28 @@ export default function AttendanceCheck({ memberId }: Props) {
       conditionScore: conditionScore ? parseInt(conditionScore) : undefined,
       sleepHours: sleepHours || undefined,
       energyLevel: energyLevel || undefined,
-      diet: filledDiet.length ? JSON.stringify(filledDiet) : undefined,
-      painLevel: painLevel ? parseInt(painLevel) : undefined,
-      painArea: painArea || undefined,
-      painSide: painSide || undefined,
+      diet: dietCategories.length ? JSON.stringify(dietCategories) : undefined,
+      painLevel: painLevel !== "" ? parseInt(painLevel) : undefined,
+      painArea: painAreaStr,
+      painSide: painAreaOther || undefined,
       notes: notes || undefined,
     });
   };
 
-  const addDietItem = () => setDietItems((p) => [...p, ""]);
-  const removeDietItem = (i: number) => setDietItems((p) => p.filter((_, idx) => idx !== i));
-  const updateDietItem = (i: number, val: string) =>
-    setDietItems((p) => p.map((d, idx) => (idx === i ? val : d)));
+  const toggleDiet = (cat: string) => {
+    setDietCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
+  };
+
+  const togglePainArea = (area: string) => {
+    setSelectedPainAreas((prev) =>
+      prev.includes(area) ? prev.filter((a) => a !== area) : [...prev, area]
+    );
+  };
 
   const isSaving = upsertMutation.isPending || useSessionMutation.isPending;
+  const painNum = painLevel !== "" ? parseInt(painLevel) : null;
 
   return (
     <div className="space-y-4">
@@ -174,7 +207,6 @@ export default function AttendanceCheck({ memberId }: Props) {
         <h1 className="text-base font-bold flex-1">
           {member?.name ?? "..."} - 수업 전 컨디션 체크
         </h1>
-        {/* 노쇼 / 캔슬 / 출석취소 토글 */}
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setStatus((s) => s === "noshow" ? "attended" : "noshow")}
@@ -208,47 +240,77 @@ export default function AttendanceCheck({ memberId }: Props) {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-5 space-y-8">
+      <div className="bg-card border border-border rounded-xl p-4 space-y-6">
 
         {/* 기본 정보 */}
         <Section title="기본 정보">
-          <Field label="체크 날짜">
-            <input
-              type="date"
-              value={checkDate}
-              onChange={(e) => setCheckDate(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
-            />
-          </Field>
-          <Field label="체크 시간">
-            <input
-              type="time"
-              value={checkTime}
-              onChange={(e) => setCheckTime(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
-            />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">날짜</p>
+              <input
+                type="date"
+                value={checkDate}
+                onChange={(e) => setCheckDate(e.target.value)}
+                className="w-full bg-input border border-border rounded-lg px-2 py-1.5 text-sm text-foreground"
+              />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">시간</p>
+              <input
+                type="time"
+                value={checkTime}
+                onChange={(e) => setCheckTime(e.target.value)}
+                className="w-full bg-input border border-border rounded-lg px-2 py-1.5 text-sm text-foreground"
+              />
+            </div>
+          </div>
         </Section>
 
         {/* 컨디션 평가 */}
         <Section title="컨디션 평가">
-          <Field label="전반적 컨디션 점수 (1-5)">
-            <Input
-              type="number" min="1" max="5"
-              value={conditionScore}
-              onChange={(e) => setConditionScore(e.target.value)}
-              placeholder="3"
-            />
-          </Field>
-          <Field label="수면시간 (시간)">
-            <Input
-              type="number" min="0" max="24" step="0.5"
-              value={sleepHours}
-              onChange={(e) => setSleepHours(e.target.value)}
-              placeholder="7"
-            />
-          </Field>
-          <Field label="에너지 수준">
+          {/* 컨디션 점수 */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">오늘 컨디션 <span className="text-muted-foreground/60">(1 매우안좋음 → 5 최고)</span></p>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setConditionScore(conditionScore === String(v) ? "" : String(v))}
+                  className={`flex-1 py-2.5 rounded-lg border text-sm font-semibold transition-colors ${
+                    conditionScore === String(v)
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : "border-border text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 수면시간 */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">수면시간</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {SLEEP_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setSleepHours(sleepHours === opt.value ? "" : opt.value)}
+                  className={`flex-1 min-w-0 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                    sleepHours === opt.value
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : "border-border text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 에너지 */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">에너지 수준</p>
             <div className="flex gap-2">
               {["높음", "보통", "낮음"].map((v) => (
                 <button
@@ -264,61 +326,121 @@ export default function AttendanceCheck({ memberId }: Props) {
                 </button>
               ))}
             </div>
-          </Field>
+          </div>
         </Section>
 
         {/* 식단 정보 */}
         <Section title="식단 정보">
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">오늘 먹은 식단</label>
-            {dietItems.map((item, i) => (
-              <div key={i} className="flex gap-2">
-                <Input
-                  value={item}
-                  onChange={(e) => updateDietItem(i, e.target.value)}
-                  placeholder="예: 아침 - 계란 2개, 토스트"
-                />
-                {dietItems.length > 1 && (
-                  <button onClick={() => removeDietItem(i)} className="text-muted-foreground hover:text-red-400">
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              onClick={addDietItem}
-              className="flex items-center gap-1 text-sm text-primary hover:text-primary/70"
-            >
-              <Plus className="h-4 w-4" />
-              식단 항목 추가
-            </button>
+          <p className="text-xs text-muted-foreground -mt-1">오늘 섭취한 식단 유형 (중복 선택 가능)</p>
+          <div className="grid grid-cols-2 gap-2">
+            {DIET_CATEGORIES.map((cat) => {
+              const selected = dietCategories.includes(cat);
+              return (
+                <button
+                  key={cat}
+                  onClick={() => toggleDiet(cat)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm text-left transition-colors ${
+                    selected
+                      ? "bg-primary/15 border-primary/50 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center text-xs ${
+                    selected ? "bg-primary border-primary text-primary-foreground" : "border-border"
+                  }`}>
+                    {selected ? "✓" : ""}
+                  </span>
+                  {cat}
+                </button>
+              );
+            })}
           </div>
         </Section>
 
         {/* 통증 정보 */}
         <Section title="통증 정보">
-          <Field label="통증 수준 (0-10)">
-            <Input
-              type="number" min="0" max="10"
-              value={painLevel}
-              onChange={(e) => setPainLevel(e.target.value)}
-              placeholder="0"
-            />
-          </Field>
-          <Field label="통증 부위">
-            <Input
-              value={painArea}
-              onChange={(e) => setPainArea(e.target.value)}
-              placeholder="예: 허리, 어깨"
-            />
-          </Field>
-          <Field label="통증 위치">
-            <Input
-              value={painSide}
-              onChange={(e) => setPainSide(e.target.value)}
-              placeholder="예: 왼쪽/오른쪽/양쪽"
-            />
-          </Field>
+          {/* 통증 수준 0-10 */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>이상없음</span>
+              <span>통증심함</span>
+            </div>
+            <div className="flex gap-1">
+              {Array.from({ length: 11 }, (_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setPainLevel(painLevel === String(i) ? "" : String(i))}
+                  className={`flex-1 aspect-square rounded-full border text-xs font-medium transition-colors ${
+                    painNum === i
+                      ? i === 0
+                        ? "bg-green-500 border-green-500 text-white"
+                        : i <= 3
+                        ? "bg-yellow-500 border-yellow-500 text-white"
+                        : i <= 6
+                        ? "bg-orange-500 border-orange-500 text-white"
+                        : "bg-red-500 border-red-500 text-white"
+                      : "border-border text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {i}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 통증 부위 드롭다운 */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground">통증 부위</p>
+            <button
+              onClick={() => setPainAreaOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-border text-sm text-left hover:border-primary/40 transition-colors"
+            >
+              <span className={selectedPainAreas.length ? "text-foreground" : "text-muted-foreground"}>
+                {selectedPainAreas.length
+                  ? selectedPainAreas.filter(a => a !== "기타").join(", ") + (selectedPainAreas.includes("기타") ? (selectedPainAreas.length > 1 ? ", 기타" : "기타") : "")
+                  : "부위 선택"}
+              </span>
+              {painAreaOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+
+            {painAreaOpen && (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <div className="grid grid-cols-2">
+                  {PAIN_AREAS.map((area, i) => {
+                    const selected = selectedPainAreas.includes(area);
+                    const isLast = i === PAIN_AREAS.length - 1;
+                    return (
+                      <button
+                        key={area}
+                        onClick={() => togglePainArea(area)}
+                        className={`flex items-center gap-2 px-3 py-2.5 text-sm text-left border-b border-border transition-colors ${
+                          isLast && PAIN_AREAS.length % 2 !== 0 ? "col-span-2" : ""
+                        } ${selected ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent"}`}
+                      >
+                        <span className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center text-xs ${
+                          selected ? "bg-primary border-primary text-primary-foreground" : "border-border"
+                        }`}>
+                          {selected ? "✓" : ""}
+                        </span>
+                        {area}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 기타 텍스트 */}
+            {selectedPainAreas.includes("기타") && (
+              <input
+                type="text"
+                value={painAreaOther}
+                onChange={(e) => setPainAreaOther(e.target.value)}
+                placeholder="기타 통증 부위 직접 입력"
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+              />
+            )}
+          </div>
         </Section>
 
         {/* 추가 메모 */}
@@ -327,7 +449,7 @@ export default function AttendanceCheck({ memberId }: Props) {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="특이사항이나 추가 메모"
-            rows={4}
+            rows={3}
           />
         </Section>
 
@@ -342,20 +464,18 @@ export default function AttendanceCheck({ memberId }: Props) {
                   <span className="ml-auto text-xs opacity-70">완료</span>
                 </div>
               ) : (
-              <button
-                onClick={() => setDeductSession((d) => !d)}
-                className={`flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border text-sm transition-colors ${
-                  deductSession
-                    ? "bg-primary/20 border-primary/40 text-primary"
-                    : "border-border text-muted-foreground hover:border-primary/30"
-                }`}
-              >
-                <Dumbbell className="h-4 w-4 shrink-0" />
-                PT 세션 1회 차감
-                <span className="ml-auto text-xs opacity-70">
-                  {deductSession ? "ON" : "OFF"}
-                </span>
-              </button>
+                <button
+                  onClick={() => setDeductSession((d) => !d)}
+                  className={`flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border text-sm transition-colors ${
+                    deductSession
+                      ? "bg-primary/20 border-primary/40 text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  <Dumbbell className="h-4 w-4 shrink-0" />
+                  PT 세션 1회 차감
+                  <span className="ml-auto text-xs opacity-70">{deductSession ? "ON" : "OFF"}</span>
+                </button>
               )}
               {deductSession && activePkgs.length > 1 && (
                 <div className="flex gap-2 flex-wrap">
@@ -384,7 +504,7 @@ export default function AttendanceCheck({ memberId }: Props) {
         )}
 
         {/* 버튼 */}
-        <div className="flex gap-3 pt-2">
+        <div className="flex gap-3 pt-1">
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving ? "저장 중..." : "저장"}
           </Button>

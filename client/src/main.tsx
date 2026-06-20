@@ -7,17 +7,9 @@ import App from "./App";
 import { trpc } from "./lib/trpc";
 import "./index.css";
 
-// 홈 화면 바로가기(standalone)로 열었을 때 옛날 "/" 링크 → /gym-plus 자동 이동
-const isStandalone =
-  window.matchMedia("(display-mode: standalone)").matches ||
-  (window.navigator as any).standalone === true;
-if (isStandalone && window.location.pathname === "/") {
-  window.location.replace("/gym-plus");
-}
 
 function handleUnauthorized() {
-  // 짐플러스 페이지에서는 관리시스템 리다이렉트 안 함
-  if (window.location.pathname.startsWith("/gym-plus")) return;
+  // 세션 만료 시 로그인 페이지로 이동
   toast.error("세션이 만료되었습니다. 다시 로그인해주세요.");
   setTimeout(() => { window.location.href = "/"; }, 1200);
 }

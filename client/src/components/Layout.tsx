@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Dumbbell, LogOut,
-  UserCog, Settings, User, ClipboardCheck, Download, X, Receipt, Salad,
+  UserCog, Settings, User, ClipboardCheck, Download, X, ChevronLeft,
+  TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks, BookOpen, Menu, ExternalLink, ClipboardList, ClipboardPlus, UsersRound, Database, PenLine,
 } from "lucide-react";
 import Logo from "./Logo";
+import NoticeLoginPopup from "./NoticeLoginPopup";
+
+const GYMPLUS_URL_DEFAULT = "https://abundant-recreation-production-a6a1.up.railway.app/admin/gymplus";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -15,6 +19,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     onSuccess: () => window.location.reload(),
     onError: () => toast.error("로그아웃 실패"),
   });
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // PWA 설치 프롬프트
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -31,6 +37,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
+  // 페이지 이동 시 드로어 닫기
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location]);
+
   const handleInstall = async () => {
     if (!installPrompt) return;
     installPrompt.prompt();
@@ -45,84 +56,209 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   const adminNavItems = [
-    { path: "/", label: "대시보드", icon: LayoutDashboard },
+    { path: "/", label: "KPI 대시보드", icon: LayoutDashboard },
+    { path: "/revenue", label: "장부 관리", icon: TrendingUp },
     { path: "/trainers", label: "트레이너", icon: UserCog },
-    { path: "/settlement", label: "정산", icon: Receipt },
-    { path: "/admin", label: "관리", icon: Settings },
+    { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/leads", label: "상담 관리", icon: UserPlus },
+    { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
+    { path: "/work-management", label: "업무 관리", icon: ClipboardList },
+    { path: "/data-management", label: "데이터 관리", icon: Database },
+    { path: "/team-management", label: "팀 관리", icon: UsersRound },
+    { path: "/ai-analysis", label: "AI 분석 기능", icon: BrainCircuit },
+    { path: "/admin", label: "관리자 설정", icon: Settings },
+  ];
+
+  const consultantNavItems = [
+    { path: "/my-work", label: "나의 업무", icon: ListChecks },
+    { path: "/leads", label: "상담관리", icon: UserPlus },
+    { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
+    { path: "/members", label: "회원관리", icon: Users },
+    { path: "/revenue", label: "매출입력", icon: TrendingUp },
+    { path: "/work-management", label: "업무 관리", icon: ClipboardList },
+    { path: "/consultant-records", label: "데이터 기록", icon: PenLine },
   ];
 
   const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
-    { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/my-work", label: "나의 업무", icon: ListChecks },
     { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
     { path: "/pt", label: "PT 관리", icon: Dumbbell },
-    { path: "/diet-planner", label: "식단 플래너", icon: Salad },
+    { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/leads", label: "상담관리", icon: UserPlus },
+    { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
+    { path: "/training-manual", label: "교육 매뉴얼", icon: BookOpen },
     { path: "/profile", label: "내 프로필", icon: User },
   ];
 
-  const navItems = user?.role === "admin" ? adminNavItems : trainerNavItems;
+  const isAdmin = user?.role === "admin" || user?.role === "sub_admin";
+  const navItems = isAdmin ? adminNavItems
+    : user?.role === "consultant" ? consultantNavItems
+    : trainerNavItems;
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";
     return location.startsWith(path);
   };
 
-  return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* ── 데스크탑 사이드바 ── */}
-      <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
-        {/* 로고 */}
-        <div className="px-5 py-4 border-b border-border">
-          <button onClick={() => setLocation("/")} className="text-primary">
-            <Logo className="h-9" textSize="text-sm" />
-          </button>
-        </div>
+  const roleLabel = user?.role === "admin" ? "관리자"
+    : user?.role === "sub_admin" ? "부관리자"
+    : user?.role === "consultant" ? "컨설턴트"
+    : "트레이너";
 
-        {/* 네비게이션 */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => setLocation(item.path)}
-              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive(item.path)
-                  ? "bg-primary/20 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
-              }`}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {item.label}
-            </button>
-          ))}
-        </nav>
+  const gymplusUrl = GYMPLUS_URL_DEFAULT;
 
-        {/* 하단 유저 정보 */}
-        <div className="px-3 py-4 border-t border-border space-y-1">
-          <div className="px-3 py-2">
-            <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
-            <p className="text-xs text-muted-foreground">
-              {user?.role === "admin" ? "관리자" : "트레이너"}
-            </p>
-          </div>
+  // iOS 좌측 엣지 스와이프 뒤로가기
+  const mainRef = useRef<HTMLElement>(null);
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const [swipeDx, setSwipeDx] = useState(0);
+
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t.clientX <= 28) {
+        swipeRef.current = { x: t.clientX, y: t.clientY };
+        setSwipeDx(0);
+      }
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!swipeRef.current) return;
+      const dx = e.touches[0].clientX - swipeRef.current.x;
+      if (dx > 0) setSwipeDx(Math.min(dx, 120));
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (!swipeRef.current) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - swipeRef.current.x;
+      const dy = Math.abs(t.clientY - swipeRef.current.y);
+      swipeRef.current = null;
+      setSwipeDx(0);
+      if (dx > 72 && dx > dy * 1.5) window.history.back();
+    };
+    const onCancel = () => { swipeRef.current = null; setSwipeDx(0); };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: true });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    el.addEventListener("touchcancel", onCancel, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onCancel);
+    };
+  }, []);
+
+  // ── 사이드바 공용 내용 ────────────────────────────────────────────────────
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      {/* 로고 + 닫기 */}
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <button onClick={() => setLocation("/")} className="text-primary">
+          <Logo className="h-9" textSize="text-sm" />
+        </button>
+        <button
+          onClick={() => setDrawerOpen(false)}
+          className="md:hidden p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* 네비게이션 */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {navItems.map((item) => (
           <button
-            onClick={() => logoutMutation.mutate()}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            key={item.path}
+            onClick={() => setLocation(item.path)}
+            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              isActive(item.path)
+                ? "bg-primary/20 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            }`}
           >
-            <LogOut className="h-4 w-4 shrink-0" />
-            로그아웃
+            <item.icon className="h-4 w-4 shrink-0" />
+            {item.label}
           </button>
+        ))}
+      </nav>
+
+      {/* 유저 정보 + (어드민만) ZIANTGYM+ + 로그아웃 */}
+      <div className="px-3 py-4 border-t border-border space-y-1">
+        <div className="px-3 py-2">
+          <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
+          <p className="text-xs text-muted-foreground">{roleLabel}</p>
         </div>
+        {isAdmin && (
+          <a
+            href={gymplusUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4 shrink-0" />
+            ZIANTGYM+
+          </a>
+        )}
+        <button
+          onClick={() => logoutMutation.mutate()}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          로그아웃
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex bg-background overflow-x-hidden" style={{ height: '100dvh', minHeight: '100svh' }}>
+
+      {/* 모바일 드로어 오버레이 (전체 계정) */}
+      {drawerOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/50"
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
+      {/* 모바일 드로어 패널 (전체 계정) */}
+      <aside
+        className={`md:hidden fixed top-0 left-0 h-full w-64 z-50 bg-card border-r border-border transform transition-transform duration-300 ease-in-out ${
+          drawerOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <SidebarContent />
       </aside>
 
-      {/* ── 메인 영역 ── */}
+      {/* 데스크탑 사이드바 */}
+      <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
+        <SidebarContent />
+      </aside>
+
+      {/* 메인 영역 */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* 모바일 상단 바 */}
-        <header className="md:hidden sticky top-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-          <button onClick={() => setLocation("/")} className="text-primary">
+
+        {/* 모바일 상단 헤더 (전체 계정 동일) */}
+        <header
+          className="md:hidden sticky top-0 z-30 bg-card border-b border-border px-4 flex items-center justify-between shrink-0"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)', paddingBottom: '0.75rem' }}
+        >
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <button onClick={() => setLocation("/")} className="text-primary absolute left-1/2 -translate-x-1/2">
             <Logo className="h-7" textSize="text-sm" />
           </button>
           <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground mr-1">{user?.username}</span>
+            <span className="text-xs text-muted-foreground">{user?.username}</span>
             <button
               onClick={() => logoutMutation.mutate()}
               className="text-muted-foreground hover:text-foreground p-2 rounded-md hover:bg-accent transition-colors"
@@ -150,27 +286,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* 콘텐츠 */}
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+        <main ref={mainRef} className="flex-1 overflow-y-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom)', WebkitOverflowScrolling: 'auto' }}>
+          {/* iOS 스와이프 뒤로가기 인디케이터 */}
+          {swipeDx > 0 && (
+            <div
+              className="fixed left-0 top-1/2 -translate-y-1/2 z-[9999] flex items-center justify-center pointer-events-none"
+              style={{ opacity: Math.min(swipeDx / 72, 1), transform: `translateX(${swipeDx - 20}px) translateY(-50%)` }}
+            >
+              <div className="bg-card/90 border border-border rounded-full p-2 shadow-lg">
+                <ChevronLeft className="h-5 w-5 text-foreground" />
+              </div>
+            </div>
+          )}
           <div className="container mx-auto px-4 py-6 max-w-3xl">
             {children}
           </div>
         </main>
+        <NoticeLoginPopup />
 
-        {/* ── 모바일 하단 내비게이션 ── */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex">
-          {navItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => setLocation(item.path)}
-              className={`flex flex-col items-center justify-center flex-1 py-2.5 gap-1 text-xs transition-colors ${
-                isActive(item.path) ? "text-primary" : "text-muted-foreground"
-              }`}
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="leading-none">{item.label}</span>
-            </button>
-          ))}
-        </nav>
       </div>
     </div>
   );

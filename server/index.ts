@@ -9,9 +9,11 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { db, pool } from "./db";
 import type { AuthUser } from "./auth";
-import { users, trainers, trainerSettings, sheetSyncConfig } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, revenueEntries, healthReports, ptReports } from "../drizzle/schema";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
+import { generateHealthReportHTML } from "./healthReportHTML";
+import { generatePTReportHTML } from "./ptReportHTML";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000");
@@ -20,14 +22,23 @@ const PgSession = connectPgSimple(session);
 
 app.set("trust proxy", 1);
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+const pgStore = new PgSession({
+  pool,
+  tableName: "session",
+  createTableIfMissing: true,
+  disableTouch: true,
+  errorLog: (err: Error) => console.error("session store error:", err.message),
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+});
+
 app.use(
   session({
-    store: new PgSession({
-      pool,
-      tableName: "session",
-      createTableIfMissing: true,
-    }),
+    store: pgStore,
     secret: process.env.SESSION_SECRET || "trainer-app-secret",
     resave: false,
     saveUninitialized: false,
@@ -52,10 +63,99 @@ app.use(
   })
 );
 
+// 배너 이미지 서빙 (ETag 기반 캐시 — 이미지 바뀌면 즉시 반영)
+app.get("/api/banner-image/:id", async (req, res) => {
+  try {
+    const result = await pool.query('SELECT "imageData" FROM kiosk_banners WHERE id = $1', [req.params.id]);
+    const imageData: string | null = result.rows[0]?.imageData ?? null;
+    if (!imageData) return res.status(404).send("Not found");
+    const etag = `"${imageData.length}"`;
+    if (req.headers["if-none-match"] === etag) return res.status(304).end();
+    const typeMatch = imageData.match(/^data:(image\/[\w+]+);base64,/);
+    const mimeType = typeMatch?.[1] ?? "image/jpeg";
+    const base64 = imageData.replace(/^data:image\/[\w+]+;base64,/, "");
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("ETag", etag);
+    res.send(Buffer.from(base64, "base64"));
+  } catch (e) {
+    console.error("banner-image error:", e);
+    res.status(500).send("오류");
+  }
+});
+
+// 건강보고서 공개 페이지 (토큰 기반, 인증 불필요)
+app.get("/api/health-report/:token", async (req, res) => {
+  try {
+    const dbConn = await import("./db").then(m => m.db);
+    if (!dbConn) return res.status(503).send("서버 준비 중");
+    const [report] = await dbConn.select().from(healthReports).where(eq(healthReports.token, req.params.token));
+    if (!report) return res.status(404).send("<h1>보고서를 찾을 수 없습니다</h1>");
+    const data = JSON.parse(report.reportData);
+    const html = generateHealthReportHTML(data, report.aiText);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("오류가 발생했습니다");
+  }
+});
+
+// PT 변화 리포트 공개 페이지 (토큰 기반, 인증 불필요)
+app.get("/api/pt-report/:token", async (req, res) => {
+  try {
+    const dbConn = await import("./db").then(m => m.db);
+    if (!dbConn) return res.status(503).send("서버 준비 중");
+    const [report] = await dbConn.select().from(ptReports).where(eq(ptReports.token, req.params.token));
+    if (!report) return res.status(404).send("<h1>보고서를 찾을 수 없습니다</h1>");
+    const data = JSON.parse(report.reportData);
+    const html = generatePTReportHTML(data, report.aiText);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("오류가 발생했습니다");
+  }
+});
+
+// 양도양수 계약서 공개 조회 (토큰 기반, 인증 불필요)
+app.get("/api/transfer/:token", async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM transfer_contracts WHERE token = $1', [req.params.token]);
+    const contract = result.rows[0];
+    if (!contract) return res.status(404).json({ error: "계약서를 찾을 수 없습니다" });
+    // Remove signatures from response for security (return only metadata)
+    const { transferorSignature, transfereeSignature, ...safe } = contract;
+    return res.json({
+      ...safe,
+      transferorSigned: !!transferorSignature,
+      transfereeSigned: !!transfereeSignature,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "오류" });
+  }
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
+
+  // 키오스크: manifest-kiosk.json 참조하는 별도 HTML 서빙
+  app.get("/kiosk", (_req, res) => {
+    try {
+      let html = fs.readFileSync(path.join(clientDistPath, "index.html"), "utf8");
+      html = html
+        .replace('href="/manifest.json"', 'href="/manifest-kiosk.json"')
+        .replace('content="ZIANTGYM"', 'content="키오스크"')
+        .replace('<title>ZIANTGYM</title>', '<title>ZIANTGYM 키오스크</title>');
+      res.type("html").send(html);
+    } catch {
+      res.sendFile(path.join(clientDistPath, "index.html"));
+    }
+  });
+
   app.get("*", (_req, res) => {
     res.sendFile(path.join(clientDistPath, "index.html"));
   });
@@ -256,68 +356,72 @@ async function initDatabase() {
       status TEXT NOT NULL DEFAULT 'pending',
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
-    `CREATE TABLE IF NOT EXISTS gym_plus_members (
+    // ─── 통합 운영 시스템 테이블 ──────────────────────────────────────────────
+    `CREATE TABLE IF NOT EXISTS channels (
       id SERIAL PRIMARY KEY,
-      username TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'online',
+      description TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS leads (
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       phone TEXT,
       email TEXT,
-      "membershipType" TEXT NOT NULL DEFAULT 'general',
-      "membershipStart" TEXT,
-      "membershipEnd" TEXT,
-      "isActive" INTEGER NOT NULL DEFAULT 1,
+      gender TEXT,
+      "ageGroup" TEXT,
+      "channelId" INTEGER,
+      "branchId" INTEGER,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "assignedTrainerId" INTEGER,
+      "consultationDate" TEXT,
+      "consultationNote" TEXT,
+      "registeredMemberId" INTEGER,
+      "interestType" TEXT,
+      memo TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
-    `CREATE TABLE IF NOT EXISTS gym_plus_video_categories (
+    `CREATE TABLE IF NOT EXISTS revenue_entries (
       id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "memberId" INTEGER,
+      "leadId" INTEGER,
+      "trainerId" INTEGER,
+      "branchId" INTEGER,
+      "channelId" INTEGER,
+      type TEXT NOT NULL,
+      "subType" TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      "discountAmount" INTEGER NOT NULL DEFAULT 0,
+      "paidAmount" INTEGER NOT NULL,
+      "unpaidAmount" INTEGER NOT NULL DEFAULT 0,
+      "refundAmount" INTEGER NOT NULL DEFAULT 0,
+      "paymentMethod" TEXT,
+      "paymentDate" TEXT NOT NULL,
+      installments INTEGER NOT NULL DEFAULT 1,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS expense_entries (
+      id SERIAL PRIMARY KEY,
+      "branchId" INTEGER,
+      category TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      vendor TEXT,
+      "expenseDate" TEXT NOT NULL,
+      memo TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
-    `CREATE TABLE IF NOT EXISTS gym_plus_videos (
+    `CREATE TABLE IF NOT EXISTS revenue_targets (
       id SERIAL PRIMARY KEY,
-      "categoryId" INTEGER,
-      title TEXT NOT NULL,
-      description TEXT,
-      "videoUrl" TEXT NOT NULL,
-      "thumbnailUrl" TEXT,
-      duration TEXT,
-      level TEXT NOT NULL DEFAULT 'beginner',
-      "bodyPart" TEXT,
-      "isPublished" INTEGER NOT NULL DEFAULT 1,
-      "sortOrder" INTEGER NOT NULL DEFAULT 0,
-      "createdAt" TEXT NOT NULL DEFAULT now()::text,
-      "updatedAt" TEXT NOT NULL DEFAULT now()::text
-    )`,
-    `CREATE TABLE IF NOT EXISTS gym_plus_events (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      "imageUrl" TEXT,
-      "eventType" TEXT NOT NULL DEFAULT 'notice',
-      "startDate" TEXT,
-      "endDate" TEXT,
-      "isPublished" INTEGER NOT NULL DEFAULT 1,
-      "isPinned" INTEGER NOT NULL DEFAULT 0,
-      "createdAt" TEXT NOT NULL DEFAULT now()::text,
-      "updatedAt" TEXT NOT NULL DEFAULT now()::text
-    )`,
-    `CREATE TABLE IF NOT EXISTS gym_plus_workout_logs (
-      id SERIAL PRIMARY KEY,
-      "gymPlusMemberId" INTEGER NOT NULL,
-      "logDate" TEXT NOT NULL,
-      title TEXT,
-      "exercisesJson" TEXT,
-      "bodyPartsJson" TEXT,
-      "durationMinutes" INTEGER,
-      "caloriesBurned" INTEGER,
-      "bodyWeight" TEXT,
-      notes TEXT,
-      mood TEXT,
-      "createdAt" TEXT NOT NULL DEFAULT now()::text,
-      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+      "branchId" INTEGER,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      "targetAmount" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
   ];
 
@@ -330,29 +434,497 @@ async function initDatabase() {
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS goal TEXT`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS feedback TEXT`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS "lastLoginAt" TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS "position" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "createdBy" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "consultantId" INTEGER`,
+    `ALTER TABLE members ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `ALTER TABLE members ALTER COLUMN "trainerId" DROP NOT NULL`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "customerName" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "phone" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "programDetail" TEXT`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "sessions" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "duration" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "startDate" TEXT`,
+    `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "subCategory" TEXT`,
+    `ALTER TABLE expense_entries ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationType" TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationSubTypes" TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "assignedConsultantId" INTEGER`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "exercisePurpose" TEXT`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "signatureDataUrl" TEXT`,
+    `ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntent" TEXT`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSessions" INTEGER DEFAULT 0`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceSessions" INTEGER DEFAULT 0`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceHealthDuration" INTEGER`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sharedToMember" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sharedAt" TEXT`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "isDraft" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "memberName" TEXT`,
     `CREATE TABLE IF NOT EXISTS branches (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
-    `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "bodyPartsJson" TEXT`,
-    `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "conditionScore" INTEGER`,
-    `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "sleepHours" TEXT`,
-    `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "energyLevel" TEXT`,
     `CREATE TABLE IF NOT EXISTS trainer_branches (
       id SERIAL PRIMARY KEY,
       "trainerId" INTEGER NOT NULL,
       "branchId" INTEGER NOT NULL,
       UNIQUE("trainerId", "branchId")
     )`,
-    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "memberId" INTEGER`,
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT '기타',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      status TEXT NOT NULL DEFAULT 'pending',
+      "assigneeId" INTEGER NOT NULL,
+      "assignedById" INTEGER,
+      "taskType" TEXT NOT NULL DEFAULT 'daily',
+      "taskDate" TEXT,
+      "dayOfWeek" INTEGER,
+      "dayOfMonth" INTEGER,
+      "dueTime" TEXT,
+      "isRecurring" INTEGER NOT NULL DEFAULT 0,
+      "completedAt" TEXT,
+      "completedMemo" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS notices (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      "authorId" INTEGER NOT NULL,
+      "targetRole" TEXT NOT NULL DEFAULT 'all',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS notice_reads (
+      id SERIAL PRIMARY KEY,
+      "noticeId" INTEGER NOT NULL,
+      "userId" INTEGER NOT NULL,
+      "readAt" TEXT NOT NULL DEFAULT now()::text,
+      UNIQUE("noticeId", "userId")
+    )`,
+    `CREATE TABLE IF NOT EXISTS health_reports (
+      id SERIAL PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      "memberId" INTEGER NOT NULL,
+      "generatedBy" INTEGER NOT NULL,
+      "reportData" TEXT NOT NULL,
+      "aiText" TEXT NOT NULL,
+      "isAI" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS pt_reports (
+      id SERIAL PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      "packageId" INTEGER NOT NULL,
+      "memberId" INTEGER NOT NULL,
+      "generatedBy" INTEGER NOT NULL,
+      "reportIndex" INTEGER NOT NULL,
+      "milestoneSession" INTEGER NOT NULL,
+      "fromSession" INTEGER NOT NULL,
+      "reportData" TEXT NOT NULL,
+      "aiText" TEXT NOT NULL,
+      "isAI" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE sheet_pending_members ADD COLUMN IF NOT EXISTS "membershipType" TEXT`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "textAlign" TEXT DEFAULT 'center'`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "textVAlign" TEXT DEFAULT 'center'`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "branchId" INTEGER`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "imageData" TEXT`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "titleFontSize" INTEGER DEFAULT 22`,
+    `ALTER TABLE kiosk_banners ADD COLUMN IF NOT EXISTS "bodyFontSize" INTEGER DEFAULT 15`,
+    `CREATE TABLE IF NOT EXISTS training_manuals (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      "manualDate" TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      exercises TEXT NOT NULL DEFAULT '[]',
+      "branchId" INTEGER,
+      "createdBy" INTEGER NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE training_manuals ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "registeredMemberId" INTEGER`,
+    `ALTER TABLE members ADD COLUMN IF NOT EXISTS "signatureDataUrl" TEXT`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSessionPrice" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "isServiceSession" INTEGER DEFAULT 0`,
+    `CREATE TABLE IF NOT EXISTS pt_event_programs (
+      id SERIAL PRIMARY KEY,
+      type TEXT NOT NULL DEFAULT 'PT',
+      name TEXT NOT NULL,
+      sessions INTEGER NOT NULL,
+      "serviceSessions" INTEGER NOT NULL DEFAULT 0,
+      "pricePerSession" INTEGER NOT NULL,
+      "serviceSessionPrice" INTEGER NOT NULL DEFAULT 0,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "startDate" TEXT,
+      "endDate" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT NOW()::text
+    )`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "startDate" TEXT`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "endDate" TEXT`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "applicableSessions" TEXT`,
+    `CREATE TABLE IF NOT EXISTS uniforms (
+      id SERIAL PRIMARY KEY,
+      "branchId" INTEGER,
+      "memberId" INTEGER,
+      "memberName" TEXT,
+      "memberPhone" TEXT,
+      size TEXT,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      "startDate" TEXT,
+      "endDate" TEXT,
+      memo TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "memberType" TEXT`,
+    `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "rentalType" TEXT`,
+    `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "isPaid" INTEGER DEFAULT 0`,
+    `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "paymentAmount" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "transferAmount" INTEGER`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "cardAmount" INTEGER`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
   }
 
+  // ─── 출입 관리 테이블 ──────────────────────────────────────────────────────────
+  const accessTables = [
+    `CREATE TABLE IF NOT EXISTS locker_categories (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      "branchId" INTEGER,
+      color TEXT NOT NULL DEFAULT '#3b82f6',
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS lockers (
+      id SERIAL PRIMARY KEY,
+      "lockerNumber" TEXT NOT NULL,
+      "branchId" INTEGER,
+      "categoryId" INTEGER,
+      "memberId" INTEGER,
+      "memberName" TEXT,
+      "memberPhone" TEXT,
+      "lockerType" TEXT NOT NULL DEFAULT 'personal',
+      "isOccupied" INTEGER NOT NULL DEFAULT 0,
+      "startDate" TEXT,
+      "endDate" TEXT,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `ALTER TABLE lockers ADD COLUMN IF NOT EXISTS "categoryId" INTEGER`,
+    `ALTER TABLE lockers ADD COLUMN IF NOT EXISTS "rentalType" TEXT`,
+    `CREATE TABLE IF NOT EXISTS access_logs (
+      id SERIAL PRIMARY KEY,
+      "memberId" INTEGER,
+      "memberName" TEXT,
+      phone TEXT NOT NULL,
+      "branchId" INTEGER,
+      "accessResult" TEXT NOT NULL,
+      "membershipType" TEXT,
+      "membershipEnd" TEXT,
+      "lockerNumber" TEXT,
+      "accessedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS kiosk_banners (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      body TEXT,
+      "imageUrl" TEXT,
+      "bgColor" TEXT NOT NULL DEFAULT '#1a3a6e',
+      "textColor" TEXT NOT NULL DEFAULT '#ffffff',
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "startDate" TEXT,
+      "endDate" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS transfer_contracts (
+      id SERIAL PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending_transferor',
+      "transferorMemberId" INTEGER NOT NULL,
+      "transferorName" TEXT NOT NULL,
+      "transferorPhone" TEXT,
+      "transferorSignature" TEXT,
+      "transferorSignedAt" TEXT,
+      "transfereeMemberId" INTEGER,
+      "transfereeName" TEXT,
+      "transfereePhone" TEXT,
+      "transfereeBirthDate" TEXT,
+      "transfereeSignature" TEXT,
+      "transfereeSignedAt" TEXT,
+      "itemType" TEXT NOT NULL,
+      "itemId" INTEGER,
+      "itemDescription" TEXT NOT NULL,
+      "termsSnapshot" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "completedAt" TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS transfer_terms (
+      id SERIAL PRIMARY KEY,
+      content TEXT NOT NULL,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_membership_renewals (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      memo TEXT,
+      "adminNote" TEXT,
+      "requestedAt" TEXT NOT NULL,
+      "processedAt" TEXT,
+      "newMembershipEnd" TEXT
+    )`,
+  ];
+  for (const stmt of accessTables) {
+    await pool.query(stmt);
+  }
+  console.log("✅ 출입 관리 테이블 준비 완료");
+
+  // ── 랜딩 페이지 테이블 ──────────────────────────────────────────────────────
+  const landingTables = [
+    `CREATE TABLE IF NOT EXISTS landing_inquiries (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      purpose TEXT,
+      message TEXT,
+      status TEXT DEFAULT 'new' NOT NULL,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS landing_events (
+      id SERIAL PRIMARY KEY,
+      icon TEXT NOT NULL DEFAULT '🎉',
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS landing_reviews (
+      id SERIAL PRIMARY KEY,
+      reviewer TEXT NOT NULL,
+      rating INTEGER NOT NULL DEFAULT 5,
+      content TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS landing_settings (
+      id SERIAL PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      value TEXT NOT NULL,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+  ];
+  for (const stmt of landingTables) {
+    await pool.query(stmt);
+  }
+  console.log("✅ 랜딩 페이지 테이블 준비 완료");
+
+  // 컨설턴트 데이터 기록 테이블
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS consultant_records (
+      id SERIAL PRIMARY KEY,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      "branchId" INTEGER,
+      "createdBy" INTEGER,
+      "blogPosts" INTEGER DEFAULT 0,
+      "instagramPosts" INTEGER DEFAULT 0,
+      "youtubeVideos" INTEGER DEFAULT 0,
+      "offlineEvents" INTEGER DEFAULT 0,
+      "referralCount" INTEGER DEFAULT 0,
+      "snsFollowers" INTEGER,
+      "adSpend" INTEGER DEFAULT 0,
+      "churnCount" INTEGER DEFAULT 0,
+      "churnReasons" TEXT,
+      memo TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text,
+      UNIQUE(year, month, "branchId", "createdBy")
+    )
+  `);
+  console.log("✅ 컨설턴트 기록 테이블 준비 완료");
+
   console.log("✅ 테이블 준비 완료");
+
+  // ── 단일 지점 트레이너 소속 회원 branchId 자동 배정 ──────────────────────
+  try {
+    // trainerBranches에서 트레이너별 지점 수 집계
+    const allTB = await db.select().from(trainerBranches);
+    const tbMap = new Map<number, number[]>(); // trainerId → branchIds
+    for (const row of allTB) {
+      if (!tbMap.has(row.trainerId)) tbMap.set(row.trainerId, []);
+      tbMap.get(row.trainerId)!.push(row.branchId);
+    }
+    // 단일 지점만 속한 트레이너의 회원 중 branchId가 NULL인 경우만 업데이트
+    for (const [trainerId, branchIds] of tbMap.entries()) {
+      if (branchIds.length === 1) {
+        await db.update(members)
+          .set({ branchId: branchIds[0] })
+          .where(and(eq(members.trainerId, trainerId), isNull(members.branchId)));
+      }
+    }
+    console.log("✅ 단일 지점 트레이너 회원 branchId 자동 배정 완료");
+  } catch (e) {
+    console.error("branchId 자동 배정 오류:", e);
+  }
+
+  // ── PT 매출 등록 시 누락된 회원 자동 생성 (backfill) ──────────────────────
+  try {
+    const missingMemberEntries = await db
+      .select()
+      .from(revenueEntries)
+      .where(and(
+        eq(revenueEntries.type, "PT"),
+        isNull(revenueEntries.memberId),
+      ));
+
+    const toFix = missingMemberEntries.filter(
+      e => e.customerName && e.subType !== "이전"
+    );
+
+    for (const entry of toFix) {
+      const now = new Date().toISOString();
+      const [newMember] = await db.insert(members).values({
+        trainerId: entry.trainerId ?? undefined,
+        name: entry.customerName!,
+        phone: entry.phone ?? undefined,
+        status: "active",
+        grade: "basic",
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: members.id });
+      if (newMember) {
+        await db.update(revenueEntries).set({ memberId: newMember.id }).where(eq(revenueEntries.id, entry.id));
+      }
+    }
+
+    if (toFix.length > 0) {
+      console.log(`✅ PT 매출 누락 회원 ${toFix.length}건 자동 생성 완료`);
+    }
+  } catch (e) {
+    console.error("PT 매출 누락 회원 생성 오류:", e);
+  }
+
+  // ── 헬스 매출 중 memberId 없는 항목을 기존 회원과 자동 연결 (backfill) ──────
+  try {
+    const unlinkedHealth = await pool.query<{
+      id: number; customerName: string | null; phone: string | null;
+    }>(
+      `SELECT id, "customerName", phone FROM revenue_entries
+       WHERE type = '헬스' AND "memberId" IS NULL AND "customerName" IS NOT NULL`
+    );
+    for (const entry of unlinkedHealth.rows) {
+      if (!entry.customerName) continue;
+      const { rows: matched } = await pool.query<{ id: number }>(
+        `SELECT id FROM members
+         WHERE name = $1
+           AND ($2::text IS NULL OR phone = $2 OR phone IS NULL OR $2 = '')
+         ORDER BY "membershipEnd" DESC NULLS LAST
+         LIMIT 1`,
+        [entry.customerName, entry.phone || null]
+      );
+      if (matched[0]) {
+        await pool.query(
+          `UPDATE revenue_entries SET "memberId" = $1 WHERE id = $2`,
+          [matched[0].id, entry.id]
+        );
+        console.log(`✅ 헬스 매출 id=${entry.id} → 회원 id=${matched[0].id} (${entry.customerName}) 자동 연결`);
+      }
+    }
+  } catch (e) {
+    console.error("헬스 매출 회원 자동 연결 오류:", e);
+  }
+
+  // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
+  try {
+    const ptRevs = await db
+      .select()
+      .from(revenueEntries)
+      .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`, sql`${revenueEntries.sessions} IS NOT NULL`));
+
+    for (const rev of ptRevs) {
+      if (!rev.memberId) continue;
+      const existing = await db.select({ id: ptPackages.id }).from(ptPackages).where(eq(ptPackages.memberId, rev.memberId));
+      if (existing.length === 0) {
+        const now = new Date().toISOString();
+        const svcSessions = (rev as any).serviceSessions ?? 0;
+        await db.insert(ptPackages).values({
+          memberId: rev.memberId,
+          trainerId: rev.trainerId ?? null,
+          totalSessions: rev.sessions! + svcSessions,
+          serviceSessions: svcSessions,
+          usedSessions: 0,
+          packageName: rev.programDetail ?? null,
+          startDate: rev.startDate ?? rev.paymentDate,
+          status: "active",
+          price: rev.amount,
+          paymentAmount: rev.paidAmount,
+          unpaidAmount: rev.unpaidAmount,
+          paymentMethod: rev.paymentMethod ?? null,
+          paymentDate: rev.paymentDate,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+    console.log("✅ PT 매출 기반 패키지 자동 생성 완료");
+  } catch (e) {
+    console.error("PT 패키지 자동 생성 오류:", e);
+  }
+
+  // ── 전체 회원 운동시작일/운동만료일 자동 보정 (전체 적용) ─────────────────
+  try {
+    const allMembers = await db
+      .select({ id: members.id, membershipStart: members.membershipStart })
+      .from(members);
+
+    for (const m of allMembers) {
+      // 1) 운동시작일: 첫 PT 세션 날짜로 설정 (없으면 유지)
+      const firstSession = await db
+        .select({ sessionDate: ptSessionLogs.sessionDate })
+        .from(ptSessionLogs)
+        .where(eq(ptSessionLogs.memberId, m.id))
+        .orderBy(ptSessionLogs.sessionDate)
+        .limit(1);
+
+      const startDate = firstSession[0]?.sessionDate ?? m.membershipStart;
+      if (firstSession[0]?.sessionDate && firstSession[0].sessionDate !== m.membershipStart) {
+        await db.update(members).set({ membershipStart: firstSession[0].sessionDate }).where(eq(members.id, m.id));
+      }
+
+      // 2) 운동만료일: 운동시작일 + (totalSessions ÷ 2)주 (10회=5주, 20회=10주...)
+      if (!startDate) continue;
+      const pkgRows = await db
+        .select({ totalSessions: ptPackages.totalSessions })
+        .from(ptPackages)
+        .where(eq(ptPackages.memberId, m.id));
+
+      const totalSessions = pkgRows.reduce((s, p) => s + (p.totalSessions ?? 0), 0);
+      if (!totalSessions) continue;
+
+      const weeks = Math.round(totalSessions / 2);
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + weeks * 7);
+      await db.update(members).set({ membershipEnd: d.toISOString().substring(0, 10) }).where(eq(members.id, m.id));
+    }
+
+    console.log("✅ 전체 회원 운동시작일/만료일 보정 완료");
+  } catch (e) {
+    console.warn("⚠️ 운동날짜 보정 실패:", e);
+  }
 
   // 관리자 계정 생성 (없으면 초기 씨드)
   const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")).limit(1);
@@ -390,6 +962,30 @@ async function initDatabase() {
     }
   }
 
+  // 기본 채널 시드 (없으면 생성)
+  const existingChannels = await db.select({ id: channels.id }).from(channels).limit(1);
+  if (!existingChannels[0]) {
+    await db.insert(channels).values([
+      { name: "인스타그램", type: "sns", description: "인스타그램 광고/게시물" },
+      { name: "네이버 블로그", type: "online", description: "네이버 블로그 검색" },
+      { name: "네이버 지도", type: "online", description: "네이버 지도/플레이스" },
+      { name: "카카오 광고", type: "online", description: "카카오 채널/광고" },
+      { name: "지인 소개", type: "referral", description: "기존 회원 소개" },
+      { name: "현수막/전단", type: "offline", description: "오프라인 홍보물" },
+      { name: "유튜브", type: "sns", description: "유튜브 채널" },
+      { name: "전화예약", type: "offline", description: "전화 예약 문의" },
+      { name: "기타", type: "offline", description: "기타 채널" },
+    ]);
+    console.log("✅ 기본 채널 데이터 생성 완료");
+  } else {
+    // 전화예약 채널이 없으면 추가
+    const phoneChannel = await db.select({ id: channels.id }).from(channels).where(eq(channels.name, "전화예약")).limit(1);
+    if (!phoneChannel[0]) {
+      await db.insert(channels).values({ name: "전화예약", type: "offline", description: "전화 예약 문의" });
+      console.log("✅ 전화예약 채널 추가 완료");
+    }
+  }
+
   // 구글시트 URL 고정 설정 (없으면 자동 생성, 있으면 URL만 갱신)
   const FIXED_SHEET_URL = "https://docs.google.com/spreadsheets/d/1jZbMrBQM_vr2PpvxyprpH1qQlfp_w2hQwdortv65C5w/edit?usp=drivesdk";
   const existingConfig = await db.select({ id: sheetSyncConfig.id }).from(sheetSyncConfig).limit(1);
@@ -407,6 +1003,40 @@ async function initDatabase() {
     console.log("✅ 구글시트 URL 갱신 완료");
   }
 
+  // ── PT 패키지 paidAmount → revenue_entries 자동 동기화 ──────────────────────
+  try {
+    const allPkgs = await pool.query(`
+      SELECT id, "memberId", "paymentAmount", "unpaidAmount"
+      FROM pt_packages
+      WHERE "paymentAmount" IS NOT NULL
+    `);
+    let fixed = 0;
+    for (const pkg of allPkgs.rows) {
+      const paymentAmount = pkg.paymentAmount ?? 0;
+      const unpaidAmount = pkg.unpaidAmount ?? 0;
+      const correctPaid = Math.max(0, paymentAmount - unpaidAmount);
+      const revResult = await pool.query(`
+        SELECT id, "paidAmount" FROM revenue_entries
+        WHERE "memberId" = $1 AND type = 'PT'
+        ORDER BY "createdAt" DESC LIMIT 1
+      `, [pkg.memberId]);
+      if (revResult.rows.length > 0) {
+        const rev = revResult.rows[0];
+        if (rev.paidAmount !== correctPaid) {
+          await pool.query(`
+            UPDATE revenue_entries
+            SET "paidAmount" = $1, "unpaidAmount" = $2, "amount" = $3, "updatedAt" = now()::text
+            WHERE id = $4
+          `, [correctPaid, unpaidAmount, paymentAmount, rev.id]);
+          fixed++;
+        }
+      }
+    }
+    if (fixed > 0) console.log(`✅ PT 매출 paidAmount 동기화 ${fixed}건 완료`);
+  } catch (e) {
+    console.error("PT 매출 paidAmount 동기화 오류:", e);
+  }
+
   console.log("✨ DB 초기화 완료!");
 }
 
@@ -421,6 +1051,157 @@ async function start() {
     await initDatabase();
   } catch (e) {
     console.error("DB 초기화 오류 (서버는 계속 실행):", e);
+  }
+
+  // ── 완료된 양도양수 계약 중 양수인 회원 미생성 건 자동 보정 (initDatabase 실패해도 실행) ──
+  try {
+    const completedContracts = await pool.query(
+      `SELECT id, "transferorMemberId", "transfereeMemberId", "transfereeName",
+              "transfereePhone", "transfereeBirthDate", "itemType", "itemId", "completedAt"
+       FROM transfer_contracts
+       WHERE status = 'completed' AND "transfereeMemberId" IS NULL AND "transfereeName" IS NOT NULL`
+    );
+    for (const contract of completedContracts.rows) {
+      const transferorResult = await pool.query(
+        'SELECT "branchId", "trainerId" FROM members WHERE id = $1',
+        [contract.transferorMemberId]
+      );
+      const transferorMember = transferorResult.rows[0];
+      if (!transferorMember) continue;
+
+      let branchId = transferorMember.branchId;
+      if (!branchId && transferorMember.trainerId) {
+        const tbResult = await pool.query(
+          'SELECT "branchId" FROM trainer_branches WHERE "trainerId" = $1 LIMIT 1',
+          [transferorMember.trainerId]
+        );
+        branchId = tbResult.rows[0]?.branchId ?? null;
+      }
+
+      const now = new Date().toISOString();
+      const memberResult = await pool.query(
+        `INSERT INTO members ("branchId", "trainerId", name, phone, "birthDate", status, "profileNote", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $7) RETURNING id`,
+        [
+          branchId, transferorMember.trainerId ?? null, contract.transfereeName,
+          contract.transfereePhone ?? null, contract.transfereeBirthDate ?? null,
+          `양도양수 계약으로 등록 (계약서 ID: ${contract.id})`, now,
+        ]
+      );
+      if (memberResult.rows[0]) {
+        const transfereeMemberId = memberResult.rows[0].id;
+        await pool.query('UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE id = $2', [transfereeMemberId, contract.id]);
+        if (contract.itemId) {
+          if (contract.itemType === "pt_package") await pool.query('UPDATE pt_packages SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
+          else if (contract.itemType === "membership") await pool.query('UPDATE memberships SET "memberId" = $1 WHERE id = $2', [transfereeMemberId, contract.itemId]);
+          else if (contract.itemType === "locker") await pool.query('UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [transfereeMemberId, contract.transfereeName, contract.itemId]);
+          else if (contract.itemType === "uniform") await pool.query('UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [transfereeMemberId, contract.transfereeName, contract.itemId]);
+        }
+        console.log(`✅ 양도양수 완료 계약 ${contract.id} - 양수인 '${contract.transfereeName}' 회원 자동 생성`);
+      }
+    }
+    if (completedContracts.rows.length > 0) console.log(`✅ 양도양수 양수인 회원 보정 완료 (${completedContracts.rows.length}건 처리)`);
+  } catch (e) {
+    console.error("양도양수 양수인 회원 자동 보정 오류:", e);
+  }
+
+  // ── 중복 회원 1회 자동 병합 (동일 trainerId + 이름 + 전화번호) ──────────────
+  try {
+    const dupResult = await pool.query(`
+      SELECT
+        trim(name) AS name,
+        array_agg(id ORDER BY id ASC) AS ids
+      FROM members
+      WHERE length(regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')) >= 7
+      GROUP BY trim(name), regexp_replace(COALESCE(phone,''), '[^0-9]', '', 'g')
+      HAVING COUNT(*) > 1
+    `);
+    let merged = 0;
+    for (const row of dupResult.rows) {
+      const keepId: number = row.ids[0];
+      const deleteIds: number[] = row.ids.slice(1);
+      for (const delId of deleteIds) {
+        try {
+          console.log(`🔄 중복 병합 시도: '${row.name}' ID ${delId} → ${keepId}`);
+          // 출석 — 같은 날짜 중복 제거 후 이전
+          await pool.query(`
+            DELETE FROM attendances
+            WHERE "memberId" = $1 AND "attendDate" IN (
+              SELECT "attendDate" FROM attendances WHERE "memberId" = $2
+            )`, [delId, keepId]);
+          await pool.query(`UPDATE attendances SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+          console.log(`  ✓ attendances`);
+
+          // 출석체크 — 같은 날짜 중복 제거 후 이전
+          await pool.query(`
+            DELETE FROM attendance_checks
+            WHERE "memberId" = $1 AND "checkDate" IN (
+              SELECT "checkDate" FROM attendance_checks WHERE "memberId" = $2
+            )`, [delId, keepId]);
+          await pool.query(`UPDATE attendance_checks SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+
+          // PAR-Q — unique 제약: 기존 있으면 삭제, 없으면 이전
+          const hasParQ = await pool.query(`SELECT id FROM par_q WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+          if (hasParQ.rows.length > 0) {
+            await pool.query(`DELETE FROM par_q WHERE "memberId" = $1`, [delId]);
+          } else {
+            await pool.query(`UPDATE par_q SET "memberId" = $1 WHERE "memberId" = $2`, [keepId, delId]);
+          }
+
+          // gym_plus_members — 자식 테이블 먼저 정리 후 처리
+          const gymPlusDelRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [delId]);
+          if (gymPlusDelRow.rows.length > 0) {
+            const gymPlusDelId = gymPlusDelRow.rows[0].id;
+            const gymPlusKeepRow = await pool.query(`SELECT id FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`, [keepId]);
+            if (gymPlusKeepRow.rows.length > 0) {
+              // keepId도 gym_plus 있으면 delId 쪽 자식 데이터 삭제
+              await pool.query(`DELETE FROM gym_plus_messages WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
+              await pool.query(`DELETE FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
+              await pool.query(`DELETE FROM gym_plus_push_subscriptions WHERE "gymPlusMemberId" = $1`, [gymPlusDelId]);
+              await pool.query(`DELETE FROM gym_plus_members WHERE id = $1`, [gymPlusDelId]);
+            } else {
+              // keepId에 gym_plus 없으면 memberId만 변경
+              await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [keepId, gymPlusDelId]);
+            }
+          }
+
+          console.log(`  ✓ gym_plus_members`);
+          // 나머지 테이블 일괄 이전
+          for (const [tbl, col] of [
+            ["pt_packages", "memberId"],
+            ["pt_pauses", "memberId"],
+            ["schedules", "memberId"],
+            ["pt_session_logs", "memberId"],
+            ["workout_memos", "memberId"],
+            ["report_tokens", "memberId"],
+            ["health_reports", "memberId"],
+            ["pt_reports", "memberId"],
+            ["payments", "memberId"],
+            ["revenue_entries", "memberId"],
+            ["lockers", "memberId"],
+            ["uniforms", "memberId"],
+            ["access_logs", "memberId"],
+          ] as const) {
+            await pool.query(`UPDATE "${tbl}" SET "${col}" = $1 WHERE "${col}" = $2`, [keepId, delId]);
+            console.log(`  ✓ ${tbl}`);
+          }
+          await pool.query(`UPDATE leads SET "registeredMemberId" = $1 WHERE "registeredMemberId" = $2`, [keepId, delId]);
+          await pool.query(`UPDATE transfer_contracts SET "transferorMemberId" = $1 WHERE "transferorMemberId" = $2`, [keepId, delId]);
+          await pool.query(`UPDATE transfer_contracts SET "transfereeMemberId" = $1 WHERE "transfereeMemberId" = $2`, [keepId, delId]);
+          console.log(`  ✓ leads/transfer_contracts`);
+          await pool.query(`DELETE FROM members WHERE id = $1`, [delId]);
+          console.log(`  ✓ members DELETE`);
+          merged++;
+          console.log(`✅ 중복 회원 병합: '${row.name}' ID ${delId} → ${keepId}`);
+        } catch (innerErr) {
+          console.error(`⚠️ 중복 병합 실패: '${row.name}' ID ${delId} → ${keepId}:`, innerErr);
+        }
+      }
+    }
+    if (merged > 0) console.log(`✅ 중복 회원 총 ${merged}건 병합 완료`);
+    else console.log("✅ 중복 회원 없음");
+  } catch (e) {
+    console.error("중복 회원 병합 오류:", e);
   }
 
   // 구글시트 자동 동기화 (5분마다)

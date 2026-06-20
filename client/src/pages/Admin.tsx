@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2 } from "lucide-react";
+import { UserPlus, Trash2, Users, ChevronRight, FileSpreadsheet, ChevronDown, ChevronUp, Download, Upload, Database, Building2, Plus, MapPin, ExternalLink, Lock } from "lucide-react";
 
 const FIELD_OPTIONS = [
   { value: "skip", label: "건너뛰기" },
@@ -32,14 +33,15 @@ const FIELD_OPTIONS = [
   { value: "gender", label: "성별 (male/female)" },
   { value: "grade", label: "등급 (basic/premium/vip)" },
   { value: "status", label: "상태 (active/paused)" },
-  { value: "membershipStart", label: "회원권 시작일" },
-  { value: "membershipEnd", label: "회원권 만료일" },
+  { value: "membershipStart", label: "운동 시작일" },
+  { value: "membershipEnd", label: "운동 종료일" },
   { value: "profileNote", label: "특이사항" },
   { value: "ptProgram", label: "PT 패키지명" },
   { value: "ptSessions", label: "PT 횟수" },
   { value: "paymentAmount", label: "결제 금액" },
   { value: "unpaidAmount", label: "미수금" },
   { value: "paymentMethod", label: "결제방법" },
+  { value: "membershipInfo", label: "보유 이용권 (헬스/PT 자동 파싱)" },
 ];
 
 const AUTO_GUESS: Record<string, string> = {
@@ -50,39 +52,316 @@ const AUTO_GUESS: Record<string, string> = {
   성별: "gender", gender: "gender",
   등급: "grade", grade: "grade",
   상태: "status", status: "status",
-  시작일: "membershipStart", 등록일: "membershipStart", 가입일: "membershipStart",
-  만료일: "membershipEnd", 종료일: "membershipEnd",
+  시작일: "membershipStart", 등록일: "membershipStart", 가입일: "membershipStart", 운동시작일: "membershipStart",
+  만료일: "membershipEnd", 종료일: "membershipEnd", 운동종료일: "membershipEnd",
   특이사항: "profileNote", 메모: "profileNote", 비고: "profileNote",
   패키지: "ptProgram", PT프로그램: "ptProgram", 프로그램: "ptProgram", "PT 프로그램": "ptProgram",
   횟수: "ptSessions", PT횟수: "ptSessions", "PT 횟수": "ptSessions", 세션: "ptSessions",
   결제금액: "paymentAmount", 금액: "paymentAmount", "결제 금액": "paymentAmount",
   미수금: "unpaidAmount",
   결제방법: "paymentMethod", "결제 방법": "paymentMethod",
+  "보유이용권": "membershipInfo", "보유 이용권": "membershipInfo",
 };
+
+// ── 엑셀 파싱 헬퍼 ──────────────────────────────────────────────────────────
+
+function dotDateToISO(s: string): string {
+  return s.replace(/\./g, "-").replace(/-$/, "");
+}
+
+function normalizeBirthDate(s: string): string | undefined {
+  if (!s) return undefined;
+  const d = dotDateToISO(s.trim());
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  return undefined;
+}
+
+function parseKoreanDate(s: string): string | undefined {
+  if (!s) return undefined;
+  const d = dotDateToISO(s.trim());
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  return undefined;
+}
+
+type BulkPkg = { packageName?: string; totalSessions: number; startDate?: string; expiryDate?: string };
+
+function parseMembershipCell(cell: string): { healthStart?: string; healthEnd?: string; ptPkgs: BulkPkg[] } {
+  const items = cell.split(/\s*\/\s*/);
+  let healthStart: string | undefined;
+  let healthEnd: string | undefined;
+  const ptPkgs: BulkPkg[] = [];
+
+  for (const item of items) {
+    const m = item.match(/^(.+?)\(([^)]+)\)\s*(\d{4}[.\-]\d{2}[.\-]\d{2})\s*~\s*(\d{4}[.\-]\d{2}[.\-]\d{2})/);
+    if (!m) continue;
+    const [, name, , startRaw, endRaw] = m;
+    const start = parseKoreanDate(startRaw);
+    const end = parseKoreanDate(endRaw);
+    const nameTrimmed = name.trim();
+
+    const sessionMatch = nameTrimmed.match(/(\d+)회/);
+    const hasPT = nameTrimmed.includes("PT") || (sessionMatch && !nameTrimmed.includes("헬스"));
+    if (hasPT && sessionMatch) {
+      ptPkgs.push({ packageName: nameTrimmed, totalSessions: parseInt(sessionMatch[1]), startDate: start, expiryDate: end });
+    } else if (nameTrimmed.includes("헬스")) {
+      if (!healthStart || (start && start < healthStart)) healthStart = start;
+      if (!healthEnd || (end && end > healthEnd)) healthEnd = end;
+    }
+  }
+
+  return { healthStart, healthEnd, ptPkgs };
+}
+
+function parseExcelToRows(file: File): Promise<ParsedRow[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target!.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const jsonRows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" });
+        resolve(jsonRows.map(parseSingleRow).filter((r): r is ParsedRow => r !== null));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+type ParsedRow = {
+  name: string; phone?: string; gender?: "male" | "female" | "other";
+  birthDate?: string; status: "active" | "paused";
+  membershipStart?: string; membershipEnd?: string; profileNote?: string;
+  ptPackages?: BulkPkg[]; _preview: string;
+  branchHint: number; // 이름 끝 숫자 (1 = 기본/1호점, 2 = 2호점, ...)
+  branchId?: number;  // branchList 매칭 후 채움
+};
+
+function parseSingleRow(row: Record<string, string>): ParsedRow | null {
+  const get = (...keys: string[]) => {
+    for (const k of keys) {
+      const found = Object.entries(row).find(([key]) => key.replace(/\s/g, "").includes(k.replace(/\s/g, "")));
+      if (found && found[1].trim()) return found[1].trim();
+    }
+    return "";
+  };
+
+  const rawName = get("이름", "성명");
+  if (!rawName) return null;
+
+  // 이름 끝 숫자 감지 → 지점 힌트 추출, 이름 정제
+  const branchMatch = rawName.match(/^(.+?)(\d+)$/);
+  const name = branchMatch ? branchMatch[1].trim() : rawName.trim();
+  const branchHint = branchMatch ? parseInt(branchMatch[2]) : 1;
+
+  const phone = get("연락처", "전화번호", "휴대폰");
+  const genderRaw = get("성별");
+  const gender: "male" | "female" | "other" | undefined =
+    genderRaw === "남" ? "male" : genderRaw === "여" ? "female" : undefined;
+  const birthDate = normalizeBirthDate(get("생년월일", "생일"));
+  const statusRaw = get("상태");
+  const status: "active" | "paused" = statusRaw === "활성" ? "active" : "paused";
+
+  const membershipInfoRaw = get("보유이용권", "보유 이용권");
+  const rentalRaw = get("보유대여권", "보유 대여권");
+  const lockerRaw = get("락커룸", "락커");
+  const firstReg = parseKoreanDate(get("최초등록일", "최초 등록일", "등록일"));
+  const lastExpiry = parseKoreanDate(get("최종만료일", "최종 만료일", "만료일"));
+
+  let healthStart: string | undefined = firstReg;
+  let healthEnd: string | undefined = lastExpiry;
+  let ptPkgs: BulkPkg[] = [];
+
+  if (membershipInfoRaw) {
+    const parsed = parseMembershipCell(membershipInfoRaw);
+    if (parsed.healthStart) healthStart = parsed.healthStart;
+    if (parsed.healthEnd) healthEnd = parsed.healthEnd;
+    ptPkgs = parsed.ptPkgs;
+  }
+
+  // 보유 대여권 파싱 (이름 + 종료일 추출)
+  const noteParts: string[] = [];
+  if (rentalRaw) {
+    const rentalItems = rentalRaw.split(/\s*\/\s*/);
+    for (const item of rentalItems) {
+      const m = item.match(/^(.+?)\(([^)]+)\)\s*\d{4}[.\-]\d{2}[.\-]\d{2}\s*~\s*(\d{4}[.\-]\d{2}[.\-]\d{2})/);
+      if (m) {
+        const [, name, status, endRaw] = m;
+        const end = parseKoreanDate(endRaw);
+        const label = name.trim().replace(/대여권$/, "").trim();
+        noteParts.push(`${label}(${status === "활성" ? "~" + end : status})`);
+      } else if (item.trim()) {
+        noteParts.push(item.trim());
+      }
+    }
+  }
+  if (lockerRaw) noteParts.push(`락커번호: ${lockerRaw}`);
+  const profileNote = noteParts.length > 0 ? noteParts.join(" / ") : undefined;
+
+  return {
+    name, phone: phone || undefined, gender, birthDate, status,
+    membershipStart: healthStart, membershipEnd: healthEnd,
+    profileNote,
+    ptPackages: ptPkgs.length > 0 ? ptPkgs : undefined,
+    _preview: membershipInfoRaw || "-",
+    branchHint,
+  };
+}
+
+function ResyncGymPlusButton() {
+  const [result, setResult] = useState<{
+    total: number; synced: number; skipped: number; failed: number;
+    failedItems: { memberName: string; sessionDate: string; reason: string }[];
+  } | null>(null);
+  const [showFailed, setShowFailed] = useState(false);
+
+  const resync = trpc.admin.resyncAllSharedLogs.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      setShowFailed(data.failed > 0);
+      if (data.failed > 0) {
+        toast.error(`${data.synced}건 전송 완료, ${data.failed}건 실패 (아래 확인)`);
+      } else {
+        toast.success(`재동기화 완료: ${data.synced}건 전송, ${data.skipped}건 이미존재`);
+      }
+    },
+    onError: (err) => toast.error(err.message || "재동기화 실패"),
+  });
+
+  return (
+    <div className="pt-2 border-t border-border mt-2 space-y-2">
+      <p className="text-xs text-muted-foreground">짐플러스에 전송됐어야 하는데 누락된 기록을 일괄 재동기화합니다.</p>
+      <button
+        disabled={resync.isPending}
+        onClick={() => { setResult(null); setShowFailed(false); resync.mutate(); }}
+        className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-md border border-primary/40 bg-primary/10 hover:bg-primary/20 transition-colors text-sm text-primary disabled:opacity-50"
+      >
+        {resync.isPending ? "동기화 중..." : "짐플러스 기록 누락분 재동기화"}
+      </button>
+      {result && (
+        <p className="text-xs text-muted-foreground text-center">
+          전체 {result.total}건 중 · 전송 {result.synced}건 · 이미존재 {result.skipped}건 · 실패 {result.failed}건
+        </p>
+      )}
+      {result && result.failed > 0 && (
+        <div>
+          <button
+            onClick={() => setShowFailed(v => !v)}
+            className="text-xs text-red-400 underline"
+          >
+            {showFailed ? "실패 목록 숨기기" : `실패 ${result.failed}건 보기`}
+          </button>
+          {showFailed && (
+            <div className="mt-1.5 space-y-1 max-h-48 overflow-y-auto">
+              {result.failedItems.map((item, i) => (
+                <div key={i} className="text-xs px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20">
+                  <span className="font-medium text-foreground">{item.memberName}</span>
+                  <span className="text-muted-foreground ml-1">{item.sessionDate}</span>
+                  <p className="text-red-400 mt-0.5">{item.reason}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BackfillLeadMemberDataButton() {
+  const [result, setResult] = useState<{ total: number; updated: number } | null>(null);
+  const mutation = trpc.gym.leads.backfillMemberData.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      toast.success(`완료: ${data.total}건 중 ${data.updated}명 회원 정보 업데이트`);
+    },
+    onError: (e) => toast.error(e.message || "실패"),
+  });
+  return (
+    <div className="mt-3 space-y-2">
+      <button
+        onClick={() => { if (confirm("상담 리드에서 생성된 기존 회원의 성별/유입경로를 일괄 보완합니다. 진행할까요?")) mutation.mutate(); }}
+        disabled={mutation.isPending}
+        className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+        {mutation.isPending ? "업데이트 중..." : "리드→회원 성별/유입경로 일괄 보완"}
+      </button>
+      {result && (
+        <p className="text-xs text-muted-foreground text-center">
+          전체 {result.total}건 중 {result.updated}명 업데이트 완료
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
-  const { data: trainers, refetch } = trpc.admin.listTrainers.useQuery();
-  const { data: branchList, refetch: refetchBranches } = trpc.admin.listBranches.useQuery();
-  const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery();
-  const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery();
+  const isAdmin = user?.role === "admin";
+  const { data: trainers, refetch } = trpc.admin.listTrainers.useQuery(undefined, { enabled: isAdmin });
+  const { data: branchList, refetch: refetchBranches } = trpc.admin.listBranches.useQuery(undefined, { enabled: isAdmin });
+  const { data: syncConfig, refetch: refetchConfig } = trpc.admin.getSyncConfig.useQuery(undefined, { enabled: isAdmin });
+  const { data: pendingMembers, refetch: refetchPending } = trpc.admin.listPending.useQuery(undefined, { enabled: isAdmin });
+  const { data: unassignedMembers, refetch: refetchUnassigned } = trpc.admin.listUnassignedMembers.useQuery(undefined, { enabled: !!user });
+  const { data: unclassifiedMembers, refetch: refetchUnclassified } = trpc.members.listUnclassified.useQuery();
+  const { data: unassignedBranchMembers, refetch: refetchUnassignedBranch } = trpc.admin.listUnassignedBranchMembers.useQuery(undefined, { enabled: isAdmin });
+  const { data: unassignedBranchRevenue, refetch: refetchUnassignedBranchRevenue } = trpc.admin.listUnassignedBranchRevenue.useQuery(undefined, { enabled: isAdmin });
   const utils = trpc.useUtils();
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [assigningMemberId, setAssigningMemberId] = useState<number | null>(null);
+  const [assignMemberTrainerId, setAssignMemberTrainerId] = useState("");
+  const [assigningBranchMemberId, setAssigningBranchMemberId] = useState<number | null>(null);
+  const [assignBranchMemberBranchId, setAssignBranchMemberBranchId] = useState("");
+  const [selectedRevenueIds, setSelectedRevenueIds] = useState<Set<number>>(new Set());
+  const [bulkRevenueBranchId, setBulkRevenueBranchId] = useState("");
+
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [dbRestoring, setDbRestoring] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [trainerBranchFilter, setTrainerBranchFilter] = useState<number | undefined>(undefined);
-  const [form, setForm] = useState({
-    username: "",
-    password: "",
-    trainerName: "",
-    phone: "",
-    email: "",
-    settlementRate: "50",
-    branchId: "",
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none" });
+
+  // 엑셀 일괄 업로드
+  const [xlsxOpen, setXlsxOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState<ParsedRow[]>([]);
+  const [bulkResult, setBulkResult] = useState<{ created: number; updated: number } | null>(null);
+  const bulkCreateMutation = trpc.members.bulkCreate.useMutation({
+    onSuccess: (data) => {
+      setBulkResult(data);
+      toast.success(`신규 ${data.created}명 등록, 기존 ${data.updated}명 정보 업데이트`);
+      setBulkRows([]);
+    },
+    onError: (err) => toast.error(err.message || "업로드 실패"),
   });
+
+  const createMutation = trpc.admin.createTrainer.useMutation({
+    onSuccess: () => {
+      toast.success("트레이너 계정이 생성되었습니다.");
+      setCreateOpen(false);
+      setForm({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "none" });
+      refetch();
+    },
+    onError: (err) => toast.error(err.message || "생성 실패"),
+  });
+
+  const handleCreate = () => {
+    if (!form.trainerName.trim()) return toast.error("이름을 입력해주세요.");
+    if (!form.username.trim() || form.username.trim().length < 3) return toast.error("아이디는 3자 이상이어야 합니다.");
+    if (!form.password || form.password.length < 6) return toast.error("비밀번호는 6자 이상이어야 합니다.");
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return toast.error("올바른 이메일 형식이 아닙니다.");
+    createMutation.mutate({
+      username: form.username.trim(), password: form.password, trainerName: form.trainerName.trim(),
+      phone: form.phone || undefined, email: form.email || undefined,
+      settlementRate: parseInt(form.settlementRate) || 50,
+      branchId: form.branchId !== "none" ? parseInt(form.branchId) : undefined,
+    });
+  };
 
   // 시트 자동 동기화 설정
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -152,11 +431,53 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
+  const assignTrainerToMemberMutation = trpc.admin.assignTrainerToMember.useMutation({
+    onSuccess: () => {
+      toast.success("트레이너가 배정되었습니다.");
+      setAssigningMemberId(null);
+      setAssignMemberTrainerId("");
+      refetchUnassigned();
+    },
+    onError: (err) => toast.error(err.message || "배정 실패"),
+  });
+
+  const assignBranchMutation = trpc.members.assignBranch.useMutation({
+    onSuccess: () => { toast.success("지점이 배정되었습니다."); refetchUnclassified(); },
+    onError: (err) => toast.error(err.message || "배정 실패"),
+  });
+
+  const assignBranchToMemberMutation = trpc.admin.assignBranchToMember.useMutation({
+    onSuccess: () => {
+      toast.success("지점이 배정되었습니다.");
+      setAssigningBranchMemberId(null);
+      setAssignBranchMemberBranchId("");
+      refetchUnassignedBranch();
+    },
+    onError: (err) => toast.error(err.message || "배정 실패"),
+  });
+
+  const bulkAssignBranchToRevenueMutation = trpc.admin.bulkAssignBranchToRevenue.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.count}건에 지점이 배정되었습니다.`);
+      setSelectedRevenueIds(new Set());
+      setBulkRevenueBranchId("");
+      refetchUnassignedBranchRevenue();
+    },
+    onError: (err) => toast.error(err.message || "배정 실패"),
+  });
+
   // 관리자 권한 확인
-  if (user?.role !== "admin") {
+  if (user?.role !== "admin" && user?.role !== "sub_admin") {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        <p>관리자만 접근할 수 있습니다.</p>
+      <div className="space-y-6">
+        <h1 className="text-xl font-bold">관리자 설정</h1>
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+            <Lock className="h-6 w-6 text-red-400" />
+          </div>
+          <p className="font-semibold text-foreground">접근 권한이 없습니다</p>
+          <p className="text-sm text-muted-foreground">관리자 설정은 관리자만 접근할 수 있습니다.</p>
+        </div>
       </div>
     );
   }
@@ -171,16 +492,6 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "지점 변경 실패"),
   });
 
-  const createMutation = trpc.admin.createTrainer.useMutation({
-    onSuccess: () => {
-      toast.success("트레이너 계정이 생성되었습니다.");
-      setCreateOpen(false);
-      setForm({ username: "", password: "", trainerName: "", phone: "", email: "", settlementRate: "50", branchId: "" });
-      refetch();
-    },
-    onError: (err) => toast.error(err.message || "생성 실패"),
-  });
-
   const deleteMutation = trpc.admin.deleteTrainer.useMutation({
     onSuccess: () => {
       toast.success("트레이너가 삭제되었습니다.");
@@ -190,133 +501,210 @@ export default function Admin() {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
-  const handleCreate = () => {
-    if (!form.username || !form.password || !form.trainerName) {
-      toast.error("아이디, 비밀번호, 이름은 필수입니다.");
-      return;
+  const [adminTab, setAdminTab] = useState<"data" | "staff">("data");
+
+  // 서비스 단가 설정
+  const { data: gymSettings, refetch: refetchGymSettings } = trpc.gym.settings.get.useQuery();
+  const [settingsForm, setSettingsForm] = useState({
+    servicePtUnitPrice: "", serviceHealthUnitPrice: "", serviceLockUnitPrice: "", serviceUniformUnitPrice: "",
+    lockerMonthlyPrice: "", uniformPrice: "",
+    health1MonthPrice: "", health3MonthPrice: "", health6MonthPrice: "", health12MonthPrice: "",
+    weightPt10Price: "", weightPt20Price: "", weightPt30Price: "", weightPt40Price: "", weightPt50Price: "",
+    carePt10Price: "", carePt20Price: "", carePt30Price: "", carePt40Price: "", carePt50Price: "",
+  });
+  useEffect(() => {
+    if (gymSettings) {
+      const gs = gymSettings as any;
+      const v = (k: string) => gs[k] > 0 ? String(gs[k]) : "";
+      setSettingsForm({
+        servicePtUnitPrice: gymSettings.servicePtUnitPrice > 0 ? String(gymSettings.servicePtUnitPrice) : "",
+        serviceHealthUnitPrice: gymSettings.serviceHealthUnitPrice > 0 ? String(gymSettings.serviceHealthUnitPrice) : "",
+        serviceLockUnitPrice: gymSettings.serviceLockUnitPrice > 0 ? String(gymSettings.serviceLockUnitPrice) : "",
+        serviceUniformUnitPrice: gymSettings.serviceUniformUnitPrice > 0 ? String(gymSettings.serviceUniformUnitPrice) : "",
+        lockerMonthlyPrice: v("lockerMonthlyPrice"),
+        uniformPrice: v("uniformPrice"),
+        health1MonthPrice: v("health1MonthPrice"),
+        health3MonthPrice: v("health3MonthPrice"),
+        health6MonthPrice: v("health6MonthPrice"),
+        health12MonthPrice: v("health12MonthPrice"),
+        weightPt10Price: v("weightPt10Price"),
+        weightPt20Price: v("weightPt20Price"),
+        weightPt30Price: v("weightPt30Price"),
+        weightPt40Price: v("weightPt40Price"),
+        weightPt50Price: v("weightPt50Price"),
+        carePt10Price: v("carePt10Price"),
+        carePt20Price: v("carePt20Price"),
+        carePt30Price: v("carePt30Price"),
+        carePt40Price: v("carePt40Price"),
+        carePt50Price: v("carePt50Price"),
+      });
     }
-    createMutation.mutate({
-      username: form.username,
-      password: form.password,
-      trainerName: form.trainerName,
-      phone: form.phone || undefined,
-      email: form.email || undefined,
-      settlementRate: parseInt(form.settlementRate) || 50,
-      branchId: form.branchId ? parseInt(form.branchId) : undefined,
-    });
-  };
+  }, [gymSettings]);
+  const updateGymSettings = trpc.gym.settings.update.useMutation({
+    onSuccess: () => { toast.success("서비스 단가 설정이 저장되었습니다."); refetchGymSettings(); },
+    onError: (err) => toast.error(err.message || "저장 실패"),
+  });
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">관리자 설정</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">트레이너 계정 관리</p>
-        </div>
+        <h1 className="text-xl font-bold">관리자 설정</h1>
+      </div>
 
-        {/* 트레이너 생성 다이얼로그 */}
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gap-1.5">
-              <UserPlus className="h-4 w-4" />
-              트레이너 추가
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>트레이너 계정 생성</DialogTitle>
-              <DialogDescription>새 트레이너 계정 정보를 입력하세요.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">이름 <span className="text-primary">*</span></Label>
-                <Input
-                  placeholder="김트레이너"
-                  value={form.trainerName}
-                  onChange={(e) => setForm((p) => ({ ...p, trainerName: e.target.value }))}
-                  className="h-9"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">아이디 <span className="text-primary">*</span></Label>
-                  <Input
-                    placeholder="trainer2"
-                    value={form.username}
-                    onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
-                    className="h-9"
-                  />
+      {/* 상단 탭 */}
+      <div className="flex gap-1 bg-card border border-border rounded-xl p-1">
+        <button
+          onClick={() => setAdminTab("data")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "data" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          데이터 관리
+        </button>
+        <button
+          onClick={() => setAdminTab("staff")}
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${adminTab === "staff" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          인원 · 계정 관리
+        </button>
+      </div>
+
+      {/* 계정 설정 */}
+      {(<>
+
+      {adminTab === "data" && (<>
+
+      {/* ── 등록 기본 단가 설정 ── */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">등록 기본 단가</CardTitle>
+          <p className="text-xs text-muted-foreground">재등록 시 자동 기입되는 기준 단가입니다. 계약서 작성 시 개별 수정 가능합니다.</p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* 헬스 */}
+          <div>
+            <p className="text-xs font-medium text-emerald-400 mb-2">헬스 이용기간별 단가 (원)</p>
+            <div className="grid grid-cols-4 gap-2">
+              {([["1개월", "health1MonthPrice"], ["3개월", "health3MonthPrice"], ["6개월", "health6MonthPrice"], ["12개월", "health12MonthPrice"]] as const).map(([label, key]) => (
+                <div key={key}>
+                  <Label className="text-[10px] text-muted-foreground">{label}</Label>
+                  <Input type="number" min="0" placeholder="0"
+                    value={(settingsForm as any)[key]}
+                    onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="bg-input border-border mt-1 text-xs h-8" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">비밀번호 <span className="text-primary">*</span></Label>
-                  <Input
-                    type="password"
-                    placeholder="6자 이상"
-                    value={form.password}
-                    onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                    className="h-9"
-                  />
+              ))}
+            </div>
+          </div>
+
+          {/* 웨이트PT */}
+          <div>
+            <p className="text-xs font-medium text-primary mb-2">웨이트PT 횟수별 단가 (원)</p>
+            <div className="grid grid-cols-5 gap-2">
+              {([["10회", "weightPt10Price"], ["20회", "weightPt20Price"], ["30회", "weightPt30Price"], ["40회", "weightPt40Price"], ["50회", "weightPt50Price"]] as const).map(([label, key]) => (
+                <div key={key}>
+                  <Label className="text-[10px] text-muted-foreground">{label}</Label>
+                  <Input type="number" min="0" placeholder="0"
+                    value={(settingsForm as any)[key]}
+                    onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="bg-input border-border mt-1 text-xs h-8" />
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">연락처</Label>
-                <Input
-                  placeholder="010-0000-0000"
-                  value={form.phone}
-                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">이메일</Label>
-                <Input
-                  type="email"
-                  placeholder="trainer@example.com"
-                  value={form.email}
-                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">지점</Label>
-                <Select value={form.branchId} onValueChange={(v) => setForm((p) => ({ ...p, branchId: v }))}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="지점 선택 (선택)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">미배정</SelectItem>
-                    {branchList?.map((b) => (
-                      <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">정산 비율 (%)</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={form.settlementRate}
-                    onChange={(e) => setForm((p) => ({ ...p, settlementRate: e.target.value }))}
-                    className="h-9"
-                  />
-                  <span className="text-sm text-muted-foreground">%</span>
+              ))}
+            </div>
+          </div>
+
+          {/* 케어PT */}
+          <div>
+            <p className="text-xs font-medium text-blue-400 mb-2">케어PT 횟수별 단가 (원)</p>
+            <div className="grid grid-cols-5 gap-2">
+              {([["10회", "carePt10Price"], ["20회", "carePt20Price"], ["30회", "carePt30Price"], ["40회", "carePt40Price"], ["50회", "carePt50Price"]] as const).map(([label, key]) => (
+                <div key={key}>
+                  <Label className="text-[10px] text-muted-foreground">{label}</Label>
+                  <Input type="number" min="0" placeholder="0"
+                    value={(settingsForm as any)[key]}
+                    onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="bg-input border-border mt-1 text-xs h-8" />
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 이벤트PT 안내 */}
+          <div className="rounded-lg bg-muted/30 border border-border px-3 py-2">
+            <p className="text-xs text-muted-foreground">이벤트PT — 계약 시 직접 입력 (기본 단가 없음)</p>
+          </div>
+
+          {/* 락커 / 운동복 */}
+          <div>
+            <p className="text-xs font-medium text-amber-400 mb-2">락커 · 운동복 단가 (원)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">락커 단가 (원/월)</Label>
+                <Input type="number" min="0" placeholder="예: 10000"
+                  value={settingsForm.lockerMonthlyPrice}
+                  onChange={e => setSettingsForm(f => ({ ...f, lockerMonthlyPrice: e.target.value }))}
+                  className="bg-input border-border mt-1" />
               </div>
-              <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>
-                  취소
-                </Button>
-                <Button className="flex-1" onClick={handleCreate} disabled={createMutation.isPending}>
-                  {createMutation.isPending ? "생성 중..." : "생성"}
-                </Button>
+              <div>
+                <Label className="text-xs text-muted-foreground">운동복 단가 (원)</Label>
+                <Input type="number" min="0" placeholder="예: 3000"
+                  value={settingsForm.uniformPrice}
+                  onChange={e => setSettingsForm(f => ({ ...f, uniformPrice: e.target.value }))}
+                  className="bg-input border-border mt-1" />
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </div>
+
+          <Button
+            onClick={() => updateGymSettings.mutate({
+              lockerMonthlyPrice: settingsForm.lockerMonthlyPrice ? parseInt(settingsForm.lockerMonthlyPrice) : 0,
+              uniformPrice: settingsForm.uniformPrice ? parseInt(settingsForm.uniformPrice) : 0,
+              health1MonthPrice: settingsForm.health1MonthPrice ? parseInt(settingsForm.health1MonthPrice) : 0,
+              health3MonthPrice: settingsForm.health3MonthPrice ? parseInt(settingsForm.health3MonthPrice) : 0,
+              health6MonthPrice: settingsForm.health6MonthPrice ? parseInt(settingsForm.health6MonthPrice) : 0,
+              health12MonthPrice: settingsForm.health12MonthPrice ? parseInt(settingsForm.health12MonthPrice) : 0,
+              weightPt10Price: settingsForm.weightPt10Price ? parseInt(settingsForm.weightPt10Price) : 0,
+              weightPt20Price: settingsForm.weightPt20Price ? parseInt(settingsForm.weightPt20Price) : 0,
+              weightPt30Price: settingsForm.weightPt30Price ? parseInt(settingsForm.weightPt30Price) : 0,
+              weightPt40Price: settingsForm.weightPt40Price ? parseInt(settingsForm.weightPt40Price) : 0,
+              weightPt50Price: settingsForm.weightPt50Price ? parseInt(settingsForm.weightPt50Price) : 0,
+              carePt10Price: settingsForm.carePt10Price ? parseInt(settingsForm.carePt10Price) : 0,
+              carePt20Price: settingsForm.carePt20Price ? parseInt(settingsForm.carePt20Price) : 0,
+              carePt30Price: settingsForm.carePt30Price ? parseInt(settingsForm.carePt30Price) : 0,
+              carePt40Price: settingsForm.carePt40Price ? parseInt(settingsForm.carePt40Price) : 0,
+              carePt50Price: settingsForm.carePt50Price ? parseInt(settingsForm.carePt50Price) : 0,
+            })}
+            disabled={updateGymSettings.isPending}
+            className="w-full">
+            {updateGymSettings.isPending ? "저장 중..." : "저장"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ── 서비스 단가 설정 ── */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            서비스 횟수 미배정 단가
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">등록 시 서비스 제공 항목의 기준 단가를 설정합니다. 미입력 시 결제금액 ÷ 횟수로 자동 계산됩니다.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-xs text-muted-foreground">PT 서비스 단가 (원/회)</Label>
+            <Input type="number" min="0" placeholder="예: 60000"
+              value={settingsForm.servicePtUnitPrice}
+              onChange={e => setSettingsForm(f => ({ ...f, servicePtUnitPrice: e.target.value }))}
+              className="bg-input border-border mt-1" />
+          </div>
+          <Button
+            onClick={() => updateGymSettings.mutate({
+              servicePtUnitPrice: settingsForm.servicePtUnitPrice ? parseInt(settingsForm.servicePtUnitPrice) : 0,
+            })}
+            disabled={updateGymSettings.isPending}
+            className="w-full">
+            {updateGymSettings.isPending ? "저장 중..." : "저장"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* ── 구글시트 자동 동기화 설정 ── */}
       <Card className="bg-card border-border">
@@ -455,6 +843,67 @@ export default function Admin() {
         )}
       </Card>
 
+      {/* ── 실제 미배정 회원 (members 테이블 trainerId NULL) ── */}
+      {unassignedMembers && unassignedMembers.length > 0 && (
+        <Card className="bg-card border-orange-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-orange-400" />
+              <span className="text-orange-400">트레이너 미배정 회원</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{unassignedMembers.length}명</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unassignedMembers.map((m) => (
+              <div key={m.id} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {m.phone ?? "연락처 없음"}
+                      {m.remainingPt > 0 && ` · 잔여 PT ${m.remainingPt}회`}
+                    </p>
+                  </div>
+                </div>
+                {assigningMemberId === m.id ? (
+                  <div className="flex gap-2">
+                    <Select value={assignMemberTrainerId} onValueChange={setAssignMemberTrainerId}>
+                      <SelectTrigger className="h-8 text-xs flex-1">
+                        <SelectValue placeholder="트레이너 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {trainers?.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)} className="text-xs">{t.trainerName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      disabled={!assignMemberTrainerId || assignTrainerToMemberMutation.isPending}
+                      onClick={() => assignTrainerToMemberMutation.mutate({ memberId: m.id, trainerId: parseInt(assignMemberTrainerId) })}
+                    >
+                      배정
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setAssigningMemberId(null); setAssignMemberTrainerId(""); }}>
+                      취소
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs h-7 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                    onClick={() => { setAssigningMemberId(m.id); setAssignMemberTrainerId(""); }}
+                  >
+                    트레이너 배정
+                  </Button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── 미배정 회원 (시트에서 가져온 후 트레이너 미배정) ── */}
       {pendingMembers && pendingMembers.length > 0 && (
         <Card className="bg-card border-orange-500/30">
@@ -473,7 +922,7 @@ export default function Admin() {
                     <p className="font-medium text-sm">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {p.phone ?? "연락처 없음"}
-                      {p.membershipEnd && ` · 만료 ${p.membershipEnd}`}
+                      {p.membershipEnd && ` · 종료 ${p.membershipEnd}`}
                       {p.ptSessions && ` · PT ${p.ptSessions}회`}
                     </p>
                   </div>
@@ -523,6 +972,331 @@ export default function Admin() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── 지점 미분류 회원 (다중지점 트레이너 소속) ── */}
+      {unclassifiedMembers && unclassifiedMembers.length > 0 && (
+        <Card className="bg-card border-blue-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-blue-400" />
+              <span className="text-blue-400">지점 미분류 회원</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{unclassifiedMembers.length}명</span>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">담당 트레이너가 여러 지점에 속해 있어 수동으로 지점을 선택해주세요.</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unclassifiedMembers.map((m) => (
+              <div key={m.id} className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div>
+                    <p className="font-medium text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.trainerName} · {m.phone ?? "연락처 없음"}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {m.availableBranches.map((b) => (
+                    <button
+                      key={b.id}
+                      onClick={() => assignBranchMutation.mutate({ memberId: m.id, branchId: b.id })}
+                      className="flex-1 py-1.5 text-xs font-medium rounded-lg border border-blue-500/40 text-blue-400 hover:bg-blue-500/20 transition-colors"
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 지점 미배정 회원 (members.branchId NULL) ── */}
+      {unassignedBranchMembers && unassignedBranchMembers.length > 0 && (
+        <Card className="bg-card border-orange-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-orange-400" />
+              <span className="text-orange-400">지점 미배정 회원</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{unassignedBranchMembers.length}명</span>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">지점이 배정되지 않은 회원입니다. 지점을 선택해 배정해주세요.</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {unassignedBranchMembers.map((m) => (
+              <div key={m.id} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {m.phone ?? "연락처 없음"}
+                      {m.trainerName && ` · ${m.trainerName}`}
+                    </p>
+                  </div>
+                </div>
+                {assigningBranchMemberId === m.id ? (
+                  <div className="flex gap-2">
+                    <Select value={assignBranchMemberBranchId} onValueChange={setAssignBranchMemberBranchId}>
+                      <SelectTrigger className="h-8 text-xs flex-1">
+                        <SelectValue placeholder="지점 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branchList?.map((b) => (
+                          <SelectItem key={b.id} value={String(b.id)} className="text-xs">{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      disabled={!assignBranchMemberBranchId || assignBranchToMemberMutation.isPending}
+                      onClick={() => assignBranchToMemberMutation.mutate({ memberId: m.id, branchId: parseInt(assignBranchMemberBranchId) })}
+                    >
+                      배정
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setAssigningBranchMemberId(null); setAssignBranchMemberBranchId(""); }}>
+                      취소
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs h-7 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                    onClick={() => { setAssigningBranchMemberId(m.id); setAssignBranchMemberBranchId(""); }}
+                  >
+                    지점 배정
+                  </Button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 지점 미배정 매출 (revenue_entries.branchId NULL) ── */}
+      {unassignedBranchRevenue && unassignedBranchRevenue.length > 0 && (
+        <Card className="bg-card border-orange-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-orange-400" />
+              <span className="text-orange-400">지점 미배정 매출</span>
+              <span className="ml-auto text-xs font-normal text-muted-foreground">{unassignedBranchRevenue.length}건</span>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">항목을 선택한 후 지점을 골라 한 번에 배정하세요.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* 전체 선택 + 일괄 배정 바 */}
+            <div className="flex items-center gap-2 pb-2 border-b border-border">
+              <button
+                onClick={() => {
+                  if (selectedRevenueIds.size === unassignedBranchRevenue.length) {
+                    setSelectedRevenueIds(new Set());
+                  } else {
+                    setSelectedRevenueIds(new Set(unassignedBranchRevenue.map(r => r.id)));
+                  }
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                {selectedRevenueIds.size === unassignedBranchRevenue.length ? "전체 해제" : "전체 선택"}
+              </button>
+              {selectedRevenueIds.size > 0 && (
+                <>
+                  <span className="text-xs text-orange-400 shrink-0">{selectedRevenueIds.size}건 선택</span>
+                  <Select value={bulkRevenueBranchId} onValueChange={setBulkRevenueBranchId}>
+                    <SelectTrigger className="h-7 text-xs flex-1">
+                      <SelectValue placeholder="지점 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branchList?.map((b) => (
+                        <SelectItem key={b.id} value={String(b.id)} className="text-xs">{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    disabled={!bulkRevenueBranchId || bulkAssignBranchToRevenueMutation.isPending}
+                    onClick={() => bulkAssignBranchToRevenueMutation.mutate({
+                      revenueIds: Array.from(selectedRevenueIds),
+                      branchId: parseInt(bulkRevenueBranchId),
+                    })}
+                  >
+                    일괄 배정
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* 목록 */}
+            {unassignedBranchRevenue.map((r) => {
+              const checked = selectedRevenueIds.has(r.id);
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedRevenueIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                    return next;
+                  })}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    checked
+                      ? "bg-primary/10 border-primary/40"
+                      : "bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                    checked ? "bg-primary border-primary" : "border-muted-foreground"
+                  }`}>
+                    {checked && <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm">{r.customerName ?? "이름 없음"} · {r.type} {r.subType}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.paymentDate} · {(r.amount ?? r.paidAmount).toLocaleString()}원
+                      {r.trainerName && ` · ${r.trainerName}`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 엑셀 일괄 업로드 ── */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <button className="flex items-center justify-between w-full" onClick={() => { setXlsxOpen(v => !v); setBulkResult(null); }}>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+              엑셀 일괄 회원 업로드
+            </CardTitle>
+            {xlsxOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+        </CardHeader>
+        {xlsxOpen && (
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              엑셀 파일에서 회원을 일괄 등록합니다. 동일한 이름+연락처가 이미 존재하면 건너뜁니다.<br />
+              지원 컬럼: 이름, 연락처, 성별, 생년월일, 상태, 보유 이용권, 보유 대여권, 락커룸/락커번호, 최초 등록일, 최종 만료일
+            </p>
+
+            <label className="cursor-pointer block">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setBulkResult(null);
+                  try {
+                    const rows = await parseExcelToRows(file);
+                    // branchHint 숫자 → 지점 이름 매칭 (예: 1 → "1호점", 2 → "2호점")
+                    const resolved = rows.map(r => {
+                      const branchName = `${r.branchHint}호점`;
+                      const matched = branchList?.find(b => b.name === branchName);
+                      return { ...r, branchId: matched?.id };
+                    });
+                    setBulkRows(resolved);
+                    if (resolved.length === 0) toast.error("인식된 회원 데이터가 없습니다. 컬럼명을 확인해주세요.");
+                    else toast.info(`${resolved.length}명 인식됨. 아래에서 확인 후 업로드하세요.`);
+                  } catch {
+                    toast.error("파일 파싱 실패. 엑셀 형식을 확인해주세요.");
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <div className="flex items-center justify-center gap-2 py-3 border-2 border-dashed border-emerald-500/40 rounded-xl text-sm text-emerald-400 hover:bg-emerald-500/5 transition-colors">
+                <Upload className="h-4 w-4" />
+                엑셀 파일 선택 (.xlsx / .xls)
+              </div>
+            </label>
+
+            {bulkRows.length > 0 && (
+              <>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-foreground">미리보기 ({bulkRows.length}명)</p>
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                      <span>헬스: {bulkRows.filter(r => !r.ptPackages?.length).length}명</span>
+                      <span>PT: {bulkRows.filter(r => r.ptPackages?.length).length}명</span>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-border max-h-64 overflow-y-auto">
+                    <table className="w-full text-xs min-w-[500px]">
+                      <thead className="sticky top-0 bg-card z-10">
+                        <tr className="bg-accent/30">
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">이름</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">연락처</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">지점</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">상태</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">시작일</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">종료일</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">PT</th>
+                          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">대여</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkRows.map((r, i) => (
+                          <tr key={i} className="border-t border-border hover:bg-accent/10">
+                            <td className="px-2 py-1.5 font-medium text-foreground whitespace-nowrap">{r.name}</td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.phone ?? "-"}</td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              {r.branchId
+                                ? <span className="text-xs text-blue-400">{branchList?.find(b => b.id === r.branchId)?.name ?? `${r.branchHint}호점`}</span>
+                                : <span className="text-xs text-amber-400">미매칭</span>}
+                            </td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${r.status === "active" ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                                {r.status === "active" ? "활성" : "만료"}
+                              </span>
+                            </td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.membershipStart ?? "-"}</td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">{r.membershipEnd ?? "-"}</td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap">
+                              {r.ptPackages?.map(p => `${p.packageName ?? "PT"} ${p.totalSessions}회`).join(", ") ?? "-"}
+                            </td>
+                            <td className="px-2 py-1.5 text-foreground/70 whitespace-nowrap max-w-[120px] truncate" title={r.profileNote ?? ""}>
+                              {r.profileNote ?? "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setBulkRows([]); setBulkResult(null); }}
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    disabled={bulkCreateMutation.isPending}
+                    onClick={() => bulkCreateMutation.mutate({ rows: bulkRows })}
+                  >
+                    <Upload className="h-4 w-4" />
+                    {bulkCreateMutation.isPending ? "업로드 중..." : `${bulkRows.length}명 업로드`}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {bulkResult && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                <p className="text-sm font-medium text-emerald-400">업로드 완료</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  신규 등록: {bulkResult.created}명 · 기존 업데이트: {bulkResult.updated}명
+                </p>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
 
       {/* DB 백업 / 복원 */}
       <Card className="bg-card border-border">
@@ -581,8 +1355,14 @@ export default function Admin() {
             </label>
           </div>
           <p className="text-xs text-muted-foreground">⚠ DB 복원 시 현재 모든 데이터가 업로드한 파일로 교체됩니다.</p>
+          <ResyncGymPlusButton />
+          <BackfillLeadMemberDataButton />
         </CardContent>
       </Card>
+
+      </>)}
+
+      {adminTab === "staff" && (<>
 
       {/* 지점 관리 */}
       <Card className="bg-card border-border">
@@ -623,10 +1403,79 @@ export default function Admin() {
       {/* 트레이너 목록 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            트레이너 목록
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              트레이너 목록
+            </CardTitle>
+            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-1.5">
+                  <UserPlus className="h-4 w-4" />
+                  트레이너 추가
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>트레이너 계정 생성</DialogTitle>
+                  <DialogDescription>새 트레이너 계정 정보를 입력하세요.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">이름 <span className="text-primary">*</span></Label>
+                    <Input placeholder="김트레이너" value={form.trainerName}
+                      onChange={(e) => setForm(p => ({ ...p, trainerName: e.target.value }))} className="h-9" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">아이디 <span className="text-primary">*</span></Label>
+                      <Input placeholder="trainer2" value={form.username}
+                        onChange={(e) => setForm(p => ({ ...p, username: e.target.value }))} className="h-9" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">비밀번호 <span className="text-primary">*</span></Label>
+                      <Input type="password" placeholder="6자 이상" value={form.password}
+                        onChange={(e) => setForm(p => ({ ...p, password: e.target.value }))} className="h-9" />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">연락처</Label>
+                    <Input placeholder="010-0000-0000" value={form.phone}
+                      onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">이메일</Label>
+                    <Input type="email" placeholder="trainer@example.com" value={form.email}
+                      onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">지점</Label>
+                    <Select value={form.branchId} onValueChange={(v) => setForm(p => ({ ...p, branchId: v }))}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="지점 선택 (선택)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">미배정</SelectItem>
+                        {branchList?.map(b => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">정산 비율 (%)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input type="number" min="0" max="100" value={form.settlementRate}
+                        onChange={(e) => setForm(p => ({ ...p, settlementRate: e.target.value }))} className="h-9" />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="outline" className="flex-1" onClick={() => setCreateOpen(false)}>취소</Button>
+                    <Button className="flex-1" onClick={handleCreate} disabled={createMutation.isPending}>
+                      {createMutation.isPending ? "생성 중..." : "생성"}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {/* 지점 필터 탭 */}
@@ -686,6 +1535,9 @@ export default function Admin() {
                         ? `최근 로그인: ${new Date(trainer.lastLoginAt).toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`
                         : "로그인 기록 없음"}
                     </p>
+                    <div className="mt-1.5" onClick={(e) => e.stopPropagation()}>
+                      <PositionSelect userId={trainer.userId} currentPosition={trainer.position ?? null} />
+                    </div>
                     {branchList && branchList.length > 0 && (
                       <div className="flex items-center gap-3 mt-1.5" onClick={(e) => e.stopPropagation()}>
                         {branchList.map((b) => {
@@ -758,20 +1610,205 @@ export default function Admin() {
         </CardContent>
       </Card>
 
-      {/* 자이언트짐+ 관리 바로가기 */}
-      <Card className="bg-card border-border">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-sm">ZIANTGYM+ 관리</p>
-              <p className="text-xs text-muted-foreground mt-0.5">회원, 운동영상, 공지, 기록 관리</p>
-            </div>
-            <Button size="sm" onClick={() => window.location.href = "/admin/gymplus"}>
-              관리 페이지 열기 →
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* 컨설턴트 계정 관리 */}
+      {isAdmin && <ConsultantSection />}
+
+      {/* 부관리자 계정 관리 */}
+      {isAdmin && <SubAdminSection />}
+
+      </>)}
+      </>)}
     </div>
   );
 }
+
+function ConsultantSection() {
+  const utils = trpc.useUtils();
+  const { data: consultants, refetch } = trpc.admin.listConsultants.useQuery();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ username: "", password: "", displayName: "" });
+
+  const createMutation = trpc.admin.createConsultant.useMutation({
+    onSuccess: () => { toast.success("컨설턴트 계정이 생성되었습니다."); setShowForm(false); setForm({ username: "", password: "", displayName: "" }); refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.username || !form.password || !form.displayName) return toast.error("모든 항목을 입력해주세요");
+    createMutation.mutate(form);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">프론트 컨설턴트 계정</CardTitle>
+          <button onClick={() => setShowForm(v => !v)} className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90">
+            <UserPlus className="h-3.5 w-3.5" />
+            계정 추가
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">상담관리 + 오늘 매출 입력/수정만 가능한 직원 계정</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">이름 *</label>
+                <input value={form.displayName} onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))} placeholder="홍길동"
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">아이디 *</label>
+                <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="staff1"
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">비밀번호 *</label>
+              <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="6자 이상"
+                className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent">취소</button>
+              <button type="submit" className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90">생성</button>
+            </div>
+          </form>
+        )}
+
+        {(consultants ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">등록된 컨설턴트가 없습니다</p>
+        ) : (
+          <div className="space-y-2">
+            {(consultants ?? []).map((c: any) => (
+              <div key={c.id} className="bg-background border border-border rounded-lg px-3 py-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{c.username}</span>
+                    <span className="text-xs text-muted-foreground ml-2">프론트 컨설턴트</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{c.createdAt?.substring(0, 10)}</span>
+                </div>
+                <PositionSelect userId={c.id} currentPosition={c.position ?? null} />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const POSITIONS = ["매니저", "팀장", "시니어", "팀원", "견습", "프리랜서", "컨설턴트"];
+
+function PositionSelect({ userId, currentPosition }: { userId: number; currentPosition: string | null }) {
+  const utils = trpc.useUtils();
+  const mutation = trpc.admin.updatePosition.useMutation({
+    onSuccess: () => {
+      utils.admin.listTrainers.invalidate();
+      utils.admin.listConsultants.invalidate();
+      utils.admin.listSubAdmins.invalidate();
+      toast.success("직책이 저장되었습니다");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <select
+      value={currentPosition ?? ""}
+      onChange={(e) => mutation.mutate({ userId, position: e.target.value || null })}
+      className="text-xs bg-accent/30 border border-border rounded-md px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+    >
+      <option value="">직책 없음</option>
+      {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+    </select>
+  );
+}
+
+function SubAdminSection() {
+  const { data: subAdmins, refetch } = trpc.admin.listSubAdmins.useQuery();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ username: "", password: "" });
+
+  const createMutation = trpc.admin.createSubAdmin.useMutation({
+    onSuccess: () => { toast.success("부관리자 계정이 생성되었습니다."); setShowForm(false); setForm({ username: "", password: "" }); refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteMutation = trpc.admin.deleteSubAdmin.useMutation({
+    onSuccess: () => { toast.success("부관리자 계정이 삭제되었습니다."); refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.username.trim() || form.username.trim().length < 3) return toast.error("아이디는 3자 이상이어야 합니다.");
+    if (!form.password || form.password.length < 6) return toast.error("비밀번호는 6자 이상이어야 합니다.");
+    createMutation.mutate({ username: form.username.trim(), password: form.password });
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">부관리자 계정</CardTitle>
+          <button onClick={() => setShowForm(v => !v)} className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-primary/90">
+            <UserPlus className="h-3.5 w-3.5" />
+            계정 추가
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">모든 기능 이용 가능 · 삭제 및 매출 수정/삭제 불가</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">아이디 *</label>
+                <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="subadmin1"
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">비밀번호 *</label>
+                <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="6자 이상"
+                  className="w-full mt-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-border text-muted-foreground rounded-lg py-2 text-sm hover:bg-accent">취소</button>
+              <button type="submit" className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-sm font-medium hover:bg-primary/90">생성</button>
+            </div>
+          </form>
+        )}
+
+        {(subAdmins ?? []).length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">등록된 부관리자가 없습니다</p>
+        ) : (
+          <div className="space-y-2">
+            {(subAdmins ?? []).map((s: any) => (
+              <div key={s.id} className="bg-background border border-border rounded-lg px-3 py-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{s.username}</span>
+                    <span className="text-xs text-muted-foreground ml-2">부관리자</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{s.createdAt?.substring(0, 10)}</span>
+                    <button onClick={() => { if (confirm(`${s.username} 계정을 삭제하시겠습니까?`)) deleteMutation.mutate({ userId: s.id }); }}
+                      className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <PositionSelect userId={s.id} currentPosition={s.position ?? null} />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+

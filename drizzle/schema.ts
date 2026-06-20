@@ -16,6 +16,7 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").default("trainer").notNull(),
+  position: text("position"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
   lastLoginAt: text("lastLoginAt"),
@@ -52,7 +53,8 @@ export const trainerSettings = pgTable("trainer_settings", {
 // 회원
 export const members = pgTable("members", {
   id: serial("id").primaryKey(),
-  trainerId: integer("trainerId").notNull(),
+  trainerId: integer("trainerId"),
+  branchId: integer("branchId"),
   name: text("name").notNull(),
   phone: text("phone"),
   email: text("email"),
@@ -64,6 +66,8 @@ export const members = pgTable("members", {
   membershipEnd: text("membershipEnd"),
   profileNote: text("profileNote"),
   visitRoute: text("visitRoute"),
+  renewalIntent: text("renewalIntent"),
+  signatureDataUrl: text("signatureDataUrl"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -74,6 +78,7 @@ export const ptPackages = pgTable("pt_packages", {
   memberId: integer("memberId").notNull(),
   trainerId: integer("trainerId"),
   totalSessions: integer("totalSessions").notNull(),
+  serviceSessions: integer("serviceSessions").default(0),
   usedSessions: integer("usedSessions").default(0).notNull(),
   packageName: text("packageName"),
   startDate: text("startDate"),
@@ -81,13 +86,30 @@ export const ptPackages = pgTable("pt_packages", {
   status: text("status").default("active").notNull(),
   price: integer("price"),
   pricePerSession: integer("pricePerSession"),
+  serviceSessionPrice: integer("serviceSessionPrice").default(0),
   paymentAmount: integer("paymentAmount"),
   unpaidAmount: integer("unpaidAmount"),
   paymentMethod: text("paymentMethod"),
   paymentDate: text("paymentDate"),
   paymentMemo: text("paymentMemo"),
+  transferAmount: integer("transferAmount"),
+  cardAmount: integer("cardAmount"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// PT 이벤트 프로그램
+export const ptEventPrograms = pgTable("pt_event_programs", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull().default("PT"),
+  name: text("name").notNull(),
+  sessions: integer("sessions").notNull(),                    // 하위호환용 (첫 번째 적용 세션)
+  applicableSessions: text("applicableSessions"),             // 이벤트 적용 세션 (콤마 구분, 예: "10,20,30")
+  serviceSessions: integer("serviceSessions").notNull().default(0),
+  pricePerSession: integer("pricePerSession").notNull(),      // 하위호환용
+  serviceSessionPrice: integer("serviceSessionPrice").notNull().default(0),
+  isActive: integer("isActive").notNull().default(1),
+  createdAt: text("createdAt").default(now).notNull(),
 });
 
 // PT 정지 내역
@@ -127,6 +149,7 @@ export const attendances = pgTable("attendances", {
 export const ptSessionLogs = pgTable("pt_session_logs", {
   id: serial("id").primaryKey(),
   memberId: integer("memberId").notNull(),
+  memberName: text("memberName"),
   trainerId: integer("trainerId").notNull(),
   packageId: integer("packageId"),
   sessionDate: text("sessionDate").notNull(),
@@ -135,6 +158,10 @@ export const ptSessionLogs = pgTable("pt_session_logs", {
   exercisesJson: text("exercisesJson"),
   goal: text("goal"),
   feedback: text("feedback"),
+  isDraft: integer("isDraft").default(0).notNull(),
+  isServiceSession: integer("isServiceSession").default(0).notNull(),
+  sharedToMember: integer("sharedToMember").default(0).notNull(),
+  sharedAt: text("sharedAt"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 
@@ -200,6 +227,32 @@ export const reportTokens = pgTable("report_tokens", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+export const healthReports = pgTable("health_reports", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  memberId: integer("memberId").notNull(),
+  generatedBy: integer("generatedBy").notNull(),
+  reportData: text("reportData").notNull(),
+  aiText: text("aiText").notNull(),
+  isAI: integer("isAI").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const ptReports = pgTable("pt_reports", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  packageId: integer("packageId").notNull(),
+  memberId: integer("memberId").notNull(),
+  generatedBy: integer("generatedBy").notNull(),
+  reportIndex: integer("reportIndex").notNull(),
+  milestoneSession: integer("milestoneSession").notNull(),
+  fromSession: integer("fromSession").notNull(),
+  reportData: text("reportData").notNull(),
+  aiText: text("aiText").notNull(),
+  isAI: integer("isAI").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
   memberId: integer("memberId").notNull(),
@@ -210,6 +263,104 @@ export const payments = pgTable("payments", {
   memo: text("memo"),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+// ─── 통합 운영 시스템 ─────────────────────────────────────────────────────────
+
+// 유입 채널 (마케팅 채널)
+export const channels = pgTable("channels", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").default("online").notNull(), // online / offline / referral / sns
+  description: text("description"),
+  isActive: integer("isActive").default(1).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 리드 (상담 문의)
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  gender: text("gender"),
+  ageGroup: text("ageGroup"),
+  channelId: integer("channelId"),
+  branchId: integer("branchId"),
+  status: text("status").default("pending").notNull(), // pending / consulted / registered / dropped
+  assignedTrainerId: integer("assignedTrainerId"),
+  assignedConsultantId: integer("assignedConsultantId"), // users 테이블 consultant
+  consultationDate: text("consultationDate"),
+  consultationType: text("consultationType"),    // 방문상담/예약상담/소개상담
+  consultationSubTypes: text("consultationSubTypes"), // 복수선택, comma-separated
+  consultationNote: text("consultationNote"),
+  registeredMemberId: integer("registeredMemberId"),
+  interestType: text("interestType"), // PT / 헬스 / 기타
+  exercisePurpose: text("exercisePurpose"), // 운동 목적 (comma-separated)
+  memo: text("memo"),
+  signatureDataUrl: text("signatureDataUrl"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 매출 장부
+export const revenueEntries = pgTable("revenue_entries", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId"),
+  leadId: integer("leadId"),
+  trainerId: integer("trainerId"),
+  consultantId: integer("consultantId"),
+  branchId: integer("branchId"),
+  channelId: integer("channelId"),
+  createdBy: integer("createdBy"),
+  customerName: text("customerName"), // 회원 이름
+  phone: text("phone"),               // 연락처
+  programDetail: text("programDetail"), // PT 프로그램명 / 기타 항목(락커·운동복)
+  sessions: integer("sessions"),      // PT 횟수 (10/20/30/40/50회)
+  serviceSessions: integer("serviceSessions").default(0), // 서비스 횟수 (무상 제공)
+  duration: integer("duration"),      // 이용 기간(개월) - 헬스/기타
+  serviceHealthDuration: integer("serviceHealthDuration"), // PT 등록 시 서비스 헬스권 기간(개월)
+  type: text("type").notNull(), // PT / 헬스 / 기타
+  subType: text("subType").notNull(), // 신규 / 재등록
+  amount: integer("amount").notNull(),
+  discountAmount: integer("discountAmount").default(0).notNull(),
+  paidAmount: integer("paidAmount").notNull(),
+  unpaidAmount: integer("unpaidAmount").default(0).notNull(),
+  refundAmount: integer("refundAmount").default(0).notNull(),
+  paymentMethod: text("paymentMethod"), // 카드 / 현금 / 계좌이체
+  paymentDate: text("paymentDate").notNull(),
+  startDate: text("startDate"),
+  installments: integer("installments").default(1).notNull(),
+  memo: text("memo"),
+  serviceItems: text("serviceItems"), // 서비스 제공 항목 (쉼표 구분: "PT,헬스,락커,운동복")
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 지출 장부
+export const expenseEntries = pgTable("expense_entries", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  category: text("category").notNull(),    // 대분류: 고정관리비/유동관리비/인건비/운영비
+  subCategory: text("subCategory"),        // 소분류
+  amount: integer("amount").notNull(),
+  paymentMethod: text("paymentMethod"),    // 카드/현금/계좌이체
+  vendor: text("vendor"),
+  expenseDate: text("expenseDate").notNull(),
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// 매출 목표
+export const revenueTargets = pgTable("revenue_targets", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  targetAmount: integer("targetAmount").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 // 구글시트 자동 동기화 설정
 export const sheetSyncConfig = pgTable("sheet_sync_config", {
@@ -240,13 +391,148 @@ export const sheetPendingMembers = pgTable("sheet_pending_members", {
   paymentAmount: integer("paymentAmount"),
   unpaidAmount: integer("unpaidAmount"),
   paymentMethod: text("paymentMethod"),
+  membershipType: text("membershipType"),
   sheetRowIndex: integer("sheetRowIndex"),
   importedAt: text("importedAt").default(now).notNull(),
 });
 
-// ─── 자이언트짐+ ─────────────────────────────────────────────────────────────
+// ─── 교육 매뉴얼 ──────────────────────────────────────────────────────────────
 
-// 짐+ 회원 계정 (기존 members 테이블과 별개의 로그인 계정)
+export const trainingManuals = pgTable("training_manuals", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  manualDate: text("manualDate").notNull(),
+  description: text("description").default(""),
+  exercises: text("exercises").notNull().default("[]"),
+  branchId: integer("branchId"),
+  createdBy: integer("createdBy").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// ─── 나의 업무 ────────────────────────────────────────────────────────────────
+
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").default("기타").notNull(),
+  priority: text("priority").default("normal").notNull(),
+  status: text("status").default("pending").notNull(),
+  assigneeId: integer("assigneeId").notNull(),
+  assignedById: integer("assignedById"),
+  taskType: text("taskType").default("daily").notNull(),
+  taskDate: text("taskDate"),
+  dayOfWeek: integer("dayOfWeek"),
+  dayOfMonth: integer("dayOfMonth"),
+  dueTime: text("dueTime"),
+  isRecurring: integer("isRecurring").default(0).notNull(),
+  completedAt: text("completedAt"),
+  completedMemo: text("completedMemo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const notices = pgTable("notices", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  authorId: integer("authorId").notNull(),
+  targetRole: text("targetRole").default("all").notNull(),
+  priority: text("priority").default("normal").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const noticeReads = pgTable("notice_reads", {
+  id: serial("id").primaryKey(),
+  noticeId: integer("noticeId").notNull(),
+  userId: integer("userId").notNull(),
+  readAt: text("readAt").default(now).notNull(),
+});
+
+// 출입 관리
+export const lockerCategories = pgTable("locker_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  branchId: integer("branchId"),
+  color: text("color").default("#3b82f6").notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const lockers = pgTable("lockers", {
+  id: serial("id").primaryKey(),
+  lockerNumber: text("lockerNumber").notNull(),
+  branchId: integer("branchId"),
+  categoryId: integer("categoryId"),
+  memberId: integer("memberId"),
+  memberName: text("memberName"),
+  memberPhone: text("memberPhone"),
+  lockerType: text("lockerType").default("personal").notNull(),
+  rentalType: text("rentalType"),
+  isOccupied: integer("isOccupied").default(0).notNull(),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  memo: text("memo"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const uniforms = pgTable("uniforms", {
+  id: serial("id").primaryKey(),
+  branchId: integer("branchId"),
+  memberId: integer("memberId"),
+  memberName: text("memberName"),
+  memberPhone: text("memberPhone"),
+  size: text("size"),
+  quantity: integer("quantity").default(1).notNull(),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  memo: text("memo"),
+  memberType: text("memberType"),       // 'new' | 'existing'
+  rentalType: text("rentalType"),       // 'service' | 'paid'
+  isPaid: integer("isPaid").default(0), // 1=결제완료, 0=미결제
+  paymentAmount: integer("paymentAmount").default(0), // 결제금액
+  isActive: integer("isActive").default(1).notNull(), // 1=착용중, 0=반납
+  paymentDate: text("paymentDate"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+export const accessLogs = pgTable("access_logs", {
+  id: serial("id").primaryKey(),
+  memberId: integer("memberId"),
+  memberName: text("memberName"),
+  phone: text("phone").notNull(),
+  branchId: integer("branchId"),
+  accessResult: text("accessResult").notNull(),
+  membershipType: text("membershipType"),
+  membershipEnd: text("membershipEnd"),
+  lockerNumber: text("lockerNumber"),
+  accessedAt: text("accessedAt").default(now).notNull(),
+});
+
+export const kioskBanners = pgTable("kiosk_banners", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body"),
+  imageUrl: text("imageUrl"),
+  bgColor: text("bgColor").default("#1a3a6e").notNull(),
+  textColor: text("textColor").default("#ffffff").notNull(),
+  isActive: integer("isActive").default(1).notNull(),
+  sortOrder: integer("sortOrder").default(0).notNull(),
+  startDate: text("startDate"),
+  endDate: text("endDate"),
+  textAlign: text("textAlign").default("center"),
+  textVAlign: text("textVAlign").default("center"),
+  titleFontSize: integer("titleFontSize").default(22),
+  bodyFontSize: integer("bodyFontSize").default(15),
+  branchId: integer("branchId"),
+  imageData: text("imageData"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+// ZIANTGYM+ 회원앱 테이블
 export const gymPlusMembers = pgTable("gym_plus_members", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -254,8 +540,8 @@ export const gymPlusMembers = pgTable("gym_plus_members", {
   name: text("name").notNull(),
   phone: text("phone"),
   email: text("email"),
-  memberId: integer("memberId"), // 기존 members 테이블과 연결 (선택)
-  membershipType: text("membershipType").default("general").notNull(), // general, premium, vip
+  memberId: integer("memberId"),
+  membershipType: text("membershipType").default("general").notNull(),
   membershipStart: text("membershipStart"),
   membershipEnd: text("membershipEnd"),
   isActive: integer("isActive").default(1).notNull(),
@@ -263,7 +549,6 @@ export const gymPlusMembers = pgTable("gym_plus_members", {
   updatedAt: text("updatedAt").default(now).notNull(),
 });
 
-// 운동 영상 카테고리
 export const gymPlusVideoCategories = pgTable("gym_plus_video_categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -271,54 +556,129 @@ export const gymPlusVideoCategories = pgTable("gym_plus_video_categories", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
-// 운동 영상
 export const gymPlusVideos = pgTable("gym_plus_videos", {
   id: serial("id").primaryKey(),
   categoryId: integer("categoryId"),
   title: text("title").notNull(),
   description: text("description"),
-  videoUrl: text("videoUrl").notNull(), // YouTube URL or direct video URL
+  videoUrl: text("videoUrl").notNull(),
   thumbnailUrl: text("thumbnailUrl"),
-  duration: text("duration"), // "10:30"
-  level: text("level").default("beginner").notNull(), // beginner, intermediate, advanced
-  bodyPart: text("bodyPart"), // 운동 부위
+  duration: integer("duration"),
+  level: text("level").default("beginner"),
+  bodyPart: text("bodyPart"),
   isPublished: integer("isPublished").default(1).notNull(),
   sortOrder: integer("sortOrder").default(0).notNull(),
   createdAt: text("createdAt").default(now).notNull(),
-  updatedAt: text("updatedAt").default(now).notNull(),
 });
 
-// 이벤트/공지
 export const gymPlusEvents = pgTable("gym_plus_events", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   content: text("content").notNull(),
   imageUrl: text("imageUrl"),
-  eventType: text("eventType").default("notice").notNull(), // notice, event, promotion
+  eventType: text("eventType").default("notice"),
   startDate: text("startDate"),
   endDate: text("endDate"),
   isPublished: integer("isPublished").default(1).notNull(),
   isPinned: integer("isPinned").default(0).notNull(),
   createdAt: text("createdAt").default(now).notNull(),
-  updatedAt: text("updatedAt").default(now).notNull(),
 });
 
-// 회원 운동 기록
 export const gymPlusWorkoutLogs = pgTable("gym_plus_workout_logs", {
   id: serial("id").primaryKey(),
   gymPlusMemberId: integer("gymPlusMemberId").notNull(),
   logDate: text("logDate").notNull(),
-  title: text("title"),
-  exercisesJson: text("exercisesJson"), // [{name, sets:[{reps,weight}]}]
-  bodyPartsJson: text("bodyPartsJson"), // ["등","가슴",...]
-  conditionScore: integer("conditionScore"), // 1~5
-  sleepHours: text("sleepHours"), // "4h↓","5h",...,"9h+"
-  energyLevel: text("energyLevel"), // "높음","보통","낮음"
+  title: text("title").notNull(),
+  exercisesJson: text("exercisesJson"),
   durationMinutes: integer("durationMinutes"),
   caloriesBurned: integer("caloriesBurned"),
   bodyWeight: text("bodyWeight"),
   notes: text("notes"),
-  mood: text("mood"), // legacy
+  mood: text("mood"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusMessages = pgTable("gym_plus_messages", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  senderName: text("senderName").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  isRead: integer("isRead").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusPushSubscriptions = pgTable("gym_plus_push_subscriptions", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  status: text("status").default("pending").notNull(), // pending | approved | rejected
+  memo: text("memo"),           // 회원 메모
+  adminNote: text("adminNote"), // 관리자 메모
+  requestedAt: text("requestedAt").notNull(),
+  processedAt: text("processedAt"),
+  newMembershipEnd: text("newMembershipEnd"), // 승인 시 연장된 만료일
+});
+
+// 양도양수 계약서
+export const transferContracts = pgTable("transfer_contracts", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  status: text("status").default("pending_transferor").notNull(),
+  // pending_transferor → pending_transferee → completed / cancelled
+  transferorMemberId: integer("transferorMemberId").notNull(),
+  transferorName: text("transferorName").notNull(),
+  transferorPhone: text("transferorPhone"),
+  transferorSignature: text("transferorSignature"),
+  transferorSignedAt: text("transferorSignedAt"),
+  transfereeMemberId: integer("transfereeMemberId"),
+  transfereeName: text("transfereeName"),
+  transfereePhone: text("transfereePhone"),
+  transfereeBirthDate: text("transfereeBirthDate"),
+  transfereeSignature: text("transfereeSignature"),
+  transfereeSignedAt: text("transfereeSignedAt"),
+  itemType: text("itemType").notNull(), // pt_package | membership | uniform | locker
+  itemId: integer("itemId"),
+  itemDescription: text("itemDescription").notNull(),
+  termsSnapshot: text("termsSnapshot"),
+  createdAt: text("createdAt").default(now).notNull(),
+  completedAt: text("completedAt"),
+});
+
+// 양도약관 (편집 가능)
+export const transferTerms = pgTable("transfer_terms", {
+  id: serial("id").primaryKey(),
+  content: text("content").notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
+});
+
+// 컨설턴트 월간 데이터 기록
+export const consultantRecords = pgTable("consultant_records", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  branchId: integer("branchId"),
+  createdBy: integer("createdBy"),
+  // 마케팅 콘텐츠
+  blogPosts: integer("blogPosts").default(0),
+  instagramPosts: integer("instagramPosts").default(0),
+  youtubeVideos: integer("youtubeVideos").default(0),
+  offlineEvents: integer("offlineEvents").default(0),
+  referralCount: integer("referralCount").default(0),
+  snsFollowers: integer("snsFollowers"),
+  adSpend: integer("adSpend").default(0),
+  // 운영
+  churnCount: integer("churnCount").default(0),
+  churnReasons: text("churnReasons"),  // JSON 배열 문자열
+  memo: text("memo"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });

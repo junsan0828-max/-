@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
   AreaChart, Area, LineChart, Line,
 } from "recharts";
-import ExerciseEditor, { type Exercise } from "@/components/ExerciseEditor";
+import ExerciseEditor, { type Exercise, parseExercisesJson } from "@/components/ExerciseEditor";
 import BodyPartPicker from "@/components/BodyPartPicker";
 
 const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
@@ -384,9 +384,25 @@ function TrainerDashboard() {
   const { data: chartData } = trpc.dashboard.getMonthlyChart.useQuery();
   const { data: revenueData } = trpc.dashboard.getMonthlyRevenue.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
+  const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
 
   const [journalOpen, setJournalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
+
+  const { data: memberSessionLogs } = trpc.pt.sessionLogs.useQuery(
+    { memberId: selectedMember?.id ?? 0 },
+    { enabled: !!selectedMember }
+  );
+  const exerciseSuggestions = useMemo(() => {
+    if (!memberSessionLogs) return [];
+    const names = new Set<string>();
+    memberSessionLogs.forEach((log: any) => {
+      parseExercisesJson(log.exercisesJson).forEach((ex: any) => {
+        if (ex.name.trim()) names.add(ex.name.trim());
+      });
+    });
+    return Array.from(names);
+  }, [memberSessionLogs]);
   const [journalForm, setJournalForm] = useState<{
     sessionDate: string; exerciseType: string; bodyPart: string;
     notes: string; exercises: Exercise[];
@@ -398,6 +414,7 @@ function TrainerDashboard() {
     exercises: [] as Exercise[],
   });
 
+  const sessionSubmittingRef = useRef(false);
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onSuccess: (data) => {
       toast.success(`${selectedMember?.name} 수업 기록 완료! 잔여 ${data.remaining}회`);
@@ -405,11 +422,19 @@ function TrainerDashboard() {
       utils.dashboard.getStats.invalidate();
     },
     onError: (err) => toast.error(err.message || "기록 실패"),
+    onSettled: () => { sessionSubmittingRef.current = false; },
   });
   const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
   const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
+  const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 8 });
+  const [monthExpiringOpen, setMonthExpiringOpen] = useState(false);
+
+  const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
+    onSuccess: () => refetchMonthExpiring(),
+    onError: (e) => toast.error(e.message),
+  });
 
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [reregisterOpen, setReregisterOpen] = useState(false);
@@ -417,7 +442,7 @@ function TrainerDashboard() {
   const [reregForm, setReregForm] = useState({
     ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
     paymentAmount: "", unpaidAmount: "", paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
-    paymentMemo: "",
+    paymentMemo: "", serviceSessions: "", serviceSessionPrice: "",
   });
 
   const addPackageMutation = trpc.pt.addPackage.useMutation({
@@ -425,7 +450,7 @@ function TrainerDashboard() {
       toast.success("재등록 완료");
       setReregisterOpen(false);
       setReregMemberId("");
-      setReregForm({ ptProgram: "", totalSessions: "", startDate: "", expiryDate: "", paymentAmount: "", unpaidAmount: "", paymentMethod: "", paymentMemo: "" });
+      setReregForm({ ptProgram: "", totalSessions: "", startDate: "", expiryDate: "", paymentAmount: "", unpaidAmount: "", paymentMethod: "", paymentMemo: "", serviceSessions: "", serviceSessionPrice: "" });
       utils.dashboard.getStats.invalidate();
       utils.pt.list.invalidate();
       utils.pt.listByMember.invalidate();
@@ -450,10 +475,11 @@ function TrainerDashboard() {
   const today = new Date();
 
   const alertItems = [
-    expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" } : null,
-    unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30" } : null,
-    longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30" } : null,
-  ].filter(Boolean) as { label: string; color: string }[];
+    expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30", onClick: undefined } : null,
+    unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30", onClick: undefined } : null,
+    longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30", onClick: undefined } : null,
+    monthExpiring?.length ? { label: `이번달 마감 ${monthExpiring.length}명`, color: "bg-purple-500/20 text-purple-400 border-purple-500/30", onClick: () => setMonthExpiringOpen(true) } : null,
+  ].filter(Boolean) as { label: string; color: string; onClick?: () => void }[];
 
   return (
     <div className="space-y-6">
@@ -462,18 +488,21 @@ function TrainerDashboard() {
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
         </div>
-        <Button size="sm" onClick={() => setRegisterModalOpen(true)} className="gap-1.5">
-          <UserPlus className="h-4 w-4" />회원 등록
-        </Button>
       </div>
 
       {/* 알림 뱃지 */}
       {alertItems.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {alertItems.map((item) => (
-            <span key={item.label} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color}`}>
-              ⚠ {item.label}
-            </span>
+            item.onClick ? (
+              <button key={item.label} onClick={item.onClick} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color} hover:opacity-80 transition-opacity`}>
+                ⚠ {item.label}
+              </button>
+            ) : (
+              <span key={item.label} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color}`}>
+                ⚠ {item.label}
+              </span>
+            )
           ))}
         </div>
       )}
@@ -483,7 +512,7 @@ function TrainerDashboard() {
           { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", onClick: () => setLocation("/members") },
           { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", onClick: () => setLocation("/members") },
           { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", onClick: () => setTodayModalOpen(true) },
-          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
+          { label: "이번달 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
         ].map((card) => (
           <button key={card.label} onClick={card.onClick} className="text-left">
             <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
@@ -728,7 +757,7 @@ function TrainerDashboard() {
                 <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">{m.name.charAt(0)}</div>
                 <div>
                   <p className="text-sm font-medium">{m.name}</p>
-                  {m.membershipEnd && <p className="text-xs text-muted-foreground">{m.membershipEnd} 만료</p>}
+                  {m.membershipEnd && <p className="text-xs text-muted-foreground">{m.membershipEnd} 종료</p>}
                 </div>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-primary border border-primary/30 rounded-full px-2.5 py-1 bg-primary/10">
@@ -771,6 +800,7 @@ function TrainerDashboard() {
               <ExerciseEditor
                 exercises={journalForm.exercises}
                 onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))}
+                suggestions={exerciseSuggestions}
               />
             </div>
             <div className="space-y-1.5">
@@ -781,7 +811,8 @@ function TrainerDashboard() {
               <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
               <Button className="flex-1" disabled={useSessionMutation.isPending}
                 onClick={() => {
-                  if (!selectedMember) return;
+                  if (!selectedMember || sessionSubmittingRef.current) return;
+                  sessionSubmittingRef.current = true;
                   useSessionMutation.mutate({
                     memberId: selectedMember.id,
                     sessionDate: journalForm.sessionDate,
@@ -940,11 +971,30 @@ function TrainerDashboard() {
               <div className="flex gap-1.5 flex-wrap">
                 {["케어피티", "웨이트피티", "이벤트피티"].map(preset => (
                   <button key={preset} type="button"
-                    onClick={() => setReregForm(p => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset }))}
+                    onClick={() => setReregForm(p => ({ ...p, ptProgram: p.ptProgram === preset ? "" : preset, serviceSessions: "", serviceSessionPrice: "" }))}
                     className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${reregForm.ptProgram === preset ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
                   >{preset}</button>
                 ))}
               </div>
+              {reregForm.ptProgram === "이벤트피티" && (
+                <div className="mt-1.5">
+                  <select
+                    className="w-full h-9 rounded-lg px-3 text-sm text-foreground focus:outline-none"
+                    defaultValue=""
+                    onChange={e => {
+                      const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
+                      if (ev) setReregForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0) }));
+                    }}>
+                    <option value="" disabled>이벤트 선택...</option>
+                    {(ptEvents ?? []).map((ev: any) => (
+                      <option key={ev.id} value={String(ev.id)}>
+                        {ev.name} (적용: {(ev.applicableSessions || String(ev.sessions)).split(",").map((s: string) => `${s}회`).join("·")}, 서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
+                      </option>
+                    ))}
+                  </select>
+                  {(ptEvents ?? []).length === 0 && <p className="text-xs text-muted-foreground mt-1">현재 진행 중인 이벤트가 없습니다.</p>}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">총 세션 수 *</label>
@@ -1010,6 +1060,8 @@ function TrainerDashboard() {
                     unpaidAmount: reregForm.unpaidAmount ? Number(reregForm.unpaidAmount) : undefined,
                     paymentMethod: reregForm.paymentMethod || undefined,
                     paymentMemo: reregForm.paymentMemo || undefined,
+                    serviceSessions: reregForm.serviceSessions ? Number(reregForm.serviceSessions) : undefined,
+                    serviceSessionPrice: reregForm.serviceSessionPrice ? Number(reregForm.serviceSessionPrice) : undefined,
                   });
                 }}
               >
@@ -1019,6 +1071,60 @@ function TrainerDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 이번달 마감 임박 회원 모달 */}
+      {monthExpiringOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/70 flex items-end md:items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setMonthExpiringOpen(false)}>
+          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-md flex flex-col" style={{ maxHeight: 'calc(80svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <div>
+                <h2 className="font-semibold text-foreground">이번달 마감 임박</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">잔여 8회 이하 회원 {monthExpiring?.length ?? 0}명</p>
+              </div>
+              <button onClick={() => setMonthExpiringOpen(false)} className="text-muted-foreground hover:text-foreground p-1">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {!monthExpiring?.length ? (
+                <p className="text-center text-sm text-muted-foreground py-8">마감 임박 회원이 없습니다.</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {monthExpiring.map((m) => (
+                    <div key={m.id} className="px-4 py-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-foreground">{m.name}</span>
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${m.remaining <= 3 ? "bg-red-500/20 text-red-400" : m.remaining <= 5 ? "bg-orange-500/20 text-orange-400" : "bg-purple-500/20 text-purple-400"}`}>
+                            잔여 {m.remaining}회
+                          </span>
+                        </div>
+                        {m.renewalIntent && (
+                          <span className={`text-[11px] mt-0.5 inline-block ${m.renewalIntent === "재등록예정" ? "text-emerald-400" : "text-red-400"}`}>
+                            {m.renewalIntent === "재등록예정" ? "✔ 재등록 예정" : "✘ 이탈 예정"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "재등록예정" ? null : "재등록예정" })}
+                          className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "재등록예정" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"}`}
+                        >
+                          재등록
+                        </button>
+                        <button
+                          onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "이탈예정" ? null : "이탈예정" })}
+                          className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "이탈예정" ? "bg-red-500/20 text-red-400 border-red-500/30" : "border-border text-muted-foreground hover:border-red-500/50 hover:text-red-400"}`}
+                        >
+                          이탈
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1038,6 +1144,6 @@ function LoadingSkeleton() {
 
 export default function Dashboard() {
   const { data: user } = trpc.auth.me.useQuery();
-  if (user?.role === "admin") return <AdminDashboard />;
+  if (user?.role === "admin" || user?.role === "sub_admin") return <AdminDashboard />;
   return <TrainerDashboard />;
 }

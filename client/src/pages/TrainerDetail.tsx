@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, ChevronLeft, UserPlus, Edit, KeyRound, BarChart3, AtSign } from "lucide-react";
+import { ArrowLeft, Settings, Phone, Mail, Users, ChevronRight, ChevronLeft, UserPlus, Edit, KeyRound, BarChart3, AtSign, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { trpc as trpcHook } from "@/lib/trpc";
 
@@ -57,8 +57,18 @@ export default function TrainerDetail({ trainerId }: Props) {
 
   const trainerQuery = trpc.trainers.getById.useQuery({ id: trainerId });
   const { data: memberList } = trpc.admin.getMembersByTrainer.useQuery({ trainerId });
-  const { data: settlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
+  const { data: settlement, refetch: refetchSettlement } = trpc.trainers.getMonthlySettlement.useQuery({ trainerId, yearMonth: settlementMonth });
+  const deleteLogMutation = trpc.pt.deleteLog.useMutation({
+    onSuccess: () => { toast.success("세션이 삭제되었습니다."); refetchSettlement(); },
+    onError: (err) => toast.error(err.message || "삭제 실패"),
+  });
   const { data: trainerStats } = trpc.trainers.getMyStats.useQuery({ trainerId });
+  const { data: expiringMembers, refetch: refetchExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 8, trainerId });
+  const [expiringOpen, setExpiringOpen] = useState(false);
+  const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
+    onSuccess: () => refetchExpiring(),
+    onError: (e) => toast.error(e.message),
+  });
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const d = new Date();
@@ -545,8 +555,8 @@ export default function TrainerDetail({ trainerId }: Props) {
           {settlement?.logs && settlement.logs.length > 0 ? (
             <div className="space-y-0">
               {settlement.logs.map((log) => (
-                <div key={log.id} className="flex items-center justify-between text-xs py-2 border-b border-border last:border-0">
-                  <div className="flex items-center gap-2 min-w-0">
+                <div key={log.id} className="flex items-center gap-2 text-xs py-2 border-b border-border last:border-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="text-muted-foreground shrink-0">
                       {format(new Date(log.sessionDate), "MM.dd (EEE)", { locale: ko })}
                     </span>
@@ -555,9 +565,18 @@ export default function TrainerDetail({ trainerId }: Props) {
                       <span className="text-muted-foreground truncate">· {log.packageName}</span>
                     )}
                   </div>
-                  <span className="font-medium text-primary shrink-0 ml-2">
-                    {log.pricePerSession ? `${log.pricePerSession.toLocaleString()}원` : "-"}
+                  <span className="font-medium text-primary shrink-0">
+                    {log.effectivePrice ? `${log.effectivePrice.toLocaleString()}원` : "-"}
                   </span>
+                  <button
+                    className="shrink-0 p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    onClick={() => {
+                      if (!confirm(`${log.memberName ?? "이 회원"}의 ${log.sessionDate} 세션을 삭제할까요?`)) return;
+                      deleteLogMutation.mutate({ id: log.id });
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -566,6 +585,59 @@ export default function TrainerDetail({ trainerId }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* 이번달 마감 임박 */}
+      {expiringMembers && expiringMembers.length > 0 && (
+        <Card className="bg-card border-purple-500/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2 text-purple-400">
+                <span className="text-base">⚠</span> 이번달 마감 임박
+              </span>
+              <button onClick={() => setExpiringOpen(!expiringOpen)} className="text-xs text-muted-foreground hover:text-foreground">
+                {expiringOpen ? "접기" : `${expiringMembers.length}명 보기`}
+              </button>
+            </CardTitle>
+          </CardHeader>
+          {expiringOpen && (
+            <CardContent className="pt-0">
+              <div className="divide-y divide-border">
+                {expiringMembers.map((m) => (
+                  <div key={m.id} className="py-2.5 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">{m.name}</span>
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${m.remaining <= 3 ? "bg-red-500/20 text-red-400" : m.remaining <= 5 ? "bg-orange-500/20 text-orange-400" : "bg-purple-500/20 text-purple-400"}`}>
+                          잔여 {m.remaining}회
+                        </span>
+                      </div>
+                      {m.renewalIntent && (
+                        <span className={`text-[11px] ${m.renewalIntent === "재등록예정" ? "text-emerald-400" : "text-red-400"}`}>
+                          {m.renewalIntent === "재등록예정" ? "✔ 재등록 예정" : "✘ 이탈 예정"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      <button
+                        onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "재등록예정" ? null : "재등록예정" })}
+                        className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "재등록예정" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"}`}
+                      >
+                        재등록
+                      </button>
+                      <button
+                        onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "이탈예정" ? null : "이탈예정" })}
+                        className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "이탈예정" ? "bg-red-500/20 text-red-400 border-red-500/30" : "border-border text-muted-foreground hover:border-red-500/50 hover:text-red-400"}`}
+                      >
+                        이탈
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* 담당 회원 목록 */}
       <Card className="bg-card border-border">
@@ -585,10 +657,13 @@ export default function TrainerDetail({ trainerId }: Props) {
               const daysLeft = m.membershipEnd ? differenceInDays(new Date(m.membershipEnd), today) : null;
               const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
               return (
-                <button
+                <div
                   key={m.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setLocation(`/members/${m.id}`)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left"
+                  onKeyDown={(e) => e.key === "Enter" && setLocation(`/members/${m.id}`)}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
@@ -617,19 +692,20 @@ export default function TrainerDetail({ trainerId }: Props) {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {m.membershipEnd
-                          ? `만료 ${format(new Date(m.membershipEnd), "yyyy.MM.dd", { locale: ko })}`
-                          : "만료일 없음"}
+                          ? `종료 ${format(new Date(m.membershipEnd), "yyyy.MM.dd", { locale: ko })}`
+                          : "종료일 없음"}
                         {m.remainingPt > 0 && ` · PT ${m.remainingPt}회`}
                       </p>
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
-                </button>
+                </div>
               );
             })
           )}
         </CardContent>
       </Card>
+
     </div>
   );
 }

@@ -2,10 +2,11 @@
   "name": "ZIANTGYM+",
   "short_name": "ZIANTGYM+",
   "description": "ZIANTGYM+ 회원 전용 앱",
+  "id": "/gym-plus",
   "start_url": "/gym-plus",
   "scope": "/gym-plus",
   "display": "standalone",
-  "background_color": "#09090b",
+  "background_color": "#ffffff",
   "theme_color": "#6366f1",
   "orientation": "portrait",
   "icons": [

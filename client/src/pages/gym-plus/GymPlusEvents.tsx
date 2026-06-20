@@ -62,14 +62,14 @@ export default function GymPlusEvents() {
               onClick={() => navigate(`/gym-plus/events/${e.id}`)}
             >
               <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${eventTypeStyle[e.eventType] ?? "bg-muted"}`}>
-                  {eventTypeEmoji[e.eventType] ?? "📌"}
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted"}`}>
+                  {eventTypeEmoji[e.eventType ?? "notice"] ?? "📌"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     {e.isPinned ? <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">📌 고정</span> : null}
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${eventTypeStyle[e.eventType] ?? "bg-muted text-muted-foreground"}`}>
-                      {eventTypeLabel[e.eventType] ?? e.eventType}
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
+                      {eventTypeLabel[e.eventType ?? "notice"] ?? e.eventType}
                     </span>
                   </div>
                   <p className="font-semibold text-sm leading-snug line-clamp-2">{e.title}</p>
