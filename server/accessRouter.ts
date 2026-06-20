@@ -809,10 +809,13 @@ export const accessRouter = t.router({
         db.select().from(lockers).where(eq(lockers.memberId, input.memberId)),
         db.select().from(uniforms).where(eq(uniforms.memberId, input.memberId)),
         pool.query(
-          `SELECT id, type, "subType", amount, "paidAmount", "unpaidAmount", "paymentDate", memo, "programDetail", "startDate", "endDate", "serviceSessions", "serviceHealthDuration", "createdAt", "serviceItems", duration
-           FROM revenue_entries
-           WHERE "memberId" = $1
-           ORDER BY "createdAt" DESC`,
+          `SELECT r.id, r.type, r."subType", r.amount, r."paidAmount", r."unpaidAmount", r."paymentDate",
+                  r.memo, r."programDetail", r."startDate", r."endDate", r."serviceSessions",
+                  r."serviceHealthDuration", r."createdAt", r."serviceItems", r.duration
+           FROM revenue_entries r
+           WHERE r."memberId" = $1
+              OR r."customerName" = (SELECT name FROM members WHERE id = $1 LIMIT 1)
+           ORDER BY r."createdAt" DESC`,
           [input.memberId]
         ),
       ]);
