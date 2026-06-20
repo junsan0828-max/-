@@ -1621,8 +1621,8 @@ export default function MemberDetail({ memberId }: Props) {
                             </div>
                           </div>
                         )}
-                        {/* serviceItems 기반 헬스 서비스 */}
-                        {siHealth.map(item => (
+                        {/* serviceItems 기반 헬스 서비스 (healthRevs에 속하지 않는 항목만: PT 등록 서비스 헬스 등) */}
+                        {siHealth.filter(item => !healthRevs.some(r => r.id === item.fromEntry)).map(item => (
                           <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.헬스.faint} border ${SERVICE_COLORS.헬스.border}`}>
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-foreground">{item.detail}</p>
@@ -1635,12 +1635,20 @@ export default function MemberDetail({ memberId }: Props) {
                         {/* 결제 기록 기반 헬스권 */}
                         {healthRevs.map(r => {
                           const isService = r.paidAmount === 0;
+                          const svcHealthMatch = (r.serviceItems ?? "").match(/헬스\((\d+)일\)/);
                           return (
                             <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium text-sm text-foreground">헬스권</p>
+                                <p className="font-medium text-sm text-foreground">
+                                  헬스권{(r as any).duration ? ` ${(r as any).duration}개월` : ""}
+                                </p>
                                 {r.subType && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">{r.subType}</span>}
                                 {isService && <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>서비스</span>}
+                                {svcHealthMatch && (
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${SERVICE_COLORS.헬스.bg} ${SERVICE_COLORS.헬스.text} ${SERVICE_COLORS.헬스.border}`}>
+                                    +서비스 {svcHealthMatch[1]}일
+                                  </span>
+                                )}
                               </div>
                               <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                 {(r.startDate || r.endDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {r.endDate ?? "-"}</div>}
