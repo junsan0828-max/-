@@ -815,7 +815,12 @@ export const accessRouter = t.router({
                   r."memberId", r."customerName"
            FROM revenue_entries r
            WHERE r."memberId" = $1
-              OR r."customerName" = (SELECT name FROM members WHERE id = $1 LIMIT 1)
+              OR TRIM(LOWER(COALESCE(r."customerName",''))) = TRIM(LOWER(COALESCE((SELECT name FROM members WHERE id = $1 LIMIT 1),''))) AND r."customerName" IS NOT NULL
+              OR (
+                r."phone" IS NOT NULL AND r."phone" != ''
+                AND (SELECT phone FROM members WHERE id = $1 AND phone IS NOT NULL LIMIT 1) IS NOT NULL
+                AND r."phone" = (SELECT phone FROM members WHERE id = $1 AND phone IS NOT NULL LIMIT 1)
+              )
            ORDER BY r."createdAt" DESC`,
           [input.memberId]
         ).then(result => {
