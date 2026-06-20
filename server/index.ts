@@ -848,6 +848,57 @@ async function initDatabase() {
     console.error("헬스 매출 회원 자동 연결 오류:", e);
   }
 
+  // ── 헬스 매출 중 customerName이 NULL인 항목 → 연결된 회원 이름으로 보정 ───
+  try {
+    const fixed = await pool.query(
+      `UPDATE revenue_entries r
+       SET "customerName" = m.name
+       FROM members m
+       WHERE r."memberId" = m.id
+         AND r.type = '헬스'
+         AND r."customerName" IS NULL
+       RETURNING r.id, m.name`
+    );
+    if (fixed.rowCount && fixed.rowCount > 0) {
+      console.log(`✅ 헬스 매출 customerName 보정 ${fixed.rowCount}건:`, fixed.rows.map((r: any) => `id=${r.id}(${r.name})`).join(", "));
+    }
+  } catch (e) {
+    console.error("헬스 매출 customerName 보정 오류:", e);
+  }
+
+  // ── 헬스 매출 중 다른 회원(중복)에 연결된 항목 → 올바른 회원으로 재연결 ──
+  try {
+    // customerName이 있으나, memberId가 가리키는 회원 이름과 다른 경우 재연결
+    const mismatchedHealth = await pool.query<{
+      id: number; customerName: string; memberId: number; phone: string | null;
+    }>(
+      `SELECT r.id, r."customerName", r."memberId", r.phone
+       FROM revenue_entries r
+       JOIN members m ON m.id = r."memberId"
+       WHERE r.type = '헬스'
+         AND r."customerName" IS NOT NULL
+         AND TRIM(r."customerName") != TRIM(m.name)`
+    );
+    for (const entry of mismatchedHealth.rows) {
+      const { rows: matched } = await pool.query<{ id: number }>(
+        `SELECT id FROM members
+         WHERE TRIM(name) = TRIM($1)
+         ORDER BY "membershipEnd" DESC NULLS LAST, id ASC
+         LIMIT 1`,
+        [entry.customerName]
+      );
+      if (matched[0] && matched[0].id !== entry.memberId) {
+        await pool.query(
+          `UPDATE revenue_entries SET "memberId" = $1 WHERE id = $2`,
+          [matched[0].id, entry.id]
+        );
+        console.log(`✅ 헬스 매출 id=${entry.id} 재연결 → 회원 id=${matched[0].id} (${entry.customerName})`);
+      }
+    }
+  } catch (e) {
+    console.error("헬스 매출 잘못 연결된 항목 재연결 오류:", e);
+  }
+
   // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
   try {
     const ptRevs = await db
