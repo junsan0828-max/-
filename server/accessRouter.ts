@@ -810,9 +810,13 @@ export const accessRouter = t.router({
         db.select().from(uniforms).where(eq(uniforms.memberId, input.memberId)),
         pool.query(
           `SELECT r.id, r.type, r."subType", r.amount, r."paidAmount", r."unpaidAmount", r."paymentDate",
-                  r.memo, r."programDetail", r."startDate", r."endDate", r."serviceSessions",
+                  r.memo, r."programDetail", r."startDate", r."serviceSessions",
                   r."serviceHealthDuration", r."createdAt", r."serviceItems", r.duration,
-                  r."memberId", r."customerName"
+                  r."memberId", r."customerName",
+                  CASE WHEN r."startDate" IS NOT NULL AND r.duration IS NOT NULL AND r.duration > 0
+                       THEN (r."startDate"::date + (r.duration || ' months')::interval)::date::text
+                       ELSE NULL
+                  END AS "endDate"
            FROM revenue_entries r
            WHERE r."memberId" = $1
               OR (r."customerName" IS NOT NULL AND r."customerName" = (SELECT name FROM members WHERE id = $1 LIMIT 1))
