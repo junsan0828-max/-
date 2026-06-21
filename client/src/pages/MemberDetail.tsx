@@ -1526,7 +1526,8 @@ export default function MemberDetail({ memberId }: Props) {
             const lockerInTable = (memberPrograms?.lockers ?? []).some(
               (l) => l.lockerNumber === badgeLockerNum
             );
-            const lockerMismatch = memberPrograms !== undefined && !!badgeLockerNum && !lockerInTable;
+            // "서비스"는 번호 없는 폴백값이므로 mismatch 대상에서 제외
+            const lockerMismatch = memberPrograms !== undefined && !!badgeLockerNum && badgeLockerNum !== "서비스" && !lockerInTable;
             const uniformMismatch = !!memberPrograms && badgeHasUniform && !hasUniform;
 
             return (
@@ -1636,6 +1637,10 @@ export default function MemberDetail({ memberId }: Props) {
                         {healthRevs.map(r => {
                           const isService = r.paidAmount === 0;
                           const svcHealthMatch = (r.serviceItems ?? "").match(/헬스\((\d+)일\)/);
+                          const svcDays = svcHealthMatch ? parseInt(svcHealthMatch[1]) : 0;
+                          const displayEndDate = r.endDate && svcDays > 0
+                            ? new Date(new Date(r.endDate).getTime() + svcDays * 86400000).toISOString().split("T")[0]
+                            : r.endDate;
                           return (
                             <div key={r.id} className="p-3 rounded-lg bg-accent/20 border border-border">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -1651,7 +1656,7 @@ export default function MemberDetail({ memberId }: Props) {
                                 )}
                               </div>
                               <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                {(r.startDate || r.endDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {r.endDate ?? "-"}</div>}
+                                {(r.startDate || displayEndDate) && <div className="col-span-2">{r.startDate ?? "-"} ~ {displayEndDate ?? "-"}</div>}
                                 <div>결제 <span className="text-foreground font-medium">{(r.amount ?? r.paidAmount).toLocaleString()}원</span></div>
                                 {r.unpaidAmount > 0 && <div>미수금 <span className="text-orange-400 font-medium">{r.unpaidAmount.toLocaleString()}원</span></div>}
                                 {r.programDetail && <div className="col-span-2">{r.programDetail}</div>}
