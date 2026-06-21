@@ -805,8 +805,19 @@ export const accessRouter = t.router({
     .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const memberName = await pool.query<{ name: string }>(
+        `SELECT name FROM members WHERE id = $1 LIMIT 1`,
+        [input.memberId]
+      ).then(r => r.rows[0]?.name ?? null);
+
       const [memberLockers, memberUniforms, healthRevenues] = await Promise.all([
-        db.select().from(lockers).where(eq(lockers.memberId, input.memberId)),
+        pool.query(
+          `SELECT * FROM lockers
+           WHERE "memberId" = $1
+              OR ("memberName" IS NOT NULL AND "memberName" = $2)
+           ORDER BY "createdAt" ASC`,
+          [input.memberId, memberName]
+        ).then(r => r.rows as (typeof lockers.$inferSelect)[]),
         db.select().from(uniforms).where(eq(uniforms.memberId, input.memberId)),
         pool.query(
           `SELECT r.id, r.type, r."subType", r.amount, r."paidAmount", r."unpaidAmount", r."paymentDate",
