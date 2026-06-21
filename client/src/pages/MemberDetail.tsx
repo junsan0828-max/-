@@ -1760,8 +1760,8 @@ export default function MemberDetail({ memberId }: Props) {
                       <p className="text-muted-foreground text-sm text-center py-6">배정된 락커가 없습니다.</p>
                     ) : (
                       <div className="space-y-3">
-                        {/* serviceItems/programDetail 기반 락커 서비스 */}
-                        {allLockerItems.map(item => (
+                        {/* serviceItems/programDetail 기반 락커 서비스 — lockers 테이블에 연동되면 숨김 */}
+                        {(memberPrograms?.lockers.length ?? 0) === 0 && allLockerItems.map(item => (
                           <div key={item.key} className={`p-3 rounded-lg ${SERVICE_COLORS.락커.faint} border ${SERVICE_COLORS.락커.border}`}>
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm text-foreground">{item.detail}</p>
