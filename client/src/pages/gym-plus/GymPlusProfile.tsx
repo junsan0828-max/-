@@ -246,6 +246,7 @@ export default function GymPlusProfile() {
   const utils = trpc.useUtils();
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
   const { data: health, refetch: refetchHealth } = trpc.gymPlus.getHealth.useQuery();
+  const [activeTab, setActiveTab] = useState<"service" | "info">("service");
 
   const [profileForm, setProfileForm] = useState({ name: "", phone: "", email: "" });
   const [profileEditing, setProfileEditing] = useState(false);
@@ -454,8 +455,31 @@ export default function GymPlusProfile() {
   const daysLeft = daysUntil(member?.membershipEnd);
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="font-bold text-lg">내 정보</h1>
+    <div className="space-y-0">
+      {/* 헤더 + 탭 */}
+      <div className="bg-white border-b border-gray-100 px-4 pt-4 pb-0">
+        <h1 className="font-bold text-lg text-[#1a2b4b] mb-3">인포데스크</h1>
+        <div className="flex gap-0">
+          {(["service", "info"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-2.5 text-[13px] font-semibold transition-colors border-b-2 ${
+                activeTab === tab
+                  ? "border-[#1D4ED8] text-[#1D4ED8]"
+                  : "border-transparent text-gray-400"
+              }`}
+            >
+              {tab === "service" ? "서비스 상품" : "내정보"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+
+      {/* ── 서비스 상품 탭 ── */}
+      {activeTab === "service" && (<>
 
       {/* 회원권 카드 */}
       <div className="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 rounded-2xl p-5 space-y-4">
@@ -510,6 +534,11 @@ export default function GymPlusProfile() {
           );
         })()}
       </div>
+
+      </>)}
+
+      {/* ── 내정보 탭 ── */}
+      {activeTab === "info" && (<>
 
       {/* 추천 운동 활성화 미션 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">
@@ -622,6 +651,10 @@ export default function GymPlusProfile() {
         )}
         {pwMsg && <p className={`text-xs mt-2 ${pwMsg.includes("변경") ? "text-green-400" : "text-red-400"}`}>{pwMsg}</p>}
       </div>
+
+      </>)}
+
+      </div>{/* /p-4 */}
 
       {/* 센터 이용규정 모달 */}
       {showGymRules && (
