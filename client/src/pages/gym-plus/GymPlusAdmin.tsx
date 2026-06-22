@@ -478,7 +478,7 @@ export function GymPlusEventsAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
-    title: "", content: "", imageUrl: "",
+    title: "", content: "", imageUrl: "", linkUrl: "",
     eventType: "notice" as "notice" | "event" | "promotion",
     startDate: "", endDate: "", isPublished: "1", isPinned: "0",
   });
@@ -499,18 +499,18 @@ export function GymPlusEventsAdmin() {
   });
 
   function resetForm() {
-    setForm({ title: "", content: "", imageUrl: "", eventType: "notice", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
+    setForm({ title: "", content: "", imageUrl: "", linkUrl: "", eventType: "notice", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
   }
 
   function openEdit(e: any) {
-    setForm({ title: e.title, content: e.content, imageUrl: e.imageUrl ?? "", eventType: e.eventType, startDate: e.startDate ?? "", endDate: e.endDate ?? "", isPublished: e.isPublished.toString(), isPinned: e.isPinned.toString() });
+    setForm({ title: e.title, content: e.content, imageUrl: e.imageUrl ?? "", linkUrl: e.linkUrl ?? "", eventType: e.eventType, startDate: e.startDate ?? "", endDate: e.endDate ?? "", isPublished: e.isPublished.toString(), isPinned: e.isPinned.toString() });
     setEditingId(e.id);
     setShowForm(true);
   }
 
   function handleSubmit() {
     if (!form.title || !form.content) { toast.error("제목과 내용은 필수입니다."); return; }
-    const data = { ...form, isPublished: parseInt(form.isPublished), isPinned: parseInt(form.isPinned), startDate: form.startDate || undefined, endDate: form.endDate || undefined, imageUrl: form.imageUrl || undefined };
+    const data = { ...form, isPublished: parseInt(form.isPublished), isPinned: parseInt(form.isPinned), startDate: form.startDate || undefined, endDate: form.endDate || undefined, imageUrl: form.imageUrl || undefined, linkUrl: form.linkUrl || undefined };
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...data });
     } else {
@@ -574,6 +574,10 @@ export function GymPlusEventsAdmin() {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">이미지 URL</Label>
               <Input value={form.imageUrl} onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">링크 URL <span className="text-[10px] text-muted-foreground/60">(입력 시 클릭하면 해당 링크로 이동)</span></Label>
+              <Input value={form.linkUrl} onChange={(e) => setForm((p) => ({ ...p, linkUrl: e.target.value }))} placeholder="https://..." className="h-8 text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">

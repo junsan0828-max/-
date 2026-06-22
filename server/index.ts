@@ -375,6 +375,7 @@ async function initDatabase() {
     `ALTER TABLE gym_plus_member_health ADD COLUMN IF NOT EXISTS "gymRulesAgreed" INTEGER DEFAULT 0`,
     `ALTER TABLE gym_plus_member_health ADD COLUMN IF NOT EXISTS "appGuideConfirmed" INTEGER DEFAULT 0`,
     `ALTER TABLE gym_plus_member_health ADD COLUMN IF NOT EXISTS "parqJson" TEXT`,
+    `ALTER TABLE gym_plus_events ADD COLUMN IF NOT EXISTS "linkUrl" TEXT`,
     `CREATE TABLE IF NOT EXISTS gym_plus_membership_renewals (
       "id" SERIAL PRIMARY KEY,
       "gymPlusMemberId" INTEGER NOT NULL,

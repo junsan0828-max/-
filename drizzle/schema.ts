@@ -425,6 +425,7 @@ export const gymPlusEvents = pgTable("gym_plus_events", {
   title: text("title").notNull(),
   content: text("content").notNull(),
   imageUrl: text("imageUrl"),
+  linkUrl: text("linkUrl"),
   eventType: text("eventType").default("notice"),
   startDate: text("startDate"),
   endDate: text("endDate"),

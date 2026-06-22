@@ -59,7 +59,13 @@ export default function GymPlusEvents() {
               className={`bg-card border rounded-xl p-4 cursor-pointer hover:border-primary/50 transition-colors ${
                 e.isPinned ? "border-yellow-500/40 bg-yellow-500/5" : "border-border"
               }`}
-              onClick={() => navigate(`/gym-plus/events/${e.id}`)}
+              onClick={() => {
+                if (e.linkUrl) {
+                  window.open(e.linkUrl, "_blank", "noopener,noreferrer");
+                } else {
+                  navigate(`/gym-plus/events/${e.id}`);
+                }
+              }}
             >
               <div className="flex items-start gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted"}`}>
@@ -78,7 +84,12 @@ export default function GymPlusEvents() {
                       {e.startDate} ~ {e.endDate}
                     </p>
                   )}
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{e.createdAt?.slice(0, 10)}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-[10px] text-muted-foreground">{e.createdAt?.slice(0, 10)}</p>
+                    {e.linkUrl && (
+                      <span className="text-[9px] bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded-full font-medium">링크 →</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
