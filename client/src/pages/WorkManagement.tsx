@@ -648,6 +648,8 @@ export function DataFieldManagementSection() {
   const [newField, setNewField] = useState({ name: "", unit: "건" });
   const [editId, setEditId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState({ name: "", unit: "" });
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [descDraft, setDescDraft] = useState<Record<number, string>>({});
 
   const { data: fields } = trpc.consultantData.listFields.useQuery({ section });
 
@@ -725,39 +727,75 @@ export function DataFieldManagementSection() {
           <p className="text-sm text-muted-foreground text-center py-4">등록된 항목이 없습니다</p>
         ) : (
           fields.map((f: any) => (
-            <div key={f.id} className="bg-background border border-border rounded-xl px-3 py-2.5 flex items-center gap-2">
-              {editId === f.id ? (
-                <>
-                  <input value={editValues.name} onChange={e => setEditValues(v => ({ ...v, name: e.target.value }))}
-                    className="flex-1 bg-card border border-border rounded-lg px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                  <input value={editValues.unit} onChange={e => setEditValues(v => ({ ...v, unit: e.target.value }))}
-                    className="w-16 bg-card border border-border rounded-lg px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-                  <button onClick={() => updateMutation.mutate({ id: f.id, name: editValues.name, unit: editValues.unit })}
-                    className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors">
-                    <Check className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => setEditId(null)} className="p-1.5 text-muted-foreground hover:bg-accent rounded-lg transition-colors">
-                    <X className="h-4 w-4" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${f.isActive ? "bg-emerald-400" : "bg-muted-foreground/40"}`} />
-                  <span className="text-sm text-foreground flex-1 truncate">{f.name}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">{f.unit}</span>
-                  <button onClick={() => { setEditId(f.id); setEditValues({ name: f.name, unit: f.unit ?? "건" }); }}
-                    className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button onClick={() => updateMutation.mutate({ id: f.id, isActive: !f.isActive })}
-                    className={`text-xs px-2 py-1 rounded-md transition-colors ${f.isActive ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-muted text-muted-foreground hover:bg-accent"}`}>
-                    {f.isActive ? "활성" : "비활성"}
-                  </button>
-                  <button onClick={() => { if (confirm(`"${f.name}" 항목을 삭제하시겠습니까?\n입력된 데이터도 함께 삭제됩니다.`)) deleteMutation.mutate({ id: f.id }); }}
-                    className="p-1.5 text-red-400/70 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </>
+            <div key={f.id} className="bg-background border border-border rounded-xl overflow-hidden">
+              <div className="px-3 py-2.5 flex items-center gap-2">
+                {editId === f.id ? (
+                  <>
+                    <input value={editValues.name} onChange={e => setEditValues(v => ({ ...v, name: e.target.value }))}
+                      className="flex-1 bg-card border border-border rounded-lg px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={editValues.unit} onChange={e => setEditValues(v => ({ ...v, unit: e.target.value }))}
+                      className="w-16 bg-card border border-border rounded-lg px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    <button onClick={() => updateMutation.mutate({ id: f.id, name: editValues.name, unit: editValues.unit })}
+                      className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors">
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => setEditId(null)} className="p-1.5 text-muted-foreground hover:bg-accent rounded-lg transition-colors">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${f.isActive ? "bg-emerald-400" : "bg-muted-foreground/40"}`} />
+                    <button
+                      className="flex-1 text-left min-w-0"
+                      onClick={() => {
+                        setExpandedId(expandedId === f.id ? null : f.id);
+                        if (expandedId !== f.id) setDescDraft(d => ({ ...d, [f.id]: f.description ?? "" }));
+                      }}
+                    >
+                      <span className="text-sm text-foreground block truncate">{f.name}</span>
+                      {f.description && expandedId !== f.id && (
+                        <span className="text-xs text-muted-foreground/70 block truncate">{f.description}</span>
+                      )}
+                    </button>
+                    <span className="text-xs text-muted-foreground shrink-0">{f.unit}</span>
+                    <button onClick={() => { setEditId(f.id); setEditValues({ name: f.name, unit: f.unit ?? "건" }); }}
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => updateMutation.mutate({ id: f.id, isActive: !f.isActive })}
+                      className={`text-xs px-2 py-1 rounded-md transition-colors ${f.isActive ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-muted text-muted-foreground hover:bg-accent"}`}>
+                      {f.isActive ? "활성" : "비활성"}
+                    </button>
+                    <button onClick={() => { if (confirm(`"${f.name}" 항목을 삭제하시겠습니까?\n입력된 데이터도 함께 삭제됩니다.`)) deleteMutation.mutate({ id: f.id }); }}
+                      className="p-1.5 text-red-400/70 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+              {expandedId === f.id && editId !== f.id && (
+                <div className="border-t border-border px-3 py-3 bg-card/50 space-y-2">
+                  <textarea
+                    value={descDraft[f.id] ?? ""}
+                    onChange={e => setDescDraft(d => ({ ...d, [f.id]: e.target.value }))}
+                    placeholder="업무 설명, 가이드라인, 주의사항 등을 입력하세요"
+                    rows={4}
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setExpandedId(null)}
+                      className="px-3 py-1.5 text-xs text-muted-foreground border border-border rounded-lg hover:bg-accent transition-colors">
+                      닫기
+                    </button>
+                    <button
+                      onClick={() => updateMutation.mutate({ id: f.id, description: descDraft[f.id] ?? "" }, { onSuccess: () => setExpandedId(null) })}
+                      disabled={updateMutation.isPending}
+                      className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                      저장
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           ))

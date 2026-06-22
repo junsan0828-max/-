@@ -35,6 +35,7 @@ async function ensureTables() {
     );
   `);
   _tablesReady = true;
+  await pool.query(`ALTER TABLE consultant_data_fields ADD COLUMN IF NOT EXISTS description TEXT`);
 }
 
 export const consultantDataRouter = t.router({
@@ -87,6 +88,7 @@ export const consultantDataRouter = t.router({
       name: z.string().min(1).optional(),
       unit: z.string().optional(),
       isActive: z.boolean().optional(),
+      description: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!["admin", "sub_admin"].includes(ctx.user.role ?? ""))
@@ -97,6 +99,7 @@ export const consultantDataRouter = t.router({
       if (input.name !== undefined) { sets.push(`name = $${params.length + 1}`); params.push(input.name); }
       if (input.unit !== undefined) { sets.push(`unit = $${params.length + 1}`); params.push(input.unit); }
       if (input.isActive !== undefined) { sets.push(`"isActive" = $${params.length + 1}`); params.push(input.isActive); }
+      if (input.description !== undefined) { sets.push(`description = $${params.length + 1}`); params.push(input.description); }
       if (!sets.length) return { ok: true };
       params.push(input.id);
       await pool.query(`UPDATE consultant_data_fields SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
