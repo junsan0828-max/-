@@ -652,6 +652,7 @@ export function DataFieldManagementSection() {
   const [descDraft, setDescDraft] = useState<Record<number, string>>({});
 
   const { data: fields } = trpc.consultantData.listFields.useQuery({ section });
+  const { data: staffList } = trpc.consultantData.listStaff.useQuery();
 
   const createMutation = trpc.consultantData.createField.useMutation({
     onSuccess: () => {
@@ -750,12 +751,15 @@ export function DataFieldManagementSection() {
                       className="flex-1 text-left min-w-0"
                       onClick={() => {
                         setExpandedId(expandedId === f.id ? null : f.id);
-                        if (expandedId !== f.id) setDescDraft(d => ({ ...d, [f.id]: f.description ?? "" }));
+                        if (expandedId !== f.id) setDescDraft(d => ({ ...d, [f.id]: f.description ?? "", [`assignee_${f.id}`]: f.assignee ?? "" }));
                       }}
                     >
                       <span className="text-sm text-foreground block truncate">{f.name}</span>
-                      {f.description && expandedId !== f.id && (
-                        <span className="text-xs text-muted-foreground/70 block truncate">{f.description}</span>
+                      {(f.assignee || f.description) && expandedId !== f.id && (
+                        <span className="text-xs text-muted-foreground/70 block truncate">
+                          {f.assignee && <span className="text-blue-400/80">{f.assignee} · </span>}
+                          {f.description}
+                        </span>
                       )}
                     </button>
                     <span className="text-xs text-muted-foreground shrink-0">{f.unit}</span>
@@ -776,20 +780,40 @@ export function DataFieldManagementSection() {
               </div>
               {expandedId === f.id && editId !== f.id && (
                 <div className="border-t border-border px-3 py-3 bg-card/50 space-y-2">
-                  <textarea
-                    value={descDraft[f.id] ?? ""}
-                    onChange={e => setDescDraft(d => ({ ...d, [f.id]: e.target.value }))}
-                    placeholder="업무 설명, 가이드라인, 주의사항 등을 입력하세요"
-                    rows={4}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-                  />
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">담당자</label>
+                    <select
+                      value={descDraft[`assignee_${f.id}`] ?? f.assignee ?? ""}
+                      onChange={e => setDescDraft(d => ({ ...d, [`assignee_${f.id}`]: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">담당자 미지정</option>
+                      {(staffList ?? []).map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">설명</label>
+                    <textarea
+                      value={descDraft[f.id] ?? f.description ?? ""}
+                      onChange={e => setDescDraft(d => ({ ...d, [f.id]: e.target.value }))}
+                      placeholder="업무 설명, 가이드라인, 주의사항 등을 입력하세요"
+                      rows={4}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                    />
+                  </div>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setExpandedId(null)}
                       className="px-3 py-1.5 text-xs text-muted-foreground border border-border rounded-lg hover:bg-accent transition-colors">
                       닫기
                     </button>
                     <button
-                      onClick={() => updateMutation.mutate({ id: f.id, description: descDraft[f.id] ?? "" }, { onSuccess: () => setExpandedId(null) })}
+                      onClick={() => updateMutation.mutate({
+                        id: f.id,
+                        description: descDraft[f.id] ?? f.description ?? "",
+                        assignee: descDraft[`assignee_${f.id}`] ?? f.assignee ?? "",
+                      }, { onSuccess: () => setExpandedId(null) })}
                       disabled={updateMutation.isPending}
                       className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
                       저장

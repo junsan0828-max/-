@@ -36,9 +36,18 @@ async function ensureTables() {
   `);
   _tablesReady = true;
   await pool.query(`ALTER TABLE consultant_data_fields ADD COLUMN IF NOT EXISTS description TEXT`);
+  await pool.query(`ALTER TABLE consultant_data_fields ADD COLUMN IF NOT EXISTS assignee TEXT`);
 }
 
 export const consultantDataRouter = t.router({
+  // ── 담당자 후보 목록 (트레이너 이름) ─────────────────────────────────────
+  listStaff: protectedProcedure.query(async () => {
+    const result = await pool.query(
+      `SELECT id, "trainerName" as name FROM trainers ORDER BY "trainerName" ASC`
+    );
+    return result.rows as { id: number; name: string }[];
+  }),
+
   // ── 항목 목록 ────────────────────────────────────────────────────────────
   listFields: protectedProcedure
     .input(z.object({ section: z.enum(["daily", "weekly"]).optional() }))
@@ -89,6 +98,7 @@ export const consultantDataRouter = t.router({
       unit: z.string().optional(),
       isActive: z.boolean().optional(),
       description: z.string().optional(),
+      assignee: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (!["admin", "sub_admin"].includes(ctx.user.role ?? ""))
@@ -100,6 +110,7 @@ export const consultantDataRouter = t.router({
       if (input.unit !== undefined) { sets.push(`unit = $${params.length + 1}`); params.push(input.unit); }
       if (input.isActive !== undefined) { sets.push(`"isActive" = $${params.length + 1}`); params.push(input.isActive); }
       if (input.description !== undefined) { sets.push(`description = $${params.length + 1}`); params.push(input.description); }
+      if (input.assignee !== undefined) { sets.push(`assignee = $${params.length + 1}`); params.push(input.assignee); }
       if (!sets.length) return { ok: true };
       params.push(input.id);
       await pool.query(`UPDATE consultant_data_fields SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
