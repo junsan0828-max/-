@@ -110,17 +110,21 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
     step === "guide" ? (needsRules ? 2 : 1) :
     totalSteps;
 
-  async function handleRulesNext() {
-    await upsert.mutateAsync({ gymRulesAgreed: 1 });
+  function handleRulesNext() {
     if (needsGuide) setStep("guide");
     else if (needsParq) setStep("parq");
-    else onComplete();
+    else {
+      // rules only — save and complete
+      upsert.mutateAsync({ gymRulesAgreed: 1 }).then(onComplete);
+    }
   }
 
-  async function handleGuideNext() {
-    await upsert.mutateAsync({ appGuideConfirmed: 1 });
+  function handleGuideNext() {
     if (needsParq) setStep("parq");
-    else onComplete();
+    else {
+      // rules + guide but no parq — save and complete
+      upsert.mutateAsync({ gymRulesAgreed: 1, appGuideConfirmed: 1 }).then(onComplete);
+    }
   }
 
   async function handleParqSubmit() {
@@ -137,19 +141,25 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
     if (hasYes) {
       toast("의사와 상담 후 운동을 시작하시길 권장드립니다.", { duration: 5000 });
     }
-    await upsert.mutateAsync({
-      height,
-      weight,
-      parq1: parqAnswers[0],
-      parq2: parqAnswers[1],
-      parq3: parqAnswers[2],
-      parq4: parqAnswers[3],
-      parq5: parqAnswers[4],
-      parq6: parqAnswers[5],
-      parq7: parqAnswers[6],
-      parqSubmittedAt: new Date().toISOString().slice(0, 10),
-    });
-    onComplete();
+    try {
+      await upsert.mutateAsync({
+        gymRulesAgreed: needsRules ? 1 : undefined,
+        appGuideConfirmed: needsGuide ? 1 : undefined,
+        height,
+        weight,
+        parq1: parqAnswers[0],
+        parq2: parqAnswers[1],
+        parq3: parqAnswers[2],
+        parq4: parqAnswers[3],
+        parq5: parqAnswers[4],
+        parq6: parqAnswers[5],
+        parq7: parqAnswers[6],
+        parqSubmittedAt: new Date().toISOString().slice(0, 10),
+      });
+      onComplete();
+    } catch {
+      // error already shown via onError toast
+    }
   }
 
   return (
