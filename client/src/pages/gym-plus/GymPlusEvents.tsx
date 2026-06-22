@@ -61,7 +61,7 @@ export default function GymPlusEvents() {
               }`}
               onClick={() => {
                 if (e.linkUrl) {
-                  window.open(e.linkUrl, "_blank", "noopener,noreferrer");
+                  window.location.href = e.linkUrl;
                 } else {
                   navigate(`/gym-plus/events/${e.id}`);
                 }
