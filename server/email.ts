@@ -21,8 +21,8 @@ export async function sendPointClaimNotification({
   pointAmount: number;
   claimedAt: string;
 }) {
-  const to = process.env.ADMIN_EMAIL;
-  if (!to || !process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
+  const to = process.env.ADMIN_EMAIL ?? "junsan0828@gmail.com";
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
 
   await transporter.sendMail({
     from: `"ZIANTGYM+" <${process.env.GMAIL_USER}>`,
