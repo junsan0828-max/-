@@ -751,7 +751,7 @@ export function DataFieldManagementSection() {
                       className="flex-1 text-left min-w-0"
                       onClick={() => {
                         setExpandedId(expandedId === f.id ? null : f.id);
-                        if (expandedId !== f.id) setDescDraft(d => ({ ...d, [f.id]: f.description ?? "", [`assignee_${f.id}`]: f.assignee ?? "" }));
+                        if (expandedId !== f.id) setDescDraft(d => ({ ...d, [String(f.id)]: f.description ?? "", [`assignee_${f.id}`]: f.assignee ?? "" }));
                       }}
                     >
                       <span className="text-sm text-foreground block truncate">{f.name}</span>
@@ -796,8 +796,8 @@ export function DataFieldManagementSection() {
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">설명</label>
                     <textarea
-                      value={descDraft[f.id] ?? f.description ?? ""}
-                      onChange={e => setDescDraft(d => ({ ...d, [f.id]: e.target.value }))}
+                      value={descDraft[String(f.id)] ?? f.description ?? ""}
+                      onChange={e => setDescDraft(d => ({ ...d, [String(f.id)]: e.target.value }))}
                       placeholder="업무 설명, 가이드라인, 주의사항 등을 입력하세요"
                       rows={4}
                       className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
@@ -811,7 +811,7 @@ export function DataFieldManagementSection() {
                     <button
                       onClick={() => updateMutation.mutate({
                         id: f.id,
-                        description: descDraft[f.id] ?? f.description ?? "",
+                        description: descDraft[String(f.id)] ?? f.description ?? "",
                         assignee: descDraft[`assignee_${f.id}`] ?? f.assignee ?? "",
                       }, { onSuccess: () => setExpandedId(null) })}
                       disabled={updateMutation.isPending}
