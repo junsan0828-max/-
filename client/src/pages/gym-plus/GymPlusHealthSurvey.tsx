@@ -17,6 +17,7 @@ type SurveyData = {
   painAreas: string[]; painDuration: string; painLevel: number; painTiming: string[];
   postureIssues: string[];
   safetyAnswers: Record<number, "yes" | "no">;
+  safetyDetails: Record<number, string>;
 };
 
 const defaultData: SurveyData = {
@@ -31,6 +32,7 @@ const defaultData: SurveyData = {
   painAreas: [], painDuration: "", painLevel: 0, painTiming: [],
   postureIssues: [],
   safetyAnswers: {},
+  safetyDetails: {},
 };
 
 // ── Small UI components ────────────────────────────────────────────────────
@@ -449,17 +451,17 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
             <div className="space-y-3">
               <p className="text-[12px] text-gray-400">모든 항목에 답해주세요</p>
               {[
-                "운동 중 가슴 통증을 느낀 적이 있나요?",
-                "의사에게 운동을 제한받은 적이 있나요?",
-                "운동 중 어지럽거나 쓰러진 적이 있나요?",
-                "심장질환이 있나요?",
-                "현재 꾸준히 복용하는 약이 있나요?",
-                "최근 수술을 받은 적이 있나요?",
-                "현재 임신 중이신가요?",
-                "운동 시 특별히 주의해야 하는 질환이 있나요?",
-              ].map((q, i) => (
-                <div key={i} className="bg-gray-50 rounded-xl p-3.5">
-                  <p className="text-[12px] text-[#1a2b4b] font-medium leading-relaxed mb-2.5">{i + 1}. {q}</p>
+                { q: "운동 중 가슴 통증을 느낀 적이 있나요?",       hint: "어떤 상황에서, 어느 부위인지 간단히 적어주세요." },
+                { q: "의사에게 운동을 제한받은 적이 있나요?",       hint: "어떤 이유로 제한받으셨는지 적어주세요." },
+                { q: "운동 중 어지럽거나 쓰러진 적이 있나요?",     hint: "언제, 어떤 상황이었는지 적어주세요." },
+                { q: "심장질환이 있나요?",                          hint: "진단명이나 상태를 간단히 적어주세요." },
+                { q: "현재 꾸준히 복용하는 약이 있나요?",           hint: "약 이름 또는 복용 이유를 적어주세요." },
+                { q: "최근 수술을 받은 적이 있나요?",               hint: "수술 부위와 시기를 간단히 적어주세요." },
+                { q: "현재 임신 중이신가요?",                       hint: "임신 주수를 적어주세요." },
+                { q: "운동 시 특별히 주의해야 하는 질환이 있나요?", hint: "질환명이나 주의사항을 적어주세요." },
+              ].map(({ q, hint }, i) => (
+                <div key={i} className="bg-gray-50 rounded-xl p-3.5 space-y-2.5">
+                  <p className="text-[12px] text-[#1a2b4b] font-medium leading-relaxed">{i + 1}. {q}</p>
                   <div className="flex gap-2">
                     {(["no", "yes"] as const).map(ans => (
                       <button key={ans} type="button"
@@ -474,6 +476,18 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
                       </button>
                     ))}
                   </div>
+                  {data.safetyAnswers[i] === "yes" && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-red-500 font-medium">📝 {hint}</p>
+                      <textarea
+                        rows={2}
+                        placeholder="자유롭게 적어주세요 (선택사항)"
+                        value={data.safetyDetails[i] ?? ""}
+                        onChange={e => setData(p => ({ ...p, safetyDetails: { ...p.safetyDetails, [i]: e.target.value } }))}
+                        className="w-full border border-red-200 rounded-xl px-3 py-2 text-[12px] bg-white resize-none focus:outline-none focus:border-red-400"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
 
