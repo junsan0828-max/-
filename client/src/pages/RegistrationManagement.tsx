@@ -866,7 +866,7 @@ export default function RegistrationManagement() {
                               return editServiceLockerNum ? `락커(${editServiceLockerNum})` : "락커";
                             }
                             return item;
-                          }).join(",") : undefined;
+                          }).join(",") : "";
                           // 락커가 선택됐고 memberId가 있으면 실제 배정
                           if (editServiceItems.includes("락커") && editServiceLockerId && editRev.memberId) {
                             editAssignLockerMutation.mutate({
