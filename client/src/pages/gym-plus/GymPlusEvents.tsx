@@ -6,18 +6,21 @@ const eventTypeLabel: Record<string, string> = {
   notice: "공지",
   event: "이벤트",
   promotion: "프로모션",
+  points: "포인트",
 };
 
 const eventTypeStyle: Record<string, string> = {
   notice: "bg-blue-500/20 text-blue-600",
   event: "bg-green-500/20 text-green-600",
   promotion: "bg-orange-500/20 text-orange-600",
+  points: "bg-purple-500/20 text-purple-600",
 };
 
 const eventTypeShort: Record<string, string> = {
   notice: "공",
   event: "이",
   promotion: "프",
+  points: "포",
 };
 
 export default function GymPlusEvents() {
@@ -34,7 +37,7 @@ export default function GymPlusEvents() {
 
       {/* 타입 필터 */}
       <div className="flex gap-2">
-        {[undefined, "notice", "event", "promotion"].map((type) => (
+        {[undefined, "notice", "event", "points", "promotion"].map((type) => (
           <button
             key={type ?? "all"}
             onClick={() => setFilter(type)}

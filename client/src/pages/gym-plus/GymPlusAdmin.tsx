@@ -518,7 +518,7 @@ export function GymPlusEventsAdmin() {
     }
   }
 
-  const typeLabel: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션" };
+  const typeLabel: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션", points: "포인트" };
 
   return (
     <div className="space-y-3">
@@ -559,7 +559,7 @@ export function GymPlusEventsAdmin() {
                 <SelectContent>
                   <SelectItem value="notice">공지</SelectItem>
                   <SelectItem value="event">이벤트</SelectItem>
-                  <SelectItem value="promotion">프로모션</SelectItem>
+                  <SelectItem value="points">포인트</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -135,9 +135,11 @@ export default function GymPlusDashboard() {
                     ? "bg-[#1D4ED8] text-white"
                     : e.eventType === "promotion"
                     ? "bg-orange-400 text-white"
+                    : e.eventType === "points"
+                    ? "bg-purple-500 text-white"
                     : "bg-gray-200 text-gray-600"
                 }`}>
-                  {e._isNotice ? "공지" : e.eventType === "promotion" ? "프로모션" : "이벤트"}
+                  {e._isNotice ? "공지" : e.eventType === "promotion" ? "프로모션" : e.eventType === "points" ? "포인트" : "이벤트"}
                 </span>
                 <p className="text-[13px] font-medium text-[#1a2b4b] line-clamp-1 flex-1">{e.title}</p>
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5 text-gray-300 flex-shrink-0">
