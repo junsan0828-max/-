@@ -70,11 +70,15 @@ export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
           href={event.linkUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold text-base shadow-lg active:opacity-80 transition-opacity"
+          className="flex items-center justify-between w-full px-5 py-4 rounded-2xl bg-[#1D4ED8] text-white active:bg-[#1a44c2] transition-colors"
         >
-          <span className="text-lg">◈</span>
-          포인트 적립
-          <span className="text-sm opacity-80">→</span>
+          <div>
+            <p className="text-[11px] text-white/60 font-medium tracking-wide uppercase">Points</p>
+            <p className="text-[15px] font-bold mt-0.5">포인트 적립하기</p>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/70">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
         </a>
       )}
     </div>

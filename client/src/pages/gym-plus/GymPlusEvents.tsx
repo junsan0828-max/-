@@ -102,12 +102,13 @@ export default function GymPlusEvents() {
                     href={e.linkUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold text-sm active:opacity-80 transition-opacity"
+                    className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-[#1D4ED8] text-white active:bg-[#1a44c2] transition-colors"
                     onClick={ev => ev.stopPropagation()}
                   >
-                    <span>◈</span>
-                    포인트 적립
-                    <span className="opacity-70 text-xs">→</span>
+                    <span className="text-sm font-semibold">포인트 적립하기</span>
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-white/70">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
                   </a>
                 </div>
               )}
