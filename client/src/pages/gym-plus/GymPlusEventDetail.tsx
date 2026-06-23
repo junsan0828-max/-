@@ -6,12 +6,14 @@ const eventTypeLabel: Record<string, string> = {
   notice: "공지",
   event: "이벤트",
   promotion: "프로모션",
+  points: "포인트",
 };
 
 const eventTypeStyle: Record<string, string> = {
   notice: "bg-blue-500/20 text-blue-400",
   event: "bg-green-500/20 text-green-400",
   promotion: "bg-orange-500/20 text-orange-400",
+  points: "bg-purple-500/20 text-purple-400",
 };
 
 export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
@@ -62,6 +64,19 @@ export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
       <div className="bg-card border border-border rounded-xl p-4">
         <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{event.content}</p>
       </div>
+
+      {event.eventType === "points" && event.linkUrl && (
+        <a
+          href={event.linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold text-base shadow-lg active:opacity-80 transition-opacity"
+        >
+          <span className="text-lg">◈</span>
+          포인트 적립
+          <span className="text-sm opacity-80">→</span>
+        </a>
+      )}
     </div>
   );
 }

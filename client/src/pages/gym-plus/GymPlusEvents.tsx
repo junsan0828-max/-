@@ -59,42 +59,58 @@ export default function GymPlusEvents() {
           {events.map((e) => (
             <div
               key={e.id}
-              className={`bg-card border rounded-xl p-4 cursor-pointer hover:border-primary/50 transition-colors ${
+              className={`bg-card border rounded-xl overflow-hidden ${
                 e.isPinned ? "border-yellow-500/40 bg-yellow-500/5" : "border-border"
               }`}
-              onClick={() => {
-                if (e.linkUrl) {
-                  window.location.href = e.linkUrl;
-                } else {
-                  navigate(`/gym-plus/events/${e.id}`);
-                }
-              }}
             >
-              <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted"}`}>
-                  {eventTypeShort[e.eventType ?? "notice"] ?? "공"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {e.isPinned ? <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">고정</span> : null}
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
-                      {eventTypeLabel[e.eventType ?? "notice"] ?? e.eventType}
-                    </span>
+              <div
+                className="p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => {
+                  if (e.eventType !== "points" && e.linkUrl) {
+                    window.location.href = e.linkUrl;
+                  } else {
+                    navigate(`/gym-plus/events/${e.id}`);
+                  }
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted"}`}>
+                    {eventTypeShort[e.eventType ?? "notice"] ?? "공"}
                   </div>
-                  <p className="font-semibold text-sm leading-snug line-clamp-2">{e.title}</p>
-                  {e.startDate && e.endDate && (
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {e.startDate} ~ {e.endDate}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-[10px] text-muted-foreground">{e.createdAt?.slice(0, 10)}</p>
-                    {e.linkUrl && (
-                      <span className="text-[9px] bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded-full font-medium">링크 →</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {e.isPinned ? <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">고정</span> : null}
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${eventTypeStyle[e.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
+                        {eventTypeLabel[e.eventType ?? "notice"] ?? e.eventType}
+                      </span>
+                    </div>
+                    <p className="font-semibold text-sm leading-snug line-clamp-2">{e.title}</p>
+                    {e.startDate && e.endDate && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        {e.startDate} ~ {e.endDate}
+                      </p>
                     )}
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{e.createdAt?.slice(0, 10)}</p>
                   </div>
                 </div>
               </div>
+
+              {/* 포인트 유형 전용 적립 버튼 */}
+              {e.eventType === "points" && e.linkUrl && (
+                <div className="px-4 pb-4">
+                  <a
+                    href={e.linkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold text-sm active:opacity-80 transition-opacity"
+                    onClick={ev => ev.stopPropagation()}
+                  >
+                    <span>◈</span>
+                    포인트 적립
+                    <span className="opacity-70 text-xs">→</span>
+                  </a>
+                </div>
+              )}
             </div>
           ))}
         </div>
