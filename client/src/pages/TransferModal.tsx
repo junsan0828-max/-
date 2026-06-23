@@ -253,6 +253,10 @@ export function TransferModal({
                     placeholder="이름 또는 연락처로 검색"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    name="transferee-search"
                   />
                   <div className="max-h-48 overflow-y-auto space-y-1">
                     {filteredMembers.slice(0, 20).map((m) => (
