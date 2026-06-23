@@ -293,9 +293,8 @@ export default function MemberDetail({ memberId }: Props) {
   const [pauseForm, setPauseForm] = useState({ packageId: 0, pauseStart: "", pauseEnd: "", reason: "" });
   const today = new Date().toISOString().split("T")[0];
   const [memberPauseOpen, setMemberPauseOpen] = useState(false);
-  const [memberPauseForm, setMemberPauseForm] = useState({ pauseStart: today, reason: "" });
+  const [memberPauseForm, setMemberPauseForm] = useState({ pauseStart: today, pauseEnd: today, reason: "" });
   const [memberActivateOpen, setMemberActivateOpen] = useState(false);
-  const [memberActivateForm, setMemberActivateForm] = useState({ pauseEnd: today });
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [sessionDialogPkgId, setSessionDialogPkgId] = useState(0);
   const [sessionForm, setSessionForm] = useState({
@@ -567,10 +566,10 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "정지 처리 실패"),
   });
 
-  // 전체 활성화 (PT 정지 종료 + 헬스·락커·운동복 기간 연장)
+  // 전체 활성화
   const activateMemberAllMutation = trpc.pt.activateMemberAll.useMutation({
-    onSuccess: (data) => {
-      toast.success(`활성화 완료. 정지 기간 ${data.pauseDays}일만큼 헬스·락커·운동복 기간이 연장되었습니다.`);
+    onSuccess: () => {
+      toast.success("활성화 완료.");
       setMemberActivateOpen(false);
       utils.members.getById.invalidate({ id: memberId });
       utils.pt.listByMember.invalidate({ memberId });
@@ -1089,12 +1088,12 @@ export default function MemberDetail({ memberId }: Props) {
                       <p className="text-sm font-medium text-foreground">{statusLabels[member.status] ?? "-"}</p>
                       {member.status === "active" ? (
                         <button
-                          onClick={() => { setMemberPauseForm({ pauseStart: today, reason: "" }); setMemberPauseOpen(true); }}
+                          onClick={() => { setMemberPauseForm({ pauseStart: today, pauseEnd: today, reason: "" }); setMemberPauseOpen(true); }}
                           className="text-xs px-2 py-0.5 rounded border border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/10 transition-colors"
                         >정지</button>
                       ) : (
                         <button
-                          onClick={() => { setMemberActivateForm({ pauseEnd: today }); setMemberActivateOpen(true); }}
+                          onClick={() => setMemberActivateOpen(true)}
                           className="text-xs px-2 py-0.5 rounded border border-emerald-400/50 text-emerald-400 hover:bg-emerald-400/10 transition-colors"
                         >활성화</button>
                       )}
@@ -1289,6 +1288,11 @@ export default function MemberDetail({ memberId }: Props) {
                     const remaining = pkg.totalSessions - pkg.usedSessions;
                     const isActive = pkg.status === "active" && remaining > 0;
                     const svcSessions = (pkg as any).serviceSessions ?? 0;
+                    const pkgPauses = pauses?.filter(p => p.packageId === pkg.id) ?? [];
+                    const today2 = new Date().toISOString().split("T")[0];
+                    const isInPause = member.status === "paused" || pkgPauses.some(p =>
+                      p.pauseStart <= today2 && (p.pauseEnd == null || p.pauseEnd >= today2)
+                    );
                     return (
                       <div key={pkg.id} className="p-3 sm:p-4 rounded-lg bg-accent/20 border border-border">
                         <div className="flex items-center justify-between gap-2">
@@ -1297,7 +1301,11 @@ export default function MemberDetail({ memberId }: Props) {
                               <p className="font-medium text-foreground text-sm truncate">
                                 {pkg.packageName || "PT 프로그램"}
                               </p>
-                              {(() => {
+                              {isInPause ? (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full border bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                                  정지
+                                </span>
+                              ) : (() => {
                                 const s = PT_STATUS[pkg.status] ?? PT_STATUS.expired;
                                 return (
                                   <span className={`text-xs px-1.5 py-0.5 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
@@ -3193,15 +3201,30 @@ export default function MemberDetail({ memberId }: Props) {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>회원 정지</DialogTitle>
-            <DialogDescription>PT·헬스·락커·운동복이 모두 정지됩니다.</DialogDescription>
+            <DialogDescription>PT·헬스·락커·운동복이 모두 정지됩니다. 정지 기간만큼 헬스·락커·운동복 만료일이 자동 연장됩니다.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">정지 시작일</label>
-              <input type="date" value={memberPauseForm.pauseStart}
-                onChange={e => setMemberPauseForm(f => ({ ...f, pauseStart: e.target.value }))}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">정지 시작일</label>
+                <input type="date" value={memberPauseForm.pauseStart}
+                  onChange={e => setMemberPauseForm(f => ({ ...f, pauseStart: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">정지 종료일</label>
+                <input type="date" value={memberPauseForm.pauseEnd}
+                  min={memberPauseForm.pauseStart}
+                  onChange={e => setMemberPauseForm(f => ({ ...f, pauseEnd: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+              </div>
             </div>
+            {memberPauseForm.pauseStart && memberPauseForm.pauseEnd && memberPauseForm.pauseEnd >= memberPauseForm.pauseStart && (
+              <p className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
+                정지 기간: {Math.ceil((new Date(memberPauseForm.pauseEnd).getTime() - new Date(memberPauseForm.pauseStart).getTime()) / 86400000)}일
+                (헬스·락커·운동복 만료일 자동 연장)
+              </p>
+            )}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">사유 (선택)</label>
               <input type="text" value={memberPauseForm.reason}
@@ -3214,8 +3237,8 @@ export default function MemberDetail({ memberId }: Props) {
             <button onClick={() => setMemberPauseOpen(false)}
               className="flex-1 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-accent transition-colors">취소</button>
             <button
-              onClick={() => pauseMemberAllMutation.mutate({ memberId, pauseStart: memberPauseForm.pauseStart, reason: memberPauseForm.reason || undefined })}
-              disabled={!memberPauseForm.pauseStart || pauseMemberAllMutation.isPending}
+              onClick={() => pauseMemberAllMutation.mutate({ memberId, pauseStart: memberPauseForm.pauseStart, pauseEnd: memberPauseForm.pauseEnd, reason: memberPauseForm.reason || undefined })}
+              disabled={!memberPauseForm.pauseStart || !memberPauseForm.pauseEnd || memberPauseForm.pauseEnd < memberPauseForm.pauseStart || pauseMemberAllMutation.isPending}
               className="flex-1 py-2 rounded-xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-400 text-sm font-medium hover:bg-yellow-500/30 transition-colors disabled:opacity-50">
               {pauseMemberAllMutation.isPending ? "처리 중..." : "정지 확인"}
             </button>
@@ -3228,20 +3251,14 @@ export default function MemberDetail({ memberId }: Props) {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>회원 활성화</DialogTitle>
-            <DialogDescription>PT 정지 기간이 종료되고, 정지 기간만큼 헬스·락커·운동복 기간이 자동 연장됩니다.</DialogDescription>
+            <DialogDescription>PT 패키지가 재활성화됩니다. (헬스·락커·운동복 기간은 정지 시점에 이미 연장됨)</DialogDescription>
           </DialogHeader>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">정지 종료일</label>
-            <input type="date" value={memberActivateForm.pauseEnd}
-              onChange={e => setMemberActivateForm(f => ({ ...f, pauseEnd: e.target.value }))}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
-          </div>
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2 pt-2">
             <button onClick={() => setMemberActivateOpen(false)}
               className="flex-1 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-accent transition-colors">취소</button>
             <button
-              onClick={() => activateMemberAllMutation.mutate({ memberId, pauseEnd: memberActivateForm.pauseEnd })}
-              disabled={!memberActivateForm.pauseEnd || activateMemberAllMutation.isPending}
+              onClick={() => activateMemberAllMutation.mutate({ memberId })}
+              disabled={activateMemberAllMutation.isPending}
               className="flex-1 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-sm font-medium hover:bg-emerald-500/30 transition-colors disabled:opacity-50">
               {activateMemberAllMutation.isPending ? "처리 중..." : "활성화 확인"}
             </button>
