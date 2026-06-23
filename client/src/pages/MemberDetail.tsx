@@ -1402,10 +1402,6 @@ export default function MemberDetail({ memberId }: Props) {
                               </button>
                             );
                           })}
-                          <button onClick={() => { setPauseForm({ packageId: pkg.id, pauseStart: "", pauseEnd: "", reason: "" }); setPauseOpen(true); }}
-                            className="px-2 py-0.5 rounded-full text-xs border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 flex items-center gap-1">
-                            <PauseCircle className="h-3 w-3" />정지 추가
-                          </button>
                         </div>
 
                         {/* PT 변화 리포트 마일스톤 버튼 */}
@@ -2871,36 +2867,6 @@ export default function MemberDetail({ memberId }: Props) {
               </Button>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* 정지 추가 다이얼로그 */}
-      <Dialog open={pauseOpen} onOpenChange={setPauseOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>정지 내역 추가</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">시작일 *</Label>
-                <Input type="date" value={pauseForm.pauseStart} onChange={e => setPauseForm(p => ({ ...p, pauseStart: e.target.value }))} className="h-9 text-sm"/>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">종료일</Label>
-                <Input type="date" value={pauseForm.pauseEnd} onChange={e => setPauseForm(p => ({ ...p, pauseEnd: e.target.value }))} className="h-9 text-sm"/>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">사유</Label>
-              <Input placeholder="부상, 여행 등" value={pauseForm.reason} onChange={e => setPauseForm(p => ({ ...p, reason: e.target.value }))} className="h-9 text-sm"/>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setPauseOpen(false)}>취소</Button>
-              <Button className="flex-1" disabled={!pauseForm.pauseStart || addPauseMutation.isPending}
-                onClick={() => addPauseMutation.mutate({ packageId: pauseForm.packageId, memberId, pauseStart: pauseForm.pauseStart, pauseEnd: pauseForm.pauseEnd || undefined, reason: pauseForm.reason || undefined })}>
-                {addPauseMutation.isPending ? "저장 중..." : "저장"}
-              </Button>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 
