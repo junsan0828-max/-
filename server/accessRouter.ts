@@ -823,9 +823,9 @@ export const accessRouter = t.router({
           `SELECT r.id, r.type, r."subType", r.amount, r."paidAmount", r."unpaidAmount", r."paymentDate",
                   r.memo, r."programDetail", r."startDate", r."serviceSessions",
                   r."serviceHealthDuration", r."createdAt", r."serviceItems", r.duration,
-                  r."memberId", r."customerName",
+                  r."memberId", r."customerName", COALESCE(r."pauseDays", 0) AS "pauseDays",
                   CASE WHEN r."startDate" IS NOT NULL AND r.duration IS NOT NULL AND r.duration > 0
-                       THEN (r."startDate"::date + (r.duration || ' months')::interval)::date::text
+                       THEN (r."startDate"::date + (r.duration || ' months')::interval + (COALESCE(r."pauseDays", 0) || ' days')::interval)::date::text
                        ELSE NULL
                   END AS "endDate"
            FROM revenue_entries r

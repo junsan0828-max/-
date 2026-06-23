@@ -291,6 +291,11 @@ export default function MemberDetail({ memberId }: Props) {
   const [transferOpen, setTransferOpen] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
   const [pauseForm, setPauseForm] = useState({ packageId: 0, pauseStart: "", pauseEnd: "", reason: "" });
+  const today = new Date().toISOString().split("T")[0];
+  const [memberPauseOpen, setMemberPauseOpen] = useState(false);
+  const [memberPauseForm, setMemberPauseForm] = useState({ pauseStart: today, reason: "" });
+  const [memberActivateOpen, setMemberActivateOpen] = useState(false);
+  const [memberActivateForm, setMemberActivateForm] = useState({ pauseEnd: today });
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [sessionDialogPkgId, setSessionDialogPkgId] = useState(0);
   const [sessionForm, setSessionForm] = useState({
@@ -547,6 +552,32 @@ export default function MemberDetail({ memberId }: Props) {
       utils.members.getById.invalidate({ id: memberId });
     },
     onError: (err) => toast.error(err.message || "변경 실패"),
+  });
+
+  // 전체 정지 (PT + 헬스 + 락커 + 운동복)
+  const pauseMemberAllMutation = trpc.pt.pauseMemberAll.useMutation({
+    onSuccess: () => {
+      toast.success("정지 처리되었습니다. (PT·헬스·락커·운동복 포함)");
+      setMemberPauseOpen(false);
+      utils.members.getById.invalidate({ id: memberId });
+      utils.pt.listByMember.invalidate({ memberId });
+      utils.pt.listPauses.invalidate({ memberId });
+      utils.access.getMemberPrograms.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "정지 처리 실패"),
+  });
+
+  // 전체 활성화 (PT 정지 종료 + 헬스·락커·운동복 기간 연장)
+  const activateMemberAllMutation = trpc.pt.activateMemberAll.useMutation({
+    onSuccess: (data) => {
+      toast.success(`활성화 완료. 정지 기간 ${data.pauseDays}일만큼 헬스·락커·운동복 기간이 연장되었습니다.`);
+      setMemberActivateOpen(false);
+      utils.members.getById.invalidate({ id: memberId });
+      utils.pt.listByMember.invalidate({ memberId });
+      utils.pt.listPauses.invalidate({ memberId });
+      utils.access.getMemberPrograms.invalidate({ memberId });
+    },
+    onError: (err) => toast.error(err.message || "활성화 처리 실패"),
   });
 
   // 담당 트레이너 변경
@@ -1056,13 +1087,17 @@ export default function MemberDetail({ memberId }: Props) {
                     <p className="text-xs text-muted-foreground">상태</p>
                     <div className="flex items-center gap-2 flex-wrap mt-0.5">
                       <p className="text-sm font-medium text-foreground">{statusLabels[member.status] ?? "-"}</p>
-                      <button
-                        onClick={() => toggleStatusMutation.mutate({ id: memberId, status: member.status === "active" ? "paused" : "active" })}
-                        disabled={toggleStatusMutation.isPending}
-                        className="text-xs px-2 py-0.5 rounded border border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/10 transition-colors disabled:opacity-50"
-                      >
-                        {member.status === "active" ? "정지" : "활성화"}
-                      </button>
+                      {member.status === "active" ? (
+                        <button
+                          onClick={() => { setMemberPauseForm({ pauseStart: today, reason: "" }); setMemberPauseOpen(true); }}
+                          className="text-xs px-2 py-0.5 rounded border border-yellow-400/50 text-yellow-400 hover:bg-yellow-400/10 transition-colors"
+                        >정지</button>
+                      ) : (
+                        <button
+                          onClick={() => { setMemberActivateForm({ pauseEnd: today }); setMemberActivateOpen(true); }}
+                          className="text-xs px-2 py-0.5 rounded border border-emerald-400/50 text-emerald-400 hover:bg-emerald-400/10 transition-colors"
+                        >활성화</button>
+                      )}
                       <button
                         onClick={() => setTransferOpen(true)}
                         className="text-xs px-2 py-0.5 rounded border border-orange-400/50 text-orange-400 hover:bg-orange-400/10 transition-colors flex items-center gap-1"
@@ -3149,6 +3184,67 @@ export default function MemberDetail({ memberId }: Props) {
                 {updateLogMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "저장"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 회원 전체 정지 모달 ── */}
+      <Dialog open={memberPauseOpen} onOpenChange={setMemberPauseOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>회원 정지</DialogTitle>
+            <DialogDescription>PT·헬스·락커·운동복이 모두 정지됩니다.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">정지 시작일</label>
+              <input type="date" value={memberPauseForm.pauseStart}
+                onChange={e => setMemberPauseForm(f => ({ ...f, pauseStart: e.target.value }))}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">사유 (선택)</label>
+              <input type="text" value={memberPauseForm.reason}
+                onChange={e => setMemberPauseForm(f => ({ ...f, reason: e.target.value }))}
+                placeholder="예: 부상, 해외 출장 등"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50" />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setMemberPauseOpen(false)}
+              className="flex-1 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-accent transition-colors">취소</button>
+            <button
+              onClick={() => pauseMemberAllMutation.mutate({ memberId, pauseStart: memberPauseForm.pauseStart, reason: memberPauseForm.reason || undefined })}
+              disabled={!memberPauseForm.pauseStart || pauseMemberAllMutation.isPending}
+              className="flex-1 py-2 rounded-xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-400 text-sm font-medium hover:bg-yellow-500/30 transition-colors disabled:opacity-50">
+              {pauseMemberAllMutation.isPending ? "처리 중..." : "정지 확인"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 회원 전체 활성화 모달 ── */}
+      <Dialog open={memberActivateOpen} onOpenChange={setMemberActivateOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>회원 활성화</DialogTitle>
+            <DialogDescription>PT 정지 기간이 종료되고, 정지 기간만큼 헬스·락커·운동복 기간이 자동 연장됩니다.</DialogDescription>
+          </DialogHeader>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">정지 종료일</label>
+            <input type="date" value={memberActivateForm.pauseEnd}
+              onChange={e => setMemberActivateForm(f => ({ ...f, pauseEnd: e.target.value }))}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground" />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setMemberActivateOpen(false)}
+              className="flex-1 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-accent transition-colors">취소</button>
+            <button
+              onClick={() => activateMemberAllMutation.mutate({ memberId, pauseEnd: memberActivateForm.pauseEnd })}
+              disabled={!memberActivateForm.pauseEnd || activateMemberAllMutation.isPending}
+              className="flex-1 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-sm font-medium hover:bg-emerald-500/30 transition-colors disabled:opacity-50">
+              {activateMemberAllMutation.isPending ? "처리 중..." : "활성화 확인"}
+            </button>
           </div>
         </DialogContent>
       </Dialog>

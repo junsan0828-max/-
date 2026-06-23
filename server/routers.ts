@@ -1772,6 +1772,98 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
+  // 회원 전체 정지 (PT + 헬스 + 락커 + 운동복)
+  pauseMemberAll: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      pauseStart: z.string(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const now = new Date().toISOString();
+
+      // 1. 회원 상태 정지
+      await db.update(members).set({ status: "paused", updatedAt: now }).where(eq(members.id, input.memberId));
+
+      // 2. 진행 중인 PT 패키지 정지 + 정지 기록 추가
+      const activePkgs = await db.select({ id: ptPackages.id })
+        .from(ptPackages)
+        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active")));
+      for (const pkg of activePkgs) {
+        await db.update(ptPackages).set({ status: "paused" }).where(eq(ptPackages.id, pkg.id));
+        await db.insert(ptPauses).values({
+          packageId: pkg.id,
+          memberId: input.memberId,
+          pauseStart: input.pauseStart,
+          pauseEnd: null,
+          reason: input.reason ?? null,
+        });
+      }
+
+      return { ok: true };
+    }),
+
+  // 회원 전체 활성화 (PT 정지 종료 + 헬스/락커/운동복 기간 연장)
+  activateMemberAll: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      pauseEnd: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const now = new Date().toISOString();
+      const pauseEndDate = new Date(input.pauseEnd);
+
+      // 미종료 정지 기록 조회 → 정지 기간(일) 계산
+      const openPauses = await db.select().from(ptPauses)
+        .where(and(eq(ptPauses.memberId, input.memberId), isNull(ptPauses.pauseEnd)));
+      let pauseDays = 0;
+      for (const pause of openPauses) {
+        const startDate = new Date(pause.pauseStart);
+        const days = Math.max(0, Math.ceil((pauseEndDate.getTime() - startDate.getTime()) / 86400000));
+        if (days > pauseDays) pauseDays = days;
+        await db.update(ptPauses).set({ pauseEnd: input.pauseEnd }).where(eq(ptPauses.id, pause.id));
+      }
+
+      // 1. 회원 상태 활성화
+      await db.update(members).set({ status: "active", updatedAt: now }).where(eq(members.id, input.memberId));
+
+      // 2. 정지된 PT 패키지 재활성화
+      await db.update(ptPackages).set({ status: "active" })
+        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "paused")));
+
+      if (pauseDays > 0) {
+        // 3. 헬스권 기간 연장 (pauseDays 누적)
+        await pool.query(
+          `UPDATE revenue_entries
+           SET "pauseDays" = COALESCE("pauseDays", 0) + $1
+           WHERE "memberId" = $2 AND type = '헬스'`,
+          [pauseDays, input.memberId]
+        );
+
+        // 4. 락커 만료일 연장
+        await pool.query(
+          `UPDATE lockers
+           SET "endDate" = ("endDate"::date + ($1 || ' days')::interval)::date::text
+           WHERE "memberId" = $2 AND "endDate" IS NOT NULL`,
+          [pauseDays, input.memberId]
+        );
+
+        // 5. 운동복 만료일 연장
+        await pool.query(
+          `UPDATE uniforms
+           SET "endDate" = ("endDate"::date + ($1 || ' days')::interval)::date::text
+           WHERE "memberId" = $2 AND "endDate" IS NOT NULL`,
+          [pauseDays, input.memberId]
+        );
+      }
+
+      return { ok: true, pauseDays };
+    }),
+
   // 결제일 업데이트
   updatePaymentDate: protectedProcedure
     .input(z.object({ packageId: z.number(), paymentDate: z.string() }))

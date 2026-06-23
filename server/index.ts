@@ -458,6 +458,7 @@ async function initDatabase() {
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "serviceHealthDuration" INTEGER`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "transferAmount" INTEGER`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "cardAmount" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "pauseDays" INTEGER DEFAULT 0`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sharedToMember" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sharedAt" TEXT`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "isDraft" INTEGER NOT NULL DEFAULT 0`,
