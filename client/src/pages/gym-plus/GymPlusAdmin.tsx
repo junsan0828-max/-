@@ -471,15 +471,96 @@ export function GymPlusVideosAdmin() {
   );
 }
 
+// ─── 포인트 신청 관리 ─────────────────────────────────────────────────────────
+function GymPlusPointClaimsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: claims, isLoading } = trpc.gymPlus.admin_listPointClaims.useQuery();
+  const resolveMutation = trpc.gymPlus.admin_resolvePointClaim.useMutation({
+    onSuccess: (_, vars) => {
+      utils.gymPlus.admin_listPointClaims.invalidate();
+      toast.success(vars.approve ? "포인트가 지급됐습니다." : "신청이 반려됐습니다.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const pending = (claims ?? []).filter(c => c.status === "pending");
+  const done = (claims ?? []).filter(c => c.status !== "pending");
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-6 text-center">불러오는 중...</div>;
+
+  return (
+    <div className="space-y-4">
+      {pending.length === 0 && done.length === 0 && (
+        <div className="text-sm text-muted-foreground text-center py-10 border border-dashed border-border rounded-xl">
+          포인트 신청 내역이 없습니다
+        </div>
+      )}
+      {pending.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-foreground">대기 중 ({pending.length}건)</p>
+          {pending.map(c => (
+            <div key={c.id} className="border border-border rounded-xl p-4 bg-card space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{c.memberName ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{c.memberPhone ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{c.eventTitle}</p>
+                </div>
+                <span className="text-sm font-black text-[#1D4ED8] flex-shrink-0">+{(c.pointAmount ?? 0).toLocaleString("ko-KR")}P</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">{c.createdAt?.slice(0, 16)}</p>
+              <div className="flex gap-2">
+                <Button size="sm" className="flex-1 text-xs bg-[#1D4ED8] hover:bg-[#1a44c2]"
+                  onClick={() => resolveMutation.mutate({ id: c.id, approve: true })}
+                  disabled={resolveMutation.isPending}>
+                  승인 · 포인트 지급
+                </Button>
+                <Button size="sm" variant="outline" className="text-xs text-red-500 hover:text-red-500"
+                  onClick={() => resolveMutation.mutate({ id: c.id, approve: false })}
+                  disabled={resolveMutation.isPending}>
+                  반려
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {done.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">처리 완료 ({done.length}건)</p>
+          {done.map(c => (
+            <div key={c.id} className="border border-border rounded-xl p-3 bg-card/50">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-foreground">{c.memberName ?? "-"} · {c.eventTitle}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{c.createdAt?.slice(0, 10)}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs font-semibold text-foreground">+{(c.pointAmount ?? 0).toLocaleString("ko-KR")}P</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${c.status === "approved" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-400"}`}>
+                    {c.status === "approved" ? "지급완료" : "반려"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── 이벤트/공지 관리 ─────────────────────────────────────────────────────────
 export function GymPlusEventsAdmin() {
   const utils = trpc.useUtils();
   const { data: events } = trpc.gymPlus.admin_listEvents.useQuery();
+  const [eventsTab, setEventsTab] = useState<"list" | "claims">("list");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
     title: "", content: "", imageUrl: "", linkUrl: "",
-    eventType: "notice" as "notice" | "event" | "promotion",
+    eventType: "notice" as "notice" | "event" | "promotion" | "points",
+    pointAmount: "0",
     startDate: "", endDate: "", isPublished: "1", isPinned: "0",
   });
 
@@ -499,18 +580,18 @@ export function GymPlusEventsAdmin() {
   });
 
   function resetForm() {
-    setForm({ title: "", content: "", imageUrl: "", linkUrl: "", eventType: "notice", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
+    setForm({ title: "", content: "", imageUrl: "", linkUrl: "", eventType: "notice", pointAmount: "0", startDate: "", endDate: "", isPublished: "1", isPinned: "0" });
   }
 
   function openEdit(e: any) {
-    setForm({ title: e.title, content: e.content, imageUrl: e.imageUrl ?? "", linkUrl: e.linkUrl ?? "", eventType: e.eventType, startDate: e.startDate ?? "", endDate: e.endDate ?? "", isPublished: e.isPublished.toString(), isPinned: e.isPinned.toString() });
+    setForm({ title: e.title, content: e.content, imageUrl: e.imageUrl ?? "", linkUrl: e.linkUrl ?? "", eventType: e.eventType, pointAmount: String(e.pointAmount ?? 0), startDate: e.startDate ?? "", endDate: e.endDate ?? "", isPublished: e.isPublished.toString(), isPinned: e.isPinned.toString() });
     setEditingId(e.id);
     setShowForm(true);
   }
 
   function handleSubmit() {
     if (!form.title || !form.content) { toast.error("제목과 내용은 필수입니다."); return; }
-    const data = { ...form, isPublished: parseInt(form.isPublished), isPinned: parseInt(form.isPinned), startDate: form.startDate || undefined, endDate: form.endDate || undefined, imageUrl: form.imageUrl || undefined, linkUrl: form.linkUrl || undefined };
+    const data = { ...form, isPublished: parseInt(form.isPublished), isPinned: parseInt(form.isPinned), pointAmount: parseInt(form.pointAmount) || 0, startDate: form.startDate || undefined, endDate: form.endDate || undefined, imageUrl: form.imageUrl || undefined, linkUrl: form.linkUrl || undefined };
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...data });
     } else {
@@ -522,6 +603,25 @@ export function GymPlusEventsAdmin() {
 
   return (
     <div className="space-y-3">
+      {/* 서브탭 */}
+      <div className="flex bg-muted rounded-xl p-1 gap-1">
+        {([
+          { key: "list", label: "이벤트 목록" },
+          { key: "claims", label: "포인트 신청" },
+        ] as const).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setEventsTab(t.key)}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${eventsTab === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {eventsTab === "claims" && <GymPlusPointClaimsAdmin />}
+
+      {eventsTab === "list" && (<>
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-muted-foreground">이벤트/공지 ({events?.length ?? 0}개)</p>
         <Button size="sm" className="h-7 text-xs" onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }}>+ 등록</Button>
@@ -547,6 +647,8 @@ export function GymPlusEventsAdmin() {
         ))}
         {!events?.length && <p className="text-xs text-muted-foreground text-center py-4">등록된 이벤트/공지가 없습니다</p>}
       </div>
+
+      </>)}
 
       <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); resetForm(); } }}>
         <DialogContent className="max-w-sm md:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -579,6 +681,12 @@ export function GymPlusEventsAdmin() {
               <Label className="text-xs text-muted-foreground">링크 URL <span className="text-[10px] text-muted-foreground/60">(입력 시 클릭하면 해당 링크로 이동)</span></Label>
               <Input value={form.linkUrl} onChange={(e) => setForm((p) => ({ ...p, linkUrl: e.target.value }))} placeholder="https://..." className="h-8 text-sm" />
             </div>
+            {form.eventType === "points" && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">적립 포인트 <span className="text-[10px] text-muted-foreground/60">(포인트 유형 이벤트에만 적용)</span></Label>
+                <Input type="number" value={form.pointAmount} onChange={(e) => setForm((p) => ({ ...p, pointAmount: e.target.value }))} placeholder="예: 1000" className="h-8 text-sm" />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">시작일</Label>

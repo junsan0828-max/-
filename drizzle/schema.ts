@@ -428,10 +428,21 @@ export const gymPlusEvents = pgTable("gym_plus_events", {
   imageUrl: text("imageUrl"),
   linkUrl: text("linkUrl"),
   eventType: text("eventType").default("notice"),
+  pointAmount: integer("pointAmount").notNull().default(0),
   startDate: text("startDate"),
   endDate: text("endDate"),
   isPublished: integer("isPublished").default(1).notNull(),
   isPinned: integer("isPinned").default(0).notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusPointClaims = pgTable("gym_plus_point_claims", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  eventId: integer("eventId").notNull(),
+  eventTitle: text("eventTitle").notNull(),
+  pointAmount: integer("pointAmount").notNull(),
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected"
   createdAt: text("createdAt").default(now).notNull(),
 });
 

@@ -445,6 +445,16 @@ async function initDatabase() {
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "points" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE gym_plus_events ADD COLUMN IF NOT EXISTS "pointAmount" INTEGER NOT NULL DEFAULT 0`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_point_claims (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "eventId" INTEGER NOT NULL,
+      "eventTitle" TEXT NOT NULL,
+      "pointAmount" INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS gym_plus_point_logs (
       id SERIAL PRIMARY KEY,
       "gymPlusMemberId" INTEGER NOT NULL,

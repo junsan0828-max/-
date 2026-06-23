@@ -40,6 +40,7 @@ import {
   gymPlusProducts,
   gymPlusPointLogs,
   gymPlusPurchaseRequests,
+  gymPlusPointClaims,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -3771,6 +3772,7 @@ ${dataContext}
       imageUrl: z.string().optional(),
       linkUrl: z.string().optional(),
       eventType: z.enum(["notice", "event", "promotion", "points"]).default("notice"),
+      pointAmount: z.number().int().min(0).default(0),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       isPublished: z.number().default(1),
@@ -3791,6 +3793,7 @@ ${dataContext}
       imageUrl: z.string().optional(),
       linkUrl: z.string().optional(),
       eventType: z.enum(["notice", "event", "promotion", "points"]).optional(),
+      pointAmount: z.number().int().min(0).optional(),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
       isPublished: z.number().optional(),
@@ -3810,6 +3813,98 @@ ${dataContext}
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(gymPlusEvents).where(eq(gymPlusEvents.id, input.id));
+      return { success: true };
+    }),
+
+  // ─── 포인트 적립 신청 ──────────────────────────────────────────────────────
+
+  claimEventPoints: gymPlusProtected
+    .input(z.object({ eventId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [event] = await db.select().from(gymPlusEvents)
+        .where(eq(gymPlusEvents.id, input.eventId)).limit(1);
+      if (!event || event.eventType !== "points")
+        throw new TRPCError({ code: "BAD_REQUEST", message: "포인트 이벤트가 아닙니다." });
+
+      // 중복 신청 방지 (pending 또는 approved 상태)
+      const existing = await db.select().from(gymPlusPointClaims)
+        .where(and(
+          eq(gymPlusPointClaims.gymPlusMemberId, ctx.gymPlusMemberId),
+          eq(gymPlusPointClaims.eventId, input.eventId),
+        )).limit(1);
+      if (existing[0] && existing[0].status !== "rejected")
+        throw new TRPCError({ code: "BAD_REQUEST", message: "이미 신청한 이벤트입니다." });
+
+      await db.insert(gymPlusPointClaims).values({
+        gymPlusMemberId: ctx.gymPlusMemberId,
+        eventId: input.eventId,
+        eventTitle: event.title,
+        pointAmount: event.pointAmount ?? 0,
+        status: "pending",
+      });
+      return { success: true };
+    }),
+
+  getMyPointClaims: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(gymPlusPointClaims)
+      .where(eq(gymPlusPointClaims.gymPlusMemberId, ctx.gymPlusMemberId))
+      .orderBy(desc(gymPlusPointClaims.createdAt));
+  }),
+
+  admin_listPointClaims: adminOnlyGymPlus.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select({
+      id: gymPlusPointClaims.id,
+      gymPlusMemberId: gymPlusPointClaims.gymPlusMemberId,
+      eventId: gymPlusPointClaims.eventId,
+      eventTitle: gymPlusPointClaims.eventTitle,
+      pointAmount: gymPlusPointClaims.pointAmount,
+      status: gymPlusPointClaims.status,
+      createdAt: gymPlusPointClaims.createdAt,
+      memberName: gymPlusMembers.name,
+      memberPhone: gymPlusMembers.phone,
+    }).from(gymPlusPointClaims)
+      .leftJoin(gymPlusMembers, eq(gymPlusPointClaims.gymPlusMemberId, gymPlusMembers.id))
+      .orderBy(desc(gymPlusPointClaims.createdAt));
+  }),
+
+  admin_resolvePointClaim: adminOnlyGymPlus
+    .input(z.object({ id: z.number(), approve: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const [claim] = await db.select().from(gymPlusPointClaims)
+        .where(eq(gymPlusPointClaims.id, input.id)).limit(1);
+      if (!claim) throw new TRPCError({ code: "NOT_FOUND" });
+      if (claim.status !== "pending")
+        throw new TRPCError({ code: "BAD_REQUEST", message: "이미 처리된 신청입니다." });
+
+      const newStatus = input.approve ? "approved" : "rejected";
+      await db.update(gymPlusPointClaims).set({ status: newStatus })
+        .where(eq(gymPlusPointClaims.id, input.id));
+
+      if (input.approve && claim.pointAmount > 0) {
+        const [member] = await db.select({ points: gymPlusMembers.points })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, claim.gymPlusMemberId)).limit(1);
+        const newBalance = (member?.points ?? 0) + claim.pointAmount;
+        await db.update(gymPlusMembers).set({ points: newBalance })
+          .where(eq(gymPlusMembers.id, claim.gymPlusMemberId));
+        await db.insert(gymPlusPointLogs).values({
+          gymPlusMemberId: claim.gymPlusMemberId,
+          type: "charge",
+          amount: claim.pointAmount,
+          balanceAfter: newBalance,
+          reason: `이벤트 적립: ${claim.eventTitle}`,
+          relatedId: claim.id,
+        });
+      }
       return { success: true };
     }),
 
