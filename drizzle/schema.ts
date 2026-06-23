@@ -527,3 +527,17 @@ export const gymPlusDailyDiets = pgTable("gym_plus_daily_diets", {
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
+
+export const gymPlusProducts = pgTable("gym_plus_products", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: integer("price").notNull(),
+  originalPrice: integer("originalPrice"),
+  category: text("category").notNull().default("membership"), // membership, pt, supplement, etc.
+  imageUrl: text("imageUrl"),
+  badgeText: text("badgeText"),
+  isActive: integer("isActive").notNull().default(1),
+  sortOrder: integer("sortOrder").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});

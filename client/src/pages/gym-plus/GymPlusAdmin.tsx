@@ -813,3 +813,245 @@ export default function GymPlusAdminSection() {
     </div>
   );
 }
+
+// ─── 상품 관리 ────────────────────────────────────────────────────────────────
+const CATEGORY_OPTIONS = [
+  { value: "membership", label: "회원권" },
+  { value: "pt", label: "PT" },
+  { value: "supplement", label: "보충제" },
+  { value: "goods", label: "용품" },
+  { value: "other", label: "기타" },
+];
+
+const categoryLabel: Record<string, string> = Object.fromEntries(
+  CATEGORY_OPTIONS.map(o => [o.value, o.label])
+);
+
+function formatPrice(n: number) {
+  return n.toLocaleString("ko-KR") + "원";
+}
+
+export function GymPlusProductsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: products, isLoading } = trpc.gymPlus.admin_listProducts.useQuery();
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState({
+    name: "", description: "", price: "", originalPrice: "",
+    category: "membership", imageUrl: "", badgeText: "",
+    isActive: 1, sortOrder: 0,
+  });
+
+  const createMutation = trpc.gymPlus.admin_createProduct.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listProducts.invalidate(); setShowForm(false); resetForm(); toast.success("상품이 등록되었습니다."); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateMutation = trpc.gymPlus.admin_updateProduct.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listProducts.invalidate(); setShowForm(false); setEditingId(null); resetForm(); toast.success("상품이 수정되었습니다."); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteMutation = trpc.gymPlus.admin_deleteProduct.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listProducts.invalidate(); toast.success("상품이 삭제되었습니다."); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function resetForm() {
+    setForm({ name: "", description: "", price: "", originalPrice: "", category: "membership", imageUrl: "", badgeText: "", isActive: 1, sortOrder: 0 });
+  }
+
+  function openEdit(p: any) {
+    setForm({
+      name: p.name, description: p.description ?? "", price: String(p.price),
+      originalPrice: p.originalPrice ? String(p.originalPrice) : "",
+      category: p.category ?? "membership", imageUrl: p.imageUrl ?? "",
+      badgeText: p.badgeText ?? "", isActive: p.isActive ?? 1, sortOrder: p.sortOrder ?? 0,
+    });
+    setEditingId(p.id);
+    setShowForm(true);
+  }
+
+  function handleSubmit() {
+    if (!form.name.trim()) { toast.error("상품명은 필수입니다."); return; }
+    const price = parseInt(form.price, 10);
+    if (isNaN(price) || price < 0) { toast.error("가격을 올바르게 입력해주세요."); return; }
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
+      price,
+      originalPrice: form.originalPrice ? parseInt(form.originalPrice, 10) : undefined,
+      category: form.category,
+      imageUrl: form.imageUrl.trim() || undefined,
+      badgeText: form.badgeText.trim() || undefined,
+      isActive: form.isActive,
+      sortOrder: form.sortOrder,
+    };
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, ...payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  }
+
+  function f(key: keyof typeof form, value: any) {
+    setForm(p => ({ ...p, [key]: value }));
+  }
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-6 text-center">불러오는 중...</div>;
+
+  return (
+    <div className="space-y-4">
+      {/* 등록 버튼 */}
+      <div className="flex justify-end">
+        <Button size="sm" onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }}>
+          + 상품 등록
+        </Button>
+      </div>
+
+      {/* 상품 목록 */}
+      {(!products || products.length === 0) ? (
+        <div className="text-sm text-muted-foreground text-center py-10 border border-dashed border-border rounded-xl">
+          등록된 상품이 없습니다
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {products.map((p) => (
+            <div key={p.id} className={`border border-border rounded-xl p-4 ${p.isActive ? "bg-card" : "bg-muted/30"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-foreground truncate">{p.name}</span>
+                    {p.badgeText && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary flex-shrink-0">
+                        {p.badgeText}
+                      </span>
+                    )}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground flex-shrink-0">
+                      {categoryLabel[p.category] ?? p.category}
+                    </span>
+                    {!p.isActive && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 flex-shrink-0">비활성</span>
+                    )}
+                  </div>
+                  {p.description && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
+                  )}
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-base font-bold text-foreground">{formatPrice(p.price)}</span>
+                    {p.originalPrice && p.originalPrice > p.price && (
+                      <span className="text-xs text-muted-foreground line-through">{formatPrice(p.originalPrice)}</span>
+                    )}
+                  </div>
+                </div>
+                {p.imageUrl && (
+                  <img src={p.imageUrl} alt={p.name} className="w-16 h-16 object-cover rounded-lg flex-shrink-0 border border-border" />
+                )}
+              </div>
+              <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+                <Button variant="outline" size="sm" className="flex-1 text-xs" onClick={() => openEdit(p)}>수정</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => updateMutation.mutate({ id: p.id, isActive: p.isActive ? 0 : 1 })}
+                >
+                  {p.isActive ? "비활성화" : "활성화"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs text-red-500 hover:text-red-500"
+                  onClick={() => { if (confirm("정말 삭제하시겠습니까?")) deleteMutation.mutate({ id: p.id }); }}
+                >
+                  삭제
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 등록/수정 다이얼로그 */}
+      <Dialog open={showForm} onOpenChange={(v) => { if (!v) { setShowForm(false); setEditingId(null); resetForm(); } }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingId ? "상품 수정" : "상품 등록"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">상품명 *</Label>
+              <Input value={form.name} onChange={e => f("name", e.target.value)} placeholder="예: 3개월 회원권" className="mt-1 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">카테고리</Label>
+              <Select value={form.category} onValueChange={v => f("category", v)}>
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">판매가 (원) *</Label>
+              <Input type="number" value={form.price} onChange={e => f("price", e.target.value)} placeholder="예: 80000" className="mt-1 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">정가 (원) — 할인 전 가격 표시용</Label>
+              <Input type="number" value={form.originalPrice} onChange={e => f("originalPrice", e.target.value)} placeholder="예: 100000 (선택사항)" className="mt-1 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">상품 설명</Label>
+              <textarea
+                value={form.description}
+                onChange={e => f("description", e.target.value)}
+                placeholder="상품에 대한 간단한 설명을 입력하세요"
+                rows={3}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">배지 텍스트 (예: 인기, 추천, BEST)</Label>
+              <Input value={form.badgeText} onChange={e => f("badgeText", e.target.value)} placeholder="예: 인기" className="mt-1 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">이미지 URL</Label>
+              <Input value={form.imageUrl} onChange={e => f("imageUrl", e.target.value)} placeholder="https://..." className="mt-1 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">노출 순서 (숫자 낮을수록 위)</Label>
+              <Input type="number" value={form.sortOrder} onChange={e => f("sortOrder", parseInt(e.target.value) || 0)} className="mt-1 text-sm" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">활성화</Label>
+              <button
+                onClick={() => f("isActive", form.isActive ? 0 : 1)}
+                className={`relative w-10 h-5.5 rounded-full transition-colors ${form.isActive ? "bg-primary" : "bg-muted"}`}
+                style={{ height: "22px" }}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform ${form.isActive ? "translate-x-4.5" : ""}`}
+                  style={{ width: "18px", height: "18px", transform: form.isActive ? "translateX(18px)" : "translateX(0)" }} />
+              </button>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                className="flex-1"
+                onClick={handleSubmit}
+                disabled={createMutation.isPending || updateMutation.isPending}
+              >
+                {editingId ? "저장" : "등록"}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => { setShowForm(false); setEditingId(null); resetForm(); }}>
+                취소
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

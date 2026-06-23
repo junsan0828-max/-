@@ -431,6 +431,19 @@ async function initDatabase() {
       active INTEGER DEFAULT 1 NOT NULL,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_products (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      price INTEGER NOT NULL,
+      "originalPrice" INTEGER,
+      category TEXT NOT NULL DEFAULT 'membership',
+      "imageUrl" TEXT,
+      "badgeText" TEXT,
+      "isActive" INTEGER NOT NULL DEFAULT 1,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

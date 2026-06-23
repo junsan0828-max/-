@@ -37,6 +37,7 @@ import {
   gymPlusMembershipRenewals,
   gymPlusDailyDiets,
   gymPlusDietFoods,
+  gymPlusProducts,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -3870,6 +3871,71 @@ ${dataContext}
       const { id, ...data } = input;
       await db.update(gymPlusWorkoutLogs).set(data)
         .where(eq(gymPlusWorkoutLogs.id, id));
+      return { success: true };
+    }),
+
+  // ─── 상품 관리 ────────────────────────────────────────────────────────────────
+
+  listProducts: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(gymPlusProducts)
+      .where(eq(gymPlusProducts.isActive, 1))
+      .orderBy(gymPlusProducts.sortOrder, gymPlusProducts.id);
+  }),
+
+  admin_listProducts: adminOnlyGymPlus.query(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+    return db.select().from(gymPlusProducts).orderBy(gymPlusProducts.sortOrder, gymPlusProducts.id);
+  }),
+
+  admin_createProduct: adminOnlyGymPlus
+    .input(z.object({
+      name: z.string().min(1),
+      description: z.string().optional(),
+      price: z.number().int().min(0),
+      originalPrice: z.number().int().min(0).optional(),
+      category: z.string().default("membership"),
+      imageUrl: z.string().optional(),
+      badgeText: z.string().optional(),
+      isActive: z.number().int().default(1),
+      sortOrder: z.number().int().default(0),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [row] = await db.insert(gymPlusProducts).values(input).returning();
+      return row;
+    }),
+
+  admin_updateProduct: adminOnlyGymPlus
+    .input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      price: z.number().int().min(0).optional(),
+      originalPrice: z.number().int().min(0).optional(),
+      category: z.string().optional(),
+      imageUrl: z.string().optional(),
+      badgeText: z.string().optional(),
+      isActive: z.number().int().optional(),
+      sortOrder: z.number().int().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { id, ...data } = input;
+      await db.update(gymPlusProducts).set(data).where(eq(gymPlusProducts.id, id));
+      return { success: true };
+    }),
+
+  admin_deleteProduct: adminOnlyGymPlus
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.delete(gymPlusProducts).where(eq(gymPlusProducts.id, input.id));
       return { success: true };
     }),
 

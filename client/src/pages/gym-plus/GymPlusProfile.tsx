@@ -247,6 +247,7 @@ export default function GymPlusProfile() {
   const utils = trpc.useUtils();
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
   const { data: health, refetch: refetchHealth } = trpc.gymPlus.getHealth.useQuery();
+  const { data: products } = trpc.gymPlus.listProducts.useQuery();
   const [activeTab, setActiveTab] = useState<"service" | "info">("service");
 
   const [profileForm, setProfileForm] = useState({ name: "", phone: "", email: "" });
@@ -535,6 +536,48 @@ export default function GymPlusProfile() {
           );
         })()}
       </div>
+
+      {/* 상품 목록 */}
+      {products && products.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-foreground">이용 가능 상품</h2>
+          {products.map((p) => (
+            <div key={p.id} className="border border-border rounded-xl overflow-hidden bg-card">
+              {p.imageUrl && (
+                <img src={p.imageUrl} alt={p.name} className="w-full h-36 object-cover" />
+              )}
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-foreground">{p.name}</span>
+                      {p.badgeText && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                          {p.badgeText}
+                        </span>
+                      )}
+                    </div>
+                    {p.description && (
+                      <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2 mt-3">
+                  <span className="text-lg font-black text-foreground">{p.price.toLocaleString("ko-KR")}원</span>
+                  {p.originalPrice && p.originalPrice > p.price && (
+                    <span className="text-xs text-muted-foreground line-through">{p.originalPrice.toLocaleString("ko-KR")}원</span>
+                  )}
+                  {p.originalPrice && p.originalPrice > p.price && (
+                    <span className="text-xs font-semibold text-red-400">
+                      {Math.round((1 - p.price / p.originalPrice) * 100)}% OFF
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       </>)}
 

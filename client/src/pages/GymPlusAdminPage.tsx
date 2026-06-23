@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin } from "./gym-plus/GymPlusAdmin";
+import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin } from "./gym-plus/GymPlusAdmin";
 
-type Tab = "members" | "videos" | "events" | "logs";
+type Tab = "members" | "videos" | "events" | "logs" | "products";
 
 const tabs: { key: Tab; label: string; icon: string; desc: string }[] = [
   { key: "members", label: "회원관리", icon: "◎", desc: "짐+ 회원 목록 및 동기화" },
   { key: "videos", label: "운동영상", icon: "▶", desc: "영상 카테고리 및 업로드" },
   { key: "events", label: "공지 / 이벤트", icon: "★", desc: "이벤트 및 공지 관리" },
   { key: "logs", label: "운동기록", icon: "≡", desc: "회원 운동기록 열람 / 영상 연결" },
+  { key: "products", label: "상품관리", icon: "◈", desc: "판매 상품 등록 및 관리" },
 ];
 
 export default function GymPlusAdminPage() {
@@ -65,6 +66,7 @@ export default function GymPlusAdminPage() {
             {activeTab === "videos" && <GymPlusVideosAdmin />}
             {activeTab === "events" && <GymPlusEventsAdmin />}
             {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
+            {activeTab === "products" && <GymPlusProductsAdmin />}
           </div>
         </main>
       </div>
@@ -77,6 +79,7 @@ export default function GymPlusAdminPage() {
             {activeTab === "videos" && <GymPlusVideosAdmin />}
             {activeTab === "events" && <GymPlusEventsAdmin />}
             {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}
+            {activeTab === "products" && <GymPlusProductsAdmin />}
           </div>
         </main>
 
