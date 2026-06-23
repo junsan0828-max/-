@@ -353,22 +353,25 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
             <div className="space-y-3">
               <p className="text-[12px] text-gray-400">최근 건강검진 결과를 알고 계시면 입력해주세요. 모르시면 그냥 넘어가셔도 됩니다.</p>
               {([
-                ["systolicBP", "혈압(수축기)", "예: 120"],
-                ["diastolicBP", "혈압(이완기)", "예: 80"],
-                ["waistCircumference", "허리둘레(cm)", "예: 85"],
-                ["fastingGlucose", "공복혈당", "예: 95"],
-                ["hba1c", "HbA1c(%)", "예: 5.5"],
-                ["totalCholesterol", "총콜레스테롤", "예: 180"],
-                ["hdl", "HDL", "예: 55"],
-                ["ldl", "LDL", "예: 100"],
-                ["triglycerides", "중성지방", "예: 120"],
-                ["boneDensity", "골밀도", "예: -0.5"],
-              ] as const).map(([f, label, ph]) => (
-                <div key={f} className="flex items-center gap-3">
-                  <span className="text-[12px] text-gray-500 w-28 flex-shrink-0">{label}</span>
+                ["systolicBP",       "혈압(수축기)",   "예: 120", "정상 90~120"],
+                ["diastolicBP",      "혈압(이완기)",   "예: 80",  "정상 60~80"],
+                ["waistCircumference","허리둘레(cm)",  "예: 85",  "남 90 미만 / 여 85 미만"],
+                ["fastingGlucose",   "공복혈당",       "예: 95",  "정상 70~99"],
+                ["hba1c",            "HbA1c(%)",       "예: 5.5", "정상 5.7% 미만"],
+                ["totalCholesterol", "총콜레스테롤",   "예: 180", "정상 200 미만"],
+                ["hdl",              "HDL",            "예: 55",  "남 40↑ / 여 50↑"],
+                ["ldl",              "LDL",            "예: 100", "정상 130 미만"],
+                ["triglycerides",    "중성지방",       "예: 120", "정상 150 미만"],
+                ["boneDensity",      "골밀도(T-score)","예: -0.5","정상 -1.0 이상"],
+              ] as const).map(([f, label, ph, norm]) => (
+                <div key={f} className="bg-gray-50 rounded-xl px-3 py-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] font-semibold text-[#1a2b4b]">{label}</span>
+                    <span className="text-[10px] text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">{norm}</span>
+                  </div>
                   <input type="number" placeholder={ph} value={data[f]}
                     onChange={e => set(f, e.target.value)}
-                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-[13px]"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-[13px] bg-white"
                   />
                 </div>
               ))}
