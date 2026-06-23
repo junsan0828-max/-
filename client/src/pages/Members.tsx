@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
-import { MEMBER_STATUS, SERVICE_COLORS } from "@/lib/memberServices";
+import { MEMBER_STATUS, SERVICE_COLORS, type MemberStatus } from "@/lib/memberServices";
 
 const gradeLabels: Record<string, string> = {
   basic: "기본",
@@ -20,7 +20,7 @@ const gradeLabels: Record<string, string> = {
   vip: "VIP",
 };
 
-type StatusFilter = "all" | "active" | "paused";
+type StatusFilter = "all" | "active" | "paused" | "ended";
 type GradeFilter = "all" | "basic" | "premium" | "vip";
 type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
@@ -88,7 +88,9 @@ export default function Members() {
   const filtered = members?.filter((m) => {
     const matchSearch =
       m.name.includes(search) || (m.phone && m.phone.includes(search));
-    const matchStatus = statusFilter === "all" || m.status === statusFilter;
+    const matchStatus = statusFilter === "all"
+      ? m.status !== "ended"
+      : m.status === statusFilter;
     const matchGrade = gradeFilter === "all" || m.grade === gradeFilter;
 
     const daysLeft = m.membershipEnd
@@ -242,17 +244,17 @@ export default function Members() {
       {/* 상태 · 등급 필터 */}
       <div className="space-y-2">
         <div className="flex gap-1.5 flex-wrap">
-          {(["all", "active", "paused"] as StatusFilter[]).map((s) => (
+          {(["all", "active", "paused", "ended"] as StatusFilter[]).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1 rounded-full text-xs border transition-colors ${
                 statusFilter === s
-                  ? "bg-primary text-primary-foreground border-primary"
+                  ? s === "ended" ? "bg-gray-600 text-white border-gray-600" : "bg-primary text-primary-foreground border-primary"
                   : "border-border text-muted-foreground hover:border-primary/40"
               }`}
             >
-              {s === "all" ? "전체 상태" : s === "active" ? "활성" : "정지"}
+              {s === "all" ? "전체 상태" : s === "active" ? "활성" : s === "paused" ? "정지" : "마감"}
             </button>
           ))}
         </div>
@@ -362,7 +364,7 @@ export default function Members() {
                         <p className="font-medium text-foreground">{member.name}</p>
                         {/* 회원 상태 */}
                         {(() => {
-                          const s = MEMBER_STATUS[member.status as "active" | "paused"];
+                          const s = MEMBER_STATUS[member.status as MemberStatus];
                           return s ? (
                             <span className={`text-xs px-1.5 py-0.5 rounded-full border ${s.bg} ${s.text} ${s.border}`}>
                               {s.label}

@@ -131,6 +131,7 @@ const membershipLabels: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   active: "활성",
   paused: "정지",
+  ended: "마감",
 };
 
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

@@ -11,7 +11,7 @@ import { PT_STATUS } from "@/lib/memberServices";
 export default function PT() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "active" | "completed" | "expired">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "completed" | "expired">("active");
 
   const { data: packages, isLoading } = trpc.pt.list.useQuery();
 

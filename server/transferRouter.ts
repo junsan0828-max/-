@@ -276,6 +276,14 @@ export const transferRouter = t.router({
               );
             }
           }
+
+          // 양도인 회원을 "ended(마감)" 상태로 변경
+          if (contract.transferorMemberId) {
+            await pool.query(
+              `UPDATE members SET status = 'ended', "updatedAt" = $1 WHERE id = $2`,
+              [now, contract.transferorMemberId]
+            );
+          }
         }
       }
 
@@ -329,6 +337,13 @@ export const transferRouter = t.router({
             else if (contract.itemType === "locker") await pool.query('UPDATE lockers SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [tid, contract.transfereeName, contract.itemId]);
             else if (contract.itemType === "uniform") await pool.query('UPDATE uniforms SET "memberId" = $1, "memberName" = $2 WHERE id = $3', [tid, contract.transfereeName, contract.itemId]);
           }
+          // 양도인 회원을 "ended(마감)" 상태로 변경
+          if (contract.transferorMemberId) {
+            await pool.query(
+              `UPDATE members SET status = 'ended', "updatedAt" = $1 WHERE id = $2`,
+              [now, contract.transferorMemberId]
+            );
+          }
           fixed.push(contract.transfereeName);
         } else {
           errors.push(`${contract.transfereeName}: INSERT 결과 없음`);
@@ -337,6 +352,14 @@ export const transferRouter = t.router({
         errors.push(`${contract.transfereeName}: ${e.message}`);
       }
     }
+    // 이미 완료된 계약의 양도인들도 "ended" 상태로 일괄 업데이트
+    await pool.query(
+      `UPDATE members SET status = 'ended', "updatedAt" = NOW()::text
+       WHERE id IN (
+         SELECT DISTINCT "transferorMemberId" FROM transfer_contracts WHERE status = 'completed' AND "transferorMemberId" IS NOT NULL
+       ) AND status != 'ended'`
+    );
+
     return { fixed, errors };
   }),
 

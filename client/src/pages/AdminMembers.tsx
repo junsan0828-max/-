@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Search, ChevronRight, MapPin, Users, UserCheck, Clock, UserX, Pause, TrendingUp, TrendingDown, Minus, X } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-type TypeFilter = "all" | "PT" | "헬스";
+type TypeFilter = "all" | "PT" | "헬스" | "종료";
 
 function memberType(packages: { packageName: string; totalSessions: number }[], status: string, hasPtRevenue?: boolean): "PT" | "헬스" | "기타" {
   if (packages.length > 0 || hasPtRevenue) return "PT";
@@ -54,7 +54,9 @@ function loadFilter() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as { search: string; typeFilter: TypeFilter; branchFilter: number | null };
+    const parsed = JSON.parse(raw) as { search: string; typeFilter: TypeFilter; branchFilter: number | null };
+    if (!["all", "PT", "헬스", "종료"].includes(parsed.typeFilter)) parsed.typeFilter = "all";
+    return parsed;
   } catch {
     return null;
   }
@@ -143,8 +145,10 @@ export default function AdminMembers() {
   // 회원관리 페이지 열릴 때 완료된 양도양수 계약 중 회원 미생성 건 자동 보정
   useEffect(() => { fixMissingMutation.mutate(); }, []);
 
-  const ptMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "PT") ?? [];
-  const healthMembers = allMembers?.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "헬스") ?? [];
+  const activeMembers = allMembers?.filter((m) => m.status !== "ended") ?? [];
+  const endedMembers = allMembers?.filter((m) => m.status === "ended") ?? [];
+  const ptMembers = activeMembers.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "PT");
+  const healthMembers = activeMembers.filter((m) => memberType(m.packages, m.status, m.hasPtRevenue) === "헬스");
 
   // PT 횟수별 통계
   const sessionStats = (() => {
@@ -202,6 +206,7 @@ export default function AdminMembers() {
     const q = search.trim().toLowerCase();
     const matched = groupedMembers.filter((group) => {
       const m = group[0];
+      const isEnded = group.every(g => g.status === "ended");
       const qDigits = q.replace(/\D/g, "");
       const matchSearch =
         !q ||
@@ -210,9 +215,17 @@ export default function AdminMembers() {
         group.some(g => (g.trainerName ?? "").toLowerCase().includes(q)) ||
         group.some(g => (g.profileNote ?? "").toLowerCase().includes(q));
       const mTypes = group.map(g => memberType(g.packages, g.status, g.hasPtRevenue));
-      const matchType = typeFilter === "all"
-        || mTypes.includes(typeFilter as any)
-        || (typeFilter === "헬스" && mTypes.every(t => t === "기타"));
+      let matchType: boolean;
+      if (typeFilter === "종료") {
+        matchType = isEnded;
+      } else if (typeFilter === "all") {
+        matchType = !isEnded;
+      } else {
+        matchType = !isEnded && (
+          mTypes.includes(typeFilter as any)
+          || (typeFilter === "헬스" && mTypes.every(t => t === "기타"))
+        );
+      }
       return matchSearch && matchType;
     });
     // 검색어가 있을 때: 이름 일치 → 연락처 일치 → 기타(트레이너/메모) 순으로 정렬
@@ -445,13 +458,13 @@ export default function AdminMembers() {
 
       {/* 타입 필터 탭 */}
       <div className="flex gap-1 bg-card border border-border rounded-xl p-1">
-        {(["all", "PT", "헬스"] as TypeFilter[]).map((t) => (
+        {(["all", "PT", "헬스", "종료"] as TypeFilter[]).map((t) => (
           <button
             key={t}
             onClick={() => setTypeFilter(t)}
             className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               typeFilter === t
-                ? "bg-primary text-primary-foreground"
+                ? t === "종료" ? "bg-gray-600 text-white" : "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -556,6 +569,7 @@ export default function AdminMembers() {
           const isOnlyEtc = types.length === 1 && types[0] === "기타";
           const displayTypes = isOnlyEtc ? [] : types.filter(t => t !== "기타");
           const isPaused = group.some(g => g.status === "paused");
+          const isEnded = group.every(g => g.status === "ended");
           const typeStyle = (t: string) =>
             t === "PT" ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
             : "bg-green-500/20 text-green-400 border-green-500/30";
@@ -585,7 +599,10 @@ export default function AdminMembers() {
                   {/* 이름 + 상태 뱃지 + D-Day */}
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="font-semibold text-sm">{primary.name}</span>
-                    {isPaused && (
+                    {isEnded && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded border font-medium bg-gray-500/20 text-gray-400 border-gray-500/30">마감</span>
+                    )}
+                    {!isEnded && isPaused && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded border font-medium bg-orange-500/20 text-orange-400 border-orange-500/30">정지</span>
                     )}
                     {isDuplicate && (
