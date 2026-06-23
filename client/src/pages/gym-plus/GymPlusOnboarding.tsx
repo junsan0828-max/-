@@ -2,7 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import GymPlusHealthSurvey from "./GymPlusHealthSurvey";
 
 const GYM_RULES = [
   { title: "시설 이용", body: "센터 내 모든 시설은 회원 전용이며, 타인에게 양도하거나 공유할 수 없습니다." },
@@ -160,6 +160,20 @@ export default function GymPlusOnboarding({ health, onComplete }: Props) {
     } catch {
       // error already shown via onError toast
     }
+  }
+
+  // PAR-Q 단계는 새 건강 설문 컴포넌트로 교체
+  if (step === "parq") {
+    return (
+      <GymPlusHealthSurvey
+        initialData={health}
+        onComplete={onComplete}
+        saveExtraFields={{
+          gymRulesAgreed: needsRules ? 1 : undefined,
+          appGuideConfirmed: needsGuide ? 1 : undefined,
+        }}
+      />
+    );
   }
 
   return (
