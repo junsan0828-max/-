@@ -78,9 +78,19 @@ export default function GymPlusDashboard() {
           <div className="flex items-end justify-between gap-2">
             <div>
               <p className="text-[11px] text-gray-400 font-medium tracking-widest uppercase mb-2">Membership</p>
-              <p className={`font-black leading-none ${dayTextColor}`} style={{ fontSize: "2.75rem" }}>
-                {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? "D-day" : "만료됨"}
-              </p>
+              {daysLeft > 0 ? (
+                <p className={`font-black leading-none ${dayTextColor}`} style={{ fontSize: "2.75rem" }}>
+                  D-{daysLeft}
+                </p>
+              ) : daysLeft === 0 ? (
+                <p className={`font-black leading-none ${dayTextColor}`} style={{ fontSize: "2.75rem" }}>
+                  D-day
+                </p>
+              ) : (
+                <p className="text-[22px] font-bold text-red-500 leading-snug tracking-tight">
+                  만료됨
+                </p>
+              )}
               {member?.membershipEnd && (
                 <p className="text-[11px] text-gray-400 mt-2">
                   {member.membershipEnd} 만료
