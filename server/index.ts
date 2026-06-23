@@ -952,7 +952,10 @@ async function initDatabase() {
 
     for (const rev of ptRevs) {
       if (!rev.memberId) continue;
-      const existing = await db.select({ id: ptPackages.id }).from(ptPackages).where(eq(ptPackages.memberId, rev.memberId));
+      // paymentDate + memberId 기준으로 중복 체크 (같은 날 결제한 패키지가 이미 있으면 스킵)
+      const existing = await db.select({ id: ptPackages.id }).from(ptPackages).where(
+        and(eq(ptPackages.memberId, rev.memberId), eq(ptPackages.paymentDate, rev.paymentDate))
+      );
       if (existing.length === 0) {
         const now = new Date().toISOString();
         const svcSessions = (rev as any).serviceSessions ?? 0;
