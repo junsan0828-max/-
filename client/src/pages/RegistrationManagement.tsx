@@ -573,7 +573,8 @@ export default function RegistrationManagement() {
                                 paymentMethod: ((r.paymentMethod === "이체" ? "계좌이체" : r.paymentMethod) ?? "") as any,
                                 paymentDate: r.paymentDate ?? "",
                                 memo: r.memo ?? "",
-                                transferAmount: "", cardAmount: "",
+                                transferAmount: r.transferAmount ? String(r.transferAmount) : "",
+                                cardAmount: r.cardAmount ? String(r.cardAmount) : "",
                               });
                               const siParts = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
                               const siCategories = siParts.map((s: string) =>
@@ -890,6 +891,8 @@ export default function RegistrationManagement() {
                             paymentDate: editRevForm.paymentDate || undefined,
                             memo: editRevForm.memo || undefined,
                             serviceItems: siStr,
+                            transferAmount: editRevForm.paymentMethod === "혼합" && editRevForm.transferAmount !== "" ? Number(editRevForm.transferAmount) : null,
+                            cardAmount: editRevForm.paymentMethod === "혼합" && editRevForm.cardAmount !== "" ? Number(editRevForm.cardAmount) : null,
                           });
                         }}
                         disabled={updateRevMutation.isPending}

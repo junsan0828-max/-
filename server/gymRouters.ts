@@ -588,6 +588,8 @@ const revenueRouter = t.router({
       installments: z.number().optional(),
       memo: z.string().optional(),
       serviceItems: z.string().optional(),
+      transferAmount: z.number().nullable().optional(),
+      cardAmount: z.number().nullable().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -640,14 +642,12 @@ const revenueRouter = t.router({
         const newAmount = row.paidAmount ?? row.amount ?? 0;
 
         // pricePerSession 재계산
+        const tAmt = (row as any).transferAmount ?? existingPkg?.transferAmount ?? null;
+        const cAmt = (row as any).cardAmount ?? existingPkg?.cardAmount ?? null;
         let newPricePerSession: number | undefined;
         if (newSessions > 0) {
-          if (row.paymentMethod === "혼합") {
-            const tAmt = existingPkg?.transferAmount ?? null;
-            const cAmt = existingPkg?.cardAmount ?? null;
-            if (tAmt != null && cAmt != null) {
-              newPricePerSession = Math.round((tAmt + Math.round(cAmt / 1.1)) / newSessions);
-            }
+          if (row.paymentMethod === "혼합" && tAmt != null && cAmt != null) {
+            newPricePerSession = Math.round((tAmt + Math.round(cAmt / 1.1)) / newSessions);
           }
           if (newPricePerSession === undefined) {
             const isTransfer = row.paymentMethod === "이체" || row.paymentMethod === "계좌이체";
@@ -666,6 +666,8 @@ const revenueRouter = t.router({
             paymentMethod: row.paymentMethod ?? undefined,
             paymentDate: row.paymentDate ?? undefined,
             paymentMemo: row.memo ?? undefined,
+            transferAmount: tAmt,
+            cardAmount: cAmt,
             updatedAt: new Date().toISOString(),
           };
           if (newPricePerSession !== undefined) pkgFields.pricePerSession = newPricePerSession;
