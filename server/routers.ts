@@ -38,6 +38,8 @@ import {
   gymPlusDailyDiets,
   gymPlusDietFoods,
   gymPlusProducts,
+  gymPlusPointLogs,
+  gymPlusPurchaseRequests,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -2691,6 +2693,7 @@ const gymPlusRouter = t.router({
       name: gymPlusMembers.name, phone: gymPlusMembers.phone, email: gymPlusMembers.email,
       membershipType: gymPlusMembers.membershipType,
       membershipStart: gymPlusMembers.membershipStart, membershipEnd: gymPlusMembers.membershipEnd,
+      points: gymPlusMembers.points,
     }).from(gymPlusMembers).where(eq(gymPlusMembers.id, gymMemberId)).limit(1);
     return result[0] ?? null;
   }),
@@ -3936,6 +3939,147 @@ ${dataContext}
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await db.delete(gymPlusProducts).where(eq(gymPlusProducts.id, input.id));
+      return { success: true };
+    }),
+
+  // ─── 포인트 ────────────────────────────────────────────────────────────────
+
+  getPointLogs: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(gymPlusPointLogs)
+      .where(eq(gymPlusPointLogs.gymPlusMemberId, ctx.gymPlusMemberId))
+      .orderBy(desc(gymPlusPointLogs.createdAt))
+      .limit(50);
+  }),
+
+  admin_chargePoints: adminOnlyGymPlus
+    .input(z.object({
+      gymPlusMemberId: z.number(),
+      amount: z.number().int(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [member] = await db.select({ points: gymPlusMembers.points })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.id, input.gymPlusMemberId)).limit(1);
+      if (!member) throw new TRPCError({ code: "NOT_FOUND" });
+      const newBalance = (member.points ?? 0) + input.amount;
+      await db.update(gymPlusMembers).set({ points: newBalance })
+        .where(eq(gymPlusMembers.id, input.gymPlusMemberId));
+      await db.insert(gymPlusPointLogs).values({
+        gymPlusMemberId: input.gymPlusMemberId,
+        type: input.amount >= 0 ? "charge" : "spend",
+        amount: input.amount,
+        balanceAfter: newBalance,
+        reason: input.reason,
+      });
+      return { balance: newBalance };
+    }),
+
+  // ─── 구매신청 ────────────────────────────────────────────────────────────────
+
+  requestPurchase: gymPlusProtected
+    .input(z.object({
+      productId: z.number(),
+      paymentMethod: z.string(), // "points" | "cash" | "transfer" | "card"
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [product] = await db.select().from(gymPlusProducts)
+        .where(eq(gymPlusProducts.id, input.productId)).limit(1);
+      if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "상품을 찾을 수 없습니다." });
+
+      let pointsUsed = 0;
+      if (input.paymentMethod === "points") {
+        const [member] = await db.select({ points: gymPlusMembers.points })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+        if (!member || (member.points ?? 0) < product.price) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "포인트가 부족합니다." });
+        }
+        pointsUsed = product.price;
+        const newBalance = (member.points ?? 0) - product.price;
+        await db.update(gymPlusMembers).set({ points: newBalance })
+          .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
+        const [req] = await db.insert(gymPlusPurchaseRequests).values({
+          gymPlusMemberId: ctx.gymPlusMemberId,
+          productId: product.id,
+          productName: product.name,
+          price: product.price,
+          paymentMethod: "points",
+          pointsUsed,
+          status: "approved",
+          note: input.note,
+        }).returning();
+        await db.insert(gymPlusPointLogs).values({
+          gymPlusMemberId: ctx.gymPlusMemberId,
+          type: "spend",
+          amount: -product.price,
+          balanceAfter: newBalance,
+          reason: `${product.name} 구매`,
+          relatedId: req.id,
+        });
+        return { success: true, status: "approved", pointsUsed };
+      }
+
+      // 현장/이체/카드 결제 → pending 신청
+      await db.insert(gymPlusPurchaseRequests).values({
+        gymPlusMemberId: ctx.gymPlusMemberId,
+        productId: product.id,
+        productName: product.name,
+        price: product.price,
+        paymentMethod: input.paymentMethod,
+        pointsUsed: 0,
+        status: "pending",
+        note: input.note,
+      });
+      return { success: true, status: "pending", pointsUsed: 0 };
+    }),
+
+  getMyPurchases: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(gymPlusPurchaseRequests)
+      .where(eq(gymPlusPurchaseRequests.gymPlusMemberId, ctx.gymPlusMemberId))
+      .orderBy(desc(gymPlusPurchaseRequests.createdAt))
+      .limit(30);
+  }),
+
+  admin_listPurchaseRequests: adminOnlyGymPlus
+    .input(z.object({ status: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({
+        id: gymPlusPurchaseRequests.id,
+        gymPlusMemberId: gymPlusPurchaseRequests.gymPlusMemberId,
+        productId: gymPlusPurchaseRequests.productId,
+        productName: gymPlusPurchaseRequests.productName,
+        price: gymPlusPurchaseRequests.price,
+        paymentMethod: gymPlusPurchaseRequests.paymentMethod,
+        pointsUsed: gymPlusPurchaseRequests.pointsUsed,
+        status: gymPlusPurchaseRequests.status,
+        note: gymPlusPurchaseRequests.note,
+        createdAt: gymPlusPurchaseRequests.createdAt,
+        memberName: gymPlusMembers.name,
+        memberPhone: gymPlusMembers.phone,
+      }).from(gymPlusPurchaseRequests)
+        .leftJoin(gymPlusMembers, eq(gymPlusPurchaseRequests.gymPlusMemberId, gymPlusMembers.id))
+        .orderBy(desc(gymPlusPurchaseRequests.createdAt));
+      if (input?.status) return rows.filter(r => r.status === input.status);
+      return rows;
+    }),
+
+  admin_updatePurchaseRequest: adminOnlyGymPlus
+    .input(z.object({ id: z.number(), status: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.update(gymPlusPurchaseRequests).set({ status: input.status })
+        .where(eq(gymPlusPurchaseRequests.id, input.id));
       return { success: true };
     }),
 

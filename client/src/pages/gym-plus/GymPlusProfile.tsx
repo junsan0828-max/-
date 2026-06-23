@@ -243,12 +243,44 @@ function SignaturePad({ onSign, signatureData }: { onSign: (data: string) => voi
   );
 }
 
+const PRODUCT_CATEGORIES = [
+  { value: "all", label: "전체" },
+  { value: "membership", label: "회원권" },
+  { value: "pt", label: "PT" },
+  { value: "supplement", label: "보충제" },
+  { value: "goods", label: "용품" },
+  { value: "other", label: "기타" },
+];
+
+const PAYMENT_METHODS = [
+  { value: "points", label: "포인트 결제", icon: "◈" },
+  { value: "cash", label: "현장 현금", icon: "₩" },
+  { value: "transfer", label: "계좌이체", icon: "→" },
+  { value: "card", label: "카드결제", icon: "▣" },
+];
+
 export default function GymPlusProfile() {
   const utils = trpc.useUtils();
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
   const { data: health, refetch: refetchHealth } = trpc.gymPlus.getHealth.useQuery();
   const { data: products } = trpc.gymPlus.listProducts.useQuery();
   const [activeTab, setActiveTab] = useState<"service" | "info">("service");
+  const [productCategory, setProductCategory] = useState("all");
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState("points");
+  const [purchaseNote, setPurchaseNote] = useState("");
+  const [showChargeModal, setShowChargeModal] = useState(false);
+  const [showPurchaseDone, setShowPurchaseDone] = useState<{ status: string; productName: string } | null>(null);
+
+  const requestPurchase = trpc.gymPlus.requestPurchase.useMutation({
+    onSuccess: (res) => {
+      utils.gymPlus.memberMe.invalidate();
+      setShowPurchaseDone({ status: res.status, productName: selectedProduct?.name ?? "" });
+      setSelectedProduct(null);
+      setPurchaseNote("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const [profileForm, setProfileForm] = useState({ name: "", phone: "", email: "" });
   const [profileEditing, setProfileEditing] = useState(false);
@@ -483,6 +515,277 @@ export default function GymPlusProfile() {
       {/* ── 서비스 상품 탭 ── */}
       {activeTab === "service" && (<>
 
+      {/* 포인트 카드 */}
+      <div className="bg-gradient-to-br from-[#1D4ED8] to-[#2563EB] rounded-2xl p-5 text-white">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[11px] text-white/60 tracking-widest uppercase font-medium">MY POINTS</p>
+            <p className="text-[36px] font-black leading-tight mt-1">
+              {(member?.points ?? 0).toLocaleString("ko-KR")}
+              <span className="text-lg font-semibold ml-1">P</span>
+            </p>
+            <p className="text-[11px] text-white/60 mt-1">{member?.name ?? "-"} 님의 보유 포인트</p>
+          </div>
+          <button
+            onClick={() => setShowChargeModal(true)}
+            className="mt-1 bg-white/20 hover:bg-white/30 transition-colors text-white text-xs font-bold px-3 py-2 rounded-xl"
+          >
+            충전 신청
+          </button>
+        </div>
+      </div>
+
+      {/* 카테고리 필터 */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+        {PRODUCT_CATEGORIES.map(cat => (
+          <button
+            key={cat.value}
+            onClick={() => setProductCategory(cat.value)}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              productCategory === cat.value
+                ? "bg-[#1D4ED8] text-white"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 상품 목록 */}
+      {(() => {
+        const filtered = (products ?? []).filter(p =>
+          productCategory === "all" || p.category === productCategory
+        );
+        if (filtered.length === 0) return (
+          <div className="text-center py-10 text-muted-foreground text-sm">등록된 상품이 없습니다</div>
+        );
+        return (
+          <div className="space-y-3">
+            {filtered.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => { setSelectedProduct(p); setPaymentMethod("points"); setPurchaseNote(""); }}
+                className="w-full border border-border rounded-2xl overflow-hidden bg-card text-left hover:border-primary/40 hover:shadow-md transition-all"
+              >
+                {p.imageUrl && (
+                  <img src={p.imageUrl} alt={p.name} className="w-full h-36 object-cover" />
+                )}
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-foreground">{p.name}</span>
+                        {p.badgeText && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                            {p.badgeText}
+                          </span>
+                        )}
+                      </div>
+                      {p.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-3">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-black text-foreground">{p.price.toLocaleString("ko-KR")}원</span>
+                      {p.originalPrice && p.originalPrice > p.price && (
+                        <>
+                          <span className="text-xs text-muted-foreground line-through">{p.originalPrice.toLocaleString("ko-KR")}원</span>
+                          <span className="text-xs font-semibold text-red-400">
+                            {Math.round((1 - p.price / p.originalPrice) * 100)}% OFF
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-xs text-primary font-semibold">구매 →</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* 구매 모달 */}
+      {selectedProduct && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedProduct(null)} />
+          <div className="relative bg-background rounded-t-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-5 space-y-5">
+              {/* 상품 정보 */}
+              <div className="flex items-start gap-3 pb-4 border-b border-border">
+                {selectedProduct.imageUrl && (
+                  <img src={selectedProduct.imageUrl} alt={selectedProduct.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-base text-foreground">{selectedProduct.name}</span>
+                    {selectedProduct.badgeText && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{selectedProduct.badgeText}</span>
+                    )}
+                  </div>
+                  {selectedProduct.description && (
+                    <p className="text-xs text-muted-foreground mt-1">{selectedProduct.description}</p>
+                  )}
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-xl font-black text-foreground">{selectedProduct.price.toLocaleString("ko-KR")}원</span>
+                    {selectedProduct.originalPrice && selectedProduct.originalPrice > selectedProduct.price && (
+                      <span className="text-xs text-muted-foreground line-through">{selectedProduct.originalPrice.toLocaleString("ko-KR")}원</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 결제 수단 선택 */}
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-3">결제 수단</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {PAYMENT_METHODS.map(pm => (
+                    <button
+                      key={pm.value}
+                      onClick={() => setPaymentMethod(pm.value)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        paymentMethod === pm.value
+                          ? "border-primary bg-primary/5"
+                          : "border-border bg-card"
+                      }`}
+                    >
+                      <span className="text-base">{pm.icon}</span>
+                      <p className="text-xs font-semibold mt-1 text-foreground">{pm.label}</p>
+                      {pm.value === "points" && (
+                        <p className={`text-[10px] mt-0.5 ${
+                          (member?.points ?? 0) >= selectedProduct.price
+                            ? "text-green-500"
+                            : "text-red-400"
+                        }`}>
+                          보유 {(member?.points ?? 0).toLocaleString("ko-KR")}P
+                          {(member?.points ?? 0) < selectedProduct.price && " (부족)"}
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 포인트 결제 안내 */}
+              {paymentMethod === "points" && (
+                <div className={`rounded-xl p-3 text-sm ${
+                  (member?.points ?? 0) >= selectedProduct.price
+                    ? "bg-green-500/10 border border-green-500/20"
+                    : "bg-red-500/10 border border-red-500/20"
+                }`}>
+                  {(member?.points ?? 0) >= selectedProduct.price ? (
+                    <p className="text-green-600 text-xs font-medium">
+                      결제 후 잔여 포인트: {((member?.points ?? 0) - selectedProduct.price).toLocaleString("ko-KR")}P
+                    </p>
+                  ) : (
+                    <p className="text-red-400 text-xs font-medium">
+                      포인트가 {(selectedProduct.price - (member?.points ?? 0)).toLocaleString("ko-KR")}P 부족합니다
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* 현장결제 안내 */}
+              {paymentMethod !== "points" && (
+                <div className="bg-muted/50 rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground">신청 후 센터 직원에게 결제 방법을 안내받으세요.</p>
+                </div>
+              )}
+
+              {/* 메모 */}
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-1.5">요청사항 (선택)</p>
+                <textarea
+                  value={purchaseNote}
+                  onChange={e => setPurchaseNote(e.target.value)}
+                  placeholder="특이사항을 입력해주세요"
+                  rows={2}
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+
+              {/* 버튼 */}
+              <div className="flex gap-2 pb-2">
+                <button
+                  onClick={() => setSelectedProduct(null)}
+                  className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold text-muted-foreground"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => requestPurchase.mutate({ productId: selectedProduct.id, paymentMethod, note: purchaseNote || undefined })}
+                  disabled={requestPurchase.isPending || (paymentMethod === "points" && (member?.points ?? 0) < selectedProduct.price)}
+                  className="flex-1 py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold disabled:opacity-50"
+                >
+                  {requestPurchase.isPending ? "처리 중..." : paymentMethod === "points" ? "포인트로 결제" : "구매 신청"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 구매 완료 모달 */}
+      {showPurchaseDone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowPurchaseDone(null)} />
+          <div className="relative bg-background rounded-2xl w-80 p-6 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
+              <span className="text-3xl">✓</span>
+            </div>
+            <div>
+              <p className="font-bold text-base text-foreground">
+                {showPurchaseDone.status === "approved" ? "결제 완료" : "구매 신청 완료"}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">{showPurchaseDone.productName}</p>
+              {showPurchaseDone.status === "pending" && (
+                <p className="text-xs text-muted-foreground mt-2">센터에서 확인 후 처리됩니다.</p>
+              )}
+            </div>
+            <button
+              onClick={() => setShowPurchaseDone(null)}
+              className="w-full py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 포인트 충전 신청 모달 */}
+      {showChargeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowChargeModal(false)} />
+          <div className="relative bg-background rounded-2xl w-80 p-5 space-y-4">
+            <p className="font-bold text-base text-foreground">포인트 충전 안내</p>
+            <div className="bg-muted/50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">현재 보유 포인트</span>
+                <span className="font-bold">{(member?.points ?? 0).toLocaleString("ko-KR")}P</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              포인트 충전은 센터 직원에게 문의하거나 카운터에서 직접 충전 가능합니다.<br />
+              충전된 포인트로 상품을 구매하실 수 있습니다.
+            </p>
+            <button
+              onClick={() => setShowChargeModal(false)}
+              className="w-full py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      </>)}
+
+      {/* ── 내정보 탭 ── */}
+      {activeTab === "info" && (<>
+
       {/* 회원권 카드 */}
       <div className="bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 rounded-2xl p-5 space-y-4">
         <div className="flex items-start justify-between">
@@ -536,53 +839,6 @@ export default function GymPlusProfile() {
           );
         })()}
       </div>
-
-      {/* 상품 목록 */}
-      {products && products.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">이용 가능 상품</h2>
-          {products.map((p) => (
-            <div key={p.id} className="border border-border rounded-xl overflow-hidden bg-card">
-              {p.imageUrl && (
-                <img src={p.imageUrl} alt={p.name} className="w-full h-36 object-cover" />
-              )}
-              <div className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-foreground">{p.name}</span>
-                      {p.badgeText && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                          {p.badgeText}
-                        </span>
-                      )}
-                    </div>
-                    {p.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-2 mt-3">
-                  <span className="text-lg font-black text-foreground">{p.price.toLocaleString("ko-KR")}원</span>
-                  {p.originalPrice && p.originalPrice > p.price && (
-                    <span className="text-xs text-muted-foreground line-through">{p.originalPrice.toLocaleString("ko-KR")}원</span>
-                  )}
-                  {p.originalPrice && p.originalPrice > p.price && (
-                    <span className="text-xs font-semibold text-red-400">
-                      {Math.round((1 - p.price / p.originalPrice) * 100)}% OFF
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      </>)}
-
-      {/* ── 내정보 탭 ── */}
-      {activeTab === "info" && (<>
 
       {/* 추천 운동 활성화 미션 */}
       <div className="bg-card border border-border rounded-xl p-4 space-y-3">

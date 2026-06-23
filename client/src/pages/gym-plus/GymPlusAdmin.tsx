@@ -814,7 +814,7 @@ export default function GymPlusAdminSection() {
   );
 }
 
-// ─── 상품 관리 ────────────────────────────────────────────────────────────────
+// ─── 상품 관리 + 구매 신청 ────────────────────────────────────────────────────
 const CATEGORY_OPTIONS = [
   { value: "membership", label: "회원권" },
   { value: "pt", label: "PT" },
@@ -831,9 +831,132 @@ function formatPrice(n: number) {
   return n.toLocaleString("ko-KR") + "원";
 }
 
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  points: "포인트", cash: "현금", transfer: "계좌이체", card: "카드",
+};
+const STATUS_LABEL: Record<string, string> = {
+  pending: "대기중", approved: "승인", rejected: "거절",
+};
+const STATUS_COLOR: Record<string, string> = {
+  pending: "bg-yellow-500/10 text-yellow-500",
+  approved: "bg-green-500/10 text-green-500",
+  rejected: "bg-red-500/10 text-red-400",
+};
+
+function GymPlusPurchaseRequestsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: requests, isLoading } = trpc.gymPlus.admin_listPurchaseRequests.useQuery({});
+  const updateMutation = trpc.gymPlus.admin_updatePurchaseRequest.useMutation({
+    onSuccess: () => { utils.gymPlus.admin_listPurchaseRequests.invalidate(); toast.success("상태가 업데이트되었습니다."); },
+    onError: (err) => toast.error(err.message),
+  });
+  const chargePoints = trpc.gymPlus.admin_chargePoints.useMutation({
+    onSuccess: () => toast.success("포인트가 충전되었습니다."),
+    onError: (err) => toast.error(err.message),
+  });
+  const [chargeTarget, setChargeTarget] = useState<{ memberId: number; name: string } | null>(null);
+  const [chargeAmount, setChargeAmount] = useState("");
+  const [chargeReason, setChargeReason] = useState("");
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-6 text-center">불러오는 중...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <p className="text-xs text-muted-foreground">총 {requests?.length ?? 0}건</p>
+        <Button size="sm" variant="outline" onClick={() => setChargeTarget({ memberId: -1, name: "" })}>
+          포인트 충전
+        </Button>
+      </div>
+
+      {(!requests || requests.length === 0) ? (
+        <div className="text-sm text-muted-foreground text-center py-10 border border-dashed border-border rounded-xl">
+          구매 신청 내역이 없습니다
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {requests.map((r) => (
+            <div key={r.id} className="border border-border rounded-xl p-4 bg-card space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{r.productName}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {r.memberName ?? "-"} · {r.memberPhone ?? "-"}
+                  </p>
+                  {r.note && <p className="text-xs text-muted-foreground mt-0.5">메모: {r.note}</p>}
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_COLOR[r.status] ?? "bg-muted text-muted-foreground"}`}>
+                  {STATUS_LABEL[r.status] ?? r.status}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">{r.price.toLocaleString("ko-KR")}원</span>
+                <span>{PAYMENT_METHOD_LABEL[r.paymentMethod] ?? r.paymentMethod}</span>
+                {r.pointsUsed > 0 && <span className="text-primary">{r.pointsUsed.toLocaleString("ko-KR")}P 사용</span>}
+                <span>{r.createdAt?.slice(0, 10) ?? ""}</span>
+              </div>
+              {r.status === "pending" && (
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" variant="outline" className="flex-1 text-xs text-green-600 hover:text-green-600"
+                    onClick={() => updateMutation.mutate({ id: r.id, status: "approved" })}>
+                    승인
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 text-xs text-red-500 hover:text-red-500"
+                    onClick={() => updateMutation.mutate({ id: r.id, status: "rejected" })}>
+                    거절
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 포인트 충전 다이얼로그 */}
+      <Dialog open={!!chargeTarget} onOpenChange={v => { if (!v) { setChargeTarget(null); setChargeAmount(""); setChargeReason(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>포인트 충전</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">회원 ID</Label>
+              <Input
+                type="number"
+                placeholder="회원 ID 입력"
+                value={chargeTarget?.memberId === -1 ? "" : chargeTarget?.memberId ?? ""}
+                onChange={e => setChargeTarget(p => p ? { ...p, memberId: parseInt(e.target.value) || -1 } : null)}
+                className="mt-1 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">충전 포인트 (음수 입력 시 차감)</Label>
+              <Input type="number" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} placeholder="예: 10000" className="mt-1 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">사유</Label>
+              <Input value={chargeReason} onChange={e => setChargeReason(e.target.value)} placeholder="예: 이벤트 지급" className="mt-1 text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={() => {
+                const amount = parseInt(chargeAmount, 10);
+                if (!chargeTarget || chargeTarget.memberId <= 0 || isNaN(amount)) { toast.error("회원 ID와 포인트를 입력하세요."); return; }
+                chargePoints.mutate({ gymPlusMemberId: chargeTarget.memberId, amount, reason: chargeReason || undefined });
+                setChargeTarget(null); setChargeAmount(""); setChargeReason("");
+              }} disabled={chargePoints.isPending}>충전</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setChargeTarget(null)}>취소</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export function GymPlusProductsAdmin() {
   const utils = trpc.useUtils();
   const { data: products, isLoading } = trpc.gymPlus.admin_listProducts.useQuery();
+  const [adminTab, setAdminTab] = useState<"products" | "purchases">("products");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
@@ -902,6 +1025,25 @@ export function GymPlusProductsAdmin() {
 
   return (
     <div className="space-y-4">
+      {/* 탭 헤더 */}
+      <div className="flex bg-muted rounded-xl p-1 gap-1">
+        {([
+          { key: "products", label: "상품 목록" },
+          { key: "purchases", label: "구매 신청" },
+        ] as const).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setAdminTab(t.key)}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${adminTab === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {adminTab === "purchases" && <GymPlusPurchaseRequestsAdmin />}
+
+      {adminTab === "products" && (<>
       {/* 등록 버튼 */}
       <div className="flex justify-end">
         <Button size="sm" onClick={() => { resetForm(); setEditingId(null); setShowForm(true); }}>
@@ -1052,6 +1194,7 @@ export function GymPlusProductsAdmin() {
           </div>
         </DialogContent>
       </Dialog>
+      </>)}
     </div>
   );
 }

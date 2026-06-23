@@ -444,6 +444,29 @@ async function initDatabase() {
       "sortOrder" INTEGER NOT NULL DEFAULT 0,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `ALTER TABLE gym_plus_members ADD COLUMN IF NOT EXISTS "points" INTEGER NOT NULL DEFAULT 0`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_point_logs (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      "balanceAfter" INTEGER NOT NULL,
+      reason TEXT,
+      "relatedId" INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_purchase_requests (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "productId" INTEGER NOT NULL,
+      "productName" TEXT NOT NULL,
+      price INTEGER NOT NULL,
+      "paymentMethod" TEXT NOT NULL,
+      "pointsUsed" INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      note TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

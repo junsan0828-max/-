@@ -394,6 +394,7 @@ export const gymPlusMembers = pgTable("gym_plus_members", {
   membershipStart: text("membershipStart"),
   membershipEnd: text("membershipEnd"),
   isActive: integer("isActive").default(1).notNull(),
+  points: integer("points").notNull().default(0),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -534,10 +535,34 @@ export const gymPlusProducts = pgTable("gym_plus_products", {
   description: text("description"),
   price: integer("price").notNull(),
   originalPrice: integer("originalPrice"),
-  category: text("category").notNull().default("membership"), // membership, pt, supplement, etc.
+  category: text("category").notNull().default("membership"), // membership, pt, supplement, goods, other
   imageUrl: text("imageUrl"),
   badgeText: text("badgeText"),
   isActive: integer("isActive").notNull().default(1),
   sortOrder: integer("sortOrder").notNull().default(0),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusPointLogs = pgTable("gym_plus_point_logs", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  type: text("type").notNull(), // "charge" | "spend" | "refund"
+  amount: integer("amount").notNull(), // positive=earn, negative=spend
+  balanceAfter: integer("balanceAfter").notNull(),
+  reason: text("reason"),
+  relatedId: integer("relatedId"), // purchase request id etc.
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const gymPlusPurchaseRequests = pgTable("gym_plus_purchase_requests", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  productId: integer("productId").notNull(),
+  productName: text("productName").notNull(),
+  price: integer("price").notNull(),
+  paymentMethod: text("paymentMethod").notNull(), // "points" | "cash" | "transfer" | "card"
+  pointsUsed: integer("pointsUsed").notNull().default(0),
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected"
+  note: text("note"),
   createdAt: text("createdAt").default(now).notNull(),
 });
