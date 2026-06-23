@@ -63,7 +63,8 @@ export function TransferModal({
     const q = search.trim();
     if (!q) return true;
     const digits = m.phone?.replace(/\D/g, "") ?? "";
-    return m.name.includes(q) || digits.includes(q.replace(/\D/g, ""));
+    const qDigits = q.replace(/\D/g, "");
+    return m.name.includes(q) || (qDigits.length > 0 && digits.includes(qDigits));
   });
 
   function toggleType(key: string) {
