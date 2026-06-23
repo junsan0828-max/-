@@ -649,7 +649,7 @@ export function DataFieldManagementSection() {
   const [editId, setEditId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState({ name: "", unit: "" });
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [descDraft, setDescDraft] = useState<Record<number, string>>({});
+  const [descDraft, setDescDraft] = useState<Record<string, string>>({});
 
   const { data: fields } = trpc.consultantData.listFields.useQuery({ section });
   const { data: staffList } = trpc.consultantData.listStaff.useQuery();
