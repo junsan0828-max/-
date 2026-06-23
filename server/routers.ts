@@ -1,4 +1,5 @@
 import { gymRouter } from "./gymRouters";
+import { sendPointClaimNotification } from "./email";
 import Anthropic from "@anthropic-ai/sdk";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -3845,6 +3846,18 @@ ${dataContext}
         pointAmount: event.pointAmount ?? 0,
         status: "pending",
       });
+
+      // 이메일 알림 (실패해도 신청은 성공 처리)
+      const [member] = await db.select({ name: gymPlusMembers.name, phone: gymPlusMembers.phone })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+      sendPointClaimNotification({
+        memberName: member?.name ?? "-",
+        memberPhone: member?.phone ?? "-",
+        eventTitle: event.title,
+        pointAmount: event.pointAmount ?? 0,
+        claimedAt: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+      }).catch(() => {});
+
       return { success: true };
     }),
 
