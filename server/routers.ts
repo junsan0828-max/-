@@ -4222,6 +4222,15 @@ const landingRouter = t.router({
     .input(z.object({
       name: z.string(),
       phone: z.string(),
+      birthdate: z.string().optional(),
+      gender: z.string().optional(),
+      height: z.string().optional(),
+      exercisePurpose: z.string().optional(),
+      exerciseExperience: z.string().optional(),
+      concern: z.string().optional(),
+      agreedPrivacy: z.number().default(0),
+      agreedMarketing: z.number().default(0),
+      marketingChannels: z.string().optional(),
       purpose: z.string().optional(),
       message: z.string().optional(),
     }))
@@ -4229,8 +4238,19 @@ const landingRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       await pool.query(
-        `INSERT INTO landing_inquiries (name, phone, purpose, message, "createdAt") VALUES ($1, $2, $3, $4, $5)`,
-        [input.name, input.phone, input.purpose || null, input.message || null, new Date().toISOString()]
+        `INSERT INTO landing_inquiries
+          (name, phone, birthdate, gender, height, "exercisePurpose", "exerciseExperience",
+           concern, "agreedPrivacy", "agreedMarketing", "marketingChannels", purpose, message, "createdAt")
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          input.name, input.phone,
+          input.birthdate || null, input.gender || null, input.height || null,
+          input.exercisePurpose || null, input.exerciseExperience || null,
+          input.concern || null, input.agreedPrivacy, input.agreedMarketing,
+          input.marketingChannels || null,
+          input.purpose || null, input.message || null,
+          new Date().toISOString(),
+        ]
       );
       return { success: true };
     }),

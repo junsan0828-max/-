@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import LandingReservationModal from "./LandingReservationModal";
 
 // ─── 지점별 정보 설정 ─────────────────────────────────────────────────────────
 const BRANCH = {
@@ -83,7 +84,7 @@ function scrollTo(id: string) {
 }
 
 // ─── Nav ───────────────────────────────────────────────────────────────────────
-function Nav() {
+function Nav({ onReserve }: { onReserve: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -136,7 +137,7 @@ function Nav() {
 
             <div className="hidden lg:flex items-center gap-6">
               <button
-                onClick={() => scrollTo("contact")}
+                onClick={onReserve}
                 className={`text-xs font-medium px-5 py-2.5 tracking-wide transition-all border ${
                   scrolled
                     ? "border-[#0B1D3A] text-[#0B1D3A] hover:bg-[#0B1D3A] hover:text-white"
@@ -210,7 +211,7 @@ function Nav() {
             {/* 하단 CTA */}
             <div className="px-6 py-6 flex flex-col gap-3 flex-shrink-0 border-t border-gray-100">
               <button
-                onClick={() => { scrollTo("contact"); setMenuOpen(false); }}
+                onClick={() => { setMenuOpen(false); onReserve(); }}
                 className="w-full py-4 bg-[#0B1D3A] text-white text-xs font-semibold tracking-widest"
               >
                 무료 상담 예약
@@ -230,7 +231,7 @@ function Nav() {
 }
 
 // ─── Section 1: HERO ──────────────────────────────────────────────────────────
-function HeroSection() {
+function HeroSection({ onReserve }: { onReserve: () => void }) {
   return (
     <section id="hero" className="relative h-screen min-h-[640px] flex items-end overflow-hidden">
       <div className="absolute inset-0">
@@ -250,7 +251,7 @@ function HeroSection() {
           자이언트짐
         </p>
         <button
-          onClick={() => scrollTo("contact")}
+          onClick={onReserve}
           className="px-8 py-4 bg-white text-[#0B1D3A] text-xs font-semibold tracking-[0.15em] uppercase hover:bg-white/90 transition-colors"
         >
           무료 체형분석 예약
@@ -318,7 +319,7 @@ function IntroSection() {
 }
 
 // ─── Section 3: 운동 프로그램 ─────────────────────────────────────────────────
-function ProgramSection() {
+function ProgramSection({ onReserve }: { onReserve: () => void }) {
   const [branch, setBranch] = useState<"b1" | "b2">("b1");
 
   const membershipPrices = {
@@ -410,7 +411,7 @@ function ProgramSection() {
             모든 프로그램은 무료 체형분석 후 결정합니다
           </p>
           <button
-            onClick={() => scrollTo("contact")}
+            onClick={onReserve}
             className="px-8 py-4 border border-[#0B1D3A] text-[#0B1D3A] text-xs font-medium tracking-[0.15em] uppercase hover:bg-[#0B1D3A] hover:text-white transition-all"
           >
             무료 체형분석 예약
@@ -422,7 +423,7 @@ function ProgramSection() {
 }
 
 // ─── Section 4: 근골격 분석 및 체성분 분석 ───────────────────────────────────
-function AnalysisSection() {
+function AnalysisSection({ onReserve }: { onReserve: () => void }) {
   const items = [
     {
       title: "체형 평가",
@@ -456,7 +457,7 @@ function AnalysisSection() {
               분석 없이 시작하는 운동은 방향을 잃은 운동입니다.
             </p>
             <button
-              onClick={() => scrollTo("contact")}
+              onClick={onReserve}
               className="px-8 py-4 bg-[#0B1D3A] text-white text-xs font-medium tracking-[0.15em] uppercase hover:bg-[#162d5a] transition-colors"
             >
               무료 체형분석 예약
@@ -567,7 +568,7 @@ function ReviewsSection() {
 }
 
 // ─── Section 5.5: 친구 이벤트 ────────────────────────────────────────────────
-function EventSection() {
+function EventSection({ onReserve }: { onReserve: () => void }) {
   return (
     <section id="event" className="py-24 lg:py-36 bg-[#06111F] relative overflow-hidden">
       {/* 백그라운드 글로우 */}
@@ -642,7 +643,7 @@ function EventSection() {
 
         {/* CTA */}
         <button
-          onClick={() => scrollTo("contact")}
+          onClick={onReserve}
           className="w-full max-w-sm py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-bold text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-6"
         >
           무료 상담 예약하기 →
@@ -666,7 +667,7 @@ function EventSection() {
 }
 
 // ─── Section 5.7: 미션 혜택 ──────────────────────────────────────────────────
-function MissionSection() {
+function MissionSection({ onReserve }: { onReserve: () => void }) {
   return (
     <section id="mission" className="py-24 lg:py-36 bg-[#080F1A] relative overflow-hidden">
       <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-[#1D4ED8]/8 blur-[100px] pointer-events-none" />
@@ -704,7 +705,7 @@ function MissionSection() {
             </div>
           </div>
           <button
-            onClick={() => scrollTo("contact")}
+            onClick={onReserve}
             className="w-full py-3 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white text-sm font-bold rounded-xl transition-colors"
           >
             체험 예약하기 →
@@ -780,13 +781,13 @@ function MissionSection() {
 
         {/* CTA */}
         <button
-          onClick={() => scrollTo("contact")}
+          onClick={onReserve}
           className="w-full py-4 bg-white text-[#0B1D3A] font-bold text-sm tracking-wide hover:bg-white/90 transition-colors rounded-xl shadow-lg"
         >
           지금 혜택 시작하기 →
         </button>
         <button
-          onClick={() => scrollTo("contact")}
+          onClick={onReserve}
           className="w-full mt-3 py-3.5 border border-white/20 text-white/60 text-sm hover:text-white hover:border-white/40 transition-colors rounded-xl"
         >
           무료 상담 예약
@@ -1100,7 +1101,7 @@ function Footer() {
 }
 
 // ─── Mobile Bottom CTA ────────────────────────────────────────────────────────
-function MobileBottomCTA() {
+function MobileBottomCTA({ onReserve }: { onReserve: () => void }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -1115,13 +1116,13 @@ function MobileBottomCTA() {
     <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-100">
       <div className="grid grid-cols-2">
         <button
-          onClick={() => scrollTo("branches")}
+          onClick={onReserve}
           className="py-4 bg-[#0B1D3A] text-white text-[10px] font-medium text-center tracking-[0.15em] uppercase"
         >
           무료 체형분석 예약
         </button>
         <button
-          onClick={() => scrollTo("contact")}
+          onClick={onReserve}
           className="py-4 bg-white text-[#0B1D3A] text-[10px] font-medium text-center tracking-[0.15em] uppercase border-l border-gray-100"
         >
           상담 신청
@@ -1133,6 +1134,9 @@ function MobileBottomCTA() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Landing() {
+  const [showReservationModal, setShowReservationModal] = useState(false);
+  const openReservation = () => setShowReservationModal(true);
+
   useEffect(() => {
     document.documentElement.style.scrollBehavior = "smooth";
     return () => { document.documentElement.style.scrollBehavior = ""; };
@@ -1140,19 +1144,22 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Nav />
-      <HeroSection />
+      <Nav onReserve={openReservation} />
+      <HeroSection onReserve={openReservation} />
       <IntroSection />
-      <ProgramSection />
-      <AnalysisSection />
+      <ProgramSection onReserve={openReservation} />
+      <AnalysisSection onReserve={openReservation} />
       <ReviewsSection />
-      <EventSection />
-      <MissionSection />
+      <EventSection onReserve={openReservation} />
+      <MissionSection onReserve={openReservation} />
       <GymPlusSection />
       <BranchSection />
       <ContactSection />
       <Footer />
-      <MobileBottomCTA />
+      <MobileBottomCTA onReserve={openReservation} />
+      {showReservationModal && (
+        <LandingReservationModal onClose={() => setShowReservationModal(false)} />
+      )}
     </div>
   );
 }

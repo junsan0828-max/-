@@ -415,6 +415,15 @@ async function initDatabase() {
       status TEXT DEFAULT 'new' NOT NULL,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS birthdate TEXT`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS gender TEXT`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS height TEXT`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS "exercisePurpose" TEXT`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS "exerciseExperience" TEXT`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS concern TEXT`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS "agreedPrivacy" INTEGER DEFAULT 0`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS "agreedMarketing" INTEGER DEFAULT 0`,
+    `ALTER TABLE landing_inquiries ADD COLUMN IF NOT EXISTS "marketingChannels" TEXT`,
     `CREATE TABLE IF NOT EXISTS landing_events (
       id SERIAL PRIMARY KEY,
       icon TEXT NOT NULL DEFAULT '🎁',
