@@ -138,6 +138,10 @@ app.get("/api/transfer/:token", async (req, res) => {
 });
 
 // ─── 공개 체형분석 예약 API (자이언트짐++ 랜딩페이지에서 호출) ─────────────────
+app.get("/api/booking/ping", (_req, res) => {
+  res.json({ status: "ok", version: "v3" });
+});
+
 app.post("/api/booking", async (req, res) => {
   const { name, phone, birthDate, gender, height, purpose, experience, concern, privacyAgreed, marketingAgreed, marketingChannels } = req.body;
   if (!name || !phone) return res.status(400).json({ error: "이름과 연락처는 필수입니다." });
