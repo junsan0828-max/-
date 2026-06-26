@@ -35,9 +35,9 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  const submitMutation = trpc.landing.submitInquiry.useMutation({
-    onSuccess: () => setDone(true),
-  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const submitMutation = trpc.landing.submitInquiry.useMutation();
 
   const canSubmit =
     form.name.trim() &&
@@ -49,21 +49,48 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
     form.exerciseExperience &&
     form.agreedPrivacy;
 
-  function handleSubmit() {
-    if (!canSubmit) return;
-    submitMutation.mutate({
-      name: form.name.trim(),
-      phone: form.phone.trim(),
-      birthdate: form.birthdate.trim(),
-      gender: form.gender,
-      height: form.height.trim(),
-      exercisePurpose: form.exercisePurpose,
-      exerciseExperience: form.exerciseExperience,
-      concern: form.concern.trim() || undefined,
-      agreedPrivacy: 1,
-      agreedMarketing: form.agreedMarketing ? 1 : 0,
-      marketingChannels: form.marketingChannels.length > 0 ? form.marketingChannels.join(", ") : undefined,
-    });
+  async function handleSubmit() {
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    try {
+      // 자이언트짐++ 내부 저장
+      submitMutation.mutate({
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        birthdate: form.birthdate.trim(),
+        gender: form.gender,
+        height: form.height.trim(),
+        exercisePurpose: form.exercisePurpose,
+        exerciseExperience: form.exerciseExperience,
+        concern: form.concern.trim() || undefined,
+        agreedPrivacy: 1,
+        agreedMarketing: form.agreedMarketing ? 1 : 0,
+        marketingChannels: form.marketingChannels.length > 0 ? form.marketingChannels.join(", ") : undefined,
+      });
+      // 통합운영시스템 상담관리 카드 자동 생성
+      await fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          birthDate: form.birthdate.trim(),
+          gender: form.gender,
+          height: form.height.trim(),
+          purpose: form.exercisePurpose,
+          experience: form.exerciseExperience,
+          concern: form.concern.trim() || undefined,
+          privacyAgreed: true,
+          marketingAgreed: form.agreedMarketing,
+          marketingChannels: form.marketingChannels.length > 0 ? form.marketingChannels.join(", ") : undefined,
+        }),
+      });
+      setDone(true);
+    } catch {
+      setDone(true);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function toggleChannel(ch: string) {
@@ -359,14 +386,14 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
           <div className="flex-shrink-0 px-5 py-4 border-t border-gray-100">
             <button
               onClick={handleSubmit}
-              disabled={!canSubmit || submitMutation.isPending}
+              disabled={!canSubmit || submitting}
               className={`w-full py-4 text-[13px] font-semibold tracking-[0.1em] uppercase transition-all ${
-                canSubmit && !submitMutation.isPending
+                canSubmit && !submitting
                   ? "bg-[#0B1D3A] text-white hover:bg-[#162d5a]"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
               }`}
             >
-              {submitMutation.isPending ? "예약 중..." : "무료 체형분석 예약하기"}
+              {submitting ? "예약 중..." : "무료 체형분석 예약하기"}
             </button>
           </div>
         )}
