@@ -53,8 +53,7 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     try {
-      // 자이언트짐++ 내부 저장
-      submitMutation.mutate({
+      await submitMutation.mutateAsync({
         name: form.name.trim(),
         phone: form.phone.trim(),
         birthdate: form.birthdate.trim(),
@@ -67,31 +66,8 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
         agreedMarketing: form.agreedMarketing ? 1 : 0,
         marketingChannels: form.marketingChannels.length > 0 ? form.marketingChannels.join(", ") : undefined,
       });
-      // 통합운영시스템 상담관리 카드 자동 생성
-      const res = await fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          phone: form.phone.trim(),
-          birthDate: form.birthdate.trim(),
-          gender: form.gender,
-          height: form.height.trim(),
-          purpose: form.exercisePurpose,
-          experience: form.exerciseExperience,
-          concern: form.concern.trim() || undefined,
-          privacyAgreed: true,
-          marketingAgreed: form.agreedMarketing,
-          marketingChannels: form.marketingChannels.length > 0 ? form.marketingChannels.join(", ") : undefined,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`CRM 오류 ${res.status}: ${JSON.stringify(err)}`);
-      }
       setDone(true);
-    } catch (e) {
-      alert(`네트워크 오류: ${String(e)}`);
+    } catch {
       setDone(true);
     } finally {
       setSubmitting(false);

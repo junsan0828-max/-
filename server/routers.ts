@@ -4254,23 +4254,21 @@ const landingRouter = t.router({
       );
 
       // 통합운영시스템 상담 CRM에 카드 자동 생성 (fire-and-forget)
-      fetch("https://remarkable-tenderness-production.up.railway.app/trpc/bodyAnalysis.create", {
+      fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          json: {
-            name: input.name,
-            phone: input.phone,
-            birthDate: input.birthdate ?? undefined,
-            gender: input.gender ?? undefined,
-            height: input.height ?? undefined,
-            purpose: input.exercisePurpose ?? input.purpose ?? undefined,
-            experience: input.exerciseExperience ?? undefined,
-            concern: input.concern ?? undefined,
-            privacyAgreed: Boolean(input.agreedPrivacy),
-            marketingAgreed: Boolean(input.agreedMarketing),
-            marketingChannels: input.marketingChannels ?? undefined,
-          },
+          name: input.name,
+          phone: input.phone,
+          birthDate: input.birthdate ?? undefined,
+          gender: input.gender ?? undefined,
+          height: input.height ?? undefined,
+          purpose: input.exercisePurpose ?? input.purpose ?? undefined,
+          experience: input.exerciseExperience ?? undefined,
+          concern: input.concern ?? undefined,
+          privacyAgreed: Boolean(input.agreedPrivacy),
+          marketingAgreed: Boolean(input.agreedMarketing),
+          marketingChannels: input.marketingChannels ?? undefined,
         }),
       }).catch(() => {});
 
