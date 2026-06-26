@@ -137,6 +137,55 @@ app.get("/api/transfer/:token", async (req, res) => {
   }
 });
 
+// ─── 공개 체형분석 예약 API (자이언트짐++ 랜딩페이지에서 호출) ─────────────────
+app.post("/api/booking", async (req, res) => {
+  try {
+    const { name, phone, birthDate, gender, height, purpose, experience, concern, privacyAgreed, marketingAgreed, marketingChannels } = req.body;
+    if (!name || !phone) return res.status(400).json({ error: "이름과 연락처는 필수입니다." });
+
+    const now = new Date().toISOString();
+
+    // 1. 체형분석 예약 저장
+    const resResult = await pool.query(
+      `INSERT INTO body_analysis_reservations (name, phone, "birthDate", gender, height, purpose, experience, concern, "privacyAgreed", "marketingAgreed", "marketingChannels", status, "createdAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12) RETURNING id`,
+      [name, phone, birthDate ?? null, gender ?? null, height ?? null, purpose ?? null, experience ?? null, concern ?? null, privacyAgreed ? 1 : 0, marketingAgreed ? 1 : 0, marketingChannels ?? null, now]
+    );
+    const reservationId = resResult.rows[0]?.id;
+
+    // 2. 상담관리(leads) 카드 자동 생성
+    const ageGroup = (() => {
+      if (!birthDate) return null;
+      const year = parseInt(String(birthDate).slice(0, 4));
+      if (isNaN(year)) return null;
+      const age = new Date().getFullYear() - year;
+      if (age < 20) return "10대";
+      if (age < 30) return "20대";
+      if (age < 40) return "30대";
+      if (age < 50) return "40대";
+      if (age < 60) return "50대";
+      return "60대 이상";
+    })();
+
+    const memoLines: string[] = [];
+    if (height) memoLines.push(`키: ${height}cm`);
+    if (experience) memoLines.push(`운동경험: ${experience}`);
+    if (concern) memoLines.push(`고민: ${concern}`);
+    memoLines.push(`[체형분석예약 #${reservationId ?? "?"}]`);
+
+    await pool.query(
+      `INSERT INTO leads (name, phone, gender, "ageGroup", "consultationType", "consultationSubTypes", "exercisePurpose", memo, status, "createdAt", "updatedAt")
+       VALUES ($1,$2,$3,$4,'온라인예약','체형분석예약',$5,$6,'pending',$7,$7)`,
+      [name, phone, gender ?? null, ageGroup, purpose ?? null, memoLines.join(" / "), now]
+    );
+
+    res.json({ success: true, id: reservationId });
+  } catch (e) {
+    console.error("/api/booking error:", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
