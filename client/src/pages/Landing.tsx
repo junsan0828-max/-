@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import LandingReservationModal from "./LandingReservationModal";
+import LandingTrialModal from "./LandingTrialModal";
 
 // ─── 지점별 정보 설정 ─────────────────────────────────────────────────────────
 const BRANCH = {
@@ -136,8 +137,10 @@ function Nav() {
             </nav>
 
             <div className="hidden lg:flex items-center gap-6">
-              <button
-                onClick={() => scrollTo("contact")}
+              <a
+                href={BRANCH.b1.naverUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className={`text-xs font-medium px-5 py-2.5 tracking-wide transition-all border ${
                   scrolled
                     ? "border-[#0B1D3A] text-[#0B1D3A] hover:bg-[#0B1D3A] hover:text-white"
@@ -145,7 +148,7 @@ function Nav() {
                 }`}
               >
                 무료 상담 예약
-              </button>
+              </a>
               <a
                 href="/gym-plus"
                 className={`text-xs tracking-widest transition-colors ${
@@ -210,12 +213,15 @@ function Nav() {
 
             {/* 하단 CTA */}
             <div className="px-6 py-6 flex flex-col gap-3 flex-shrink-0 border-t border-gray-100">
-              <button
-                onClick={() => { scrollTo("contact"); setMenuOpen(false); }}
-                className="w-full py-4 bg-[#0B1D3A] text-white text-xs font-semibold tracking-widest"
+              <a
+                href={BRANCH.b1.naverUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuOpen(false)}
+                className="w-full py-4 bg-[#0B1D3A] text-white text-xs font-semibold tracking-widest text-center block"
               >
                 무료 상담 예약
-              </button>
+              </a>
               <a
                 href="/gym-plus"
                 className="w-full py-4 text-center text-xs text-gray-400 tracking-widest border border-gray-200 hover:border-gray-400 transition-colors"
@@ -642,12 +648,14 @@ function EventSection() {
         </div>
 
         {/* CTA */}
-        <button
-          onClick={() => scrollTo("contact")}
-          className="w-full max-w-sm py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-bold text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-6"
+        <a
+          href={BRANCH.b1.naverUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full max-w-sm py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-bold text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-6 text-center"
         >
           무료 상담 예약하기 →
-        </button>
+        </a>
 
         {/* 주의사항 */}
         <div className="space-y-1">
@@ -667,7 +675,7 @@ function EventSection() {
 }
 
 // ─── Section 5.7: 미션 혜택 ──────────────────────────────────────────────────
-function MissionSection() {
+function MissionSection({ onTrial }: { onTrial: () => void }) {
   return (
     <section id="mission" className="py-24 lg:py-36 bg-[#080F1A] relative overflow-hidden">
       <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-[#1D4ED8]/8 blur-[100px] pointer-events-none" />
@@ -704,14 +712,12 @@ function MissionSection() {
               <p className="text-[#60A5FA]/70 text-[11px] font-medium">추가 제공</p>
             </div>
           </div>
-          <a
-            href={BRANCH.b1.naverUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block w-full py-3 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white text-sm font-bold rounded-xl transition-colors text-center"
+          <button
+            onClick={onTrial}
+            className="w-full py-3 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white text-sm font-bold rounded-xl transition-colors"
           >
             체험 예약하기 →
-          </a>
+          </button>
         </div>
 
         {/* 구분선 */}
@@ -782,18 +788,22 @@ function MissionSection() {
         </div>
 
         {/* CTA */}
-        <button
-          onClick={() => scrollTo("contact")}
-          className="w-full py-4 bg-white text-[#0B1D3A] font-bold text-sm tracking-wide hover:bg-white/90 transition-colors rounded-xl shadow-lg"
+        <a
+          href={BRANCH.b1.naverUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full py-4 bg-white text-[#0B1D3A] font-bold text-sm tracking-wide hover:bg-white/90 transition-colors rounded-xl shadow-lg text-center"
         >
           지금 혜택 시작하기 →
-        </button>
-        <button
-          onClick={() => scrollTo("contact")}
-          className="w-full mt-3 py-3.5 border border-white/20 text-white/60 text-sm hover:text-white hover:border-white/40 transition-colors rounded-xl"
+        </a>
+        <a
+          href={BRANCH.b1.naverUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full mt-3 py-3.5 border border-white/20 text-white/60 text-sm hover:text-white hover:border-white/40 transition-colors rounded-xl text-center"
         >
           무료 상담 예약
-        </button>
+        </a>
 
       </div>
     </section>
@@ -1123,12 +1133,14 @@ function MobileBottomCTA({ onReserve }: { onReserve: () => void }) {
         >
           무료 체형분석 예약
         </button>
-        <button
-          onClick={() => scrollTo("contact")}
-          className="py-4 bg-white text-[#0B1D3A] text-[10px] font-medium text-center tracking-[0.15em] uppercase border-l border-gray-100"
+        <a
+          href={BRANCH.b1.naverUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="py-4 bg-white text-[#0B1D3A] text-[10px] font-medium text-center tracking-[0.15em] uppercase border-l border-gray-100 flex items-center justify-center"
         >
           상담 신청
-        </button>
+        </a>
       </div>
     </div>
   );
@@ -1137,7 +1149,9 @@ function MobileBottomCTA({ onReserve }: { onReserve: () => void }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Landing() {
   const [showReservationModal, setShowReservationModal] = useState(false);
+  const [showTrialModal, setShowTrialModal] = useState(false);
   const openReservation = () => setShowReservationModal(true);
+  const openTrial = () => setShowTrialModal(true);
 
   useEffect(() => {
     document.documentElement.style.scrollBehavior = "smooth";
@@ -1153,7 +1167,7 @@ export default function Landing() {
       <AnalysisSection onReserve={openReservation} />
       <ReviewsSection />
       <EventSection />
-      <MissionSection />
+      <MissionSection onTrial={openTrial} />
       <GymPlusSection />
       <BranchSection />
       <ContactSection />
@@ -1161,6 +1175,9 @@ export default function Landing() {
       <MobileBottomCTA onReserve={openReservation} />
       {showReservationModal && (
         <LandingReservationModal onClose={() => setShowReservationModal(false)} />
+      )}
+      {showTrialModal && (
+        <LandingTrialModal onClose={() => setShowTrialModal(false)} />
       )}
     </div>
   );
