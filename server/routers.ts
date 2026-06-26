@@ -2433,7 +2433,7 @@ const trainersRouter = t.router({
           ...l,
           effectivePrice: calcPrice(l),
           packageName: l.packageName ?? memberPkgMap[l.memberId]?.packageName ?? null,
-          memberName: l.memberNameSnapshot ?? l.memberNameJoined ?? "",
+          memberName: l.memberNameJoined ?? l.memberNameSnapshot ?? "",
         }));
       const sessionCount = logsWithPrice.length;
       const revenue = logsWithPrice.reduce((s, l) => s + l.effectivePrice, 0);
