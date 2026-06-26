@@ -87,11 +87,11 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        console.error("CRM sync failed:", res.status, err);
+        alert(`CRM 오류 ${res.status}: ${JSON.stringify(err)}`);
       }
       setDone(true);
     } catch (e) {
-      console.error("Booking submit error:", e);
+      alert(`네트워크 오류: ${String(e)}`);
       setDone(true);
     } finally {
       setSubmitting(false);
