@@ -68,7 +68,7 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
         marketingChannels: form.marketingChannels.length > 0 ? form.marketingChannels.join(", ") : undefined,
       });
       // 통합운영시스템 상담관리 카드 자동 생성
-      await fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
+      const res = await fetch("https://remarkable-tenderness-production.up.railway.app/api/booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -85,8 +85,13 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
           marketingChannels: form.marketingChannels.length > 0 ? form.marketingChannels.join(", ") : undefined,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("CRM sync failed:", res.status, err);
+      }
       setDone(true);
-    } catch {
+    } catch (e) {
+      console.error("Booking submit error:", e);
       setDone(true);
     } finally {
       setSubmitting(false);
