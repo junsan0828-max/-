@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 // ─── 연락처 설정 ──────────────────────────────────────────────────────────────
 const NAVER_PLACE_URL = "https://booking.naver.com/booking/13/bizes/YOUR_ID";
@@ -50,8 +52,271 @@ function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 }
 
+// ─── 무료 체형분석 예약 모달 ──────────────────────────────────────────────────
+const PURPOSES = ["다이어트", "근력 증가", "체형 교정", "통증 개선", "건강 관리", "기타"];
+const EXPERIENCES = ["처음 운동", "1년 미만", "1년 이상"];
+
+function ReservationModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState("");
+  const [height, setHeight] = useState("");
+  const [purposes, setPurposes] = useState<string[]>([]);
+  const [experience, setExperience] = useState("");
+  const [concern, setConcern] = useState("");
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
+  const [marketingAgreed, setMarketingAgreed] = useState(false);
+  const [marketingChannels, setMarketingChannels] = useState<string[]>([]);
+  const [success, setSuccess] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+      // 닫힐 때 폼 초기화
+      setName(""); setPhone(""); setBirthDate(""); setGender(""); setHeight("");
+      setPurposes([]); setExperience(""); setConcern("");
+      setPrivacyAgreed(false); setMarketingAgreed(false); setMarketingChannels([]);
+      setSuccess(false);
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  const mutation = trpc.bodyAnalysis.create.useMutation({
+    onSuccess: () => setSuccess(true),
+    onError: (e) => toast.error(e.message || "예약 중 오류가 발생했습니다."),
+  });
+
+  const togglePurpose = (p: string) =>
+    setPurposes((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
+  const toggleChannel = (c: string) =>
+    setMarketingChannels((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]);
+
+  const canSubmit = name && phone && birthDate && gender && height && purposes.length > 0 && experience && privacyAgreed;
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    mutation.mutate({
+      name, phone, birthDate, gender, height,
+      purpose: purposes.join(","),
+      experience, concern: concern || undefined,
+      privacyAgreed: true,
+      marketingAgreed,
+      marketingChannels: marketingChannels.length > 0 ? marketingChannels.join(",") : undefined,
+    });
+  };
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-[200] bg-black/60 flex items-end sm:items-center justify-center"
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div className="w-full sm:max-w-lg bg-white sm:rounded-2xl rounded-t-2xl max-h-[92vh] flex flex-col">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+          <h2 className="text-base font-bold text-[#0B1D3A] tracking-tight">무료 체형분석 예약</h2>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 transition-colors text-xl leading-none">✕</button>
+        </div>
+
+        {/* 본문 */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+          {success ? (
+            <div className="py-12 flex flex-col items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-[#0B1D3A] flex items-center justify-center">
+                <span className="text-white text-2xl">✓</span>
+              </div>
+              <p className="text-lg font-bold text-[#0B1D3A]">예약이 완료되었습니다</p>
+              <p className="text-sm text-gray-400 text-center leading-relaxed">
+                담당자가 확인 후 연락드리겠습니다.<br />빠른 시간 내 연락드릴게요.
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-4 px-8 py-3 bg-[#0B1D3A] text-white text-xs font-medium tracking-widest uppercase"
+              >
+                닫기
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* 이름 */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">이름 <span className="text-red-400">*</span></label>
+                <input
+                  type="text" value={name} onChange={(e) => setName(e.target.value)}
+                  placeholder="이름을 입력해주세요"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#0B1D3A] transition-colors"
+                />
+              </div>
+              {/* 연락처 */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">연락처 <span className="text-red-400">*</span></label>
+                <input
+                  type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                  placeholder="010-0000-0000"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#0B1D3A] transition-colors"
+                />
+              </div>
+              {/* 생년월일 */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">생년월일 <span className="text-red-400">*</span></label>
+                <input
+                  type="text" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
+                  placeholder="예) 1990-01-15"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#0B1D3A] transition-colors"
+                />
+              </div>
+              {/* 성별 */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">성별 <span className="text-red-400">*</span></label>
+                <div className="grid grid-cols-2 gap-2">
+                  {["male", "female"].map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => setGender(g)}
+                      className={`py-3 rounded-lg text-sm border transition-colors ${
+                        gender === g ? "bg-[#0B1D3A] text-white border-[#0B1D3A]" : "border-gray-200 text-gray-500 hover:border-gray-400"
+                      }`}
+                    >
+                      {g === "male" ? "남성" : "여성"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* 키 */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">키(cm) <span className="text-red-400">*</span></label>
+                <input
+                  type="number" value={height} onChange={(e) => setHeight(e.target.value)}
+                  placeholder="예) 170"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#0B1D3A] transition-colors"
+                />
+              </div>
+              {/* 운동 목적 */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">운동 목적 <span className="text-red-400">*</span> <span className="text-gray-300">(복수 선택 가능)</span></label>
+                <div className="flex flex-wrap gap-2">
+                  {PURPOSES.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => togglePurpose(p)}
+                      className={`px-3 py-2 rounded-full text-xs border transition-colors ${
+                        purposes.includes(p) ? "bg-[#0B1D3A] text-white border-[#0B1D3A]" : "border-gray-200 text-gray-500 hover:border-gray-400"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* 운동 경험 */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">운동 경험 <span className="text-red-400">*</span></label>
+                <div className="grid grid-cols-3 gap-2">
+                  {EXPERIENCES.map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => setExperience(e)}
+                      className={`py-3 rounded-lg text-xs border transition-colors ${
+                        experience === e ? "bg-[#0B1D3A] text-white border-[#0B1D3A]" : "border-gray-200 text-gray-500 hover:border-gray-400"
+                      }`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* 고민 부위 */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">고민 부위/목표 <span className="text-gray-300">(선택)</span></label>
+                <textarea
+                  rows={2}
+                  value={concern}
+                  onChange={(e) => setConcern(e.target.value)}
+                  placeholder="특별히 신경 쓰이는 부위나 목표를 적어주세요"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#0B1D3A] transition-colors resize-none"
+                />
+              </div>
+
+              {/* 개인정보 동의 */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={privacyAgreed}
+                    onChange={(e) => setPrivacyAgreed(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-[#0B1D3A]"
+                  />
+                  <div>
+                    <p className="text-xs font-semibold text-[#0B1D3A] mb-1">[필수] 개인정보 수집 및 이용 동의</p>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      수집 항목: 이름, 연락처, 생년월일, 성별, 신체 정보<br />
+                      수집 목적: 무료 체형분석 예약 및 상담 안내<br />
+                      보유 기간: 상담 완료 후 1년
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* 마케팅 동의 */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <label className="flex items-start gap-3 cursor-pointer mb-3">
+                  <input
+                    type="checkbox"
+                    checked={marketingAgreed}
+                    onChange={(e) => setMarketingAgreed(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-[#0B1D3A]"
+                  />
+                  <p className="text-xs font-semibold text-[#0B1D3A]">[선택] 마케팅 정보 수신 동의</p>
+                </label>
+                {marketingAgreed && (
+                  <div className="flex gap-2 ml-7">
+                    {["SMS", "카카오톡", "전화"].map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => toggleChannel(c)}
+                        className={`px-3 py-1.5 rounded-full text-[11px] border transition-colors ${
+                          marketingChannels.includes(c) ? "bg-[#0B1D3A] text-white border-[#0B1D3A]" : "border-gray-300 text-gray-500"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* 제출 버튼 */}
+        {!success && (
+          <div className="px-6 py-4 border-t border-gray-100">
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit || mutation.isPending}
+              className={`w-full py-4 text-sm font-semibold tracking-wide transition-all ${
+                canSubmit && !mutation.isPending
+                  ? "bg-[#0B1D3A] text-white hover:bg-[#162d5a]"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              {mutation.isPending ? "예약 중..." : "예약 신청하기"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Nav ───────────────────────────────────────────────────────────────────────
-function Nav() {
+function Nav({ openModal }: { openModal: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -102,14 +367,14 @@ function Nav() {
 
           <div className="hidden lg:flex items-center gap-6">
             <button
-              onClick={() => scrollTo("contact")}
+              onClick={openModal}
               className={`text-xs font-medium px-5 py-2.5 tracking-wide transition-all border ${
                 scrolled
                   ? "border-[#0B1D3A] text-[#0B1D3A] hover:bg-[#0B1D3A] hover:text-white"
                   : "border-white text-white hover:bg-white hover:text-[#0B1D3A]"
               }`}
             >
-              무료 상담 예약
+              무료 체형분석 예약
             </button>
             <a
               href="/gym-plus"
@@ -147,10 +412,10 @@ function Nav() {
             ))}
             <div className="mt-6 flex flex-col gap-3">
               <button
-                onClick={() => { scrollTo("contact"); setMenuOpen(false); }}
+                onClick={() => { openModal(); setMenuOpen(false); }}
                 className="w-full py-3.5 bg-[#0B1D3A] text-white text-xs font-medium tracking-widest"
               >
-                무료 상담 예약
+                무료 체형분석 예약
               </button>
               <a
                 href="/gym-plus"
@@ -167,7 +432,7 @@ function Nav() {
 }
 
 // ─── Section 1: HERO ──────────────────────────────────────────────────────────
-function HeroSection() {
+function HeroSection({ openModal }: { openModal: () => void }) {
   return (
     <section id="hero" className="relative h-screen min-h-[640px] flex items-end overflow-hidden">
       <div className="absolute inset-0">
@@ -187,7 +452,7 @@ function HeroSection() {
           자이언트짐
         </p>
         <button
-          onClick={() => scrollTo("contact")}
+          onClick={openModal}
           className="px-8 py-4 bg-white text-[#0B1D3A] text-xs font-semibold tracking-[0.15em] uppercase hover:bg-white/90 transition-colors"
         >
           무료 체형분석 예약
@@ -255,7 +520,7 @@ function IntroSection() {
 }
 
 // ─── Section 3: 운동 프로그램 ─────────────────────────────────────────────────
-function ProgramSection() {
+function ProgramSection({ openModal }: { openModal: () => void }) {
   return (
     <section id="program" className="py-28 lg:py-40 bg-[#F7F7F5]">
       <div className="max-w-6xl mx-auto px-6 lg:px-8">
@@ -319,7 +584,7 @@ function ProgramSection() {
             모든 프로그램은 무료 체형분석 후 결정합니다
           </p>
           <button
-            onClick={() => scrollTo("contact")}
+            onClick={openModal}
             className="px-8 py-4 border border-[#0B1D3A] text-[#0B1D3A] text-xs font-medium tracking-[0.15em] uppercase hover:bg-[#0B1D3A] hover:text-white transition-all"
           >
             무료 체형분석 예약
@@ -331,7 +596,7 @@ function ProgramSection() {
 }
 
 // ─── Section 4: 근골격 분석 및 체성분 분석 ───────────────────────────────────
-function AnalysisSection() {
+function AnalysisSection({ openModal }: { openModal: () => void }) {
   const items = [
     {
       title: "체형 평가",
@@ -365,7 +630,7 @@ function AnalysisSection() {
               분석 없이 시작하는 운동은 방향을 잃은 운동입니다.
             </p>
             <button
-              onClick={() => scrollTo("contact")}
+              onClick={openModal}
               className="px-8 py-4 bg-[#0B1D3A] text-white text-xs font-medium tracking-[0.15em] uppercase hover:bg-[#162d5a] transition-colors"
             >
               무료 체형분석 예약
@@ -696,7 +961,7 @@ function Footer() {
 }
 
 // ─── Mobile Bottom CTA ────────────────────────────────────────────────────────
-function MobileBottomCTA() {
+function MobileBottomCTA({ openModal }: { openModal: () => void }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -710,14 +975,12 @@ function MobileBottomCTA() {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white border-t border-gray-100">
       <div className="grid grid-cols-2">
-        <a
-          href={NAVER_PLACE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={openModal}
           className="py-4 bg-[#0B1D3A] text-white text-[10px] font-medium text-center tracking-[0.15em] uppercase"
         >
           무료 체형분석 예약
-        </a>
+        </button>
         <a
           href={`tel:${PHONE_NUMBER}`}
           className="py-4 bg-white text-[#0B1D3A] text-[10px] font-medium text-center tracking-[0.15em] uppercase border-l border-gray-100"
@@ -731,6 +994,9 @@ function MobileBottomCTA() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Landing() {
+  const [modalOpen, setModalOpen] = useState(false);
+  const openModal = () => setModalOpen(true);
+
   useEffect(() => {
     document.documentElement.style.scrollBehavior = "smooth";
     return () => { document.documentElement.style.scrollBehavior = ""; };
@@ -738,16 +1004,17 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Nav />
-      <HeroSection />
+      <ReservationModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <Nav openModal={openModal} />
+      <HeroSection openModal={openModal} />
       <IntroSection />
-      <ProgramSection />
-      <AnalysisSection />
+      <ProgramSection openModal={openModal} />
+      <AnalysisSection openModal={openModal} />
       <ReviewsSection />
       <GymPlusSection />
       <ContactSection />
       <Footer />
-      <MobileBottomCTA />
+      <MobileBottomCTA openModal={openModal} />
     </div>
   );
 }
