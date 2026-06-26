@@ -684,3 +684,22 @@ export const consultantRecords = pgTable("consultant_records", {
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
+
+// ─── 무료 체형분석 예약 ────────────────────────────────────────────────────────
+export const bodyAnalysisReservations = pgTable("body_analysis_reservations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  birthDate: text("birthDate"),
+  gender: text("gender"),
+  height: text("height"),
+  purpose: text("purpose"),          // comma-separated: 다이어트,근력 증가,...
+  experience: text("experience"),    // 처음 운동/1년 미만/1년 이상
+  concern: text("concern"),
+  privacyAgreed: integer("privacyAgreed").default(0),
+  marketingAgreed: integer("marketingAgreed").default(0),
+  marketingChannels: text("marketingChannels"),   // comma-separated: SMS,카카오톡,전화
+  status: text("status").default("pending"),       // pending/contacted/completed
+  note: text("note"),
+  createdAt: text("createdAt").default(now).notNull(),
+});

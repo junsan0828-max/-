@@ -60,6 +60,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/revenue", label: "장부 관리", icon: TrendingUp },
     { path: "/trainers", label: "트레이너", icon: UserCog },
     { path: "/members", label: "회원 관리", icon: Users },
+    { path: "/admin/reservations", label: "예약관리", icon: UserPlus },
     { path: "/leads", label: "상담 관리", icon: UserPlus },
     { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
     { path: "/work-management", label: "업무 관리", icon: ClipboardList },

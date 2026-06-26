@@ -595,6 +595,23 @@ async function initDatabase() {
     `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "paymentAmount" INTEGER DEFAULT 0`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "transferAmount" INTEGER`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "cardAmount" INTEGER`,
+    `CREATE TABLE IF NOT EXISTS body_analysis_reservations (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      "birthDate" TEXT,
+      gender TEXT,
+      height TEXT,
+      purpose TEXT,
+      experience TEXT,
+      concern TEXT,
+      "privacyAgreed" INTEGER NOT NULL DEFAULT 0,
+      "marketingAgreed" INTEGER NOT NULL DEFAULT 0,
+      "marketingChannels" TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      note TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);

@@ -75,6 +75,8 @@ import GymPlusProfile from "./pages/gym-plus/GymPlusProfile";
 import GymPlusAdminPage from "./pages/GymPlusAdminPage";
 import GymPlusMessages from "./pages/gym-plus/GymPlusMessages";
 import Landing from "./pages/Landing";
+import BodyAnalysisLanding from "./pages/BodyAnalysisLanding";
+import BodyAnalysisAdmin from "./pages/BodyAnalysisAdmin";
 
 // ZIANTGYM+ 회원앱 (통합관리 시스템과 완전 분리)
 function GymPlusApp() {
@@ -132,7 +134,7 @@ function App() {
     return <GymPlusAdminPage />;
   }
 
-  // 공개 보고서 / 계약서 페이지 - 인증 불필요
+  // 공개 보고서 / 계약서 / 랜딩 페이지 - 인증 불필요
   if (reportMatch && reportParams) {
     return <MemberReport token={reportParams.token} />;
   }
@@ -149,6 +151,9 @@ function App() {
   const refundMatch = window.location.pathname.match(/^\/refund\/([^/]+)$/);
   if (refundMatch) {
     return <RefundContractPage token={refundMatch[1]} />;
+  }
+  if (window.location.pathname === "/booking") {
+    return <BodyAnalysisLanding />;
   }
 
   // ziantgym.com 도메인은 항상 랜딩페이지
@@ -188,6 +193,7 @@ function App() {
         <Route path="/expenses">{() => <ExpensesPage />}</Route>
         <Route path="/marketing">{() => <MarketingPage />}</Route>
         <Route path="/ai-analysis">{() => <AiAnalysisPage />}</Route>
+        <Route path="/admin/reservations">{() => <BodyAnalysisAdmin />}</Route>
         <Route path="/members">{() => (user?.role === "admin" || user?.role === "sub_admin") ? <AdminMembers /> : <Members />}</Route>
         <Route path="/members/new">{() => <MemberForm />}</Route>
         <Route path="/members/re-register">{() => <MemberReRegister />}</Route>

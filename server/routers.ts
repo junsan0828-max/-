@@ -44,6 +44,7 @@ import {
   gymPlusMessages,
   gymPlusPushSubscriptions,
   gymPlusMembershipRenewals,
+  bodyAnalysisReservations,
 } from "../drizzle/schema";
 import webpush from "web-push";
 
@@ -5262,6 +5263,76 @@ const landingRouter = t.router({
     }),
 });
 
+// ─── 무료 체형분석 예약 라우터 ────────────────────────────────────────────────
+const bodyAnalysisRouter = t.router({
+  // 공개 예약 신청 (인증 불필요)
+  create: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      phone: z.string().min(1),
+      birthDate: z.string().optional(),
+      gender: z.string().optional(),
+      height: z.string().optional(),
+      purpose: z.string().optional(),
+      experience: z.string().optional(),
+      concern: z.string().optional(),
+      privacyAgreed: z.boolean(),
+      marketingAgreed: z.boolean().default(false),
+      marketingChannels: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const now = new Date().toISOString();
+      const [row] = await db.insert(bodyAnalysisReservations).values({
+        name: input.name,
+        phone: input.phone,
+        birthDate: input.birthDate ?? null,
+        gender: input.gender ?? null,
+        height: input.height ?? null,
+        purpose: input.purpose ?? null,
+        experience: input.experience ?? null,
+        concern: input.concern ?? null,
+        privacyAgreed: input.privacyAgreed ? 1 : 0,
+        marketingAgreed: input.marketingAgreed ? 1 : 0,
+        marketingChannels: input.marketingChannels ?? null,
+        status: "pending",
+        createdAt: now,
+      }).returning({ id: bodyAnalysisReservations.id });
+      return { success: true, id: row?.id };
+    }),
+
+  // 예약 목록 조회 (관리자)
+  list: protectedProcedure
+    .input(z.object({ status: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const rows = await db.select().from(bodyAnalysisReservations)
+        .orderBy(desc(bodyAnalysisReservations.id));
+      if (input.status && input.status !== "all") {
+        return rows.filter((r) => r.status === input.status);
+      }
+      return rows;
+    }),
+
+  // 상태 변경 (관리자)
+  updateStatus: protectedProcedure
+    .input(z.object({ id: z.number(), status: z.enum(["pending", "contacted", "completed"]), note: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin")
+        throw new TRPCError({ code: "FORBIDDEN" });
+      await db.update(bodyAnalysisReservations)
+        .set({ status: input.status, note: input.note ?? null })
+        .where(eq(bodyAnalysisReservations.id, input.id));
+      return { success: true };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({
   auth: authRouter,
@@ -5285,6 +5356,7 @@ export const appRouter = t.router({
   landing: landingRouter,
   consultantRecords: consultantRecordsRouter,
   consultantData: consultantDataRouter,
+  bodyAnalysis: bodyAnalysisRouter,
 });
 
 export type AppRouter = typeof appRouter;
