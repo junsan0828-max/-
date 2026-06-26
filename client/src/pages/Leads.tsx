@@ -277,6 +277,10 @@ export default function LeadsPage() {
   const [directForm, setDirectForm] = useState(defaultDirectForm);
 
   const { data: leadsData, isLoading } = trpc.gym.leads.list.useQuery({ year, month });
+  const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, { refetchInterval: 30000 });
+  const markViewedMutation = trpc.gym.leads.markViewed.useMutation({
+    onSuccess: () => { utils.gym.leads.invalidate(); },
+  });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: trainers } = trpc.trainers.list.useQuery();
   const { data: consultants } = trpc.admin.listConsultants.useQuery();
@@ -702,6 +706,7 @@ export default function LeadsPage() {
   }
 
   function openEdit(row: any) {
+    if (!row.lead.isViewed) markViewedMutation.mutate({ id: row.lead.id });
     setEditId(row.lead.id);
     setEditStatus(row.lead.status ?? "");
     setEditHasSig(!!row.lead.signatureDataUrl);
@@ -791,6 +796,19 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-4">
+      {/* 온라인 예약 알림 배너 (컨설턴트/어드민용) */}
+      {unviewedCount > 0 && (
+        <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/20 shrink-0">
+            <Bell className="h-4 w-4 text-blue-400 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-blue-300">미확인 온라인 예약 {unviewedCount}건</p>
+            <p className="text-xs text-blue-400/70">아래 <span className="font-bold">NEW</span> 표시 카드를 확인해주세요.</p>
+          </div>
+        </div>
+      )}
+
       {/* 헤더 */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -871,13 +889,15 @@ export default function LeadsPage() {
             const s = STATUS_OPTIONS.find(s => s.value === row.lead.status);
             const mainTypes = row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [];
             const subTypes = row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [];
+            const isNew = !(row.lead as any).isViewed;
             return (
               <div key={row.lead.id} onClick={() => openEdit(row)}
-                className="bg-card border border-border rounded-xl p-4 space-y-2 cursor-pointer hover:border-primary/30 transition-colors">
+                className={`bg-card rounded-xl p-4 space-y-2 cursor-pointer transition-colors ${isNew ? "border-2 border-blue-500/60 hover:border-blue-400" : "border border-border hover:border-primary/30"}`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground">{row.lead.name}</span>
+                      {isNew && <span className="text-[10px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full">NEW</span>}
                       {row.lead.gender && <span className="text-xs text-muted-foreground">{row.lead.gender}</span>}
                       {row.lead.ageGroup && <span className="text-xs text-muted-foreground">{row.lead.ageGroup}</span>}
                     </div>

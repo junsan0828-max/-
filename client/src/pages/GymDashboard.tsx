@@ -5,7 +5,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Users, Target,
   AlertCircle, RefreshCw, ArrowUpRight, ArrowDownRight,
   BarChart2, Percent, CreditCard, ChevronLeft, ChevronRight, MapPin,
-  X,
+  X, Bell,
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -249,10 +249,14 @@ export default function GymDashboard() {
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
   const [modal, setModal] = useState<ModalType>(null);
 
+  const [dismissedBookingAlert, setDismissedBookingAlert] = useState(false);
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery(
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }
   );
+  const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, {
+    refetchInterval: 30000,
+  });
   const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
@@ -286,6 +290,28 @@ export default function GymDashboard() {
 
   return (
     <div className="space-y-5">
+      {/* 온라인 예약 알림 배너 */}
+      {unviewedCount > 0 && !dismissedBookingAlert && (
+        <div
+          className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 cursor-pointer"
+          onClick={() => { setDismissedBookingAlert(true); setLocation("/leads"); }}
+        >
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-500/20 shrink-0">
+            <Bell className="h-4 w-4 text-blue-400 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-blue-300">새 온라인 예약 {unviewedCount}건</p>
+            <p className="text-xs text-blue-400/70">미확인 체형분석 예약이 있습니다. 탭하여 확인하세요.</p>
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); setDismissedBookingAlert(true); }}
+            className="text-blue-400/50 hover:text-blue-300 shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* 헤더 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">

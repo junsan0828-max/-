@@ -515,6 +515,7 @@ async function initDatabase() {
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationType" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "consultationSubTypes" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "assignedConsultantId" INTEGER`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "isViewed" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "exercisePurpose" TEXT`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "signatureDataUrl" TEXT`,
     `ALTER TABLE members ADD COLUMN IF NOT EXISTS "renewalIntent" TEXT`,

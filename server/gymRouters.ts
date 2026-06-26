@@ -231,6 +231,24 @@ const leadsRouter = t.router({
       return { success: true };
     }),
 
+  markViewed: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await pool.query(`UPDATE leads SET "isViewed" = 1 WHERE id = $1`, [input.id]);
+      return { success: true };
+    }),
+
+  unviewedCount: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return 0;
+    const result = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM leads WHERE "isViewed" = 0 AND "consultationType" = '온라인예약'`
+    );
+    return parseInt(result.rows[0]?.count ?? "0", 10);
+  }),
+
   getByMemberId: protectedProcedure
     .input(z.object({ memberId: z.number() }))
     .query(async ({ input }) => {
