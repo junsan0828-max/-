@@ -84,7 +84,7 @@ function scrollTo(id: string) {
 }
 
 // ─── Nav ───────────────────────────────────────────────────────────────────────
-function Nav({ onReserve }: { onReserve: () => void }) {
+function Nav() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -137,7 +137,7 @@ function Nav({ onReserve }: { onReserve: () => void }) {
 
             <div className="hidden lg:flex items-center gap-6">
               <button
-                onClick={onReserve}
+                onClick={() => scrollTo("contact")}
                 className={`text-xs font-medium px-5 py-2.5 tracking-wide transition-all border ${
                   scrolled
                     ? "border-[#0B1D3A] text-[#0B1D3A] hover:bg-[#0B1D3A] hover:text-white"
@@ -211,7 +211,7 @@ function Nav({ onReserve }: { onReserve: () => void }) {
             {/* 하단 CTA */}
             <div className="px-6 py-6 flex flex-col gap-3 flex-shrink-0 border-t border-gray-100">
               <button
-                onClick={() => { setMenuOpen(false); onReserve(); }}
+                onClick={() => { scrollTo("contact"); setMenuOpen(false); }}
                 className="w-full py-4 bg-[#0B1D3A] text-white text-xs font-semibold tracking-widest"
               >
                 무료 상담 예약
@@ -568,7 +568,7 @@ function ReviewsSection() {
 }
 
 // ─── Section 5.5: 친구 이벤트 ────────────────────────────────────────────────
-function EventSection({ onReserve }: { onReserve: () => void }) {
+function EventSection() {
   return (
     <section id="event" className="py-24 lg:py-36 bg-[#06111F] relative overflow-hidden">
       {/* 백그라운드 글로우 */}
@@ -643,7 +643,7 @@ function EventSection({ onReserve }: { onReserve: () => void }) {
 
         {/* CTA */}
         <button
-          onClick={onReserve}
+          onClick={() => scrollTo("contact")}
           className="w-full max-w-sm py-4 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white font-bold text-sm tracking-wide transition-colors rounded-xl shadow-[0_4px_24px_rgba(29,78,216,0.4)] mb-6"
         >
           무료 상담 예약하기 →
@@ -667,7 +667,7 @@ function EventSection({ onReserve }: { onReserve: () => void }) {
 }
 
 // ─── Section 5.7: 미션 혜택 ──────────────────────────────────────────────────
-function MissionSection({ onReserve }: { onReserve: () => void }) {
+function MissionSection() {
   return (
     <section id="mission" className="py-24 lg:py-36 bg-[#080F1A] relative overflow-hidden">
       <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-[#1D4ED8]/8 blur-[100px] pointer-events-none" />
@@ -704,12 +704,14 @@ function MissionSection({ onReserve }: { onReserve: () => void }) {
               <p className="text-[#60A5FA]/70 text-[11px] font-medium">추가 제공</p>
             </div>
           </div>
-          <button
-            onClick={onReserve}
-            className="w-full py-3 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white text-sm font-bold rounded-xl transition-colors"
+          <a
+            href={BRANCH.b1.naverUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full py-3 bg-[#1D4ED8] hover:bg-[#1a44c2] text-white text-sm font-bold rounded-xl transition-colors text-center"
           >
             체험 예약하기 →
-          </button>
+          </a>
         </div>
 
         {/* 구분선 */}
@@ -781,13 +783,13 @@ function MissionSection({ onReserve }: { onReserve: () => void }) {
 
         {/* CTA */}
         <button
-          onClick={onReserve}
+          onClick={() => scrollTo("contact")}
           className="w-full py-4 bg-white text-[#0B1D3A] font-bold text-sm tracking-wide hover:bg-white/90 transition-colors rounded-xl shadow-lg"
         >
           지금 혜택 시작하기 →
         </button>
         <button
-          onClick={onReserve}
+          onClick={() => scrollTo("contact")}
           className="w-full mt-3 py-3.5 border border-white/20 text-white/60 text-sm hover:text-white hover:border-white/40 transition-colors rounded-xl"
         >
           무료 상담 예약
@@ -1122,7 +1124,7 @@ function MobileBottomCTA({ onReserve }: { onReserve: () => void }) {
           무료 체형분석 예약
         </button>
         <button
-          onClick={onReserve}
+          onClick={() => scrollTo("contact")}
           className="py-4 bg-white text-[#0B1D3A] text-[10px] font-medium text-center tracking-[0.15em] uppercase border-l border-gray-100"
         >
           상담 신청
@@ -1144,14 +1146,14 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Nav onReserve={openReservation} />
+      <Nav />
       <HeroSection onReserve={openReservation} />
       <IntroSection />
       <ProgramSection onReserve={openReservation} />
       <AnalysisSection onReserve={openReservation} />
       <ReviewsSection />
-      <EventSection onReserve={openReservation} />
-      <MissionSection onReserve={openReservation} />
+      <EventSection />
+      <MissionSection />
       <GymPlusSection />
       <BranchSection />
       <ContactSection />
