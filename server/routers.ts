@@ -29,6 +29,7 @@ import {
   lockers,
   uniforms,
   ptEventPrograms,
+  leads,
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
@@ -5284,6 +5285,8 @@ const bodyAnalysisRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const now = new Date().toISOString();
+
+      // 1. 체형분석 예약 저장
       const [row] = await db.insert(bodyAnalysisReservations).values({
         name: input.name,
         phone: input.phone,
@@ -5299,6 +5302,41 @@ const bodyAnalysisRouter = t.router({
         status: "pending",
         createdAt: now,
       }).returning({ id: bodyAnalysisReservations.id });
+
+      // 2. 상담관리(leads)에 카드 자동 생성
+      const ageGroup = (() => {
+        if (!input.birthDate) return null;
+        const year = parseInt(input.birthDate.slice(0, 4));
+        if (isNaN(year)) return null;
+        const age = new Date().getFullYear() - year;
+        if (age < 20) return "10대";
+        if (age < 30) return "20대";
+        if (age < 40) return "30대";
+        if (age < 50) return "40대";
+        if (age < 60) return "50대";
+        return "60대 이상";
+      })();
+
+      const memoLines: string[] = [];
+      if (input.height) memoLines.push(`키: ${input.height}cm`);
+      if (input.experience) memoLines.push(`운동경험: ${input.experience}`);
+      if (input.concern) memoLines.push(`고민: ${input.concern}`);
+      memoLines.push(`[체형분석예약 #${row?.id ?? "?"}]`);
+
+      await db.insert(leads).values({
+        name: input.name,
+        phone: input.phone,
+        gender: input.gender ?? null,
+        ageGroup,
+        consultationType: "온라인예약",
+        consultationSubTypes: "체형분석예약",
+        exercisePurpose: input.purpose ?? null,
+        memo: memoLines.join(" / "),
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      });
+
       return { success: true, id: row?.id };
     }),
 

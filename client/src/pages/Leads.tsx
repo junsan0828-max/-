@@ -18,6 +18,7 @@ const CONSULT_TYPES: Record<string, string[]> = {
   "방문상담": [],
   "예약상담": ["플레이스", "전화예약"],
   "소개상담": ["지인소개", "가족소개"],
+  "온라인예약": ["체형분석예약"],
 };
 const MAIN_TYPES = Object.keys(CONSULT_TYPES);
 const INTEREST_OPTIONS = ["PT", "헬스", "기타"];
