@@ -661,6 +661,7 @@ async function initDatabase() {
     `ALTER TABLE uniforms ADD COLUMN IF NOT EXISTS "paymentAmount" INTEGER DEFAULT 0`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "transferAmount" INTEGER`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "cardAmount" INTEGER`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "revenueEntryId" INTEGER`,
     `CREATE TABLE IF NOT EXISTS body_analysis_reservations (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
@@ -1029,42 +1030,102 @@ async function initDatabase() {
     console.error("헬스 이전 기록 자동 생성 오류:", e);
   }
 
-  // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
+  // ── 중복 PT 패키지 정리 (revenueEntryId 없고 usedSessions=0인 중복 제거) ──────
   try {
+    await pool.query(`
+      DELETE FROM pt_packages
+      WHERE "revenueEntryId" IS NULL
+        AND "usedSessions" = 0
+        AND id NOT IN (
+          SELECT MIN(id) FROM pt_packages
+          WHERE "revenueEntryId" IS NULL AND "usedSessions" = 0
+          GROUP BY "memberId", "totalSessions", COALESCE("paymentDate", "createdAt"::text)
+        )
+    `);
+  } catch (e) {
+    console.error("중복 PT 패키지 정리 오류:", e);
+  }
+
+  // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
+  // revenueEntryId로 1:1 연결하여 서버 재시작 시 중복 생성 완전 방지
+  try {
+    // 1) 기존 패키지에 revenueEntryId 연결 (기존 데이터 마이그레이션)
+    await pool.query(`
+      UPDATE pt_packages p
+      SET "revenueEntryId" = r.id
+      FROM revenue_entries r
+      WHERE p."revenueEntryId" IS NULL
+        AND r.type = 'PT'
+        AND r."memberId" = p."memberId"
+        AND r."paymentDate" IS NOT NULL
+        AND p."paymentDate" IS NOT NULL
+        AND r."paymentDate" = p."paymentDate"
+        AND r."sessions" IS NOT NULL
+        AND r."sessions" = (p."totalSessions" - COALESCE(p."serviceSessions", 0))
+    `);
+
+    // 2) revenueEntryId가 없는 패키지는 subType '이전' 제외 PT 매출로 연결 시도 (이름+날짜 기준)
+    await pool.query(`
+      UPDATE pt_packages p
+      SET "revenueEntryId" = r.id
+      FROM revenue_entries r
+      WHERE p."revenueEntryId" IS NULL
+        AND r.type = 'PT'
+        AND r."memberId" = p."memberId"
+        AND r."subType" IS DISTINCT FROM '이전'
+      AND r.id = (
+        SELECT id FROM revenue_entries r2
+        WHERE r2.type = 'PT' AND r2."memberId" = p."memberId"
+          AND r2."subType" IS DISTINCT FROM '이전'
+        ORDER BY ABS(EXTRACT(EPOCH FROM (
+          (COALESCE(r2."paymentDate", r2."createdAt"))::timestamp
+          - (COALESCE(p."paymentDate", p."createdAt"))::timestamp
+        )))
+        LIMIT 1
+      )
+    `);
+
+    // 3) 아직도 revenueEntryId 없는 revenue_entries → 새 패키지 생성
     const ptRevs = await db
       .select()
       .from(revenueEntries)
-      .where(and(eq(revenueEntries.type, "PT"), sql`${revenueEntries.memberId} IS NOT NULL`, sql`${revenueEntries.sessions} IS NOT NULL`));
+      .where(and(
+        eq(revenueEntries.type, "PT"),
+        sql`${revenueEntries.memberId} IS NOT NULL`,
+        sql`${revenueEntries.sessions} IS NOT NULL`,
+        sql`${revenueEntries.subType} IS DISTINCT FROM '이전'`,
+      ));
 
+    let created = 0;
     for (const rev of ptRevs) {
       if (!rev.memberId) continue;
-      // paymentDate + memberId 기준으로 중복 체크 (같은 날 결제한 패키지가 이미 있으면 스킵)
-      const existing = await db.select({ id: ptPackages.id }).from(ptPackages).where(
-        and(eq(ptPackages.memberId, rev.memberId), eq(ptPackages.paymentDate, rev.paymentDate))
+      // revenueEntryId로 중복 체크 (NULL-safe)
+      const linked = await pool.query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM pt_packages WHERE "revenueEntryId" = $1`,
+        [rev.id]
       );
-      if (existing.length === 0) {
-        const now = new Date().toISOString();
-        const svcSessions = (rev as any).serviceSessions ?? 0;
-        await db.insert(ptPackages).values({
-          memberId: rev.memberId,
-          trainerId: rev.trainerId ?? null,
-          totalSessions: rev.sessions! + svcSessions,
-          serviceSessions: svcSessions,
-          usedSessions: 0,
-          packageName: rev.programDetail ?? null,
-          startDate: rev.startDate ?? rev.paymentDate,
-          status: "active",
-          price: rev.amount,
-          paymentAmount: rev.paidAmount,
-          unpaidAmount: rev.unpaidAmount,
-          paymentMethod: rev.paymentMethod ?? null,
-          paymentDate: rev.paymentDate,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
+      if (parseInt(linked.rows[0]?.count ?? "0", 10) > 0) continue;
+
+      const now = new Date().toISOString();
+      const svcSessions = (rev as any).serviceSessions ?? 0;
+      await pool.query(`
+        INSERT INTO pt_packages
+          ("memberId","trainerId","totalSessions","serviceSessions","usedSessions",
+           "packageName","startDate",status,price,"paymentAmount","unpaidAmount",
+           "paymentMethod","paymentDate","revenueEntryId","createdAt","updatedAt")
+        VALUES ($1,$2,$3,$4,0,$5,$6,'active',$7,$8,$9,$10,$11,$12,$13,$13)
+      `, [
+        rev.memberId, rev.trainerId ?? null,
+        (rev.sessions ?? 0) + svcSessions, svcSessions,
+        rev.programDetail ?? null,
+        rev.startDate ?? rev.paymentDate,
+        rev.amount, rev.paidAmount, rev.unpaidAmount,
+        rev.paymentMethod ?? null, rev.paymentDate,
+        rev.id, now,
+      ]);
+      created++;
     }
-    console.log("✅ PT 매출 기반 패키지 자동 생성 완료");
+    if (created > 0) console.log(`✅ PT 매출 기반 패키지 자동 생성: ${created}건`);
   } catch (e) {
     console.error("PT 패키지 자동 생성 오류:", e);
   }
