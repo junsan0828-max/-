@@ -837,17 +837,11 @@ export default function PostureAnalysis() {
               <div style={{ display:"flex", alignItems:"center", gap:6, flex:1, minWidth:0, overflow:"hidden" }}>
                 <Dumbbell size={15} color="#93c5fd" style={{ flexShrink:0 }}/>
                 <div style={{ minWidth:0 }}>
-                  <p style={{ color: "#2563eb", fontSize: 9, fontWeight: 800, margin: 0, letterSpacing: "0.12em", lineHeight: 1 }}>FIT STEP</p>
-                  <span style={{ color: "#0f172a", fontWeight: 700, fontSize: 12, lineHeight: 1, whiteSpace: "nowrap" }}>체형 분석 드로잉</span>
+                  <p style={{ color: "#93c5fd", fontSize: 9, fontWeight: 800, margin: 0, letterSpacing: "0.12em", lineHeight: 1 }}>FIT STEP</p>
+                  <span style={{ color: "#ffffff", fontWeight: 700, fontSize: 12, lineHeight: 1, whiteSpace: "nowrap" }}>체형 분석 드로잉</span>
                 </div>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
-              <button onClick={() => setFlipRL(v => !v)}
-                title={flipRL ? "후면(등 보임): R=오른쪽" : "전면(얼굴 보임): R=왼쪽"}
-                style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 10px", background: flipRL ? "#1d4ed8" : "#0f3460", border:"none", borderRadius:8, cursor:"pointer", color:"#eee", minWidth:48 }}>
-                <span style={{ fontSize:13, fontWeight:800, letterSpacing:"0.05em" }}>{flipRL ? "L ◀▶ R" : "R ◀▶ L"}</span>
-                <span style={{ fontSize:9 }}>{flipRL ? "후면" : "전면"}</span>
-              </button>
               <IconBtn icon={<RotateCcw size={15} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
               <IconBtn icon={<Download size={15} />} label="저장" onClick={handleSave} />
               <IconBtn icon={<Settings size={15} />} label="설정" onClick={() => setShowSettings(v => !v)} active={showSettings} />
@@ -874,6 +868,14 @@ export default function PostureAnalysis() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 12, color: "#aaa" }}>글자크기</span>
                   <input type="number" min={10} max={80} value={fontSize} onChange={e => setFontSize(Number(e.target.value))} style={{ width: 56, padding: "5px 6px", background: "#0f3460", border: "1px solid #555", color: "#eee", borderRadius: 6, fontSize: 13 }} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "#aaa" }}>좌우(R/L)</span>
+                  <button onClick={() => { const nv = !flipRL; flipRLRef.current = nv; setFlipRL(nv); render(); }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "#0f3460", border: "1px solid #1d4ed8", color: "#eee", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                    <span style={{ letterSpacing: "0.05em" }}>{flipRL ? "L ◀▶ R" : "R ◀▶ L"}</span>
+                    <span style={{ fontSize: 11, color: "#93c5fd" }}>{flipRL ? "후면(등)" : "전면(얼굴)"}</span>
+                  </button>
                 </div>
                 <button onClick={handleClearAll} disabled={lines.length === 0}
                   style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: lines.length ? "#fef2f2" : "#f8fafc", border: "1px solid #991b1b", color: lines.length ? "#dc2626" : "#94a3b8", borderRadius: 6, cursor: lines.length ? "pointer" : "not-allowed", fontSize: 13 }}>
