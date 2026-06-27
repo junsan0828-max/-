@@ -264,8 +264,14 @@ export default function PostureAnalysis() {
           ctx.font = `bold ${fontRef.current}px Arial`;
           ctx.strokeStyle = "rgba(0,0,0,0.8)";
           ctx.lineWidth = 3;
-          ctx.strokeText(l.label, l.labelX!, l.labelY!);
-          ctx.fillText(l.label, l.labelX!, l.labelY!);
+          // 라벨이 화면 밖으로 나가지 않도록 경계 안으로 보정
+          const tw = ctx.measureText(l.label).width;
+          const fh = fontRef.current;
+          const m  = 4;
+          const lx = Math.max(m, Math.min(l.labelX!, canvas.width  - tw - m));
+          const ly = Math.max(fh + m, Math.min(l.labelY!, canvas.height - m));
+          ctx.strokeText(l.label, lx, ly);
+          ctx.fillText(l.label, lx, ly);
         }
       } else {
         applyLineStyle(ctx, l.color, l.width, l.style);
@@ -464,10 +470,14 @@ export default function PostureAnalysis() {
           ctx.font = `bold ${fontRef.current}px Arial`;
           ctx.strokeStyle = "rgba(0,0,0,0.8)";
           ctx.lineWidth = 3;
-          const lx = pts[1].x + 10, ly = pts[1].y - 10;
-          ctx.strokeText(a.toFixed(1) + "°", lx, ly);
+          const aTxt = a.toFixed(1) + "°";
+          const tw = ctx.measureText(aTxt).width;
+          const fh = fontRef.current, m = 4;
+          const lx = Math.max(m, Math.min(pts[1].x + 10, canvas.width  - tw - m));
+          const ly = Math.max(fh + m, Math.min(pts[1].y - 10, canvas.height - m));
+          ctx.strokeText(aTxt, lx, ly);
           ctx.fillStyle = colorRef.current;
-          ctx.fillText(a.toFixed(1) + "°", lx, ly);
+          ctx.fillText(aTxt, lx, ly);
         }
         ctx.restore();
       });
