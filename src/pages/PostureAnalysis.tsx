@@ -191,6 +191,11 @@ export default function PostureAnalysis() {
   const fontRef = useRef(fontSize);
   const toolRef = useRef<ToolType>(currentTool);
 
+  // R/L 좌우 표시 — false: 전면(얼굴 보임, R=화면 왼쪽), true: 후면(등 보임, R=화면 오른쪽)
+  const [flipRL, setFlipRL] = useState(false);
+  const flipRLRef = useRef(false);
+  useEffect(() => { flipRLRef.current = flipRL; }, [flipRL]);
+
   useEffect(() => { linesRef.current = lines; }, [lines]);
   useEffect(() => { historyRef.current = history; }, [history]);
   useEffect(() => { bgRef.current = bgImage; }, [bgImage]);
@@ -300,15 +305,19 @@ export default function PostureAnalysis() {
       ctx.lineWidth   = mSize * 0.18;
       ctx.strokeStyle = "rgba(0,0,0,0.7)";
       ctx.fillStyle   = "#ffffff";
-      // R — 좌측 하단 (피검자 기준 오른쪽 = 화면 왼쪽)
-      ctx.strokeText("R", pad, canvas.height - pad);
-      ctx.fillText  ("R", pad, canvas.height - pad);
-      // L — 우측 하단 (피검자 기준 왼쪽 = 화면 오른쪽)
-      ctx.strokeText("L", canvas.width - pad - mSize, canvas.height - pad);
-      ctx.fillText  ("L", canvas.width - pad - mSize, canvas.height - pad);
+      // 전면(얼굴): R=화면 왼쪽 / 후면(등): R=화면 오른쪽
+      const leftLabel  = flipRLRef.current ? "L" : "R";
+      const rightLabel = flipRLRef.current ? "R" : "L";
+      ctx.strokeText(leftLabel, pad, canvas.height - pad);
+      ctx.fillText  (leftLabel, pad, canvas.height - pad);
+      ctx.strokeText(rightLabel, canvas.width - pad - mSize, canvas.height - pad);
+      ctx.fillText  (rightLabel, canvas.width - pad - mSize, canvas.height - pad);
       ctx.restore();
     }
   }, [applyLineStyle, applyMosaicRect]);
+
+  // R/L 전환 시 다시 그리기
+  useEffect(() => { render(); }, [flipRL, render]);
 
   // 각도 도구에서 다른 도구로 전환 시 진행 상태 + 미리보기 초기화
   useEffect(() => {
@@ -833,6 +842,12 @@ export default function PostureAnalysis() {
                 </div>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) loadImageFile(f); }} />
+              <button onClick={() => setFlipRL(v => !v)}
+                title={flipRL ? "후면(등 보임): R=오른쪽" : "전면(얼굴 보임): R=왼쪽"}
+                style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"6px 10px", background: flipRL ? "#1d4ed8" : "#0f3460", border:"none", borderRadius:8, cursor:"pointer", color:"#eee", minWidth:48 }}>
+                <span style={{ fontSize:13, fontWeight:800, letterSpacing:"0.05em" }}>{flipRL ? "L ◀▶ R" : "R ◀▶ L"}</span>
+                <span style={{ fontSize:9 }}>{flipRL ? "후면" : "전면"}</span>
+              </button>
               <IconBtn icon={<RotateCcw size={15} />} label="되돌리기" onClick={handleUndo} disabled={history.length === 0} />
               <IconBtn icon={<Download size={15} />} label="저장" onClick={handleSave} />
               <IconBtn icon={<Settings size={15} />} label="설정" onClick={() => setShowSettings(v => !v)} active={showSettings} />
