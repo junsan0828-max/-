@@ -553,7 +553,10 @@ export default function PostureAnalysis() {
           const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
           const leftY  = sx < pos.x ? sy : pos.y;
           const rightY = sx < pos.x ? pos.y : sy;
-          const side = leftY > rightY ? "오른쪽↓" : leftY < rightY ? "왼쪽↓" : "수평";
+          // 화면 왼쪽 = 전면이면 피검자 오른쪽 / 후면이면 피검자 왼쪽
+          const lowLabel  = flipRLRef.current ? "왼쪽↓" : "오른쪽↓";
+          const highLabel = flipRLRef.current ? "오른쪽↓" : "왼쪽↓";
+          const side = leftY > rightY ? lowLabel : leftY < rightY ? highLabel : "수평";
           const txt = angleDeg < 1 ? "수평" : `${side}  △${angleDeg.toFixed(1)}°`;
           ctx.setLineDash([]);
           ctx.font = `bold ${fontRef.current}px Arial`;
@@ -610,7 +613,10 @@ export default function PostureAnalysis() {
       const angleDeg2 = Math.atan2(dy2, dx2) * 180 / Math.PI;
       const leftY  = sx < pos.x ? sy : pos.y;
       const rightY = sx < pos.x ? pos.y : sy;
-      const side = leftY > rightY ? "오른쪽↓" : leftY < rightY ? "왼쪽↓" : "수평";
+      // 화면 왼쪽 = 전면이면 피검자 오른쪽 / 후면이면 피검자 왼쪽
+      const lowLabel  = flipRLRef.current ? "왼쪽↓" : "오른쪽↓";
+      const highLabel = flipRLRef.current ? "오른쪽↓" : "왼쪽↓";
+      const side = leftY > rightY ? lowLabel : leftY < rightY ? highLabel : "수평";
       item.label  = angleDeg2 < 1 ? "수평" : `${side}  △${angleDeg2.toFixed(1)}°`;
       item.labelX = (sx + pos.x) / 2;
       item.labelY = Math.min(sy, pos.y) - 10;
