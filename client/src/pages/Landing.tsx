@@ -42,6 +42,8 @@ const IMG = {
     { src: "/images/gymplus/screen-program.jpg", label: "운동 프로그램" },
     { src: "/images/gymplus/screen-record.jpg", label: "운동 기록" },
     { src: "/images/gymplus/screen-report.jpg", label: "리포트" },
+    { src: "/images/gymplus/screen-meal.jpg", label: "식단 관리" },
+    { src: "/images/gymplus/screen-booking.jpg", label: "센터 예약" },
   ],
   branch: [
     { interior: "/images/branch/branch1-interior.jpg" },
