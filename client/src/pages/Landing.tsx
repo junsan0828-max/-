@@ -756,9 +756,9 @@ function MissionSection({ onTrial }: { onTrial: () => void }) {
             {
               step: "02",
               title: "네이버 영수증 리뷰",
-              desc: "센터 방문 후 리뷰 작성",
-              href: BRANCH.b1.naverUrl,
-              btnLabel: "리뷰 작성",
+              desc: "방문 상담 시 작성 방법을 안내해 드립니다",
+              href: null,
+              btnLabel: null,
               note: null,
             },
           ].map((m, i, arr) => (
@@ -787,17 +787,19 @@ function MissionSection({ onTrial }: { onTrial: () => void }) {
                     </a>
                   )}
                 </div>
-                <a
-                  href={m.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] text-[#60A5FA]/60 hover:text-[#60A5FA] transition-colors flex-shrink-0 flex items-center gap-1"
-                >
-                  {m.btnLabel}
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                  </svg>
-                </a>
+                {m.href && m.btnLabel && (
+                  <a
+                    href={m.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-[#60A5FA]/60 hover:text-[#60A5FA] transition-colors flex-shrink-0 flex items-center gap-1"
+                  >
+                    {m.btnLabel}
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                  </a>
+                )}
               </div>
               {i < arr.length - 1 && <div className="h-4" />}
             </div>
