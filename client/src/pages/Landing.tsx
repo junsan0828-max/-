@@ -774,7 +774,17 @@ function MissionSection({ onTrial }: { onTrial: () => void }) {
                   <p className="text-white text-[13px] font-semibold">{m.title}</p>
                   <p className="text-white/35 text-[11px]">{m.desc}</p>
                   {m.note && (
-                    <p className="text-[#60A5FA]/60 text-[10px] mt-1">📲 {m.note}</p>
+                    <a
+                      href="https://talk.naver.com/ct/w42bpf#nafullscreen"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[#60A5FA]/70 hover:text-[#60A5FA] text-[10px] mt-1 transition-colors"
+                    >
+                      📲 {m.note}
+                      <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-2.5 h-2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </a>
                   )}
                 </div>
                 <a
