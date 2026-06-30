@@ -52,6 +52,11 @@ app.use(
   })
 );
 
+// 네이버 서치어드바이저 소유확인 파일
+app.get("/naver091f3cc9f98f0ad7fd5e5d8eb8dd09c9.html", (_req, res) => {
+  res.type("text/html").send("naver-site-verification: naver091f3cc9f98f0ad7fd5e5d8eb8dd09c9");
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
