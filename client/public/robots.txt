@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+
+# 관리자 및 내부 경로 차단
+Disallow: /trpc/
+Disallow: /login
+Disallow: /register
+Disallow: /gym-plus/
+Disallow: /gym-dashboard
+Disallow: /members
+Disallow: /leads
+Disallow: /revenue
+Disallow: /expenses
+Disallow: /marketing
+Disallow: /ai-analysis
+
+Sitemap: https://ziantgym.com/sitemap.xml
