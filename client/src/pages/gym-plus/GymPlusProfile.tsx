@@ -264,7 +264,8 @@ export default function GymPlusProfile() {
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
   const { data: health, refetch: refetchHealth } = trpc.gymPlus.getHealth.useQuery();
   const { data: products } = trpc.gymPlus.listProducts.useQuery();
-  const [activeTab, setActiveTab] = useState<"service" | "info">("service");
+  const { data: healthReport } = trpc.gymPlus.getHealthReport.useQuery();
+  const [activeTab, setActiveTab] = useState<"service" | "info" | "report">("service");
   const [productCategory, setProductCategory] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState("points");
@@ -494,7 +495,7 @@ export default function GymPlusProfile() {
       <div className="bg-white border-b border-gray-100 px-4 pt-4 pb-0">
         <h1 className="font-bold text-lg text-[#1a2b4b] mb-3">인포데스크</h1>
         <div className="flex gap-0">
-          {(["service", "info"] as const).map((tab) => (
+          {(["service", "report", "info"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -504,7 +505,7 @@ export default function GymPlusProfile() {
                   : "border-transparent text-gray-400"
               }`}
             >
-              {tab === "service" ? "서비스 상품" : "내정보"}
+              {tab === "service" ? "서비스 상품" : tab === "report" ? "건강보고서" : "내정보"}
             </button>
           ))}
         </div>
@@ -782,6 +783,85 @@ export default function GymPlusProfile() {
       )}
 
       </>)}
+
+      {/* ── 건강보고서 탭 ── */}
+      {activeTab === "report" && (
+        <div className="space-y-4 pb-8">
+          {/* 출입 횟수 카드 */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-[#1D4ED8]/10 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="#1D4ED8" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">PT 출석 횟수</p>
+                <p className="text-2xl font-black text-[#1a2b4b]">
+                  {healthReport?.attendanceCount ?? 0}
+                  <span className="text-sm font-semibold text-gray-400 ml-1">회</span>
+                </p>
+              </div>
+            </div>
+            {healthReport?.recentAttendances && healthReport.recentAttendances.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-gray-400 font-medium">최근 출석 기록</p>
+                {healthReport.recentAttendances.map((a: { checkDate: string; checkTime: string | null; status: string }, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${a.status === "attended" ? "bg-emerald-400" : "bg-gray-300"}`} />
+                      <span className="text-sm text-gray-700">{a.checkDate}</span>
+                      {a.checkTime && <span className="text-xs text-gray-400">{a.checkTime}</span>}
+                    </div>
+                    <span className={`text-xs font-medium ${a.status === "attended" ? "text-emerald-500" : "text-gray-400"}`}>
+                      {a.status === "attended" ? "출석" : a.status === "noshow" ? "노쇼" : "캔슬"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-2">출석 기록이 없습니다</p>
+            )}
+          </div>
+
+          {/* 운동 기록 횟수 카드 */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="#10b981" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">운동 기록 횟수</p>
+                <p className="text-2xl font-black text-[#1a2b4b]">
+                  {healthReport?.workoutCount ?? 0}
+                  <span className="text-sm font-semibold text-gray-400 ml-1">회</span>
+                </p>
+              </div>
+            </div>
+            {healthReport?.recentWorkouts && healthReport.recentWorkouts.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-gray-400 font-medium">최근 운동 기록</p>
+                {healthReport.recentWorkouts.map((w: { workoutDate: string; totalSets: number | null; workoutTheme: string | null }, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span className="text-sm text-gray-700">{w.workoutDate}</span>
+                      {w.workoutTheme && <span className="text-xs text-gray-400">{w.workoutTheme}</span>}
+                    </div>
+                    {w.totalSets != null && (
+                      <span className="text-xs font-medium text-emerald-500">{w.totalSets}세트</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-2">운동 기록이 없습니다</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── 내정보 탭 ── */}
       {activeTab === "info" && (<>

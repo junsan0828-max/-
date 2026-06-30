@@ -4214,6 +4214,52 @@ ${dataContext}
     }
     return ptResult;
   }),
+
+  getHealthReport: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    // 운동 기록 횟수
+    const workoutCountResult = await pool.query(
+      `SELECT COUNT(*) as count FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1`,
+      [ctx.gymPlusMemberId]
+    );
+    const workoutCount = parseInt(workoutCountResult.rows[0]?.count ?? "0", 10);
+
+    // 최근 운동 기록 (최근 5개)
+    const recentWorkouts = await pool.query(
+      `SELECT "workoutDate", "totalSets", "workoutTheme" FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1 ORDER BY "workoutDate" DESC LIMIT 5`,
+      [ctx.gymPlusMemberId]
+    );
+
+    // gym_plus_members의 memberId로 attendance_checks에서 출입 횟수 조회
+    const [gymMember] = await db.select({ memberId: gymPlusMembers.memberId })
+      .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+
+    let attendanceCount = 0;
+    let recentAttendances: { checkDate: string; checkTime: string | null; status: string }[] = [];
+
+    if (gymMember?.memberId) {
+      const acResult = await pool.query(
+        `SELECT COUNT(*) as count FROM attendance_checks WHERE "memberId" = $1 AND status = 'attended'`,
+        [gymMember.memberId]
+      );
+      attendanceCount = parseInt(acResult.rows[0]?.count ?? "0", 10);
+
+      const recentAcResult = await pool.query(
+        `SELECT "checkDate", "checkTime", status FROM attendance_checks WHERE "memberId" = $1 ORDER BY "checkDate" DESC, "checkTime" DESC LIMIT 5`,
+        [gymMember.memberId]
+      );
+      recentAttendances = recentAcResult.rows;
+    }
+
+    return {
+      workoutCount,
+      attendanceCount,
+      recentWorkouts: recentWorkouts.rows,
+      recentAttendances,
+    };
+  }),
 });
 
 // ─── Landing ──────────────────────────────────────────────────────────────────
