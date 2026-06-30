@@ -3048,6 +3048,7 @@ const registerMutation = protectedProcedure
     isServiceSession: z.boolean().optional(),
     serviceSessions: z.number().optional(),
     serviceSessionPrice: z.number().optional(),
+    serviceSamePrice: z.number().optional(),
 
     // 기타 (단일 타입 등록용, 예: MemberForm에서 "기타" 선택)
     addOther: z.boolean().optional(),
@@ -3235,6 +3236,7 @@ const registerMutation = protectedProcedure
           totalSessions,
           serviceSessions: svcSessions,
           serviceSessionPrice: input.serviceSessionPrice ?? undefined,
+          serviceSamePrice: input.serviceSamePrice ?? undefined,
           usedSessions: 0,
           startDate: input.membershipStart ?? undefined,
           paymentAmount: ptPaid,

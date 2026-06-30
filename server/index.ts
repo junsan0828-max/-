@@ -623,6 +623,8 @@ async function initDatabase() {
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS "registeredMemberId" INTEGER`,
     `ALTER TABLE members ADD COLUMN IF NOT EXISTS "signatureDataUrl" TEXT`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSessionPrice" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSamePrice" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "serviceSamePrice" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "isServiceSession" INTEGER DEFAULT 0`,
     `CREATE TABLE IF NOT EXISTS pt_event_programs (
       id SERIAL PRIMARY KEY,

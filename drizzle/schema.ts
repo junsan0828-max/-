@@ -87,6 +87,7 @@ export const ptPackages = pgTable("pt_packages", {
   price: integer("price"),
   pricePerSession: integer("pricePerSession"),
   serviceSessionPrice: integer("serviceSessionPrice").default(0),
+  serviceSamePrice: integer("serviceSamePrice").default(0),   // 1이면 서비스 세션도 정규 회당 단가로 정산
   paymentAmount: integer("paymentAmount"),
   unpaidAmount: integer("unpaidAmount"),
   paymentMethod: text("paymentMethod"),
@@ -108,6 +109,7 @@ export const ptEventPrograms = pgTable("pt_event_programs", {
   serviceSessions: integer("serviceSessions").notNull().default(0),
   pricePerSession: integer("pricePerSession").notNull(),      // 하위호환용
   serviceSessionPrice: integer("serviceSessionPrice").notNull().default(0),
+  serviceSamePrice: integer("serviceSamePrice").notNull().default(0),   // 1이면 서비스 세션도 정규 회당 단가로 정산
   isActive: integer("isActive").notNull().default(1),
   createdAt: text("createdAt").default(now).notNull(),
 });

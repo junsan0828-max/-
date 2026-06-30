@@ -487,6 +487,7 @@ const membersRouter = t.router({
         ptSessions: z.string().optional(),
         serviceSessions: z.number().min(0).default(0).optional(),
         serviceSessionPrice: z.number().min(0).optional(),
+        serviceSamePrice: z.number().optional(),
         paymentAmount: z.number().optional(),
         discountAmount: z.number().optional(),
         unpaidAmount: z.number().optional(),
@@ -516,6 +517,7 @@ const membersRouter = t.router({
         ptSessions,
         serviceSessions,
         serviceSessionPrice,
+        serviceSamePrice,
         paymentAmount,
         discountAmount: inputDiscountAmount,
         unpaidAmount,
@@ -546,6 +548,7 @@ const membersRouter = t.router({
           totalSessions: sessionCount + svcSessions,
           serviceSessions: svcSessions,
           serviceSessionPrice: serviceSessionPrice ?? undefined,
+          serviceSamePrice: serviceSamePrice ?? undefined,
           usedSessions: 0,
           packageName,
           startDate: memberData.membershipStart,
@@ -2352,6 +2355,7 @@ const trainersRouter = t.router({
           memberNameJoined: members.name,
           isServiceSession: ptSessionLogs.isServiceSession,
           serviceSessionPrice: ptPackages.serviceSessionPrice,
+          serviceSamePrice: ptPackages.serviceSamePrice,
         })
         .from(ptSessionLogs)
         .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
@@ -2408,9 +2412,9 @@ const trainersRouter = t.router({
         }
       }
 
-      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null }) => {
-        // 서비스 세션인 경우 serviceSessionPrice 사용 (정산용 단가)
-        if (l.isServiceSession === 1) {
+      const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null }) => {
+        // 서비스 세션인 경우: serviceSamePrice=1이면 정규 회당 단가로 정산, 아니면 serviceSessionPrice 사용
+        if (l.isServiceSession === 1 && l.serviceSamePrice !== 1) {
           return l.serviceSessionPrice ?? 0;
         }
         // 혼합 결제는 저장된 pricePerSession 직접 사용
@@ -5103,6 +5107,7 @@ const eventProgramsRouter = t.router({
         id: number; type: string; name: string; sessions: number;
         applicableSessions: string | null;
         serviceSessions: number; pricePerSession: number; serviceSessionPrice: number;
+        serviceSamePrice: number;
         isActive: number; startDate: string | null; endDate: string | null; createdAt: string;
       }>;
     }),
@@ -5117,6 +5122,7 @@ const eventProgramsRouter = t.router({
       pricePerSession: z.number().optional(),                // 하위호환용
       serviceSessions: z.number().min(0).default(0),
       serviceSessionPrice: z.number().min(0).default(0),
+      serviceSamePrice: z.number().default(0),
       isActive: z.number().default(1),
       startDate: z.string().nullable().optional(),
       endDate: z.string().nullable().optional(),
@@ -5135,14 +5141,14 @@ const eventProgramsRouter = t.router({
             type = ${input.type}, name = ${input.name},
             sessions = ${firstSession}, "applicableSessions" = ${resolvedApplicable},
             "serviceSessions" = ${input.serviceSessions}, "pricePerSession" = ${resolvedPrice},
-            "serviceSessionPrice" = ${input.serviceSessionPrice}, "isActive" = ${input.isActive},
+            "serviceSessionPrice" = ${input.serviceSessionPrice}, "serviceSamePrice" = ${input.serviceSamePrice}, "isActive" = ${input.isActive},
             "startDate" = ${input.startDate ?? null}, "endDate" = ${input.endDate ?? null}
           WHERE id = ${input.id}
         `);
       } else {
         await db.execute(sql`
-          INSERT INTO pt_event_programs (type, name, sessions, "applicableSessions", "serviceSessions", "pricePerSession", "serviceSessionPrice", "isActive", "startDate", "endDate", "createdAt")
-          VALUES (${input.type}, ${input.name}, ${firstSession}, ${resolvedApplicable}, ${input.serviceSessions}, ${resolvedPrice}, ${input.serviceSessionPrice}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
+          INSERT INTO pt_event_programs (type, name, sessions, "applicableSessions", "serviceSessions", "pricePerSession", "serviceSessionPrice", "serviceSamePrice", "isActive", "startDate", "endDate", "createdAt")
+          VALUES (${input.type}, ${input.name}, ${firstSession}, ${resolvedApplicable}, ${input.serviceSessions}, ${resolvedPrice}, ${input.serviceSessionPrice}, ${input.serviceSamePrice}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
         `);
       }
       return { success: true };

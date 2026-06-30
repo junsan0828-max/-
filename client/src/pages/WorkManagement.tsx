@@ -405,6 +405,7 @@ function EventManagementSection() {
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [customSession, setCustomSession] = useState(""); // 직접입력 세션
   const [form, setForm] = useState({ name: "", serviceSessions: "0", serviceSessionPrice: "0", startDate: "", endDate: "" });
+  const [serviceSamePrice, setServiceSamePrice] = useState(false);
 
   const { data: events, refetch } = trpc.eventPrograms.list.useQuery({ type: eventType });
   const upsertMutation = trpc.eventPrograms.upsert.useMutation({
@@ -420,6 +421,7 @@ function EventManagementSection() {
     setSelectedSessions(new Set());
     setCustomSession("");
     setForm({ name: "", serviceSessions: "0", serviceSessionPrice: "0", startDate: "", endDate: "" });
+    setServiceSamePrice(false);
   }
 
   const openEdit = (item: any) => {
@@ -436,6 +438,7 @@ function EventManagementSection() {
     setSelectedSessions(presetSet);
     setCustomSession(custom);
     setForm({ name: item.name, serviceSessions: String(item.serviceSessions), serviceSessionPrice: String(item.serviceSessionPrice), startDate: item.startDate ?? "", endDate: item.endDate ?? "" });
+    setServiceSamePrice(item.serviceSamePrice === 1);
     setShowForm(true);
   };
   const openNew = () => { setEditItem(null); resetForm(); setShowForm(true); };
@@ -463,7 +466,8 @@ function EventManagementSection() {
       name: form.name,
       applicableSessions: applicableSessions || "",
       serviceSessions: parseInt(form.serviceSessions || "0"),
-      serviceSessionPrice: parseInt(form.serviceSessionPrice || "0"),
+      serviceSessionPrice: serviceSamePrice ? 0 : parseInt(form.serviceSessionPrice || "0"),
+      serviceSamePrice: serviceSamePrice ? 1 : 0,
       isActive: editItem?.isActive ?? 1,
       startDate: form.startDate || null,
       endDate: form.endDate || null,
@@ -504,7 +508,9 @@ function EventManagementSection() {
                   <p className="text-xs text-muted-foreground mt-0.5">
                     적용 세션: {appliedSessions.split(",").map((s: string) => `${s}회`).join(" · ")}
                     {" · "} 서비스 +{ev.serviceSessions}회
-                    {ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
+                    {ev.serviceSamePrice === 1
+                      ? <span> · 서비스단가 정규와 동일</span>
+                      : ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
                   </p>
                   {(ev.startDate || ev.endDate) && (
                     <p className="text-xs text-muted-foreground/70 mt-0.5">
@@ -592,11 +598,26 @@ function EventManagementSection() {
             {/* 서비스 세션 단가 */}
             <div>
               <label className="text-xs text-muted-foreground">서비스 세션 단가 <span className="text-muted-foreground/60">(정산용)</span></label>
-              <div className="flex items-center gap-1 mt-1">
-                <input type="number" value={form.serviceSessionPrice} onChange={e => setForm(f => ({...f, serviceSessionPrice: e.target.value}))} placeholder="40000"
-                  className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
-                <span className="text-xs text-muted-foreground">원</span>
-              </div>
+              <label className="flex items-center gap-2 mt-1.5 cursor-pointer">
+                <div
+                  onClick={() => setServiceSamePrice(v => !v)}
+                  className={`w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors ${serviceSamePrice ? "bg-primary border-primary" : "border-border bg-background"}`}
+                >
+                  {serviceSamePrice && (
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={3} stroke="white" className="w-3 h-3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-xs text-foreground">정규 단가와 동일 <span className="text-muted-foreground/60">(서비스 세션도 정규 회당 단가로 정산)</span></span>
+              </label>
+              {!serviceSamePrice && (
+                <div className="flex items-center gap-1 mt-2">
+                  <input type="number" value={form.serviceSessionPrice} onChange={e => setForm(f => ({...f, serviceSessionPrice: e.target.value}))} placeholder="40000"
+                    className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+                  <span className="text-xs text-muted-foreground">원</span>
+                </div>
+              )}
             </div>
 
             {/* 날짜 */}
@@ -617,7 +638,7 @@ function EventManagementSection() {
             {(selectedSessions.size > 0 || customSession) && form.serviceSessions !== "0" && (
               <div className="text-xs text-muted-foreground bg-accent/20 rounded p-2">
                 {[...Array.from(selectedSessions).map(Number).sort((a,b)=>a-b), ...(customSession ? [parseInt(customSession)] : [])].map(n => (
-                  <span key={n}>{n}회 등록 → +{form.serviceSessions}회 서비스 (단가 {parseInt(form.serviceSessionPrice||"0").toLocaleString()}원)　</span>
+                  <span key={n}>{n}회 등록 → +{form.serviceSessions}회 서비스 (단가 {serviceSamePrice ? "정규와 동일" : `${parseInt(form.serviceSessionPrice||"0").toLocaleString()}원`})　</span>
                 ))}
               </div>
             )}

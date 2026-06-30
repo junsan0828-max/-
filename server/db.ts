@@ -73,6 +73,7 @@ export async function getDashboardStats(trainerId: number) {
       isServiceSession: ptSessionLogs.isServiceSession,
       pricePerSession: ptPackages.pricePerSession,
       serviceSessionPrice: ptPackages.serviceSessionPrice,
+      serviceSamePrice: ptPackages.serviceSamePrice,
       paymentAmount: ptPackages.paymentAmount,
       totalSessions: ptPackages.totalSessions,
       paymentMethod: ptPackages.paymentMethod,
@@ -142,8 +143,8 @@ export async function getDashboardStats(trainerId: number) {
       }
     }
 
-    const calcPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
-      if (l.isServiceSession === 1) return l.serviceSessionPrice ?? 0;
+    const calcPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+      if (l.isServiceSession === 1 && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
       if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
       if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
         return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);
@@ -172,8 +173,8 @@ export async function getDashboardStats(trainerId: number) {
       }
     }
 
-    const calcTodayPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
-      if (l.isServiceSession === 1) return l.serviceSessionPrice ?? 0;
+    const calcTodayPrice = (l: { memberId: number; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+      if (l.isServiceSession === 1 && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
       if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
       if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
         return calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod);

@@ -92,6 +92,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     adminTrainerId: defaultTrainerId ? String(defaultTrainerId) : "",
     serviceSessions: "",
     serviceSessionPrice: "",
+    serviceSamePrice: false,
     subType: "신규" as "신규" | "재등록",
   });
 
@@ -253,6 +254,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           adminTrainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
           serviceSessions: (hasPT && form.serviceSessions) ? parseInt(form.serviceSessions) : undefined,
           serviceSessionPrice: (hasPT && form.serviceSessionPrice) ? parseInt(form.serviceSessionPrice) : undefined,
+          serviceSamePrice: (hasPT && form.serviceSamePrice) ? 1 : undefined,
           subType: form.subType,
           primaryType: hasPT ? "PT" : hasHealth ? "헬스" : hasOther ? "기타" : undefined,
           branchId: branchId ?? undefined,
@@ -300,6 +302,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           ptPrice: hasPT ? paymentAmt : undefined,
           serviceSessions: hasPT && form.serviceSessions ? parseInt(form.serviceSessions) : undefined,
           serviceSessionPrice: hasPT && form.serviceSessionPrice ? parseInt(form.serviceSessionPrice) : undefined,
+          serviceSamePrice: hasPT && form.serviceSamePrice ? 1 : undefined,
           // 기타
           addOther: hasOther || undefined,
           otherDetail: hasOther ? form.ptProgram || undefined : undefined,
@@ -543,12 +546,12 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                               defaultValue=""
                               onChange={e => {
                                 const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
-                                if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0) }));
+                                if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0), serviceSamePrice: ev.serviceSamePrice === 1 }));
                               }}>
                               <option value="" disabled>이벤트 선택...</option>
                               {(ptEvents ?? []).map((ev: any) => (
                                 <option key={ev.id} value={String(ev.id)}>
-                                  {ev.name} (서비스 +{ev.serviceSessions}회{ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
+                                  {ev.name} (서비스 +{ev.serviceSessions}회{ev.serviceSamePrice === 1 ? " · 정규단가" : ev.serviceSessionPrice > 0 ? ` · ${ev.serviceSessionPrice.toLocaleString()}원/회` : ""})
                                 </option>
                               ))}
                             </select>
