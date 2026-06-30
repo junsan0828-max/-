@@ -988,19 +988,38 @@ async function initDatabase() {
     console.error("헬스 매출 잘못 연결된 항목 재연결 오류:", e);
   }
 
+  // ── PT 회원에게 잘못 붙은 "헬스 이전 0원" 팬텀 정리 ──────────────────────────
+  // PT 패키지나 PT 매출이 있는 회원은 헬스 회원이 아니므로 자동 생성된 헬스 이전을 제거
+  try {
+    const cleaned = await pool.query(
+      `DELETE FROM revenue_entries
+       WHERE type = '헬스' AND "subType" = '이전' AND amount = 0
+         AND "memberId" IS NOT NULL
+         AND ("memberId" IN (SELECT DISTINCT "memberId" FROM pt_packages WHERE "memberId" IS NOT NULL)
+              OR "memberId" IN (SELECT DISTINCT "memberId" FROM revenue_entries WHERE type = 'PT' AND "memberId" IS NOT NULL))`
+    );
+    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 PT 회원 헬스 이전 팬텀 정리: ${cleaned.rowCount}건`);
+  } catch (e) {
+    console.error("헬스 이전 팬텀 정리 오류:", e);
+  }
+
   // ── membershipEnd 있으나 헬스 매출 기록 없는 회원 → 이전 기록 자동 생성 ────
   try {
     const membersWithHealth = await pool.query<{
       id: number; name: string; phone: string | null;
       membershipStart: string | null; membershipEnd: string | null;
     }>(
+      // 매출 기록이 아예 없고, PT 패키지도 없는 회원만 = 순수 레거시 헬스 임포트
+      // (PT 신규 회원은 PT 횟수로 membershipEnd가 채워지므로 헬스 이전을 만들면 안 됨)
       `SELECT id, name, phone, "membershipStart", "membershipEnd"
        FROM members
        WHERE "membershipEnd" IS NOT NULL
          AND "membershipStart" IS NOT NULL
          AND id NOT IN (
-           SELECT DISTINCT "memberId" FROM revenue_entries
-           WHERE type = '헬스' AND "memberId" IS NOT NULL
+           SELECT DISTINCT "memberId" FROM revenue_entries WHERE "memberId" IS NOT NULL
+         )
+         AND id NOT IN (
+           SELECT DISTINCT "memberId" FROM pt_packages WHERE "memberId" IS NOT NULL
          )`
     );
     for (const m of membersWithHealth.rows) {
