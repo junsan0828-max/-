@@ -65,8 +65,10 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const utils = trpc.useUtils();
   const [onboardingDone, setOnboardingDone] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: health, isLoading: healthLoading } = trpc.gymPlus.getHealth.useQuery();
+  const { data: me } = trpc.gymPlus.memberMe.useQuery();
 
   const needsOnboarding = !healthLoading && !onboardingDone && (
     !health?.gymRulesAgreed || !health?.appGuideConfirmed || !health?.parqSubmittedAt
@@ -79,26 +81,35 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
     },
   });
 
+  const handleNav = (path: string) => {
+    navigate(path);
+    setSidebarOpen(false);
+  };
+
   return (
     <div className="gymplus-light min-h-screen flex flex-col max-w-md mx-auto">
       {/* 헤더 */}
-      <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="p-1 -ml-1 text-gray-500 hover:text-gray-700 transition-colors"
+          aria-label="메뉴 열기"
+        >
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
         <span
           style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.12em" }}
           className="text-xl font-semibold text-[#1a2b4b]"
         >
           ZIANTGYM<span style={{ color: "hsl(221 83% 44%)" }}>+</span>
         </span>
-        <button
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1"
-          onClick={() => logoutMutation.mutate()}
-        >
-          로그아웃
-        </button>
+        <div className="w-7" />
       </header>
 
       {/* 콘텐츠 */}
-      <main className="flex-1 overflow-y-auto bg-[#f8f9fc]" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}>
+      <main className="flex-1 overflow-y-auto bg-[#f8f9fc]">
         {children}
       </main>
 
@@ -110,37 +121,75 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
         />
       )}
 
-      {/* 하단 네비게이션 */}
-      <nav
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-100 z-10 shadow-[0_-1px_8px_rgba(0,0,0,0.06)]"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      {/* 사이드바 오버레이 */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* 사이드바 */}
+      <aside
+        className="fixed top-0 left-0 h-full w-64 bg-white z-40 flex flex-col shadow-2xl transition-transform duration-300"
+        style={{
+          transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+          maxWidth: "80vw",
+        }}
       >
-        <div className="flex">
+        {/* 사이드바 헤더 */}
+        <div className="px-5 pt-12 pb-6 border-b border-gray-100">
+          <span
+            style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.12em" }}
+            className="text-xl font-semibold text-[#1a2b4b]"
+          >
+            ZIANTGYM<span style={{ color: "hsl(221 83% 44%)" }}>+</span>
+          </span>
+          {me && (
+            <div className="mt-3">
+              <p className="text-sm font-bold text-[#1a2b4b]">{me.name}님</p>
+              <p className="text-xs text-gray-400 mt-0.5">{me.membershipType ?? "일반회원"}</p>
+            </div>
+          )}
+        </div>
+
+        {/* 네비게이션 항목 */}
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location === item.path || (item.path !== "/gym-plus" && location.startsWith(item.path));
             return (
               <button
                 key={item.path}
-                onClick={() => navigate(item.path)}
-                className="flex-1 flex flex-col items-center pt-2.5 pb-2 gap-1 transition-colors relative"
+                onClick={() => handleNav(item.path)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors"
+                style={{
+                  background: isActive ? "hsl(221 83% 44% / 0.08)" : "transparent",
+                  color: isActive ? "hsl(221 83% 44%)" : "#6b7280",
+                }}
               >
+                <span>{item.icon}</span>
+                <span className="text-sm font-medium">{item.label}</span>
                 {isActive && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-[#1D4ED8]" />
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#1D4ED8]" />
                 )}
-                <span style={{ color: isActive ? "hsl(221 83% 44%)" : "#9ca3af" }}>
-                  {item.icon}
-                </span>
-                <span
-                  className="text-[9px] leading-none font-medium"
-                  style={{ color: isActive ? "hsl(221 83% 44%)" : "#9ca3af" }}
-                >
-                  {item.label}
-                </span>
               </button>
             );
           })}
+        </nav>
+
+        {/* 로그아웃 */}
+        <div className="px-3 pb-8 border-t border-gray-100 pt-3">
+          <button
+            onClick={() => logoutMutation.mutate()}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors text-left"
+          >
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+            </svg>
+            <span className="text-sm font-medium">로그아웃</span>
+          </button>
         </div>
-      </nav>
+      </aside>
     </div>
   );
 }
