@@ -43,7 +43,6 @@ const IMG = {
     { src: "/images/gymplus/screen-record.jpg", label: "운동 기록" },
     { src: "/images/gymplus/screen-report.jpg", label: "리포트" },
     { src: "/images/gymplus/screen-meal.jpg", label: "식단 관리" },
-    { src: "/images/gymplus/screen-booking.jpg", label: "센터 예약" },
   ],
   branch: [
     { interior: "/images/branch/branch1-interior.jpg" },
@@ -848,7 +847,6 @@ function GymPlusSection() {
     { title: "식단 관리", desc: "운동과 함께 식단을 기록하여 목표 달성을 효율적으로 관리합니다." },
     { title: "운동 영상 제공", desc: "동작 영상으로 정확한 자세를 유지하며 혼자서도 운동합니다." },
     { title: "변화 리포트", desc: "체성분 변화와 운동 기록을 시각화하여 진행 상황을 확인합니다." },
-    { title: "센터 예약", desc: "PT 일정 확인 및 예약을 앱에서 직접 관리합니다." },
   ];
 
   const [active, setActive] = useState(0);
