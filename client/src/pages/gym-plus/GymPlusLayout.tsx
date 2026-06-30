@@ -99,12 +99,13 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
           </svg>
         </button>
-        <span
+        <button
+          onClick={() => navigate("/gym-plus")}
           style={{ fontFamily: "'Cormorant Garamond', serif", letterSpacing: "0.12em" }}
           className="text-xl font-semibold text-[#1a2b4b]"
         >
           ZIANTGYM<span style={{ color: "hsl(221 83% 44%)" }}>+</span>
-        </span>
+        </button>
         <div className="w-7" />
       </header>
 
