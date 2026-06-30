@@ -113,7 +113,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/", label: "대시보드", icon: LayoutDashboard },
     { path: "/pt", label: "회원 관리", icon: Dumbbell },
     { path: "/sessions", label: "수업 관리", icon: BookOpen },
-    { path: "/leads", label: "상담실", icon: UserPlus },
+    { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/workshop", label: "작업실", icon: Wrench },
     ...(isFeatureActive("booking") ? [{ path: "/booking", label: "수업 예약 관리", icon: CalendarCheck }] : []),
     { path: "/settlement", label: "성장분석실", icon: TrendingUp },
