@@ -734,7 +734,7 @@ function MissionSection({ onTrial }: { onTrial: () => void }) {
           <div className="flex items-center justify-between mb-5">
             <div>
               <span className="inline-block px-2.5 py-0.5 rounded-full border border-white/20 text-white/50 text-[9px] font-bold tracking-widest uppercase mb-2">DEAL 2</span>
-              <p className="text-white font-bold text-base">3가지 미션 완료</p>
+              <p className="text-white font-bold text-base">2가지 미션 완료</p>
             </div>
             <div className="text-right">
               <p className="text-white/40 text-[10px] tracking-wide mb-1">혜택</p>
@@ -745,9 +745,22 @@ function MissionSection({ onTrial }: { onTrial: () => void }) {
 
           {/* 미션 스텝 */}
           {[
-            { step: "01", title: "네이버 플레이스 저장", desc: "자이언트짐 플레이스 저장", href: BRANCH.b1.naverUrl, btnLabel: "저장하기" },
-            { step: "02", title: "알림 받기", desc: "네이버 플레이스 소식 알림 설정", href: BRANCH.b1.naverUrl, btnLabel: "알림 설정" },
-            { step: "03", title: "네이버 영수증 리뷰", desc: "센터 방문 후 리뷰 작성", href: BRANCH.b1.naverUrl, btnLabel: "리뷰 작성" },
+            {
+              step: "01",
+              title: "네이버 플레이스 저장 + 알림 받기",
+              desc: "자이언트짐 플레이스 저장 후 소식 알림 설정",
+              href: BRANCH.b1.naverUrl,
+              btnLabel: "바로가기",
+              note: "완료 후 캡처해서 네이버 톡톡으로 전달해주세요",
+            },
+            {
+              step: "02",
+              title: "네이버 영수증 리뷰",
+              desc: "센터 방문 후 리뷰 작성",
+              href: BRANCH.b1.naverUrl,
+              btnLabel: "리뷰 작성",
+              note: null,
+            },
           ].map((m, i, arr) => (
             <div key={m.step} className="relative">
               {i < arr.length - 1 && (
@@ -760,6 +773,9 @@ function MissionSection({ onTrial }: { onTrial: () => void }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-[13px] font-semibold">{m.title}</p>
                   <p className="text-white/35 text-[11px]">{m.desc}</p>
+                  {m.note && (
+                    <p className="text-[#60A5FA]/60 text-[10px] mt-1">📲 {m.note}</p>
+                  )}
                 </div>
                 <a
                   href={m.href}
