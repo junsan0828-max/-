@@ -55,6 +55,21 @@ app.use(
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
+  // SEO 페이지 라우팅 (catch-all 전에 등록)
+  const seoRoutes: Record<string, string> = {
+    "/jeongwang-gym": "jeongwang-gym.html",
+    "/jeongwang-pt":  "jeongwang-pt.html",
+    "/siheung-gym":   "siheung-gym.html",
+    "/posture":       "posture.html",
+    "/backpain":      "backpain.html",
+    "/knee-pain":     "knee-pain.html",
+  };
+  Object.entries(seoRoutes).forEach(([route, file]) => {
+    app.get(route, (_req, res) => {
+      res.sendFile(path.join(clientDistPath, "seo", file));
+    });
+  });
+
   app.use(express.static(clientDistPath));
   app.get("*", (_req, res) => {
     res.sendFile(path.join(clientDistPath, "index.html"));
