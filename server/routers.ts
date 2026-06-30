@@ -1485,25 +1485,6 @@ const ptRouter = t.router({
         await db.update(members).set({ membershipStart: targetDate }).where(eq(members.id, input.memberId));
       }
 
-      // ── 양방향 연동: 세션 사용 → 해당 날짜 출석 자동 기록 (없을 때만) ──────────
-      const [attExists] = await db
-        .select({ id: attendances.id })
-        .from(attendances)
-        .where(and(
-          eq(attendances.memberId, input.memberId),
-          eq(attendances.trainerId, trainerId),
-          eq(attendances.attendDate, targetDate),
-        ))
-        .limit(1);
-      if (!attExists) {
-        await db.insert(attendances).values({
-          memberId: input.memberId,
-          trainerId,
-          attendDate: targetDate,
-          status: "attended",
-        });
-      }
-
       return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
     }),
 
@@ -2012,47 +1993,6 @@ const attendancesRouter = t.router({
         attendDate: today,
         status: "attended",
       });
-
-      // ── 양방향 연동: PT 회원 출석 시 PT 세션 1회 자동 차감 ──────────────────────
-      // 활성 PT 패키지가 있고, 오늘 세션 기록이 아직 없을 때만 차감
-      try {
-        const [activePkg] = await db
-          .select()
-          .from(ptPackages)
-          .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active")))
-          .orderBy(ptPackages.createdAt)
-          .limit(1);
-        if (activePkg && activePkg.usedSessions < activePkg.totalSessions) {
-          const [todaySession] = await db
-            .select({ id: ptSessionLogs.id })
-            .from(ptSessionLogs)
-            .where(and(
-              eq(ptSessionLogs.memberId, input.memberId),
-              eq(ptSessionLogs.sessionDate, today),
-            ))
-            .limit(1);
-          if (!todaySession) {
-            const newUsed = activePkg.usedSessions + 1;
-            const newStatus = newUsed >= activePkg.totalSessions ? "completed" : "active";
-            const paidSessions = activePkg.totalSessions - (activePkg.serviceSessions ?? 0);
-            const isServiceSession = activePkg.usedSessions >= paidSessions ? 1 : 0;
-            await db.update(ptPackages)
-              .set({ usedSessions: newUsed, status: newStatus as any })
-              .where(eq(ptPackages.id, activePkg.id));
-            const [cMem] = await db.select({ name: members.name }).from(members).where(eq(members.id, input.memberId)).limit(1);
-            await db.insert(ptSessionLogs).values({
-              memberId: input.memberId,
-              memberName: cMem?.name ?? null,
-              trainerId,
-              packageId: activePkg.id,
-              sessionDate: today,
-              isServiceSession,
-            });
-          }
-        }
-      } catch (e) {
-        console.error("출석→PT세션 자동차감 오류:", e);
-      }
 
       return { success: true };
     }),
