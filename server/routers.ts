@@ -4334,6 +4334,50 @@ const landingRouter = t.router({
       }
       return { success: true };
     }),
+
+  trackEvent: publicProcedure
+    .input(z.object({
+      event: z.enum(["page_view", "page_exit", "naver_click", "body_analysis_complete"]),
+      session_id: z.string().optional(),
+      duration_sec: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        await pool.query(
+          `INSERT INTO landing_page_stats (event, session_id, duration_sec, "createdAt") VALUES ($1,$2,$3,$4)`,
+          [input.event, input.session_id || null, input.duration_sec || null, new Date().toISOString()]
+        );
+      } catch {}
+      return { success: true };
+    }),
+
+  getPageStats: protectedProcedure.query(async () => {
+    try {
+      const [todayR, totalR, naverR, analysisR, dailyR] = await Promise.all([
+        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event='page_view' AND "createdAt" >= now()::date::text`),
+        pool.query(`SELECT COUNT(DISTINCT session_id) as cnt FROM landing_page_stats WHERE event='page_view'`),
+        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event='naver_click'`),
+        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event='body_analysis_complete'`),
+        pool.query(`
+          SELECT DATE("createdAt") as date, COUNT(*) as views,
+            SUM(CASE WHEN event='naver_click' THEN 1 ELSE 0 END) as naver_clicks,
+            SUM(CASE WHEN event='body_analysis_complete' THEN 1 ELSE 0 END) as conversions
+          FROM landing_page_stats
+          WHERE "createdAt" >= (now() - INTERVAL '14 days')::date::text
+          GROUP BY DATE("createdAt") ORDER BY date ASC
+        `),
+      ]);
+      return {
+        todayViews: Number(todayR.rows[0]?.cnt || 0),
+        totalSessions: Number(totalR.rows[0]?.cnt || 0),
+        naverClicks: Number(naverR.rows[0]?.cnt || 0),
+        analysisComplete: Number(analysisR.rows[0]?.cnt || 0),
+        daily: dailyR.rows,
+      };
+    } catch {
+      return { todayViews: 0, totalSessions: 0, naverClicks: 0, analysisComplete: 0, daily: [] };
+    }
+  }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────

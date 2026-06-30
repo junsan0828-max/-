@@ -27,6 +27,7 @@ export default function MarketingPage() {
   const { data: channels, isLoading } = trpc.gym.channels.list.useQuery();
   const { data: leadStats } = trpc.gym.leads.stats.useQuery();
   const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
+  const { data: pageStats } = trpc.landing.getPageStats.useQuery();
 
   const createChannelMutation = trpc.gym.channels.create.useMutation({
     onSuccess: () => { toast.success("채널이 추가되었습니다"); utils.gym.channels.invalidate(); setShowChannelForm(false); setChannelForm({ name: "", type: "online", description: "" }); },
@@ -68,8 +69,56 @@ export default function MarketingPage() {
   const totalLeads = channelData.reduce((s, c) => s + c.leads, 0);
   const totalRevenue = channelData.reduce((s, c) => s + c.revenue, 0);
 
+  const convRate = pageStats && pageStats.totalSessions > 0
+    ? ((pageStats.analysisComplete / pageStats.totalSessions) * 100).toFixed(1)
+    : "0.0";
+  const naverRate = pageStats && pageStats.totalSessions > 0
+    ? ((pageStats.naverClicks / pageStats.totalSessions) * 100).toFixed(1)
+    : "0.0";
+
   return (
     <div className="space-y-4">
+      {/* 랜딩페이지 통계 */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm font-bold text-foreground">랜딩페이지 통계</span>
+          <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-medium">ziantgym.com</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-4 sm:grid-cols-4">
+          {[
+            { label: "오늘 방문", value: pageStats?.todayViews ?? 0, unit: "명", color: "text-blue-400" },
+            { label: "네이버 클릭", value: pageStats?.naverClicks ?? 0, unit: "회", color: "text-green-400" },
+            { label: "체형분석 완료", value: pageStats?.analysisComplete ?? 0, unit: "건", color: "text-purple-400" },
+            { label: "예약 전환율", value: convRate, unit: "%", color: "text-orange-400" },
+          ].map(s => (
+            <div key={s.label} className="rounded-lg bg-muted/40 p-3 text-center">
+              <div className={`text-xl font-bold ${s.color}`}>{s.value}<span className="text-xs font-normal text-muted-foreground ml-0.5">{s.unit}</span></div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {(pageStats?.daily ?? []).length > 0 && (
+          <ResponsiveContainer width="100%" height={120}>
+            <BarChart data={pageStats!.daily} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#6b7280" }} tickFormatter={d => d?.slice(5)} />
+              <YAxis tick={{ fontSize: 9, fill: "#6b7280" }} />
+              <Tooltip
+                contentStyle={{ background: "#1f2937", border: "none", borderRadius: 8, fontSize: 12 }}
+                formatter={(v: any, name: string) => [v, name === "views" ? "방문" : name === "naver_clicks" ? "네이버클릭" : "체형분석"]}
+              />
+              <Bar dataKey="views" fill="#3b82f6" radius={[2,2,0,0]} name="방문" />
+              <Bar dataKey="naver_clicks" fill="#10b981" radius={[2,2,0,0]} name="네이버클릭" />
+              <Bar dataKey="conversions" fill="#a855f7" radius={[2,2,0,0]} name="체형분석" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+        <div className="flex gap-4 mt-2 text-[11px] text-muted-foreground">
+          <span>누적 방문 <b className="text-foreground">{pageStats?.totalSessions ?? 0}세션</b></span>
+          <span>네이버 클릭률 <b className="text-green-400">{naverRate}%</b></span>
+        </div>
+      </div>
+
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>

@@ -38,6 +38,7 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
   const [submitting, setSubmitting] = useState(false);
 
   const submitMutation = trpc.landing.submitInquiry.useMutation();
+  const trackEvent = trpc.landing.trackEvent.useMutation();
 
   const canSubmit =
     form.name.trim() &&
@@ -66,6 +67,7 @@ export default function LandingReservationModal({ onClose }: { onClose: () => vo
         agreedMarketing: form.agreedMarketing ? 1 : 0,
         marketingChannels: form.marketingChannels.length > 0 ? form.marketingChannels.join(", ") : undefined,
       });
+      trackEvent.mutate({ event: "body_analysis_complete", session_id: sessionStorage.getItem("lp_sid") ?? undefined });
       setDone(true);
     } catch {
       setDone(true);

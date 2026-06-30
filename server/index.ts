@@ -474,6 +474,13 @@ async function initDatabase() {
       active INTEGER DEFAULT 1 NOT NULL,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS landing_page_stats (
+      id SERIAL PRIMARY KEY,
+      event TEXT NOT NULL,
+      session_id TEXT,
+      duration_sec INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS gym_plus_products (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,

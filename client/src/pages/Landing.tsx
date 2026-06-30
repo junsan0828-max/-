@@ -1,6 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import LandingReservationModal from "./LandingReservationModal";
 import LandingTrialModal from "./LandingTrialModal";
+import { trpc } from "../lib/trpc";
+
+function getSessionId() {
+  let sid = sessionStorage.getItem("lp_sid");
+  if (!sid) { sid = Math.random().toString(36).slice(2); sessionStorage.setItem("lp_sid", sid); }
+  return sid;
+}
 
 // ─── 지점별 정보 설정 ─────────────────────────────────────────────────────────
 const BRANCH = {
@@ -1180,6 +1187,41 @@ export default function Landing() {
   const [showTrialModal, setShowTrialModal] = useState(false);
   const openReservation = () => setShowReservationModal(true);
   const openTrial = () => setShowTrialModal(true);
+
+  const trackEvent = trpc.landing.trackEvent.useMutation();
+  const entryTime = useRef(Date.now());
+
+  useEffect(() => {
+    const sid = getSessionId();
+    // 방문 기록 (세션당 1회)
+    if (!sessionStorage.getItem("lp_viewed")) {
+      sessionStorage.setItem("lp_viewed", "1");
+      trackEvent.mutate({ event: "page_view", session_id: sid });
+    }
+    // 이탈 기록
+    const handleExit = () => {
+      const dur = Math.round((Date.now() - entryTime.current) / 1000);
+      fetch("/trpc/landing.trackEvent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "0": { json: { event: "page_exit", session_id: sid, duration_sec: dur } } }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+    // 네이버 플레이스 클릭 감지 (문서 레벨)
+    const handleNaverClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement).closest("a");
+      if (a?.href?.includes("naver.me")) {
+        trackEvent.mutate({ event: "naver_click", session_id: sid });
+      }
+    };
+    window.addEventListener("beforeunload", handleExit);
+    document.addEventListener("click", handleNaverClick);
+    return () => {
+      window.removeEventListener("beforeunload", handleExit);
+      document.removeEventListener("click", handleNaverClick);
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.style.scrollBehavior = "smooth";
