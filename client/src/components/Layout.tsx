@@ -75,7 +75,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/leads", label: "상담관리", icon: UserPlus },
     { path: "/registration", label: "등록 관리", icon: ClipboardPlus },
     { path: "/members", label: "회원관리", icon: Users },
-    { path: "/revenue", label: "매출입력", icon: TrendingUp },
     { path: "/work-management", label: "업무 관리", icon: ClipboardList },
     { path: "/consultant-records", label: "데이터 기록", icon: PenLine },
   ];
