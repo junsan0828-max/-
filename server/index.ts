@@ -57,6 +57,20 @@ app.get("/naver091f3cc9f98f0ad7fd5e5d8eb8dd09c9.html", (_req, res) => {
   res.type("text/html").send("naver-site-verification: naver091f3cc9f98f0ad7fd5e5d8eb8dd09c9");
 });
 
+// 사이트맵
+app.get("/sitemap.xml", (_req, res) => {
+  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://ziantgym.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://ziantgym.com/jeongwang-gym</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://ziantgym.com/jeongwang-pt</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://ziantgym.com/siheung-gym</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://ziantgym.com/posture</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://ziantgym.com/backpain</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://ziantgym.com/knee-pain</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+</urlset>`);
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
