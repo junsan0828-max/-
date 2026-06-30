@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
-import { Search, ChevronRight, MapPin, Users, UserCheck, Clock, UserX, Pause, TrendingUp, TrendingDown, Minus, X } from "lucide-react";
+import { Search, ChevronRight, MapPin, Users, UserCheck, Clock, UserX, Pause, TrendingUp, TrendingDown, Minus, X, Wrench } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 type TypeFilter = "all" | "PT" | "헬스" | "종료";
@@ -253,6 +253,7 @@ export default function AdminMembers() {
   type StatModal = "total" | "active" | "expiringSoon" | "expired" | "paused" | "newThisMonth" | null;
   const [statModal, setStatModal] = useState<StatModal>(null);
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   const duplicateGroups = useMemo(() =>
     groupedMembers.filter(g => g.length > 1),
@@ -338,62 +339,82 @@ export default function AdminMembers() {
     <div className="space-y-4 pb-20">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">회원 관리</h1>
-        <div className="flex gap-2">
+        {/* 데이터 정리 도구 (평소엔 접어둠 — 데이터가 꼬였을 때만 사용) */}
+        <div className="relative">
           <button
-            onClick={() => {
-              const today = new Date().toISOString().substring(0, 10);
-              const input = prompt("역동기화 실행 날짜를 입력하세요 (YYYY-MM-DD)\n해당 날짜에 생성된 PT 신규 장부 항목이 모두 삭제됩니다.", today);
-              if (!input) return;
-              if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) { alert("날짜 형식이 올바르지 않습니다 (예: 2026-05-20)"); return; }
-              if (confirm(`${input}에 역동기화로 생성된 장부 항목을 모두 삭제합니다. 계속하시겠습니까?`))
-                rollbackRevenueMutation.mutate({ date: input });
-            }}
-            disabled={rollbackRevenueMutation.isPending}
-            className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+            onClick={() => setToolsOpen(v => !v)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
           >
-            {rollbackRevenueMutation.isPending ? "롤백 중..." : "역동기화 롤백"}
+            <Wrench className="h-3.5 w-3.5" />
+            도구
           </button>
-          <button
-            onClick={() => {
-              if (confirm("이름(customerName)이 없는 장부 항목을 모두 삭제합니다. 계속하시겠습니까?"))
-                deleteNullNameMutation.mutate();
-            }}
-            disabled={deleteNullNameMutation.isPending}
-            className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-          >
-            {deleteNullNameMutation.isPending ? "삭제 중..." : "이름없음 삭제"}
-          </button>
-          <button
-            onClick={() => {
-              if (confirm("같은 회원·종류·날짜·금액이 중복된 장부 항목을 삭제합니다. 계속하시겠습니까?"))
-                deduplicateMutation.mutate();
-            }}
-            disabled={deduplicateMutation.isPending}
-            className="text-xs px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-          >
-            {deduplicateMutation.isPending ? "처리 중..." : "중복 제거"}
-          </button>
-          <button
-            onClick={() => syncRevenueMutation.mutate()}
-            disabled={syncRevenueMutation.isPending}
-            className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            {syncRevenueMutation.isPending ? "동기화 중..." : "장부 역동기화"}
-          </button>
-          <button
-            onClick={() => syncPtMutation.mutate()}
-            disabled={syncPtMutation.isPending}
-            className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            {syncPtMutation.isPending ? "동기화 중..." : "PT 프로그램 동기화"}
-          </button>
-          <button
-            onClick={() => recomputeMutation.mutate()}
-            disabled={recomputeMutation.isPending}
-            className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            {recomputeMutation.isPending ? "재계산 중..." : "만료일 재계산"}
-          </button>
+          {toolsOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setToolsOpen(false)} />
+              <div className="absolute right-0 mt-2 z-50 w-52 bg-card border border-border rounded-xl shadow-lg p-1.5 space-y-0.5">
+                <p className="px-2.5 py-1 text-[10px] text-muted-foreground">데이터 정리 (필요 시에만)</p>
+                <button
+                  onClick={() => { setToolsOpen(false); syncRevenueMutation.mutate(); }}
+                  disabled={syncRevenueMutation.isPending}
+                  className="w-full text-left text-xs px-2.5 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                >
+                  {syncRevenueMutation.isPending ? "동기화 중..." : "장부 역동기화"}
+                </button>
+                <button
+                  onClick={() => { setToolsOpen(false); syncPtMutation.mutate(); }}
+                  disabled={syncPtMutation.isPending}
+                  className="w-full text-left text-xs px-2.5 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                >
+                  {syncPtMutation.isPending ? "동기화 중..." : "PT 프로그램 동기화"}
+                </button>
+                <button
+                  onClick={() => { setToolsOpen(false); recomputeMutation.mutate(); }}
+                  disabled={recomputeMutation.isPending}
+                  className="w-full text-left text-xs px-2.5 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                >
+                  {recomputeMutation.isPending ? "재계산 중..." : "만료일 재계산"}
+                </button>
+                <div className="border-t border-border my-1" />
+                <button
+                  onClick={() => {
+                    if (confirm("같은 회원·종류·날짜·금액이 중복된 장부 항목을 삭제합니다. 계속하시겠습니까?")) {
+                      setToolsOpen(false); deduplicateMutation.mutate();
+                    }
+                  }}
+                  disabled={deduplicateMutation.isPending}
+                  className="w-full text-left text-xs px-2.5 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                >
+                  {deduplicateMutation.isPending ? "처리 중..." : "중복 제거"}
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("이름(customerName)이 없는 장부 항목을 모두 삭제합니다. 계속하시겠습니까?")) {
+                      setToolsOpen(false); deleteNullNameMutation.mutate();
+                    }
+                  }}
+                  disabled={deleteNullNameMutation.isPending}
+                  className="w-full text-left text-xs px-2.5 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                >
+                  {deleteNullNameMutation.isPending ? "삭제 중..." : "이름없음 삭제"}
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date().toISOString().substring(0, 10);
+                    const input = prompt("역동기화 실행 날짜를 입력하세요 (YYYY-MM-DD)\n해당 날짜에 생성된 PT 신규 장부 항목이 모두 삭제됩니다.", today);
+                    if (!input) return;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) { alert("날짜 형식이 올바르지 않습니다 (예: 2026-05-20)"); return; }
+                    if (confirm(`${input}에 역동기화로 생성된 장부 항목을 모두 삭제합니다. 계속하시겠습니까?`)) {
+                      setToolsOpen(false); rollbackRevenueMutation.mutate({ date: input });
+                    }
+                  }}
+                  disabled={rollbackRevenueMutation.isPending}
+                  className="w-full text-left text-xs px-2.5 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                >
+                  {rollbackRevenueMutation.isPending ? "롤백 중..." : "역동기화 롤백"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
