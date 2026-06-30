@@ -257,12 +257,14 @@ function HeroSection({ onReserve }: { onReserve: () => void }) {
         <p className="text-white/70 text-xs tracking-[0.4em] uppercase mb-8">
           경기도 시흥시 정왕동 · 맞춤운동센터
         </p>
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-[1.05] mb-8 max-w-2xl drop-shadow-lg">
-          내 몸에 맞는<br />운동을<br />시작합니다.
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-[1.05] mb-4 max-w-2xl drop-shadow-lg">
+          맞춤운동센터<br />자이언트짐
         </h1>
-        <p className="text-white/80 text-base lg:text-lg font-light mb-12 max-w-md leading-relaxed drop-shadow">
-          체형 분석부터 운동 방향 설정까지.<br />
-          자이언트짐
+        <p className="text-white/70 text-base lg:text-lg font-light mb-3 max-w-md drop-shadow">
+          정왕동 헬스장 · PT · 자세교정 전문센터
+        </p>
+        <p className="text-white/60 text-sm font-light mb-12 max-w-md leading-relaxed drop-shadow">
+          체형 분석부터 운동 방향 설정까지.<br />내 몸에 맞는 운동을 시작합니다.
         </p>
         <button
           onClick={onReserve}
