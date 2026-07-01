@@ -600,61 +600,72 @@ function EventSection() {
 
         {/* 헤드라인 */}
         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-[1.1] mb-5 tracking-tight">
-          친구와 함께 등록하면<br />
-          <span className="text-[#60A5FA]">두 사람 모두</span> 1개월 추가
+          함께 등록하면<br />
+          <span className="text-[#60A5FA]">더 많이</span> 드립니다
         </h2>
         <p className="text-white/50 text-sm lg:text-base font-light leading-relaxed mb-14 max-w-sm">
           혼자보다 함께 시작하면 더 오래 갑니다.<br />
           친구, 가족, 연인과 함께 운동을 시작해보세요.
         </p>
 
-        {/* 카드 영역 */}
-        <div className="w-full grid grid-cols-2 gap-3 mb-4">
+        {/* 카드 영역 2×2 */}
+        <div className="w-full grid grid-cols-2 gap-3 mb-8">
 
-          {/* 1인 등록 */}
-          <div className="relative rounded-2xl border border-white/10 bg-white/5 p-5 flex flex-col items-center gap-3 text-center">
-            <p className="text-[10px] tracking-[0.25em] text-white/30 uppercase font-medium">1인 등록</p>
-            <p className="text-white font-bold text-base leading-snug">헬스 12개월</p>
-            <div className="w-full border-t border-white/10 pt-3 mt-auto">
-              <p className="text-white/40 text-xs">12개월 이용</p>
+          {/* 1인 / 6개월 */}
+          <div className="relative rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center gap-2 text-center">
+            <p className="text-[9px] tracking-[0.2em] text-white/30 uppercase font-medium">1인 등록</p>
+            <p className="text-white font-bold text-sm leading-snug">헬스 6개월</p>
+            <div className="w-full border-t border-white/10 pt-2 mt-auto space-y-0.5">
+              <p className="text-white/40 text-[10px] line-through">6개월</p>
+              <p className="text-white/80 font-bold text-sm">6개월 + <span className="text-[#60A5FA]">2주</span></p>
             </div>
           </div>
 
-          {/* 2인 동시 등록 BEST */}
-          <div className="relative rounded-2xl border border-[#1D4ED8]/60 bg-gradient-to-b from-[#1D4ED8]/20 to-[#1D4ED8]/5 p-5 flex flex-col items-center gap-3 text-center shadow-[0_0_30px_rgba(29,78,216,0.2)]">
-            {/* BEST 배지 */}
+          {/* 2인 / 6개월 동시 */}
+          <div className="relative rounded-2xl border border-[#1D4ED8]/40 bg-gradient-to-b from-[#1D4ED8]/15 to-[#1D4ED8]/5 p-4 flex flex-col items-center gap-2 text-center shadow-[0_0_20px_rgba(29,78,216,0.15)]">
+            <p className="text-[9px] tracking-[0.2em] text-[#60A5FA]/70 uppercase font-medium">2인 동시 · 6개월</p>
+            <p className="text-white font-bold text-sm leading-snug">각각 6개월</p>
+            <div className="w-full border-t border-[#1D4ED8]/30 pt-2 mt-auto space-y-0.5">
+              <p className="text-white/40 text-[10px] line-through">6개월</p>
+              <p className="text-[#60A5FA] font-bold text-sm">6개월 + <span className="font-black">4주</span></p>
+            </div>
+          </div>
+
+          {/* 1인 / 12개월 */}
+          <div className="relative rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col items-center gap-2 text-center">
+            <p className="text-[9px] tracking-[0.2em] text-white/30 uppercase font-medium">1인 등록</p>
+            <p className="text-white font-bold text-sm leading-snug">헬스 12개월</p>
+            <div className="w-full border-t border-white/10 pt-2 mt-auto space-y-0.5">
+              <p className="text-white/40 text-[10px] line-through">12개월</p>
+              <p className="text-white/80 font-bold text-sm">12개월 + <span className="text-[#60A5FA]">4주</span></p>
+            </div>
+          </div>
+
+          {/* 2인 / 12개월 동시 BEST */}
+          <div className="relative rounded-2xl border border-[#1D4ED8]/60 bg-gradient-to-b from-[#1D4ED8]/25 to-[#1D4ED8]/5 p-4 flex flex-col items-center gap-2 text-center shadow-[0_0_30px_rgba(29,78,216,0.25)]">
             <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-[#1D4ED8] text-white text-[9px] font-bold tracking-widest rounded-full">BEST</span>
-            <p className="text-[10px] tracking-[0.25em] text-[#60A5FA] uppercase font-medium mt-1">2인 동시 등록</p>
-            <p className="text-white font-bold text-base leading-snug">두 사람 모두<br />1개월 추가 제공</p>
-            <div className="w-full border-t border-[#1D4ED8]/30 pt-3 mt-auto space-y-1">
-              <p className="text-white/40 text-xs line-through">12개월</p>
-              <p className="text-[#60A5FA] font-black text-xl tracking-tight">13개월 이용</p>
+            <p className="text-[9px] tracking-[0.2em] text-[#60A5FA] uppercase font-medium mt-1">2인 동시 · 12개월</p>
+            <p className="text-white font-bold text-sm leading-snug">각각 12개월</p>
+            <div className="w-full border-t border-[#1D4ED8]/30 pt-2 mt-auto space-y-0.5">
+              <p className="text-white/40 text-[10px] line-through">12개월</p>
+              <p className="text-[#60A5FA] font-black text-sm">13개월 + 운동복</p>
             </div>
           </div>
         </div>
 
-        {/* 혜택 박스들 */}
-        <div className="w-full flex flex-col gap-3 mb-10">
-          <div className="rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 flex items-center justify-between">
-            <p className="text-white/70 text-sm text-left leading-snug">
-              친구와 함께 등록 시<br />
-              <span className="text-white font-semibold">각각 1개월 추가</span>
-            </p>
-            <div className="text-right flex-shrink-0">
-              <p className="text-[#60A5FA] font-black text-3xl leading-none">+1</p>
-              <p className="text-[#60A5FA]/60 text-[10px] font-medium tracking-wide">개월</p>
+        {/* 혜택 요약 박스 */}
+        <div className="w-full rounded-2xl border border-[#1D4ED8]/30 bg-[#1D4ED8]/10 px-5 py-4 mb-10 space-y-2.5">
+          {[
+            { left: "6개월 · 1인 등록", right: "+ 2주" },
+            { left: "6개월 · 2인 동시", right: "+ 4주 (각각)" },
+            { left: "12개월 · 1인 등록", right: "+ 4주" },
+            { left: "12개월 · 2인 동시", right: "+ 1개월 + 운동복 (각각)" },
+          ].map((row, i) => (
+            <div key={i} className="flex items-center justify-between">
+              <p className="text-white/60 text-sm">{row.left}</p>
+              <p className={`text-sm font-bold ${i === 3 ? "text-[#60A5FA]" : "text-white/90"}`}>{row.right}</p>
             </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 flex items-center justify-between">
-            <p className="text-white/70 text-sm text-left leading-snug">
-              2인 동시 등록 시<br />
-              <span className="text-white font-semibold">운동복 서비스 제공</span>
-            </p>
-            <div className="text-right flex-shrink-0">
-              <p className="text-white/50 font-black text-3xl leading-none">+</p>
-              <p className="text-white/30 text-[10px] font-medium tracking-wide">운동복</p>
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* CTA */}
@@ -670,7 +681,6 @@ function EventSection() {
         {/* 주의사항 */}
         <div className="space-y-1">
           {[
-            "두 분 모두 12개월 회원권 등록 시 적용",
             "친구, 가족, 연인 모두 가능",
             "운동복 서비스는 수량 한정 제공",
             "이벤트는 기간 한정으로 진행될 수 있습니다",
