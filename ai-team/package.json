@@ -1,0 +1,28 @@
+{
+  "name": "ai-team",
+  "version": "0.1.0",
+  "description": "자이언트짐 AI 운영팀 - 총괄 AI(제이)가 마인드맵+데이터를 분석해 업무 도출·보고. Electron 데스크톱 앱, 내 PC 24시간 상주.",
+  "private": true,
+  "main": "dist/main/main.js",
+  "scripts": {
+    "brain": "tsx src/cli.ts",
+    "brain:dry": "tsx src/cli.ts --dry",
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron ."
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.20.0",
+    "electron": "^32.0.0",
+    "tsx": "^4.15.6",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>자이언트짐 AI 운영팀</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>자이언트짐 AI 운영팀</h1>
+      <span class="sub">M1 · 총괄 실장</span>
+    </header>
+
+    <section class="stage">
+      <div id="jay" class="character idle" title="제이">
+        <svg viewBox="0 0 120 120" width="120" height="120">
+          <circle class="head" cx="60" cy="58" r="40" />
+          <circle class="eye" cx="46" cy="52" r="5" />
+          <circle class="eye" cx="74" cy="52" r="5" />
+          <path class="mouth" d="M46 72 Q60 84 74 72" fill="none" />
+          <rect class="tie" x="55" y="96" width="10" height="16" rx="2" />
+        </svg>
+        <div class="badge">🧑‍💼 제이</div>
+      </div>
+      <div id="stateLabel" class="state-label">대기 중</div>
+      <div id="headline" class="headline"></div>
+      <button id="runBtn">지금 분석하기</button>
+    </section>
+
+    <section class="panel">
+      <h2>도출된 업무</h2>
+      <ul id="tasks" class="tasks">
+        <li class="empty">아직 분석 전이에요. “지금 분석하기”를 눌러보세요.</li>
+      </ul>
+      <h2>주간 브리핑</h2>
+      <pre id="report" class="report"></pre>
+    </section>
+
+    <footer><span id="log" class="log"></span></footer>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
