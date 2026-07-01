@@ -509,6 +509,107 @@ function AnalysisSection({ onReserve }: { onReserve: () => void }) {
   );
 }
 
+// ─── 변화 사례 캐러셀 ─────────────────────────────────────────────────────────
+function TransformCarousel() {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [current, setCurrent] = useState(0);
+  const total = IMG.beforeAfter.length;
+
+  const scrollTo = (idx: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const itemWidth = el.scrollWidth / total;
+    el.scrollTo({ left: itemWidth * idx, behavior: "smooth" });
+    setCurrent(idx);
+  };
+
+  const prev = () => scrollTo(Math.max(current - 1, 0));
+  const next = () => scrollTo(Math.min(current + 1, total - 1));
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const itemWidth = el.scrollWidth / total;
+    setCurrent(Math.round(el.scrollLeft / itemWidth));
+  };
+
+  return (
+    <div className="mt-24">
+      {/* 헤더 */}
+      <div className="flex items-end justify-between mb-10">
+        <div>
+          <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-4">Transformation</p>
+          <h3 className="text-2xl lg:text-3xl font-bold text-[#0B1D3A]">변화 사례</h3>
+        </div>
+        {/* 화살표 버튼 (데스크탑) */}
+        <div className="hidden lg:flex gap-2">
+          <button
+            onClick={prev}
+            disabled={current === 0}
+            className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:border-[#0B1D3A] hover:text-[#0B1D3A] transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <button
+            onClick={next}
+            disabled={current === total - 1}
+            className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:border-[#0B1D3A] hover:text-[#0B1D3A] transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* 스크롤 컨테이너 */}
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="flex gap-4 overflow-x-auto scroll-smooth pb-2"
+        style={{ scrollSnapType: "x mandatory", scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {IMG.beforeAfter.map((item, i) => (
+          <div
+            key={i}
+            className="flex-none w-[85vw] sm:w-[45vw] lg:w-[30%]"
+            style={{ scrollSnapAlign: "start" }}
+          >
+            <div className="grid grid-cols-2 gap-1 mb-4">
+              <div className="relative overflow-hidden">
+                <Img src={item.before} alt="Before" className="w-full aspect-[3/4] object-cover" />
+                <span className="absolute bottom-3 left-3 text-[10px] text-white/80 tracking-widest uppercase font-medium">Before</span>
+              </div>
+              <div className="relative overflow-hidden">
+                <Img src={item.after} alt="After" className="w-full aspect-[3/4] object-cover" />
+                <span className="absolute bottom-3 left-3 text-[10px] text-white/80 tracking-widest uppercase font-medium">After</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 font-light tracking-wide">{item.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* 도트 인디케이터 */}
+      <div className="flex justify-center gap-1.5 mt-8">
+        {IMG.beforeAfter.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => scrollTo(i)}
+            className={`transition-all rounded-full ${i === current ? "w-6 h-1.5 bg-[#0B1D3A]" : "w-1.5 h-1.5 bg-gray-200"}`}
+          />
+        ))}
+      </div>
+
+      <p className="text-[10px] text-gray-300 mt-8 font-light tracking-wide">
+        * 개인차가 있으며, 실제 회원의 기록을 바탕으로 제작되었습니다.
+      </p>
+    </div>
+  );
+}
+
 // ─── Section 5: 회원 후기 및 변화 사례 ───────────────────────────────────────
 function ReviewsSection() {
   const testimonials = [
@@ -551,33 +652,8 @@ function ReviewsSection() {
           ))}
         </div>
 
-        {/* Before & After */}
-        <div className="mt-24 mb-12">
-          <p className="text-[10px] tracking-[0.4em] uppercase text-gray-300 mb-4">Transformation</p>
-          <h3 className="text-2xl lg:text-3xl font-bold text-[#0B1D3A]">변화 사례</h3>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {IMG.beforeAfter.map((item) => (
-            <div key={item.label}>
-              <div className="grid grid-cols-2 gap-1 mb-4">
-                <div className="relative">
-                  <Img src={item.before} alt="Before" className="w-full aspect-[3/4] object-cover" />
-                  <span className="absolute bottom-3 left-3 text-[10px] text-white/80 tracking-widest uppercase">Before</span>
-                </div>
-                <div className="relative">
-                  <Img src={item.after} alt="After" className="w-full aspect-[3/4] object-cover" />
-                  <span className="absolute bottom-3 left-3 text-[10px] text-white/80 tracking-widest uppercase">After</span>
-                </div>
-              </div>
-              <p className="text-xs text-gray-400 font-light tracking-wide">{item.label}</p>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-[10px] text-gray-300 mt-10 font-light tracking-wide">
-          * 개인차가 있으며, 실제 회원의 기록을 바탕으로 제작되었습니다.
-        </p>
+        {/* Before & After 캐러셀 */}
+        <TransformCarousel />
       </div>
     </section>
   );
