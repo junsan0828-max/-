@@ -1,0 +1,22 @@
+{
+  "name": "naver-auto",
+  "version": "0.1.0",
+  "description": "네이버 블로그 AI 글 생성 + 내 브라우저 자동 입력(임시저장) 도구 - 내 PC에서 실행",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "tsx src/generate.ts",
+    "post": "tsx src/index.ts",
+    "run": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.48.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.15.6",
+    "typescript": "^5.4.5",
+    "@types/node": "^20.14.2"
+  }
+}
