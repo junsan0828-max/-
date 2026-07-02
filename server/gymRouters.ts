@@ -3301,7 +3301,10 @@ const registerMutation = protectedProcedure
       const unpaid = input.unpaidAmount ?? 0;
       const paid = Math.max(0, price - discAmt - unpaid);
 
-      if (price > 0 || input.serviceItems) {
+      // 항목명(otherDetail)이 비어있으면 유령/중복 기타 항목이 되므로 생성하지 않음.
+      // (헬스/PT 금액이 그대로 복제돼 빈 기타로 잡히던 문제 방지) — 서비스 항목이 있으면 예외.
+      const hasDetail = (input.otherDetail ?? "").trim().length > 0;
+      if (hasDetail || input.serviceItems) {
         const [otherRev] = await db.insert(revenueEntries).values({
           memberId,
           trainerId: resolvedTrainerId,
