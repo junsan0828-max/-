@@ -204,9 +204,17 @@ export default function AdminMembers() {
   const filtered = useMemo(() => {
     if (!groupedMembers) return [];
     const q = search.trim().toLowerCase();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    // 회원 1명이 "종료"인지: 해지(status=ended) 또는 기간 만료(잔여 PT 세션이 없고 membershipEnd가 지남)
+    const isEndedOrExpired = (g: any) => {
+      if (g.status === "ended") return true;
+      const hasRemainingPt = (g.packages ?? []).some((p: any) => p.usedSessions < p.totalSessions);
+      if (hasRemainingPt) return false;
+      return !!g.membershipEnd && g.membershipEnd < todayStr;
+    };
     const matched = groupedMembers.filter((group) => {
       const m = group[0];
-      const isEnded = group.every(g => g.status === "ended");
+      const isEnded = group.every(g => isEndedOrExpired(g));
       const qDigits = q.replace(/\D/g, "");
       const matchSearch =
         !q ||
