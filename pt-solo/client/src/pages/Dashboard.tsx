@@ -245,7 +245,6 @@ function TrainerDashboard() {
   const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
-  const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
 
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
@@ -266,7 +265,6 @@ function TrainerDashboard() {
   const alertItems = [
     expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" } : null,
     unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30" } : null,
-    longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30" } : null,
   ].filter(Boolean) as { label: string; color: string }[];
 
   return (
@@ -380,68 +378,6 @@ function TrainerDashboard() {
         </CardContent>
       </Card>
 
-      {/* 월별 출석/신규 회원 추이 차트 */}
-      {chartData && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 추이
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value) => [`${value}회`]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Bar dataKey="출석" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={24} />
-                <Bar dataKey="신규회원" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={24} />
-                <Bar dataKey="재등록" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 월별 매출 추이 차트 */}
-      {revenueData && revenueData.some(r => r.매출 > 0) && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 매출 추이
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={revenueData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorSettlement" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v === 0 ? "0" : `${(v / 10000).toFixed(0)}만`} />
-                <Tooltip
-                  contentStyle={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value) => [`${Number(value ?? 0).toLocaleString()}원`]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Area type="monotone" dataKey="매출" stroke="#6366f1" fill="url(#colorRevenue)" strokeWidth={2} dot={{ r: 3, fill: "#6366f1" }} />
-                <Area type="monotone" dataKey="정산" stroke="#22c55e" fill="url(#colorSettlement)" strokeWidth={2} dot={{ r: 3, fill: "#22c55e" }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
 
       {expiring && expiring.length > 0 && (
         <Card className="bg-card border-border border-yellow-500/30">
@@ -536,36 +472,6 @@ function TrainerDashboard() {
         </Card>
       )}
 
-      {/* 장기 미출석 회원 (2주 이상) */}
-      {longAbsent && longAbsent.length > 0 && (
-        <Card className="bg-card border-border border-red-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4 text-red-400" />
-              <span className="text-red-400">장기 미출석 회원</span>
-              <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">2주 이상</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {longAbsent.map((item) => (
-              <button key={item.id} onClick={() => setLocation(`/members/${item.id}`)}
-                className="w-full flex items-center justify-between p-2.5 rounded-md bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-colors text-left">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 font-bold text-xs">{item.name.charAt(0)}</div>
-                  <div>
-                    <p className="text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.lastAttendDate ? `마지막 출석: ${item.lastAttendDate}` : "출석 기록 없음"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-red-400">미출석</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {/* 오늘 출석 모달 */}
       <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
