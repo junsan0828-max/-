@@ -1,7 +1,84 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ExternalLink, ChevronDown } from "lucide-react";
+import { ExternalLink, ChevronDown, Save } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+
+function PlanLimitsPanel() {
+  const utils = trpc.useUtils();
+  const { data: limits, isLoading } = trpc.fitStepPlus.admin_getPlanLimits.useQuery();
+  const updateMutation = trpc.fitStepPlus.admin_updatePlanLimits.useMutation({
+    onSuccess: () => utils.fitStepPlus.admin_getPlanLimits.invalidate(),
+  });
+
+  const [free, setFree] = useState<string>("");
+  const [pro, setPro] = useState<string>("");
+  const [elite, setElite] = useState<string>("");
+  const [initialized, setInitialized] = useState(false);
+
+  if (!isLoading && limits && !initialized) {
+    setFree(String(limits.free));
+    setPro(String(limits.pro));
+    setElite(String(limits.elite));
+    setInitialized(true);
+  }
+
+  const handleSave = () => {
+    updateMutation.mutate({
+      free: parseInt(free) || 5,
+      pro: parseInt(pro) || 15,
+      elite: parseInt(elite) || 30,
+    });
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+      <div>
+        <h2 className="font-semibold text-sm">FIT STEP+ 플랜별 회원 수 제한</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">트레이너 플랜에 따라 등록 가능한 FIT STEP+ 회원 수를 설정합니다</p>
+      </div>
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">불러오는 중...</div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "FREE", key: "free", value: free, set: setFree },
+            { label: "PRO", key: "pro", value: pro, set: setPro },
+            { label: "ELITE", key: "elite", value: elite, set: setElite },
+          ].map(({ label, value, set }) => (
+            <div key={label} className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">{label}</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={value}
+                  onChange={(e) => set(e.target.value)}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <span className="text-xs text-muted-foreground flex-shrink-0">명</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {updateMutation.isSuccess && (
+        <p className="text-xs text-green-600 font-medium">저장되었습니다</p>
+      )}
+      {updateMutation.isError && (
+        <p className="text-xs text-destructive">{(updateMutation.error as any)?.message ?? "저장 실패"}</p>
+      )}
+      <button
+        onClick={handleSave}
+        disabled={updateMutation.isPending || isLoading}
+        className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-semibold px-3 py-2 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50"
+      >
+        <Save className="w-3.5 h-3.5" />
+        {updateMutation.isPending ? "저장 중..." : "저장"}
+      </button>
+    </div>
+  );
+}
 
 export default function AdminFitStepPlus() {
   const [, navigate] = useLocation();
@@ -12,6 +89,12 @@ export default function AdminFitStepPlus() {
   const memberCountMap = new Map(
     (overview?.memberCounts ?? []).map((mc) => [mc.trainerId, Number(mc.count)])
   );
+
+  const planBadge = (plan: string) => {
+    if (plan === "elite") return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">ELITE</span>;
+    if (plan === "pro") return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">PRO</span>;
+    return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">FREE</span>;
+  };
 
   return (
     <div className="space-y-6">
@@ -45,6 +128,8 @@ export default function AdminFitStepPlus() {
         </div>
       </div>
 
+      <PlanLimitsPanel />
+
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-card border border-border rounded-xl p-4">
           <p className="text-xs text-muted-foreground mb-1">FIT STEP+ 운영 트레이너</p>
@@ -68,11 +153,15 @@ export default function AdminFitStepPlus() {
           <div className="space-y-3">
             {trainers.map((trainer) => {
               const memberCount = memberCountMap.get(trainer.id) ?? 0;
+              const plan = (trainer as any).plan ?? "free";
               return (
                 <div key={trainer.id} className="bg-card border border-border rounded-xl p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-semibold text-sm">{trainer.trainerName}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm">{trainer.trainerName}</p>
+                        {planBadge(plan)}
+                      </div>
                       <p className="text-xs text-muted-foreground mt-0.5">@{trainer.username}</p>
                     </div>
                     <div className="flex items-center gap-3">

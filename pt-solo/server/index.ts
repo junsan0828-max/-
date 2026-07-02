@@ -45,10 +45,12 @@ app.use(
     secret: process.env.SESSION_SECRET || "pt-solo-secret",
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   })
 );
@@ -62,10 +64,15 @@ app.use(
       let user = sessionUser;
       if (sessionUser) {
         try {
-          const freshRow = await db.select({ role: users.role }).from(users).where(eq(users.id, sessionUser.id)).limit(1);
+          const freshRow = await db.select({ role: users.role, lastLoginAt: users.lastLoginAt }).from(users).where(eq(users.id, sessionUser.id)).limit(1);
           if (freshRow[0]) {
             user = { ...sessionUser, role: freshRow[0].role as AuthUser["role"] };
             (req.session as any).user = user;
+            // 마지막 접속 시각을 1시간마다 갱신 (세션이 살아있는 한 항상 최신 유지)
+            const lastLogin = freshRow[0].lastLoginAt ? new Date(freshRow[0].lastLoginAt).getTime() : 0;
+            if (Date.now() - lastLogin > 60 * 60 * 1000) {
+              pool.query(`UPDATE users SET "lastLoginAt"=now()::text WHERE id=$1`, [sessionUser.id]).catch(() => {});
+            }
           }
         } catch {}
       }
@@ -73,6 +80,121 @@ app.use(
     },
   })
 );
+
+// ── Kakao OAuth ───────────────────────────────────────────────────────────────
+app.get("/auth/kakao", (_req, res) => {
+  const clientId = process.env.KAKAO_CLIENT_ID;
+  if (!clientId) return res.redirect("/login?error=kakao_not_configured");
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: `${process.env.APP_URL || "http://localhost:5000"}/auth/kakao/callback`,
+    response_type: "code",
+  });
+  res.redirect(`https://kauth.kakao.com/oauth/authorize?${params}`);
+});
+
+app.get("/auth/kakao/callback", async (req, res) => {
+  const code = req.query.code as string;
+  if (!code) return res.redirect("/login?error=kakao_cancelled");
+  try {
+    const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: process.env.KAKAO_CLIENT_ID!,
+        redirect_uri: `${process.env.APP_URL || "http://localhost:5000"}/auth/kakao/callback`,
+        code,
+        ...(process.env.KAKAO_CLIENT_SECRET ? { client_secret: process.env.KAKAO_CLIENT_SECRET } : {}),
+      }),
+    });
+    const tokenData = await tokenRes.json() as any;
+    if (!tokenData.access_token) {
+      console.error("Kakao token failed:", JSON.stringify(tokenData));
+      return res.redirect("/login?error=kakao_token_failed");
+    }
+    const userRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const kakaoUser = await userRes.json() as any;
+    // kakao_account.name = 실명(동의 시), profile.nickname = 닉네임
+    const name = kakaoUser.kakao_account?.name || kakaoUser.kakao_account?.profile?.nickname || kakaoUser.properties?.nickname || "카카오사용자";
+    const email = kakaoUser.kakao_account?.email;
+    const phone = kakaoUser.kakao_account?.phone_number;  // "+82 10-xxxx-xxxx" 형식
+    const gender = kakaoUser.kakao_account?.gender;
+    const birthYear = kakaoUser.kakao_account?.birthyear;
+    const ageRange = kakaoUser.kakao_account?.age_range;
+    await handleOAuthLogin(req, res, "kakao", String(kakaoUser.id), name, email, phone, gender, birthYear, ageRange);
+  } catch (e) {
+    console.error("Kakao OAuth error:", e);
+    res.redirect("/login?error=kakao_failed");
+  }
+});
+
+async function handleOAuthLogin(req: any, res: any, provider: string, providerId: string, name: string, email?: string, phone?: string, gender?: string, birthYear?: string, ageRange?: string) {
+  const db2 = db;
+  // 카카오 phone_number는 "+82 10-xxxx-xxxx" 형식 → "010-xxxx-xxxx"로 변환
+  const normalizedPhone = phone ? phone.replace(/^\+82\s*/, "0").replace(/\s+/g, "") : undefined;
+  // 기존 계정 찾기
+  const existing = await pool.query<{ id: number; role: string; position: string | null; trainerId: number | null }>(
+    `SELECT u.id, u.role, u.position, t.id AS "trainerId"
+     FROM users u LEFT JOIN trainers t ON t."userId"=u.id
+     WHERE u.provider=$1 AND u."providerId"=$2 LIMIT 1`,
+    [provider, providerId]
+  );
+  if (existing.rows[0]) {
+    const u = existing.rows[0];
+    if (u.position === "rejected") return res.redirect("/login?error=rejected");
+    // pending 상태라도 소셜 로그인은 active로 자동 승급
+    if (u.position === "pending") {
+      await pool.query(`UPDATE users SET position='active' WHERE id=$1`, [u.id]);
+    }
+    await pool.query(`UPDATE users SET "lastLoginAt"=now()::text WHERE id=$1`, [u.id]);
+    // 재로그인: 이름은 덮어쓰지 않음, phone이 비어있을 때만 카카오 값으로 채움
+    if (u.trainerId) {
+      await pool.query(
+        `UPDATE trainers SET email=COALESCE($1, email), phone=COALESCE(NULLIF(phone,''), $2, phone), gender=COALESCE($3, gender), "birthYear"=COALESCE($4, "birthYear"), "ageRange"=COALESCE($5, "ageRange") WHERE id=$6`,
+        [email || null, normalizedPhone || null, gender || null, birthYear || null, ageRange || null, u.trainerId]
+      );
+    }
+    (req.session as any).user = { id: u.id, username: name, role: u.role, trainerId: u.trainerId ?? undefined };
+    await new Promise<void>((resolve, reject) => req.session.save((err: any) => err ? reject(err) : resolve()));
+    return res.redirect("/");
+  }
+  // 신규 가입 — 카카오/소셜 로그인은 즉시 active
+  const username = `${provider}_${providerId.slice(0, 8)}`;
+  const myCode = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const [userRow] = await db2.insert(users).values({ username, password: null as any, role: "trainer", position: "active" }).returning({ id: users.id });
+  await pool.query(`UPDATE users SET provider=$1, "providerId"=$2, "referralCode"=$3, "lastLoginAt"=now()::text WHERE id=$4`, [provider, providerId, myCode, userRow.id]);
+  const [trainerRow] = await db2.insert(trainers).values({
+    userId: userRow.id,
+    trainerName: name,
+    email: email || undefined,
+    phone: normalizedPhone || undefined,
+    gender: gender || undefined,
+    birthYear: birthYear || undefined,
+    ageRange: ageRange || undefined,
+  }).returning({ id: trainers.id });
+  await db2.insert(trainerSettings).values({ trainerId: trainerRow.id, settlementRate: 50 });
+  // 신규 가입 즉시 로그인 처리
+  (req.session as any).user = { id: userRow.id, username: name, role: "trainer", trainerId: trainerRow.id };
+  await new Promise<void>((resolve, reject) => req.session.save((err: any) => err ? reject(err) : resolve()));
+  return res.redirect("/");
+}
+
+app.get("/.well-known/assetlinks.json", (_req, res) => {
+  const sha256 = process.env.TWA_SHA256_CERT_FINGERPRINT || "";
+  res.json([
+    {
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: {
+        namespace: "android_app",
+        package_name: process.env.TWA_PACKAGE_NAME || "com.fitstep.app",
+        sha256_cert_fingerprints: sha256 ? [sha256] : [],
+      },
+    },
+  ]);
+});
 
 app.get("/api/test-smtp", async (_req, res) => {
   const apiKey = process.env.RESEND_API_KEY;
@@ -288,6 +410,8 @@ async function initDatabase() {
     )`,
     `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "imageUrl" TEXT`,
     `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "bannerHeight" TEXT NOT NULL DEFAULT 'medium'`,
+    `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "textSize" TEXT NOT NULL DEFAULT 'medium'`,
+    `ALTER TABLE tab_banners ADD COLUMN IF NOT EXISTS "textAlign" TEXT NOT NULL DEFAULT 'left'`,
     `CREATE TABLE IF NOT EXISTS verification_codes (
       id SERIAL PRIMARY KEY,
       email TEXT NOT NULL,
@@ -418,12 +542,29 @@ async function initDatabase() {
   const existingChannels = await pool.query(`SELECT id FROM channels LIMIT 1`);
   if (existingChannels.rows.length === 0) {
     await pool.query(`INSERT INTO channels (name, type) VALUES
-      ('인스타그램', 'sns'), ('네이버 블로그', 'online'), ('카카오 플레이스', 'online'),
-      ('지인소개', 'referral'), ('현수막/전단지', 'offline'), ('직접방문', 'offline'), ('기타', 'other')`);
+      ('네이버 플레이스', 'online'), ('당근마켓 광고', 'online'), ('워크인', 'offline'),
+      ('인스타그램', 'sns'), ('전화예약', 'offline'), ('지인 소개', 'referral'), ('기타', 'other')`);
     console.log("✅ 기본 채널 시드 완료");
+  } else {
+    // 채널 목록을 ZIANTGYM 기준으로 업데이트
+    await pool.query(`DELETE FROM channels WHERE name IN ('네이버 블로그', '카카오 플레이스', '지인소개', '현수막/전단지', '직접방문')`);
+    const newChannels = [
+      { name: '네이버 플레이스', type: 'online' },
+      { name: '당근마켓 광고', type: 'online' },
+      { name: '워크인', type: 'offline' },
+      { name: '전화예약', type: 'offline' },
+      { name: '지인 소개', type: 'referral' },
+    ];
+    for (const ch of newChannels) {
+      await pool.query(`INSERT INTO channels (name, type) SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM channels WHERE name = $1)`, [ch.name, ch.type]);
+    }
+    console.log("✅ 채널 목록 업데이트 완료");
   }
 
   // trainer_settings 컬럼 추가 (없으면)
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "gender" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "birthYear" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "ageRange" TEXT`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionStatus" TEXT NOT NULL DEFAULT 'trial'`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "subscriptionEndDate" TEXT`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "adminMemo" TEXT`);
@@ -435,6 +576,357 @@ async function initDatabase() {
   await pool.query(`ALTER TABLE fit_step_plus_video_categories ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
   await pool.query(`ALTER TABLE fit_step_plus_videos ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
   await pool.query(`ALTER TABLE fit_step_plus_events ADD COLUMN IF NOT EXISTS "trainerId" INTEGER`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS fit_step_plus_attendance (
+    id SERIAL PRIMARY KEY,
+    "fitStepPlusMemberId" INTEGER NOT NULL,
+    "trainerId" INTEGER NOT NULL,
+    "attendDate" TEXT NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS fsp_attendance_member_date ON fit_step_plus_attendance ("fitStepPlusMemberId", "attendDate")`);
+  await pool.query(`ALTER TABLE fit_step_plus_attendance ADD COLUMN IF NOT EXISTS "conditionScore" INTEGER`);
+  await pool.query(`ALTER TABLE fit_step_plus_attendance ADD COLUMN IF NOT EXISTS "sleepHours" TEXT`);
+  await pool.query(`ALTER TABLE fit_step_plus_attendance ADD COLUMN IF NOT EXISTS "energyLevel" TEXT`);
+  await pool.query(`ALTER TABLE fit_step_plus_attendance ADD COLUMN IF NOT EXISTS "bodyParts" TEXT`);
+  await pool.query(`ALTER TABLE fit_step_plus_attendance ADD COLUMN IF NOT EXISTS "workoutTheme" TEXT`);
+  await pool.query(`ALTER TABLE fit_step_plus_attendance ADD COLUMN IF NOT EXISTS "intensity" INTEGER`);
+
+  // 트레이너 상세 프로필 컬럼 추가
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "employmentType" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "workplaceName" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "workYears" INTEGER`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "specialties" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileBonusGranted" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "jobType" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "careerRange" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "activityArea" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "profileImage" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "educationNeeds" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "onboardingSurveyData" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "onboardingSurveyDone" INTEGER NOT NULL DEFAULT 0`);
+  // OAuth 소셜 로그인
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "provider" TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "providerId" TEXT`);
+  await pool.query(`ALTER TABLE users ALTER COLUMN password DROP NOT NULL`);
+  // 친구 초대 referral
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "referralCode" TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "referredBy" TEXT`);
+
+  // 브랜드 페이지 컬럼
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandBio" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandSpecialties" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandColor" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandInstagram" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandKakao" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandYoutube" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandIsPublic" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "bookingEnabled" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "bookingMessage" TEXT`);
+
+  // 상담 예약 테이블
+  await pool.query(`CREATE TABLE IF NOT EXISTS consultation_bookings (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    "interestType" TEXT,
+    message TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  // 예약 시간 슬롯 관련 컬럼 추가 (기존 테이블에 없을 경우)
+  await pool.query(`ALTER TABLE consultation_bookings ADD COLUMN IF NOT EXISTS "reservedDate" TEXT`);
+  await pool.query(`ALTER TABLE consultation_bookings ADD COLUMN IF NOT EXISTS "reservedTime" TEXT`);
+  await pool.query(`ALTER TABLE consultation_bookings ADD COLUMN IF NOT EXISTS "slotId" INTEGER`);
+
+  // 예약 가능 시간 슬롯
+  await pool.query(`CREATE TABLE IF NOT EXISTS booking_slots (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    time TEXT NOT NULL,
+    "isBooked" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS booking_slots_trainer_date ON booking_slots ("trainerId", date)`);
+
+  // 반복 일정
+  await pool.query(`CREATE TABLE IF NOT EXISTS booking_recurring (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    "dayOfWeek" INTEGER NOT NULL,
+    times TEXT NOT NULL DEFAULT '[]',
+    active INTEGER NOT NULL DEFAULT 1,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
+  // 휴무일
+  await pool.query(`CREATE TABLE IF NOT EXISTS booking_blackouts (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    UNIQUE("trainerId", date)
+  )`);
+
+  // 비대면 전자계약
+  await pool.query(`CREATE TABLE IF NOT EXISTS e_contracts (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    "memberName" TEXT,
+    "memberPhone" TEXT,
+    "memberBirth" TEXT,
+    "programName" TEXT,
+    "programPrice" INTEGER,
+    "programSessions" INTEGER,
+    "programStartDate" TEXT,
+    "trainerMemo" TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    "agreedTerms" INTEGER NOT NULL DEFAULT 0,
+    "agreedPrivacy" INTEGER NOT NULL DEFAULT 0,
+    "agreedMarketing" INTEGER NOT NULL DEFAULT 0,
+    "signerName" TEXT,
+    "signaturePng" TEXT,
+    "signedAt" TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "contractType" TEXT DEFAULT 'standard'`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "extraData" TEXT DEFAULT '{}'`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "transferorSignerName" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "transferorSignaturePng" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "transferorSignedAt" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "programFormat" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "listPrice" INTEGER`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "discountAmount" INTEGER`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "unpaidAmount" INTEGER`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "paymentDate" TEXT`);
+  await pool.query(`ALTER TABLE e_contracts ADD COLUMN IF NOT EXISTS "programEndDate" TEXT`);
+
+  // 작업실 기능 잠금해제
+  await pool.query(`CREATE TABLE IF NOT EXISTS workshop_unlocks (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    feature TEXT NOT NULL,
+    "pointsSpent" INTEGER NOT NULL DEFAULT 0,
+    "unlockedAt" TEXT NOT NULL DEFAULT now()::text,
+    UNIQUE("trainerId", feature)
+  )`);
+
+  // 운동 프로그램 템플릿
+  await pool.query(`CREATE TABLE IF NOT EXISTS workout_templates (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    "bodyPart" TEXT,
+    "exercisesJson" TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
+  // 맞춤 상담 설문 문항
+  await pool.query(`CREATE TABLE IF NOT EXISTS custom_survey_questions (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    question TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'text',
+    options TEXT,
+    "sortOrder" INTEGER DEFAULT 0,
+    "isRequired" INTEGER DEFAULT 0,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
+  // 맞춤 상담 설문 응답
+  await pool.query(`CREATE TABLE IF NOT EXISTS custom_survey_responses (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    "respondentName" TEXT NOT NULL,
+    "respondentPhone" TEXT,
+    answers TEXT NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  // 성장 아카데미
+  await pool.query(`CREATE TABLE IF NOT EXISTS academy_courses (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    "videoUrl" TEXT,
+    "thumbnailUrl" TEXT,
+    duration TEXT,
+    "courseType" TEXT NOT NULL DEFAULT 'online',
+    "pointReward" INTEGER NOT NULL DEFAULT 0,
+    "isPublished" INTEGER NOT NULL DEFAULT 0,
+    "createdBy" INTEGER NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  // 기존 테이블에 courseType 컬럼 추가 (없을 경우)
+  await pool.query(`ALTER TABLE academy_courses ADD COLUMN IF NOT EXISTS "courseType" TEXT NOT NULL DEFAULT 'online'`);
+  await pool.query(`ALTER TABLE academy_courses ADD COLUMN IF NOT EXISTS "timerSeconds" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS academy_completions (
+    id SERIAL PRIMARY KEY,
+    "courseId" INTEGER NOT NULL,
+    "trainerId" INTEGER NOT NULL,
+    "completedAt" TEXT NOT NULL DEFAULT now()::text,
+    UNIQUE("courseId", "trainerId")
+  )`);
+
+  // 기존 유저 중 referralCode 없는 경우 자동 생성
+  const noCodeUsers = await pool.query<{ id: number }>(`SELECT id FROM users WHERE "referralCode" IS NULL`);
+  for (const u of noCodeUsers.rows) {
+    const code = Math.random().toString(36).slice(2, 10).toUpperCase();
+    await pool.query(`UPDATE users SET "referralCode"=$1 WHERE id=$2`, [code, u.id]);
+  }
+
+  await pool.query(`ALTER TABLE fit_point_logs ADD COLUMN IF NOT EXISTS "expiresAt" TEXT`);
+  await pool.query(`ALTER TABLE fit_step_plus_workout_logs ADD COLUMN IF NOT EXISTS intensity TEXT`);
+  await pool.query(`ALTER TABLE fit_step_plus_workout_logs ADD COLUMN IF NOT EXISTS "totalVolume" INTEGER`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "guideDismissed" TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "workshopTrialStartedAt" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "removedFeatures" TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "eliteTrialStartedAt" TEXT`);
+  await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "eliteTrialExtensionRequested" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandBlocks" TEXT`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "journalType" TEXT NOT NULL DEFAULT 'weight'`);
+  await pool.query(`ALTER TABLE trainers ADD COLUMN IF NOT EXISTS "brandMessage" TEXT`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS plan_purchase_requests (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    plan TEXT NOT NULL,
+    amount INTEGER NOT NULL DEFAULT 0,
+    depositor TEXT NOT NULL DEFAULT '',
+    "pointsUsed" INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`ALTER TABLE plan_purchase_requests ADD COLUMN IF NOT EXISTS "pointsUsed" INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS workshop_feature_config (
+    id SERIAL PRIMARY KEY,
+    "featureId" TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    "adminNote" TEXT,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS wfc_featureid_idx ON workshop_feature_config ("featureId")`);
+
+  // 서버 시작 시 모든 기능의 기본 상태를 DB에 seed (없으면 삽입, 있으면 무시)
+  // → DB가 항상 26개 기능 전체를 보유 → 클라이언트는 DB만 읽으면 됨
+  const WS_FEATURE_DEFAULTS: [string, string][] = [
+    ["brand_page",          "active"],
+    ["fitstep_plus",        "active"],
+    ["fitstep_videos",      "addon_fsp"],
+    ["fitstep_rec",         "addon_fsp"],
+    ["fitstep_diet",        "addon_fsp"],
+    ["fitstep_personal",    "addon_fsp"],
+    ["booking",             "active"],
+    ["report_branding",     "active"],
+    ["templates",           "active"],
+    ["training_video",      "coming_soon"],
+    ["contract_terms",      "active"],
+    ["member_overview",     "coming_soon"],
+    ["activity_stats",      "coming_soon"],
+    ["data_migration",      "coming_soon"],
+    ["kpi_report",          "coming_soon"],
+    ["consult_conversion",  "coming_soon"],
+    ["unpaid",              "coming_soon"],
+    ["monthly_pnl",         "coming_soon"],
+    ["sales_analysis",      "coming_soon"],
+    ["renewal_analysis",    "coming_soon"],
+    ["channel_analysis",    "coming_soon"],
+    ["marketing_analysis",  "coming_soon"],
+    ["ai_insights",         "coming_soon"],
+    ["survey",              "active"],
+    ["contract_kakao",      "coming_soon"],
+    ["e_contract",          "active"],
+  ];
+  for (const [featureId, status] of WS_FEATURE_DEFAULTS) {
+    await pool.query(
+      `INSERT INTO workshop_feature_config ("featureId", status, "updatedAt") VALUES ($1, $2, now()::text)
+       ON CONFLICT ("featureId") DO UPDATE SET status=$2, "updatedAt"=now()::text
+       WHERE workshop_feature_config.status='coming_soon' AND $2 != 'coming_soon'`,
+      [featureId, status]
+    );
+  }
+
+  // FIT STEP+ 플랜별 회원 수 제한 설정
+  await pool.query(`CREATE TABLE IF NOT EXISTS plan_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  for (const [k, v] of [
+    ['fsp_limit_free','5'],['fsp_limit_pro','15'],['fsp_limit_elite','30'],
+    ['member_limit_free','7'],['member_limit_pro','15'],['member_limit_elite','35'],
+    ['plan_price_free','0'],['plan_price_pro','29000'],['plan_price_elite','59000'],
+    ['plan_discount_free','0'],['plan_discount_pro','0'],['plan_discount_elite','0'],
+  ]) {
+    await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, [k, v]);
+  }
+
+  // 기능 사용 포인트 차감 규칙 테이블
+  await pool.query(`CREATE TABLE IF NOT EXISTS feature_cost_rules (
+    feature TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    cost INTEGER NOT NULL DEFAULT 50,
+    "isEnabled" INTEGER NOT NULL DEFAULT 1,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`ALTER TABLE feature_cost_rules ADD COLUMN IF NOT EXISTS "isEnabled" INTEGER NOT NULL DEFAULT 1`);
+  for (const [feature, label] of [
+    ['new_contract',    '신규 전자계약'],
+    ['reregistration',  '재등록 계약'],
+    ['contract_pdf',    '계약서 PDF 전달'],
+    ['health_report',   '건강 리포트 공유'],
+    ['stats_report',    '통계 리포트 생성'],
+    ['branding_share',  '브랜딩 페이지 공유'],
+    ['exercise_report', '회원 운동 리포트 공유'],
+  ]) {
+    await pool.query(
+      `INSERT INTO feature_cost_rules (feature, label, cost, "isEnabled") VALUES ($1,$2,50,1)
+       ON CONFLICT (feature) DO UPDATE SET label=$2`,
+      [feature, label]
+    );
+  }
+
+  // 포인트 자동 지급 규칙 테이블
+  await pool.query(`CREATE TABLE IF NOT EXISTS point_auto_rules (
+    id SERIAL PRIMARY KEY,
+    event TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL,
+    description TEXT,
+    amount INTEGER NOT NULL DEFAULT 100,
+    "isEnabled" INTEGER NOT NULL DEFAULT 1,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  // 기본 규칙 시드 (없을 때만)
+  const ruleCount = await pool.query(`SELECT COUNT(*) FROM point_auto_rules`);
+  if (Number(ruleCount.rows[0].count) === 0) {
+    await pool.query(`INSERT INTO point_auto_rules (event, label, description, amount, "isEnabled") VALUES
+      ('profile_complete', '프로필 완성', '근무형태·근무지·경력·전문분야를 모두 입력한 경우', 200, 1),
+      ('registration', '신규 가입 보너스', '트레이너가 처음 가입했을 때', 100, 0),
+      ('first_member', '첫 번째 회원 등록', '첫 번째 PT 회원을 등록했을 때', 50, 0),
+      ('member_milestone_10', '회원 10명 달성', 'PT 회원이 10명이 되었을 때', 200, 0),
+      ('session_milestone_50', 'PT 50회 달성', 'PT 세션 누적 50회를 달성했을 때', 300, 0)
+    `);
+  }
+  // 활동 기반 규칙 추가 (없으면 INSERT)
+  const activityRules = [
+    ['session_log',       '수업 일지 작성',   '수업 기록을 작성했을 때',           10, 1],
+    ['parq_submit',       'PAR-Q 작성',       '회원 PAR-Q를 최초 작성했을 때',     10, 1],
+    ['attendance_check',  '회원 출석 체크',   '회원 출석을 체크했을 때',            5, 1],
+    ['lead_complete',     '신규 상담 완료',   '신규 상담을 완료 처리했을 때',       5, 1],
+    ['renewal_complete',  '재등록 완료',      '기존 회원이 패키지를 재등록했을 때', 30, 1],
+    ['referral_member',   '회원 소개 발생',   '소개로 신규 회원이 등록됐을 때',     30, 0],
+    ['profile_share',     '브랜딩 프로필 공유','트레이너 프로필 링크를 공유했을 때', 5, 0],
+    ['academy_complete',  '교육 참여',        '아카데미 강의를 수료했을 때',        20, 1],
+  ];
+  for (const [event, label, description, amount, isEnabled] of activityRules) {
+    await pool.query(
+      `INSERT INTO point_auto_rules (event, label, description, amount, "isEnabled")
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (event) DO NOTHING`,
+      [event, label, description, amount, isEnabled]
+    );
+  }
 
   // 회원권 날짜 자동 보정
   try {
@@ -465,14 +957,57 @@ async function initDatabase() {
     console.log("✅ admin 계정 role → admin 으로 업데이트");
   }
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS trainer_feedbacks (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    "trainerName" TEXT NOT NULL,
+    username TEXT NOT NULL,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    "adminNote" TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
   console.log("✨ DB 초기화 완료!");
+
+  // 잘못된 daily_reset으로 적립포인트가 깎인 트레이너 자동 보정 (1회성)
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const trainerRows = await pool.query<{ id: number }>(`SELECT id FROM trainers`);
+    for (const tr of trainerRows.rows) {
+      const totalRow = await pool.query<{ balance: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`, [tr.id]
+      );
+      const earnedRow = await pool.query<{ balance: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND type != 'daily_reset'`, [tr.id]
+      );
+      const total = Number(totalRow.rows[0]?.balance ?? 0);
+      const earned = Number(earnedRow.rows[0]?.balance ?? 0);
+      const freeHeld = total - earned;
+      // 무료포인트가 음수면 적립포인트가 잘못 차감된 것 → 복구
+      if (freeHeld < 0) {
+        await pool.query(
+          `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'admin_grant','일일초기화 오류 자동 보정','completed')`,
+          [tr.id, -freeHeld]
+        );
+        console.log(`🔧 포인트 보정: trainerId=${tr.id} +${-freeHeld}P`);
+      }
+    }
+  } catch (e) {
+    console.warn("⚠️ 포인트 보정 실패:", e);
+  }
 }
 
-const DAILY_POINT = 300;
+const DAILY_POINTS: Record<string, number> = { free: 300, pro: 500, elite: 1000 };
 
 async function runDailyPointReset() {
   const today = new Date().toISOString().slice(0, 10);
-  const trainerRows = await pool.query<{ id: number }>(`SELECT id FROM trainers`);
+  const trainerRows = await pool.query<{ id: number; plan: string }>(
+    `SELECT t.id, COALESCE(u."plan", 'free') AS plan FROM trainers t LEFT JOIN users u ON u.id = t."userId"`
+  );
   let count = 0;
   for (const tr of trainerRows.rows) {
     const alreadyDone = await pool.query(
@@ -481,19 +1016,27 @@ async function runDailyPointReset() {
     );
     if (alreadyDone.rows.length > 0) continue;
 
+    const dailyPoint = DAILY_POINTS[tr.plan] ?? 300;
     const balRow = await pool.query<{ balance: string }>(
       `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed'`,
       [tr.id]
     );
+    const earnedRow = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND type != 'daily_reset'`,
+      [tr.id]
+    );
     const currentBalance = Number(balRow.rows[0]?.balance ?? 0);
-    const delta = DAILY_POINT - currentBalance;
+    const earnedBalance = Number(earnedRow.rows[0]?.balance ?? 0);
+    const targetTotal = earnedBalance + dailyPoint;
+    const delta = targetTotal - currentBalance;
+    if (delta === 0) continue;
     await pool.query(
-      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'daily_reset','일일 포인트 초기화','completed')`,
+      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'daily_reset','일일 무료포인트 충전','completed')`,
       [tr.id, delta]
     );
     count++;
   }
-  if (count > 0) console.log(`✅ 일일 FIT POINT 초기화 완료: ${count}명 → ${DAILY_POINT}P`);
+  if (count > 0) console.log(`✅ 일일 FIT POINT 초기화 완료: ${count}명`);
 }
 
 async function start() {

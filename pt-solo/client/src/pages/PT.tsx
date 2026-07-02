@@ -1,16 +1,20 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Search, ChevronRight, Dumbbell, Calendar, AlertCircle,
-  Clock, XCircle, CheckSquare, Square, CalendarPlus, X,
+  Clock, XCircle, CheckSquare, Square, CalendarPlus, X, UserPlus,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
@@ -18,7 +22,6 @@ import TabBanner from "@/components/TabBanner";
 
 const gradeLabels: Record<string, string> = {
   basic: "기본",
-  premium: "프리미엄",
   vip: "VIP",
 };
 
@@ -31,8 +34,290 @@ const EXTEND_PRESETS = [30, 60, 90, 180];
 
 type SpecialFilter = "none" | "unpaid" | "low_sessions" | "expiring" | "expired";
 
+const PAYMENT_METHODS = ["카드", "현금", "계좌이체", "지역화폐"] as const;
+const PROGRAM_TYPES = ["PT", "필라테스", "기타"];
+const PROGRAM_FORMATS = ["개인", "그룹"];
+const VISIT_ROUTES = ["지인 소개", "네이버플레이스", "당근광고", "인스타그램", "간판/현수막", "전단지", "재등록", "기타"];
+
+const EMPTY_FORM = {
+  name: "",
+  phone: "",
+  birthDate: "",
+  gender: "" as "male" | "female" | "other" | "",
+  grade: "basic" as "basic" | "vip",
+  status: "active" as "active" | "paused",
+  membershipStart: "",
+  membershipEnd: "",
+  visitRoute: "",
+  profileNote: "",
+  // PT·결제
+  ptProgram: "",
+  ptProgramCustom: "",
+  ptFormat: "",
+  ptSessions: "",
+  listPrice: "",
+  discountAmount: "",
+  paymentAmount: "",
+  unpaidAmount: "",
+  paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
+  paymentDate: new Date().toISOString().substring(0, 10),
+  paymentMemo: "",
+};
+
+function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [nameError, setNameError] = useState("");
+
+  const createMutation = trpc.members.create.useMutation({
+    onSuccess: () => {
+      toast.success("회원이 등록되었습니다.");
+      setForm(EMPTY_FORM);
+      setNameError("");
+      utils.members.list.invalidate();
+      onClose();
+    },
+    onError: (e) => toast.error(e.message || "등록 실패"),
+  });
+
+  const hasPt = !!form.ptSessions;
+
+  function handleSubmit() {
+    if (!form.name.trim()) { setNameError("이름을 입력해주세요."); return; }
+    setNameError("");
+    createMutation.mutate({
+      name: form.name.trim(),
+      phone: form.phone || undefined,
+      birthDate: form.birthDate || undefined,
+      gender: form.gender || undefined,
+      grade: form.grade,
+      status: form.status,
+      membershipStart: form.membershipStart || undefined,
+      membershipEnd: form.membershipEnd || undefined,
+      visitRoute: form.visitRoute || undefined,
+      profileNote: form.profileNote || undefined,
+      ptProgram: form.ptProgram === "기타" ? (form.ptProgramCustom || undefined) : (form.ptProgram ? `${form.ptProgram}${form.ptFormat ? ` ${form.ptFormat}` : ""}` : undefined),
+      ptSessions: form.ptSessions || undefined,
+      paymentAmount: form.paymentAmount ? Number(form.paymentAmount) : undefined,
+      unpaidAmount: form.unpaidAmount ? Number(form.unpaidAmount) : undefined,
+      paymentMethod: form.paymentMethod || undefined,
+      paymentDate: hasPt ? form.paymentDate : undefined,
+      paymentMemo: form.paymentMemo || undefined,
+    });
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative bg-card rounded-t-3xl w-full max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+        <div className="px-5 pt-1 pb-4 flex items-center justify-between shrink-0 border-b border-border">
+          <div>
+            <h2 className="text-base font-bold">회원 등록</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">결제 없이 등록 · 매출에 미포함</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="px-5 py-5 pb-10 space-y-5 overflow-y-auto flex-1">
+
+          {/* 1. 기본 정보 */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground">기본 정보</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">이름 <span className="text-primary">*</span></Label>
+              <Input
+                placeholder="홍길동"
+                value={form.name}
+                onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setNameError(""); }}
+                className={nameError ? "border-red-500" : ""}
+              />
+              {nameError && <p className="text-xs text-red-500">{nameError}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">연락처</Label>
+                <Input placeholder="010-0000-0000" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">생년월일</Label>
+                <Input type="date" value={form.birthDate} onChange={e => setForm(p => ({ ...p, birthDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">성별</Label>
+                <Select value={form.gender} onValueChange={v => setForm(p => ({ ...p, gender: v as any }))}>
+                  <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">남성</SelectItem>
+                    <SelectItem value="female">여성</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">등급</Label>
+                <Select value={form.grade} onValueChange={v => setForm(p => ({ ...p, grade: v as any }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="basic">기본</SelectItem>
+                    <SelectItem value="vip">VIP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">상태</Label>
+              <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v as any }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">활성</SelectItem>
+                  <SelectItem value="paused">정지</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* 2. 프로그램 */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground">프로그램 <span className="text-muted-foreground font-normal">(선택)</span></p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">프로그램 종류</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {PROGRAM_TYPES.map(p => (
+                  <button key={p} type="button"
+                    onClick={() => setForm(f => ({ ...f, ptProgram: f.ptProgram === p ? "" : p, ptProgramCustom: "" }))}
+                    className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.ptProgram === p ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground"}`}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+              {form.ptProgram === "기타" && (
+                <Input
+                  placeholder="예: 요가, 수영, 크로스핏, 골프 등"
+                  value={form.ptProgramCustom}
+                  onChange={e => setForm(p => ({ ...p, ptProgramCustom: e.target.value }))}
+                  className="mt-1.5"
+                />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">프로그램 형태</Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {PROGRAM_FORMATS.map(f => (
+                  <button key={f} type="button"
+                    onClick={() => setForm(p => ({ ...p, ptFormat: p.ptFormat === f ? "" : f }))}
+                    className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.ptFormat === f ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground"}`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">횟수</Label>
+              <Input type="number" placeholder="0" value={form.ptSessions} onChange={e => setForm(p => ({ ...p, ptSessions: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">정가 (원)</Label>
+                <Input type="number" placeholder="0" value={form.listPrice} onChange={e => {
+                  const amt = e.target.value;
+                  const disc = Number(form.discountAmount) || 0;
+                  setForm(p => ({ ...p, listPrice: amt, paymentAmount: String(Math.max(0, Number(amt) - disc)), unpaidAmount: "0" }));
+                }} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">할인 (원)</Label>
+                <Input type="number" placeholder="0" value={form.discountAmount} onChange={e => {
+                  const disc = e.target.value;
+                  setForm(p => ({ ...p, discountAmount: disc, paymentAmount: String(Math.max(0, Number(p.listPrice) - Number(disc))) }));
+                }} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">실결제 (원)</Label>
+                <Input type="number" placeholder="0" value={form.paymentAmount} onChange={e => {
+                  const paid = e.target.value;
+                  setForm(p => ({ ...p, paymentAmount: paid, unpaidAmount: String(Math.max(0, Number(p.listPrice) - Number(p.discountAmount) - Number(paid))) }));
+                }} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">미수금 (원)</Label>
+                <Input type="number" placeholder="0" value={form.unpaidAmount} onChange={e => setForm(p => ({ ...p, unpaidAmount: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">결제 방법</Label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {PAYMENT_METHODS.map(m => (
+                  <button key={m} type="button"
+                    onClick={() => setForm(p => ({ ...p, paymentMethod: p.paymentMethod === m ? "" : m as any }))}
+                    className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground"}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* 날짜: 결제일 + 시작일 + 종료일 한 곳에 */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">결제일</Label>
+                <Input type="date" value={form.paymentDate} onChange={e => setForm(p => ({ ...p, paymentDate: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">시작일</Label>
+                <Input type="date" value={form.membershipStart} onChange={e => setForm(p => ({ ...p, membershipStart: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">종료일</Label>
+                <Input type="date" value={form.membershipEnd} onChange={e => setForm(p => ({ ...p, membershipEnd: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+
+          {/* 3. 기타 */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground">기타</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">방문 경로</Label>
+              <Select value={form.visitRoute} onValueChange={v => setForm(p => ({ ...p, visitRoute: v }))}>
+                <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+                <SelectContent>
+                  {VISIT_ROUTES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">메모</Label>
+              <Input placeholder="특이사항" value={form.profileNote} onChange={e => setForm(p => ({ ...p, profileNote: e.target.value }))} />
+            </div>
+          </div>
+
+          <div className={`p-3 rounded-xl border text-xs ${hasPt ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-muted/50 border-border text-muted-foreground"}`}>
+            {hasPt
+              ? "프로그램 정보가 입력되어 매출 통계에 반영됩니다."
+              : "횟수를 입력하면 매출 통계에 반영됩니다. 입력하지 않으면 미포함입니다."}
+          </div>
+
+          <Button className="w-full" disabled={createMutation.isPending} onClick={handleSubmit}>
+            {createMutation.isPending ? "등록 중..." : "등록 완료"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MembersTab() {
   const [, setLocation] = useLocation();
+  const search_ = useSearch();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
   const [specialFilter, setSpecialFilter] = useState<SpecialFilter>("none");
@@ -41,8 +326,17 @@ function MembersTab() {
   const [extendOpen, setExtendOpen] = useState(false);
   const [extendDays, setExtendDays] = useState(30);
   const [extendCustom, setExtendCustom] = useState("");
+  const [showRegister, setShowRegister] = useState(false);
 
-  const { data: members, isLoading, refetch } = trpc.members.list.useQuery();
+  useEffect(() => {
+    if (new URLSearchParams(search_).get("register") === "1") {
+      setShowRegister(true);
+      setLocation("/pt", { replace: true });
+    }
+  }, []);
+
+  const utils = trpc.useUtils();
+  const { data: members, isLoading } = trpc.members.list.useQuery();
   const { data: ptPackages } = trpc.pt.list.useQuery();
 
   const bulkExtendMutation = trpc.members.bulkExtend.useMutation({
@@ -51,7 +345,7 @@ function MembersTab() {
       setExtendOpen(false);
       setSelectMode(false);
       setSelectedIds(new Set());
-      refetch();
+      utils.members.list.invalidate();
     },
     onError: () => toast.error("연장 중 오류가 발생했습니다."),
   });
@@ -141,6 +435,9 @@ function MembersTab() {
               <Button size="sm" variant="outline" onClick={() => setSelectMode(true)} className="gap-1.5">
                 <CheckSquare className="h-4 w-4" />선택
               </Button>
+              <Button size="sm" onClick={() => setShowRegister(true)} className="gap-1.5">
+                <UserPlus className="h-4 w-4" />회원 등록
+              </Button>
             </>
           )}
         </div>
@@ -160,7 +457,7 @@ function MembersTab() {
       <div className="grid grid-cols-2 gap-2">
         {[
           { key: "unpaid" as SpecialFilter, label: "미수금", count: counts.unpaid, icon: <AlertCircle className="h-3.5 w-3.5" />, activeClass: "bg-orange-500/20 text-orange-400 border-orange-500/40", inactiveClass: "text-orange-400/70 border-orange-500/20 hover:border-orange-500/40" },
-          { key: "low_sessions" as SpecialFilter, label: "PT 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" />, activeClass: "bg-primary/20 text-primary border-primary/40", inactiveClass: "text-primary/60 border-primary/20 hover:border-primary/40" },
+          { key: "low_sessions" as SpecialFilter, label: "수업 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" />, activeClass: "bg-primary/20 text-primary border-primary/40", inactiveClass: "text-primary/60 border-primary/20 hover:border-primary/40" },
           { key: "expiring" as SpecialFilter, label: "만료 임박 (7일)", count: counts.expiring, icon: <Clock className="h-3.5 w-3.5" />, activeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40", inactiveClass: "text-yellow-400/70 border-yellow-500/20 hover:border-yellow-500/40" },
           { key: "expired" as SpecialFilter, label: "만료됨", count: counts.expired, icon: <XCircle className="h-3.5 w-3.5" />, activeClass: "bg-red-500/20 text-red-400 border-red-500/40", inactiveClass: "text-red-400/70 border-red-500/20 hover:border-red-500/40" },
         ].map((f) => (
@@ -208,8 +505,13 @@ function MembersTab() {
           ))}
         </div>
       ) : filtered?.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
+        <div className="text-center py-12 space-y-3 text-muted-foreground">
           <p className="text-sm">{search || specialFilter !== "none" ? "조건에 맞는 회원이 없습니다." : "등록된 회원이 없습니다."}</p>
+          {!search && specialFilter === "none" && (
+            <Button size="sm" variant="outline" onClick={() => setShowRegister(true)} className="gap-1.5">
+              <UserPlus className="h-4 w-4" />회원 등록하기
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -251,13 +553,14 @@ function MembersTab() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
+                      {/* 1행: 이름 + 상태/경고 뱃지 */}
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="font-medium text-foreground">{member.name}</p>
+                        <p className="font-semibold text-foreground">{member.name}</p>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full border ${statusColors[member.status] ?? ""}`}>
                           {member.status === "active" ? "활성" : "정지"}
                         </span>
-                        {gradeLabels[member.grade] && member.grade !== "basic" && (
-                          <span className="text-xs text-muted-foreground">{gradeLabels[member.grade]}</span>
+                        {member.grade === "vip" && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">VIP</span>
                         )}
                         {isExpiringSoon && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">D-{daysLeft}</span>
@@ -268,29 +571,38 @@ function MembersTab() {
                         {hasUnpaid && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">미수금</span>
                         )}
-                        {isLowSessions && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">PT {remainingSessions}회</span>
+                      </div>
+                      {/* 2행: 연락처 + 만료일 */}
+                      <div className="flex items-center justify-between mt-0.5 gap-2">
+                        <p className="text-xs text-muted-foreground truncate">
+                          {member.phone ?? member.email ?? "연락처 없음"}
+                        </p>
+                        {member.membershipEnd && (
+                          <p className="text-xs text-muted-foreground shrink-0">
+                            ~{format(new Date(member.membershipEnd), "yy.MM.dd")}
+                          </p>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {member.phone ?? member.email ?? "연락처 없음"}
-                        {remainingSessions !== undefined && !isLowSessions && (
-                          <span className="text-primary ml-2">PT {remainingSessions}회</span>
-                        )}
-                      </p>
-                      {/* PT 패키지 인라인 */}
+                      {/* 3행: 프로그램 + 잔여 횟수 + 진행바 */}
                       {memberPkgs.length > 0 && (
-                        <div className="mt-2 space-y-1">
+                        <div className="mt-2 space-y-1.5">
                           {memberPkgs.map((pkg) => {
                             const pct = Math.min((pkg.usedSessions / pkg.totalSessions) * 100, 100);
+                            const remaining = pkg.totalSessions - pkg.usedSessions;
+                            const isLow = remaining <= 3;
                             return (
                               <div key={pkg.id}>
-                                <div className="flex items-center justify-between text-xs text-muted-foreground mb-0.5">
-                                  <span>{pkg.packageName || "PT 프로그램"}</span>
-                                  <span>{pkg.usedSessions}/{pkg.totalSessions}회</span>
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="text-muted-foreground font-medium">{pkg.packageName || "PT 프로그램"}</span>
+                                  <span className={isLow ? "text-primary font-semibold" : "text-muted-foreground"}>
+                                    잔여 {remaining}회
+                                  </span>
                                 </div>
-                                <div className="w-full bg-border rounded-full h-1">
-                                  <div className="bg-primary h-1 rounded-full" style={{ width: `${pct}%` }} />
+                                <div className="w-full bg-border rounded-full h-1.5">
+                                  <div
+                                    className={`h-1.5 rounded-full transition-all ${isLow ? "bg-primary" : "bg-primary/60"}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
                                 </div>
                               </div>
                             );
@@ -359,6 +671,8 @@ function MembersTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RegisterSheet open={showRegister} onClose={() => setShowRegister(false)} />
     </div>
   );
 }
@@ -481,37 +795,17 @@ function TrainingLogTab() {
 }
 
 export default function PT() {
-  const [tab, setTab] = useState<"members" | "log">("members");
   const { data: members } = trpc.members.list.useQuery();
 
   return (
     <div className="space-y-4">
       <TabBanner tabKey="pt" />
       <div>
-        <h1 className="text-xl font-bold">PT 관리</h1>
+        <h1 className="text-xl font-bold">회원관리</h1>
+        <p className="text-sm text-muted-foreground">총 {members?.length ?? 0}명</p>
       </div>
 
-      <div className="flex gap-1 bg-accent rounded-xl p-1">
-        <button
-          onClick={() => setTab("members")}
-          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-            tab === "members" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          PT 회원 관리
-          <span className="ml-1.5 text-xs opacity-60">{members?.length ?? 0}</span>
-        </button>
-        <button
-          onClick={() => setTab("log")}
-          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-            tab === "log" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          트레이닝 일지
-        </button>
-      </div>
-
-      {tab === "members" ? <MembersTab /> : <TrainingLogTab />}
+      <MembersTab />
     </div>
   );
 }

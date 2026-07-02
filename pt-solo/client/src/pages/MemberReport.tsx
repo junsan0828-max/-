@@ -94,6 +94,7 @@ export default function MemberReport({ token }: Props) {
   }
 
   const { member, conditionChecks, workoutMemos, ptPackages, generatedAt } = data;
+  const trainerInfo = (data as any).trainerInfo as { trainerName?: string; profileImage?: string; brandColor?: string; brandMessage?: string } | null;
 
   // 출석 통계
   const totalAttended = conditionChecks.filter((c) => c.status === "attended").length;
@@ -155,11 +156,29 @@ export default function MemberReport({ token }: Props) {
 
         {/* 헤더 */}
         <div className="border-b border-border pb-6">
-          <p className="text-xs text-muted-foreground font-bold tracking-widest mb-3" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-            ZIANTGYM
-          </p>
+          {/* 트레이너 브랜딩 */}
+          <div className="flex items-center gap-2 mb-4">
+            {trainerInfo?.profileImage ? (
+              <img src={trainerInfo.profileImage} alt={trainerInfo.trainerName} className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                style={{ backgroundColor: trainerInfo?.brandColor || "#1a00ff" }}>
+                {trainerInfo?.trainerName?.[0] ?? "T"}
+              </div>
+            )}
+            <p className="text-xs font-bold tracking-widest" style={{ color: trainerInfo?.brandColor || "#1a00ff" }}>
+              {trainerInfo?.trainerName ?? "FIT STEP"}
+            </p>
+          </div>
+          {trainerInfo?.brandMessage && (
+            <div className="mb-4 rounded-xl px-4 py-3 text-sm font-medium"
+              style={{ backgroundColor: `${trainerInfo.brandColor || "#1a00ff"}18`, color: trainerInfo.brandColor || "#1a00ff" }}>
+              💬 {trainerInfo.brandMessage}
+            </div>
+          )}
           <div className="flex items-start gap-4">
-            <div className="h-14 w-14 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xl shrink-0">
+            <div className="h-14 w-14 rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0"
+              style={{ backgroundColor: trainerInfo?.brandColor || "#1a00ff" }}>
               {member.name.charAt(0)}
             </div>
             <div>
@@ -435,13 +454,11 @@ export default function MemberReport({ token }: Props) {
         )}
 
         {/* 푸터 */}
-        <div className="border-t border-border pt-6 text-center">
-          <p
-            className="text-xs text-muted-foreground"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-          >
-            ZIANTGYM · 트레이너 회원 관리 시스템
+        <div className="border-t border-border pt-6 text-center space-y-1">
+          <p className="text-xs font-semibold" style={{ color: trainerInfo?.brandColor || "#1a00ff" }}>
+            {trainerInfo?.trainerName ?? "FIT STEP"} STEPER
           </p>
+          <p className="text-xs text-muted-foreground">Powered by FIT STEP · STEPER 회원 관리 시스템</p>
         </div>
       </div>
     </div>

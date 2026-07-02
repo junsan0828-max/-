@@ -194,7 +194,6 @@ export default function MemberForm({ memberId }: Props) {
                   <SelectContent>
                     <SelectItem value="male">남성</SelectItem>
                     <SelectItem value="female">여성</SelectItem>
-                    <SelectItem value="other">기타</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -241,8 +240,23 @@ export default function MemberForm({ memberId }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="visitRoute" className="text-sm text-muted-foreground">유입경로</Label>
-              <Input id="visitRoute" value={form.visitRoute} onChange={(e) => setForm((p) => ({ ...p, visitRoute: e.target.value }))} placeholder="지인 소개, SNS, 검색 등" className="bg-input border-border" />
+              <Label className="text-sm text-muted-foreground">유입경로</Label>
+              <Select value={form.visitRoute || "__none"} onValueChange={(v) => setForm((p) => ({ ...p, visitRoute: v === "__none" ? "" : v }))}>
+                <SelectTrigger className="bg-input border-border">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">선택 안함</SelectItem>
+                  <SelectItem value="지인 소개">지인 소개</SelectItem>
+                  <SelectItem value="네이버플레이스">네이버플레이스</SelectItem>
+                  <SelectItem value="당근광고">당근광고</SelectItem>
+                  <SelectItem value="인스타그램">인스타그램</SelectItem>
+                  <SelectItem value="간판/현수막">간판/현수막</SelectItem>
+                  <SelectItem value="전단지">전단지</SelectItem>
+                  <SelectItem value="재등록">재등록</SelectItem>
+                  <SelectItem value="기타">기타</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

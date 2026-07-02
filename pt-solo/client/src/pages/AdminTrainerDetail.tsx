@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ArrowLeft, User, Activity, CreditCard, FileText, Coins, CheckCircle, XCircle, Clock, Trash2, Pencil, X, Users, Dumbbell, ClipboardCheck } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = [
@@ -16,18 +17,15 @@ const STATUS_OPTIONS = [
 ];
 
 const PLAN_OPTIONS = [
-  { value: "free", label: "FREE", desc: "회원 20명 · 계약서 월 5회" },
-  { value: "light", label: "LIGHT", desc: "개인 트레이너용" },
-  { value: "pro", label: "PRO", desc: "팀장/센터/고급" },
+  { value: "free", label: "FREE" },
+  { value: "pro", label: "PRO" },
+  { value: "elite", label: "ELITE" },
 ];
 
-function StatusBadge({ status, lastLoginAt }: { status: string; lastLoginAt?: string | null }) {
-  if (status === "suspended") return <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-500/20 text-gray-400 border-gray-500/30">비활성</span>;
-  if (status === "expired") return <span className="text-xs px-2 py-0.5 rounded-full border bg-red-500/20 text-red-400 border-red-500/30">만료</span>;
-  if (status === "trial") return <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/20 text-blue-400 border-blue-500/30">체험판</span>;
-  const days = lastLoginAt ? (Date.now() - new Date(lastLoginAt).getTime()) / (1000 * 60 * 60 * 24) : 999;
-  if (days >= 14) return <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-500/20 text-gray-400 border-gray-500/30">휴면</span>;
-  return <span className="text-xs px-2 py-0.5 rounded-full border bg-green-500/20 text-green-400 border-green-500/30">활성</span>;
+function PlanBadge({ plan }: { plan?: string }) {
+  if (plan === "elite") return <span className="text-xs px-2 py-0.5 rounded-full border bg-purple-500/20 text-purple-500 border-purple-500/30">ELITE</span>;
+  if (plan === "pro") return <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/20 text-blue-500 border-blue-500/30">PRO</span>;
+  return <span className="text-xs px-2 py-0.5 rounded-full border bg-gray-500/20 text-gray-500 border-gray-500/30">FREE</span>;
 }
 
 interface Props { trainerId: number; }
@@ -37,6 +35,26 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   const utils = trpc.useUtils();
   const { data: t, isLoading } = trpc.admin.getTrainer.useQuery({ trainerId });
 
+  // 플랜별 회원 한도
+  const { data: memberLimits } = trpc.fitStepPlus.admin_getMemberLimits.useQuery();
+  const [limitDraft, setLimitDraft] = useState<{ free: string; pro: string; elite: string } | null>(null);
+  const updateMemberLimitsMutation = trpc.fitStepPlus.admin_updateMemberLimits.useMutation({
+    onSuccess: () => { toast.success("플랜 인원 한도가 저장되었습니다."); utils.fitStepPlus.admin_getMemberLimits.invalidate(); setLimitDraft(null); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const [activityModal, setActivityModal] = useState<"members" | "sessions" | "attendances" | null>(null);
+
+  const { data: membersDetail } = trpc.admin.getTrainerMembersDetail.useQuery(
+    { trainerId }, { enabled: activityModal === "members" }
+  );
+  const { data: sessionsDetail } = trpc.admin.getTrainerSessionsDetail.useQuery(
+    { trainerId }, { enabled: activityModal === "sessions" }
+  );
+  const { data: attendancesDetail } = trpc.admin.getTrainerAttendancesDetail.useQuery(
+    { trainerId }, { enabled: activityModal === "attendances" }
+  );
+
   const [subStatus, setSubStatus] = useState("");
   const [subEndDate, setSubEndDate] = useState("");
   const [planValue, setPlanValue] = useState("");
@@ -44,10 +62,23 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   const [memoEdit, setMemoEdit] = useState(false);
   const [grantAmount, setGrantAmount] = useState("");
   const [grantMemo, setGrantMemo] = useState("");
+  const [infoEdit, setInfoEdit] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
 
   const updateMutation = trpc.admin.updateTrainer.useMutation({
     onSuccess: () => { toast.success("저장되었습니다."); utils.admin.getTrainer.invalidate({ trainerId }); utils.admin.listTrainers.invalidate(); setMemoEdit(false); },
     onError: e => toast.error(e.message),
+  });
+
+  const deleteMutation = trpc.admin.deleteTrainer.useMutation({
+    onSuccess: () => {
+      utils.admin.listTrainers.invalidate();
+      toast.success("STEPER 계정이 삭제되었습니다");
+      setLocation("/admin/trainers");
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   const toggleActiveMutation = trpc.admin.toggleUserActive.useMutation({
@@ -56,6 +87,15 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   });
 
   const { data: pointData, refetch: refetchPoints } = trpc.admin.getTrainerPoints.useQuery({ trainerId });
+  const { data: planRequests, refetch: refetchPlanReqs } = trpc.fitStepPlus.admin_listPlanPurchaseRequests.useQuery({ trainerId });
+  const approvePlanMutation = trpc.fitStepPlus.admin_approvePlanPurchase.useMutation({
+    onSuccess: () => { toast.success("플랜이 승인되었습니다."); refetchPlanReqs(); utils.admin.getTrainer.invalidate({ trainerId }); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const rejectPlanMutation = trpc.fitStepPlus.admin_rejectPlanPurchase.useMutation({
+    onSuccess: () => { toast.success("신청이 거절되었습니다."); refetchPlanReqs(); },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const grantMutation = trpc.admin.grantPoints.useMutation({
     onSuccess: () => { toast.success("포인트가 지급되었습니다."); setGrantAmount(""); setGrantMemo(""); refetchPoints(); },
@@ -68,9 +108,10 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
   });
 
   if (isLoading) return <div className="py-16 text-center text-muted-foreground text-sm">로딩 중...</div>;
-  if (!t) return <div className="py-16 text-center text-muted-foreground text-sm">트레이너를 찾을 수 없습니다.</div>;
+  if (!t) return <div className="py-16 text-center text-muted-foreground text-sm">STEPER를 찾을 수 없습니다.</div>;
 
-  const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
+  const effectiveLoginAt = t.lastLoginAt ?? (t as any).lastActivityDate ?? null;
+  const days = effectiveLoginAt ? Math.floor((Date.now() - new Date(effectiveLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
   const isSuspended = t.position === "suspended";
 
   return (
@@ -83,7 +124,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           <h1 className="text-xl font-bold">{t.trainerName}</h1>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-xs text-muted-foreground">@{t.username}</span>
-            <StatusBadge status={t.subscriptionStatus} lastLoginAt={t.lastLoginAt} />
+            <PlanBadge plan={(t as any).plan} />
           </div>
         </div>
       </div>
@@ -91,20 +132,62 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
       {/* 기본 정보 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2"><User className="h-4 w-4 text-primary" />기본 정보</CardTitle>
+          <CardTitle className="text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2"><User className="h-4 w-4 text-primary" />기본 정보</span>
+            {!infoEdit && (
+              <button
+                onClick={() => { setEditName(t.trainerName ?? ""); setEditPhone(t.phone ?? ""); setEditEmail(t.email ?? ""); setInfoEdit(true); }}
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <Pencil className="h-3 w-3" />수정
+              </button>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {[
-            ["연락처", t.phone ?? "-"],
-            ["이메일", t.email ?? "-"],
-            ["가입일", t.createdAt?.slice(0, 10) ?? "-"],
-            ["마지막 접속", t.lastLoginAt ? `${t.lastLoginAt.slice(0, 10)} (${days}일 전)` : "없음"],
-          ].map(([label, value]) => (
-            <div key={label} className="flex justify-between py-1 border-b border-border/50 last:border-0">
-              <span className="text-muted-foreground">{label}</span>
-              <span className="font-medium">{value}</span>
+          {infoEdit ? (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">이름</label>
+                <Input value={editName} onChange={e => setEditName(e.target.value)} className="h-9 text-sm bg-input border-border" placeholder="STEPER 이름" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">연락처</label>
+                <Input value={editPhone} onChange={e => setEditPhone(e.target.value)} className="h-9 text-sm bg-input border-border" placeholder="010-0000-0000" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">이메일</label>
+                <Input value={editEmail} onChange={e => setEditEmail(e.target.value)} className="h-9 text-sm bg-input border-border" placeholder="email@example.com" />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setInfoEdit(false)}>취소</Button>
+                <Button size="sm" className="flex-1" disabled={updateMutation.isPending}
+                  onClick={() => updateMutation.mutate({
+                    trainerId,
+                    trainerName: editName.trim() || undefined,
+                    phone: editPhone.trim() || null,
+                    email: editEmail.trim() || null,
+                  }, { onSuccess: () => setInfoEdit(false) })}>
+                  {updateMutation.isPending ? "저장 중..." : "저장"}
+                </Button>
+              </div>
             </div>
-          ))}
+          ) : (
+            <>
+              {[
+                ["이름", t.trainerName ?? "-"],
+                ["연락처", t.phone ?? "-"],
+                ["이메일", t.email ?? "-"],
+                ["가입일", t.createdAt?.slice(0, 10) ?? "-"],
+                ["마지막 접속", effectiveLoginAt ? `${effectiveLoginAt.slice(0, 10)} (${days}일 전)` : "없음"],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between py-1 border-b border-border/50 last:border-0">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium">{value}</span>
+                </div>
+              ))}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -115,17 +198,144 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
         </CardHeader>
         <CardContent className="grid grid-cols-3 gap-2">
           {[
-            { label: "관리 회원", value: `${t.memberCount}명`, color: "text-blue-400" },
-            { label: "PT 세션", value: `${t.sessionCount}회`, color: "text-green-400" },
-            { label: "출석 체크", value: `${t.attendanceCount}회`, color: "text-purple-400" },
+            { label: "관리 회원", value: `${t.memberCount}명`, color: "text-blue-400", modal: "members" as const },
+            { label: "수업", value: `${t.sessionCount}회`, color: "text-green-400", modal: "sessions" as const },
+            { label: "출석 체크", value: `${t.attendanceCount}회`, color: "text-purple-400", modal: "attendances" as const },
           ].map(item => (
-            <div key={item.label} className="p-2.5 rounded-lg bg-accent/20 border border-border text-center">
+            <button
+              key={item.label}
+              onClick={() => setActivityModal(item.modal)}
+              className="p-2.5 rounded-lg bg-accent/20 border border-border text-center hover:border-primary/40 hover:bg-accent/40 transition-colors"
+            >
               <p className="text-xs text-muted-foreground mb-1">{item.label}</p>
               <p className={`text-lg font-bold ${item.color}`}>{item.value}</p>
-            </div>
+            </button>
           ))}
         </CardContent>
       </Card>
+
+      {/* 활동 정보 모달 - 회원 */}
+      <Dialog open={activityModal === "members"} onOpenChange={o => !o && setActivityModal(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4 text-blue-400" />관리 회원 목록
+            </DialogTitle>
+          </DialogHeader>
+          {!membersDetail ? (
+            <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+          ) : membersDetail.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">등록된 회원이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {membersDetail.map((m: any) => (
+                <div key={m.id} className="px-3 py-2.5 rounded-lg bg-accent/20 border border-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{m.name}</p>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
+                      m.status === "active" ? "bg-green-500/15 text-green-400 border-green-500/30"
+                      : m.status === "expired" ? "bg-red-500/15 text-red-400 border-red-500/30"
+                      : "bg-slate-500/15 text-slate-400 border-slate-500/30"
+                    }`}>{m.status === "active" ? "활성" : m.status === "expired" ? "만료" : m.status}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    {m.phone && <span>📞 {m.phone}</span>}
+                    {m.gender && <span>{m.gender}</span>}
+                    {m.membershipStart && <span>시작 {m.membershipStart}</span>}
+                    {m.membershipEnd && <span>만료 {m.membershipEnd}</span>}
+                  </div>
+                  <div className="flex gap-3 text-xs">
+                    <span className="text-green-400 font-medium">잔여 {m.remainingSessions}회</span>
+                    <span className="text-muted-foreground">총 {m.totalSessions}회 / 완료 {m.usedSessions}회</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 활동 정보 모달 - 수업 */}
+      <Dialog open={activityModal === "sessions"} onOpenChange={o => !o && setActivityModal(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Dumbbell className="h-4 w-4 text-green-400" />수업 기록 (최근 100건)
+            </DialogTitle>
+          </DialogHeader>
+          {!sessionsDetail ? (
+            <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+          ) : sessionsDetail.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">수업 기록이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {sessionsDetail.map((s: any) => (
+                <div key={s.id} className="px-3 py-2.5 rounded-lg bg-accent/20 border border-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{s.memberName ?? "알 수 없음"}</p>
+                    <span className="text-xs text-muted-foreground">{s.sessionDate}</span>
+                  </div>
+                  {s.bodyPart && <p className="text-xs text-primary">{s.bodyPart}</p>}
+                  {s.feedback && <p className="text-xs text-muted-foreground line-clamp-2">{s.feedback}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 활동 정보 모달 - 출석 체크 */}
+      <Dialog open={activityModal === "attendances"} onOpenChange={o => !o && setActivityModal(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ClipboardCheck className="h-4 w-4 text-purple-400" />출석 체크 기록 (최근 100건)
+            </DialogTitle>
+          </DialogHeader>
+          {!attendancesDetail ? (
+            <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+          ) : attendancesDetail.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">출석 체크 기록이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {attendancesDetail.map((a: any) => (
+                <div key={a.id} className="px-3 py-2.5 rounded-lg bg-accent/20 border border-border space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{a.memberName ?? "알 수 없음"}</p>
+                    <span className="text-xs text-muted-foreground">{a.checkDate}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    {a.conditionScore != null && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-muted-foreground">컨디션</span>
+                        <span className={`font-bold ${a.conditionScore >= 4 ? "text-green-400" : a.conditionScore >= 3 ? "text-yellow-400" : "text-red-400"}`}>{a.conditionScore}/5</span>
+                      </span>
+                    )}
+                    {a.sleepHours != null && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-muted-foreground">수면</span>
+                        <span className="font-medium">{a.sleepHours}h</span>
+                      </span>
+                    )}
+                    {a.energyLevel != null && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-muted-foreground">에너지</span>
+                        <span className="font-medium">{a.energyLevel}/5</span>
+                      </span>
+                    )}
+                    {a.painLevel != null && a.painLevel > 0 && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-red-400">통증</span>
+                        <span className="font-medium text-red-400">{a.painLevel}/5{a.painArea ? ` (${a.painArea})` : ""}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 플랜 관리 */}
       <Card className="bg-card border-border">
@@ -144,7 +354,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                       : "border-border text-muted-foreground hover:border-primary/40"
                   }`}>
                   <p>{o.label}</p>
-                  <p className="text-[10px] font-normal opacity-70 mt-0.5">{o.desc}</p>
+                  <p className="text-[10px] font-normal opacity-70 mt-0.5">유효회원 {memberLimits?.[o.value] ?? "—"}명</p>
                 </button>
               ))}
             </div>
@@ -170,6 +380,72 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
             plan: (planValue || (t as any).plan || "free") as any,
           })} disabled={updateMutation.isPending}>
             {updateMutation.isPending ? "저장 중..." : "저장"}
+          </Button>
+
+          {/* 플랜 구매 신청 */}
+          {planRequests && planRequests.length > 0 && (
+            <div className="space-y-2 pt-1 border-t border-border">
+              <p className="text-xs font-semibold text-orange-400">플랜 구매 신청</p>
+              {planRequests.map(req => (
+                <div key={req.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-xs">
+                  <div>
+                    <p className="font-medium">{req.plan.toUpperCase()} — {req.amount.toLocaleString()}원</p>
+                    <p className="text-muted-foreground">입금자: {req.depositor} · {req.createdAt.slice(0, 10)}</p>
+                    {req.status !== "pending" && (
+                      <p className={req.status === "approved" ? "text-green-400" : "text-red-400"}>
+                        {req.status === "approved" ? "승인됨" : "거절됨"}
+                      </p>
+                    )}
+                  </div>
+                  {req.status === "pending" && (
+                    <div className="flex gap-1.5 shrink-0">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs border-red-500/40 text-red-400 hover:bg-red-500/10"
+                        disabled={rejectPlanMutation.isPending}
+                        onClick={() => rejectPlanMutation.mutate({ requestId: req.id })}>거절</Button>
+                      <Button size="sm" className="h-7 px-2 text-xs"
+                        disabled={approvePlanMutation.isPending}
+                        onClick={() => approvePlanMutation.mutate({ requestId: req.id, trainerId, plan: req.plan as "pro" | "elite" })}>승인</Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 플랜별 회원 한도 설정 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2"><CreditCard className="h-4 w-4 text-amber-500" />플랜별 회원 수 한도 설정</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">플랜마다 등록 가능한 유효회원 수 한도를 설정합니다. 변경 시 모든 STEPER에게 적용됩니다.</p>
+          {["free", "pro", "elite"].map(plan => (
+            <div key={plan} className="flex items-center gap-3">
+              <span className={`text-xs font-bold w-12 ${plan === "elite" ? "text-purple-500" : plan === "pro" ? "text-blue-500" : "text-gray-500"}`}>
+                {plan.toUpperCase()}
+              </span>
+              <Input
+                type="number" min={1} max={9999}
+                value={limitDraft?.[plan as "free"|"pro"|"elite"] ?? String(memberLimits?.[plan] ?? "")}
+                onChange={e => setLimitDraft(prev => ({ free: String(memberLimits?.free ?? 7), pro: String(memberLimits?.pro ?? 15), elite: String(memberLimits?.elite ?? 35), ...prev, [plan]: e.target.value }))}
+                className="h-9 w-24 text-sm bg-input border-border"
+              />
+              <span className="text-xs text-muted-foreground">명</span>
+            </div>
+          ))}
+          <Button size="sm" className="w-full"
+            disabled={updateMemberLimitsMutation.isPending || !limitDraft}
+            onClick={() => {
+              if (!limitDraft) return;
+              updateMemberLimitsMutation.mutate({
+                free: parseInt(limitDraft.free) || (memberLimits?.free ?? 7),
+                pro: parseInt(limitDraft.pro) || (memberLimits?.pro ?? 15),
+                elite: parseInt(limitDraft.elite) || (memberLimits?.elite ?? 35),
+              });
+            }}>
+            {updateMemberLimitsMutation.isPending ? "저장 중..." : "한도 저장"}
           </Button>
         </CardContent>
       </Card>
@@ -218,12 +494,10 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
           {/* 지급 폼 */}
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground">포인트 지급</label>
-            <div className="flex gap-2">
-              <Input type="number" placeholder="금액" value={grantAmount} onChange={e => setGrantAmount(e.target.value)}
-                className="h-9 text-sm bg-input border-border" />
-              <Input placeholder="메모" value={grantMemo} onChange={e => setGrantMemo(e.target.value)}
-                className="h-9 text-sm bg-input border-border flex-1" />
-            </div>
+            <Input type="number" placeholder="금액" value={grantAmount} onChange={e => setGrantAmount(e.target.value)}
+              className="h-9 text-sm bg-input border-border" />
+            <Input placeholder="메모 (선택)" value={grantMemo} onChange={e => setGrantMemo(e.target.value)}
+              className="h-9 text-sm bg-input border-border" />
             <Button size="sm" className="w-full" disabled={!grantAmount || grantMutation.isPending}
               onClick={() => grantMutation.mutate({ trainerId, amount: Number(grantAmount), memo: grantMemo || undefined })}>
               {grantMutation.isPending ? "지급 중..." : "포인트 지급"}
@@ -268,7 +542,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
 
       {/* 계정 제어 */}
       <Card className="bg-card border-red-500/20">
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-2">
           <Button
             variant="outline"
             className={`w-full ${isSuspended ? "border-green-500/50 text-green-400 hover:bg-green-500/10" : "border-red-500/50 text-red-400 hover:bg-red-500/10"}`}
@@ -276,6 +550,18 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
             disabled={toggleActiveMutation.isPending || t.userId == null}
           >
             {isSuspended ? "계정 활성화" : "계정 비활성화"}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full border-red-700/60 text-red-500 hover:bg-red-500/10 gap-2"
+            onClick={() => {
+              if (!confirm(`${t.trainerName ?? t.username} 계정을 완전히 삭제하시겠습니까?\n\n회원, PT 기록, 포인트 등 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`)) return;
+              deleteMutation.mutate({ userId: t.userId ?? undefined, trainerId: t.id });
+            }}
+            disabled={deleteMutation.isPending}
+          >
+            <Trash2 className="h-4 w-4" />
+            계정 영구 삭제
           </Button>
         </CardContent>
       </Card>

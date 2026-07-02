@@ -1,35 +1,35 @@
 import { useEffect, useState } from "react";
 
 const CONTRACT_TERMS = `제1조 (목적)
-본 약관은 자이언트짐(이하 "센터")이 제공하는 피트니스 서비스 이용에 관한 제반 사항을 규정함을 목적으로 합니다.
+본 약관은 (이하 "운영자")이 제공하는 운동 프로그램 및 맞춤형 피트니스 서비스(이하 "프로그램")의 이용에 관한 제반 사항을 규정함을 목적으로 합니다.
 
-제2조 (회원의 의무)
-① 회원은 센터의 시설 및 기구를 타인에게 피해가 가지 않도록 올바르게 사용하여야 합니다.
-② 회원은 센터 내에서 타인을 방해하거나 불쾌감을 주는 행위를 하여서는 안 됩니다.
-③ 운동 후 사용한 기구는 반드시 제자리에 정리하여야 합니다.
-④ 센터 내 음식물 반입은 허용되지 않으며, 음료는 개인 물병만 허용합니다.
+제2조 (참여자의 의무)
+① 참여자는 프로그램 진행 중 타인에게 피해가 가지 않도록 안전수칙 및 지도 내용을 준수하여야 합니다.
+② 참여자는 프로그램 진행을 방해하거나 타인에게 불쾌감을 주는 행위를 하여서는 안 됩니다.
+③ 참여자는 프로그램에 사용된 운동 도구 및 장비를 올바르게 사용하고 정리하여야 합니다.
+④ 프로그램 진행 공간 내 음식물 반입은 제한되며, 음료는 개인 물병만 허용합니다.
 
-제3조 (이용 시간 및 시설)
-① 센터의 운영 시간은 별도 공지에 따릅니다.
-② 회원은 운영 시간 내에만 센터를 이용할 수 있습니다.
-③ 공휴일 및 센터 사정에 따라 운영 시간이 변경될 수 있으며, 이 경우 사전에 공지합니다.
+제3조 (프로그램 운영 및 이용)
+① 프로그램 운영 일정 및 시간은 별도 안내에 따릅니다.
+② 참여자는 운영 시간 및 예약된 일정 내에서만 프로그램을 이용할 수 있습니다.
+③ 운영자의 사정, 공휴일 또는 기타 불가피한 상황에 따라 일정이 변경될 수 있으며, 이 경우 사전에 공지합니다.
 
-제4조 (이용권 및 환불)
-① PT 이용권은 계약 시작일로부터 효력이 발생합니다.
-② 이용권의 환불은 관련 법령 및 센터 환불 규정에 따릅니다.
-③ 회원 개인 사정으로 인한 중도 해지 시 잔여 횟수에 따라 환불이 이루어집니다.
-④ 부상·질병 등 불가피한 사유가 있을 경우 이용 정지 신청이 가능합니다.
+제4조 (프로그램 이용권 및 환불)
+① 프로그램 이용권은 계약 또는 등록 완료일로부터 효력이 발생합니다.
+② 이용권의 환불은 관련 법령 및 별도 환불 규정에 따릅니다.
+③ 참여자의 개인 사정으로 중도 해지할 경우, 잔여 이용 횟수 및 이용 기간에 따라 환불이 진행됩니다.
+④ 부상·질병 등 불가피한 사유가 있는 경우 운영자와 협의 후 이용 정지 신청이 가능합니다.
 
 제5조 (면책 조항)
-① 센터는 회원이 센터 내에서 발생한 사고에 대해 센터의 과실이 없는 경우 책임을 지지 않습니다.
-② 개인 소지품 분실에 대해 센터는 책임을 지지 않습니다.
-③ 회원은 자신의 건강 상태를 정확히 고지하여야 하며, 허위 고지로 인한 문제는 회원 본인이 책임집니다.
+① 운영자는 프로그램 진행 과정에서 운영자의 고의 또는 중대한 과실이 없는 사고에 대해 책임을 지지 않습니다.
+② 참여자의 개인 소지품 분실 및 도난에 대해 운영자는 책임을 지지 않습니다.
+③ 참여자는 자신의 건강 상태 및 병력 등을 정확히 고지하여야 하며, 허위 또는 누락된 정보로 인해 발생한 문제에 대한 책임은 참여자 본인에게 있습니다.
 
-제6조 (회원 자격 박탈)
-다음 각 호에 해당하는 경우 센터는 회원 자격을 박탈할 수 있습니다.
+제6조 (참여 제한 및 자격 박탈)
+다음 각 호에 해당하는 경우 운영자는 프로그램 참여를 제한하거나 자격을 박탈할 수 있습니다.
 ① 타인에게 폭언·폭행 등 위해를 가한 경우
-② 센터 시설물을 고의로 파손한 경우
-③ 본 약관을 위반한 경우`;
+② 프로그램 운영 장비 및 시설을 고의로 파손한 경우
+③ 본 약관 및 운영 방침을 위반한 경우`;
 
 const PRIVACY_TERMS = `수집하는 개인정보 항목
 - 필수항목: 성명, 연락처, 성별, 생년월일
@@ -84,6 +84,14 @@ export default function ContractPrint() {
   const phone = params.get("phone") || "";
   const date = params.get("date") || new Date().toLocaleDateString("ko-KR");
   const marketing = params.get("marketing") === "1";
+  const showKakao = params.get("showKakao") === "1";
+  const trainerName = params.get("trainerName") || "";
+  const gymName = params.get("gymName") || "";
+  const centerLabel = gymName || trainerName || "센터";
+  const storedTerms = (() => { try { return JSON.parse(sessionStorage.getItem("contractTerms") || "{}"); } catch { return {}; } })();
+  const contractTermsText = (storedTerms.termsOfService || CONTRACT_TERMS).split("자이언트짐").join(centerLabel);
+  const privacyTermsText = (storedTerms.privacyPolicy || PRIVACY_TERMS).split("자이언트짐").join(centerLabel);
+  const marketingTermsText = (storedTerms.marketingConsent || MARKETING_TERMS).split("자이언트짐").join(centerLabel);
   const [signatureImg, setSignatureImg] = useState<string>("");
 
   useEffect(() => {
@@ -125,10 +133,12 @@ export default function ContractPrint() {
 
       {/* 버튼 (화면에서만 보임) */}
       <div className="no-print fixed top-4 right-4 z-50 flex gap-2">
-        <button onClick={handleKakaoShare}
-          className="bg-yellow-400 text-gray-900 px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-yellow-500 transition-colors flex items-center gap-1.5">
-          💬 카카오 공유
-        </button>
+        {showKakao && (
+          <button onClick={handleKakaoShare}
+            className="bg-yellow-400 text-gray-900 px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-yellow-500 transition-colors flex items-center gap-1.5">
+            💬 카카오 공유
+          </button>
+        )}
         <button onClick={handlePrint}
           className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5">
           🖨️ PDF 저장 / 인쇄
@@ -140,8 +150,8 @@ export default function ContractPrint() {
 
         {/* 헤더 */}
         <div className="text-center mb-8 border-b-2 border-gray-800 pb-6">
-          <h1 className="text-3xl font-bold tracking-wide mb-1">자이언트짐</h1>
-          <p className="text-base text-gray-500">GIANT GYM</p>
+          <h1 className="text-3xl font-bold tracking-wide mb-1">{gymName || trainerName || "센터"}</h1>
+          {gymName && trainerName && <p className="text-sm text-gray-500">{trainerName} STEPER</p>}
           <h2 className="text-xl font-bold mt-4 tracking-widest">회 원 계 약 서</h2>
         </div>
 
@@ -171,7 +181,7 @@ export default function ContractPrint() {
             센터 이용 약관
           </h3>
           <div className="section-box border border-gray-200 rounded-lg p-4 bg-gray-50 text-xs leading-relaxed whitespace-pre-wrap text-gray-700" style={{ fontSize: "11px" }}>
-            {CONTRACT_TERMS}
+            {contractTermsText}
           </div>
           <div className="mt-3 flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-bold text-sm">✓</div>
@@ -186,7 +196,7 @@ export default function ContractPrint() {
             개인정보 수집·이용 동의서
           </h3>
           <div className="section-box border border-gray-200 rounded-lg p-4 bg-gray-50 text-xs leading-relaxed whitespace-pre-wrap text-gray-700" style={{ fontSize: "11px" }}>
-            {PRIVACY_TERMS}
+            {privacyTermsText}
           </div>
           <div className="mt-3 flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-bold text-sm">✓</div>
@@ -201,7 +211,7 @@ export default function ContractPrint() {
             광고성 정보 수신 동의서
           </h3>
           <div className="section-box border border-gray-200 rounded-lg p-4 bg-gray-50 text-xs leading-relaxed whitespace-pre-wrap text-gray-700" style={{ fontSize: "11px" }}>
-            {MARKETING_TERMS}
+            {marketingTermsText}
           </div>
           <div className="mt-3 flex items-center gap-3">
             <div className={`w-5 h-5 border-2 border-gray-600 rounded flex items-center justify-center text-gray-800 font-bold text-sm ${marketing ? "" : "opacity-30"}`}>
@@ -240,7 +250,7 @@ export default function ContractPrint() {
             </div>
           </div>
           <div className="mt-8 text-center">
-            <p className="text-sm text-gray-600 font-semibold">자이언트짐 센터장</p>
+            <p className="text-sm text-gray-600 font-semibold">{gymName ? `${gymName} ` : ""}{trainerName || "STEPER"}</p>
             <div className="mt-2 inline-block border-b border-gray-400 w-40 pb-8"></div>
             <span className="text-xs text-gray-400 ml-2">(서명/인)</span>
           </div>
@@ -248,7 +258,7 @@ export default function ContractPrint() {
 
         {/* 푸터 */}
         <div className="mt-10 border-t border-gray-200 pt-4 text-center text-xs text-gray-400">
-          자이언트짐 · 본 계약서는 등록 시 작성되었습니다
+          {gymName || trainerName || "FIT STEP"} · 본 계약서는 등록 시 작성되었습니다
         </div>
       </div>
     </>

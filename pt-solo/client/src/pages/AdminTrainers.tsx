@@ -5,27 +5,32 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Search, ChevronRight, AlertTriangle } from "lucide-react";
 
-type SubStatus = "trial" | "active" | "expired" | "suspended";
+function getPlanBadge(plan?: string): { label: string; color: string; key: string } {
+  if (plan === "elite") return { label: "ELITE", color: "bg-purple-500/20 text-purple-500 border-purple-500/30", key: "elite" };
+  if (plan === "pro") return { label: "PRO", color: "bg-blue-500/20 text-blue-500 border-blue-500/30", key: "pro" };
+  return { label: "FREE", color: "bg-gray-500/20 text-gray-500 border-gray-500/30", key: "free" };
+}
 
-function getDisplayStatus(t: { subscriptionStatus: string; lastLoginAt?: string | null }): { label: string; color: string; key: string } {
-  const sub = t.subscriptionStatus as SubStatus;
-  if (sub === "suspended") return { label: "비활성", color: "bg-gray-500/20 text-gray-400 border-gray-500/30", key: "suspended" };
-  if (sub === "expired") return { label: "만료", color: "bg-red-500/20 text-red-400 border-red-500/30", key: "expired" };
-  if (sub === "trial") return { label: "체험판", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", key: "trial" };
+function effectiveDays(t: { lastLoginAt?: string | null; lastActivityDate?: string | null }): number {
+  const ref = t.lastLoginAt ?? (t as any).lastActivityDate ?? null;
+  if (!ref) return 999;
+  return (Date.now() - new Date(ref).getTime()) / (1000 * 60 * 60 * 24);
+}
 
-  if (!t.lastLoginAt) return { label: "체험판", color: "bg-blue-500/20 text-blue-400 border-blue-500/30", key: "trial" };
-  const days = (Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24);
-  if (days >= 14) return { label: "휴면", color: "bg-gray-500/20 text-gray-400 border-gray-500/30", key: "dormant" };
-  return { label: "활성", color: "bg-green-500/20 text-green-400 border-green-500/30", key: "active" };
+function getRiskReasons(t: { lastLoginAt?: string | null; lastActivityDate?: string | null; memberCount: number; sessionCount: number }): string[] {
+  const days = effectiveDays(t);
+  return [
+    days >= 14 ? `${Math.floor(days)}일 미접속` : null,
+    t.memberCount === 0 ? "회원 없음" : null,
+    t.sessionCount === 0 ? "PT 기록 없음" : null,
+  ].filter(Boolean) as string[];
 }
 
 const FILTERS = [
   { key: "all", label: "전체" },
-  { key: "active", label: "활성" },
-  { key: "dormant", label: "휴면" },
-  { key: "trial", label: "체험판" },
-  { key: "expired", label: "만료" },
-  { key: "suspended", label: "비활성" },
+  { key: "free", label: "FREE" },
+  { key: "pro", label: "PRO" },
+  { key: "elite", label: "ELITE" },
 ];
 
 export default function AdminTrainers() {
@@ -34,30 +39,31 @@ export default function AdminTrainers() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
-  const riskList = useMemo(() => {
-    if (!trainerList) return [];
-    return trainerList.filter(t => {
-      const days = t.lastLoginAt ? (Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24) : 999;
-      return days >= 14 || t.memberCount === 0 || t.sessionCount === 0;
-    });
-  }, [trainerList]);
-
   const filtered = useMemo(() => {
     if (!trainerList) return [];
     return trainerList.filter(t => {
-      const status = getDisplayStatus(t);
-      const matchFilter = filter === "all" || status.key === filter;
+      const planKey = getPlanBadge((t as any).plan).key;
+      const matchFilter = filter === "all" || planKey === filter;
       const q = search.toLowerCase();
       const matchSearch = !q || t.trainerName.toLowerCase().includes(q) || (t.username ?? "").toLowerCase().includes(q) || (t.phone ?? "").includes(q);
       return matchFilter && matchSearch;
     });
   }, [trainerList, search, filter]);
 
+  const riskCount = useMemo(() => filtered.filter(t => getRiskReasons(t).length > 0).length, [filtered]);
+
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold">트레이너 관리</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">총 {trainerList?.length ?? 0}명</p>
+        <h1 className="text-xl font-bold">STEPER 관리</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          총 {trainerList?.length ?? 0}명
+          {riskCount > 0 && (
+            <span className="ml-2 inline-flex items-center gap-1 text-orange-400">
+              <AlertTriangle className="h-3 w-3" />관리 필요 {riskCount}명
+            </span>
+          )}
+        </p>
       </div>
 
       {/* 검색 */}
@@ -86,44 +92,21 @@ export default function AdminTrainers() {
         ))}
       </div>
 
-      {/* 위험군 알림 */}
-      {riskList.length > 0 && filter === "all" && !search && (
-        <Card className="bg-card border-orange-500/30">
-          <CardContent className="p-3 space-y-1.5">
-            <p className="text-xs font-semibold text-orange-400 flex items-center gap-1.5">
-              <AlertTriangle className="h-3.5 w-3.5" />관리 필요 트레이너 {riskList.length}명
-            </p>
-            {riskList.map(t => {
-              const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
-              const reasons = [
-                days !== null && days >= 14 ? `${days}일 미접속` : null,
-                t.memberCount === 0 ? "회원 없음" : null,
-                t.sessionCount === 0 ? "PT 기록 없음" : null,
-              ].filter(Boolean);
-              return (
-                <button key={t.id} onClick={() => setLocation(`/admin/trainers/${t.id}`)}
-                  className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 hover:border-orange-500/40 transition-colors text-left">
-                  <span className="text-sm font-medium">{t.trainerName}</span>
-                  <span className="text-xs text-orange-400">{reasons.join(" · ")}</span>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 트레이너 목록 */}
+      {/* STEPER 목록 */}
       <div className="space-y-2">
         {filtered.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-8">트레이너가 없습니다.</p>
+          <p className="text-sm text-muted-foreground text-center py-8">STEPER가 없습니다.</p>
         )}
         {filtered.map(t => {
-          const status = getDisplayStatus(t);
-          const days = t.lastLoginAt ? Math.floor((Date.now() - new Date(t.lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
+          const plan = getPlanBadge((t as any).plan);
+          const rawDays = effectiveDays(t);
+          const days = rawDays < 999 ? Math.floor(rawDays) : null;
+          const risks = getRiskReasons(t);
+          const isRisk = risks.length > 0;
           return (
             <button key={t.id} onClick={() => setLocation(`/admin/trainers/${t.id}`)}
               className="w-full text-left">
-              <Card className="bg-card border-border hover:border-primary/40 transition-colors">
+              <Card className={`bg-card transition-colors ${isRisk ? "border-orange-500/30 hover:border-orange-500/50" : "border-border hover:border-primary/40"}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -131,11 +114,12 @@ export default function AdminTrainers() {
                       <p className="text-xs text-muted-foreground">@{t.username}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${status.color}`}>{status.label}</span>
+                      {isRisk && <span className="text-xs text-orange-400">{risks.join(" · ")}</span>}
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${plan.color}`}>{plan.label}</span>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-4 gap-1.5 text-center">
                     <div className="rounded-md bg-accent/20 py-1.5">
                       <p className="text-xs text-muted-foreground">회원</p>
                       <p className="text-sm font-bold text-blue-400">{t.memberCount}명</p>
@@ -143,6 +127,10 @@ export default function AdminTrainers() {
                     <div className="rounded-md bg-accent/20 py-1.5">
                       <p className="text-xs text-muted-foreground">PT 세션</p>
                       <p className="text-sm font-bold text-green-400">{t.sessionCount}회</p>
+                    </div>
+                    <div className="rounded-md bg-accent/20 py-1.5">
+                      <p className="text-xs text-muted-foreground">소개</p>
+                      <p className="text-sm font-bold text-amber-400">{(t as any).referralCount ?? 0}명</p>
                     </div>
                     <div className="rounded-md bg-accent/20 py-1.5">
                       <p className="text-xs text-muted-foreground">마지막 접속</p>

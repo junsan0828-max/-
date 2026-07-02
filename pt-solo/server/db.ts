@@ -34,11 +34,12 @@ export async function getDashboardStats(trainerId: number) {
     const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1).toISOString().split("T")[0];
     const monthEnd = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 1).toISOString().split("T")[0];
 
-    const [totalMembersResult, activeMembersResult, totalPtResult, todayAttendancesResult, trainerSettingsResult] =
+    const [totalMembersResult, activeMembersResult, totalPtResult, monthPtResult, todayAttendancesResult, trainerSettingsResult] =
       await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId)),
         db.select({ count: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, trainerId), eq(members.status, "active"))),
         db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, trainerId)),
+        db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(and(eq(ptSessionLogs.trainerId, trainerId), sql`${ptSessionLogs.sessionDate} >= ${monthStart}`, sql`${ptSessionLogs.sessionDate} < ${monthEnd}`)),
         db.select({ count: sql<number>`COUNT(*)` }).from(attendances).where(and(eq(attendances.trainerId, trainerId), eq(attendances.status, "attended"), eq(attendances.attendDate, today))),
         db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainerId)).limit(1),
       ]);
@@ -46,6 +47,7 @@ export async function getDashboardStats(trainerId: number) {
     const totalMembers = Number(totalMembersResult[0]?.count ?? 0);
     const activeMembers = Number(activeMembersResult[0]?.count ?? 0);
     const totalPtSessions = Number(totalPtResult[0]?.count ?? 0);
+    const monthPtSessions = Number(monthPtResult[0]?.count ?? 0);
     const todayAttendances = Number(todayAttendancesResult[0]?.count ?? 0);
     const settlementRate = Number(trainerSettingsResult[0]?.settlementRate ?? 50);
 
@@ -86,9 +88,9 @@ export async function getDashboardStats(trainerId: number) {
     const monthlySettlement = Math.round(monthRevenue * settlementRate / 100);
     const dailySettlement = Math.round(todayRevenue * settlementRate / 100);
 
-    return { totalMembers, activeMembers, todayAttendances, totalPtSessions, settlementAmount: monthlySettlement, noShowCount: 0, dailySettlement, monthlySettlement };
+    return { totalMembers, activeMembers, todayAttendances, totalPtSessions, monthPtSessions, settlementAmount: monthlySettlement, noShowCount: 0, dailySettlement, monthlySettlement };
   } catch (error) {
     console.error("[getDashboardStats] Error:", error);
-    return { totalMembers: 0, activeMembers: 0, todayAttendances: 0, totalPtSessions: 0, settlementAmount: 0, noShowCount: 0, dailySettlement: 0, monthlySettlement: 0 };
+    return { totalMembers: 0, activeMembers: 0, todayAttendances: 0, totalPtSessions: 0, monthPtSessions: 0, settlementAmount: 0, noShowCount: 0, dailySettlement: 0, monthlySettlement: 0 };
   }
 }

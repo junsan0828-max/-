@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
+  Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed, ScanLine, UserPlus,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#0
 
 // ─── 운영자(Admin) SaaS 대시보드 ──────────────────────────────────────────────
 function AdminDashboard() {
+  const [, setLocation] = useLocation();
   const { data: stats } = trpc.admin.getSaasStats.useQuery();
   const { data: trainerList } = trpc.admin.listTrainers.useQuery();
 
@@ -40,9 +42,9 @@ function AdminDashboard() {
       {/* 핵심 지표 */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "가입 트레이너", value: `${stats?.totalTrainers ?? 0}명`, icon: ShieldCheck, color: "text-blue-400" },
+          { label: "가입 STEPER", value: `${stats?.totalTrainers ?? 0}명`, icon: ShieldCheck, color: "text-blue-400" },
           { label: "누적 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-green-400" },
-          { label: "누적 PT 세션", value: `${stats?.totalSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400" },
+          { label: "누적 수업", value: `${stats?.totalSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400" },
         ].map((card) => (
           <Card key={card.label} className="bg-card border-border">
             <CardContent className="p-4">
@@ -60,35 +62,38 @@ function AdminDashboard() {
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary" />가입 트레이너
+            <ShieldCheck className="h-4 w-4 text-primary" />가입 STEPER
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {!trainerList || trainerList.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">가입된 트레이너가 없습니다.</p>
+            <p className="text-sm text-muted-foreground text-center py-6">가입된 STEPER가 없습니다.</p>
           ) : (
             trainerList.map((t) => (
-              <div key={t.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border">
+              <button
+                key={t.id}
+                onClick={() => setLocation(`/admin/trainers/${t.id}`)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border hover:border-primary/30 hover:bg-accent/40 transition-colors text-left"
+              >
                 <div>
                   <p className="text-sm font-medium">{t.trainerName}</p>
                   <p className="text-xs text-muted-foreground">
                     @{t.username} · 가입 {t.createdAt?.slice(0, 10) ?? "-"}
+                    {t.phone && <span className="ml-1">· {t.phone}</span>}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs font-semibold text-blue-400">{t.memberCount}명</p>
-                  <p className="text-xs text-muted-foreground">{t.sessionCount}세션</p>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-blue-400">{t.memberCount}명</p>
+                    <p className="text-xs text-muted-foreground">{t.sessionCount}세션</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </div>
-              </div>
+              </button>
             ))
           )}
         </CardContent>
       </Card>
-
-      <div className="p-4 rounded-xl bg-primary/10 border border-primary/30">
-        <p className="text-sm font-semibold text-primary mb-1">트레이너 가입 링크</p>
-        <p className="text-xs text-muted-foreground break-all">{window.location.origin}/register</p>
-      </div>
     </div>
   );
 }
@@ -98,13 +103,31 @@ function AdminDashboard() {
 function BannerAndNotices() {
   const { data: banner } = trpc.banner.get.useQuery();
   const { data: notices } = trpc.notices.list.useQuery();
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedNotice, setSelectedNotice] = useState<{ id: number; title: string; content: string; createdAt: string } | null>(null);
 
   const hasContent = (banner?.isActive) || (notices && notices.length > 0);
   if (!hasContent) return null;
 
+  if (selectedNotice) {
+    return (
+      <div className="space-y-3">
+        <button onClick={() => setSelectedNotice(null)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          ← 이벤트 목록
+        </button>
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <span className="inline-block text-[10px] font-semibold bg-primary/20 text-primary px-2 py-0.5 rounded-full">공지</span>
+          <h2 className="text-base font-bold leading-snug">{selectedNotice.title}</h2>
+          <p className="text-xs text-muted-foreground">{selectedNotice.createdAt.slice(0, 10)}</p>
+          <div className="rounded-xl bg-accent/20 border border-border px-4 py-3">
+            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{selectedNotice.content}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {banner?.isActive && (
         <a href={banner.link || undefined} target={banner.link ? "_blank" : undefined} rel="noreferrer"
           className={`flex items-center gap-3 px-4 py-3 rounded-xl ${banner.link ? "cursor-pointer" : "cursor-default"}`}
@@ -117,24 +140,69 @@ function BannerAndNotices() {
         </a>
       )}
       {notices && notices.length > 0 && (
-        <div className="space-y-1.5">
-          {notices.slice(0, 3).map(n => (
-            <div key={n.id} className="rounded-lg border border-border bg-accent/10 overflow-hidden">
-              <button className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
-                onClick={() => setExpandedId(expandedId === n.id ? null : n.id)}>
-                {n.isPinned && <span className="text-primary text-xs font-bold shrink-0">[필독]</span>}
-                <p className="text-xs font-medium flex-1 truncate">{n.title}</p>
-                <span className="text-xs text-muted-foreground shrink-0">{expandedId === n.id ? "▲" : "▼"}</span>
-              </button>
-              {expandedId === n.id && (
-                <div className="px-3 pb-3 text-xs text-muted-foreground whitespace-pre-wrap border-t border-border/50 pt-2">
-                  {n.content}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold">이벤트 &amp; 공지</p>
+            {notices.length > 3 && (
+              <button className="text-xs text-primary">전체보기 →</button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {notices.slice(0, 3).map(n => (
+              <button key={n.id} onClick={() => setSelectedNotice(n)}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-accent/20 border border-border hover:bg-accent/40 transition-colors text-left">
+                <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                  <span className="text-lg">📢</span>
                 </div>
-              )}
-            </div>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{n.isPinned && <span className="text-primary mr-1">[필독]</span>}{n.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{n.createdAt.slice(0, 10)}</p>
+                </div>
+                <span className="text-muted-foreground text-xs shrink-0">→</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function WorkshopPromoBanner({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] px-5 pt-6 pb-5 text-white">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-28 h-28 rounded-full bg-violet-500/20 blur-2xl" />
+      </div>
+      <div className="relative inline-flex items-center gap-1.5 bg-primary/20 border border-primary/30 rounded-full px-3 py-1 mb-3">
+        <Zap className="h-3 w-3 text-primary" />
+        <span className="text-[11px] font-bold text-primary tracking-wide">FIT STEP 작업실</span>
+      </div>
+      <div className="relative space-y-1.5 mb-4">
+        <h2 className="text-[18px] font-black leading-tight tracking-tight">
+          수업만 하는 트레이너에서,<br />
+          <span className="text-primary">브랜드를 만드는</span> 전문가로
+        </h2>
+        <p className="text-xs text-white/55 leading-relaxed">전자계약 · 예약관리 · 보고서 · 개인 브랜딩을 시작하세요.</p>
+      </div>
+      <div className="relative grid grid-cols-4 gap-1.5 mb-4">
+        {[
+          { icon: FileText, label: "전자계약" },
+          { icon: CalendarCheck, label: "예약관리" },
+          { icon: BarChart3, label: "보고서" },
+          { icon: Globe, label: "브랜딩" },
+        ].map(f => (
+          <div key={f.label} className="flex flex-col items-center gap-1 bg-white/8 rounded-xl py-2.5 border border-white/10">
+            <f.icon className="h-4 w-4 text-primary" />
+            <span className="text-[10px] font-semibold text-white/70">{f.label}</span>
+          </div>
+        ))}
+      </div>
+      <button onClick={onStart}
+        className="relative w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all">
+        30일 전체 기능 무료 체험 시작 →
+      </button>
     </div>
   );
 }
@@ -146,6 +214,7 @@ function TrainerDashboard() {
   const { data: chartData } = trpc.dashboard.getMonthlyChart.useQuery();
   const { data: revenueData } = trpc.dashboard.getMonthlyRevenue.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
 
   const [journalOpen, setJournalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
@@ -160,6 +229,11 @@ function TrainerDashboard() {
     exercises: [] as Exercise[],
   });
 
+  const startTrialMutation = trpc.workshop.startTrial.useMutation({
+    onSuccess: () => { toast.success("30일 전체 기능 무료 체험이 시작되었습니다!"); setLocation("/workshop"); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onSuccess: (data) => {
       toast.success(`${selectedMember?.name} 수업 기록 완료! 잔여 ${data.remaining}회`);
@@ -171,7 +245,6 @@ function TrainerDashboard() {
   const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
-  const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
 
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
@@ -192,17 +265,77 @@ function TrainerDashboard() {
   const alertItems = [
     expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" } : null,
     unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30" } : null,
-    longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30" } : null,
   ].filter(Boolean) as { label: string; color: string }[];
 
   return (
     <div className="space-y-6">
       <TabBanner tabKey="dashboard" />
       <BannerAndNotices />
+      {wsStatus?.status === "unopened" && (
+        <WorkshopPromoBanner onStart={() => startTrialMutation.mutate()} />
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">대시보드</h1>
           <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
+        </div>
+      </div>
+
+      {/* 빠른 실행 */}
+      <div className="rounded-2xl bg-card border border-border p-4">
+        <div className="flex items-center gap-1.5 mb-3">
+          <Dumbbell className="h-3.5 w-3.5 text-primary" />
+          <span className="text-[11px] font-bold text-primary tracking-widest uppercase">빠른 실행</span>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2">
+          {/* 체형 분석 */}
+          <a
+            href="https://noble-unity-production-8100.up.railway.app/posture"
+            target="_blank"
+            rel="noreferrer"
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-accent/30 border border-border hover:border-primary/30 hover:bg-accent/60 transition-all active:scale-95"
+          >
+            <div className="w-9 h-9 rounded-xl bg-background border border-border flex items-center justify-center group-hover:border-primary/30 transition-colors">
+              <ScanLine className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+            <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">체형 분석</span>
+          </a>
+
+          {/* 맞춤 식단 */}
+          <a
+            href="https://noble-unity-production-8100.up.railway.app/?ref=fitstep"
+            target="_blank"
+            rel="noreferrer"
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-accent/30 border border-border hover:border-primary/30 hover:bg-accent/60 transition-all active:scale-95"
+          >
+            <div className="w-9 h-9 rounded-xl bg-background border border-border flex items-center justify-center group-hover:border-primary/30 transition-colors">
+              <UtensilsCrossed className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+            <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">맞춤 식단</span>
+          </a>
+
+          {/* 수업 하기 */}
+          <button
+            onClick={() => setLocation("/attendance")}
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 hover:border-primary/40 transition-all active:scale-95"
+          >
+            <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+              <Dumbbell className="h-4 w-4 text-primary transition-colors" />
+            </div>
+            <span className="text-[11px] font-bold text-primary transition-colors">수업 하기</span>
+          </button>
+
+          {/* 회원 등록 */}
+          <button
+            onClick={() => setLocation("/pt?register=1")}
+            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-accent/30 border border-border hover:border-primary/30 hover:bg-accent/60 transition-all active:scale-95"
+          >
+            <div className="w-9 h-9 rounded-xl bg-background border border-border flex items-center justify-center group-hover:border-primary/30 transition-colors">
+              <UserPlus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+            <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">회원 등록</span>
+          </button>
         </div>
       </div>
 
@@ -222,7 +355,7 @@ function TrainerDashboard() {
           { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", onClick: () => setLocation("/members") },
           { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", onClick: () => setLocation("/members") },
           { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", onClick: () => setTodayModalOpen(true) },
-          { label: "총 PT 세션", value: `${stats?.totalPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
+          { label: "이번달 수업", value: `${stats?.monthPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
         ].map((card) => (
           <button key={card.label} onClick={card.onClick} className="text-left">
             <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
@@ -256,67 +389,6 @@ function TrainerDashboard() {
         </CardContent>
       </Card>
 
-      {/* 월별 출석/신규 회원 추이 차트 */}
-      {chartData && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 추이
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value) => [`${value}회`]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Bar dataKey="출석" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="신규회원" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={28} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 월별 매출 추이 차트 */}
-      {revenueData && revenueData.some(r => r.매출 > 0) && (
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />최근 6개월 매출 추이
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={revenueData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorSettlement" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v === 0 ? "0" : `${(v / 10000).toFixed(0)}만`} />
-                <Tooltip
-                  contentStyle={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value) => [`${Number(value ?? 0).toLocaleString()}원`]}
-                />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Area type="monotone" dataKey="매출" stroke="#6366f1" fill="url(#colorRevenue)" strokeWidth={2} dot={{ r: 3, fill: "#6366f1" }} />
-                <Area type="monotone" dataKey="정산" stroke="#22c55e" fill="url(#colorSettlement)" strokeWidth={2} dot={{ r: 3, fill: "#22c55e" }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
 
       {expiring && expiring.length > 0 && (
         <Card className="bg-card border-border border-yellow-500/30">
@@ -411,130 +483,6 @@ function TrainerDashboard() {
         </Card>
       )}
 
-      {/* 장기 미출석 회원 (2주 이상) */}
-      {longAbsent && longAbsent.length > 0 && (
-        <Card className="bg-card border-border border-red-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4 text-red-400" />
-              <span className="text-red-400">장기 미출석 회원</span>
-              <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">2주 이상</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {longAbsent.map((item) => (
-              <button key={item.id} onClick={() => setLocation(`/members/${item.id}`)}
-                className="w-full flex items-center justify-between p-2.5 rounded-md bg-red-500/10 border border-red-500/20 hover:border-red-500/40 transition-colors text-left">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 font-bold text-xs">{item.name.charAt(0)}</div>
-                  <div>
-                    <p className="text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.lastAttendDate ? `마지막 출석: ${item.lastAttendDate}` : "출석 기록 없음"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-red-400">미출석</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 트레이닝 일지 */}
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-primary" />트레이닝 일지
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {(!allMembers || allMembers.filter(m => m.status === "active").length === 0) && (
-            <p className="text-sm text-muted-foreground text-center py-4">활성 회원이 없습니다</p>
-          )}
-          {allMembers?.filter(m => m.status === "active").map((m) => (
-            <button
-              key={m.id}
-              onClick={() => {
-                setSelectedMember({ id: m.id, name: m.name });
-                setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], exerciseType: "", bodyPart: "", notes: "", exercises: [] });
-                setJournalOpen(true);
-              }}
-              className="w-full flex items-center justify-between p-3 rounded-md bg-accent/20 border border-border hover:border-primary/40 transition-colors text-left"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">{m.name.charAt(0)}</div>
-                <div>
-                  <p className="text-sm font-medium">{m.name}</p>
-                  {m.membershipEnd && <p className="text-xs text-muted-foreground">{m.membershipEnd} 만료</p>}
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-primary border border-primary/30 rounded-full px-2.5 py-1 bg-primary/10">
-                <BookOpen className="h-3 w-3" />기록
-              </div>
-            </button>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* 트레이닝 일지 기록 다이얼로그 */}
-      <Dialog open={journalOpen} onOpenChange={setJournalOpen}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><BookOpen className="h-4 w-4 text-primary" />트레이닝 일지</DialogTitle>
-            <DialogDescription>{selectedMember?.name} 수업 기록</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">수업일</label>
-              <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 형태</label>
-              <Select value={journalForm.exerciseType} onValueChange={v => setJournalForm(p => ({ ...p, exerciseType: v === "__none" ? "" : v }))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="운동 형태를 선택하세요" /></SelectTrigger>
-                <SelectContent position="popper" className="max-h-60 overflow-y-auto">
-                  {["다이어트","체형교정","재활","근비대","퍼포먼스","일반건강","스트레칭","유산소","기능성훈련","밸런스","체력증진"].map(t => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 부위 (최대 3개)</label>
-              <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">운동 종목</label>
-              <ExerciseEditor
-                exercises={journalForm.exercises}
-                onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">메모</label>
-              <Textarea value={journalForm.notes} onChange={e => setJournalForm(p => ({ ...p, notes: e.target.value }))} placeholder="오늘 수업 특이사항..." rows={2} className="text-sm resize-none" />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setJournalOpen(false)}>취소</Button>
-              <Button className="flex-1" disabled={useSessionMutation.isPending}
-                onClick={() => {
-                  if (!selectedMember) return;
-                  useSessionMutation.mutate({
-                    memberId: selectedMember.id,
-                    sessionDate: journalForm.sessionDate,
-                    bodyPart: journalForm.bodyPart || undefined,
-                    notes: journalForm.notes || undefined,
-                    exercisesJson: journalForm.exercises.length > 0 ? JSON.stringify(journalForm.exercises) : undefined,
-                  });
-                }}>
-                {useSessionMutation.isPending ? "기록 중..." : "기록 완료"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* 오늘 출석 모달 */}
       <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
@@ -590,7 +538,7 @@ function TrainerDashboard() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Dumbbell className="h-4 w-4 text-purple-400" />
-              회원별 PT 세션 현황
+              회원별 수업 현황
             </DialogTitle>
             <DialogDescription className="text-xs">
               누적 세션 횟수 기준 정렬

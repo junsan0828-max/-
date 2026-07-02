@@ -4,24 +4,29 @@
 
 @layer base {
   :root {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
-    --card: 224 71% 6%;
-    --card-foreground: 213 31% 91%;
-    --primary: 210 100% 60%;
-    --primary-foreground: 224 71% 4%;
-    --secondary: 222 47% 11%;
-    --secondary-foreground: 213 31% 91%;
-    --muted: 223 47% 11%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 216 34% 17%;
-    --accent-foreground: 213 31% 91%;
-    --border: 216 34% 17%;
-    --input: 216 34% 17%;
-    --ring: 210 100% 60%;
+    --background: 220 20% 97%;
+    --foreground: 222 47% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 10%;
+    --primary: 210 100% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222 47% 20%;
+    --muted: 220 14% 93%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 214 32% 91%;
+    --accent-foreground: 222 47% 10%;
+    --border: 220 13% 88%;
+    --input: 220 13% 93%;
+    --ring: 210 100% 48%;
     --radius: 0.5rem;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
+    /* safe-area insets (populated by the browser on notch/home-indicator devices) */
+    --sat: env(safe-area-inset-top);
+    --sar: env(safe-area-inset-right);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
   }
 }
 
@@ -32,5 +37,33 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* prevent horizontal overflow on iOS */
+    overflow-x: hidden;
   }
+}
+
+/* ── iOS Safari / safe-area utilities ─────────────────────────────────────── */
+@layer utilities {
+  /* safe-area padding helpers */
+  .pb-safe          { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe          { padding-top:    env(safe-area-inset-top);    }
+  .pb-safe-4        { padding-bottom: calc(1rem   + env(safe-area-inset-bottom)); }
+  .pb-safe-5        { padding-bottom: calc(1.25rem + env(safe-area-inset-bottom)); }
+  .pb-safe-6        { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+
+  /* bottom-sheet modal: sheet card stops above the home indicator */
+  .rounded-sheet {
+    border-top-left-radius:  1.5rem;
+    border-top-right-radius: 1.5rem;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* full-height containers — use dvh so Safari toolbar shrink is accounted for */
+  .h-dvh     { height:     100dvh; }
+  .min-h-dvh { min-height: 100dvh; }
+  .max-h-dvh { max-height: 100dvh; }
+
+  /* modal max-height: viewport minus top safe area minus a little breathing room */
+  .max-h-modal        { max-height: calc(92dvh - env(safe-area-inset-top)); }
+  .max-h-modal-sm     { max-height: calc(80dvh - env(safe-area-inset-top)); }
 }

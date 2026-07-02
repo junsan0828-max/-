@@ -1,8 +1,9 @@
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Copy } from "lucide-react";
+import { Plus, Trash2, Copy, Video, X } from "lucide-react";
+import { useState } from "react";
 
 export type ExSet = { reps: string; weight: string };
-export type Exercise = { name: string; sets: ExSet[] };
+export type Exercise = { name: string; sets: ExSet[]; videoUrl?: string };
 
 function newSet(prev?: ExSet): ExSet {
   return prev ? { ...prev } : { reps: "", weight: "" };
@@ -14,14 +15,21 @@ interface Props {
 }
 
 export default function ExerciseEditor({ exercises, onChange }: Props) {
+  const [videoOpenIdx, setVideoOpenIdx] = useState<number | null>(null);
+
   const addExercise = () =>
     onChange([...exercises, { name: "", sets: [{ reps: "", weight: "" }] }]);
 
-  const removeExercise = (i: number) =>
+  const removeExercise = (i: number) => {
     onChange(exercises.filter((_, idx) => idx !== i));
+    if (videoOpenIdx === i) setVideoOpenIdx(null);
+  };
 
   const updateName = (i: number, name: string) =>
     onChange(exercises.map((ex, idx) => (idx === i ? { ...ex, name } : ex)));
+
+  const updateVideoUrl = (i: number, videoUrl: string) =>
+    onChange(exercises.map((ex, idx) => (idx === i ? { ...ex, videoUrl } : ex)));
 
   const addSet = (i: number) =>
     onChange(
@@ -73,12 +81,37 @@ export default function ExerciseEditor({ exercises, onChange }: Props) {
               className="h-8 text-sm flex-1"
             />
             <button
+              onClick={() => setVideoOpenIdx(videoOpenIdx === i ? null : i)}
+              title="운동 영상 연결"
+              className={`shrink-0 p-1.5 rounded-lg transition-colors ${ex.videoUrl ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
+            >
+              <Video className="h-3.5 w-3.5" />
+            </button>
+            <button
               onClick={() => removeExercise(i)}
               className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
             >
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
+
+          {/* 영상 URL 입력 */}
+          {videoOpenIdx === i && (
+            <div className="flex items-center gap-1.5">
+              <Video className="h-3.5 w-3.5 text-primary shrink-0" />
+              <Input
+                placeholder="유튜브 링크 붙여넣기"
+                value={ex.videoUrl ?? ""}
+                onChange={e => updateVideoUrl(i, e.target.value)}
+                className="h-7 text-xs flex-1"
+              />
+              {ex.videoUrl && (
+                <button onClick={() => updateVideoUrl(i, "")} className="text-muted-foreground hover:text-red-400 shrink-0">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
 
           {/* 세트 헤더 */}
           {ex.sets.length > 0 && (
@@ -161,12 +194,13 @@ export function parseExercisesJson(json: string | null | undefined): Exercise[] 
     if (!Array.isArray(raw)) return [];
     return raw.map(item => {
       if (Array.isArray(item.sets)) {
-        return { name: item.name ?? "", sets: item.sets as ExSet[] };
+        return { name: item.name ?? "", sets: item.sets as ExSet[], videoUrl: item.videoUrl ?? undefined };
       }
       // 구 형식 → 세트 1행으로 변환
       return {
         name: item.name ?? "",
         sets: [{ reps: item.reps ?? "", weight: item.weight ?? "" }],
+        videoUrl: item.videoUrl ?? undefined,
       };
     });
   } catch {

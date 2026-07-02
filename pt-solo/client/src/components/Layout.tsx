@@ -4,62 +4,122 @@ import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
-  User, ClipboardCheck, Download, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap,
+  User, ClipboardCheck, X, ShieldCheck, Bell,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList,
 } from "lucide-react";
+import ProfileSetupModal from "./ProfileSetupModal";
+import OnboardingSurveyModal from "./OnboardingSurveyModal";
+import BasicInfoModal from "./BasicInfoModal";
+import InstallPromptModal from "./InstallPromptModal";
+import PageGuideModal, { shouldShowGuide, syncServerDismissed } from "./PageGuideModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: user } = trpc.auth.me.useQuery();
+  const { data: profile } = trpc.trainers.getMyProfile.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const { data: serverDismissed } = trpc.trainers.getGuideDismissed.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const dismissGuideMutation = trpc.trainers.dismissGuide.useMutation();
+
+  useEffect(() => {
+    if (serverDismissed && serverDismissed.length > 0) syncServerDismissed(serverDismissed);
+  }, [serverDismissed]);
+  const isFeatureActive = (featureId: string) => {
+    const removed = (wsStatus?.removedFeatures ?? []) as string[];
+    const configs = (wsStatus?.featureConfigs ?? {}) as Record<string, string>;
+    if (removed.includes(featureId)) return false;
+    return (configs[featureId] ?? "active") === "active";
+  };
   const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => window.location.reload(),
+    onSuccess: () => {
+      localStorage.removeItem("fitStep-autoLogin");
+      window.location.reload();
+    },
     onError: () => toast.error("로그아웃 실패"),
   });
 
+  // 로그인 성공 시 자동 로그인 플래그 저장
+  useEffect(() => {
+    if (user) localStorage.setItem("fitStep-autoLogin", "kakao");
+  }, [user]);
+
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [surveyDone, setSurveyDone] = useState(
+    () => !!sessionStorage.getItem("onboarding-survey-dismissed")
+  );
+  const [basicInfoDone, setBasicInfoDone] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+
+  const needsBasicInfo = user?.role === "trainer"
+    && profile !== undefined
+    && !(profile as any).phone
+    && !basicInfoDone;
+
+  const showSurvey = user?.role === "trainer"
+    && profile !== undefined
+    && !(profile as any).onboardingSurveyDone
+    && !surveyDone
+    && !needsBasicInfo;
+
+  // 경로 변경 시 가이드 자동 표시 (온보딩 모달이 없을 때만)
+  // location이 실제로 바뀔 때만 트리거 — user refetch 등으로 재실행돼도 이미 dismissed면 무시
+  useEffect(() => {
+    if (!user) return;
+    if (showSurvey || needsBasicInfo || profileModalOpen) { setGuideOpen(false); return; }
+    if (!shouldShowGuide(location)) { setGuideOpen(false); return; }
+    const t = setTimeout(() => {
+      // 타임아웃 직전에 한 번 더 확인 (그 사이 dismiss됐을 수 있음)
+      if (shouldShowGuide(location)) setGuideOpen(true);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [location, user, showSurvey, needsBasicInfo, profileModalOpen]);
 
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
-      const dismissed = sessionStorage.getItem("pwa-banner-dismissed");
-      if (!dismissed) setShowInstallBanner(true);
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  const handleInstall = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === "accepted") setShowInstallBanner(false);
-    setInstallPrompt(null);
-  };
-
-  const dismissBanner = () => {
-    setShowInstallBanner(false);
-    sessionStorage.setItem("pwa-banner-dismissed", "1");
-  };
-
   const isAdmin = user?.role === "admin";
+
+  const JOB_LABELS: Record<string, string> = {
+    "퍼스널트레이너": "STEPER",
+    "필라테스강사": "STEPER",
+    "트레이너 준비생": "STEPER",
+    "센터 운영자": "STEPER",
+    "프리랜서": "STEPER",
+    "학생": "STEPER",
+  };
+  const jobLabel = isAdmin ? "운영자" : (JOB_LABELS[(user as any)?.jobType ?? ""] ?? "STEPER");
 
   const adminNavItems = [
     { path: "/", label: "운영 현황", icon: LayoutDashboard },
-    { path: "/admin/trainers", label: "트레이너 관리", icon: ShieldCheck },
+    { path: "/admin/trainers", label: "STEPER 관리", icon: ShieldCheck },
+    { path: "/admin/plans", label: "플랜 관리", icon: CreditCard },
+    { path: "/admin/points", label: "포인트 관리", icon: Coins },
     { path: "/admin/notices", label: "공지/배너", icon: Bell },
     { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },
+    { path: "/academy", label: "성장아카데미 관리", icon: GraduationCap },
+    { path: "/workshop", label: "작업실 관리", icon: Wrench },
+    { path: "/admin/feedback", label: "작업/오류 데이터", icon: ClipboardList },
   ];
 
   const trainerNavItems = [
     { path: "/", label: "대시보드", icon: LayoutDashboard },
-    { path: "/attendance", label: "출석 체크", icon: ClipboardCheck },
-    { path: "/pt", label: "회원관리", icon: Dumbbell },
-    { path: "/leads", label: "상담실", icon: UserPlus },
-    { path: "/settlement", label: "성장분석", icon: TrendingUp },
+    { path: "/pt", label: "회원 관리", icon: Dumbbell },
+    { path: "/sessions", label: "수업 관리", icon: BookOpen },
+    { path: "/leads", label: "상담 관리", icon: UserPlus },
     { path: "/workshop", label: "작업실", icon: Wrench },
+    ...(isFeatureActive("booking") ? [{ path: "/booking", label: "예약 관리", icon: CalendarCheck }] : []),
+    { path: "/settlement", label: "성장분석실", icon: TrendingUp },
+    { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
     { path: "/profile", label: "내 프로필", icon: User },
+    { path: "/feedback", label: "작업/오류 수정", icon: MessageSquarePlus },
   ];
 
   const navItems = isAdmin ? adminNavItems : trainerNavItems;
@@ -70,13 +130,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-dvh bg-background overflow-hidden">
       {/* 데스크탑 사이드바 */}
       <aside className="hidden md:flex flex-col w-56 shrink-0 bg-card border-r border-border">
         <div className="px-5 py-4 border-b border-border">
           <button onClick={() => setLocation("/")} className="flex items-center gap-1">
-            <span className="font-black text-lg tracking-widest" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-            <span className="font-black text-lg tracking-widest text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
+            <span className="text-2xl tracking-wider" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>FIT</span>
+            <span className="text-2xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
           </button>
         </div>
 
@@ -100,7 +160,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="px-3 py-4 border-t border-border space-y-1">
           <div className="px-3 py-2">
             <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
-            <p className="text-xs text-muted-foreground">{isAdmin ? "운영자" : "트레이너"}</p>
+            <p className="text-xs text-muted-foreground">{jobLabel}</p>
           </div>
           <button
             onClick={() => logoutMutation.mutate()}
@@ -115,66 +175,90 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* 모바일 사이드바 오버레이 */}
+      {sidebarOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          {/* 배경 딤 */}
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          {/* 사이드바 */}
+          <aside className="relative w-64 h-full bg-card flex flex-col shadow-2xl">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <button onClick={() => { setLocation("/"); setSidebarOpen(false); }} className="flex items-center gap-1">
+                <span className="text-xl tracking-wider" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>FIT</span>
+                <span className="text-xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
+              </button>
+              <button onClick={() => setSidebarOpen(false)} className="text-muted-foreground p-1">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+              {navItems.map((item) => (
+                <button
+                  key={item.path}
+                  onClick={() => { setLocation(item.path); setSidebarOpen(false); }}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive(item.path)
+                      ? "bg-primary/20 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  }`}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+            <div className="px-3 py-4 border-t border-border space-y-1">
+              <div className="px-3 py-2">
+                <p className="text-xs font-medium text-foreground truncate">{user?.username}</p>
+                <p className="text-xs text-muted-foreground">{jobLabel}</p>
+              </div>
+              <button
+                onClick={() => logoutMutation.mutate()}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              >
+                <LogOut className="h-4 w-4 shrink-0" />
+                로그아웃
+              </button>
+              {!isAdmin && (user as any)?.plan === "free" && (
+                <p className="text-center text-[10px] text-muted-foreground/50 pt-1">Powered by FIT STEP</p>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
+
       <div className="flex flex-col flex-1 min-w-0">
         {/* 모바일 상단 바 */}
-        <header className="md:hidden sticky top-0 z-50 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-          <button onClick={() => setLocation("/")} className="flex items-center gap-1">
-            <span className="font-black text-base tracking-widest" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>FIT</span>
-            <span className="font-black text-base tracking-widest text-primary" style={{ fontFamily: "'Arial Black', Arial, sans-serif" }}>STEP</span>
+        <header className="md:hidden sticky top-0 z-40 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
+          <button onClick={() => setSidebarOpen(true)} className="text-muted-foreground hover:text-foreground p-1 -ml-1">
+            <Menu className="h-5 w-5" />
+          </button>
+          <button onClick={() => setLocation("/")} className="flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
+            <span className="text-xl tracking-wider" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>FIT</span>
+            <span className="text-xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
           </button>
           <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground mr-1">{user?.username}</span>
-            <button
-              onClick={() => logoutMutation.mutate()}
-              className="text-muted-foreground hover:text-foreground p-2 rounded-md hover:bg-accent transition-colors"
-            >
-              <LogOut className="h-4 w-4" />
+            <button onClick={() => setGuideOpen(true)} className="text-muted-foreground hover:text-primary p-1 transition-colors">
+              <HelpCircle className="h-4 w-4" />
             </button>
+            <span className="text-xs text-muted-foreground">{user?.username}</span>
           </div>
         </header>
 
-        {showInstallBanner && (
-          <div className="md:hidden bg-primary/10 border-b border-primary/20 px-4 py-2.5 flex items-center gap-3 shrink-0">
-            <Download className="h-4 w-4 text-primary shrink-0" />
-            <p className="text-xs text-foreground flex-1">홈 화면에 FIT STEP을 추가하세요</p>
-            <button
-              onClick={handleInstall}
-              className="text-xs font-medium text-primary bg-primary/20 px-2.5 py-1 rounded-md shrink-0"
-            >
-              설치
-            </button>
-            <button onClick={dismissBanner} className="text-muted-foreground">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+        <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto px-4 py-6 max-w-3xl">
             {children}
           </div>
         </main>
-
-        {/* 모바일 하단 내비게이션 */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border">
-          <div className="flex overflow-x-auto scrollbar-none">
-            {navItems.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => setLocation(item.path)}
-                className={`flex flex-col items-center justify-center shrink-0 py-2.5 gap-1 text-xs transition-colors px-3 min-w-[60px] ${
-                  isActive(item.path) ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                <item.icon className="h-5 w-5" />
-                <span className="leading-none">{item.label}</span>
-              </button>
-            ))}
-          </div>
-          {!isAdmin && (user as any)?.plan === "free" && (
-            <p className="text-center text-[10px] text-muted-foreground/50 pb-1">Powered by FIT STEP</p>
-          )}
-        </nav>
+        {user && !showSurvey && !needsBasicInfo && !profileModalOpen && <InstallPromptModal deferredPrompt={installPrompt} onClear={() => setInstallPrompt(null)} />}
+        {!isAdmin && !needsBasicInfo && !showSurvey && <ProfileSetupModal onOpenChange={setProfileModalOpen} />}
+        {needsBasicInfo && (
+          <BasicInfoModal
+            currentName={(profile as any)?.trainerName ?? ""}
+            onClose={() => setBasicInfoDone(true)}
+          />
+        )}
+        {showSurvey && <OnboardingSurveyModal onClose={() => { sessionStorage.setItem("onboarding-survey-dismissed", "1"); setSurveyDone(true); }} />}
       </div>
     </div>
   );

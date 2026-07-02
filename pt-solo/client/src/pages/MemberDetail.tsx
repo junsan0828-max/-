@@ -44,6 +44,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import PointSpendConfirm from "@/components/PointSpendConfirm";
+import { useAutoPoints, pointLabel } from "@/hooks/useAutoPoints";
 import {
   ArrowLeft,
   Crown,
@@ -70,7 +72,41 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Send,
+  LayoutTemplate,
+  ReceiptText,
+  ArrowLeftRight,
 } from "lucide-react";
+
+function TemplateLoader({ onLoad, enabled = true }: { onLoad: (exs: Exercise[]) => void; enabled?: boolean }) {
+  const { data: templates } = trpc.workoutTemplates.list.useQuery();
+  const [open, setOpen] = useState(false);
+  if (!enabled || !templates || templates.length === 0) return null;
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-xs text-primary mb-1">
+        <LayoutTemplate className="h-3.5 w-3.5" />템플릿 불러오기
+      </button>
+      {open && (
+        <div className="absolute z-10 top-6 left-0 w-56 bg-card border border-border rounded-xl shadow-lg overflow-hidden">
+          {templates.map((t: any) => (
+            <button key={t.id} className="w-full text-left px-3 py-2.5 text-xs hover:bg-accent/30 transition-colors border-b border-border last:border-0"
+              onClick={() => {
+                const exs: Exercise[] = t.exercisesJson ? JSON.parse(t.exercisesJson) : [];
+                onLoad(exs);
+                setOpen(false);
+                toast.success(`${t.name} 템플릿 적용됨`);
+              }}>
+              <p className="font-medium">{t.name}</p>
+              {t.bodyPart && <p className="text-muted-foreground mt-0.5">{t.bodyPart}</p>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   memberId: number;
@@ -78,7 +114,6 @@ interface Props {
 
 const membershipLabels: Record<string, string> = {
   basic: "기본",
-  premium: "프리미엄",
   vip: "VIP",
 };
 
@@ -102,6 +137,7 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 export default function MemberDetail({ memberId }: Props) {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
+  const autoPoints = useAutoPoints();
 
   // 패키지 추가 다이얼로그 상태
   const [addPkgOpen, setAddPkgOpen] = useState(false);
@@ -145,6 +181,7 @@ export default function MemberDetail({ memberId }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [reportPointConfirm, setReportPointConfirm] = useState(false);
   const [editMemoOpen, setEditMemoOpen] = useState(false);
   const [editMemoForm, setEditMemoForm] = useState({ id: 0, memoDate: "", content: "" });
   const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
@@ -205,7 +242,11 @@ export default function MemberDetail({ memberId }: Props) {
   const [viewLogData, setViewLogData] = useState<{ log: any; exs: Exercise[] } | null>(null);
   const [checkedSets, setCheckedSets] = useState<Record<string, boolean>>({});
   const openViewLog = (log: any, exs: Exercise[]) => {
-    setViewLogData({ log, exs: JSON.parse(JSON.stringify(exs)) }); // deep copy for editing
+    const withSets = exs.map(ex => ({
+      ...ex,
+      sets: ex.sets.length > 0 ? ex.sets : [{ reps: "", weight: "" }],
+    }));
+    setViewLogData({ log, exs: JSON.parse(JSON.stringify(withSets)) });
     setCheckedSets({});
     setViewLogOpen(true);
   };
@@ -326,6 +367,14 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
 
+  const sendToMemberMutation = trpc.fitStepPlus.trainer_sendSessionToMember.useMutation({
+    onSuccess: () => toast.success("회원 FIT STEP+ 운동기록으로 전송되었습니다."),
+    onError: (err) => {
+      if (err.data?.code === "CONFLICT") toast.error("이미 전송된 일지입니다.");
+      else toast.error(err.message || "전송 실패");
+    },
+  });
+
   // PT 세션 사용 (완료 후 메모 입력 유도)
   const useSessionMutation = trpc.pt.useSession.useMutation({
     onSuccess: (data) => {
@@ -348,6 +397,42 @@ export default function MemberDetail({ memberId }: Props) {
     },
     onError: (err) => toast.error(err.message || "업데이트 실패"),
   });
+
+  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
+  const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
+  const featureInfo = (feature: string) => {
+    const rule = featureCosts?.[feature];
+    return { cost: rule?.cost ?? 50, enabled: rule?.enabled ?? true };
+  };
+
+  // 작업실 기능 활성 여부
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
+  const isFeatureActive = (featureId: string) => {
+    const removed = wsStatus?.removedFeatures ?? [];
+    const configs = wsStatus?.featureConfigs ?? {};
+    if (removed.includes(featureId)) return false;
+    // featureConfigs에 없으면 WS_CATALOG 기본값(active) 사용
+    return (configs[featureId] ?? "active") === "active";
+  };
+  const refundContractActive = isFeatureActive("refund_contract");
+  const transferContractActive = isFeatureActive("transfer_contract");
+
+  // 환불/양도 계약서 생성 모달
+  const [refundContractOpen, setRefundContractOpen] = useState(false);
+  const [transferContractOpen, setTransferContractOpen] = useState(false);
+  const [contractCreatedToken, setContractCreatedToken] = useState<string | null>(null);
+
+  const createRefundMutation = trpc.eContract.createRefund.useMutation({
+    onSuccess: (data) => { setContractCreatedToken(data.token); },
+    onError: (e) => toast.error(e.message),
+  });
+  const createTransferMutation = trpc.eContract.createTransfer.useMutation({
+    onSuccess: (data) => { setContractCreatedToken(data.token); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [refundForm, setRefundForm] = useState({ programName: "", programPrice: "", programSessions: "", usedSessions: "", refundAmount: "", refundReason: "", paymentMethod: "", vatAmount: "", penaltyAmount: "" });
+  const [transferForm, setTransferForm] = useState({ programName: "", totalSessions: "", usedSessions: "", remainingSessions: "", transferDate: "", trainerMemo: "" });
 
   // 보고서 공유 토큰 발급
   const generateReportMutation = trpc.reports.generate.useMutation({
@@ -471,6 +556,7 @@ export default function MemberDetail({ memberId }: Props) {
     .reduce((sum, p) => sum + (p.totalSessions - p.usedSessions), 0) ?? 0;
   const totalAttendance = attendanceList?.filter(a => a.status === "attended").length ?? 0;
   const memoCount = memoList?.length ?? 0;
+  const logCount = sessionLogs?.length ?? 0;
 
   return (
     <div className="space-y-4">
@@ -501,13 +587,14 @@ export default function MemberDetail({ memberId }: Props) {
             variant="outline"
             onClick={() => {
               if (shareToken) { setShareOpen(true); }
+              else if (featureInfo("health_report").enabled) { setReportPointConfirm(true); }
               else { generateReportMutation.mutate({ memberId }); }
             }}
             disabled={generateReportMutation.isPending}
             className="gap-1.5"
           >
             <Share2 className="h-3.5 w-3.5" />
-            공유
+            공유{featureInfo("health_report").enabled ? <span className="text-primary/70 text-[10px]"> -{featureInfo("health_report").cost}P</span> : null}
           </Button>
           <Button
             size="sm"
@@ -553,9 +640,9 @@ export default function MemberDetail({ memberId }: Props) {
       {/* 요약 통계 카드 */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 PT 횟수" },
+          { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 수업 수" },
           { icon: <CheckCircle className="h-5 w-5 text-green-400" />, value: totalAttendance, label: "총 출석 횟수" },
-          { icon: <BookOpen className="h-5 w-5 text-blue-400" />, value: memoCount, label: "운동 메모" },
+          { icon: <BookOpen className="h-5 w-5 text-blue-400" />, value: logCount, label: "수업 일지" },
         ].map((item) => (
           <Card key={item.label} className="bg-card border-border">
             <CardContent className="p-3 flex flex-col items-start gap-1">
@@ -571,9 +658,9 @@ export default function MemberDetail({ memberId }: Props) {
       <Tabs defaultValue="info">
         <TabsList className="w-full grid grid-cols-5">
           <TabsTrigger value="info" className="text-xs px-1">기본정보</TabsTrigger>
-          <TabsTrigger value="pt" className="text-xs px-1">PT정보</TabsTrigger>
+          <TabsTrigger value="pt" className="text-xs px-1">프로그램</TabsTrigger>
           <TabsTrigger value="stats" className="text-xs px-1">통계</TabsTrigger>
-          <TabsTrigger value="training" className="text-xs px-1">트레이닝</TabsTrigger>
+          <TabsTrigger value="training" className="text-xs px-1">수업 일지</TabsTrigger>
           <TabsTrigger value="attendance" className="text-xs px-1">출석</TabsTrigger>
         </TabsList>
 
@@ -585,7 +672,12 @@ export default function MemberDetail({ memberId }: Props) {
             className="gap-1.5 w-full border-primary/40 text-primary hover:bg-primary/10"
             onClick={() => setLocation(`/members/${memberId}/parq`)}
           >
-            PAR-Q 사전건강검사
+            <span className="flex items-center gap-1.5">
+              PAR-Q 사전건강검사
+              {pointLabel(autoPoints("parq_submit")) && (
+                <span className="text-xs text-green-400 font-normal">{pointLabel(autoPoints("parq_submit"))} 최초</span>
+              )}
+            </span>
           </Button>
           <Card className="bg-card border-border">
             <CardContent className="p-4 sm:p-6 space-y-4">
@@ -619,30 +711,39 @@ export default function MemberDetail({ memberId }: Props) {
                   label="최초 등록일"
                   value={fmtDate(member.createdAt, "yyyy.MM.dd")}
                 />
-                {member.visitRoute && (
-                  <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute} />
-                )}
+                <InfoRow icon={<MapPin className="h-4 w-4" />} label="유입경로" value={member.visitRoute ?? "-"} />
                 <InfoRow
                   icon={<Activity className="h-4 w-4" />}
                   label="총 결제 금액"
                   value={ptPackages ? `${ptPackages.reduce((sum, p) => sum + (p.paymentAmount ?? 0), 0).toLocaleString()}원` : "-"}
                 />
               </div>
-              {member.profileNote && (
-                <div className="mt-4 p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
-                  <p className="text-xs text-muted-foreground mb-1">특이사항</p>
-                  <p className="text-sm text-foreground whitespace-pre-wrap">{member.profileNote}</p>
-                </div>
-              )}
+              <div className="mt-4 p-3 sm:p-4 rounded-lg bg-accent/30 border border-border">
+                <p className="text-xs text-muted-foreground mb-1">특이사항</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{member.profileNote || "-"}</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* ── PT 프로그램 탭 ── */}
+        {/* ── 프로그램 탭 ── */}
         <TabsContent value="pt" className="mt-4">
           <Card className="bg-card border-border">
-            <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6">
-              <CardTitle className="text-base">PT 프로그램</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6 flex-wrap gap-2">
+              <CardTitle className="text-base">프로그램</CardTitle>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {refundContractActive && (
+                  <Button size="sm" variant="outline" className="gap-1.5 text-xs text-orange-500 border-orange-400/40 hover:bg-orange-500/10"
+                    onClick={() => { setRefundForm({ programName: ptPackages?.[0]?.packageName ?? "", programPrice: String(ptPackages?.[0]?.paymentAmount ?? ""), programSessions: String(ptPackages?.[0]?.totalSessions ?? ""), usedSessions: String(ptPackages?.[0]?.usedSessions ?? ""), refundAmount: "", refundReason: "", paymentMethod: "", vatAmount: "", penaltyAmount: "" }); setContractCreatedToken(null); setRefundContractOpen(true); }}>
+                    <ReceiptText className="h-3.5 w-3.5" /> 환불
+                  </Button>
+                )}
+                {transferContractActive && (
+                  <Button size="sm" variant="outline" className="gap-1.5 text-xs text-blue-500 border-blue-400/40 hover:bg-blue-500/10"
+                    onClick={() => { setTransferForm({ programName: ptPackages?.[0]?.packageName ?? "", totalSessions: String(ptPackages?.[0]?.totalSessions ?? ""), usedSessions: String(ptPackages?.[0]?.usedSessions ?? ""), remainingSessions: String((ptPackages?.[0]?.totalSessions ?? 0) - (ptPackages?.[0]?.usedSessions ?? 0)), transferDate: "", trainerMemo: "" }); setContractCreatedToken(null); setTransferContractOpen(true); }}>
+                    <ArrowLeftRight className="h-3.5 w-3.5" /> 양도
+                  </Button>
+                )}
               {/* 패키지 추가 다이얼로그 */}
               <Dialog open={addPkgOpen} onOpenChange={setAddPkgOpen}>
                 <DialogTrigger asChild>
@@ -653,12 +754,12 @@ export default function MemberDetail({ memberId }: Props) {
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
-                    <DialogTitle>PT 프로그램 추가</DialogTitle>
-                    <DialogDescription>{member.name}님에게 새 PT 프로그램을 추가합니다.</DialogDescription>
+                    <DialogTitle>프로그램 추가</DialogTitle>
+                    <DialogDescription>{member.name}님에게 새 프로그램을 추가합니다.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">PT 프로그램</Label>
+                      <Label className="text-xs">프로그램명</Label>
                       <Input
                         value={pkgForm.ptProgram}
                         onChange={(e) => setPkgForm((p) => ({ ...p, ptProgram: e.target.value }))}
@@ -752,6 +853,7 @@ export default function MemberDetail({ memberId }: Props) {
                   </div>
                 </DialogContent>
               </Dialog>
+              </div>
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
               {!ptPackages?.length ? (
@@ -871,11 +973,12 @@ export default function MemberDetail({ memberId }: Props) {
                               disabled={generateReportMutation.isPending}
                               onClick={() => {
                                 if (shareToken) { setShareOpen(true); }
+                                else if (featureInfo("health_report").enabled) { setReportPointConfirm(true); }
                                 else { generateReportMutation.mutate({ memberId }); }
                               }}
                             >
                               <Share2 className="h-3.5 w-3.5" />
-                              보고서 생성 및 공유
+                              보고서 생성 및 공유{featureInfo("health_report").enabled ? ` (-${featureInfo("health_report").cost}P)` : ""}
                             </Button>
                           </div>
                         )}
@@ -1015,15 +1118,14 @@ export default function MemberDetail({ memberId }: Props) {
                 <div className="space-y-2">
                   {sessionLogs.map((log) => {
                     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
-                    const isExpanded = expandedLogIds.has(log.id);
                     return (
-                      <div key={log.id} className="rounded-lg bg-accent/20 border border-border overflow-hidden">
-                        {/* 접힌 헤더 - 항상 표시 */}
-                        <button
-                          className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-                          onClick={() => exs.length > 0 ? openViewLog(log, exs) : toggleLog(log.id)}
-                        >
-                          <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        key={log.id}
+                        className="w-full rounded-lg bg-accent/20 border border-border px-3 py-2.5 text-left hover:border-primary/40 transition-colors"
+                        onClick={() => openViewLog(log, exs)}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
                             <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
                             {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
                               <span key={bp} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{bp}</span>
@@ -1032,70 +1134,17 @@ export default function MemberDetail({ memberId }: Props) {
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
                             )}
                           </div>
-                          {isExpanded
-                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          }
-                        </button>
-
-                        {/* 펼쳐진 상세 내용 */}
-                        {isExpanded && (
-                          <div className="px-3 pb-3 space-y-2 border-t border-border/40">
-                            {(log as any).goal && (
-                              <div className="pt-2">
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">목표</span>
-                                <p className="text-xs text-foreground mt-0.5">{(log as any).goal}</p>
-                              </div>
-                            )}
-                            {exs.length > 0 && (
-                              <div className="space-y-1 pt-1">
-                                {exs.map((ex, i) => (
-                                  <div key={i} className="text-xs">
-                                    <span className="font-medium text-foreground/80">{ex.name}</span>
-                                    <span className="text-muted-foreground ml-2">
-                                      {ex.sets.map((s, j) => `${j + 1}세트${s.reps ? " " + s.reps + "회" : ""}${s.weight ? " " + s.weight + "kg" : ""}`).join(" · ")}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {(log as any).feedback && (
-                              <div>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">피드백</span>
-                                <p className="text-xs text-foreground mt-0.5 whitespace-pre-wrap">{(log as any).feedback}</p>
-                              </div>
-                            )}
-                            {log.notes && (
-                              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{log.notes}</p>
-                            )}
-                            <div className="flex justify-end gap-3 pt-1">
-                              <button
-                                onClick={() => {
-                                  setEditJournalForm({
-                                    id: log.id,
-                                    sessionDate: log.sessionDate,
-                                    goal: (log as any).goal ?? "",
-                                    bodyPart: (log as any).bodyPart ?? "",
-                                    exercises: exs,
-                                    feedback: (log as any).feedback ?? "",
-                                    notes: log.notes ?? "",
-                                  });
-                                  setEditJournalOpen(true);
-                                }}
-                                className="text-muted-foreground hover:text-primary transition-colors"
-                              >
-                                <Edit className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => deleteLogMutation.mutate({ id: log.id })}
-                                className="text-muted-foreground hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </div>
+                        {(log as any).goal && (
+                          <p className="text-[11px] text-muted-foreground mt-1 truncate">{(log as any).goal}</p>
                         )}
-                      </div>
+                        {exs.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">
+                            {exs.map(e => e.name).filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </button>
                     );
                   })}
                 </div>
@@ -1195,7 +1244,14 @@ export default function MemberDetail({ memberId }: Props) {
             }}
           >
             <CheckCircle className="h-4 w-4" />
-            {checkedInToday ? "오늘 출석 완료 ✓" : "오늘 출석 체크"}
+            {checkedInToday ? "오늘 출석 완료 ✓" : (
+              <span className="flex items-center gap-1.5">
+                오늘 출석 체크
+                {pointLabel(autoPoints("attendance_check")) && (
+                  <span className="text-xs text-green-400 font-normal">{pointLabel(autoPoints("attendance_check"))}</span>
+                )}
+              </span>
+            )}
           </Button>
 
           {/* 달력 카드 */}
@@ -1324,7 +1380,7 @@ export default function MemberDetail({ memberId }: Props) {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">PT 프로그램</Label>
+              <Label className="text-xs">프로그램명</Label>
               <Input value={editPkgForm.packageName} onChange={e => setEditPkgForm(p => ({ ...p, packageName: e.target.value }))} placeholder="피티" className="h-9 text-sm" />
               <div className="flex gap-1.5 flex-wrap">
                 {["피티", "필라테스", "이벤트 세션"].map(preset => (
@@ -1541,20 +1597,35 @@ export default function MemberDetail({ memberId }: Props) {
               <Input type="date" value={journalForm.sessionDate} onChange={e => setJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">오늘의 목표</Label>
-              <Input value={journalForm.goal} onChange={e => setJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-xs">운동 부위 (최대 3개)</Label>
               <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
+              <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} enabled={isFeatureActive("templates")} />
               <Label className="text-xs">운동 종목</Label>
-              <ExerciseEditor exercises={journalForm.exercises} onChange={exs => setJournalForm(p => ({ ...p, exercises: exs }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">피드백</Label>
-              <Textarea value={journalForm.feedback} onChange={e => setJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
+              <div className="space-y-1.5">
+                {journalForm.exercises.map((ex, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-muted/30 border border-border rounded-lg px-3 py-2">
+                    <span className="text-muted-foreground text-xs select-none">⠿⠿</span>
+                    <input
+                      value={ex.name}
+                      onChange={e => setJournalForm(p => ({ ...p, exercises: p.exercises.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }))}
+                      placeholder="운동명 (예: 스쿼트)"
+                      className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
+                    />
+                    <button onClick={() => setJournalForm(p => ({ ...p, exercises: p.exercises.filter((_, j) => j !== i) }))}
+                      className="text-muted-foreground hover:text-red-400 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setJournalForm(p => ({ ...p, exercises: [...p.exercises, { name: "", sets: [] }] }))}
+                  className="w-full py-2 border border-dashed border-primary/40 rounded-lg text-xs text-primary hover:bg-primary/5 transition-colors"
+                >
+                  + 운동 종목 추가
+                </button>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">메모 (선택)</Label>
@@ -1572,7 +1643,14 @@ export default function MemberDetail({ memberId }: Props) {
                   feedback: journalForm.feedback || undefined,
                   notes: journalForm.notes || undefined,
                 })}>
-                {createLogMutation.isPending ? "저장 중..." : "저장"}
+                {createLogMutation.isPending ? "저장 중..." : (
+                  <span className="flex items-center gap-1.5">
+                    저장
+                    {pointLabel(autoPoints("session_log")) && (
+                      <span className="text-xs text-green-400 font-normal">{pointLabel(autoPoints("session_log"))}</span>
+                    )}
+                  </span>
+                )}
               </Button>
             </div>
           </div>
@@ -1592,20 +1670,12 @@ export default function MemberDetail({ memberId }: Props) {
               <Input type="date" value={editJournalForm.sessionDate} onChange={e => setEditJournalForm(p => ({ ...p, sessionDate: e.target.value }))} className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">오늘의 목표</Label>
-              <Input value={editJournalForm.goal} onChange={e => setEditJournalForm(p => ({ ...p, goal: e.target.value }))} placeholder="오늘 수업 목표..." className="h-9 text-sm" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-xs">운동 부위 (최대 3개)</Label>
               <BodyPartPicker value={editJournalForm.bodyPart} onChange={v => setEditJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
               <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">피드백</Label>
-              <Textarea value={editJournalForm.feedback} onChange={e => setEditJournalForm(p => ({ ...p, feedback: e.target.value }))} placeholder="수업 후 피드백, 개선점 등..." rows={3} className="text-sm resize-none" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">메모 (선택)</Label>
@@ -1867,11 +1937,49 @@ export default function MemberDetail({ memberId }: Props) {
                   + 운동 추가
                 </button>
 
-                {/* 저장 / 삭제 */}
-                <div className="flex gap-2 pt-1">
+                {/* 하단 버튼 바 */}
+                <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs text-blue-400 hover:text-blue-400 hover:bg-blue-500/10 border-blue-500/30"
+                    disabled={sendToMemberMutation.isPending}
+                    onClick={() => sendToMemberMutation.mutate({ sessionLogId: viewLogData.log.id }, {
+                      onSuccess: () => toast.success("회원에게 전송되었습니다."),
+                      onError: (err) => toast.error(err.message || "전송 실패"),
+                    })}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    회원 전송
+                  </Button>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => {
+                      setEditJournalForm({
+                        id: viewLogData.log.id,
+                        sessionDate: viewLogData.log.sessionDate,
+                        goal: viewLogData.log.goal ?? "",
+                        bodyPart: viewLogData.log.bodyPart ?? "",
+                        exercises: viewLogData.exs,
+                        feedback: viewLogData.log.feedback ?? "",
+                        notes: viewLogData.log.notes ?? "",
+                      });
+                      setViewLogOpen(false);
+                      setEditJournalOpen(true);
+                    }}
+                    className="p-2 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteLogMutation.mutate({ id: viewLogData.log.id }); setViewLogOpen(false); } }}
+                    className="p-2 text-muted-foreground hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                   <Button
                     size="sm"
-                    className="flex-1 gap-1.5 text-xs"
+                    className="text-xs"
                     disabled={updateLogMutation.isPending}
                     onClick={() => {
                       updateLogMutation.mutate({
@@ -1882,17 +1990,6 @@ export default function MemberDetail({ memberId }: Props) {
                   >
                     {updateLogMutation.isPending ? "저장 중..." : "저장"}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs text-red-400 hover:text-red-400 hover:bg-red-500/10 border-red-500/30"
-                    onClick={() => {
-                      deleteLogMutation.mutate({ id: viewLogData.log.id });
-                      setViewLogOpen(false);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
                 </div>
               </div>
             </>
@@ -1900,6 +1997,163 @@ export default function MemberDetail({ memberId }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* 환불 계약서 생성 다이얼로그 */}
+      <Dialog open={refundContractOpen} onOpenChange={(o) => { setRefundContractOpen(o); if (!o) setContractCreatedToken(null); }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ReceiptText className="h-4 w-4 text-orange-500" />환불 계약서 생성</DialogTitle>
+            <DialogDescription>{member?.name}님의 환불 계약서를 생성합니다.</DialogDescription>
+          </DialogHeader>
+          {contractCreatedToken ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-center text-green-500 font-semibold">계약서가 생성되었습니다!</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 text-xs gap-1.5" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/contract/${contractCreatedToken}`); toast.success("링크 복사됨"); }}>
+                  <Copy className="h-3.5 w-3.5" /> 링크 복사
+                </Button>
+                <Button className="flex-1 text-xs gap-1.5 bg-[#FEE500] text-[#3A1D1D] hover:bg-[#FEE500]/90" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/contract/${contractCreatedToken}`).then(() => { toast.success("링크 복사됨 — 카카오톡에 붙여넣기 하세요"); setTimeout(() => { window.location.href = "kakaotalk://"; }, 300); }); }}>
+                  카카오톡 공유
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { label: "프로그램명", key: "programName", placeholder: "PT 10회" },
+                  { label: "결제 금액(원)", key: "programPrice", placeholder: "500000" },
+                  { label: "총 횟수", key: "programSessions", placeholder: "10" },
+                  { label: "수강 횟수", key: "usedSessions", placeholder: "3" },
+                ] as { label: string; key: keyof typeof refundForm; placeholder: string }[]).map(({ label, key, placeholder }) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input value={refundForm[key]} onChange={e => setRefundForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} className="h-9 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">결제 방법</Label>
+                <div className="flex gap-2">
+                  {["카드", "현금", "계좌이체"].map(m => (
+                    <button key={m} onClick={() => setRefundForm(p => ({ ...p, paymentMethod: p.paymentMethod === m ? "" : m }))}
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors ${refundForm.paymentMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { label: "부가세(원)", key: "vatAmount" },
+                  { label: "위약금(원)", key: "penaltyAmount" },
+                  { label: "환불 금액(원)", key: "refundAmount" },
+                ] as { label: string; key: keyof typeof refundForm }[]).map(({ label, key }) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input type="number" value={refundForm[key]} onChange={e => setRefundForm(p => ({ ...p, [key]: e.target.value }))} placeholder="0" className="h-9 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">환불 사유</Label>
+                <Textarea value={refundForm.refundReason} onChange={e => setRefundForm(p => ({ ...p, refundReason: e.target.value }))} placeholder="부상, 개인 사정 등" rows={2} className="text-sm resize-none" />
+              </div>
+              <Button className="w-full" disabled={createRefundMutation.isPending} onClick={() => createRefundMutation.mutate({
+                memberName: member?.name || undefined,
+                memberPhone: member?.phone || undefined,
+                programName: refundForm.programName || undefined,
+                programPrice: refundForm.programPrice ? parseInt(refundForm.programPrice) : undefined,
+                programSessions: refundForm.programSessions ? parseInt(refundForm.programSessions) : undefined,
+                usedSessions: refundForm.usedSessions ? parseInt(refundForm.usedSessions) : undefined,
+                refundAmount: refundForm.refundAmount ? parseInt(refundForm.refundAmount) : undefined,
+                refundReason: refundForm.refundReason || undefined,
+                paymentMethod: refundForm.paymentMethod || undefined,
+                vatAmount: refundForm.vatAmount ? parseInt(refundForm.vatAmount) : undefined,
+                penaltyAmount: refundForm.penaltyAmount ? parseInt(refundForm.penaltyAmount) : undefined,
+              })}>
+                {createRefundMutation.isPending ? "생성 중..." : "계약서 생성 및 링크 발급"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 양도양수 계약서 생성 다이얼로그 */}
+      <Dialog open={transferContractOpen} onOpenChange={(o) => { setTransferContractOpen(o); if (!o) setContractCreatedToken(null); }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ArrowLeftRight className="h-4 w-4 text-blue-500" />양도양수 계약서 생성</DialogTitle>
+            <DialogDescription>{member?.name}님의 양도양수 계약서를 생성합니다.</DialogDescription>
+          </DialogHeader>
+          {contractCreatedToken ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-center text-green-500 font-semibold">계약서가 생성되었습니다!</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 text-xs gap-1.5" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/contract/${contractCreatedToken}`); toast.success("링크 복사됨"); }}>
+                  <Copy className="h-3.5 w-3.5" /> 링크 복사
+                </Button>
+                <Button className="flex-1 text-xs gap-1.5 bg-[#FEE500] text-[#3A1D1D] hover:bg-[#FEE500]/90" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/contract/${contractCreatedToken}`).then(() => { toast.success("링크 복사됨 — 카카오톡에 붙여넣기 하세요"); setTimeout(() => { window.location.href = "kakaotalk://"; }, 300); }); }}>
+                  카카오톡 공유
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { label: "프로그램명", key: "programName", placeholder: "PT 10회" },
+                  { label: "총 횟수", key: "totalSessions", placeholder: "10" },
+                  { label: "수강 횟수", key: "usedSessions", placeholder: "3" },
+                  { label: "잔여 횟수", key: "remainingSessions", placeholder: "7" },
+                ] as { label: string; key: keyof typeof transferForm; placeholder: string }[]).map(({ label, key, placeholder }) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input value={transferForm[key]} onChange={e => setTransferForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder} className="h-9 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">양도 예정일</Label>
+                <Input type="date" value={transferForm.transferDate} onChange={e => setTransferForm(p => ({ ...p, transferDate: e.target.value }))} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">STEPER 메모 (선택)</Label>
+                <Textarea value={transferForm.trainerMemo} onChange={e => setTransferForm(p => ({ ...p, trainerMemo: e.target.value }))} placeholder="특이사항 등" rows={2} className="text-sm resize-none" />
+              </div>
+              <Button className="w-full" disabled={createTransferMutation.isPending} onClick={() => createTransferMutation.mutate({
+                transferorName: member?.name || undefined,
+                transferorPhone: member?.phone || undefined,
+                programName: transferForm.programName || undefined,
+                totalSessions: transferForm.totalSessions ? parseInt(transferForm.totalSessions) : undefined,
+                usedSessions: transferForm.usedSessions ? parseInt(transferForm.usedSessions) : undefined,
+                remainingSessions: transferForm.remainingSessions ? parseInt(transferForm.remainingSessions) : undefined,
+                transferDate: transferForm.transferDate || undefined,
+                trainerMemo: transferForm.trainerMemo || undefined,
+              })}>
+                {createTransferMutation.isPending ? "생성 중..." : "계약서 생성 및 링크 발급"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 건강 리포트 공유 포인트 확인 */}
+      <PointSpendConfirm
+        open={reportPointConfirm}
+        onClose={() => setReportPointConfirm(false)}
+        featureName="건강 리포트 공유"
+        cost={featureInfo("health_report").cost}
+        loading={spendFeatureMutation.isPending || generateReportMutation.isPending}
+        onConfirm={() => {
+          spendFeatureMutation.mutate({ feature: "health_report" }, {
+            onSuccess: () => {
+              setReportPointConfirm(false);
+              generateReportMutation.mutate({ memberId });
+            },
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
     </div>
   );
 }

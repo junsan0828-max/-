@@ -22,6 +22,9 @@ export const trainers = pgTable("trainers", {
   trainerName: text("trainerName").notNull(),
   phone: text("phone"),
   email: text("email"),
+  gender: text("gender"),
+  birthYear: text("birthYear"),
+  ageRange: text("ageRange"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -34,6 +37,7 @@ export const trainerSettings = pgTable("trainer_settings", {
   termsOfService: text("termsOfService"),
   privacyPolicy: text("privacyPolicy"),
   marketingConsent: text("marketingConsent"),
+  workshopTrialStartedAt: text("workshopTrialStartedAt"),
   createdAt: text("createdAt").default(now).notNull(),
   updatedAt: text("updatedAt").default(now).notNull(),
 });
@@ -300,5 +304,29 @@ export const fitStepPlusWorkoutLogs = pgTable("fit_step_plus_workout_logs", {
   bodyWeight: text("bodyWeight"),
   notes: text("notes"),
   mood: text("mood"),
+  intensity: text("intensity"),
+  totalVolume: integer("totalVolume"),
   createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const fitStepPlusAttendance = pgTable("fit_step_plus_attendance", {
+  id: serial("id").primaryKey(),
+  fitStepPlusMemberId: integer("fitStepPlusMemberId").notNull(),
+  trainerId: integer("trainerId").notNull(),
+  attendDate: text("attendDate").notNull(),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
+export const trainerFeedbacks = pgTable("trainer_feedbacks", {
+  id: serial("id").primaryKey(),
+  trainerId: integer("trainerId").notNull(),
+  trainerName: text("trainerName").notNull(),
+  username: text("username").notNull(),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  status: text("status").default("pending").notNull(),
+  adminNote: text("adminNote"),
+  createdAt: text("createdAt").default(now).notNull(),
+  updatedAt: text("updatedAt").default(now).notNull(),
 });

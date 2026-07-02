@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, ClipboardList } from "lucide-react";
+import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, ClipboardList, FileText, ClipboardCheck } from "lucide-react";
+import { useLocation } from "wouter";
 import TabBanner from "@/components/TabBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import PointSpendConfirm from "@/components/PointSpendConfirm";
+import { useAutoPoints, pointLabel } from "@/hooks/useAutoPoints";
 
 // 관리상담: consulted 상태이고 상담일로부터 7일 이내
 function resolveDisplayStatus(status: string, consultationDate: string | null | undefined): string {
@@ -27,6 +30,8 @@ const CONSULT_TYPES: Record<string, string[]> = {
 };
 const MAIN_TYPES = Object.keys(CONSULT_TYPES);
 const INTEREST_OPTIONS = ["PT", "필라테스", "기타"];
+const PROGRAM_FORMATS = ["개인", "그룹"];
+const VISIT_ROUTES = ["지인 소개", "네이버플레이스", "당근광고", "인스타그램", "간판/현수막", "전단지", "재등록", "기타"];
 const AGE_OPTIONS = ["10대", "20대", "30대", "40대", "50대이상"];
 const EXERCISE_PURPOSES = [
   "다이어트 (체중 감량)", "체형교정 (자세 개선)", "통증 개선 (목/허리/무릎 등)",
@@ -116,36 +121,45 @@ type LeadForm = {
   consultationSubTypes: string[];
   consultationNote: string;
   interestType: string;
+  interestCustom: string;
   exercisePurposes: string[];
   memo: string;
 };
 
 type RegForm = {
-  itemTypes: string[];
-  subType: "신규" | "재등록";
-  programKey: string; programCustom: string;
-  sessions?: number; duration?: number; otherItem: string;
-  amount: string; discountAmount: string; paidAmount: string; unpaidAmount: string;
-  paymentMethod: string; paymentDate: string; startDate: string; memo: string;
+  programType: string;
+  programFormat: string;
+  programCustom: string;
+  sessions: string;
+  amount: string;
+  discountAmount: string;
+  paidAmount: string;
+  unpaidAmount: string;
+  paymentMethod: string;
+  paymentDate: string;
+  startDate: string;
+  endDate: string;
+  visitRoute: string;
+  memo: string;
 };
 
 const defaultForm: LeadForm = {
   name: "", phone: "", gender: "", ageGroup: "",
   consultationDate: new Date().toISOString().substring(0, 10),
   consultationTypes: [], consultationSubTypes: [],
-  consultationNote: "", interestType: "", exercisePurposes: [], memo: "",
+  consultationNote: "", interestType: "", interestCustom: "", exercisePurposes: [], memo: "",
 };
 
 const defaultReg: RegForm = {
-  itemTypes: [], subType: "신규", programKey: "", programCustom: "",
-  sessions: undefined, duration: undefined, otherItem: "",
-  amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0",
+  programType: "", programFormat: "", programCustom: "",
+  sessions: "", amount: "", discountAmount: "0", paidAmount: "", unpaidAmount: "0",
   paymentMethod: "", paymentDate: new Date().toISOString().substring(0, 10),
-  startDate: new Date().toISOString().substring(0, 10), memo: "",
+  startDate: new Date().toISOString().substring(0, 10), endDate: "", visitRoute: "", memo: "",
 };
 
 export default function LeadsPage() {
   const utils = trpc.useUtils();
+  const [, setLocation] = useLocation();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -172,12 +186,18 @@ export default function LeadsPage() {
   const { data: channels } = trpc.channels.list.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
   const { data: contractTerms } = trpc.trainers.getContractTerms.useQuery();
+  const { data: myProfile } = trpc.trainers.getMyProfile.useQuery();
 
   // 바로등록 상태
   const [showQuickModal, setShowQuickModal] = useState(false);
   const [quickStep, setQuickStep] = useState<"select" | "new" | "rereg">("select");
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
+  const [isQuickReg, setIsQuickReg] = useState(false);
+  const [showPdfConfirm, setShowPdfConfirm] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [showReregiConfirm, setShowReregiConfirm] = useState(false);
+  const [showNewContractConfirm, setShowNewContractConfirm] = useState(false);
   const [reregMemberId, setReregMemberId] = useState("");
   const [reregPkg, setReregPkg] = useState({
     ptProgram: "", totalSessions: "", startDate: "", expiryDate: "",
@@ -185,6 +205,22 @@ export default function LeadsPage() {
     paymentMethod: "" as "" | "현금영수증" | "이체" | "지역화폐" | "카드",
     paymentMemo: "",
   });
+
+  const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
+  const { data: featureCosts } = trpc.fitPoints.getFeatureCosts.useQuery();
+  const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
+  const kakaoShareEnabled = (() => {
+    const configs = wsStatus?.featureConfigs ?? {};
+    const removed = wsStatus?.removedFeatures ?? [];
+    return configs["contract_kakao"] === "active" && !removed.includes("contract_kakao");
+  })();
+  const autoPoints = useAutoPoints();
+
+  // 기능별 비용/활성화 여부 헬퍼
+  function featureInfo(feature: string) {
+    const rule = featureCosts?.[feature];
+    return { cost: rule?.cost ?? 50, enabled: rule?.enabled ?? true };
+  }
 
   const addPackageMutation = trpc.pt.addPackage.useMutation({
     onSuccess: () => {
@@ -197,11 +233,32 @@ export default function LeadsPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  function submitReregistration() {
+    if (!reregMemberId || !reregPkg.totalSessions) return;
+    addPackageMutation.mutate({
+      memberId: Number(reregMemberId),
+      ptProgram: reregPkg.ptProgram || undefined,
+      totalSessions: Number(reregPkg.totalSessions),
+      startDate: reregPkg.startDate || undefined,
+      expiryDate: reregPkg.expiryDate || undefined,
+      paymentAmount: reregPkg.paymentAmount ? Number(reregPkg.paymentAmount) : undefined,
+      unpaidAmount: reregPkg.unpaidAmount ? Number(reregPkg.unpaidAmount) : undefined,
+      paymentMethod: reregPkg.paymentMethod || undefined,
+      paymentMemo: reregPkg.paymentMemo || undefined,
+      withContract: true,
+    }, {
+      onSuccess: () => setShowReregiConfirm(false),
+      onError: (e) => toast.error(e.message),
+    });
+  }
+
   function openQuickModal() {
-    setQuickStep("select");
     setQuickName("");
     setQuickPhone("");
-    setShowQuickModal(true);
+    setIsQuickReg(true);
+    setRegForm({ ...defaultReg, paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10) });
+    pendingLeadIdRef.current = null;
+    setShowRegistration(true);
   }
 
   function startQuickNew() {
@@ -220,7 +277,28 @@ export default function LeadsPage() {
       if (pendingLeadIdRef.current === -1) {
         pendingLeadIdRef.current = data.id;
         setShowForm(false);
-        // 등록 모달은 confirmRegistration에서 이미 열었음
+        if (isQuickReg) {
+          // 바로등록: lead 생성 완료 후 즉시 registerMutation 호출
+          registerMutation.mutate({
+            leadId: data.id,
+            name: quickName.trim(), phone: quickPhone || undefined,
+            programType: regForm.programType || undefined,
+            programFormat: regForm.programFormat || undefined,
+            programCustom: regForm.programCustom || undefined,
+            sessions: regForm.sessions ? parseInt(regForm.sessions) : undefined,
+            amount: Number(regForm.amount),
+            discountAmount: Number(regForm.discountAmount),
+            paidAmount: Number(regForm.paidAmount),
+            unpaidAmount: Number(regForm.unpaidAmount),
+            paymentMethod: regForm.paymentMethod || undefined,
+            paymentDate: regForm.paymentDate,
+            startDate: regForm.startDate || undefined,
+            endDate: regForm.endDate || undefined,
+            visitRoute: regForm.visitRoute || undefined,
+            memo: regForm.memo || undefined,
+          });
+        }
+        // 등록 모달은 confirmRegistration에서 이미 열었음 (일반 계약 흐름)
       } else {
         toast.success("상담이 등록되었습니다");
         resetForm();
@@ -255,6 +333,7 @@ export default function LeadsPage() {
     setShowContract(false); setAgreedTerms(false); setAgreedPrivacy(false); setAgreedMarketing(false);
     setSignatureData("");
     setShowRegistration(false); setRegForm(defaultReg);
+    setIsQuickReg(false); setQuickName(""); setQuickPhone("");
     pendingLeadIdRef.current = null;
   }
 
@@ -268,6 +347,7 @@ export default function LeadsPage() {
       consultationSubTypes: row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [],
       consultationNote: row.lead.consultationNote ?? "",
       interestType: row.lead.interestType ?? "",
+      interestCustom: "",
       exercisePurposes: row.lead.exercisePurpose ? row.lead.exercisePurpose.split(",").filter(Boolean) : [],
       memo: row.lead.memo ?? "",
     });
@@ -294,7 +374,7 @@ export default function LeadsPage() {
       consultationType: form.consultationTypes.length > 0 ? form.consultationTypes.join(",") : undefined,
       consultationSubTypes: form.consultationSubTypes.length > 0 ? form.consultationSubTypes.join(",") : undefined,
       consultationNote: form.consultationNote || undefined,
-      interestType: form.interestType || undefined,
+      interestType: form.interestType === "기타" && form.interestCustom ? `기타(${form.interestCustom})` : form.interestType || undefined,
       exercisePurpose: form.exercisePurposes.length > 0 ? form.exercisePurposes.join(",") : undefined,
       memo: form.memo || undefined,
       status,
@@ -380,8 +460,8 @@ export default function LeadsPage() {
     if (!signatureData) return toast.error("서명을 해주세요");
     sessionStorage.setItem("contractSignature", signatureData);
     setShowContract(false);
-    const preTypes = INTEREST_OPTIONS.includes(form.interestType) ? [form.interestType] : [];
-    setRegForm({ ...defaultReg, itemTypes: preTypes, paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10) });
+    const preType = INTEREST_OPTIONS.includes(form.interestType) ? form.interestType : "";
+    setRegForm({ ...defaultReg, programType: preType, paymentDate: new Date().toISOString().substring(0, 10), startDate: new Date().toISOString().substring(0, 10) });
     // 등록 모달 즉시 오픈 (API 응답 기다리지 않음)
     setShowRegistration(true);
     if (editId) {
@@ -394,21 +474,36 @@ export default function LeadsPage() {
   }
 
   function saveRegistration() {
+    if (isQuickReg) {
+      if (!quickName.trim()) return toast.error("이름을 입력해주세요");
+      if (!regForm.paymentDate) return toast.error("결제일을 입력해주세요");
+      pendingLeadIdRef.current = -1;
+      createMutation.mutate({
+        name: quickName.trim(), phone: quickPhone || undefined,
+        consultationDate: new Date().toISOString().substring(0, 10),
+        status: "registered",
+      } as any);
+      return;
+    }
     const leadId = pendingLeadIdRef.current;
-    // leadId가 아직 -1/-2면 API 처리 중이므로 잠시 대기
     if (!leadId || leadId < 0) return toast.error("잠시 후 다시 시도해주세요 (처리 중)");
     if (!regForm.paymentDate) return toast.error("결제일을 입력해주세요");
-    if (!Number(regForm.amount)) return toast.error("금액을 입력해주세요");
     registerMutation.mutate({
       leadId,
       name: form.name, phone: form.phone || undefined, gender: form.gender || undefined,
-      itemTypes: regForm.itemTypes,
-      programKey: regForm.programKey || undefined, programCustom: regForm.programCustom || undefined,
-      sessions: regForm.sessions, duration: regForm.duration, subType: regForm.subType,
-      amount: Number(regForm.amount), discountAmount: Number(regForm.discountAmount),
-      paidAmount: Number(regForm.paidAmount), unpaidAmount: Number(regForm.unpaidAmount),
+      programType: regForm.programType || undefined,
+      programFormat: regForm.programFormat || undefined,
+      programCustom: regForm.programCustom || undefined,
+      sessions: regForm.sessions ? parseInt(regForm.sessions) : undefined,
+      amount: Number(regForm.amount),
+      discountAmount: Number(regForm.discountAmount),
+      paidAmount: Number(regForm.paidAmount),
+      unpaidAmount: Number(regForm.unpaidAmount),
       paymentMethod: regForm.paymentMethod || undefined,
-      paymentDate: regForm.paymentDate, startDate: regForm.startDate || undefined,
+      paymentDate: regForm.paymentDate,
+      startDate: regForm.startDate || undefined,
+      endDate: regForm.endDate || undefined,
+      visitRoute: regForm.visitRoute || undefined,
       memo: regForm.memo || undefined,
     });
   }
@@ -503,10 +598,11 @@ export default function LeadsPage() {
             const s = STATUS_OPTIONS.find(s => s.value === displayStatus);
             const mainTypes = row.lead.consultationType ? row.lead.consultationType.split(",").filter(Boolean) : [];
             const subTypes = row.lead.consultationSubTypes ? row.lead.consultationSubTypes.split(",").filter(Boolean) : [];
+            const contractUrl = `/contract-print?name=${encodeURIComponent(row.lead.name)}&phone=${encodeURIComponent(row.lead.phone ?? "")}&date=${encodeURIComponent(new Date().toLocaleDateString("ko-KR"))}&trainerName=${encodeURIComponent((myProfile as any)?.trainerName ?? "")}&gymName=${encodeURIComponent((myProfile as any)?.workplaceName ?? "")}${kakaoShareEnabled ? "&showKakao=1" : ""}`;
             return (
-              <div key={row.lead.id} onClick={() => openEdit(row)}
-                className="bg-card border border-border rounded-xl p-4 space-y-2 cursor-pointer hover:border-primary/30 transition-colors">
-                <div className="flex items-start justify-between">
+              <div key={row.lead.id} className="bg-card border border-border rounded-xl p-4 space-y-3">
+                {/* 헤더: 이름/상태 */}
+                <div className="flex items-start justify-between cursor-pointer" onClick={() => openEdit(row)}>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground">{row.lead.name}</span>
@@ -524,13 +620,61 @@ export default function LeadsPage() {
                     {s && <s.icon className="h-3 w-3" />}{s?.label}
                   </div>
                 </div>
+
+                {/* 태그 */}
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   {mainTypes.map(mt => <span key={mt} className="bg-primary/10 text-primary px-2 py-0.5 rounded-full">{mt}</span>)}
                   {subTypes.map(st => <span key={st} className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{st}</span>)}
                   {row.lead.interestType && <span className="bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded-full">{row.lead.interestType}</span>}
                   {row.channelName && <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{row.channelName}</span>}
                 </div>
-                {row.lead.consultationNote && <p className="text-xs text-muted-foreground line-clamp-2">{row.lead.consultationNote}</p>}
+
+                {/* 메모 */}
+                {(row.lead.consultationNote || row.lead.memo) && (
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                    {row.lead.consultationNote || row.lead.memo}
+                  </p>
+                )}
+
+                {/* 액션 버튼 */}
+                <div className="flex flex-col gap-2 pt-1">
+                  <div className="flex gap-2">
+                    {/* 계약서 PDF 출력 */}
+                    <button
+                      onClick={() => {
+                        if (contractTerms) sessionStorage.setItem("contractTerms", JSON.stringify(contractTerms));
+                        setPdfUrl(contractUrl);
+                        if (featureInfo("contract_pdf").enabled) {
+                          setShowPdfConfirm(true);
+                        } else {
+                          window.open(contractUrl, "_blank");
+                        }
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      계약서 PDF 출력{featureInfo("contract_pdf").enabled ? <span className="text-primary/70"> -{featureInfo("contract_pdf").cost}P</span> : null}
+                    </button>
+                  </div>
+                  {/* PAR-Q */}
+                  <button
+                    onClick={() => {
+                      if (row.lead.registeredMemberId) {
+                        setLocation(`/members/${row.lead.registeredMemberId}/parq`);
+                      } else {
+                        toast.error("회원 등록 후 PAR-Q 검사를 진행할 수 있습니다.");
+                      }
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-lg border transition-colors ${
+                      row.lead.registeredMemberId
+                        ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                        : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    }`}
+                  >
+                    <ClipboardCheck className="h-3.5 w-3.5" />
+                    PAR-Q 사전건강검사
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -603,7 +747,7 @@ export default function LeadsPage() {
                 }
               </div>
             </div>
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={confirmRegistration} disabled={!agreedTerms || !agreedPrivacy || !signatureData}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 진행
@@ -666,7 +810,13 @@ export default function LeadsPage() {
                 <p className="text-xs text-muted-foreground">이름 입력 후 전자계약 화면으로 이동합니다.</p>
                 <div className="flex gap-2">
                   <button onClick={() => setShowQuickModal(false)} className="flex-1 border border-border text-muted-foreground rounded-xl py-2.5 text-sm">취소</button>
-                  <button onClick={startQuickNew} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-bold hover:bg-primary/90">전자계약 진행</button>
+                  <button onClick={() => {
+                    if (!quickName.trim()) return toast.error("이름을 입력해주세요");
+                    if (!featureInfo("new_contract").enabled) { startQuickNew(); return; }
+                    setShowNewContractConfirm(true);
+                  }} className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-bold hover:bg-primary/90">
+                    전자계약 진행{featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}
+                  </button>
                 </div>
               </div>
             )}
@@ -740,20 +890,20 @@ export default function LeadsPage() {
                     disabled={!reregMemberId || !reregPkg.totalSessions || addPackageMutation.isPending}
                     onClick={() => {
                       if (!reregMemberId || !reregPkg.totalSessions) return;
-                      addPackageMutation.mutate({
-                        memberId: Number(reregMemberId),
-                        ptProgram: reregPkg.ptProgram || undefined,
-                        totalSessions: Number(reregPkg.totalSessions),
-                        startDate: reregPkg.startDate || undefined,
-                        expiryDate: reregPkg.expiryDate || undefined,
-                        paymentAmount: reregPkg.paymentAmount ? Number(reregPkg.paymentAmount) : undefined,
-                        unpaidAmount: reregPkg.unpaidAmount ? Number(reregPkg.unpaidAmount) : undefined,
-                        paymentMethod: reregPkg.paymentMethod || undefined,
-                        paymentMemo: reregPkg.paymentMemo || undefined,
-                      });
+                      if (featureInfo("reregistration").enabled) {
+                        setShowReregiConfirm(true);
+                      } else {
+                        submitReregistration();
+                      }
                     }}
                     className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-emerald-700 disabled:opacity-40">
-                    {addPackageMutation.isPending ? "등록 중..." : "재등록 완료"}
+                    {addPackageMutation.isPending ? "등록 중..." : (
+                      <span className="flex items-center justify-center gap-1.5">
+                        재등록 완료
+                        {pointLabel(autoPoints("renewal_complete")) && <span className="text-xs font-normal text-green-300">{pointLabel(autoPoints("renewal_complete"))}</span>}
+                        {featureInfo("reregistration").enabled && <span className="text-xs font-normal opacity-70">-{featureInfo("reregistration").cost}P</span>}
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -768,84 +918,68 @@ export default function LeadsPage() {
           <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "92vh" }}>
             <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
               <div>
-                <h2 className="font-bold text-foreground">등록 상세 정보</h2>
-                <p className="text-xs text-muted-foreground">{form.name} · {form.interestType || "기타"}</p>
+                <h2 className="font-bold text-foreground">{isQuickReg ? "바로등록" : "등록 상세 정보"}</h2>
+                <p className="text-xs text-muted-foreground">{isQuickReg ? "결제 포함 등록 · 매출에 반영" : `${form.name} · ${form.interestType || "기타"}`}</p>
               </div>
-              <button onClick={() => setShowRegistration(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+              <button onClick={() => { setShowRegistration(false); setIsQuickReg(false); }} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="overflow-y-auto flex-1 p-4 space-y-4">
-              <div>
-                <label className="text-xs text-muted-foreground">구분</label>
-                <div className="flex gap-2 mt-1">
-                  <button type="button"
-                    className="flex-1 py-2 rounded-lg text-sm font-medium border bg-primary text-primary-foreground border-primary">
-                    신규
-                  </button>
-                  <button type="button" disabled
-                    className="flex-1 py-2 rounded-lg text-sm font-medium border bg-background border-border text-muted-foreground/40 cursor-not-allowed">
-                    재등록
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">항목 유형 (복수 선택)</label>
-                <div className="flex gap-2 mt-1">
-                  {["PT", "필라테스", "기타"].map(t => (
-                    <button key={t} type="button"
-                      onClick={() => setRegForm(f => ({ ...f, itemTypes: f.itemTypes.includes(t) ? f.itemTypes.filter(x => x !== t) : [...f.itemTypes, t] }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.itemTypes.includes(t) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {regForm.itemTypes.includes("PT") && (
-                <div className="space-y-3 pl-3 border-l-2 border-primary/40">
-                  <div>
-                    <label className="text-xs text-muted-foreground">PT 프로그램</label>
-                    <input
-                      value={regForm.programCustom || regForm.programKey}
-                      onChange={e => setRegForm(f => ({ ...f, programKey: "", programCustom: e.target.value }))}
-                      placeholder="예: 피티"
-                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">PT 횟수</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <input
-                        type="number"
-                        min={1}
-                        value={regForm.sessions ?? ""}
-                        onChange={e => setRegForm(f => ({ ...f, sessions: e.target.value ? parseInt(e.target.value) : undefined }))}
-                        placeholder="횟수 직접 입력"
-                        className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <span className="text-sm text-muted-foreground shrink-0">회</span>
+              {isQuickReg && (
+                <div className="space-y-3 pb-2 border-b border-border">
+                  <p className="text-xs font-semibold text-muted-foreground">회원 정보</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">이름 *</label>
+                      <input value={quickName} onChange={e => setQuickName(e.target.value)} placeholder="홍길동"
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">연락처</label>
+                      <input value={quickPhone} onChange={e => setQuickPhone(e.target.value)} placeholder="010-0000-0000"
+                        className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
               )}
-              {regForm.itemTypes.includes("필라테스") && (
-                <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">필라테스 이용 기간</label>
-                  <div className="flex gap-2 mt-1">
-                    {DURATIONS.map(d => (
-                      <button key={d} type="button" onClick={() => setRegForm(f => ({ ...f, duration: f.duration === d ? undefined : d }))}
-                        className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.duration === d ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                        {d}개월
-                      </button>
-                    ))}
-                  </div>
+              {/* 프로그램 종류 */}
+              <div>
+                <label className="text-xs text-muted-foreground">프로그램 종류</label>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {["PT", "필라테스", "기타"].map(t => (
+                    <button key={t} type="button"
+                      onClick={() => setRegForm(f => ({ ...f, programType: f.programType === t ? "" : t, programCustom: "" }))}
+                      className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programType === t ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      {t}
+                    </button>
+                  ))}
                 </div>
-              )}
-              {regForm.itemTypes.includes("기타") && (
-                <div className="pl-3 border-l-2 border-primary/40">
-                  <label className="text-xs text-muted-foreground">기타 항목명</label>
-                  <input value={regForm.otherItem} onChange={e => setRegForm(f => ({ ...f, otherItem: e.target.value }))} placeholder="예: 락커, 운동복 등"
-                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                {regForm.programType === "기타" && (
+                  <input value={regForm.programCustom} onChange={e => setRegForm(f => ({ ...f, programCustom: e.target.value }))}
+                    placeholder="예: 요가, 수영, 크로스핏, 골프 등"
+                    className="w-full mt-2 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                )}
+              </div>
+              {/* 프로그램 형태 */}
+              <div>
+                <label className="text-xs text-muted-foreground">프로그램 형태</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {PROGRAM_FORMATS.map(f => (
+                    <button key={f} type="button"
+                      onClick={() => setRegForm(r => ({ ...r, programFormat: r.programFormat === f ? "" : f }))}
+                      className={`py-2 rounded-lg text-sm font-medium border transition-colors ${regForm.programFormat === f ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
+                      {f}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
+              {/* 횟수 */}
+              <div>
+                <label className="text-xs text-muted-foreground">횟수</label>
+                <input type="number" min={1} value={regForm.sessions} onChange={e => setRegForm(f => ({ ...f, sessions: e.target.value }))}
+                  placeholder="0"
+                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              {/* 정가 / 할인 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">정가 (원)</label>
@@ -865,6 +999,7 @@ export default function LeadsPage() {
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
+              {/* 실결제 / 미수금 */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">실결제 (원)</label>
@@ -880,6 +1015,7 @@ export default function LeadsPage() {
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
+              {/* 결제 방법 */}
               <div>
                 <label className="text-xs text-muted-foreground">결제 방법</label>
                 <div className="grid grid-cols-4 gap-2 mt-1">
@@ -891,9 +1027,10 @@ export default function LeadsPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {/* 결제일 / 시작일 / 종료일 */}
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-muted-foreground">결제일 *</label>
+                  <label className="text-xs text-muted-foreground">결제일</label>
                   <input type="date" value={regForm.paymentDate} onChange={e => setRegForm(f => ({ ...f, paymentDate: e.target.value }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
@@ -902,20 +1039,41 @@ export default function LeadsPage() {
                   <input type="date" value={regForm.startDate} onChange={e => setRegForm(f => ({ ...f, startDate: e.target.value }))}
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">종료일</label>
+                  <input type="date" value={regForm.endDate} onChange={e => setRegForm(f => ({ ...f, endDate: e.target.value }))}
+                    className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
               </div>
+              {/* 방문경로 */}
+              <div>
+                <label className="text-xs text-muted-foreground">방문 경로</label>
+                <select value={regForm.visitRoute} onChange={e => setRegForm(f => ({ ...f, visitRoute: e.target.value }))}
+                  className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">선택</option>
+                  {VISIT_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              {/* 메모 */}
               <div>
                 <label className="text-xs text-muted-foreground">메모</label>
                 <textarea value={regForm.memo} onChange={e => setRegForm(f => ({ ...f, memo: e.target.value }))} rows={2}
+                  placeholder="특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
             </div>
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            <div className="px-4 pt-3 pb-safe-4 border-t border-border shrink-0 space-y-2">
+              {isQuickReg && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+                  결제 정보가 포함되어 등록한 회원은 매출 통계에 반영됩니다.
+                </div>
+              )}
               <button type="button" onClick={saveRegistration}
                 disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
                 className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-bold hover:bg-emerald-600 transition-colors disabled:opacity-50">
-                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : "등록 완료 및 회원 생성"}
+                {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : `등록 완료 및 회원 생성${featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}`}
               </button>
-              <button type="button" onClick={() => setShowRegistration(false)}
+              <button type="button" onClick={() => { setShowRegistration(false); setIsQuickReg(false); }}
                 className="w-full border border-border text-muted-foreground rounded-xl py-2.5 text-sm font-medium hover:bg-muted/30">
                 취소
               </button>
@@ -926,14 +1084,18 @@ export default function LeadsPage() {
 
       {/* ── 상담 폼 모달 ── */}
       {showForm && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center p-4 pb-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md flex flex-col" style={{ maxHeight: "90vh" }}>
-            <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
-              <h2 className="font-semibold text-foreground">{editId ? "상담 수정" : "상담 일지"}</h2>
-              <button onClick={resetForm} className="text-muted-foreground hover:text-foreground">✕</button>
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-end md:items-center justify-center pt-safe">
+          <div className="bg-card border border-border rounded-t-3xl md:rounded-2xl w-full max-w-[520px] mx-auto flex flex-col max-h-modal">
+            {/* 모바일 drag handle */}
+            <div className="md:hidden flex justify-center pt-2.5 pb-1 shrink-0">
+              <div className="w-9 h-1 rounded-full bg-border" />
             </div>
-            <div className="overflow-y-auto flex-1 p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between shrink-0 md:rounded-t-2xl">
+              <h2 className="font-semibold text-foreground">{editId ? "상담 수정" : "상담 일지"}</h2>
+              <button onClick={resetForm} className="text-muted-foreground hover:text-foreground p-1">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-4 py-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">이름 *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="홍길동"
@@ -945,7 +1107,7 @@ export default function LeadsPage() {
                     className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">성별</label>
                   <div className="flex gap-2 mt-1">
@@ -977,19 +1139,6 @@ export default function LeadsPage() {
                   ))}
                 </div>
               </div>
-              {form.consultationTypes.some(t => CONSULT_TYPES[t]?.length > 0) && (
-                <div>
-                  <label className="text-xs text-muted-foreground">소분류</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {form.consultationTypes.flatMap(t => CONSULT_TYPES[t] ?? []).map(sub => (
-                      <button key={sub} type="button" onClick={() => toggleSubType(sub)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${form.consultationSubTypes.includes(sub) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground"}`}>
-                        {sub}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
               <div>
                 <label className="text-xs text-muted-foreground">관심 프로그램</label>
                 <div className="flex gap-2 mt-1">
@@ -1012,8 +1161,17 @@ export default function LeadsPage() {
                     ))}
                   </div>
                 )}
+                {form.interestType === "기타" && (
+                  <input
+                    type="text"
+                    value={form.interestCustom}
+                    onChange={e => setForm(f => ({ ...f, interestCustom: e.target.value }))}
+                    placeholder="관심 프로그램 직접 입력..."
+                    className="mt-2 w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+                  />
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">상담일</label>
                   <input type="date" value={form.consultationDate} onChange={e => setForm(f => ({ ...f, consultationDate: e.target.value }))}
@@ -1035,12 +1193,13 @@ export default function LeadsPage() {
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">메모</label>
+                <label className="text-xs text-muted-foreground">등록 진행 내용</label>
                 <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={2}
+                  placeholder="운동 가능 시간, 날짜, 특이사항..."
                   className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
               </div>
             </div>
-            <div className="p-4 border-t border-border shrink-0 space-y-2">
+            <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
               {editId ? (
                 // 기존 상담 수정: 등록완료(계약서) or 확인(저장)
                 <>
@@ -1055,7 +1214,7 @@ export default function LeadsPage() {
                     </button>
                     <button type="button" onClick={openContract}
                       className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
-                      등록완료
+                      계약서 작성 진행
                     </button>
                   </div>
                   <button type="button" onClick={() => { if (confirm("삭제하시겠습니까?")) { deleteMutation.mutate({ id: editId }); resetForm(); } }}
@@ -1068,11 +1227,11 @@ export default function LeadsPage() {
                 <div className="flex gap-2">
                   <button type="button" onClick={() => handleSave("consulted")}
                     className="flex-1 bg-blue-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-blue-600 transition-colors">
-                    상담완료
+                    상담완료{pointLabel(autoPoints("lead_complete")) ? <span className="text-xs font-normal opacity-80 ml-1">{pointLabel(autoPoints("lead_complete"))}</span> : null}
                   </button>
                   <button type="button" onClick={openContract}
                     className="flex-1 bg-emerald-500 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-emerald-600 transition-colors">
-                    등록완료
+                    계약서 작성 진행
                   </button>
                 </div>
               )}
@@ -1080,6 +1239,51 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      {/* 신규 전자계약 포인트 확인 */}
+      <PointSpendConfirm
+        open={showNewContractConfirm}
+        onClose={() => setShowNewContractConfirm(false)}
+        featureName="신규 전자계약"
+        cost={featureInfo("new_contract").cost}
+        loading={spendFeatureMutation.isPending}
+        onConfirm={() => {
+          spendFeatureMutation.mutate({ feature: "new_contract" }, {
+            onSuccess: () => {
+              setShowNewContractConfirm(false);
+              startQuickNew();
+            },
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
+
+      {/* PDF 출력 포인트 확인 */}
+      <PointSpendConfirm
+        open={showPdfConfirm}
+        onClose={() => setShowPdfConfirm(false)}
+        featureName="계약서 PDF 전달"
+        cost={featureInfo("contract_pdf").cost}
+        loading={spendFeatureMutation.isPending}
+        onConfirm={() => {
+          spendFeatureMutation.mutate({ feature: "contract_pdf" }, {
+            onSuccess: () => {
+              setShowPdfConfirm(false);
+              window.open(pdfUrl, "_blank");
+            },
+            onError: (e) => toast.error(e.message),
+          });
+        }}
+      />
+
+      {/* 재등록 계약 포인트 확인 */}
+      <PointSpendConfirm
+        open={showReregiConfirm}
+        onClose={() => setShowReregiConfirm(false)}
+        featureName="재등록 계약"
+        cost={featureInfo("reregistration").cost}
+        loading={addPackageMutation.isPending}
+        onConfirm={submitReregistration}
+      />
     </div>
   );
 }

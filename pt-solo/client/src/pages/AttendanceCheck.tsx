@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Dumbbell, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Dumbbell, Check, X } from "lucide-react";
 
 interface Props {
   memberId: number;
@@ -17,20 +17,206 @@ const DIET_OPTIONS = [
   "인스턴트탄수화물", "건강식탄수화물",
   "인스턴트단백질", "건강식단백질",
   "인스턴트지방", "건강식지방",
-  "미섭취",
 ];
 
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 
-const BODY_PARTS = [
-  "목", "상부등",
-  "중부등", "어깨 전면",
-  "어깨 후면", "기립근",
-  "엉치", "고관절",
-  "무릎", "발목",
-  "발바닥", "팔꿈치",
-  "손목", "기타",
+// ── 색상 기반 신체 부위 감지 ──────────────────────────────────────────────────
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l * 100];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) * 60;
+  else if (max === gn) h = ((bn - rn) / d + 2) * 60;
+  else h = ((rn - gn) / d + 4) * 60;
+  return [h, s * 100, l * 100];
+}
+function hueIn(h: number, min: number, max: number) {
+  return min <= max ? h >= min && h <= max : h >= min || h <= max;
+}
+
+type ColorRule = {
+  hMin: number; hMax: number; sMin: number;
+  lMin?: number; lMax?: number;
+  xMin?: number; xMax?: number;
+  yMin?: number; yMax?: number;
+  part: (xPct: number) => string;
+};
+
+const FRONT_RULES: ColorRule[] = [
+  // 고관절 주변 — yellow 위쪽 (y 48~58%)
+  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 48, yMax: 58, part: () => "고관절 주변" },
+  // 내전근 — yellow 다리 안쪽 (y 58~80%)
+  { hMin: 40,  hMax: 76,  sMin: 35, yMin: 58, yMax: 80, part: x => x < 50 ? "좌 내전근" : "우 내전근" },
+  // 가슴 — red/salmon
+  { hMin: 340, hMax: 20,  sMin: 40, yMax: 55, part: () => "가슴" },
+  // 어깨 — orange, 상단만 (y<28%)
+  { hMin: 18,  hMax: 40,  sMin: 45, yMax: 28, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
+  // 복근 — orange, 중간 (y 28~62%)
+  { hMin: 18,  hMax: 40,  sMin: 45, yMin: 28, yMax: 62, part: () => "복근" },
+  // 정강이 — orange, 하단 (y>62%)
+  { hMin: 18,  hMax: 40,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 정강이" : "우 정강이" },
+  // 이두근 — green, 상체 팔 (y<53%)
+  { hMin: 76,  hMax: 148, sMin: 28, yMax: 53, part: x => x < 50 ? "좌 이두근" : "우 이두근" },
+  // 고관절 부근 — lime/green, 골반 옆 (y 53~73%)
+  { hMin: 76,  hMax: 148, sMin: 28, yMin: 53, yMax: 73, part: x => x < 50 ? "좌 고관절 부근" : "우 고관절 부근" },
+  // 손목 — teal, 팔 구간 (y 35~73%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 35, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
+  // 발목 — teal, 발목 레벨 (y 80~90%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 발 — 최하단 전체 (y>90%)
+  { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발" : "우 발" },
+  // 무릎 — blue, 다리 구간 (y 60~82%)
+  { hMin: 200, hMax: 262, sMin: 25, yMin: 60, yMax: 82, part: x => x < 50 ? "좌 무릎" : "우 무릎" },
+  // 목/승모근 — purple, 최상단 (y<25%)
+  { hMin: 262, hMax: 310, sMin: 25, yMax: 25, part: () => "목/승모근" },
+  // 어깨(삼각근) — purple, y 25~30%
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 25, yMax: 30, part: x => x < 50 ? "좌 어깨" : "우 어깨" },
+  // 전완 — purple, 팔 구간만 (y 30~46%), 다리 오인식 방지
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 30, yMax: 46, part: x => x < 50 ? "좌 전완" : "우 전완" },
+  // 사두근 — purple y 52~80%
+  { hMin: 262, hMax: 310, sMin: 45, yMin: 52, yMax: 80, part: x => x < 50 ? "좌 사두근" : "우 사두근" },
+  // 사두근 — pink/magenta wrapping (hue 290-360 and 0-20), y>52%
+  { hMin: 290, hMax: 20,  sMin: 35, yMin: 52, part: x => x < 50 ? "좌 사두근" : "우 사두근" },
 ];
+
+const BACK_RULES: ColorRule[] = [
+  // 어깨 후면 — 밝은 주황 (l>55), 상단 (y<33%) — 먼저 체크해야 red rule에 안걸림
+  { hMin: 10,  hMax: 46,  sMin: 45, lMin: 56, yMax: 33, part: x => x < 50 ? "좌 어깨 후면" : "우 어깨 후면" },
+  // 회전근개 — 짙은 주황/dark orange (l≤55), 상단 (y<33%)
+  { hMin: 10,  hMax: 46,  sMin: 45, lMax: 55, yMax: 33, part: x => x < 50 ? "좌 회전근개" : "우 회전근개" },
+  // 승모근 중부 — red/salmon, 등 상단 (y<32%)
+  { hMin: 340, hMax: 10,  sMin: 35, yMax: 32, part: () => "승모근 중부" },
+  // 승모근 하부 — red/salmon, 등 하단 (y 32~48%)
+  { hMin: 340, hMax: 10,  sMin: 35, yMin: 32, yMax: 48, part: () => "승모근 하부" },
+  // 종아리 — orange, 하단 (y>62%)
+  { hMin: 10,  hMax: 46,  sMin: 45, yMin: 62, part: x => x < 50 ? "좌 종아리" : "우 종아리" },
+  // 고관절 주변 — yellow (hue 40~73), 중하단 (y 33~70%)
+  { hMin: 40,  hMax: 73,  sMin: 35, yMin: 33, yMax: 70, part: x => x < 50 ? "좌 고관절 주변" : "우 고관절 주변" },
+  // 삼두근 — lime green, 팔 구간 (y<45%)
+  { hMin: 73,  hMax: 148, sMin: 28, yMax: 45, part: x => x < 50 ? "좌 삼두근" : "우 삼두근" },
+  // 둔근 — lime green, 엉덩이 (y 45~73%)
+  { hMin: 73,  hMax: 148, sMin: 28, yMin: 45, yMax: 73, part: () => "둔근" },
+  // 광배근 — teal, 등 중앙 (x 22~78%, y 18~55%)
+  { hMin: 148, hMax: 200, sMin: 40, xMin: 22, xMax: 78, yMin: 18, yMax: 55, part: x => x < 50 ? "좌 광배근" : "우 광배근" },
+  // 손목 — teal, 팔 바깥쪽 (x<22% or x>78%, y 18~73%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 18, yMax: 73, part: x => x < 50 ? "좌 손목" : "우 손목" },
+  // 발목 — teal, 발목 레벨 (y 80~90%)
+  { hMin: 148, hMax: 200, sMin: 40, yMin: 80, yMax: 90, part: x => x < 50 ? "좌 발목" : "우 발목" },
+  // 발바닥 — 최하단 전체 (y>90%)
+  { hMin: 0,   hMax: 360, sMin: 5,  yMin: 90, part: x => x < 50 ? "좌 발" : "우 발" },
+  // 오금 — blue, 다리 뒷편 (y 62~82%)
+  { hMin: 200, hMax: 262, sMin: 25, yMin: 62, yMax: 82, part: x => x < 50 ? "좌 오금" : "우 오금" },
+  // 목/승모근 — purple, 최상단 (y<22%)
+  { hMin: 262, hMax: 310, sMin: 25, yMax: 22, part: () => "목/승모근" },
+  // 전완근 — purple, 팔 구간 (y 22~40%)
+  { hMin: 262, hMax: 310, sMin: 25, yMin: 22, yMax: 40, part: x => x < 50 ? "좌 전완근" : "우 전완근" },
+  // 햄스트링 — purple 하체 (y 52~85%), 전완근 구간 오인식 방지
+  { hMin: 260, hMax: 355, sMin: 30, yMin: 52, yMax: 85, part: x => x < 50 ? "좌 햄스트링" : "우 햄스트링" },
+];
+
+function BodyPainMap({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+  const [view, setView] = useState<"front" | "back">("front");
+  const [flash, setFlash] = useState<{ part: string; x: number; y: number } | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  function handleTap(e: React.MouseEvent<HTMLImageElement>) {
+    const img = imgRef.current;
+    if (!img) return;
+    const rect = img.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+
+    // 캔버스에 이미지를 그려서 픽셀 색상 읽기
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(img, 0, 0);
+    const px = Math.round((xPct / 100) * img.naturalWidth);
+    const py = Math.round((yPct / 100) * img.naturalHeight);
+    const [r, g, b, a] = ctx.getImageData(px, py, 1, 1).data;
+
+    if (a < 100) return; // 투명
+    const [h, s, l] = rgbToHsl(r, g, b);
+    if (s < 15 || l > 92 || l < 8) return; // 흰색/검정/무채색 무시
+
+    const rules = view === "front" ? FRONT_RULES : BACK_RULES;
+    const rule = rules.find(rule => {
+      if (s < rule.sMin) return false;
+      if (rule.lMin !== undefined && l < rule.lMin) return false;
+      if (rule.lMax !== undefined && l > rule.lMax) return false;
+      if (rule.xMin !== undefined && xPct < rule.xMin) return false;
+      if (rule.xMax !== undefined && xPct > rule.xMax) return false;
+      if (rule.yMin !== undefined && yPct < rule.yMin) return false;
+      if (rule.yMax !== undefined && yPct > rule.yMax) return false;
+      return hueIn(h, rule.hMin, rule.hMax);
+    });
+    if (!rule) return;
+
+    const part = rule.part(xPct);
+    onChange(selected.includes(part) ? selected.filter(p => p !== part) : [...selected, part]);
+    setFlash({ part, x: xPct, y: yPct });
+    setTimeout(() => setFlash(null), 1200);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 rounded-lg border border-border overflow-hidden text-sm">
+        {(["front", "back"] as const).map(v => (
+          <button key={v} onClick={() => setView(v)}
+            className={`py-1.5 font-medium transition-colors touch-manipulation ${view === v ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>
+            {v === "front" ? "전면" : "후면"}
+          </button>
+        ))}
+      </div>
+
+      <div className="relative rounded-xl border border-border overflow-hidden cursor-pointer">
+        <img
+          ref={imgRef}
+          src={view === "front" ? "/body-front.png" : "/body-back.png"}
+          className="block w-full touch-manipulation"
+          draggable={false}
+          crossOrigin="anonymous"
+          alt="신체 부위 — 탭하세요"
+          onClick={handleTap}
+        />
+        {flash && (
+          <div
+            className="absolute -translate-x-1/2 -translate-y-full pointer-events-none"
+            style={{ left: `${flash.x}%`, top: `${flash.y}%` }}
+          >
+            <div className="bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-lg whitespace-nowrap mb-1 animate-bounce">
+              {selected.includes(flash.part) ? `✓ ${flash.part}` : `✕ ${flash.part} 해제`}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selected.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground">선택된 부위</p>
+            <button onClick={() => onChange([])} className="text-[11px] text-muted-foreground underline">전체 삭제</button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {selected.map(part => (
+              <button key={part} onClick={() => onChange(selected.filter(p => p !== part))}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30 transition-colors touch-manipulation">
+                {part}<X className="h-3 w-3" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function nowTimeStr() {
   const d = new Date();
@@ -70,7 +256,6 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [dietItems, setDietItems] = useState<string[]>([]);
   const [painLevel, setPainLevel] = useState("");
   const [painAreas, setPainAreas] = useState<string[]>([]);
-  const [painAreaOpen, setPainAreaOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [deductSession, setDeductSession] = useState(false);
   const [selectedPkgId, setSelectedPkgId] = useState<number | null>(null);
@@ -173,12 +358,6 @@ export default function AttendanceCheck({ memberId }: Props) {
     );
   };
 
-  const toggleBodyPart = (part: string) => {
-    setPainAreas((prev) =>
-      prev.includes(part) ? prev.filter((p) => p !== part) : [...prev, part]
-    );
-  };
-
   const isSaving = upsertMutation.isPending || useSessionMutation.isPending;
 
   return (
@@ -271,12 +450,12 @@ export default function AttendanceCheck({ memberId }: Props) {
             </div>
           </Field>
           <Field label="수면시간">
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="grid grid-cols-6 gap-1.5">
               {SLEEP_OPTIONS.map((v) => (
                 <button
                   key={v}
                   onClick={() => setSleepHours(sleepHours === v ? "" : v)}
-                  className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                  className={`py-2 text-sm rounded-lg border transition-colors text-center ${
                     sleepHours === v
                       ? "bg-primary/20 border-primary/40 text-primary"
                       : "border-border text-muted-foreground hover:border-primary/30"
@@ -289,7 +468,7 @@ export default function AttendanceCheck({ memberId }: Props) {
           </Field>
           <Field label="에너지 수준">
             <div className="flex gap-2">
-              {["높음", "보통", "낮음"].map((v) => (
+              {["낮음", "보통", "높음"].map((v) => (
                 <button
                   key={v}
                   onClick={() => setEnergyLevel(energyLevel === v ? "" : v)}
@@ -314,7 +493,7 @@ export default function AttendanceCheck({ memberId }: Props) {
                 <button
                   key={option}
                   onClick={() => toggleDiet(option)}
-                  className={`flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg border transition-colors text-left ${
+                  className={`flex items-center gap-2 px-2 py-2.5 text-xs rounded-lg border transition-colors text-left ${
                     dietItems.includes(option)
                       ? "bg-primary/20 border-primary/40 text-primary"
                       : "border-border text-muted-foreground hover:border-primary/30"
@@ -356,40 +535,8 @@ export default function AttendanceCheck({ memberId }: Props) {
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm text-muted-foreground">통증 부위</label>
-            <button
-              onClick={() => setPainAreaOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg border border-border text-muted-foreground hover:border-primary/30 transition-colors"
-            >
-              <span>{painAreas.length > 0 ? painAreas.join(", ") : "부위 선택"}</span>
-              {painAreaOpen ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-            </button>
-            {painAreaOpen && (
-              <div className="border border-border rounded-lg overflow-hidden">
-                <div className="grid grid-cols-2">
-                  {BODY_PARTS.map((part, idx) => (
-                    <button
-                      key={part}
-                      onClick={() => toggleBodyPart(part)}
-                      className={`flex items-center gap-2 px-3 py-2.5 text-sm transition-colors text-left border-b border-border last:border-b-0 ${
-                        idx % 2 === 0 ? "border-r border-border" : ""
-                      } ${
-                        painAreas.includes(part)
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:bg-muted/30"
-                      }`}
-                    >
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                        painAreas.includes(part) ? "bg-primary border-primary" : "border-muted-foreground/50"
-                      }`}>
-                        {painAreas.includes(part) && <Check className="h-3 w-3 text-white" />}
-                      </div>
-                      {part}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <label className="text-sm text-muted-foreground">통증 부위 <span className="text-xs">(해당 부위를 탭하세요)</span></label>
+            <BodyPainMap selected={painAreas} onChange={setPainAreas} />
           </div>
         </Section>
 

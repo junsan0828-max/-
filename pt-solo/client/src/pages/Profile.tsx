@@ -1,41 +1,184 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle } from "lucide-react";
+import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users, ClipboardList, CreditCard, Zap } from "lucide-react";
+
+const CHARGE_PACKAGES = [
+  { krw: 10000,  points: 10000, bonus: 0 },
+  { krw: 30000,  points: 35000, bonus: 5000 },
+  { krw: 50000,  points: 70000, bonus: 20000 },
+  { krw: 100000, points: 130000, bonus: 30000 },
+];
+const KAKAO_ACCOUNT = "3333-37-4826334";
+const KAKAO_HOLDER  = "피트니스텝";
+
+const PLAN_INFO = {
+  free:  { label: "FREE",  color: "text-gray-500",   border: "border-gray-500/30",   bg: "bg-gray-500/10",   features: ["회원 최대 7명", "기본 PT 관리"] },
+  pro:   { label: "PRO",   color: "text-blue-500",   border: "border-blue-500/30",   bg: "bg-blue-500/10",   features: ["회원 최대 15명", "수업 예약", "브랜드 페이지"] },
+  elite: { label: "ELITE", color: "text-purple-500", border: "border-purple-500/30", bg: "bg-purple-500/10", features: ["회원 최대 35명", "모든 기능 포함", "FIT STEP+"] },
+} as const;
+
+function calcDiscounted(price: number, discount: number) {
+  return Math.round(price * (1 - discount / 100));
+}
 import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
+import OnboardingSurveyModal from "@/components/OnboardingSurveyModal";
 
 const TYPE_LABEL: Record<string, string> = {
   admin_grant: "관리자 지급",
   charge_request: "충전 신청",
   daily_reset: "일일 초기화",
   usage: "사용",
+  profile_bonus: "프로필 완성 보너스",
+  referral_bonus: "친구 초대 보너스",
 };
+
+const JOB_TYPES = ["퍼스널트레이너", "필라테스강사", "트레이너 준비생", "센터 운영자", "프리랜서", "학생"];
+const CAREER_RANGES = ["준비 중", "1년 미만", "1~3년", "3~5년", "5년 이상"];
+const EARLY_CAREER_RANGES = new Set(["준비 중", "1년 미만", "1~3년"]);
+const EDUCATION_NEEDS = [
+  "웨이트 트레이닝 (저항 운동)",
+  "필라테스 (매트·기구)",
+  "요가 (하타·플로우)",
+  "크로스핏 / 기능성 훈련",
+  "수영 / 아쿠아 운동",
+  "사이클 / 스피닝",
+  "복싱 / 격투 피트니스",
+  "재활 운동 / 물리치료 연계",
+  "체형 교정 / 자세 분석",
+  "영양·식이 코칭",
+  "노인·시니어 피트니스",
+  "산전·산후 운동",
+  "스포츠 경기력 향상",
+  "온라인 PT 운영 방법",
+];
+
+async function resizeImageToBase64(file: File, maxSize = 300): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function ProfileCompletionBanner({ profile }: { profile: { jobType?: string | null; careerRange?: string | null; activityArea?: string | null; profileBonusGranted?: number } | undefined }) {
+  if (!profile) return null;
+  const fields = [profile.jobType, profile.careerRange, profile.activityArea];
+  const filled = fields.filter(Boolean).length;
+  const total = fields.length;
+  const pct = Math.round((filled / total) * 100);
+  if (profile.profileBonusGranted) return null;
+  return (
+    <div className="rounded-xl border border-amber-400/50 bg-amber-50/80 dark:bg-amber-900/20 dark:border-amber-500/30 p-4 flex items-start gap-3">
+      <Gift className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">STEPER 프로필 완성 시 <span className="text-amber-600 dark:text-amber-400">+200P</span> 지급!</p>
+        <p className="text-xs text-amber-700/80 dark:text-amber-400/70 mt-0.5">직무, 경력, 활동지역을 모두 입력하면 FIT POINT 200P를 드립니다.</p>
+        <div className="mt-2">
+          <div className="flex justify-between text-xs text-amber-700/70 dark:text-amber-400/70 mb-1">
+            <span>프로필 완성도</span>
+            <span className="text-amber-600 dark:text-amber-400 font-medium">{filled}/{total} ({pct}%)</span>
+          </div>
+          <div className="h-1.5 bg-amber-200/60 dark:bg-amber-800/40 rounded-full overflow-hidden">
+            <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Profile() {
   const { data: profile, refetch } = trpc.trainers.getMyProfile.useQuery();
+  const { data: referralInfo } = trpc.trainers.getMyReferralInfo.useQuery();
+  const { data: authUser } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const { data: balanceData } = trpc.fitPoints.getBalance.useQuery();
   const { data: history } = trpc.fitPoints.getHistory.useQuery();
+  const { data: planInfo } = trpc.fitStepPlus.trainer_getPublicPlanInfo.useQuery();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [info, setInfo] = useState({ trainerName: "", phone: "", email: "" });
+  const [ext, setExt] = useState({ jobType: "", careerRange: "", activityArea: "", profileImage: "", educationNeeds: "" });
+  const [journalType, setJournalTypeState] = useState<"weight" | "pilates">("weight");
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [infoMsg, setInfoMsg] = useState("");
   const [pwMsg, setPwMsg] = useState("");
-  const [chargeAmount, setChargeAmount] = useState("");
-  const [chargeMemo, setChargeMemo] = useState("");
   const [showChargeForm, setShowChargeForm] = useState(false);
+  const [showPointDetail, setShowPointDetail] = useState(false);
+  const [selectedPkg, setSelectedPkg] = useState<typeof CHARGE_PACKAGES[number] | null>(null);
+  const [depositor, setDepositor] = useState("");
+  const [acctCopied, setAcctCopied] = useState(false);
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [showSurveyModal, setShowSurveyModal] = useState(false);
+
+  // 플랜 구매
+  const [selectedPlan, setSelectedPlan] = useState<"pro" | "elite" | null>(null);
+  const [planDepositor, setPlanDepositor] = useState("");
+  const [planAcctCopied, setPlanAcctCopied] = useState(false);
+  const submitPlanMutation = trpc.fitStepPlus.trainer_submitPlanPurchase.useMutation({
+    onSuccess: (data) => {
+      if ((data as any).instant) {
+        toast.success("플랜이 즉시 변경되었습니다!");
+        utils.auth.me.invalidate();
+      } else {
+        toast.success("신청 완료! 나머지 금액 입금 확인 후 플랜이 변경됩니다.");
+      }
+      setSelectedPlan(null);
+      setPlanDepositor("");
+      utils.fitPoints.getBalance.invalidate();
+      utils.fitPoints.getHistory.invalidate();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   useEffect(() => {
-    if (profile) setInfo({ trainerName: profile.trainerName, phone: profile.phone ?? "", email: profile.email ?? "" });
+    if (profile) {
+      setInfo({ trainerName: profile.trainerName, phone: profile.phone ?? "", email: profile.email ?? "" });
+      setExt({
+        jobType: (profile as any).jobType ?? "",
+        careerRange: (profile as any).careerRange ?? "",
+        activityArea: (profile as any).activityArea ?? "",
+        profileImage: (profile as any).profileImage ?? "",
+        educationNeeds: (profile as any).educationNeeds ?? "",
+      });
+      setJournalTypeState(((profile as any).journalType ?? "weight") as "weight" | "pilates");
+    }
   }, [profile]);
 
   const updateProfile = trpc.trainers.updateMyProfile.useMutation({
     onSuccess: () => { setInfoMsg(""); toast.success("프로필이 수정되었습니다."); refetch(); },
     onError: (e) => setInfoMsg(e.message),
+  });
+
+  const updateExtended = trpc.trainers.updateExtendedProfile.useMutation({
+    onSuccess: (data) => {
+      if (data.bonusGranted) {
+        toast.success("🎉 프로필 완성! FIT POINT 200P가 지급되었습니다.");
+        utils.fitPoints.getBalance.invalidate();
+        utils.fitPoints.getHistory.invalidate();
+      } else {
+        toast.success("STEPER 정보가 저장되었습니다.");
+      }
+      refetch();
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   const changePassword = trpc.trainers.changePassword.useMutation({
@@ -45,17 +188,57 @@ export default function Profile() {
 
   const requestCharge = trpc.fitPoints.requestCharge.useMutation({
     onSuccess: () => {
-      toast.success("충전 신청이 완료되었습니다.");
-      setChargeAmount(""); setChargeMemo(""); setShowChargeForm(false);
+      toast.success("충전 신청이 완료되었습니다. 관리자 확인 후 포인트가 지급됩니다.");
+      setSelectedPkg(null); setDepositor(""); setShowChargeForm(false);
       utils.fitPoints.getHistory.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
 
+  function handleCopyAcct() {
+    navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, ""));
+    setAcctCopied(true);
+    setTimeout(() => setAcctCopied(false), 2000);
+  }
+
+  function handleChargeSubmit() {
+    if (!selectedPkg) { toast.error("충전 패키지를 선택해주세요."); return; }
+    if (!depositor.trim()) { toast.error("입금자명을 입력해주세요."); return; }
+    requestCharge.mutate({
+      amount: selectedPkg.points,
+      memo: `${selectedPkg.krw.toLocaleString()}원 입금 | 입금자: ${depositor.trim()}`,
+    });
+  }
+
   const handleInfoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!info.trainerName.trim()) { setInfoMsg("이름을 입력해주세요."); return; }
     updateProfile.mutate({ trainerName: info.trainerName, phone: info.phone || undefined, email: info.email || undefined });
+  };
+
+  const handleExtSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!info.trainerName.trim()) { toast.error("이름을 입력해주세요."); return; }
+    updateExtended.mutate({
+      jobType: ext.jobType || undefined,
+      careerRange: ext.careerRange || undefined,
+      activityArea: ext.activityArea || undefined,
+      profileImage: ext.profileImage || undefined,
+      educationNeeds: ext.educationNeeds || undefined,
+    });
+    updateProfile.mutate({ trainerName: info.trainerName, phone: info.phone || undefined, email: info.email || undefined });
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64 = await resizeImageToBase64(file);
+      setExt(p => ({ ...p, profileImage: base64 }));
+    } catch {
+      toast.error("이미지 처리 중 오류가 발생했습니다.");
+    }
+    e.target.value = "";
   };
 
   const handlePwSubmit = (e: React.FormEvent) => {
@@ -67,6 +250,9 @@ export default function Profile() {
   };
 
   const balance = balanceData?.balance ?? 0;
+  const freeBalance = balanceData?.freeBalance ?? 0;
+  const earnedBalance = balanceData?.earnedBalance ?? 0;
+  const dailyPoint = balanceData?.dailyPoint ?? 300;
 
   return (
     <div className="space-y-6">
@@ -75,6 +261,162 @@ export default function Profile() {
         <h1 className="text-xl font-bold">내 프로필</h1>
         <p className="text-sm text-muted-foreground mt-0.5">정보 수정 및 포인트 관리</p>
       </div>
+
+      {/* 프로필 완성 보너스 안내 */}
+      <ProfileCompletionBanner profile={profile as any} />
+
+      {/* 플랜 구독 */}
+      {(() => {
+        const currentPlan = (authUser as any)?.plan ?? "free";
+        const prices = planInfo?.prices ?? { free: 0, pro: 29000, elite: 59000 };
+        const discounts = planInfo?.discounts ?? { free: 0, pro: 0, elite: 0 };
+        const planKeys = (["free", "pro", "elite"] as const).filter(p => p !== "free");
+        return (
+          <Card className="bg-card border-border">
+            <CardContent className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-primary" />플랜 구독
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    현재 플랜:
+                    <span className={`ml-1.5 font-bold ${PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.color ?? "text-gray-500"}`}>
+                      {PLAN_INFO[currentPlan as keyof typeof PLAN_INFO]?.label ?? "FREE"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* 플랜 카드 */}
+              <div className="grid grid-cols-2 gap-2">
+                {planKeys.map(plan => {
+                  const info = PLAN_INFO[plan];
+                  const price = prices[plan] ?? 0;
+                  const disc = discounts[plan] ?? 0;
+                  const finalPrice = disc > 0 ? calcDiscounted(price, disc) : price;
+                  const isCurrent = currentPlan === plan;
+                  const isSelected = selectedPlan === plan;
+                  return (
+                    <button key={plan} type="button"
+                      onClick={() => { if (!isCurrent) setSelectedPlan(isSelected ? null : plan); }}
+                      disabled={isCurrent}
+                      className={`relative rounded-xl border-2 p-3 text-left transition-all ${
+                        isCurrent ? "border-primary bg-primary/10 opacity-80 cursor-default"
+                          : isSelected ? `border-current ${info.border} ${info.bg}`
+                          : `border-border bg-card hover:${info.border}`
+                      }`}>
+                      {disc > 0 && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">
+                          -{disc}%
+                        </span>
+                      )}
+                      {isCurrent && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">현재</span>
+                      )}
+                      <p className={`text-xs font-black mb-1 ${info.color}`}>{info.label}</p>
+                      {price > 0 ? (
+                        <div>
+                          {disc > 0 && <p className="text-[10px] text-muted-foreground line-through">{price.toLocaleString()}원</p>}
+                          <p className={`text-sm font-black ${disc > 0 ? info.color : "text-foreground"}`}>{finalPrice.toLocaleString()}원<span className="text-[10px] font-normal text-muted-foreground">/월</span></p>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-black text-gray-500">무료</p>
+                      )}
+                      <ul className="mt-2 space-y-0.5">
+                        {info.features.map(f => (
+                          <li key={f} className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <Zap className="h-2.5 w-2.5 text-primary shrink-0" />{f}
+                          </li>
+                        ))}
+                      </ul>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 구매 폼 */}
+              {selectedPlan && (() => {
+                const price = prices[selectedPlan] ?? 0;
+                const disc = discounts[selectedPlan] ?? 0;
+                const finalPrice = disc > 0 ? calcDiscounted(price, disc) : price;
+                const pointsApplied = Math.min(balance, finalPrice);
+                const bankAmount = finalPrice - pointsApplied;
+                const isFree = finalPrice === 0;
+                return (
+                  <div className="space-y-3 pt-1">
+                    {/* 결제 내역 */}
+                    <div className="rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2.5 bg-accent/10 text-xs">
+                        <span className="text-muted-foreground">{selectedPlan.toUpperCase()} 구독료</span>
+                        <div className="text-right">
+                          {disc > 0 && <p className="text-[10px] text-muted-foreground line-through">{price.toLocaleString()}원</p>}
+                          <span className="font-bold">{isFree ? "무료" : `${finalPrice.toLocaleString()}원`}{disc > 0 && <span className="ml-1 text-red-400">({disc}%↓)</span>}</span>
+                        </div>
+                      </div>
+                      {!isFree && pointsApplied > 0 && (
+                        <div className="flex items-center justify-between px-3 py-2.5 text-xs">
+                          <span className="flex items-center gap-1.5 text-primary"><Coins className="h-3.5 w-3.5" />포인트 적용</span>
+                          <span className="font-bold text-primary">-{pointsApplied.toLocaleString()} P</span>
+                        </div>
+                      )}
+                      {!isFree && (
+                        <div className="flex items-center justify-between px-3 py-2.5 bg-accent/20 text-xs font-bold">
+                          <span>계좌이체 금액</span>
+                          <span className={bankAmount === 0 ? "text-green-400" : ""}>{bankAmount === 0 ? "없음 (즉시 결제)" : `${bankAmount.toLocaleString()}원`}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 계좌이체가 필요한 경우 */}
+                    {bankAmount > 0 && (
+                      <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
+                              <span className="text-[9px] font-black text-white">K</span>
+                            </div>
+                            <p className="text-xs font-semibold text-yellow-800">카카오뱅크</p>
+                          </div>
+                          <p className="text-sm font-black text-yellow-900">{bankAmount.toLocaleString()}원 입금</p>
+                        </div>
+                        <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
+                          <p className="text-sm font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
+                          <button onClick={() => { navigator.clipboard.writeText(KAKAO_ACCOUNT.replace(/-/g, "")); setPlanAcctCopied(true); setTimeout(() => setPlanAcctCopied(false), 2000); }}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
+                            {planAcctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                            {planAcctCopied ? "복사됨" : "복사"}
+                          </button>
+                        </div>
+                        <Input placeholder="입금자명" value={planDepositor}
+                          onChange={e => setPlanDepositor(e.target.value)} className="h-9 text-sm bg-white border-yellow-200" />
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedPlan(null); setPlanDepositor(""); }}>취소</Button>
+                      <Button size="sm" className="flex-1"
+                        disabled={(bankAmount > 0 && !planDepositor.trim()) || submitPlanMutation.isPending}
+                        onClick={() => submitPlanMutation.mutate({
+                          plan: selectedPlan,
+                          totalAmount: finalPrice,
+                          pointsUsed: pointsApplied,
+                          bankAmount,
+                          depositor: planDepositor.trim(),
+                        })}>
+                        {submitPlanMutation.isPending ? "처리 중..." : bankAmount > 0 ? "신청하기" : "즉시 결제"}
+                      </Button>
+                    </div>
+                    {bankAmount > 0 && (
+                      <p className="text-[11px] text-muted-foreground text-center">포인트 {pointsApplied.toLocaleString()}P 즉시 차감 + 나머지 입금 확인 후 플랜 변경</p>
+                    )}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* FIT POINT */}
       <Card className="bg-primary/10 border-primary/30">
@@ -87,34 +429,131 @@ export default function Profile() {
             <p className="text-2xl font-black text-primary tracking-tight">
               {balance.toLocaleString()} <span className="text-sm font-semibold">P</span>
             </p>
+            <button
+              onClick={() => setShowPointDetail(v => !v)}
+              className="flex items-center gap-0.5 text-[10px] text-muted-foreground/70 hover:text-muted-foreground mt-1 transition-colors"
+            >
+              포인트 상세
+              <ChevronDown className={`h-3 w-3 transition-transform ${showPointDetail ? "rotate-180" : ""}`} />
+            </button>
           </div>
           {!showChargeForm && (
             <button onClick={() => setShowChargeForm(true)}
               className="flex items-center gap-1 text-xs text-primary font-medium bg-primary/20 px-2.5 py-1.5 rounded-lg hover:bg-primary/30 transition-colors shrink-0">
-              <Plus className="h-3.5 w-3.5" />충전 신청
+              <Plus className="h-3.5 w-3.5" />충전하기
             </button>
           )}
         </CardContent>
 
-        {showChargeForm && (
-          <CardContent className="pt-0 space-y-3">
-            <div className="flex gap-2">
-              <Input type="number" placeholder="충전 포인트" value={chargeAmount}
-                onChange={e => setChargeAmount(e.target.value)}
-                className="h-9 text-sm bg-background/50 border-primary/30" />
-              <Input placeholder="메모 (선택)" value={chargeMemo}
-                onChange={e => setChargeMemo(e.target.value)}
-                className="h-9 text-sm bg-background/50 border-primary/30 flex-1" />
+        {showPointDetail && (
+          <CardContent className="pt-0 pb-4 px-5">
+            <div className="rounded-xl bg-background/40 border border-primary/20 divide-y divide-border/50 text-xs">
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                  <span className="text-muted-foreground">무료포인트</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-bold text-blue-400">{freeBalance.toLocaleString()} P</span>
+                  <span className="text-muted-foreground/60 ml-1.5">/ {dailyPoint.toLocaleString()} P</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                  <span className="text-muted-foreground">적립포인트</span>
+                </div>
+                <span className="font-bold text-primary">{earnedBalance.toLocaleString()} P</span>
+              </div>
+              <div className="px-3 py-2 bg-blue-500/5 rounded-b-xl">
+                <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                  💡 무료포인트는 매일 <span className="text-blue-400 font-medium">{dailyPoint.toLocaleString()}P</span>로 제공되며 <span className="text-blue-400 font-medium">00시에 초기화</span>됩니다.
+                  적립포인트는 보너스·관리자 지급 포인트로 초기화되지 않습니다.
+                </p>
+              </div>
             </div>
+          </CardContent>
+        )}
+
+        {showChargeForm && (
+          <CardContent className="pt-0 space-y-4">
+            {/* 패키지 선택 */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">충전 패키지</p>
+              <div className="grid grid-cols-2 gap-2">
+                {CHARGE_PACKAGES.map(pkg => {
+                  const isSel = selectedPkg?.krw === pkg.krw;
+                  return (
+                    <button key={pkg.krw} onClick={() => setSelectedPkg(pkg)}
+                      className={`relative rounded-2xl border-2 p-3 text-left transition-all ${
+                        isSel ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/40"
+                      }`}>
+                      {pkg.bonus > 0 && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">
+                          +{(pkg.bonus / 1000).toFixed(0)}천P
+                        </span>
+                      )}
+                      <p className="text-[11px] text-muted-foreground">{pkg.krw.toLocaleString()}원</p>
+                      <p className={`text-sm font-black mt-0.5 ${isSel ? "text-primary" : "text-foreground"}`}>
+                        {pkg.points.toLocaleString()} P
+                      </p>
+                      {pkg.bonus > 0 && (
+                        <p className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                          보너스 {pkg.bonus.toLocaleString()}P
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 카카오뱅크 계좌 */}
+            <div className="rounded-2xl bg-yellow-50 border border-yellow-200 p-3.5 space-y-2.5">
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center shrink-0">
+                  <span className="text-[9px] font-black text-white">K</span>
+                </div>
+                <p className="text-xs font-semibold text-yellow-800">카카오뱅크 입금 계좌</p>
+              </div>
+              <div className="flex items-center justify-between bg-white rounded-xl border border-yellow-200 px-3 py-2">
+                <div>
+                  <p className="text-sm font-black text-gray-800 tracking-wider">{KAKAO_ACCOUNT}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{KAKAO_HOLDER}</p>
+                </div>
+                <button onClick={handleCopyAcct}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-100 hover:bg-yellow-200 px-2 py-1.5 rounded-lg transition-colors">
+                  {acctCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {acctCopied ? "복사됨" : "복사"}
+                </button>
+              </div>
+              {selectedPkg && (
+                <div className="flex items-center justify-between text-xs px-0.5">
+                  <span className="text-yellow-700">입금 금액</span>
+                  <span className="font-black text-yellow-900">{selectedPkg.krw.toLocaleString()}원</span>
+                </div>
+              )}
+            </div>
+
+            {/* 입금자명 */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground">입금자명</p>
+              <Input placeholder="실제 입금 시 표시되는 이름" value={depositor}
+                onChange={e => setDepositor(e.target.value)} className="h-9 text-sm bg-background/50 border-primary/30" />
+            </div>
+
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowChargeForm(false)}>취소</Button>
+              <Button variant="outline" size="sm" className="flex-1"
+                onClick={() => { setShowChargeForm(false); setSelectedPkg(null); setDepositor(""); }}>
+                취소
+              </Button>
               <Button size="sm" className="flex-1"
-                disabled={!chargeAmount || requestCharge.isPending}
-                onClick={() => requestCharge.mutate({ amount: Number(chargeAmount), memo: chargeMemo || undefined })}>
-                {requestCharge.isPending ? "신청 중..." : "신청"}
+                disabled={!selectedPkg || !depositor.trim() || requestCharge.isPending}
+                onClick={handleChargeSubmit}>
+                {requestCharge.isPending ? "신청 중..." : "신청하기"}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">관리자 승인 후 포인트가 지급됩니다.</p>
+            <p className="text-[11px] text-muted-foreground text-center">입금 확인 후 관리자가 포인트를 지급합니다 (보통 1시간 이내)</p>
           </CardContent>
         )}
       </Card>
@@ -148,7 +587,200 @@ export default function Profile() {
         </Card>
       )}
 
-      {/* 프로필 수정 */}
+      {/* 친구 초대 */}
+      {referralInfo?.referralCode && (
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Share2 className="h-4 w-4 text-primary" />친구 초대하기
+              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-full">
+                각 +500P
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              초대 링크를 공유하면 친구가 가입 승인 후 <span className="text-primary font-semibold">각각 500 FIT POINT</span>를 드립니다.
+              최대 <span className="text-primary font-semibold">3명</span>까지 혜택이 적용됩니다.
+            </p>
+            {/* 초대 링크 */}
+            <div className="flex items-center gap-2 bg-accent/30 border border-border rounded-lg px-3 py-2.5">
+              <p className="flex-1 text-xs text-muted-foreground truncate">
+                {window.location.origin}/register?ref={referralInfo.referralCode}
+              </p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/register?ref=${referralInfo.referralCode}`);
+                  setReferralCopied(true);
+                  setTimeout(() => setReferralCopied(false), 2000);
+                }}
+                className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-md transition-colors shrink-0 ${referralCopied ? "text-green-400 bg-green-400/10" : "text-primary bg-primary/10 hover:bg-primary/20"}`}
+              >
+                {referralCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {referralCopied ? "복사됨" : "복사"}
+              </button>
+            </div>
+            {/* 초대 현황 */}
+            <div className="flex gap-3">
+              <div className="flex-1 rounded-xl bg-accent/20 border border-border p-3 text-center">
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">초대한 친구</p>
+                </div>
+                <p className="text-xl font-black text-foreground">{referralInfo.totalInvited}</p>
+                <p className="text-[10px] text-muted-foreground">명</p>
+              </div>
+              <div className="flex-1 rounded-xl bg-primary/10 border border-primary/20 p-3 text-center">
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <CheckCircle className="h-3.5 w-3.5 text-primary" />
+                  <p className="text-xs text-muted-foreground">보너스 지급</p>
+                </div>
+                <p className="text-xl font-black text-primary">{Math.min(referralInfo.approvedInvited, 3)}<span className="text-sm font-medium text-muted-foreground"> / 3</span></p>
+                <p className="text-[10px] text-muted-foreground">명</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60 text-center">
+              내 초대 코드: <span className="font-mono font-bold">{referralInfo.referralCode}</span>
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 트레이너 상세 프로필 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Briefcase className="h-4 w-4 text-primary" />STEPER 상세 정보
+            {!(profile as any)?.profileBonusGranted && (
+              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full">
+                <Gift className="h-3 w-3" />완성 시 +200P
+              </span>
+            )}
+            {!!(profile as any)?.profileBonusGranted && (
+              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full">
+                <Star className="h-3 w-3" />보너스 지급 완료
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleExtSubmit} className="space-y-5">
+            {/* 프로필 이미지 */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full bg-primary/10 border-2 border-border overflow-hidden flex items-center justify-center">
+                  {ext.profileImage ? (
+                    <img src={ext.profileImage} alt="프로필" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="h-10 w-10 text-muted-foreground/50" />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center border-2 border-card"
+                >
+                  <Camera className="h-3.5 w-3.5 text-primary-foreground" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">프로필 사진을 설정하세요</p>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+            </div>
+
+            {/* 이름 / 연락처 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-sm text-muted-foreground">이름 *</Label>
+                <Input
+                  value={info.trainerName}
+                  onChange={e => setInfo(p => ({ ...p, trainerName: e.target.value }))}
+                  placeholder="실명 입력"
+                  className="bg-input border-border"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-sm text-muted-foreground">연락처</Label>
+                <Input
+                  type="tel"
+                  value={info.phone}
+                  onChange={e => setInfo(p => ({ ...p, phone: e.target.value }))}
+                  placeholder="010-0000-0000"
+                  className="bg-input border-border"
+                />
+              </div>
+            </div>
+
+            {/* 직무 선택 */}
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">직무 선택</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {JOB_TYPES.map(jt => (
+                  <button key={jt} type="button"
+                    onClick={() => setExt(p => ({ ...p, jobType: jt }))}
+                    className={`py-2 rounded-lg border text-xs font-medium transition-colors ${ext.jobType === jt ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
+                    {jt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 경력 선택 */}
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">경력 선택</Label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {CAREER_RANGES.map(cr => (
+                  <button key={cr} type="button"
+                    onClick={() => setExt(p => ({ ...p, careerRange: cr, educationNeeds: EARLY_CAREER_RANGES.has(cr) ? p.educationNeeds : "" }))}
+                    className={`py-2 rounded-lg border text-xs font-medium transition-colors ${ext.careerRange === cr ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
+                    {cr}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 교육 희망 운동 종류 (준비중·1년미만·1~3년) */}
+            {EARLY_CAREER_RANGES.has(ext.careerRange) && (
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">어떤 운동 분야 교육이 필요하신가요? <span className="text-primary font-medium">(복수 선택 가능)</span></Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {EDUCATION_NEEDS.map(item => {
+                    const selected = ext.educationNeeds.split(",").map(s => s.trim()).filter(Boolean);
+                    const isOn = selected.includes(item);
+                    return (
+                      <button key={item} type="button"
+                        onClick={() => {
+                          const arr = ext.educationNeeds.split(",").map(s => s.trim()).filter(Boolean);
+                          const next = isOn ? arr.filter(x => x !== item) : [...arr, item];
+                          setExt(p => ({ ...p, educationNeeds: next.join(", ") }));
+                        }}
+                        className={`py-2 px-3 rounded-lg border text-xs font-medium text-left transition-colors ${isOn ? "bg-primary/20 border-primary text-primary" : "bg-input border-border text-muted-foreground hover:border-primary/50"}`}>
+                        {item}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 활동지역 */}
+            <div className="space-y-1">
+              <Label className="text-sm text-muted-foreground">활동지역</Label>
+              <Input
+                value={ext.activityArea}
+                onChange={e => setExt(p => ({ ...p, activityArea: e.target.value }))}
+                placeholder="예: 서울 강남구, 서초구"
+                className="bg-input border-border"
+              />
+            </div>
+
+            <Button type="submit" className="w-full" disabled={updateExtended.isPending}>
+              {updateExtended.isPending ? "저장 중..." : "저장"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* 기본 정보 수정 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -174,6 +806,41 @@ export default function Profile() {
               {updateProfile.isPending ? "저장 중..." : "저장"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* 트레이닝 일지 유형 */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-primary" />트레이닝 일지 유형
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">선택한 유형에 따라 트레이닝 일지 입력 화면이 변경됩니다.</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: "weight", label: "웨이트 / PT", desc: "종목·세트·횟수·중량" },
+              { value: "pilates", label: "필라테스", desc: "수업목적·기구·메모" },
+            ] as const).map(({ value, label, desc }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setJournalTypeState(value);
+                  updateExtended.mutate({ journalType: value });
+                }}
+                className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-colors ${
+                  journalType === value
+                    ? "bg-primary/15 border-primary"
+                    : "bg-card border-border hover:border-primary/40"
+                }`}
+              >
+                <span className={`text-sm font-semibold ${journalType === value ? "text-primary" : "text-foreground"}`}>{label}</span>
+                <span className="text-[11px] text-muted-foreground">{desc}</span>
+              </button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -205,6 +872,34 @@ export default function Profile() {
           </form>
         </CardContent>
       </Card>
+
+      {/* 성장 설문 */}
+      <Card className="bg-card border-border">
+        <CardContent className="pt-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <ClipboardList className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">30초 성장 설문</p>
+                <p className="text-xs text-muted-foreground">
+                  {(profile as any)?.onboardingSurveyDone
+                    ? "완료됨 · 다시 응답할 수 있습니다"
+                    : "미완료 · 완료 시 300P 지급"}
+                </p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setShowSurveyModal(true)}>
+              {(profile as any)?.onboardingSurveyDone ? "다시 하기" : "시작하기"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {showSurveyModal && (
+        <OnboardingSurveyModal onClose={() => setShowSurveyModal(false)} />
+      )}
     </div>
   );
 }

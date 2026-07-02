@@ -3,6 +3,9 @@ import { Component, type ReactNode } from "react";
 import { trpc } from "./lib/trpc";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Landing from "./pages/Landing";
+import AdminLogin from "./pages/AdminLogin";
+import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
@@ -15,12 +18,24 @@ import PT from "./pages/PT";
 import Profile from "./pages/Profile";
 import TrainerSettlement from "./pages/TrainerSettlement";
 import ContractPrint from "./pages/ContractPrint";
+import EContractPage from "./pages/EContractPage";
 import AdminTrainers from "./pages/AdminTrainers";
 import AdminTrainerDetail from "./pages/AdminTrainerDetail";
 import AdminNotices from "./pages/AdminNotices";
 import AdminFitStepPlus from "./pages/AdminFitStepPlus";
+import AdminPlans from "./pages/AdminPlans";
+import AdminPoints from "./pages/AdminPoints";
+import AdminRegistrations from "./pages/AdminRegistrations";
 import Leads from "./pages/Leads";
 import Workshop from "./pages/Workshop";
+import Sessions from "./pages/Sessions";
+import Academy from "./pages/Academy";
+import TrainerBrandPage from "./pages/TrainerBrandPage";
+import ClassBookingPage from "./pages/ClassBookingPage";
+import BookingManagementPage from "./pages/BookingManagementPage";
+import SurveyPage from "./pages/SurveyPage";
+import TrainerFeedback from "./pages/TrainerFeedback";
+import AdminFeedback from "./pages/AdminFeedback";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
 import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
@@ -76,7 +91,7 @@ function FitStepPlusApp({ trainerId }: { trainerId: number }) {
   }
 
   return (
-    <FitStepPlusLayout trainerId={trainerId}>
+    <FitStepPlusLayout trainerId={trainerId} isAdmin={isAdmin}>
       <ErrorBoundary>
         <Switch>
           <Route path={`/fit-step-plus/${trainerId}`}>{() => <FitStepPlusDashboard trainerId={trainerId} />}</Route>
@@ -104,12 +119,31 @@ function App() {
   const [fitStepRootMatch, fitStepRootParams] = useRoute("/fit-step-plus/:trainerId");
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
-  if (reportMatch && reportParams) {
-    return <MemberReport token={reportParams.token} />;
-  }
+  const [brandMatch, brandParams] = useRoute("/p/:username");
+  const [classMatch, classParams] = useRoute("/c/:username");
+  const [surveyMatch, surveyParams] = useRoute("/survey/:username");
+  const [contractMatch, contractParams] = useRoute("/contract/:token");
+
+  if (reportMatch && reportParams) return <MemberReport token={reportParams.token} />;
+  if (brandMatch && brandParams) return <TrainerBrandPage username={decodeURIComponent(brandParams.username)} />;
+  if (classMatch && classParams) return <ClassBookingPage username={decodeURIComponent(classParams.username)} />;
+  if (surveyMatch && surveyParams) return <SurveyPage trainerId={Number(surveyParams.username)} />;
+  if (contractMatch && contractParams) return <EContractPage token={contractParams.token} />;
 
   if (window.location.pathname === "/contract-print") {
     return <ContractPrint />;
+  }
+
+  if (window.location.pathname === "/privacy") {
+    return <Privacy />;
+  }
+
+  if (window.location.pathname === "/landing") {
+    return <Landing />;
+  }
+
+  if (window.location.pathname === "/admin-login") {
+    return <AdminLogin />;
   }
 
   // FIT STEP+ 회원앱 라우트 (트레이너 로그인 불필요)
@@ -120,28 +154,13 @@ function App() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#1a00ff" }}>
-        <svg viewBox="0 0 440 180" className="w-72" fill="none" xmlns="http://www.w3.org/2000/svg">
-          {/* 외곽 평행사변형 */}
-          <polygon points="36,8 428,8 404,172 12,172" stroke="white" strokeWidth="10" fill="none" />
-          {/* 내곽 평행사변형 */}
-          <polygon points="50,24 414,24 390,156 26,156" stroke="white" strokeWidth="5" fill="none" />
-          {/* F. */}
-          <text x="54" y="138" fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900" fontSize="110" fill="white" fontStyle="italic">F.</text>
-          {/* 삼각형 */}
-          <polygon points="200,32 280,148 120,148" fill="white" />
-          {/* E */}
-          <text x="292" y="138" fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900" fontSize="110" fill="white" fontStyle="italic">E</text>
-        </svg>
-      </div>
-    );
+    return <div className="min-h-screen" style={{ backgroundColor: "#1a00ff" }} />;
   }
 
   if (!user) {
     if (window.location.pathname === "/register") return <Register />;
     if (window.location.pathname === "/login") return <Login />;
-    return <Login />;
+    return <Landing />;
   }
 
   return (
@@ -168,14 +187,22 @@ function App() {
           <Route path="/leads">{() => <Leads />}</Route>
           <Route path="/profile">{() => <Profile />}</Route>
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
+          <Route path="/sessions">{() => <Sessions />}</Route>
           <Route path="/workshop">{() => <Workshop />}</Route>
+          <Route path="/booking">{() => <BookingManagementPage />}</Route>
+          <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" />}</Route>
+          <Route path="/feedback">{() => <TrainerFeedback />}</Route>
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
           </Route>
+          <Route path="/admin/registrations">{() => <AdminRegistrations />}</Route>
           <Route path="/admin/trainers">{() => <AdminTrainers />}</Route>
+          <Route path="/admin/points">{() => <AdminPoints />}</Route>
           <Route path="/admin/notices">{() => <AdminNotices />}</Route>
           <Route path="/admin/fit-step-plus">{() => <AdminFitStepPlus />}</Route>
+          <Route path="/admin/plans">{() => <AdminPlans />}</Route>
+          <Route path="/admin/feedback">{() => <AdminFeedback />}</Route>
           <Route>{() => <Redirect to="/" />}</Route>
         </Switch>
       </ErrorBoundary>
