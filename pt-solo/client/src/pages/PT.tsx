@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -317,6 +317,7 @@ function RegisterSheet({ open, onClose }: { open: boolean; onClose: () => void }
 
 function MembersTab() {
   const [, setLocation] = useLocation();
+  const search_ = useSearch();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
   const [specialFilter, setSpecialFilter] = useState<SpecialFilter>("none");
@@ -326,6 +327,13 @@ function MembersTab() {
   const [extendDays, setExtendDays] = useState(30);
   const [extendCustom, setExtendCustom] = useState("");
   const [showRegister, setShowRegister] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(search_).get("register") === "1") {
+      setShowRegister(true);
+      setLocation("/pt", { replace: true });
+    }
+  }, []);
 
   const utils = trpc.useUtils();
   const { data: members, isLoading } = trpc.members.list.useQuery();
