@@ -408,7 +408,14 @@ const membersRouter = t.router({
         }
       }
 
-      return { ...result[0], lockerNumber, hasUniform };
+      // 상담 담당자 이름 조회
+      let consultantName: string | null = null;
+      if (result[0].consultantId) {
+        const [c] = await db.select({ username: users.username }).from(users).where(eq(users.id, result[0].consultantId)).limit(1);
+        consultantName = c?.username ?? null;
+      }
+
+      return { ...result[0], lockerNumber, hasUniform, consultantName };
     }),
 
   // N일 내 만료 예정 회원
