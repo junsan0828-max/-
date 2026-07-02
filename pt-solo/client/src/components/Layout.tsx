@@ -163,13 +163,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-muted-foreground">{jobLabel}</p>
           </div>
           <button
-            onClick={() => setGuideOpen(true)}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <HelpCircle className="h-4 w-4 shrink-0" />
-            페이지 안내
-          </button>
-          <button
             onClick={() => logoutMutation.mutate()}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
@@ -266,13 +259,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
         )}
         {showSurvey && <OnboardingSurveyModal onClose={() => { sessionStorage.setItem("onboarding-survey-dismissed", "1"); setSurveyDone(true); }} />}
-        {guideOpen && (
-          <PageGuideModal
-            path={location}
-            onClose={() => setGuideOpen(false)}
-            onDismissPermanent={(key) => dismissGuideMutation.mutate({ key })}
-          />
-        )}
       </div>
     </div>
   );
