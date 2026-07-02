@@ -501,7 +501,7 @@ function AnalysisSection({ onReserve }: { onReserve: () => void }) {
           <Img
             src={IMG.bodyAnalysis}
             alt="체형평가 및 분석 장면"
-            className="w-full aspect-video object-cover"
+            className="w-full object-contain"
           />
         </div>
       </div>
