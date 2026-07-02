@@ -1321,39 +1321,10 @@ async function initDatabase() {
     console.log("✅ 구글시트 URL 갱신 완료");
   }
 
-  // ── PT 패키지 paidAmount → revenue_entries 자동 동기화 ──────────────────────
-  try {
-    const allPkgs = await pool.query(`
-      SELECT id, "memberId", "paymentAmount", "unpaidAmount"
-      FROM pt_packages
-      WHERE "paymentAmount" IS NOT NULL
-    `);
-    let fixed = 0;
-    for (const pkg of allPkgs.rows) {
-      const paymentAmount = pkg.paymentAmount ?? 0;
-      const unpaidAmount = pkg.unpaidAmount ?? 0;
-      const correctPaid = Math.max(0, paymentAmount - unpaidAmount);
-      const revResult = await pool.query(`
-        SELECT id, "paidAmount" FROM revenue_entries
-        WHERE "memberId" = $1 AND type = 'PT'
-        ORDER BY "createdAt" DESC LIMIT 1
-      `, [pkg.memberId]);
-      if (revResult.rows.length > 0) {
-        const rev = revResult.rows[0];
-        if (rev.paidAmount !== correctPaid) {
-          await pool.query(`
-            UPDATE revenue_entries
-            SET "paidAmount" = $1, "unpaidAmount" = $2, "amount" = $3, "updatedAt" = now()::text
-            WHERE id = $4
-          `, [correctPaid, unpaidAmount, paymentAmount, rev.id]);
-          fixed++;
-        }
-      }
-    }
-    if (fixed > 0) console.log(`✅ PT 매출 paidAmount 동기화 ${fixed}건 완료`);
-  } catch (e) {
-    console.error("PT 매출 paidAmount 동기화 오류:", e);
-  }
+  // (제거됨) PT 패키지 → revenue_entries 금액 자동 동기화
+  // 이 startup 작업은 패키지 금액을 매출 항목에 강제로 덮어써서,
+  // 사용자가 장부에서 수정한 금액을 서버 재시작마다 되돌리는 버그를 일으켰다.
+  // 매출↔패키지 동기화는 매출 수정 시(gym.revenue.update)에만 수행한다.
 
   console.log("✨ DB 초기화 완료!");
 }
