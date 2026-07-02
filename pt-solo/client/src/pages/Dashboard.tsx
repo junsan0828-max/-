@@ -281,11 +281,11 @@ function TrainerDashboard() {
         </div>
       </div>
 
-      {/* 수업 도구 */}
+      {/* 빠른 실행 */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center gap-1.5 mb-3">
           <Dumbbell className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[11px] font-bold text-primary tracking-widest uppercase">수업 도구</span>
+          <span className="text-[11px] font-bold text-primary tracking-widest uppercase">빠른 실행</span>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
