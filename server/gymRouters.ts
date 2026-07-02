@@ -748,7 +748,12 @@ const revenueRouter = t.router({
             }
           }
           const newMembershipEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-          await db.update(members).set({ membershipEnd: newMembershipEnd }).where(eq(members.id, row.memberId));
+          // 옛 헬스 엔트리 수정이 만료일을 앞으로 당기지 않도록, 더 뒤 날짜일 때만 갱신
+          await pool.query(
+            `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
+             WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
+            [newMembershipEnd, row.memberId]
+          );
         }
       }
 

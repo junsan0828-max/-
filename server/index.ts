@@ -1192,6 +1192,57 @@ async function initDatabase() {
     console.warn("⚠️ 운동날짜 보정 실패:", e);
   }
 
+  // ── 헬스 회원 만료일을 "최신 헬스권" 기준으로 보정 (키오스크 마감 오류 방지) ──
+  // 새 헬스권 등록 후 members.membershipEnd가 옛 값에 머물러 마감으로 뜨는 문제 해결.
+  // 기존 값보다 뒤 날짜일 때만 갱신(GREATEST)하여 수동 연장/PT 만료일을 앞으로 당기지 않음.
+  try {
+    const healthRows = await pool.query<{
+      memberId: number; startDate: string | null; duration: number | null;
+      programDetail: string | null; serviceItems: string | null;
+    }>(
+      `SELECT "memberId", "startDate", duration, "programDetail", "serviceItems"
+       FROM revenue_entries
+       WHERE type = '헬스' AND "memberId" IS NOT NULL AND "startDate" IS NOT NULL`
+    );
+    // memberId별 가장 최신(startDate 최대) 헬스 등록 엔트리
+    const latest = new Map<number, typeof healthRows.rows[0]>();
+    for (const r of healthRows.rows) {
+      const prev = latest.get(r.memberId);
+      if (!prev || (r.startDate! > prev.startDate!)) latest.set(r.memberId, r);
+    }
+    let fixed = 0;
+    for (const [memberId, r] of latest) {
+      let months = r.duration ?? 0;
+      if (!months) {
+        const m = /^헬스\s*(\d+)개월/.exec(r.programDetail ?? "");
+        if (m) months = parseInt(m[1]);
+      }
+      if (!months) continue;
+      const [yr, mo, dy] = r.startDate!.split("-").map(Number);
+      const d = new Date(yr, mo - 1, dy);
+      d.setMonth(d.getMonth() + months);
+      if (r.serviceItems) {
+        for (const part of r.serviceItems.split(",").map(s => s.trim())) {
+          const moM = /^헬스\((\d+)개월\)$/.exec(part);
+          if (moM) { d.setMonth(d.getMonth() + parseInt(moM[1])); continue; }
+          const dyM = /^헬스\((\d+)일\)$/.exec(part);
+          if (dyM) { d.setDate(d.getDate() + parseInt(dyM[1])); }
+        }
+      }
+      const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      // 기존 값보다 뒤 날짜일 때만 갱신
+      const res = await pool.query(
+        `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
+         WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
+        [newEnd, memberId]
+      );
+      fixed += res.rowCount ?? 0;
+    }
+    if (fixed > 0) console.log(`✅ 헬스 회원 만료일 최신화: ${fixed}건`);
+  } catch (e) {
+    console.warn("⚠️ 헬스 만료일 보정 실패:", e);
+  }
+
   // 관리자 계정 생성 (없으면 초기 씨드)
   const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")).limit(1);
   if (!existingAdmin[0]) {
