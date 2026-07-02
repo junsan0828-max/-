@@ -1052,20 +1052,38 @@ async function initDatabase() {
     console.error("헬스 이전 기록 자동 생성 오류:", e);
   }
 
-  // ── 중복 PT 패키지 정리 (revenueEntryId 없고 usedSessions=0인 중복 제거) ──────
+  // ── 중복 PT 매출 항목 정리 (근본 원인) ───────────────────────────────────────
+  // 같은 회원·프로그램·횟수·결제일·금액이 완전히 동일한 PT 매출이 여러 건이면
+  // 가장 먼저 만들어진 1건만 남기고 삭제. (중복 매출 → 패키지 중복 생성의 원인)
   try {
-    await pool.query(`
-      DELETE FROM pt_packages
-      WHERE "revenueEntryId" IS NULL
-        AND "usedSessions" = 0
+    const dup = await pool.query(`
+      DELETE FROM revenue_entries
+      WHERE type = 'PT'
+        AND "memberId" IS NOT NULL
+        AND COALESCE("subType",'') IN ('신규','재등록','')
         AND id NOT IN (
-          SELECT MIN(id) FROM pt_packages
-          WHERE "revenueEntryId" IS NULL AND "usedSessions" = 0
-          GROUP BY "memberId", "totalSessions", COALESCE("paymentDate", "createdAt"::text)
+          SELECT MIN(id) FROM revenue_entries
+          WHERE type = 'PT' AND "memberId" IS NOT NULL
+            AND COALESCE("subType",'') IN ('신규','재등록','')
+          GROUP BY "memberId", COALESCE("programDetail",''), COALESCE(sessions,0),
+                   COALESCE("paymentDate",''), COALESCE(amount,0), COALESCE("paidAmount",0)
         )
     `);
+    if ((dup.rowCount ?? 0) > 0) console.log(`🧹 중복 PT 매출 정리: ${dup.rowCount}건`);
   } catch (e) {
-    console.error("중복 PT 패키지 정리 오류:", e);
+    console.error("중복 PT 매출 정리 오류:", e);
+  }
+
+  // ── 삭제된 매출을 가리키던(고아) usedSessions=0 패키지 정리 ───────────────────
+  try {
+    await pool.query(`
+      DELETE FROM pt_packages p
+      WHERE p."usedSessions" = 0
+        AND p."revenueEntryId" IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM revenue_entries r WHERE r.id = p."revenueEntryId")
+    `);
+  } catch (e) {
+    console.error("고아 PT 패키지 정리 오류:", e);
   }
 
   // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
@@ -1150,6 +1168,25 @@ async function initDatabase() {
     if (created > 0) console.log(`✅ PT 매출 기반 패키지 자동 생성: ${created}건`);
   } catch (e) {
     console.error("PT 패키지 자동 생성 오류:", e);
+  }
+
+  // ── 빈 중복 PT 패키지 최종 정리 (백필 후) ────────────────────────────────────
+  // 같은 회원·횟수·결제일 패키지가 여러 개면, 세션 사용 이력이 있는 것을 우선 남기고
+  // usedSessions=0인 빈 중복만 삭제. (revenueEntryId 유무와 무관하게 정리)
+  try {
+    const cleaned = await pool.query(`
+      DELETE FROM pt_packages
+      WHERE "usedSessions" = 0
+        AND id NOT IN (
+          SELECT DISTINCT ON ("memberId", "totalSessions", COALESCE("paymentDate", "createdAt"::text)) id
+          FROM pt_packages
+          ORDER BY "memberId", "totalSessions", COALESCE("paymentDate", "createdAt"::text),
+                   "usedSessions" DESC, id ASC
+        )
+    `);
+    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 빈 중복 PT 패키지 정리: ${cleaned.rowCount}건`);
+  } catch (e) {
+    console.error("빈 중복 PT 패키지 정리 오류:", e);
   }
 
   // ── 전체 회원 운동시작일/운동만료일 자동 보정 (전체 적용) ─────────────────
