@@ -166,7 +166,7 @@ function TabBannerManager() {
           link: editState.link || undefined,
           bgColor: editState.bgColor,
           isActive: editState.isActive,
-          imageUrl: editState.imageUrl || undefined,
+          imageUrl: editState.imageUrl || "",
           bannerHeight: editState.bannerHeight,
           textSize: editState.textSize,
           textAlign: editState.textAlign,

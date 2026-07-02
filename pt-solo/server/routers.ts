@@ -1786,16 +1786,17 @@ const tabBannerRouter = t.router({
       textAlign: z.string().default("left"),
     }))
     .mutation(async ({ input }) => {
+      const imageUrl = input.imageUrl && input.imageUrl.trim() !== "" ? input.imageUrl : null;
       const existing = await pool.query(`SELECT id FROM tab_banners WHERE "tabKey"=$1`, [input.tabKey]);
       if (existing.rows[0]) {
         await pool.query(
           `UPDATE tab_banners SET text=$1, "subText"=$2, link=$3, "bgColor"=$4, "isActive"=$5, "imageUrl"=$6, "bannerHeight"=$7, "textSize"=$8, "textAlign"=$9, "updatedAt"=now()::text WHERE "tabKey"=$10`,
-          [input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, input.imageUrl ?? null, input.bannerHeight, input.textSize, input.textAlign, input.tabKey]
+          [input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, imageUrl, input.bannerHeight, input.textSize, input.textAlign, input.tabKey]
         );
       } else {
         await pool.query(
           `INSERT INTO tab_banners ("tabKey", text, "subText", link, "bgColor", "isActive", "imageUrl", "bannerHeight", "textSize", "textAlign") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-          [input.tabKey, input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, input.imageUrl ?? null, input.bannerHeight, input.textSize, input.textAlign]
+          [input.tabKey, input.text, input.subText ?? null, input.link ?? null, input.bgColor, input.isActive ? 1 : 0, imageUrl, input.bannerHeight, input.textSize, input.textAlign]
         );
       }
       return { success: true };
