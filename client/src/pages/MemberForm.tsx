@@ -90,6 +90,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     paymentDate: "",
     paymentMemo: "",
     adminTrainerId: defaultTrainerId ? String(defaultTrainerId) : "",
+    consultantId: "",
     serviceSessions: "",
     serviceSessionPrice: "",
     serviceSamePrice: false,
@@ -104,6 +105,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   const today = new Date().toISOString().substring(0, 10);
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: trainerList } = trpc.trainers.list.useQuery();
+  const { data: consultantList } = trpc.admin.listConsultants.useQuery(undefined, { enabled: currentUser?.role === "admin" });
   const { data: allMembers = [] } = trpc.members.list.useQuery();
   const { data: ptEvents } = trpc.eventPrograms.list.useQuery({ type: "PT", activeOnly: true });
   const { data: allLockers } = trpc.access.getLockers.useQuery();
@@ -281,6 +283,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           membershipStart: form.membershipStart || today,
           membershipEnd: form.membershipEnd || undefined,
           trainerId: form.adminTrainerId ? parseInt(form.adminTrainerId) : undefined,
+          consultantId: form.consultantId ? parseInt(form.consultantId) : undefined,
           branchId: branchId ?? undefined,
           subType: form.subType,
           serviceItems: siStr,
@@ -374,19 +377,19 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                   상담 담당자
                 </Label>
                 <Select
-                  value={form.adminTrainerId}
-                  onValueChange={(v) => setForm((p) => ({ ...p, adminTrainerId: v }))}
+                  value={form.consultantId}
+                  onValueChange={(v) => setForm((p) => ({ ...p, consultantId: v }))}
                 >
                   <SelectTrigger className="bg-input border-border">
-                    <SelectValue placeholder="담당자 선택 (선택사항)" />
+                    <SelectValue placeholder="상담 담당자 선택 (선택사항)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {trainerList?.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>{t.trainerName}</SelectItem>
+                    {consultantList?.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.username}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.adminTrainerId && <p className="text-xs text-red-500">{errors.adminTrainerId}</p>}
+                <p className="text-[11px] text-muted-foreground/70">담당 트레이너 배정은 회원 관리에서 별도로 지정합니다.</p>
               </div>
             )}
 

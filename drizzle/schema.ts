@@ -54,6 +54,7 @@ export const trainerSettings = pgTable("trainer_settings", {
 export const members = pgTable("members", {
   id: serial("id").primaryKey(),
   trainerId: integer("trainerId"),
+  consultantId: integer("consultantId"),   // 상담 담당자 (users.id, role=consultant) — 트레이너와 별개
   branchId: integer("branchId"),
   name: text("name").notNull(),
   phone: text("phone"),

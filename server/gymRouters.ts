@@ -3028,8 +3028,9 @@ const registerMutation = protectedProcedure
     visitRoute: z.string().optional(),
     signatureDataUrl: z.string().optional(),
 
-    // 트레이너 / 지점 / 리드
+    // 트레이너 / 상담담당자 / 지점 / 리드
     trainerId: z.number().optional(),
+    consultantId: z.number().optional(),
     branchId: z.number().optional(),
     leadId: z.number().optional(),
 
@@ -3134,6 +3135,7 @@ const registerMutation = protectedProcedure
           membershipStart: input.membershipStart ?? undefined,
           membershipEnd: input.membershipEnd ?? undefined,
           trainerId: resolvedTrainerId,
+          consultantId: input.consultantId ?? undefined,
           branchId: resolvedBranchId,
           createdAt: now,
           updatedAt: now,
