@@ -384,6 +384,24 @@ export const accessRouter = t.router({
       return updated;
     }),
 
+  // 락커 기간(시작일/만료일) 수정
+  updateLockerPeriod: protectedProcedure
+    .input(z.object({
+      lockerId: z.number(),
+      startDate: z.string().nullable().optional(),
+      endDate: z.string().nullable().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const setFields: Record<string, any> = { updatedAt: new Date().toISOString() };
+      if (input.startDate !== undefined) setFields.startDate = input.startDate;
+      if (input.endDate !== undefined) setFields.endDate = input.endDate;
+      const [updated] = await db.update(lockers).set(setFields).where(eq(lockers.id, input.lockerId)).returning();
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+      return updated;
+    }),
+
   // 락커 번호로 조회 후 회원 자동 연결 (serviceItems 배지 불일치 수정용)
   fixLockerMismatch: protectedProcedure
     .input(z.object({

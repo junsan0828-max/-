@@ -146,6 +146,8 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
+  const [editPeriod, setEditPeriod] = useState<Locker | null>(null);
+  const [editPeriodForm, setEditPeriodForm] = useState({ startDate: "", endDate: "" });
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<LockerCategory | null>(null);
   const [categoryForm, setCategoryForm] = useState({ name: "", color: "#3b82f6" });
@@ -191,6 +193,10 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
 
   const releaseLocker = trpc.access.releaseLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 반납 완료"); },
+  });
+  const updateLockerPeriod = trpc.access.updateLockerPeriod.useMutation({
+    onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 기간이 수정되었습니다."); setEditPeriod(null); },
+    onError: (e) => toast.error(e.message || "기간 수정 실패"),
   });
   const deleteLocker = trpc.access.deleteLocker.useMutation({
     onSuccess: () => { utils.access.getLockers.invalidate(); toast.success("락커 삭제 완료"); },
@@ -742,6 +748,7 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
                       categories={categories}
                       movingLockerId={movingLockerId}
                       onAssign={() => setShowAssign(locker)}
+                      onEditPeriod={() => { setEditPeriodForm({ startDate: locker.startDate ?? "", endDate: locker.endDate ?? "" }); setEditPeriod(locker); }}
                       onRelease={() => {
                         if (confirm(`${locker.lockerNumber}번 락커를 반납하시겠습니까?`))
                           releaseLocker.mutate({ lockerId: locker.id });
@@ -1327,6 +1334,46 @@ export default function AccessManagement({ hideTitle }: { hideTitle?: boolean } 
           onAssigned={() => { utils.access.getLockers.invalidate(); setShowAssign(null); }}
         />
       )}
+
+      {/* 락커 기간 수정 모달 */}
+      {editPeriod && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={() => setEditPeriod(null)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div>
+              <p className="text-base font-bold text-foreground">{editPeriod.lockerNumber}번 락커 기간 수정</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{editPeriod.memberName ?? ""}</p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground">시작일</label>
+                <input type="date" value={editPeriodForm.startDate}
+                  onChange={e => setEditPeriodForm(f => ({ ...f, startDate: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">만료일</label>
+                <input type="date" value={editPeriodForm.endDate}
+                  onChange={e => setEditPeriodForm(f => ({ ...f, endDate: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
+              </div>
+              <p className="text-[11px] text-muted-foreground/70">만료일을 오늘 이후로 설정하면 다시 활성 상태가 됩니다.</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setEditPeriod(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground">취소</button>
+              <button
+                onClick={() => updateLockerPeriod.mutate({
+                  lockerId: editPeriod.id,
+                  startDate: editPeriodForm.startDate || null,
+                  endDate: editPeriodForm.endDate || null,
+                })}
+                disabled={updateLockerPeriod.isPending}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">
+                {updateLockerPeriod.isPending ? "저장 중..." : "저장"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1358,6 +1405,7 @@ function LockerCard({
   categories,
   movingLockerId,
   onAssign,
+  onEditPeriod,
   onRelease,
   onDelete,
   onMoveCategory,
@@ -1367,6 +1415,7 @@ function LockerCard({
   categories: LockerCategory[];
   movingLockerId: number | null;
   onAssign: () => void;
+  onEditPeriod: () => void;
   onRelease: () => void;
   onDelete: () => void;
   onMoveCategory: (catId: number | null) => void;
@@ -1445,7 +1494,10 @@ function LockerCard({
               {expiryInfo.label}
             </p>
           )}
-          <button onClick={onRelease} className="w-full text-xs py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors mt-1">반납</button>
+          <div className="flex gap-1 mt-1">
+            <button onClick={onEditPeriod} className="flex-1 text-xs py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors">기간 수정</button>
+            <button onClick={onRelease} className="flex-1 text-xs py-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">반납</button>
+          </div>
         </>
       ) : (
         <>

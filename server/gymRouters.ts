@@ -3343,6 +3343,21 @@ const registerMutation = protectedProcedure
       }).where(eq(lockers.id, input.lockerId));
     }
 
+    // 7-2. 이미 배정된 락커 기간 연장 (재등록 시 만료된 락커 재활성화)
+    // 이번에 새로 배정한 락커(input.lockerId)는 제외하고, 회원에게 배정된 락커의
+    // 만료일이 새 회원권 종료일보다 이르면 새 종료일로 연장하여 다시 활성화한다.
+    if (memberId && input.membershipEnd) {
+      const conds = [
+        eq(lockers.memberId, memberId),
+        eq(lockers.isOccupied, 1),
+        sql`(${lockers.endDate} IS NULL OR ${lockers.endDate} < ${input.membershipEnd})`,
+      ];
+      if (input.lockerId) conds.push(sql`${lockers.id} <> ${input.lockerId}`);
+      await db.update(lockers)
+        .set({ endDate: input.membershipEnd, updatedAt: now })
+        .where(and(...conds));
+    }
+
     // 8. 운동복 생성
     if (input.addUniform) {
       const uniformPrice = input.uniformPrice ?? 0;
