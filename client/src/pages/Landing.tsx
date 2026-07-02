@@ -393,7 +393,7 @@ function AnalysisSection() {
           <Img
             src={IMG.bodyAnalysis}
             alt="체형평가 및 분석 장면"
-            className="w-full aspect-[21/9] object-cover"
+            className="w-full h-auto"
           />
         </div>
       </div>
