@@ -152,9 +152,6 @@ function TabBannerManager() {
   };
 
   const handleSave = async () => {
-    if (!editState.text.trim() && !editState.imageUrl) {
-      toast.error("배너 텍스트 또는 이미지를 입력해주세요"); return;
-    }
     if (selectedTabs.size === 0) { toast.error("저장할 탭을 선택해주세요"); return; }
     setSaving(true);
     try {
