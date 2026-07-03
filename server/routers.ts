@@ -5294,19 +5294,18 @@ const landingRouter = t.router({
 
   getPageStats: protectedProcedure.query(async () => {
     try {
-      const today = new Date().toISOString().slice(0, 10);
       const [todayRes, naverRes, analysisRes, dailyRes] = await Promise.all([
-        pool.query(`SELECT COUNT(DISTINCT session_id) as cnt FROM landing_page_stats WHERE event = 'page_view' AND "createdAt" >= $1`, [today + 'T00:00:00']),
-        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'naver_click' AND "createdAt" >= $1`, [today + 'T00:00:00']),
-        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'body_analysis_complete' AND "createdAt" >= $1`, [today + 'T00:00:00']),
+        pool.query(`SELECT COUNT(DISTINCT session_id) as cnt FROM landing_page_stats WHERE event = 'page_view' AND "createdAt"::date = CURRENT_DATE`),
+        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'naver_click' AND "createdAt"::date = CURRENT_DATE`),
+        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'body_analysis_complete' AND "createdAt"::date = CURRENT_DATE`),
         pool.query(`
-          SELECT DATE("createdAt") as date,
+          SELECT "createdAt"::date as date,
             COUNT(DISTINCT CASE WHEN event='page_view' THEN session_id END) as views,
             COUNT(CASE WHEN event='naver_click' THEN 1 END) as naver_clicks,
             COUNT(CASE WHEN event='body_analysis_complete' THEN 1 END) as conversions
           FROM landing_page_stats
-          WHERE "createdAt" >= NOW() - INTERVAL '14 days'
-          GROUP BY DATE("createdAt") ORDER BY date ASC
+          WHERE "createdAt"::timestamp >= NOW() - INTERVAL '14 days'
+          GROUP BY "createdAt"::date ORDER BY date ASC
         `),
       ]);
       return {
@@ -5315,7 +5314,7 @@ const landingRouter = t.router({
         analysisComplete: parseInt(analysisRes.rows[0]?.cnt ?? "0"),
         daily: dailyRes.rows,
       };
-    } catch { return { todayViews: 0, naverClicks: 0, analysisComplete: 0, daily: [] }; }
+    } catch (e) { console.error("getPageStats error:", e); return { todayViews: 0, naverClicks: 0, analysisComplete: 0, daily: [] }; }
   }),
 });
 
