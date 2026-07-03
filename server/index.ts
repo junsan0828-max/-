@@ -205,10 +205,26 @@ app.post("/api/booking", async (req, res) => {
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
+  // 해시된 자산(assets/*)은 장기 캐시, index.html은 no-cache로 항상 최신 페이지 제공
+  // → 배포 후 브라우저/CDN이 옛 화면을 계속 띄우는 문제 방지
+  app.use(express.static(clientDistPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  }));
+
+  const sendIndexNoCache = (res: express.Response) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  };
 
   // 키오스크: manifest-kiosk.json 참조하는 별도 HTML 서빙
   app.get("/kiosk", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     try {
       let html = fs.readFileSync(path.join(clientDistPath, "index.html"), "utf8");
       html = html
@@ -222,7 +238,7 @@ if (fs.existsSync(clientDistPath)) {
   });
 
   app.get("*", (_req, res) => {
-    res.sendFile(path.join(clientDistPath, "index.html"));
+    sendIndexNoCache(res);
   });
 } else {
   app.get("/", (_req, res) => {
