@@ -1169,6 +1169,14 @@ async function initDatabase() {
       );
       if (parseInt(linked.rows[0]?.count ?? "0", 10) > 0) continue;
 
+      // 이 회원이 이미 PT 패키지를 가지고 있으면 건너뜀 (등록 시 만든 원본을 백필이 복제하지 않도록).
+      // 순수 레거시(매출만 있고 패키지 0개)인 회원만 새로 생성한다.
+      const hasAny = await pool.query(
+        `SELECT 1 FROM pt_packages WHERE "memberId" = $1 LIMIT 1`,
+        [rev.memberId]
+      );
+      if (hasAny.rows.length > 0) continue;
+
       const now = new Date().toISOString();
       const svcSessions = (rev as any).serviceSessions ?? 0;
       await pool.query(`
@@ -1193,23 +1201,28 @@ async function initDatabase() {
     console.error("PT 패키지 자동 생성 오류:", e);
   }
 
-  // ── 빈 중복 PT 패키지 최종 정리 (백필 후) ────────────────────────────────────
-  // 같은 회원·횟수·결제일 패키지가 여러 개면, 세션 사용 이력이 있는 것을 우선 남기고
-  // usedSessions=0인 빈 중복만 삭제. (revenueEntryId 유무와 무관하게 정리)
+  // ── 백필이 만든 "결제일자 없는 빈 복제본" PT 패키지 제거 ──────────────────────
+  // 조건: usedSessions=0 이고 결제일자가 없는데, 같은 회원·프로그램·횟수·금액으로
+  //       결제일자가 "있는" 원본 패키지가 별도로 존재하는 경우 → 복제본만 삭제.
+  //       (정상적인 두 건(둘 다 결제일자 있음)은 절대 건드리지 않음)
   try {
     const cleaned = await pool.query(`
-      DELETE FROM pt_packages
-      WHERE "usedSessions" = 0
-        AND id NOT IN (
-          SELECT DISTINCT ON ("memberId", "totalSessions", COALESCE("paymentDate", "createdAt"::text)) id
-          FROM pt_packages
-          ORDER BY "memberId", "totalSessions", COALESCE("paymentDate", "createdAt"::text),
-                   "usedSessions" DESC, id ASC
+      DELETE FROM pt_packages p
+      WHERE p."usedSessions" = 0
+        AND p."paymentDate" IS NULL
+        AND EXISTS (
+          SELECT 1 FROM pt_packages q
+          WHERE q.id <> p.id
+            AND q."memberId" = p."memberId"
+            AND COALESCE(q."packageName",'') = COALESCE(p."packageName",'')
+            AND q."totalSessions" = p."totalSessions"
+            AND COALESCE(q."paymentAmount",0) = COALESCE(p."paymentAmount",0)
+            AND q."paymentDate" IS NOT NULL
         )
     `);
-    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 빈 중복 PT 패키지 정리: ${cleaned.rowCount}건`);
+    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 빈 복제 PT 패키지 정리: ${cleaned.rowCount}건`);
   } catch (e) {
-    console.error("빈 중복 PT 패키지 정리 오류:", e);
+    console.error("빈 복제 PT 패키지 정리 오류:", e);
   }
 
   // ── 전체 회원 운동시작일/운동만료일 자동 보정 (전체 적용) ─────────────────
