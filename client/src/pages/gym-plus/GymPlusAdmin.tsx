@@ -1306,3 +1306,90 @@ export function GymPlusProductsAdmin() {
     </div>
   );
 }
+
+export function GymPlusSettingsAdmin() {
+  const utils = trpc.useUtils();
+  const { data: setting, isLoading } = trpc.gymPlus.getCheckinPointSetting.useQuery();
+  const [pointInput, setPointInput] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  const saveMutation = trpc.gymPlus.setCheckinPointSetting.useMutation({
+    onSuccess: () => {
+      utils.gymPlus.getCheckinPointSetting.invalidate();
+      setEditing(false);
+      toast.success("저장되었습니다.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const currentAmount = setting?.amount ?? 100;
+
+  function startEdit() {
+    setPointInput(String(currentAmount));
+    setEditing(true);
+  }
+
+  function handleSave() {
+    const val = parseInt(pointInput, 10);
+    if (isNaN(val) || val < 0 || val > 10000) {
+      toast.error("0~10,000 사이 숫자를 입력해주세요.");
+      return;
+    }
+    saveMutation.mutate({ amount: val });
+  }
+
+  return (
+    <div className="p-6 max-w-xl space-y-6">
+      <div>
+        <h2 className="text-lg font-bold">포인트 설정</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">키오스크/출입 체크 시 자동으로 지급될 포인트를 설정합니다.</p>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold">출입 체크인 포인트</p>
+            <p className="text-xs text-muted-foreground mt-0.5">신규 출석 체크 완료 시 회원에게 지급</p>
+          </div>
+          {!editing && (
+            <button onClick={startEdit} className="text-xs text-primary hover:underline">수정</button>
+          )}
+        </div>
+
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">로딩 중...</p>
+        ) : editing ? (
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              max={10000}
+              value={pointInput}
+              onChange={(e) => setPointInput(e.target.value)}
+              className="h-9 w-32 text-sm"
+              placeholder="0"
+            />
+            <span className="text-sm text-muted-foreground">P</span>
+            <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending} className="h-9">저장</Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)} className="h-9">취소</Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-3xl font-black text-primary">{currentAmount.toLocaleString("ko-KR")}</span>
+            <span className="text-sm text-muted-foreground">P / 회</span>
+            {currentAmount === 0 && (
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full ml-2">비활성</span>
+            )}
+          </div>
+        )}
+
+        <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+          <p>• 담당 트레이너가 출석 체크 시 자동으로 짐플러스 포인트가 적립됩니다.</p>
+          <p>• 하루에 같은 날짜 신규 출석 체크 1건에만 지급됩니다.</p>
+          <p>• 0으로 설정하면 포인트 지급이 비활성화됩니다.</p>
+          <p>• 적립 내역은 회원의 포인트 로그에서 확인할 수 있습니다.</p>
+        </div>
+      </div>
+    </div>
+  );
+}

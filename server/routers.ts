@@ -2449,12 +2449,36 @@ const attendanceChecksRouter = t.router({
         .where(and(eq(attendanceChecks.memberId, memberId), eq(attendanceChecks.checkDate, checkDate)))
         .limit(1);
 
+      const isNewRecord = !existing[0];
       if (existing[0]) {
         await db.update(attendanceChecks)
           .set({ ...fields, updatedAt: sql`now()::text` })
           .where(eq(attendanceChecks.id, existing[0].id));
       } else {
         await db.insert(attendanceChecks).values({ memberId, trainerId, checkDate, ...fields });
+      }
+
+      // 신규 출석 체크 + attended 상태일 때 → 연결된 짐플러스 회원에게 포인트 적립
+      if (isNewRecord && input.status === "attended") {
+        try {
+          const settingRes = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'checkin_point_amount'`);
+          const pointAmount = parseInt(settingRes.rows[0]?.value ?? "0");
+          if (pointAmount > 0) {
+            const gmRow = await db.select({ id: gymPlusMembers.id, points: gymPlusMembers.points })
+              .from(gymPlusMembers).where(eq(gymPlusMembers.memberId, memberId)).limit(1);
+            if (gmRow[0]) {
+              const newBalance = (gmRow[0].points ?? 0) + pointAmount;
+              await db.update(gymPlusMembers).set({ points: newBalance }).where(eq(gymPlusMembers.id, gmRow[0].id));
+              await pool.query(
+                `INSERT INTO gym_plus_point_logs ("gymPlusMemberId", type, amount, "balanceAfter", reason, "createdAt")
+                 VALUES ($1, 'earn', $2, $3, $4, now()::text)`,
+                [gmRow[0].id, pointAmount, newBalance, `출입 체크인 (${checkDate})`]
+              );
+            }
+          }
+        } catch (e) {
+          console.error("checkin point error:", e);
+        }
       }
 
       // attendances 테이블도 동기화
@@ -4084,6 +4108,25 @@ ${dataContext}
         reason: input.reason,
       });
       return { balance: newBalance };
+    }),
+
+  // ─── 출입 포인트 설정 ────────────────────────────────────────────────────────
+
+  getCheckinPointSetting: adminOnlyGymPlus.query(async () => {
+    const res = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'checkin_point_amount'`);
+    const val = parseInt(res.rows[0]?.value ?? "100");
+    return { amount: isNaN(val) ? 100 : val };
+  }),
+
+  setCheckinPointSetting: adminOnlyGymPlus
+    .input(z.object({ amount: z.number().int().min(0).max(10000) }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO gym_plus_settings (key, value, "updatedAt") VALUES ('checkin_point_amount', $1, now()::text)
+         ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()::text`,
+        [String(input.amount)]
+      );
+      return { success: true };
     }),
 
   // ─── 구매신청 ────────────────────────────────────────────────────────────────

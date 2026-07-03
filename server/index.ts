@@ -527,6 +527,12 @@ async function initDatabase() {
       note TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `INSERT INTO gym_plus_settings (key, value) VALUES ('checkin_point_amount', '100') ON CONFLICT (key) DO NOTHING`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
