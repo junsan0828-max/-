@@ -4736,6 +4736,30 @@ function WorkshopStoreCard({ item, effectiveStatus, onClick, onRestore }: { item
   );
 }
 
+// ── 잠금 기능 행 (업그레이드 유도) ────────────────────────────────────────────
+function LockedFeatureRow({ item, planLabel, planColor }: { item: WsItem; planLabel: string; planColor: string }) {
+  const Icon = item.icon;
+  return (
+    <div className="relative w-full bg-card border border-border rounded-2xl p-4 opacity-60">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center shrink-0">
+          <Icon className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div className="flex-1 min-w-0 pr-6">
+          <p className="text-sm font-semibold text-foreground/70">{item.name}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{item.shortDesc}</p>
+        </div>
+        <div className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg ${planColor}`}>
+          {planLabel}
+        </div>
+      </div>
+      <div className="absolute top-3 right-3">
+        <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />
+      </div>
+    </div>
+  );
+}
+
 // ── 내 작업실 기능 행 ──────────────────────────────────────────────────────────
 function WorkspaceFeatureRow({ item, onClick, onRemove }: { item: WsItem & { catLabel: string }; onClick: () => void; onRemove?: () => void }) {
   const Icon = item.icon;
@@ -5005,29 +5029,90 @@ function WorkshopContent() {
       </div>
 
       {/* ── 내 작업실 ────────────────────────────────────────── */}
-      <div className="space-y-4 pb-6">
-        <p className="text-xs text-muted-foreground">
-          현재 이용 가능한 기능 {activeItems.length}개 · 설정 및 관리하세요
-        </p>
-        {WS_CATALOG.map(cat => {
-          const catItems = activeItems.filter(item => (item as any).catKey === cat.key);
-          if (catItems.length === 0) return null;
-          return (
-            <div key={cat.key} className="space-y-2">
-              <div className={`flex items-center gap-2 px-1 py-1.5 border-b border-border/50`}>
-                <div className={`w-5 h-5 rounded-md ${cat.bgCls} flex items-center justify-center shrink-0`}>
-                  <cat.icon className={`h-3 w-3 ${cat.iconCls}`} />
+      {(() => {
+        const userPlan = ((user as any)?.plan ?? "free") as "free" | "pro" | "elite";
+        const allItems = WS_CATALOG.flatMap(c => c.items);
+
+        // 상위 플랜에서 현재 활성화된 기능만 (coming_soon 제외)
+        const lockedProItems = userPlan === "free"
+          ? TIER_ITEMS.pro.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && i.status !== "coming_soon" && !i.status.startsWith("addon"))
+          : [];
+        const lockedEliteItems = userPlan !== "elite"
+          ? TIER_ITEMS.elite.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && i.status !== "coming_soon" && !i.status.startsWith("addon"))
+          : [];
+
+        return (
+          <div className="space-y-4 pb-6">
+            <p className="text-xs text-muted-foreground">
+              현재 이용 가능한 기능 {activeItems.length}개 · 설정 및 관리하세요
+            </p>
+            {WS_CATALOG.map(cat => {
+              const catItems = activeItems.filter(item => (item as any).catKey === cat.key);
+              if (catItems.length === 0) return null;
+              return (
+                <div key={cat.key} className="space-y-2">
+                  <div className={`flex items-center gap-2 px-1 py-1.5 border-b border-border/50`}>
+                    <div className={`w-5 h-5 rounded-md ${cat.bgCls} flex items-center justify-center shrink-0`}>
+                      <cat.icon className={`h-3 w-3 ${cat.iconCls}`} />
+                    </div>
+                    <span className="text-xs font-semibold text-foreground/70">{cat.label}</span>
+                    <span className="ml-auto text-[10px] text-muted-foreground">{catItems.length}개</span>
+                  </div>
+                  {catItems.map(item => (
+                    <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} onRemove={() => removeMutation.mutate({ feature: item.id })} />
+                  ))}
                 </div>
-                <span className="text-xs font-semibold text-foreground/70">{cat.label}</span>
-                <span className="ml-auto text-[10px] text-muted-foreground">{catItems.length}개</span>
+              );
+            })}
+
+            {/* PRO 잠금 섹션 */}
+            {lockedProItems.length > 0 && (
+              <div className="mt-6 space-y-2">
+                <div className="flex items-center gap-2 px-1 py-1.5 border-b border-blue-200/50 dark:border-blue-500/20">
+                  <Lock className="h-3.5 w-3.5 text-blue-500" />
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">PRO 플랜 기능</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">{lockedProItems.length}개</span>
+                </div>
+                {lockedProItems.map(item => (
+                  <LockedFeatureRow key={item.id} item={item} planLabel="PRO" planColor="bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400" />
+                ))}
+                <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-blue-700 dark:text-blue-400">PRO로 업그레이드</p>
+                    <p className="text-[11px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">전문가 이미지 + 회원 경험 강화</p>
+                  </div>
+                  <a href="mailto:fitstep.consult@gmail.com?subject=PRO 플랜 업그레이드 문의" className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shrink-0">
+                    업그레이드
+                  </a>
+                </div>
               </div>
-              {catItems.map(item => (
-                <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} onRemove={() => removeMutation.mutate({ feature: item.id })} />
-              ))}
-            </div>
-          );
-        })}
-      </div>
+            )}
+
+            {/* ELITE 잠금 섹션 */}
+            {lockedEliteItems.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2 px-1 py-1.5 border-b border-amber-200/50 dark:border-amber-500/20">
+                  <Lock className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400">ELITE 플랜 기능</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">{lockedEliteItems.length}개</span>
+                </div>
+                {lockedEliteItems.map(item => (
+                  <LockedFeatureRow key={item.id} item={item} planLabel="ELITE" planColor="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400" />
+                ))}
+                <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400">ELITE로 업그레이드</p>
+                    <p className="text-[11px] text-amber-600/70 dark:text-amber-400/70 mt-0.5">사업 성장을 위한 분석 & 자동화</p>
+                  </div>
+                  <a href="mailto:fitstep.consult@gmail.com?subject=ELITE 플랜 업그레이드 문의" className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors shrink-0">
+                    업그레이드
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {selectedItem && (
         <WorkshopItemSheet
