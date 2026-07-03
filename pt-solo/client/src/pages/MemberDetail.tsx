@@ -1082,24 +1082,7 @@ export default function MemberDetail({ memberId }: Props) {
         {/* ── 트레이닝 탭 ── */}
         <TabsContent value="training" className="mt-4">
           {/* 서브탭 */}
-          <div className="flex gap-1 mb-4 bg-accent/20 p-1 rounded-lg">
-            <button
-              onClick={() => setTrainingSubTab("journal")}
-              className={`flex-1 py-1.5 text-xs rounded-md font-medium transition-colors ${trainingSubTab === "journal" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              트레이닝 일지
-            </button>
-            <button
-              onClick={() => setTrainingSubTab("memo")}
-              className={`flex-1 py-1.5 text-xs rounded-md font-medium transition-colors ${trainingSubTab === "memo" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              메모
-            </button>
-          </div>
-
-          {/* ── 트레이닝 일지 서브탭 ── */}
-          {trainingSubTab === "journal" && (
-            <div className="space-y-3">
+          <div className="space-y-3">
               <Button
                 size="sm"
                 className="w-full gap-1.5 text-xs"
@@ -1150,83 +1133,6 @@ export default function MemberDetail({ memberId }: Props) {
                 </div>
               )}
             </div>
-          )}
-
-          {/* ── 메모 서브탭 ── */}
-          {trainingSubTab === "memo" && (
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="메모 검색..."
-                  value={memoSearch}
-                  onChange={e => setMemoSearch(e.target.value)}
-                  className="h-9 text-sm flex-1"
-                />
-                <Dialog open={memoOpen} onOpenChange={setMemoOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="gap-1.5 text-xs shrink-0">
-                      <Plus className="h-3.5 w-3.5" />
-                      작성
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-sm">
-                    <DialogHeader>
-                      <DialogTitle>메모 작성</DialogTitle>
-                      <DialogDescription>{member.name}님의 메모를 작성합니다.</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">날짜</Label>
-                        <Input type="date" value={memoForm.memoDate} onChange={e => setMemoForm(p => ({ ...p, memoDate: e.target.value }))} className="h-9 text-sm" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">내용</Label>
-                        <Textarea value={memoForm.content} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMemoForm(p => ({ ...p, content: e.target.value }))} placeholder="내용을 입력하세요." rows={5} className="text-sm resize-none" />
-                      </div>
-                      <div className="flex gap-2 pt-1">
-                        <Button variant="outline" className="flex-1" onClick={() => setMemoOpen(false)}>취소</Button>
-                        <Button className="flex-1" disabled={!memoForm.content.trim() || createMemoMutation.isPending}
-                          onClick={() => createMemoMutation.mutate({ memberId, memoDate: memoForm.memoDate, content: memoForm.content })}>
-                          {createMemoMutation.isPending ? "저장 중..." : "저장"}
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-
-              {(() => {
-                const filtered = (memoList ?? []).filter(m =>
-                  !memoSearch.trim() || m.content.toLowerCase().includes(memoSearch.toLowerCase())
-                );
-                if (!filtered.length) return (
-                  <p className="text-muted-foreground text-sm text-center py-8">
-                    {memoSearch ? "검색 결과가 없습니다." : "메모가 없습니다."}
-                  </p>
-                );
-                return (
-                  <div className="space-y-3">
-                    {filtered.map((memo) => (
-                      <div key={memo.id} className="p-3 rounded-lg bg-accent/20 border border-border">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-primary">{fmtDate(memo.memoDate, "yyyy.MM.dd (EEE)")}</p>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => { setEditMemoForm({ id: memo.id, memoDate: memo.memoDate, content: memo.content }); setEditMemoOpen(true); }} className="text-muted-foreground hover:text-primary transition-colors">
-                              <Edit className="h-3.5 w-3.5" />
-                            </button>
-                            <button onClick={() => deleteMemoMutation.mutate({ id: memo.id })} className="text-muted-foreground hover:text-red-400 transition-colors">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-sm text-foreground whitespace-pre-wrap">{memo.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-          )}
         </TabsContent>
 
         {/* ── 출석 탭 ── */}
