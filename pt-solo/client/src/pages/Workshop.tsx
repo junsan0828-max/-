@@ -4967,10 +4967,21 @@ function WorkshopContent() {
   // ── 체험 중 / 유예 / 활성화 → 두 탭 표시 ────────────────────────────────────
   const featureConfigs = wsStatus?.featureConfigs ?? {};
   const removedFeatures = wsStatus?.removedFeatures ?? [];
+
+  // 유저 플랜에 포함된 기능 ID 세트 (하위 플랜 포함)
+  const userPlan = ((user as any)?.plan ?? "free") as "free" | "pro" | "elite";
+  const tierOrder = ["free", "pro", "elite"] as const;
+  const userTierIdx = tierOrder.indexOf(userPlan);
+  const userPlanFeatureIds = new Set(
+    tierOrder.slice(0, userTierIdx + 1).flatMap(t => TIER_ITEMS[t])
+  );
+
   const getEffectiveStatus = (item: WsItem) => {
     if (removedFeatures.includes(item.id)) return "removed";
     // elite trial 활성 중: PRO+ELITE 기능 강제 active
     if (eliteTrialActive && ELITE_TRIAL_FEATURE_IDS.includes(item.id)) return "active";
+    // 유저 플랜에 포함된 기능은 서버 상태와 무관하게 항상 active
+    if (userPlanFeatureIds.has(item.id)) return "active";
     return featureConfigs[item.id] ?? item.status;
   };
 
@@ -5033,12 +5044,12 @@ function WorkshopContent() {
         const userPlan = ((user as any)?.plan ?? "free") as "free" | "pro" | "elite";
         const allItems = WS_CATALOG.flatMap(c => c.items);
 
-        // 상위 플랜에서 현재 활성화된 기능만 (coming_soon 제외)
+        // 상위 플랜에서 유저 플랜에 없는 기능만 (coming_soon / addon 제외)
         const lockedProItems = userPlan === "free"
-          ? TIER_ITEMS.pro.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && i.status !== "coming_soon" && !i.status.startsWith("addon"))
+          ? TIER_ITEMS.pro.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && !userPlanFeatureIds.has(i.id) && i.status !== "coming_soon" && !i.status.startsWith("addon"))
           : [];
         const lockedEliteItems = userPlan !== "elite"
-          ? TIER_ITEMS.elite.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && i.status !== "coming_soon" && !i.status.startsWith("addon"))
+          ? TIER_ITEMS.elite.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && !userPlanFeatureIds.has(i.id) && i.status !== "coming_soon" && !i.status.startsWith("addon"))
           : [];
 
         return (
