@@ -796,7 +796,7 @@ export default function GymPlusProfile() {
                 </svg>
               </div>
               <div>
-                <p className="text-xs text-gray-400">PT 출석 횟수</p>
+                <p className="text-xs text-gray-400">헬스장 출입 횟수</p>
                 <p className="text-2xl font-black text-[#1a2b4b]">
                   {healthReport?.attendanceCount ?? 0}
                   <span className="text-sm font-semibold text-gray-400 ml-1">회</span>
@@ -805,7 +805,7 @@ export default function GymPlusProfile() {
             </div>
             {healthReport?.recentAttendances && healthReport.recentAttendances.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-[11px] text-gray-400 font-medium">최근 출석 기록</p>
+                <p className="text-[11px] text-gray-400 font-medium">최근 출입 기록</p>
                 {healthReport.recentAttendances.map((a: { checkDate: string; checkTime: string | null; status: string }, i: number) => (
                   <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                     <div className="flex items-center gap-2">
@@ -814,13 +814,13 @@ export default function GymPlusProfile() {
                       {a.checkTime && <span className="text-xs text-gray-400">{a.checkTime}</span>}
                     </div>
                     <span className={`text-xs font-medium ${a.status === "attended" ? "text-emerald-500" : "text-gray-400"}`}>
-                      {a.status === "attended" ? "출석" : a.status === "noshow" ? "노쇼" : "캔슬"}
+                      {a.status === "attended" ? "출입" : a.status === "noshow" ? "미방문" : "취소"}
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 text-center py-2">출석 기록이 없습니다</p>
+              <p className="text-sm text-gray-400 text-center py-2">출입 기록이 없습니다</p>
             )}
           </div>
 
