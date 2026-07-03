@@ -4774,7 +4774,6 @@ function WorkshopContent() {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const [selectedItem, setSelectedItem] = useState<WsItem | null>(null);
-  const [wsTab, setWsTab] = useState<"store" | "workspace">("store");
   const trainerId = (user as any)?.trainerId as number | undefined;
   const isAdmin = (user as any)?.role === "admin";
 
@@ -5005,108 +5004,30 @@ function WorkshopContent() {
         )}
       </div>
 
-      {/* 서브탭 */}
-      <div className="flex gap-1 bg-muted/40 rounded-xl p-1">
-        <button onClick={() => setWsTab("store")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${wsTab === "store" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-          기능 구매
-        </button>
-        <button onClick={() => setWsTab("workspace")}
-          className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${wsTab === "workspace" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-          내 작업실
-        </button>
+      {/* ── 내 작업실 ────────────────────────────────────────── */}
+      <div className="space-y-4 pb-6">
+        <p className="text-xs text-muted-foreground">
+          현재 이용 가능한 기능 {activeItems.length}개 · 설정 및 관리하세요
+        </p>
+        {WS_CATALOG.map(cat => {
+          const catItems = activeItems.filter(item => (item as any).catKey === cat.key);
+          if (catItems.length === 0) return null;
+          return (
+            <div key={cat.key} className="space-y-2">
+              <div className={`flex items-center gap-2 px-1 py-1.5 border-b border-border/50`}>
+                <div className={`w-5 h-5 rounded-md ${cat.bgCls} flex items-center justify-center shrink-0`}>
+                  <cat.icon className={`h-3 w-3 ${cat.iconCls}`} />
+                </div>
+                <span className="text-xs font-semibold text-foreground/70">{cat.label}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">{catItems.length}개</span>
+              </div>
+              {catItems.map(item => (
+                <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} onRemove={() => removeMutation.mutate({ feature: item.id })} />
+              ))}
+            </div>
+          );
+        })}
       </div>
-
-      {/* ── 기능 구매 탭 (플랜별) ──────────────────────────────── */}
-      {wsTab === "store" && (
-        <div className="space-y-5 pb-6">
-          {(["free", "pro", "elite"] as const).map(tierKey => {
-            const meta = TIER_META[tierKey];
-            const allItems = WS_CATALOG.flatMap(c => c.items);
-            const tierItemList = TIER_ITEMS[tierKey]
-              .map(id => allItems.find(i => i.id === id))
-              .filter(Boolean) as WsItem[];
-
-            return (
-              <div key={tierKey} className={`rounded-2xl border overflow-hidden ${meta.headerCls}`}>
-                {/* 플랜 헤더 */}
-                <div className={`px-4 py-3 border-b ${meta.headerCls}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className={`text-[11px] font-black px-2.5 py-1 rounded-lg ${meta.badgeCls}`}>{meta.label}</span>
-                      <div>
-                        <p className="text-sm font-bold text-foreground">{meta.desc}</p>
-                        <p className="text-[11px] text-muted-foreground">{meta.limit}</p>
-                      </div>
-                    </div>
-                    {/* 체험 중 배지 */}
-                    {eliteTrialActive && (
-                      <span className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
-                        체험 중 {eliteTrial!.daysRemaining}일 남음
-                      </span>
-                    )}
-                  </div>
-
-                  {/* FREE 기본 기능 chips */}
-                  {meta.baseFeatures && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-muted-foreground font-semibold self-center">기본 포함:</span>
-                      {meta.baseFeatures.map(f => (
-                        <span key={f} className="text-[11px] bg-white/70 dark:bg-card/60 border border-border/50 px-2 py-0.5 rounded-full font-medium text-foreground/80">
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* 기능 카드 목록 */}
-                <div className="bg-card divide-y divide-border/40">
-                  {tierItemList.map(item => (
-                    <WorkshopStoreCard key={item.id} item={item} effectiveStatus={getEffectiveStatus(item)}
-                      onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })}
-                      onRestore={() => restoreMutation.mutate({ feature: item.id })} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          <p className="text-[11px] text-muted-foreground text-center">
-            준비 중 기능은 출시 시 자동으로 활성화됩니다
-          </p>
-        </div>
-      )}
-
-      {/* ── 내 작업실 탭 ─────────────────────────────────────── */}
-      {wsTab === "workspace" && (
-        <div className="space-y-4 pb-6">
-          <p className="text-xs text-muted-foreground">
-            현재 이용 가능한 기능 {activeItems.length}개 · 설정 및 관리하세요
-          </p>
-          {WS_CATALOG.map(cat => {
-            const catItems = activeItems.filter(item => (item as any).catKey === cat.key);
-            if (catItems.length === 0) return null;
-            return (
-              <div key={cat.key} className="space-y-2">
-                <div className={`flex items-center gap-2 px-1 py-1.5 border-b border-border/50`}>
-                  <div className={`w-5 h-5 rounded-md ${cat.bgCls} flex items-center justify-center shrink-0`}>
-                    <cat.icon className={`h-3 w-3 ${cat.iconCls}`} />
-                  </div>
-                  <span className="text-xs font-semibold text-foreground/70">{cat.label}</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">{catItems.length}개</span>
-                </div>
-                {catItems.map(item => (
-                  <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} onRemove={() => removeMutation.mutate({ feature: item.id })} />
-                ))}
-              </div>
-            );
-          })}
-          <div className="mt-2 bg-muted/30 border border-border/40 rounded-2xl p-4 text-center">
-            <p className="text-xs text-muted-foreground">추가 기능은 <button className="text-primary font-semibold underline-offset-2 hover:underline" onClick={() => setWsTab("store")}>기능 구매</button> 탭에서 확인하세요</p>
-          </div>
-        </div>
-      )}
 
       {selectedItem && (
         <WorkshopItemSheet
