@@ -1342,7 +1342,7 @@ export function GymPlusSettingsAdmin() {
     <div className="p-6 max-w-xl space-y-6">
       <div>
         <h2 className="text-lg font-bold">포인트 설정</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">키오스크/출입 체크 시 자동으로 지급될 포인트를 설정합니다.</p>
+        <p className="text-sm text-muted-foreground mt-0.5">회원이 키오스크(/kiosk)에서 출입 체크 시 자동으로 지급될 포인트를 설정합니다.</p>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5 space-y-4">
@@ -1384,8 +1384,8 @@ export function GymPlusSettingsAdmin() {
         )}
 
         <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
-          <p>• 담당 트레이너가 출석 체크 시 자동으로 짐플러스 포인트가 적립됩니다.</p>
-          <p>• 하루에 같은 날짜 신규 출석 체크 1건에만 지급됩니다.</p>
+          <p>• 회원이 키오스크(ziantgym.com/kiosk)에서 전화번호로 출입 체크 시 자동 적립됩니다.</p>
+          <p>• 하루에 1회만 지급됩니다 (당일 중복 출입 체크 시 추가 적립 없음).</p>
           <p>• 0으로 설정하면 포인트 지급이 비활성화됩니다.</p>
           <p>• 적립 내역은 회원의 포인트 로그에서 확인할 수 있습니다.</p>
         </div>

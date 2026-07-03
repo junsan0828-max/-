@@ -4469,6 +4469,73 @@ const landingRouter = t.router({
   }),
 });
 
+// ─── Kiosk ────────────────────────────────────────────────────────────────────
+const kioskRouter = t.router({
+  checkIn: publicProcedure
+    .input(z.object({ phone: z.string().min(9) }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 전화번호로 회원 찾기 (숫자만 비교)
+      const digits = input.phone.replace(/\D/g, "");
+      const all = await pool.query(
+        `SELECT id, name, phone FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 AND status = 'active' LIMIT 1`,
+        [digits]
+      );
+      if (!all.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원을 찾을 수 없습니다." });
+
+      const member = all.rows[0] as { id: number; name: string; phone: string };
+      const today = new Date().toISOString().slice(0, 10);
+      const checkTime = (() => { const d = new Date(); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; })();
+
+      // 오늘 이미 출입했는지 확인
+      const existing = await pool.query(
+        `SELECT id FROM attendance_checks WHERE "memberId" = $1 AND "checkDate" = $2 LIMIT 1`,
+        [member.id, today]
+      );
+
+      if (existing.rows[0]) {
+        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0 };
+      }
+
+      // 키오스크 출입 기록 (trainerId=0: 시스템/키오스크)
+      await pool.query(
+        `INSERT INTO attendance_checks ("memberId", "trainerId", "checkDate", "checkTime", status, "createdAt", "updatedAt")
+         VALUES ($1, 0, $2, $3, 'attended', now()::text, now()::text)`,
+        [member.id, today, checkTime]
+      );
+
+      // 포인트 적립
+      let pointsEarned = 0;
+      try {
+        const settingRes = await pool.query(`SELECT value FROM gym_plus_settings WHERE key = 'checkin_point_amount'`);
+        const pointAmount = parseInt(settingRes.rows[0]?.value ?? "0");
+        if (pointAmount > 0) {
+          const gmRow = await pool.query(
+            `SELECT id, points FROM gym_plus_members WHERE "memberId" = $1 LIMIT 1`,
+            [member.id]
+          );
+          if (gmRow.rows[0]) {
+            const gm = gmRow.rows[0] as { id: number; points: number };
+            const newBalance = (gm.points ?? 0) + pointAmount;
+            await pool.query(`UPDATE gym_plus_members SET points = $1 WHERE id = $2`, [newBalance, gm.id]);
+            await pool.query(
+              `INSERT INTO gym_plus_point_logs ("gymPlusMemberId", type, amount, "balanceAfter", reason, "createdAt")
+               VALUES ($1, 'earn', $2, $3, $4, now()::text)`,
+              [gm.id, pointAmount, newBalance, `키오스크 출입 (${today})`]
+            );
+            pointsEarned = pointAmount;
+          }
+        }
+      } catch (e) {
+        console.error("kiosk point error:", e);
+      }
+
+      return { name: member.name, alreadyCheckedIn: false, pointsEarned };
+    }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 export const appRouter = t.router({
   auth: authRouter,
@@ -4486,6 +4553,7 @@ export const appRouter = t.router({
   gym: gymRouter,
   gymPlus: gymPlusRouter,
   landing: landingRouter,
+  kiosk: kioskRouter,
 });
 
 export type AppRouter = typeof appRouter;

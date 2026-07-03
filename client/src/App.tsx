@@ -25,6 +25,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import KioskPage from "./pages/Kiosk";
 import Dashboard from "./pages/Dashboard";
 import GymDashboard from "./pages/GymDashboard";
 import Members from "./pages/Members";
@@ -113,6 +114,11 @@ function App() {
   // 랜딩 페이지 (공개) — 비로그인 루트 또는 /landing 직접 접근
   if (location === "/landing" || (!user && !isLoading && location === "/")) {
     return <Landing />;
+  }
+
+  // 키오스크 출입 페이지 (공개, 인증 불필요)
+  if (location === "/kiosk") {
+    return <KioskPage />;
   }
 
   // ZIANTGYM+ 회원앱 (Layout 밖에서 독립 렌더)
