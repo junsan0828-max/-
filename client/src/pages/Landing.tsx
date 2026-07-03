@@ -1,4 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { trpc } from "../lib/trpc";
+
+function getSessionId() {
+  let sid = sessionStorage.getItem("lp_sid");
+  if (!sid) { sid = Math.random().toString(36).slice(2); sessionStorage.setItem("lp_sid", sid); }
+  return sid;
+}
 
 // ─── 연락처 설정 ──────────────────────────────────────────────────────────────
 const NAVER_PLACE_URL = "https://booking.naver.com/booking/13/bizes/YOUR_ID";
@@ -731,9 +738,42 @@ function MobileBottomCTA() {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Landing() {
+  const trackEvent = trpc.landing.trackEvent.useMutation();
+  const entryTime = useRef(Date.now());
+
   useEffect(() => {
     document.documentElement.style.scrollBehavior = "smooth";
-    return () => { document.documentElement.style.scrollBehavior = ""; };
+
+    const sid = getSessionId();
+    if (!sessionStorage.getItem("lp_viewed")) {
+      sessionStorage.setItem("lp_viewed", "1");
+      trackEvent.mutate({ event: "page_view", session_id: sid });
+    }
+
+    const handleExit = () => {
+      const dur = Math.round((Date.now() - entryTime.current) / 1000);
+      fetch("/trpc/landing.trackEvent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "0": { json: { event: "page_exit", session_id: sid, duration_sec: dur } } }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    const handleNaverClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement).closest("a");
+      if (a?.href?.includes("naver.me") || a?.href?.includes("booking.naver.com")) {
+        trackEvent.mutate({ event: "naver_click", session_id: sid });
+      }
+    };
+
+    window.addEventListener("beforeunload", handleExit);
+    document.addEventListener("click", handleNaverClick);
+    return () => {
+      window.removeEventListener("beforeunload", handleExit);
+      document.removeEventListener("click", handleNaverClick);
+      document.documentElement.style.scrollBehavior = "";
+    };
   }, []);
 
   return (

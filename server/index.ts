@@ -816,6 +816,13 @@ async function initDatabase() {
       value TEXT NOT NULL,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS landing_page_stats (
+      id SERIAL PRIMARY KEY,
+      event TEXT NOT NULL,
+      session_id TEXT,
+      duration_sec INTEGER,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of landingTables) {
     await pool.query(stmt);

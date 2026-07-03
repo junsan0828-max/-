@@ -14,6 +14,7 @@ export default function MarketingPage() {
   const utils = trpc.useUtils();
   const { data: me } = trpc.auth.me.useQuery();
   const isSubAdmin = me?.role === "sub_admin";
+  const { data: pageStats } = trpc.landing.getPageStats.useQuery();
   const [showChannelForm, setShowChannelForm] = useState(false);
   const [channelForm, setChannelForm] = useState({ name: "", type: "online", description: "" });
   const [editChannel, setEditChannel] = useState<{ id: number; name: string; type: string; description: string } | null>(null);
@@ -35,6 +36,43 @@ export default function MarketingPage() {
 
   return (
     <div className="space-y-4">
+      {/* 랜딩페이지 방문 통계 */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-primary" />
+          <h2 className="font-semibold text-sm">랜딩페이지 오늘 현황</h2>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "방문자", value: pageStats?.todayViews ?? 0, unit: "명", color: "text-blue-400" },
+            { label: "네이버 클릭", value: pageStats?.naverClicks ?? 0, unit: "회", color: "text-emerald-400" },
+            { label: "체형분석 신청", value: pageStats?.analysisComplete ?? 0, unit: "건", color: "text-amber-400" },
+          ].map((s) => (
+            <div key={s.label} className="bg-muted/30 rounded-lg p-3 text-center">
+              <p className={`text-2xl font-black ${s.color}`}>{s.value}<span className="text-xs font-medium text-muted-foreground ml-0.5">{s.unit}</span></p>
+              <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+            </div>
+          ))}
+        </div>
+        {pageStats?.daily && pageStats.daily.length > 0 && (
+          <div className="pt-2 border-t border-border">
+            <p className="text-[10px] text-muted-foreground mb-2">최근 14일 방문자</p>
+            <div className="flex items-end gap-1 h-16">
+              {pageStats.daily.map((d: { date: string; views: number }) => {
+                const max = Math.max(...pageStats.daily.map((x: { views: number }) => Number(x.views)), 1);
+                const h = Math.max(4, Math.round((Number(d.views) / max) * 56));
+                return (
+                  <div key={d.date} className="flex-1 flex flex-col items-center gap-1" title={`${d.date}: ${d.views}명`}>
+                    <div className="w-full bg-primary/60 rounded-sm" style={{ height: h }} />
+                    <span className="text-[8px] text-muted-foreground">{d.date.slice(5)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">마케팅 관리</h1>

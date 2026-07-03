@@ -5275,6 +5275,48 @@ const landingRouter = t.router({
       }
       return { success: true };
     }),
+
+  trackEvent: publicProcedure
+    .input(z.object({
+      event: z.enum(["page_view", "page_exit", "naver_click", "body_analysis_complete"]),
+      session_id: z.string().optional(),
+      duration_sec: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        await pool.query(
+          `INSERT INTO landing_page_stats (event, session_id, duration_sec, "createdAt") VALUES ($1, $2, $3, $4)`,
+          [input.event, input.session_id ?? null, input.duration_sec ?? null, new Date().toISOString()]
+        );
+      } catch { /* 테이블 없으면 무시 */ }
+      return { success: true };
+    }),
+
+  getPageStats: protectedProcedure.query(async () => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const [todayRes, naverRes, analysisRes, dailyRes] = await Promise.all([
+        pool.query(`SELECT COUNT(DISTINCT session_id) as cnt FROM landing_page_stats WHERE event = 'page_view' AND "createdAt" >= $1`, [today + 'T00:00:00']),
+        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'naver_click' AND "createdAt" >= $1`, [today + 'T00:00:00']),
+        pool.query(`SELECT COUNT(*) as cnt FROM landing_page_stats WHERE event = 'body_analysis_complete' AND "createdAt" >= $1`, [today + 'T00:00:00']),
+        pool.query(`
+          SELECT DATE("createdAt") as date,
+            COUNT(DISTINCT CASE WHEN event='page_view' THEN session_id END) as views,
+            COUNT(CASE WHEN event='naver_click' THEN 1 END) as naver_clicks,
+            COUNT(CASE WHEN event='body_analysis_complete' THEN 1 END) as conversions
+          FROM landing_page_stats
+          WHERE "createdAt" >= NOW() - INTERVAL '14 days'
+          GROUP BY DATE("createdAt") ORDER BY date ASC
+        `),
+      ]);
+      return {
+        todayViews: parseInt(todayRes.rows[0]?.cnt ?? "0"),
+        naverClicks: parseInt(naverRes.rows[0]?.cnt ?? "0"),
+        analysisComplete: parseInt(analysisRes.rows[0]?.cnt ?? "0"),
+        daily: dailyRes.rows,
+      };
+    } catch { return { todayViews: 0, naverClicks: 0, analysisComplete: 0, daily: [] }; }
+  }),
 });
 
 // ─── 무료 체형분석 예약 라우터 ────────────────────────────────────────────────
