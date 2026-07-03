@@ -4417,8 +4417,17 @@ const gymPlusRouter = t.router({
       name: gymPlusMembers.name, phone: gymPlusMembers.phone, email: gymPlusMembers.email,
       membershipType: gymPlusMembers.membershipType,
       membershipStart: gymPlusMembers.membershipStart, membershipEnd: gymPlusMembers.membershipEnd,
+      memberId: gymPlusMembers.memberId,
     }).from(gymPlusMembers).where(eq(gymPlusMembers.id, gymMemberId)).limit(1);
-    return result[0] ?? null;
+    const row = result[0];
+    if (!row) return null;
+    // gym_plus_members의 만료일이 없으면 연결된 메인 회원 데이터에서 가져옴
+    if (!row.membershipEnd && row.memberId) {
+      const mainRow = await db.select({ membershipEnd: members.membershipEnd })
+        .from(members).where(eq(members.id, row.memberId)).limit(1);
+      if (mainRow[0]?.membershipEnd) row.membershipEnd = mainRow[0].membershipEnd;
+    }
+    return row;
   }),
 
   listVideoCategories: publicProcedure.query(async () => {
