@@ -4970,11 +4970,10 @@ function WorkshopContent() {
 
   // 유저 플랜에 포함된 기능 ID 세트 (하위 플랜 포함)
   const userPlan = ((user as any)?.plan ?? "free") as "free" | "pro" | "elite";
-  const tierOrder = ["free", "pro", "elite"] as const;
-  const userTierIdx = tierOrder.indexOf(userPlan);
-  const userPlanFeatureIds = new Set(
-    tierOrder.slice(0, userTierIdx + 1).flatMap(t => TIER_ITEMS[t])
-  );
+  const planFreeIds = TIER_ITEMS.free;
+  const planProIds = userPlan === "pro" || userPlan === "elite" ? TIER_ITEMS.pro : [];
+  const planEliteIds = userPlan === "elite" ? TIER_ITEMS.elite : [];
+  const userPlanFeatureIds = new Set([...planFreeIds, ...planProIds, ...planEliteIds]);
 
   const getEffectiveStatus = (item: WsItem) => {
     if (removedFeatures.includes(item.id)) return "removed";
