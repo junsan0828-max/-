@@ -6,6 +6,7 @@ import { runOrchestrator, saveResult, OrchestratorResult } from "./orchestrator"
 import { generateMemberMessages } from "./mina";
 import { analyzeFunnel } from "./dataAgent";
 import { generateContentIdeas } from "./luna";
+import { markContacted } from "./store";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -93,6 +94,10 @@ app.whenReady().then(() => {
   setupTray();
 
   ipcMain.handle("run-now", () => runJay("수동 실행"));
+  ipcMain.handle("mark-contacted", (_e, category: string, name: string, phone: string | null) => {
+    markContacted(category, name, phone);
+    return { success: true };
+  });
 
   // 시작 시 1회 자동 분석
   win?.webContents.once("did-finish-load", () => runJay("앱 시작"));

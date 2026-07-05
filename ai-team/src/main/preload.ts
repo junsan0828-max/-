@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld("jay", {
   onContent: (cb: (content: unknown) => void) => ipcRenderer.on("content", (_e, c) => cb(c)),
   onLog: (cb: (line: string) => void) => ipcRenderer.on("log", (_e, l) => cb(l)),
   copyText: (text: string) => clipboard.writeText(text),
+  markContacted: (category: string, name: string, phone: string | null) =>
+    ipcRenderer.invoke("mark-contacted", category, name, phone),
 });

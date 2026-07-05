@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { GymContext } from "./data";
+import { isRecentlyContacted } from "./store";
 
 export type MessageCategory = "만료임박" | "이탈위험" | "미수금";
 export interface MemberMessage {
@@ -30,20 +31,15 @@ function templateMessage(name: string, category: MessageCategory, extra?: string
   }
 }
 
-function fallbackMessages(c: GymContext): MemberMessage[] {
-  const out: MemberMessage[] = [];
-  for (const m of c.members.expiringSoon)
-    out.push({ name: m.name, phone: m.phone, category: "만료임박", message: templateMessage(m.name, "만료임박") });
-  for (const m of c.members.recentlyExpired)
-    out.push({ name: m.name, phone: m.phone, category: "이탈위험", message: templateMessage(m.name, "이탈위험") });
-  for (const m of c.money.unpaidMembers)
-    out.push({
-      name: m.name,
-      phone: m.phone,
-      category: "미수금",
-      message: templateMessage(m.name, "미수금", `${m.unpaid.toLocaleString()}원`),
-    });
-  return out;
+type Target = { name: string; phone: string | null; category: MessageCategory; unpaid?: number };
+
+function fallbackMessages(targets: Target[]): MemberMessage[] {
+  return targets.map((t) => ({
+    name: t.name,
+    phone: t.phone,
+    category: t.category,
+    message: templateMessage(t.name, t.category, t.unpaid !== undefined ? `${t.unpaid.toLocaleString()}원` : undefined),
+  }));
 }
 
 export interface MinaResult {
@@ -53,7 +49,7 @@ export interface MinaResult {
 
 export async function generateMemberMessages(context: GymContext): Promise<MinaResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  const targets = [
+  const allTargets = [
     ...context.members.expiringSoon.map((m) => ({ name: m.name, phone: m.phone, category: "만료임박" as const })),
     ...context.members.recentlyExpired.map((m) => ({ name: m.name, phone: m.phone, category: "이탈위험" as const })),
     ...context.money.unpaidMembers.map((m) => ({
@@ -64,8 +60,11 @@ export async function generateMemberMessages(context: GymContext): Promise<MinaR
     })),
   ];
 
+  // 최근 7일 내 이미 "완료" 처리한 대상은 다시 보여주지 않는다.
+  const targets = allTargets.filter((t) => !isRecentlyContacted(t.category, t.name, t.phone));
+
   if (targets.length === 0) return { isAI: !!apiKey, messages: [] };
-  if (!apiKey) return { isAI: false, messages: fallbackMessages(context) };
+  if (!apiKey) return { isAI: false, messages: fallbackMessages(targets) };
 
   const team = loadTeam();
   const mina = team.team.find((t: any) => t.id === "mina");
@@ -104,6 +103,6 @@ ${JSON.stringify(targets, null, 0)}
     return { isAI: true, messages: parsed };
   } catch (err) {
     console.error("[미나] 문자 초안 생성 실패, 템플릿으로 전환:", err instanceof Error ? err.message : err);
-    return { isAI: false, messages: fallbackMessages(context) };
+    return { isAI: false, messages: fallbackMessages(targets) };
   }
 }

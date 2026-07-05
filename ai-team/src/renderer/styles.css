@@ -79,5 +79,10 @@ header .sub { font-size: 11px; color: var(--muted); }
   padding: 5px 12px; font-size: 11px; cursor: pointer; float: right;
 }
 .copy-btn.copied { background: var(--low); color: #002a18; }
+.done-btn {
+  background: transparent; color: var(--low); border: 1px solid var(--low); border-radius: 8px;
+  padding: 5px 12px; font-size: 11px; cursor: pointer; float: right; margin-right: 6px;
+}
+.done-btn:disabled { opacity: 0.6; cursor: default; border-color: var(--muted); color: var(--muted); }
 footer { padding: 6px 16px; border-top: 1px solid #23264a; }
 .log { font-size: 11px; color: var(--muted); }

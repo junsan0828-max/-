@@ -52,11 +52,13 @@ function renderMina(mina) {
   }
   mina.messages.forEach((m, i) => {
     const li = document.createElement("li");
+    li.setAttribute("data-key", i);
     li.innerHTML =
       `<div class="msg-head"><span class="msg-name">${CATEGORY_ICON[m.category] || ""} ${m.name}</span>` +
       `<span class="msg-phone">${m.phone || "번호 없음"}</span></div>` +
       `<div class="msg-body">${m.message}</div>` +
-      `<button class="copy-btn" data-idx="${i}">복사</button>`;
+      `<button class="copy-btn" data-idx="${i}">복사</button>` +
+      `<button class="done-btn" data-idx="${i}">연락 완료 ✓</button>`;
     messagesEl.appendChild(li);
   });
   messagesEl.querySelectorAll(".copy-btn").forEach((btn) => {
@@ -69,6 +71,17 @@ function renderMina(mina) {
         btn.textContent = "복사";
         btn.classList.remove("copied");
       }, 1500);
+    });
+  });
+  messagesEl.querySelectorAll(".done-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = Number(btn.getAttribute("data-idx"));
+      const m = mina.messages[idx];
+      await window.jay.markContacted(m.category, m.name, m.phone);
+      const li = btn.closest("li");
+      li.style.opacity = "0.4";
+      btn.textContent = "완료됨 (7일간 안 보임)";
+      btn.disabled = true;
     });
   });
 }
