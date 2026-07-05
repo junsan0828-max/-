@@ -29,6 +29,13 @@
     </section>
 
     <section class="panel">
+      <h2>제이에게 직접 지시하기 <span class="sub">(질문·초안 요청. 발송·게시 등 실행은 안 함)</span></h2>
+      <div class="commander">
+        <textarea id="commandInput" rows="2" placeholder="예: 이번달 매출 얼마야? / 김철수 회원한테 보낼 안내 문자 써줘"></textarea>
+        <button id="commandBtn">지시하기</button>
+      </div>
+      <pre id="commandReply" class="report">아직 지시한 내용이 없어요.</pre>
+
       <h2>도출된 업무</h2>
       <ul id="tasks" class="tasks">
         <li class="empty">아직 분석 전이에요. “지금 분석하기”를 눌러보세요.</li>

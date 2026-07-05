@@ -7,6 +7,7 @@ import { generateMemberMessages } from "./mina";
 import { analyzeFunnel } from "./dataAgent";
 import { generateContentIdeas } from "./luna";
 import { markContacted } from "./store";
+import { runCommand } from "./commander";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -97,6 +98,12 @@ app.whenReady().then(() => {
   ipcMain.handle("mark-contacted", (_e, category: string, name: string, phone: string | null) => {
     markContacted(category, name, phone);
     return { success: true };
+  });
+  ipcMain.handle("run-command", async (_e, instruction: string) => {
+    send("command-state", "thinking");
+    const result = await runCommand(instruction);
+    send("command-state", "idle");
+    return result;
   });
 
   // 시작 시 1회 자동 분석

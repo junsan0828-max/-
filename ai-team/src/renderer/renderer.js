@@ -121,6 +121,33 @@ function renderContent(content) {
   });
 }
 
+const commandInput = document.getElementById("commandInput");
+const commandBtn = document.getElementById("commandBtn");
+const commandReply = document.getElementById("commandReply");
+
+async function submitCommand() {
+  const instruction = commandInput.value.trim();
+  if (!instruction) return;
+  commandBtn.disabled = true;
+  commandReply.textContent = "제이가 확인하고 있어요…";
+  try {
+    const result = await window.jay.runCommand(instruction);
+    commandReply.textContent = result.reply;
+  } catch (err) {
+    commandReply.textContent = "오류가 발생했어요: " + (err?.message || err);
+  } finally {
+    commandBtn.disabled = false;
+  }
+}
+
+commandBtn.addEventListener("click", submitCommand);
+commandInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitCommand();
+});
+window.jay.onCommandState((state) => {
+  commandBtn.disabled = state === "thinking";
+});
+
 window.jay.onState(setState);
 window.jay.onResult(renderResult);
 window.jay.onMina(renderMina);

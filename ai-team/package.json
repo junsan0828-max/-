@@ -8,6 +8,7 @@
     "brain": "tsx src/cli.ts",
     "brain:dry": "tsx src/cli.ts --dry",
     "youtube": "tsx src/youtube-cli.ts",
+    "command": "tsx src/command-cli.ts",
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron ."
