@@ -102,10 +102,13 @@ function fallbackResult(c: GymContext): OrchestratorResult {
 }
 
 function extractJson(text: string): any {
-  const s = text.indexOf("{");
-  const e = text.lastIndexOf("}");
-  if (s === -1 || e === -1) throw new Error("JSON 파싱 실패");
-  return JSON.parse(text.slice(s, e + 1));
+  // 모델이 ```json ... ``` 코드블록으로 감싸는 경우를 대비해 먼저 벗겨낸다.
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = fenced ? fenced[1] : text;
+  const s = body.indexOf("{");
+  const e = body.lastIndexOf("}");
+  if (s === -1 || e === -1) throw new Error("JSON 파싱 실패: 응답에서 { } 를 찾지 못함");
+  return JSON.parse(body.slice(s, e + 1));
 }
 
 export async function runOrchestrator(opts: { dry?: boolean } = {}): Promise<OrchestratorResult> {
@@ -120,10 +123,10 @@ export async function runOrchestrator(opts: { dry?: boolean } = {}): Promise<Orc
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: `${team.orchestrator.persona}
 너는 아래 팀원에게만 업무를 배분한다: ${team.team.map((t: any) => `${t.name}(${t.role})`).join(", ")}.
-반드시 JSON만 출력한다.`,
+반드시 다른 설명 없이 JSON 객체 하나만 출력한다. 코드블록(\`\`\`)으로 감싸지 않는다. report는 400자 이내로 간결하게 쓴다.`,
       messages: [
         {
           role: "user",
@@ -159,8 +162,10 @@ ${buildDataSummary(context)}
       context,
     };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[제이] AI 분석 실패, 규칙 기반으로 전환:", message);
     const fb = fallbackResult(context);
-    fb.headline = "(AI 호출 실패 → 규칙 기반) " + fb.headline;
+    fb.headline = `(AI 호출 실패: ${message.slice(0, 80)} → 규칙 기반) ` + fb.headline;
     return fb;
   }
 }
