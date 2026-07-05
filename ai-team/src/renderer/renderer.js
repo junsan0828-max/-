@@ -41,8 +41,41 @@ function renderResult(r) {
   reportEl.textContent = r.report || "";
 }
 
+const messagesEl = document.getElementById("messages");
+const CATEGORY_ICON = { 만료임박: "⏰", 이탈위험: "🚪", 미수금: "💰" };
+
+function renderMina(mina) {
+  messagesEl.innerHTML = "";
+  if (!mina.messages || mina.messages.length === 0) {
+    messagesEl.innerHTML = '<li class="empty">지금은 연락할 대상이 없어요.</li>';
+    return;
+  }
+  mina.messages.forEach((m, i) => {
+    const li = document.createElement("li");
+    li.innerHTML =
+      `<div class="msg-head"><span class="msg-name">${CATEGORY_ICON[m.category] || ""} ${m.name}</span>` +
+      `<span class="msg-phone">${m.phone || "번호 없음"}</span></div>` +
+      `<div class="msg-body">${m.message}</div>` +
+      `<button class="copy-btn" data-idx="${i}">복사</button>`;
+    messagesEl.appendChild(li);
+  });
+  messagesEl.querySelectorAll(".copy-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.getAttribute("data-idx"));
+      window.jay.copyText(mina.messages[idx].message);
+      btn.textContent = "복사됨!";
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = "복사";
+        btn.classList.remove("copied");
+      }, 1500);
+    });
+  });
+}
+
 window.jay.onState(setState);
 window.jay.onResult(renderResult);
+window.jay.onMina(renderMina);
 window.jay.onLog((line) => {
   logEl.textContent = line;
 });

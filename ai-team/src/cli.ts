@@ -1,11 +1,12 @@
 // GUI 없이 총괄 AI 뇌만 돌려 검증하는 용도. 실행: npm run brain  (키 없으면 npm run brain:dry)
 import "dotenv/config";
 import { runOrchestrator, saveResult } from "./main/orchestrator";
+import { generateMemberMessages } from "./main/mina";
 
 const dry = process.argv.includes("--dry");
 
 runOrchestrator({ dry })
-  .then((r) => {
+  .then(async (r) => {
     console.log(`\n🧑‍💼 제이(총괄 실장) — ${r.isAI ? "AI 분석" : "규칙 기반"}`);
     console.log(`📅 ${new Date(r.generatedAt).toLocaleString("ko-KR")}`);
     console.log(`\n▶ ${r.headline}\n`);
@@ -20,6 +21,13 @@ runOrchestrator({ dry })
     console.log("─".repeat(50));
     const path = saveResult(r);
     console.log(`\n📄 저장됨: ${path}`);
+
+    const mina = await generateMemberMessages(r.context);
+    console.log(`\n🙋‍♀️ 미나(회원관리) — ${mina.isAI ? "AI 작성" : "템플릿"} · 문자 초안 ${mina.messages.length}건`);
+    for (const m of mina.messages) {
+      console.log(`\n  [${m.category}] ${m.name} (${m.phone ?? "번호없음"})`);
+      console.log(`  "${m.message}"`);
+    }
   })
   .catch((err) => {
     console.error("❌ 실패:", err.message);

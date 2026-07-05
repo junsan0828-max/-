@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as dotenv from "dotenv";
 import cron from "node-cron";
 import { runOrchestrator, saveResult, OrchestratorResult } from "./orchestrator";
+import { generateMemberMessages } from "./mina";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -41,6 +42,12 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     saveResult(result);
     send("result", result);
     send("log", `분석 완료: 업무 ${result.tasks.length}건 도출`);
+
+    // 미나: 재등록/이탈위험/미수금 대상 회원에게 보낼 문자 초안 생성 (반자동, 발송은 하지 않음)
+    const mina = await generateMemberMessages(result.context);
+    send("mina", mina);
+    send("log", `미나가 문자 초안 ${mina.messages.length}건 작성`);
+
     return result;
   } catch (err: any) {
     send("state", "idle");
