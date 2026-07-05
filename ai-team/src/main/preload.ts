@@ -13,4 +13,6 @@ contextBridge.exposeInMainWorld("jay", {
     ipcRenderer.invoke("mark-contacted", category, name, phone),
   runCommand: (instruction: string) => ipcRenderer.invoke("run-command", instruction),
   onCommandState: (cb: (state: string) => void) => ipcRenderer.on("command-state", (_e, s) => cb(s)),
+  onAgentState: (cb: (payload: { agent: string; state: string; bubble?: string }) => void) =>
+    ipcRenderer.on("agent-state", (_e, p) => cb(p)),
 });

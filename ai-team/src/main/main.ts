@@ -34,33 +34,46 @@ function createWindow() {
   win.loadFile(join(__dirname, "..", "..", "src", "renderer", "index.html"));
 }
 
+// 사무실 미니 애니메이션용: 특정 팀원의 상태(working/done)와 말풍선 문구를 렌더러로 보낸다.
+function agentState(agent: string, state: "working" | "done", bubble?: string) {
+  send("agent-state", { agent, state, bubble });
+}
+
 // 총괄 AI 1회 실행: 상태를 캐릭터 UI로 흘려보낸다.
 async function runJay(reason: string): Promise<OrchestratorResult | null> {
   if (running) return null;
   running = true;
   send("state", "thinking");
   send("log", `제이가 분석을 시작했어요 (${reason})`);
+  agentState("jay", "working");
   try {
     const result = await runOrchestrator();
     send("state", "reporting");
     saveResult(result);
     send("result", result);
     send("log", `분석 완료: 업무 ${result.tasks.length}건 도출`);
+    agentState("jay", "done", `업무 ${result.tasks.length}건 도출!`);
 
     // 미나: 재등록/이탈위험/미수금 대상 회원에게 보낼 문자 초안 생성 (반자동, 발송은 하지 않음)
+    agentState("mina", "working");
     const mina = await generateMemberMessages(result.context);
     send("mina", mina);
     send("log", `미나가 문자 초안 ${mina.messages.length}건 작성`);
+    agentState("mina", "done", `문자 ${mina.messages.length}건 작성!`);
 
     // 데이터: 퍼널 병목·채널 효율 진단
+    agentState("data", "working");
     const funnel = await analyzeFunnel(result.context);
     send("funnel", funnel);
     send("log", "데이터가 퍼널 분석을 마쳤어요");
+    agentState("data", "done", "퍼널 분석 완료!");
 
     // 루나: 이번 주 콘텐츠 초안 (블로그/인스타, 반자동 - 발행은 하지 않음)
+    agentState("luna", "working");
     const content = await generateContentIdeas(result.context, funnel);
     send("content", content);
     send("log", `루나가 콘텐츠 초안 ${content.ideas.length}건 작성`);
+    agentState("luna", "done", `콘텐츠 ${content.ideas.length}건 작성!`);
 
     return result;
   } catch (err: any) {

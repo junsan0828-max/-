@@ -121,6 +121,46 @@ function renderContent(content) {
   });
 }
 
+// AI 팀 사무실 미니 애니메이션
+const OFFICE_TEAM = [
+  { id: "jay", name: "제이", emoji: "🧑‍💼" },
+  { id: "mina", name: "미나", emoji: "🙋‍♀️" },
+  { id: "data", name: "데이터", emoji: "📊" },
+  { id: "luna", name: "루나", emoji: "🎨" },
+];
+const officeRoom = document.getElementById("officeRoom");
+let bubbleTimers = {};
+
+OFFICE_TEAM.forEach((member) => {
+  const desk = document.createElement("div");
+  desk.className = "desk";
+  desk.id = `desk-${member.id}`;
+  desk.innerHTML =
+    `<div class="bubble" id="bubble-${member.id}"></div>` +
+    `<div class="avatar">${member.emoji}</div>` +
+    `<div class="desk-surface"></div>` +
+    `<div class="name">${member.name}</div>`;
+  officeRoom.appendChild(desk);
+});
+
+function setAgentState({ agent, state, bubble }) {
+  const desk = document.getElementById(`desk-${agent}`);
+  if (!desk) return;
+  desk.classList.remove("working", "done");
+  if (state === "working" || state === "done") desk.classList.add(state);
+
+  if (bubble) {
+    const bubbleEl = document.getElementById(`bubble-${agent}`);
+    bubbleEl.textContent = bubble;
+    bubbleEl.classList.add("show");
+    clearTimeout(bubbleTimers[agent]);
+    bubbleTimers[agent] = setTimeout(() => {
+      bubbleEl.classList.remove("show");
+      desk.classList.remove("done");
+    }, 4000);
+  }
+}
+
 const commandInput = document.getElementById("commandInput");
 const commandBtn = document.getElementById("commandBtn");
 const commandReply = document.getElementById("commandReply");
@@ -153,6 +193,7 @@ window.jay.onResult(renderResult);
 window.jay.onMina(renderMina);
 window.jay.onFunnel(renderFunnel);
 window.jay.onContent(renderContent);
+window.jay.onAgentState(setAgentState);
 window.jay.onLog((line) => {
   logEl.textContent = line;
 });
