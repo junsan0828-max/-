@@ -4975,11 +4975,12 @@ function WorkshopContent() {
   const userPlanFeatureIds = new Set([...planFreeIds, ...planProIds, ...planEliteIds]);
 
   const getEffectiveStatus = (item: WsItem) => {
-    if (removedFeatures.includes(item.id)) return "removed";
     // elite trial 활성 중: PRO+ELITE 기능 강제 active
     if (eliteTrialActive && ELITE_TRIAL_FEATURE_IDS.includes(item.id)) return "active";
-    // 유저 플랜에 포함된 기능은 서버 상태와 무관하게 항상 active
+    // 유저 플랜에 포함된 기능은 removed 여부와 무관하게 항상 active
     if (userPlanFeatureIds.has(item.id)) return "active";
+    // 명시적으로 제거된 기능 (플랜 외 기능만 해당)
+    if (removedFeatures.includes(item.id)) return "removed";
     return featureConfigs[item.id] ?? item.status;
   };
 
