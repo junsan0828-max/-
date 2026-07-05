@@ -73,9 +73,46 @@ function renderMina(mina) {
   });
 }
 
+const funnelEl = document.getElementById("funnelInsight");
+function renderFunnel(funnel) {
+  funnelEl.textContent = funnel.insight || "분석 결과가 없어요.";
+}
+
+const contentEl = document.getElementById("content");
+const PLATFORM_ICON = { 블로그: "📝", 인스타그램: "📸" };
+function renderContent(content) {
+  contentEl.innerHTML = "";
+  if (!content.ideas || content.ideas.length === 0) {
+    contentEl.innerHTML = '<li class="empty">아직 없어요.</li>';
+    return;
+  }
+  content.ideas.forEach((idea, i) => {
+    const li = document.createElement("li");
+    li.innerHTML =
+      `<div class="msg-head"><span class="msg-name">${PLATFORM_ICON[idea.platform] || ""} [${idea.platform}] ${idea.title}</span></div>` +
+      `<div class="msg-body">${idea.draft}</div>` +
+      `<button class="copy-btn" data-idx="${i}">복사</button>`;
+    contentEl.appendChild(li);
+  });
+  contentEl.querySelectorAll(".copy-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.getAttribute("data-idx"));
+      window.jay.copyText(content.ideas[idx].draft);
+      btn.textContent = "복사됨!";
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = "복사";
+        btn.classList.remove("copied");
+      }, 1500);
+    });
+  });
+}
+
 window.jay.onState(setState);
 window.jay.onResult(renderResult);
 window.jay.onMina(renderMina);
+window.jay.onFunnel(renderFunnel);
+window.jay.onContent(renderContent);
 window.jay.onLog((line) => {
   logEl.textContent = line;
 });

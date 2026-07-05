@@ -4,6 +4,8 @@ import * as dotenv from "dotenv";
 import cron from "node-cron";
 import { runOrchestrator, saveResult, OrchestratorResult } from "./orchestrator";
 import { generateMemberMessages } from "./mina";
+import { analyzeFunnel } from "./dataAgent";
+import { generateContentIdeas } from "./luna";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -47,6 +49,16 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     const mina = await generateMemberMessages(result.context);
     send("mina", mina);
     send("log", `미나가 문자 초안 ${mina.messages.length}건 작성`);
+
+    // 데이터: 퍼널 병목·채널 효율 진단
+    const funnel = await analyzeFunnel(result.context);
+    send("funnel", funnel);
+    send("log", "데이터가 퍼널 분석을 마쳤어요");
+
+    // 루나: 이번 주 콘텐츠 초안 (블로그/인스타, 반자동 - 발행은 하지 않음)
+    const content = await generateContentIdeas(result.context, funnel);
+    send("content", content);
+    send("log", `루나가 콘텐츠 초안 ${content.ideas.length}건 작성`);
 
     return result;
   } catch (err: any) {

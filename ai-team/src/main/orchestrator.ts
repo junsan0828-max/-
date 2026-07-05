@@ -28,11 +28,12 @@ function loadJson(name: string) {
   return JSON.parse(readFileSync(join(CONFIG_DIR, name), "utf-8"));
 }
 
-function buildDataSummary(c: GymContext): string {
+export function buildDataSummary(c: GymContext): string {
   return `[데이터 기준일 ${c.asOf} · 출처 ${c.source === "db" ? "실데이터" : "샘플"}]
 - 회원: 전체 ${c.members.total}, 활성 ${c.members.active}, 30일내 만료예정 ${c.members.expiringSoon.length}명, 최근14일 만료(이탈위험) ${c.members.recentlyExpired.length}명
 - 생애흐름(리드): 미상담 ${c.funnel.pending}, 상담 ${c.funnel.consulted}, 등록 ${c.funnel.registered}, 이탈 ${c.funnel.dropped} / 상담전환율 ${c.funnel.consultRate}%, 상담→등록 ${c.funnel.registerRate}%
-- 매출: 이번달 ${c.money.monthRevenue.toLocaleString()}원 (신규 ${c.money.newCount}건, 재등록 ${c.money.reRegisterCount}건), 미수금 ${c.money.unpaidTotal.toLocaleString()}원(${c.money.unpaidMembers.length}명)`;
+- 매출: 이번달 ${c.money.monthRevenue.toLocaleString()}원 (신규 ${c.money.newCount}건, 재등록 ${c.money.reRegisterCount}건), 미수금 ${c.money.unpaidTotal.toLocaleString()}원(${c.money.unpaidMembers.length}명)
+- 채널별 리드→등록 전환율: ${c.channels.map((ch) => `${ch.channel} ${ch.rate}%(리드${ch.leads}/등록${ch.registered})`).join(", ") || "데이터 없음"}`;
 }
 
 // API 키가 없거나 실패해도 항상 결과가 나오도록 규칙 기반으로 업무를 만든다.

@@ -27,6 +27,7 @@ export interface GymContext {
     unpaidTotal: number; // 전체 미수금
     unpaidMembers: { name: string; phone: string | null; unpaid: number }[];
   };
+  channels: { channel: string; leads: number; registered: number; rate: number }[]; // 채널별 리드->등록 전환율
 }
 
 function ymd(d: Date) {
@@ -56,6 +57,12 @@ function sampleContext(): GymContext {
       unpaidTotal: 1350000,
       unpaidMembers: [{ name: "최유진", phone: "010-9999-0000", unpaid: 1350000 }],
     },
+    channels: [
+      { channel: "네이버 플레이스", leads: 14, registered: 8, rate: 57 },
+      { channel: "인스타그램", leads: 9, registered: 2, rate: 22 },
+      { channel: "지인 소개", leads: 6, registered: 5, rate: 83 },
+      { channel: "당근", leads: 4, registered: 1, rate: 25 },
+    ],
   };
 }
 
@@ -75,7 +82,7 @@ export async function gatherContext(): Promise<GymContext> {
     const ago14 = ymd(new Date(now.getTime() - 14 * 864e5));
     const monthPrefix = today.slice(0, 7);
 
-    const [mCount, mActive, expiring, expired, leadsRows, revRows] = await Promise.all([
+    const [mCount, mActive, expiring, expired, leadsRows, revRows, channelRows] = await Promise.all([
       pool.query<{ c: string }>(`SELECT COUNT(*) c FROM members`),
       pool.query<{ c: string }>(`SELECT COUNT(*) c FROM members WHERE status = 'active'`),
       pool.query<{ name: string; phone: string | null; membershipEnd: string }>(
@@ -90,10 +97,11 @@ export async function gatherContext(): Promise<GymContext> {
          ORDER BY "membershipEnd" DESC LIMIT 30`,
         [ago14, today]
       ),
-      pool.query<{ status: string }>(`SELECT status FROM leads`),
+      pool.query<{ status: string; channelId: number | null }>(`SELECT status, "channelId" FROM leads`),
       pool.query<{ subType: string; paidAmount: number; unpaidAmount: number; customerName: string | null; phone: string | null; paymentDate: string }>(
         `SELECT "subType", "paidAmount", "unpaidAmount", "customerName", phone, "paymentDate" FROM revenue_entries`
       ),
+      pool.query<{ id: number; name: string }>(`SELECT id, name FROM channels`),
     ]);
 
     const statusCount = (s: string) => leadsRows.rows.filter((r) => r.status === s).length;
@@ -105,6 +113,20 @@ export async function gatherContext(): Promise<GymContext> {
 
     const monthRev = revRows.rows.filter((r) => (r.paymentDate || "").startsWith(monthPrefix));
     const unpaidRows = revRows.rows.filter((r) => Number(r.unpaidAmount) > 0);
+
+    const channelStats = channelRows.rows
+      .map((ch) => {
+        const chLeads = leadsRows.rows.filter((l) => l.channelId === ch.id);
+        const chRegistered = chLeads.filter((l) => l.status === "registered").length;
+        return {
+          channel: ch.name,
+          leads: chLeads.length,
+          registered: chRegistered,
+          rate: chLeads.length > 0 ? Math.round((chRegistered / chLeads.length) * 100) : 0,
+        };
+      })
+      .filter((c) => c.leads > 0)
+      .sort((a, b) => b.leads - a.leads);
 
     return {
       source: "db",
@@ -133,6 +155,7 @@ export async function gatherContext(): Promise<GymContext> {
           .sort((a, b) => b.unpaid - a.unpaid)
           .slice(0, 20),
       },
+      channels: channelStats,
     };
   } finally {
     await pool.end();

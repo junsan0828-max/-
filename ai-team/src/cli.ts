@@ -2,6 +2,8 @@
 import "dotenv/config";
 import { runOrchestrator, saveResult } from "./main/orchestrator";
 import { generateMemberMessages } from "./main/mina";
+import { analyzeFunnel } from "./main/dataAgent";
+import { generateContentIdeas } from "./main/luna";
 
 const dry = process.argv.includes("--dry");
 
@@ -27,6 +29,17 @@ runOrchestrator({ dry })
     for (const m of mina.messages) {
       console.log(`\n  [${m.category}] ${m.name} (${m.phone ?? "번호없음"})`);
       console.log(`  "${m.message}"`);
+    }
+
+    const funnel = await analyzeFunnel(r.context);
+    console.log(`\n📊 데이터(퍼널분석) — ${funnel.isAI ? "AI 분석" : "규칙 기반"}`);
+    console.log(funnel.insight);
+
+    const content = await generateContentIdeas(r.context, funnel);
+    console.log(`\n🎨 루나(마케팅) — ${content.isAI ? "AI 작성" : "템플릿"} · 콘텐츠 초안 ${content.ideas.length}건`);
+    for (const idea of content.ideas) {
+      console.log(`\n  [${idea.platform}] ${idea.title}`);
+      console.log(`  ${idea.draft}`);
     }
   })
   .catch((err) => {
