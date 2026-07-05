@@ -3259,7 +3259,7 @@ const FORM_IDS = new Set([
 function WorkshopItemSheet({ item, trainerId, isAdmin, onClose }: {
   item: WsItem; trainerId?: number; isAdmin: boolean; onClose: () => void;
 }) {
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(FORM_IDS.has(item.id) && item.status === "active");
   const Icon = item.icon;
 
   const statusMeta: Record<WsItemStatus, { label: string; cls: string }> = {
@@ -4763,32 +4763,31 @@ function LockedFeatureRow({ item, planLabel, planColor }: { item: WsItem; planLa
 // ── 내 작업실 기능 행 ──────────────────────────────────────────────────────────
 function WorkspaceFeatureRow({ item, onClick, onRemove }: { item: WsItem & { catLabel: string }; onClick: () => void; onRemove?: () => void }) {
   const Icon = item.icon;
+  const hasEditor = FORM_IDS.has(item.id);
 
   return (
-    <div className="relative">
-      <button onClick={onClick}
-        className="w-full bg-card border border-border rounded-2xl p-4 text-left hover:border-primary/30 hover:bg-primary/[0.02] active:scale-[0.98] transition-all duration-150">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <Icon className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0 pr-6">
-            <p className="text-sm font-semibold">{item.name}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{item.catLabel}</p>
-          </div>
-          <div className="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-muted/50 text-muted-foreground">
-            사용 중
-          </div>
+    <div className="relative bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon className="h-4 w-4 text-primary" />
         </div>
-      </button>
-      {onRemove && (
-        <button
-          onClick={e => { e.stopPropagation(); if (confirm(`"${item.name}" 기능을 삭제하시겠습니까?\n삭제 후 재사용하려면 기능 구매 탭에서 다시 구매해야 합니다.`)) onRemove(); }}
-          className="absolute top-2 right-2 w-5 h-5 rounded-full bg-muted/70 hover:bg-destructive hover:text-white text-muted-foreground flex items-center justify-center transition-colors"
-        >
-          <X className="h-3 w-3" />
-        </button>
-      )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">{item.name}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{item.shortDesc}</p>
+        </div>
+        {hasEditor ? (
+          <button
+            onClick={onClick}
+            className="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            설정
+          </button>
+        ) : (
+          <span className="shrink-0 text-[11px] text-muted-foreground px-3 py-1.5 rounded-lg bg-muted/50">
+            사용 중
+          </span>
+        )}
+      </div>
     </div>
   );
 }
