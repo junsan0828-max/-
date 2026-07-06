@@ -3296,14 +3296,14 @@ const registerMutation = protectedProcedure
 
     // 6. 기타 처리 (헬스/PT 아닌 단일 항목)
     if (input.addOther) {
-      const price = input.otherPrice ?? 0;
-      const discAmt = input.discountAmount ?? 0;
-      const unpaid = input.unpaidAmount ?? 0;
+      // 항목명(otherDetail)이 있으면 실제 기타 결제, 없으면 서비스 항목 배지만 담는 0원 항목.
+      // 항목명이 없는데 금액을 넣으면 헬스/PT 결제금액이 그대로 복제돼 중복 매출이 됨 → 금액 0 처리.
+      const hasDetail = (input.otherDetail ?? "").trim().length > 0;
+      const price = hasDetail ? (input.otherPrice ?? 0) : 0;
+      const discAmt = hasDetail ? (input.discountAmount ?? 0) : 0;
+      const unpaid = hasDetail ? (input.unpaidAmount ?? 0) : 0;
       const paid = Math.max(0, price - discAmt - unpaid);
 
-      // 항목명(otherDetail)이 비어있으면 유령/중복 기타 항목이 되므로 생성하지 않음.
-      // (헬스/PT 금액이 그대로 복제돼 빈 기타로 잡히던 문제 방지) — 서비스 항목이 있으면 예외.
-      const hasDetail = (input.otherDetail ?? "").trim().length > 0;
       if (hasDetail || input.serviceItems) {
         const [otherRev] = await db.insert(revenueEntries).values({
           memberId,

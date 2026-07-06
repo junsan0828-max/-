@@ -1097,6 +1097,47 @@ async function initDatabase() {
     console.error("중복 PT 매출 정리 오류:", e);
   }
 
+  // ── 빈 "기타" 매출(항목명 없이 헬스/PT 금액이 복제된 유령) 정리 ────────────────
+  // 같은 회원·결제일·금액으로 헬스/PT 매출이 별도로 존재하는데, 항목명 없는 기타가
+  // 그 금액을 그대로 복제해 잡힌 경우 → 서비스 항목이 있으면 금액만 0으로, 없으면 삭제.
+  try {
+    // 1) 서비스 항목(운동복/락커)이 있는 복제 기타 → 배지는 유지하고 금액만 0
+    const zeroed = await pool.query(`
+      UPDATE revenue_entries g
+      SET amount = 0, "paidAmount" = 0, "unpaidAmount" = 0, "updatedAt" = now()::text
+      WHERE g.type = '기타'
+        AND COALESCE(g."programDetail",'') = ''
+        AND COALESCE(g.amount,0) > 0
+        AND COALESCE(g."serviceItems",'') <> ''
+        AND EXISTS (
+          SELECT 1 FROM revenue_entries r
+          WHERE r.id <> g.id AND r."memberId" = g."memberId"
+            AND r.type IN ('헬스','PT')
+            AND COALESCE(r."paymentDate",'') = COALESCE(g."paymentDate",'')
+            AND COALESCE(r.amount,0) = COALESCE(g.amount,0)
+        )
+    `);
+    // 2) 서비스 항목도 없는 순수 유령 기타 → 삭제
+    const deleted = await pool.query(`
+      DELETE FROM revenue_entries g
+      WHERE g.type = '기타'
+        AND COALESCE(g."programDetail",'') = ''
+        AND COALESCE(g.amount,0) > 0
+        AND COALESCE(g."serviceItems",'') = ''
+        AND EXISTS (
+          SELECT 1 FROM revenue_entries r
+          WHERE r.id <> g.id AND r."memberId" = g."memberId"
+            AND r.type IN ('헬스','PT')
+            AND COALESCE(r."paymentDate",'') = COALESCE(g."paymentDate",'')
+            AND COALESCE(r.amount,0) = COALESCE(g.amount,0)
+        )
+    `);
+    const n = (zeroed.rowCount ?? 0) + (deleted.rowCount ?? 0);
+    if (n > 0) console.log(`🧹 빈 기타 복제 매출 정리: 0원화 ${zeroed.rowCount ?? 0}건 / 삭제 ${deleted.rowCount ?? 0}건`);
+  } catch (e) {
+    console.error("빈 기타 복제 매출 정리 오류:", e);
+  }
+
   // ── 삭제된 매출을 가리키던(고아) usedSessions=0 패키지 정리 ───────────────────
   try {
     await pool.query(`
