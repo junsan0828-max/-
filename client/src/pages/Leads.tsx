@@ -235,6 +235,7 @@ export default function LeadsPage() {
   const [regForm, setRegForm] = useState<RegForm>(defaultRegForm);
   const regPendingRef = useRef<RegForm | null>(null);
   const pendingEditIdRef = useRef<number | null>(null);
+  const savingRef = useRef(false); // 더블 제출 방지 (서명 후 저장 재진입 가드)
   const [editingRevenueId, setEditingRevenueId] = useState<number | null>(null);
 
   // 바로등록 모달
@@ -296,11 +297,12 @@ export default function LeadsPage() {
 
   const directRegMutation = trpc.members.create.useMutation({
     onSuccess: (data) => {
+      savingRef.current = false;
       toast.success("회원이 등록되었습니다.");
       setShowDirectReg(false);
       setDirectForm(defaultDirectForm);
     },
-    onError: (e) => toast.error(e.message || "등록 실패"),
+    onError: (e) => { savingRef.current = false; toast.error(e.message || "등록 실패"); },
   });
 
   const { data: allMembersList } = trpc.members.list.useQuery();
@@ -329,23 +331,24 @@ export default function LeadsPage() {
 
   const reRegUpdateMutation = trpc.members.update.useMutation({
     onSuccess: () => {},
-    onError: (e) => toast.error(e.message || "회원 정보 업데이트 실패"),
+    onError: (e) => { savingRef.current = false; toast.error(e.message || "회원 정보 업데이트 실패"); },
   });
 
   const reRegAddPackageMutation = trpc.pt.addPackage.useMutation({
     onSuccess: () => {
+      savingRef.current = false;
       toast.success("재등록이 완료되었습니다.");
       setDirectRegMode(null);
       setReRegMemberId(null);
       setReRegSearch("");
       setReRegForm(defaultReRegForm);
     },
-    onError: (e) => toast.error(e.message || "패키지 추가 실패"),
+    onError: (e) => { savingRef.current = false; toast.error(e.message || "패키지 추가 실패"); },
   });
 
   const createRevenueMutation = trpc.gym.revenue.create.useMutation({
-    onSuccess: () => { toast.success("등록 완료 및 매출 저장"); utils.gym.leads.invalidate(); utils.gym.revenue.invalidate(); resetForm(); },
-    onError: (e) => { toast.error("매출 저장 실패: " + e.message); resetForm(); },
+    onSuccess: () => { savingRef.current = false; toast.success("등록 완료 및 매출 저장"); utils.gym.leads.invalidate(); utils.gym.revenue.invalidate(); resetForm(); },
+    onError: (e) => { savingRef.current = false; toast.error("매출 저장 실패: " + e.message); resetForm(); },
   });
 
   const updateRevenueMutation = trpc.gym.revenue.update.useMutation({
@@ -366,10 +369,11 @@ export default function LeadsPage() {
         regPendingRef.current = null;
         fireRevenueSave(reg, data.id);
       } else {
+        savingRef.current = false;
         toast.success("상담이 등록되었습니다"); utils.gym.leads.invalidate(); resetForm();
       }
     },
-    onError: (e) => { regPendingRef.current = null; toast.error(e.message); },
+    onError: (e) => { savingRef.current = false; regPendingRef.current = null; toast.error(e.message); },
   });
   const updateMutation = trpc.gym.leads.update.useMutation({
     onSuccess: (data) => {
@@ -378,10 +382,11 @@ export default function LeadsPage() {
         regPendingRef.current = null;
         fireRevenueSave(reg, data.id);
       } else {
+        savingRef.current = false;
         toast.success("수정되었습니다"); utils.gym.leads.invalidate(); resetForm();
       }
     },
-    onError: (e) => { regPendingRef.current = null; toast.error(e.message); },
+    onError: (e) => { savingRef.current = false; regPendingRef.current = null; toast.error(e.message); },
   });
   const deleteMutation = trpc.gym.leads.delete.useMutation({
     onSuccess: () => { toast.success("삭제되었습니다"); utils.gym.leads.invalidate(); },
@@ -531,6 +536,7 @@ export default function LeadsPage() {
   }
 
   function requestSignature() {
+    savingRef.current = false;   // 새 등록 시도 시작 시 가드 초기화
     const reg = regForm;
     if (reg.itemTypes.length === 0) return toast.error("항목 유형을 선택해주세요");
     if (reg.itemTypes.includes("PT") && !reg.programKey) return toast.error("PT 프로그램을 선택해주세요");
@@ -552,6 +558,8 @@ export default function LeadsPage() {
   }
 
   function proceedToSave() {
+    if (savingRef.current) return;   // 더블 제출 방지
+    savingRef.current = true;
     setShowSignedContract(false);
     const sig = signatureDataUrl;
     const ctx = sigContext;
