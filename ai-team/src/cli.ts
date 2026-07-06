@@ -4,6 +4,7 @@ import { runOrchestrator, saveResult } from "./main/orchestrator";
 import { generateMemberMessages } from "./main/mina";
 import { analyzeFunnel } from "./main/dataAgent";
 import { generateContentIdeas } from "./main/luna";
+import { pushDailyReport, isNotionEnabled } from "./main/notion";
 
 const dry = process.argv.includes("--dry");
 
@@ -41,6 +42,10 @@ runOrchestrator({ dry })
       console.log(`\n  [${idea.platform}] ${idea.title}`);
       console.log(`  ${idea.draft}`);
     }
+
+    console.log(`\n📓 노션 연동 — ${isNotionEnabled() ? "설정됨" : "꺼짐 (.env에 NOTION_API_KEY/NOTION_DATABASE_ID 필요)"}`);
+    const notion = await pushDailyReport(r, mina, funnel, content);
+    console.log(notion.ok ? `✅ 노션에 저장됨: ${notion.url}` : `⏭️  건너뜀: ${notion.error}`);
   })
   .catch((err) => {
     console.error("❌ 실패:", err.message);

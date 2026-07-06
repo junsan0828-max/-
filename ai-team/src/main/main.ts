@@ -8,6 +8,7 @@ import { analyzeFunnel } from "./dataAgent";
 import { generateContentIdeas } from "./luna";
 import { markContacted } from "./store";
 import { runCommand } from "./commander";
+import { pushDailyReport } from "./notion";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -74,6 +75,10 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     send("content", content);
     send("log", `루나가 콘텐츠 초안 ${content.ideas.length}건 작성`);
     agentState("luna", "done", `콘텐츠 ${content.ideas.length}건 작성!`);
+
+    // Notion: 오늘의 브리핑을 기록 (설정된 경우에만, 실패해도 앱 동작에는 영향 없음)
+    const notion = await pushDailyReport(result, mina, funnel, content);
+    send("log", notion.ok ? "노션에 브리핑 저장 완료" : `노션 저장 안 함: ${notion.error}`);
 
     return result;
   } catch (err: any) {
