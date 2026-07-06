@@ -1075,26 +1075,27 @@ async function initDatabase() {
     console.error("헬스 이전 기록 자동 생성 오류:", e);
   }
 
-  // ── 중복 PT 매출 항목 정리 (근본 원인) ───────────────────────────────────────
-  // 같은 회원·프로그램·횟수·결제일·금액이 완전히 동일한 PT 매출이 여러 건이면
-  // 가장 먼저 만들어진 1건만 남기고 삭제. (중복 매출 → 패키지 중복 생성의 원인)
+  // ── 완전 동일한 중복 매출 정리 (모든 유형) ───────────────────────────────────
+  // 저장 버튼 더블클릭 등으로 같은 회원·유형·프로그램·서비스·결제일·금액이 완전히
+  // 동일한 매출이 2건 이상 들어간 경우, 가장 먼저 만들어진 1건만 남기고 삭제.
+  // 환불은 동일값이 정상적으로 여러 건일 수 있으므로 제외.
   try {
     const dup = await pool.query(`
       DELETE FROM revenue_entries
-      WHERE type = 'PT'
-        AND "memberId" IS NOT NULL
-        AND COALESCE("subType",'') IN ('신규','재등록','')
+      WHERE "memberId" IS NOT NULL
+        AND COALESCE("subType",'') <> '환불'
         AND id NOT IN (
           SELECT MIN(id) FROM revenue_entries
-          WHERE type = 'PT' AND "memberId" IS NOT NULL
-            AND COALESCE("subType",'') IN ('신규','재등록','')
-          GROUP BY "memberId", COALESCE("programDetail",''), COALESCE(sessions,0),
+          WHERE "memberId" IS NOT NULL
+            AND COALESCE("subType",'') <> '환불'
+          GROUP BY "memberId", type, COALESCE("subType",''), COALESCE("programDetail",''),
+                   COALESCE(sessions,0), COALESCE("serviceItems",''),
                    COALESCE("paymentDate",''), COALESCE(amount,0), COALESCE("paidAmount",0)
         )
     `);
-    if ((dup.rowCount ?? 0) > 0) console.log(`🧹 중복 PT 매출 정리: ${dup.rowCount}건`);
+    if ((dup.rowCount ?? 0) > 0) console.log(`🧹 중복 매출 정리: ${dup.rowCount}건`);
   } catch (e) {
-    console.error("중복 PT 매출 정리 오류:", e);
+    console.error("중복 매출 정리 오류:", e);
   }
 
   // ── 빈 "기타" 매출(항목명 없이 헬스/PT 금액이 복제된 유령) 정리 ────────────────

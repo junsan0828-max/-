@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -212,6 +212,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     return newErrors;
   };
 
+  const submittingRef = useRef(false);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors = validateForm();
@@ -221,6 +222,9 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       return;
     }
     if (addLocker && !lockerId) { toast.error("배정할 락커를 선택해주세요"); return; }
+    // 더블 제출 방지: 진행 중이면 무시 (버튼 disabled보다 앞서 동작하는 즉시 가드)
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setErrors({});
 
     const resolvedPtProgram = hasPT ? form.ptProgram || undefined : undefined;
@@ -342,6 +346,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       setLocation(`/members/${savedMemberId}`);
     } catch {
       // individual mutations already toast errors
+    } finally {
+      submittingRef.current = false;
     }
   };
 
