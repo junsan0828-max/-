@@ -555,7 +555,18 @@ export default function RegistrationManagement() {
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeColor[r.type] ?? typeColor["기타"]}`}>{r.type}</span>
                               {r.subType && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{r.subType}</span>}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">{r.programDetail || "—"}</p>
+                            {r.programDetail && <p className="text-xs text-muted-foreground mt-0.5">{r.programDetail}</p>}
+                            {(() => {
+                              const si = (r.serviceItems ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
+                              if (si.length === 0) return !r.programDetail ? <p className="text-xs text-muted-foreground mt-0.5">—</p> : null;
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {si.map((item: string) => (
+                                    <span key={item} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium">🎁 서비스 {item}</span>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-sm font-semibold text-foreground">{(r.amount ?? r.paidAmount ?? 0).toLocaleString()}원</p>
