@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Portal } from "@/components/Portal";
 import { trpc } from "@/lib/trpc";
@@ -86,6 +86,7 @@ export default function RegistrationManagement() {
     { enabled: !!(serviceModal?.memberId) }
   );
 
+  const quickSubmittingRef = useRef(false); // 간편등록 더블 제출 방지
   // 락커 관리 state
   const [showAddLocker, setShowAddLocker] = useState(false);
   const [showAssign, setShowAssign] = useState<Locker | null>(null);
@@ -224,29 +225,32 @@ export default function RegistrationManagement() {
 
   const purchaseLockerMutation = trpc.access.purchaseLocker.useMutation({
     onSuccess: () => {
+      quickSubmittingRef.current = false;
       utils.access.getLockers.invalidate();
       setQuickModal(null);
       setLockerForm({ memberId: "", memberName: "", memberPhone: "", memberSearch: "", lockerId: "", months: 1, customAmount: false, amount: 5000, paymentMethod: "카드", startDate: new Date().toISOString().substring(0, 10) });
       toast.success("락커 구매 완료");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => { quickSubmittingRef.current = false; toast.error(e.message); },
   });
   const createUniformQuickMutation = trpc.access.createUniform.useMutation({
     onSuccess: () => {
+      quickSubmittingRef.current = false;
       utils.access.getUniforms.invalidate();
       setQuickModal(null);
       setUniformQForm({ memberId: "", memberName: "", memberPhone: "", memberSearch: "", months: 1, customAmount: false, amount: 10000, paymentMethod: "카드", startDate: new Date().toISOString().substring(0, 10), paymentDate: new Date().toISOString().substring(0, 10) });
       toast.success("운동복 대여 완료");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => { quickSubmittingRef.current = false; toast.error(e.message); },
   });
   const createDayPassMutation = trpc.gym.revenue.create.useMutation({
     onSuccess: () => {
+      quickSubmittingRef.current = false;
       setQuickModal(null);
       setDayPassForm({ name: "", phone: "", amount: "", paymentMethod: "카드", branchId: null });
       toast.success("1일권 등록 완료");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => { quickSubmittingRef.current = false; toast.error(e.message); },
   });
 
   function addMonths(dateStr: string, months: number): string {
@@ -261,6 +265,8 @@ export default function RegistrationManagement() {
     if (!lockerForm.amount) { toast.error("금액을 입력하세요"); return; }
     if (!lockerForm.paymentMethod) { toast.error("결제 방법을 선택하세요"); return; }
     if (!lockerForm.startDate) { toast.error("시작일을 입력하세요"); return; }
+    if (quickSubmittingRef.current) return;
+    quickSubmittingRef.current = true;
     purchaseLockerMutation.mutate({
       lockerId: parseInt(lockerForm.lockerId),
       memberId: parseInt(lockerForm.memberId),
@@ -279,6 +285,8 @@ export default function RegistrationManagement() {
     if (!uniformQForm.amount) { toast.error("금액을 입력하세요"); return; }
     if (!uniformQForm.paymentMethod) { toast.error("결제 방법을 선택하세요"); return; }
     if (!uniformQForm.paymentDate) { toast.error("결제일을 입력하세요"); return; }
+    if (quickSubmittingRef.current) return;
+    quickSubmittingRef.current = true;
     createUniformQuickMutation.mutate({
       memberId: parseInt(uniformQForm.memberId),
       memberName: uniformQForm.memberName,
@@ -299,6 +307,8 @@ export default function RegistrationManagement() {
     if (!dayPassForm.name.trim()) { toast.error("이름을 입력하세요"); return; }
     if (!dayPassForm.amount) { toast.error("금액을 입력하세요"); return; }
     if (!dayPassForm.paymentMethod) { toast.error("결제 방법을 선택하세요"); return; }
+    if (quickSubmittingRef.current) return;
+    quickSubmittingRef.current = true;
     createDayPassMutation.mutate({
       customerName: dayPassForm.name.trim(),
       phone: dayPassForm.phone || undefined,
