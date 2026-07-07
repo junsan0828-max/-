@@ -218,25 +218,97 @@ function charInnerSVG(def) {
   );
 }
 
+// 책상(가구, 고정) 위치 — 뒷벽 라인. 캐릭터(sprite, 이동)와 분리해서 실제로 걸어다니게 한다.
+const DESK_POS = { jay: { x: 14 }, mina: { x: 38 }, data: { x: 62 }, luna: { x: 86 } };
+const DESK_Y = 12;
+const HOME_Y = 46; // 평소 자기 자리에 서 있는 위치
+const MEETING_Y = 80; // 방 가운데 회의 테이블(다 같이 모이는 곳)
+const MEETING_X = { jay: 40, mina: 47, data: 54, luna: 61 }; // 겹치지 않게 살짝 다른 자리
+
 let bubbleTimers = {};
+let walkTimers = {};
+let wanderTimers = {};
+let busy = {};
+let spritePos = {};
+
+const meetingTable = document.createElement("div");
+meetingTable.className = "prop-table";
+officeScene.appendChild(meetingTable);
 
 Object.entries(CHAR_DEFS).forEach(([id, def]) => {
   const desk = document.createElement("div");
   desk.className = "desk" + (def.lead ? " lead" : "");
   desk.id = `desk-${id}`;
-  desk.innerHTML =
-    `<div class="bubble" id="bubble-${id}"></div>` +
-    `<div class="char" id="char-${id}"><svg viewBox="0 0 120 132" width="${def.lead ? 96 : 80}" height="${def.lead ? 106 : 88}">${charInnerSVG(def)}</svg></div>` +
-    `<div class="monitor"><div class="screen"></div></div>` +
-    `<div class="name">${def.name}<span class="role">${def.role}</span></div>`;
+  desk.style.left = DESK_POS[id].x + "%";
+  desk.style.top = DESK_Y + "%";
+  desk.innerHTML = `<div class="monitor"><div class="screen"></div></div><div class="name">${def.name}<span class="role">${def.role}</span></div>`;
   officeScene.appendChild(desk);
+
+  const sprite = document.createElement("div");
+  sprite.className = "sprite facing-right";
+  sprite.id = `sprite-${id}`;
+  sprite.innerHTML =
+    `<div class="bubble" id="bubble-${id}"></div>` +
+    `<div class="char" id="char-${id}"><svg viewBox="0 0 120 132" width="${def.lead ? 96 : 80}" height="${def.lead ? 106 : 88}">${charInnerSVG(def)}</svg></div>`;
+  officeScene.appendChild(sprite);
+  spritePos[id] = { x: DESK_POS[id].x, y: HOME_Y };
+  sprite.style.left = spritePos[id].x + "%";
+  sprite.style.top = spritePos[id].y + "%";
+
+  scheduleWander(id);
 });
+
+function moveSprite(id, x, y, { duration = 1100, onArrive } = {}) {
+  const sprite = document.getElementById(`sprite-${id}`);
+  if (!sprite) return;
+  const cur = spritePos[id];
+  const dir = x < cur.x - 1 ? "left" : x > cur.x + 1 ? "right" : null;
+  if (dir) {
+    sprite.classList.remove("facing-left", "facing-right");
+    sprite.classList.add("facing-" + dir);
+  }
+  sprite.classList.add("walking");
+  sprite.style.left = x + "%";
+  sprite.style.top = y + "%";
+  spritePos[id] = { x, y };
+  clearTimeout(walkTimers[id]);
+  walkTimers[id] = setTimeout(() => {
+    sprite.classList.remove("walking");
+    if (onArrive) onArrive();
+  }, duration);
+}
+
+// 평소에도 사무실이 살아있어 보이도록, 바쁘지 않을 때 각자 자리 근처를 서성인다.
+function scheduleWander(id) {
+  const delay = 5000 + Math.random() * 7000;
+  clearTimeout(wanderTimers[id]);
+  wanderTimers[id] = setTimeout(() => {
+    if (!busy[id]) {
+      const home = { x: DESK_POS[id].x, y: HOME_Y };
+      const stepX = Math.max(6, Math.min(94, home.x + (Math.random() * 14 - 7)));
+      moveSprite(id, stepX, home.y, {
+        duration: 900,
+        onArrive: () => {
+          setTimeout(() => {
+            if (!busy[id]) moveSprite(id, home.x, home.y, { duration: 900 });
+          }, 1200 + Math.random() * 1200);
+        },
+      });
+    }
+    scheduleWander(id);
+  }, delay);
+}
 
 function setAgentState({ agent, state, bubble }) {
   const desk = document.getElementById(`desk-${agent}`);
   if (!desk) return;
   desk.classList.remove("working", "done");
   if (state === "working" || state === "done") desk.classList.add(state);
+
+  if (state === "working") {
+    busy[agent] = true;
+    moveSprite(agent, MEETING_X[agent] ?? 50, MEETING_Y, { duration: 1300 });
+  }
 
   if (bubble) {
     const bubbleEl = document.getElementById(`bubble-${agent}`);
@@ -246,6 +318,13 @@ function setAgentState({ agent, state, bubble }) {
     bubbleTimers[agent] = setTimeout(() => {
       bubbleEl.classList.remove("show");
       desk.classList.remove("done");
+      const home = { x: DESK_POS[agent].x, y: HOME_Y };
+      moveSprite(agent, home.x, home.y, {
+        duration: 1300,
+        onArrive: () => {
+          busy[agent] = false;
+        },
+      });
     }, 4000);
   }
 }
