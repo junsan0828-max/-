@@ -531,16 +531,16 @@ const revenueRouter = t.router({
         return null;
       };
 
-      // PT 등록 시 회원 자동 생성 + ptPackage 생성
-      if (input.type === "PT" && resolvedTrainerId && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
-        const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId, membershipStart: input.startDate ?? undefined });
+      // PT 등록 시 회원 자동 생성 + ptPackage 생성 (담당 트레이너 미지정도 허용 — 회원관리에서 배정)
+      if (input.type === "PT" && input.customerName && !input.memberId && input.subType !== "이전" && input.subType !== "환불") {
+        const newId = await linkOrCreateMember({ trainerId: resolvedTrainerId ?? null, membershipStart: input.startDate ?? undefined });
         if (newId) {
           row.memberId = newId;
           const sessionCount = input.sessions ?? 0;
           if (sessionCount > 0) {
             await db.insert(ptPackages).values({
               memberId: newId,
-              trainerId: resolvedTrainerId,
+              trainerId: resolvedTrainerId ?? null,
               packageName: input.programDetail ?? undefined,
               totalSessions: sessionCount,
               usedSessions: 0,

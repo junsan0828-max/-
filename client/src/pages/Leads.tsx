@@ -694,7 +694,9 @@ export default function LeadsPage() {
       paymentDate: reg.paymentDate,
       startDate: reg.startDate || undefined,
       memo: reg.memo || undefined,
-      trainerId: form.assignedTrainerId ?? undefined,
+      // 상담 담당자는 회원의 담당 트레이너로 지정하지 않는다 (담당 트레이너는 회원 관리에서 별도 배정).
+      // 트레이너를 상담 담당자로 골라도 그 트레이너의 담당회원 목록에 들어가면 안 됨.
+      trainerId: undefined,
       consultantId: form.assignedConsultantId ?? undefined,
       branchId: reg.branchId ?? undefined,
       serviceItems: reg.serviceItems.length > 0 ? reg.serviceItems.map(item => {

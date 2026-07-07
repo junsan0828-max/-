@@ -1359,6 +1359,22 @@ async function initDatabase() {
     console.warn("⚠️ 헬스 만료일 보정 실패:", e);
   }
 
+  // ── 상담 담당자 오지정 정리: PT가 전혀 없는 회원의 담당 트레이너 해제 ──────────
+  // 상담 담당자로 트레이너를 고른 탓에 헬스/기타 전용 회원이 그 트레이너의
+  // 담당회원 목록에 들어간 케이스를 정리. (PT 패키지·PT 매출이 있는 회원은 실제
+  // 트레이닝 관계이므로 건드리지 않음)
+  try {
+    const cleared = await pool.query(`
+      UPDATE members SET "trainerId" = NULL, "updatedAt" = now()::text
+      WHERE "trainerId" IS NOT NULL
+        AND id NOT IN (SELECT DISTINCT "memberId" FROM pt_packages WHERE "memberId" IS NOT NULL)
+        AND id NOT IN (SELECT DISTINCT "memberId" FROM revenue_entries WHERE type = 'PT' AND "memberId" IS NOT NULL)
+    `);
+    if ((cleared.rowCount ?? 0) > 0) console.log(`🧹 PT 없는 회원 담당 트레이너 해제: ${cleared.rowCount}건`);
+  } catch (e) {
+    console.error("담당 트레이너 오지정 정리 오류:", e);
+  }
+
   // 관리자 계정 생성 (없으면 초기 씨드)
   const existingAdmin = await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")).limit(1);
   if (!existingAdmin[0]) {
