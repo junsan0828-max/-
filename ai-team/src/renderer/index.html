@@ -13,26 +13,13 @@
     </header>
 
     <section class="stage">
-      <div id="jay" class="character idle" title="제이">
-        <svg viewBox="0 0 120 120" width="120" height="120">
-          <circle class="head" cx="60" cy="58" r="40" />
-          <circle class="eye" cx="46" cy="52" r="5" />
-          <circle class="eye" cx="74" cy="52" r="5" />
-          <path class="mouth" d="M46 72 Q60 84 74 72" fill="none" />
-          <rect class="tie" x="55" y="96" width="10" height="16" rx="2" />
-        </svg>
-        <div class="badge">🧑‍💼 제이</div>
+      <div class="office-title">AI 팀 사무실</div>
+      <div class="office-scene" id="officeScene">
+        <!-- 팀원 캐릭터/책상은 renderer.js가 만든다 -->
       </div>
       <div id="stateLabel" class="state-label">대기 중</div>
       <div id="headline" class="headline"></div>
       <button id="runBtn">지금 분석하기</button>
-    </section>
-
-    <section class="office">
-      <div class="office-title">AI 팀 사무실</div>
-      <div class="office-room" id="officeRoom">
-        <!-- 팀원 자리는 renderer.js가 team.json 데이터로 채운다 -->
-      </div>
     </section>
 
     <section class="panel">

@@ -22,60 +22,74 @@ header { padding: 12px 16px; background: linear-gradient(135deg, #2a1e5c, #14163
 header h1 { margin: 0; font-size: 16px; }
 header .sub { font-size: 11px; color: var(--muted); }
 
-.stage { text-align: center; padding: 18px 16px 8px; }
-.character { display: inline-block; position: relative; transition: transform .3s; }
-.character .head { fill: #ffd9a0; }
-.character .eye { fill: #26294d; }
-.character .mouth { stroke: #26294d; stroke-width: 3; stroke-linecap: round; }
-.character .tie { fill: var(--accent); }
-.badge {
-  margin-top: -6px; font-size: 12px; color: var(--muted);
-  background: var(--card); display: inline-block; padding: 2px 10px; border-radius: 12px;
+.stage { padding: 14px 16px 8px; text-align: center; }
+.office-title { font-size: 11px; color: var(--muted); margin-bottom: 8px; text-align: left; }
+
+/* 사무실 배경: 벽 + 바닥 + 창문/소품 */
+.office-scene {
+  position: relative; display: flex; justify-content: space-around; align-items: flex-end;
+  gap: 6px; padding: 30px 10px 14px; border-radius: 14px; overflow: visible;
+  background: linear-gradient(180deg, #232a52 0%, #232a52 68%, #171b38 68%, #171b38 100%);
+  border: 1px solid #2c3160;
+  transition: filter .4s;
+}
+.office-scene.mood-thinking { filter: saturate(1.25) brightness(1.04); }
+.office-scene.mood-reporting { filter: saturate(1.4) brightness(1.1); }
+
+/* 책상 뒤 소품: 팀원마다 다른 벽 장식 */
+.desk::before {
+  content: ""; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+  margin-bottom: 2px; border-radius: 4px;
+}
+#desk-jay::before {
+  width: 34px; height: 26px;
+  background: linear-gradient(180deg, #4a5ba8, #33407c);
+  border: 2px solid #5c6ad1;
+  box-shadow: inset 0 0 0 2px #232a52, inset 50% 0 0 1px #5c6ad1, inset 0 50% 0 1px #5c6ad1;
+}
+#desk-mina::before {
+  width: 26px; height: 20px; background: #8a5a3a; border-radius: 2px;
+  box-shadow: 6px 4px 0 -3px #ffb648, -6px 6px 0 -4px #ff6f91;
+}
+#desk-data::before {
+  width: 30px; height: 20px; background: #eef0ff; border-radius: 2px;
+  box-shadow: inset 0 -4px 0 -2px #2fb6a6, inset -8px -8px 0 -4px #ff5c7c, inset 8px -12px 0 -6px #ffc65c;
+}
+#desk-luna::before {
+  width: 22px; height: 26px; background: #eef0ff; border-radius: 2px;
+  box-shadow: inset -6px 8px 0 -8px #c65bff, inset 6px -6px 0 -10px #ffb648;
+  transform: translateX(-50%) rotate(-4deg);
 }
 
-/* 상태별 애니메이션 (움직임) */
-.character.idle { animation: bob 3s ease-in-out infinite; }
-.character.idle .eye { animation: blink 4s infinite; }
-.character.thinking { animation: think 0.7s ease-in-out infinite; }
-.character.thinking .mouth { d: path("M48 74 Q60 74 72 74"); }
-.character.reporting { animation: pop 0.5s ease; }
-.character.reporting .mouth { stroke-width: 4; }
+.desk { position: relative; display: flex; flex-direction: column; align-items: center; width: 74px; }
+.desk.lead { width: 96px; }
+.char { position: relative; z-index: 1; transition: transform .2s; animation: charIdle 3s ease-in-out infinite; }
+.char .eye { animation: blink 4.2s infinite; transform-origin: center; }
+.char .mouth { transition: d .2s; }
 
-@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-@keyframes blink { 0%,92%,100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-@keyframes think { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
-@keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+.desk.working .char { animation: charWork .5s ease-in-out infinite alternate; }
+.desk.done .char { animation: charPop .5s ease; }
 
-.state-label { font-size: 13px; color: var(--accent); margin-top: 6px; height: 18px; }
-.headline { font-size: 13px; color: var(--text); margin: 8px 12px; min-height: 18px; line-height: 1.4; }
-#runBtn {
-  margin-top: 6px; background: var(--accent); color: #fff; border: 0;
-  padding: 9px 20px; border-radius: 20px; font-size: 14px; cursor: pointer;
+.monitor {
+  width: 46px; height: 30px; margin-top: -6px; background: #12142a; border-radius: 4px 4px 0 0;
+  border: 2px solid #2c3160; display: flex; align-items: center; justify-content: center;
 }
-#runBtn:disabled { opacity: .5; cursor: default; }
+.desk.lead .monitor { width: 58px; height: 36px; }
+.monitor .screen {
+  width: 80%; height: 70%; background: #1b1f3f; border-radius: 2px;
+  background-image: repeating-linear-gradient(0deg, #2c3160 0 2px, transparent 2px 6px);
+  background-size: 100% 6px; opacity: .6; transition: background .2s;
+}
+.desk.working .monitor .screen { background-color: #244a3a; opacity: 1; animation: screenFlicker .3s steps(2) infinite; }
+.desk.done .monitor .screen { background-color: #1e5c3f; opacity: 1; }
 
-.office { padding: 0 16px 10px; }
-.office-title { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-.office-room {
-  display: flex; justify-content: space-around; align-items: flex-end;
-  background: var(--card); border-radius: 12px; padding: 16px 8px 10px;
-  background-image: linear-gradient(0deg, #23264a 0px, #23264a 2px, transparent 2px);
-  background-size: 100% 46px; background-position: 0 bottom;
-}
-.desk { position: relative; display: flex; flex-direction: column; align-items: center; width: 68px; }
-.desk .avatar {
-  width: 38px; height: 38px; border-radius: 50%; background: #2c3160;
-  display: flex; align-items: center; justify-content: center; font-size: 18px;
-  transition: transform .2s; animation: deskIdle 2.6s ease-in-out infinite;
-}
-.desk .desk-surface { width: 44px; height: 8px; background: #12142a; border-radius: 2px; margin-top: -3px; }
-.desk .name { font-size: 10px; color: var(--muted); margin-top: 5px; }
-.desk.working .avatar { animation: deskWork 0.45s ease-in-out infinite alternate; }
-.desk.done .avatar { animation: deskPop 0.5s ease; }
+.name { font-size: 10px; color: var(--muted); margin-top: 6px; text-align: center; line-height: 1.3; }
+.name .role { display: block; font-size: 9px; color: #6c72a0; }
+
 .bubble {
-  position: absolute; bottom: 100%; margin-bottom: 8px; left: 50%; transform: translate(-50%, 4px);
+  position: absolute; bottom: 100%; margin-bottom: 34px; left: 50%; transform: translate(-50%, 4px);
   background: #fff; color: #14163a; font-size: 10px; padding: 5px 9px; border-radius: 8px;
-  white-space: nowrap; opacity: 0; transition: all .25s; pointer-events: none; font-weight: 600;
+  white-space: nowrap; opacity: 0; transition: all .25s; pointer-events: none; font-weight: 600; z-index: 2;
 }
 .bubble.show { opacity: 1; transform: translate(-50%, 0); }
 .bubble::after {
@@ -83,9 +97,19 @@ header .sub { font-size: 11px; color: var(--muted); }
   border: 4px solid transparent; border-top-color: #fff;
 }
 
-@keyframes deskIdle { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-@keyframes deskWork { from { transform: rotate(-6deg) translateY(0); } to { transform: rotate(6deg) translateY(-1px); } }
-@keyframes deskPop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+@keyframes charIdle { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes blink { 0%,92%,100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes charWork { from { transform: rotate(-4deg) translateY(0); } to { transform: rotate(4deg) translateY(-2px); } }
+@keyframes charPop { 0% { transform: scale(1); } 50% { transform: scale(1.18); } 100% { transform: scale(1); } }
+@keyframes screenFlicker { 0% { opacity: .85; } 100% { opacity: 1; } }
+
+.state-label { font-size: 13px; color: var(--accent); margin-top: 10px; height: 18px; }
+.headline { font-size: 13px; color: var(--text); margin: 8px 12px; min-height: 18px; line-height: 1.4; }
+#runBtn {
+  margin-top: 6px; background: var(--accent); color: #fff; border: 0;
+  padding: 9px 20px; border-radius: 20px; font-size: 14px; cursor: pointer;
+}
+#runBtn:disabled { opacity: .5; cursor: default; }
 
 .panel { flex: 1; overflow-y: auto; padding: 8px 16px; }
 .panel h2 { font-size: 13px; color: var(--muted); margin: 14px 0 6px; }

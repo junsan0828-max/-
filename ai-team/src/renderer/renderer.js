@@ -1,5 +1,5 @@
 // 캐릭터 상태 + 결과 렌더링. preload가 노출한 window.jay 사용.
-const jayEl = document.getElementById("jay");
+const officeScene = document.getElementById("officeScene");
 const stateLabel = document.getElementById("stateLabel");
 const headline = document.getElementById("headline");
 const tasksEl = document.getElementById("tasks");
@@ -14,9 +14,10 @@ const STATE_TEXT = {
 };
 
 function setState(state) {
-  jayEl.className = "character " + state;
   stateLabel.textContent = STATE_TEXT[state] || state;
   runBtn.disabled = state === "thinking" || state === "reporting";
+  officeScene.classList.remove("mood-idle", "mood-thinking", "mood-reporting");
+  officeScene.classList.add("mood-" + state);
 }
 
 const PRIORITY_KO = { high: "긴급", normal: "보통", low: "낮음" };
@@ -121,26 +122,114 @@ function renderContent(content) {
   });
 }
 
-// AI 팀 사무실 미니 애니메이션
-const OFFICE_TEAM = [
-  { id: "jay", name: "제이", emoji: "🧑‍💼" },
-  { id: "mina", name: "미나", emoji: "🙋‍♀️" },
-  { id: "data", name: "데이터", emoji: "📊" },
-  { id: "luna", name: "루나", emoji: "🎨" },
-];
-const officeRoom = document.getElementById("officeRoom");
+// AI 팀 사무실 — 팀원별로 생김새가 다른 SVG 캐릭터 + 책상
+const CHAR_DEFS = {
+  jay: {
+    name: "제이",
+    role: "총괄실장",
+    skin: "#ffd9a0",
+    hair: "#2b2b3d",
+    outfit: "#7c5cff",
+    style: "part",
+    accessory: "tie",
+    lead: true,
+  },
+  mina: {
+    name: "미나",
+    role: "회원관리",
+    skin: "#ffdfb8",
+    hair: "#8a4b2b",
+    outfit: "#ff6f91",
+    style: "long",
+    accessory: "headset",
+  },
+  data: {
+    name: "데이터",
+    role: "퍼널분석",
+    skin: "#ffe0c2",
+    hair: "#3a3a3a",
+    outfit: "#2fb6a6",
+    style: "short",
+    accessory: "glasses",
+  },
+  luna: {
+    name: "루나",
+    role: "마케팅",
+    skin: "#ffdcc9",
+    hair: "#c65bff",
+    outfit: "#ffb648",
+    style: "spiky",
+    accessory: "beret",
+  },
+};
+const EYE_INK = "#26294d";
+
+function hairMarkup(style, hair) {
+  switch (style) {
+    case "part":
+      return `<path class="hair" d="M20 48 Q28 6 60 6 Q92 6 100 48 Q92 22 76 20 Q70 34 60 34 Q50 34 46 21 Q30 22 20 48 Z" fill="${hair}"/>`;
+    case "long":
+      return `<path class="hair" d="M20 50 Q17 8 60 6 Q103 8 100 50 Q100 96 89 102 Q94 56 80 40 Q60 29 40 40 Q26 56 31 102 Q20 96 20 50 Z" fill="${hair}"/>`;
+    case "short":
+      return `<path class="hair" d="M20 44 Q23 10 60 10 Q97 10 100 44 Q96 24 60 22 Q24 24 20 44 Z" fill="${hair}"/>`;
+    case "spiky":
+      return `<path class="hair" d="M18 44 L27 12 L38 33 L49 6 L60 30 L71 6 L82 33 L93 12 L102 44 Q90 24 60 24 Q30 24 18 44 Z" fill="${hair}"/>`;
+    default:
+      return "";
+  }
+}
+
+function accessoryMarkup(kind, outfit) {
+  switch (kind) {
+    case "tie":
+      return (
+        `<path d="M48 90 L60 100 L72 90 L66 132 L60 138 L54 132 Z" fill="#f4f5ff"/>` +
+        `<path class="tie" d="M56 96 L64 96 L61 106 L67 132 L60 137 L53 132 L59 106 Z" fill="${EYE_INK}"/>`
+      );
+    case "headset":
+      return (
+        `<path d="M23 48 Q23 14 60 14 Q97 14 97 48" fill="none" stroke="${EYE_INK}" stroke-width="3"/>` +
+        `<circle cx="23" cy="52" r="5" fill="${EYE_INK}"/>` +
+        `<path d="M23 57 Q18 70 33 74" fill="none" stroke="${EYE_INK}" stroke-width="2.5"/>` +
+        `<circle cx="34" cy="75" r="3" fill="${EYE_INK}"/>`
+      );
+    case "glasses":
+      return (
+        `<rect x="35" y="49" width="21" height="15" rx="4" fill="none" stroke="${EYE_INK}" stroke-width="3"/>` +
+        `<rect x="64" y="49" width="21" height="15" rx="4" fill="none" stroke="${EYE_INK}" stroke-width="3"/>` +
+        `<line x1="56" y1="55" x2="64" y2="55" stroke="${EYE_INK}" stroke-width="3"/>`
+      );
+    case "beret":
+      return `<ellipse cx="72" cy="12" rx="23" ry="10" fill="${outfit}" transform="rotate(-12 72 12)"/><circle cx="91" cy="6" r="3" fill="${outfit}"/>`;
+    default:
+      return "";
+  }
+}
+
+function charInnerSVG(def) {
+  return (
+    `<path class="shoulders" d="M12 118 Q60 90 108 118 L108 132 L12 132 Z" fill="${def.outfit}"/>` +
+    `<circle class="head" cx="60" cy="58" r="38" fill="${def.skin}"/>` +
+    hairMarkup(def.style, def.hair) +
+    `<circle class="eye" cx="47" cy="58" r="4.5" fill="${EYE_INK}"/>` +
+    `<circle class="eye" cx="73" cy="58" r="4.5" fill="${EYE_INK}"/>` +
+    `<path class="mouth" d="M46 74 Q60 84 74 74" fill="none" stroke="${EYE_INK}" stroke-width="3" stroke-linecap="round"/>` +
+    accessoryMarkup(def.accessory, def.outfit)
+  );
+}
+
 let bubbleTimers = {};
 
-OFFICE_TEAM.forEach((member) => {
+Object.entries(CHAR_DEFS).forEach(([id, def]) => {
   const desk = document.createElement("div");
-  desk.className = "desk";
-  desk.id = `desk-${member.id}`;
+  desk.className = "desk" + (def.lead ? " lead" : "");
+  desk.id = `desk-${id}`;
   desk.innerHTML =
-    `<div class="bubble" id="bubble-${member.id}"></div>` +
-    `<div class="avatar">${member.emoji}</div>` +
-    `<div class="desk-surface"></div>` +
-    `<div class="name">${member.name}</div>`;
-  officeRoom.appendChild(desk);
+    `<div class="bubble" id="bubble-${id}"></div>` +
+    `<div class="char" id="char-${id}"><svg viewBox="0 0 120 132" width="${def.lead ? 96 : 80}" height="${def.lead ? 106 : 88}">${charInnerSVG(def)}</svg></div>` +
+    `<div class="monitor"><div class="screen"></div></div>` +
+    `<div class="name">${def.name}<span class="role">${def.role}</span></div>`;
+  officeScene.appendChild(desk);
 });
 
 function setAgentState({ agent, state, bubble }) {
