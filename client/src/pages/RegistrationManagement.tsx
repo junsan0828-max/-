@@ -875,6 +875,36 @@ export default function RegistrationManagement() {
                         </div>
                       )}
                     </div>
+                    {/* 유료 락커 / 운동복 추가 (회원이 연결된 경우) */}
+                    {editRev.memberId && (
+                      <div className="space-y-2 pt-1">
+                        <label className="text-xs text-muted-foreground font-medium">유료 락커 · 운동복 추가</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button"
+                            onClick={() => {
+                              const today = new Date().toISOString().substring(0, 10);
+                              setLockerForm({ memberId: String(editRev.memberId), memberName: editRev.customerName ?? "", memberPhone: editRev.phone ?? "", memberSearch: editRev.customerName ?? "", lockerId: "", months: 1, customAmount: false, amount: 5000, paymentMethod: "카드", startDate: today });
+                              setEditRev(null);
+                              setQuickModal("locker");
+                            }}
+                            className="py-2.5 rounded-xl border border-amber-500/40 text-amber-400 text-sm font-medium hover:bg-amber-500/10 transition-colors">
+                            🔑 유료 락커 구매
+                          </button>
+                          <button type="button"
+                            onClick={() => {
+                              const today = new Date().toISOString().substring(0, 10);
+                              setUniformQForm({ memberId: String(editRev.memberId), memberName: editRev.customerName ?? "", memberPhone: editRev.phone ?? "", memberSearch: editRev.customerName ?? "", months: 1, customAmount: false, amount: 10000, paymentMethod: "카드", startDate: today, paymentDate: today });
+                              setEditRev(null);
+                              setQuickModal("uniform");
+                            }}
+                            className="py-2.5 rounded-xl border border-purple-500/40 text-purple-300 text-sm font-medium hover:bg-purple-500/10 transition-colors">
+                            👕 유료 운동복 대여
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground/70">무료 제공은 위 "서비스 내역"에서 선택하세요.</p>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 pt-1">
                       <button onClick={() => setEditRev(null)}
                         className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground">취소</button>
