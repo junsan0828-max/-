@@ -236,11 +236,11 @@ const authRouter = t.router({
 
   sendVerificationCode: publicProcedure
     .input(z.object({ email: z.string().email() }))
-    .mutation(async () => {
+    .mutation(async ({ input }) => {
       const code = String(Math.floor(100000 + Math.random() * 900000));
       const expiresAt = Date.now() + 10 * 60 * 1000;
-      await pool.query(`DELETE FROM verification_codes WHERE email = $1`, [""]);
-      await pool.query(`INSERT INTO verification_codes (email, code, "expiresAt") VALUES ($1, $2, $3)`, ["", code, expiresAt]);
+      await pool.query(`DELETE FROM verification_codes WHERE email = $1`, [input.email]);
+      await pool.query(`INSERT INTO verification_codes (email, code, "expiresAt") VALUES ($1, $2, $3)`, [input.email, code, expiresAt]);
 
       const emailConfigured = !!process.env.RESEND_API_KEY;
       return { smtpConfigured: emailConfigured, devCode: emailConfigured ? undefined : code };
@@ -462,8 +462,10 @@ const membersRouter = t.router({
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const { id, ...data } = input;
-      await db.update(members).set(data).where(eq(members.id, id));
+      await db.update(members).set(data).where(and(eq(members.id, id), eq(members.trainerId, trainerId)));
       return { success: true };
     }),
 
@@ -471,7 +473,9 @@ const membersRouter = t.router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      await db.delete(members).where(eq(members.id, input.id));
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await db.delete(members).where(and(eq(members.id, input.id), eq(members.trainerId, trainerId)));
       return { success: true };
     }),
 
@@ -564,7 +568,8 @@ const membersRouter = t.router({
 
       let updated = 0;
       for (const memberId of input.memberIds) {
-        const rows = await db.select({ membershipEnd: members.membershipEnd }).from(members).where(eq(members.id, memberId)).limit(1);
+        const rows = await db.select({ membershipEnd: members.membershipEnd }).from(members)
+          .where(and(eq(members.id, memberId), eq(members.trainerId, trainerId))).limit(1);
         const current = rows[0];
         if (!current) continue;
 
@@ -572,7 +577,8 @@ const membersRouter = t.router({
         if (isNaN(base.getTime())) continue;
 
         base.setDate(base.getDate() + input.days);
-        await db.update(members).set({ membershipEnd: base.toISOString().split("T")[0] }).where(eq(members.id, memberId));
+        await db.update(members).set({ membershipEnd: base.toISOString().split("T")[0] })
+          .where(and(eq(members.id, memberId), eq(members.trainerId, trainerId)));
         updated++;
       }
 
@@ -719,8 +725,10 @@ const ptRouter = t.router({
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const { id, ...fields } = input;
-      await db.update(ptSessionLogs).set(fields).where(eq(ptSessionLogs.id, id));
+      await db.update(ptSessionLogs).set(fields).where(and(eq(ptSessionLogs.id, id), eq(ptSessionLogs.trainerId, trainerId)));
       return { success: true };
     }),
 
@@ -728,7 +736,9 @@ const ptRouter = t.router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
-      await db.delete(ptSessionLogs).where(eq(ptSessionLogs.id, input.id));
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await db.delete(ptSessionLogs).where(and(eq(ptSessionLogs.id, input.id), eq(ptSessionLogs.trainerId, trainerId)));
       return { success: true };
     }),
 
@@ -759,16 +769,17 @@ const ptRouter = t.router({
         resolvedPackageId = activePkgs[0].id;
       }
 
-      const pkgResult = await db.select().from(ptPackages).where(eq(ptPackages.id, resolvedPackageId!)).limit(1);
-      const pkg = pkgResult[0];
-      if (!pkg) throw new TRPCError({ code: "NOT_FOUND", message: "패키지를 찾을 수 없습니다." });
-      if (pkg.usedSessions >= pkg.totalSessions)
+      // 원자적 UPDATE: 잔여 세션이 있을 때만 차감 (레이스 컨디션 방지)
+      const updated = await pool.query<{ id: number; usedSessions: number; totalSessions: number }>(
+        `UPDATE "ptPackages" SET "usedSessions" = "usedSessions" + 1,
+          status = CASE WHEN "usedSessions" + 1 >= "totalSessions" THEN 'completed' ELSE 'active' END
+         WHERE id = $1 AND "usedSessions" < "totalSessions"
+         RETURNING id, "usedSessions", "totalSessions"`,
+        [resolvedPackageId]
+      );
+      if (updated.rowCount === 0)
         throw new TRPCError({ code: "BAD_REQUEST", message: "잔여 세션이 없습니다." });
-
-      const newUsed = pkg.usedSessions + 1;
-      const newStatus = newUsed >= pkg.totalSessions ? "completed" : "active";
-
-      await db.update(ptPackages).set({ usedSessions: newUsed, status: newStatus as any }).where(eq(ptPackages.id, resolvedPackageId!));
+      const pkg = updated.rows[0];
 
       const today = new Date().toISOString().split("T")[0];
       await db.insert(ptSessionLogs).values({
@@ -788,7 +799,7 @@ const ptRouter = t.router({
         await db.update(members).set({ membershipStart: input.sessionDate ?? today }).where(eq(members.id, input.memberId));
       }
 
-      return { success: true, remaining: newUsed < pkg.totalSessions ? pkg.totalSessions - newUsed : 0 };
+      return { success: true, remaining: pkg.totalSessions - pkg.usedSessions };
     }),
 
   sessionLogs: protectedProcedure
