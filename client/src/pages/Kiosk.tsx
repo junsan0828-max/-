@@ -151,7 +151,7 @@ export default function KioskPage() {
             <div>
               <p className="text-2xl font-black text-white">{memberName}님</p>
               <p className="text-emerald-400 font-semibold mt-1">출입이 확인되었습니다</p>
-              <p className="text-white/40 text-sm mt-0.5">환영합니다! 즐거운 운동 되세요 💪</p>
+              <p className="text-white/40 text-sm mt-0.5">환영합니다! 즐거운 운동 되세요</p>
             </div>
             {pointsEarned > 0 && (
               <div className="bg-[#4f6ef7]/10 border border-[#4f6ef7]/20 rounded-2xl px-4 py-3">
