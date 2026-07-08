@@ -222,15 +222,16 @@ const authRouter = t.router({
     if (!ctx.user) return null;
     const db = getDb();
     const row = await db.select({ plan: sql<string>`"plan"` }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
-    // jobType은 트레이너 사이드바 표시에 사용
     let jobType: string | null = null;
+    let trainerName: string | null = null;
     if (ctx.user.trainerId) {
-      const tRow = await pool.query<{ jobType: string | null }>(
-        `SELECT "jobType" FROM trainers WHERE id=$1 LIMIT 1`, [ctx.user.trainerId]
+      const tRow = await pool.query<{ jobType: string | null; trainerName: string }>(
+        `SELECT "jobType", "trainerName" FROM trainers WHERE id=$1 LIMIT 1`, [ctx.user.trainerId]
       );
       jobType = tRow.rows[0]?.jobType ?? null;
+      trainerName = tRow.rows[0]?.trainerName ?? null;
     }
-    return { ...ctx.user, plan: row[0]?.plan ?? "free", jobType };
+    return { ...ctx.user, plan: row[0]?.plan ?? "free", jobType, trainerName };
   }),
 
   sendVerificationCode: publicProcedure

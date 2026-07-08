@@ -562,7 +562,7 @@ function TrainerDashboard() {
   const userPlan = (user as any)?.plan ?? "free";
   const toWorkshop: WsNavFn = (featureId?: string) =>
     setLocation(featureId ? `/workshop?open=${featureId}` : "/workshop");
-  const trainerName = (user as any)?.trainerName ?? "트레이너";
+  const trainerName = (user as any)?.trainerName ?? (user as any)?.username ?? "스테퍼";
   const recentMembers = allMembers?.slice(0, 8) ?? [];
 
   return (
