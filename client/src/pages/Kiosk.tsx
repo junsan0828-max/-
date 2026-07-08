@@ -37,8 +37,7 @@ export default function KioskPage() {
       setStage(data.alreadyCheckedIn ? "already" : "success");
       scheduleReset();
     },
-    onError: (e) => {
-      setMemberName(e.message);
+    onError: () => {
       setStage("error");
       scheduleReset();
     },

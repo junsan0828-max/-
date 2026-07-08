@@ -4478,9 +4478,6 @@ const kioskRouter = t.router({
   checkIn: publicProcedure
     .input(z.object({ phone: z.string().min(9) }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
       // 전화번호로 회원 찾기 (숫자만 비교)
       const digits = input.phone.replace(/\D/g, "");
       const all = await pool.query(
@@ -4490,8 +4487,10 @@ const kioskRouter = t.router({
       if (!all.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원을 찾을 수 없습니다." });
 
       const member = all.rows[0] as { id: number; name: string; phone: string };
-      const today = new Date().toISOString().slice(0, 10);
-      const checkTime = (() => { const d = new Date(); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; })();
+      // KST(UTC+9) 기준 날짜·시각 사용 — UTC로 계산하면 자정~오전9시 구간에 날짜가 하루 앞서서 포인트 중복 적립 가능
+      const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const today = kstNow.toISOString().slice(0, 10);
+      const checkTime = `${String(kstNow.getUTCHours()).padStart(2,"0")}:${String(kstNow.getUTCMinutes()).padStart(2,"0")}`;
 
       // 오늘 이미 출입했는지 확인
       const existing = await pool.query(
@@ -4504,16 +4503,18 @@ const kioskRouter = t.router({
         let uniformEndAlready: string | null = null;
         try {
           const ur = await pool.query(
-            `SELECT ($1::date + (duration || ' months')::interval)::date::text as end_date
+            `SELECT ("startDate"::date + (duration || ' months')::interval)::date::text as end_date
              FROM revenue_entries
-             WHERE "memberId" = $2 AND type = '기타' AND "programDetail" ILIKE '%운동복%'
+             WHERE "memberId" = $1 AND type = '기타' AND "programDetail" ILIKE '%운동복%'
                AND "startDate" IS NOT NULL AND duration IS NOT NULL
              ORDER BY "paymentDate" DESC LIMIT 1`,
-            [today, member.id]
+            [member.id]
           );
           const ed = ur.rows[0]?.end_date as string | undefined;
           if (ed && ed >= today) uniformEndAlready = ed;
-        } catch {}
+        } catch (e) {
+          console.error("kiosk uniform check error (already):", e);
+        }
         return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0, uniformEnd: uniformEndAlready };
       }
 
