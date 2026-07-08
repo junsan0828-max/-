@@ -7,7 +7,7 @@ import {
   Users, Dumbbell, TrendingUp, Calendar,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
   Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed, ScanLine, UserPlus,
-  Lock, Cpu, ArrowRight,
+  Lock, Cpu, ArrowRight, Search, Pencil,
   ClipboardList, MessageCircle, FileSignature, ReceiptText, ArrowLeftRight,
   Wrench, PlaySquare, Target, Utensils, Activity, BookMarked, Video,
   Brain, Database, ArrowUpRight, Coins, PieChart, Share2, Sparkles,
@@ -467,6 +467,8 @@ function TrainerDashboard() {
   const [expiringModalOpen, setExpiringModalOpen] = useState(false);
   const [unpaidModalOpen, setUnpaidModalOpen] = useState(false);
   const [registerTypeOpen, setRegisterTypeOpen] = useState(false);
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const todayStr = new Date().toISOString().split("T")[0];
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
     { date: todayStr }, { enabled: todayModalOpen }
@@ -568,7 +570,7 @@ function TrainerDashboard() {
         </div>
         <ToolGrid items={[
           { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
-          { label: "회원 등록", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setRegisterTypeOpen(true) },
+          { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setMemberSearchQuery(""); setMemberSearchOpen(true); } },
           { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
           { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
         ]} />
@@ -721,6 +723,52 @@ function TrainerDashboard() {
                 </button>
               ))
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 정보 수정 - 회원 검색 모달 */}
+      <Dialog open={memberSearchOpen} onOpenChange={(o) => { setMemberSearchOpen(o); if (!o) setMemberSearchQuery(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-indigo-500" />
+              회원 정보 수정
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">이름으로 검색해 회원을 선택하세요</p>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <input
+              autoFocus
+              value={memberSearchQuery}
+              onChange={e => setMemberSearchQuery(e.target.value)}
+              placeholder="회원 이름 검색..."
+              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <div className="space-y-1 max-h-72 overflow-y-auto -mx-1 px-1">
+            {(() => {
+              const q = memberSearchQuery.trim();
+              const filtered = (allMembers ?? []).filter(m =>
+                !q || m.name.toLowerCase().includes(q.toLowerCase())
+              );
+              if (!allMembers) return <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>;
+              if (filtered.length === 0) return <p className="text-sm text-muted-foreground text-center py-6">회원을 찾을 수 없습니다.</p>;
+              return filtered.map(m => (
+                <button key={m.id} onClick={() => { setMemberSearchOpen(false); setMemberSearchQuery(""); setLocation(`/members/${m.id}`); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors text-left">
+                  <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
+                    <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">{m.name}</p>
+                    {m.phone && <p className="text-xs text-muted-foreground">{m.phone}</p>}
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+                </button>
+              ));
+            })()}
           </div>
         </DialogContent>
       </Dialog>
