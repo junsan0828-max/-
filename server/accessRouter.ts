@@ -155,6 +155,13 @@ export const accessRouter = t.router({
         .where(and(eq(lockers.memberId, found.id), eq(lockers.isOccupied, 1)))
         .limit(1);
 
+      // 운동복 조회 (착용 중)
+      const uniformRow = await db
+        .select()
+        .from(uniforms)
+        .where(and(eq(uniforms.memberId, found.id), eq(uniforms.isActive, 1)))
+        .limit(1);
+
       // 지점명 조회
       let branchName: string | null = null;
       if (found.branchId) {
@@ -200,6 +207,12 @@ export const accessRouter = t.router({
               lockerNumber: lockerRow[0].lockerNumber,
               type: lockerRow[0].lockerType,
               endDate: lockerRow[0].endDate,
+            }
+          : null,
+        uniform: uniformRow[0]
+          ? {
+              size: uniformRow[0].size,
+              endDate: uniformRow[0].endDate,
             }
           : null,
       };

@@ -1346,13 +1346,21 @@ async function initDatabase() {
         }
       }
       const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      // 기존 값보다 뒤 날짜일 때만 갱신
+      // 만료일: 기존 값보다 뒤 날짜일 때만 갱신
       const res = await pool.query(
         `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
          WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
         [newEnd, memberId]
       );
       fixed += res.rowCount ?? 0;
+      // 시작일: 현재(최신) 헬스권 시작일로 앞당겨 갱신 → 카드가 누적기간이 아닌 현재 회원권 기간을 표시.
+      // PT 회원의 운동시작일(첫 세션일 기준)을 덮지 않도록 PT 없는 회원만 적용.
+      await pool.query(
+        `UPDATE members SET "membershipStart" = $1, "updatedAt" = now()::text
+         WHERE id = $2 AND ("membershipStart" IS NULL OR "membershipStart" < $1)
+           AND id NOT IN (SELECT DISTINCT "memberId" FROM pt_packages WHERE "memberId" IS NOT NULL)`,
+        [r.startDate, memberId]
+      );
     }
     if (fixed > 0) console.log(`✅ 헬스 회원 만료일 최신화: ${fixed}건`);
   } catch (e) {

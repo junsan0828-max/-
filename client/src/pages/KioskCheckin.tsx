@@ -44,6 +44,10 @@ type CheckResult = {
     type: string;
     endDate: string | null;
   } | null;
+  uniform: {
+    size: string | null;
+    endDate: string | null;
+  } | null;
 } | null;
 
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -755,6 +759,20 @@ function MemberCard({ result, now, expired }: { result: NonNullable<CheckResult>
             tagColor={result.locker ? "#2a5" : undefined}
           />
           {result.locker?.endDate && <Row label="만료일" value={result.locker.endDate} />}
+        </div>
+      </div>
+
+      {/* 운동복 */}
+      <div className="px-6 py-5">
+        <p style={{ fontSize: fs(28), color: "#444", letterSpacing: "0.08em", marginBottom: 16, fontWeight: 600 }}>운동복</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Row
+            label="대여"
+            value={result.uniform ? (result.uniform.size ? `${result.uniform.size} 사이즈` : "대여중") : "미사용"}
+            tag={result.uniform ? "사용중" : undefined}
+            tagColor={result.uniform ? "#2a5" : undefined}
+          />
+          {result.uniform?.endDate && <Row label="만료일" value={result.uniform.endDate} />}
         </div>
       </div>
 
