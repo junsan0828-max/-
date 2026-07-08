@@ -10,7 +10,7 @@ import {
   Lock, Cpu, ArrowRight, Search, Pencil,
   ClipboardList, MessageCircle, FileSignature, ReceiptText, ArrowLeftRight,
   Wrench, PlaySquare, Target, Utensils, Activity, BookMarked, Video,
-  Brain, Database, ArrowUpRight, Coins, PieChart, Share2, Sparkles,
+  Brain, Database, ArrowUpRight, Coins, PieChart, Share2, Sparkles, Wallet, Trash2, SquarePen, Plus, Check, X,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -529,6 +529,10 @@ function TrainerDashboard() {
   const [journalOpen, setJournalOpen] = useState(false);
   const [dailyModalOpen, setDailyModalOpen] = useState(false);
   const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({ memo: "", amount: "", category: "카드" });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ memo: "", amount: "", category: "카드" });
   const todayStr = new Date().toISOString().split("T")[0];
   const currentYearMonth = todayStr.slice(0, 7);
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
@@ -543,6 +547,12 @@ function TrainerDashboard() {
   const { data: monthlyRevenue } = trpc.dashboard.getMonthlyRevenue.useQuery(
     undefined, { enabled: monthlyModalOpen }
   );
+  const { data: expenseData, refetch: refetchExpenses } = trpc.expenses.list.useQuery(
+    { yearMonth: currentYearMonth }, { enabled: expenseModalOpen }
+  );
+  const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => { refetchExpenses(); setExpenseForm({ memo: "", amount: "", category: "카드" }); } });
+  const deleteExpense = trpc.expenses.delete.useMutation({ onSuccess: () => refetchExpenses() });
+  const updateExpense = trpc.expenses.update.useMutation({ onSuccess: () => { refetchExpenses(); setEditingId(null); } });
   const { data: memberSessionStats } = trpc.pt.memberSessionStats.useQuery(
     undefined, { enabled: ptStatsModalOpen }
   );
@@ -674,6 +684,7 @@ function TrainerDashboard() {
           { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setDailyModalOpen(true) },
           { label: "월 매출", icon: BarChart3, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setMonthlyModalOpen(true) },
           { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLocation("/members"), badge: lowSessions?.length ?? null },
+          { label: "월 지출", icon: Wallet, colorCls: "text-rose-500", bgCls: "bg-rose-500/10", borderCls: "border-rose-500/20", onClick: () => setExpenseModalOpen(true) },
           { label: "정산 관리", icon: FileText, colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20", onClick: () => setLocation("/settlement") },
         ]} />
       </div>
@@ -925,6 +936,130 @@ function TrainerDashboard() {
               </button>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 월 지출 모달 */}
+      <Dialog open={expenseModalOpen} onOpenChange={setExpenseModalOpen}>
+        <DialogContent className="max-w-sm flex flex-col max-h-[85vh] p-0">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-rose-500" />
+              월 지출
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {currentYearMonth.replace("-", "년 ")}월 ·{" "}
+              총 <span className="font-semibold text-rose-500">{(expenseData?.total ?? 0).toLocaleString()}원</span>
+            </p>
+          </DialogHeader>
+
+          {/* 입력 폼 */}
+          <div className="px-5 py-4 border-b border-border shrink-0 space-y-2.5">
+            <div className="flex gap-2">
+              <input
+                value={expenseForm.memo}
+                onChange={e => setExpenseForm(f => ({ ...f, memo: e.target.value }))}
+                placeholder="내용"
+                className="flex-1 min-w-0 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
+              />
+              <input
+                type="number"
+                value={expenseForm.amount}
+                onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="비용"
+                className="w-24 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
+              />
+            </div>
+            <div className="flex gap-2 items-center">
+              <select
+                value={expenseForm.category}
+                onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}
+                className="flex-1 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                {["카드", "현금", "계좌이체", "기타"].map(m => <option key={m}>{m}</option>)}
+              </select>
+              <button
+                onClick={() => {
+                  if (!expenseForm.memo.trim() || !expenseForm.amount) return;
+                  createExpense.mutate({
+                    memo: expenseForm.memo.trim(),
+                    amount: Number(expenseForm.amount),
+                    category: expenseForm.category,
+                    expenseDate: todayStr,
+                  });
+                }}
+                disabled={!expenseForm.memo.trim() || !expenseForm.amount || createExpense.isPending}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-semibold disabled:opacity-40 hover:bg-rose-600 active:scale-95 transition-all"
+              >
+                <Plus className="h-3.5 w-3.5" />추가
+              </button>
+            </div>
+          </div>
+
+          {/* 지출 목록 */}
+          <div className="overflow-y-auto flex-1 px-5 py-3 space-y-2">
+            {!expenseData ? (
+              <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
+            ) : expenseData.expenses.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">이번달 지출 내역이 없습니다.</p>
+            ) : expenseData.expenses.map(exp => (
+              <div key={exp.id} className="rounded-xl border border-border bg-accent/20 p-3">
+                {editingId === exp.id ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        value={editForm.memo}
+                        onChange={e => setEditForm(f => ({ ...f, memo: e.target.value }))}
+                        className="flex-1 min-w-0 px-2.5 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                      <input
+                        type="number"
+                        value={editForm.amount}
+                        onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                        className="w-24 px-2.5 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <select
+                        value={editForm.category}
+                        onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
+                        className="flex-1 px-2.5 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none"
+                      >
+                        {["카드", "현금", "계좌이체", "기타"].map(m => <option key={m}>{m}</option>)}
+                      </select>
+                      <button onClick={() => updateExpense.mutate({ id: exp.id, amount: Number(editForm.amount), category: editForm.category, memo: editForm.memo })}
+                        className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 transition-colors">
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => setEditingId(null)}
+                        className="p-1.5 rounded-lg bg-accent/50 text-muted-foreground hover:bg-accent transition-colors">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{exp.memo || "—"}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-semibold bg-rose-500/10 text-rose-500 px-1.5 py-0.5 rounded-full">{exp.category}</span>
+                        <span className="text-xs text-muted-foreground">{exp.expenseDate?.slice(5)}</span>
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold text-rose-500 shrink-0">{exp.amount.toLocaleString()}원</p>
+                    <button onClick={() => { setEditingId(exp.id); setEditForm({ memo: exp.memo ?? "", amount: String(exp.amount), category: exp.category }); }}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent transition-colors shrink-0">
+                      <SquarePen className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => deleteExpense.mutate({ id: exp.id })}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors shrink-0">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -4000,6 +4000,23 @@ const expensesRouter = t.router({
       await pool.query(`DELETE FROM expenses WHERE id=$1 AND "trainerId"=$2`, [input.id, trainerId]);
       return { success: true };
     }),
+
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      amount: z.number().min(1),
+      category: z.string(),
+      memo: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `UPDATE expenses SET amount=$1, category=$2, memo=$3 WHERE id=$4 AND "trainerId"=$5`,
+        [input.amount, input.category, input.memo ?? null, input.id, trainerId]
+      );
+      return { success: true };
+    }),
 });
 
 // ─── App Router ───────────────────────────────────────────────────────────────
