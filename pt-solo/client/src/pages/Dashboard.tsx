@@ -8,9 +8,12 @@ import {
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
   Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed, ScanLine, UserPlus,
   Lock, Cpu, ArrowRight,
+  ClipboardList, MessageCircle, FileSignature, ReceiptText, ArrowLeftRight,
+  Wrench, PlaySquare, Target, Utensils, Activity, BookMarked, Video,
+  Brain, Database, ArrowUpRight, Coins, PieChart, Share2, Sparkles,
 } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import TabBanner from "@/components/TabBanner";
 
@@ -24,7 +27,79 @@ const AVATAR_GRADIENTS = [
   "from-cyan-400 to-blue-500",
 ];
 
-// ─── 툴 그리드 ────────────────────────────────────────────────────────────────
+// ─── 작업실 기능 카탈로그 ──────────────────────────────────────────────────────
+const FREE_IDS = new Set(["brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract"]);
+const PRO_IDS = new Set(["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking", "report_branding", "contract_terms", "training_video", "e_contract"]);
+const ELITE_IDS = new Set(["member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
+const COMING_SOON_IDS = new Set(["training_video", "contract_kakao", "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
+
+type WsDashItem = { id: string; icon: React.ElementType; name: string; };
+type WsDashCat = {
+  key: string; label: string; icon: React.ElementType;
+  iconCls: string; bgCls: string; borderCls: string; itemColorCls: string;
+  items: WsDashItem[];
+};
+
+const WS_DASH: WsDashCat[] = [
+  {
+    key: "branding", label: "브랜딩 & 회원 경험",
+    icon: Sparkles, iconCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", itemColorCls: "text-violet-500",
+    items: [
+      { id: "brand_page",       icon: Globe,        name: "브랜드 페이지" },
+      { id: "templates",        icon: Dumbbell,     name: "운동 템플릿" },
+      { id: "booking",          icon: Calendar,     name: "수업 예약" },
+      { id: "fitstep_plus",     icon: Wrench,       name: "FIT STEP+" },
+      { id: "report_branding",  icon: BookMarked,   name: "보고서 브랜딩" },
+      { id: "contract_terms",   icon: FileText,     name: "약관 브랜딩" },
+      { id: "fitstep_videos",   icon: PlaySquare,   name: "운동 영상 200" },
+      { id: "fitstep_rec",      icon: Target,       name: "운동 추천" },
+      { id: "fitstep_diet",     icon: Utensils,     name: "식단 관리" },
+      { id: "fitstep_personal", icon: Activity,     name: "운동 기록" },
+      { id: "training_video",   icon: Video,        name: "일지+영상" },
+    ],
+  },
+  {
+    key: "contract", label: "계약 & 상담 자동화",
+    icon: ClipboardList, iconCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", itemColorCls: "text-blue-500",
+    items: [
+      { id: "survey",           icon: ClipboardList,  name: "상담 설문" },
+      { id: "refund_contract",  icon: ReceiptText,    name: "환불 계약서" },
+      { id: "transfer_contract",icon: ArrowLeftRight, name: "양도 계약서" },
+      { id: "e_contract",       icon: FileSignature,  name: "비대면 계약" },
+      { id: "contract_kakao",   icon: MessageCircle,  name: "카카오 공유" },
+    ],
+  },
+  {
+    key: "analytics", label: "분석 & 운영 인사이트",
+    icon: BarChart3, iconCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", itemColorCls: "text-amber-500",
+    items: [
+      { id: "member_overview",    icon: Users,       name: "회원 운영 현황" },
+      { id: "sales_analysis",     icon: BarChart3,   name: "매출 분석" },
+      { id: "monthly_pnl",        icon: PieChart,    name: "월간 손익" },
+      { id: "renewal_analysis",   icon: TrendingUp,  name: "재등록 분석" },
+      { id: "kpi_report",         icon: Target,      name: "KPI 리포트" },
+      { id: "consult_conversion", icon: ArrowUpRight,name: "상담 전환율" },
+      { id: "activity_stats",     icon: Activity,    name: "활동 통계" },
+      { id: "channel_analysis",   icon: Share2,      name: "채널 분석" },
+      { id: "marketing_analysis", icon: Zap,         name: "마케팅 분석" },
+      { id: "ai_insights",        icon: Brain,       name: "AI 인사이트" },
+      { id: "data_migration",     icon: Database,    name: "데이터 이전" },
+      { id: "unpaid",             icon: Coins,       name: "미수금 관리" },
+    ],
+  },
+];
+
+type FeatureLock = "available" | "pro" | "elite" | "soon";
+
+function getFeatureLock(id: string, plan: string): FeatureLock {
+  if (COMING_SOON_IDS.has(id)) return "soon";
+  if (FREE_IDS.has(id)) return "available";
+  if (PRO_IDS.has(id)) return plan === "free" ? "pro" : "available";
+  if (ELITE_IDS.has(id)) return plan === "elite" ? "available" : "elite";
+  return "available";
+}
+
+// ─── 툴 그리드 (운영용) ───────────────────────────────────────────────────────
 type ToolItem = {
   label: string;
   icon: React.ElementType;
@@ -40,14 +115,8 @@ function ToolGrid({ items }: { items: ToolItem[] }) {
   return (
     <div className="grid grid-cols-4 gap-3">
       {items.map((item) => (
-        <button
-          key={item.label}
-          onClick={item.locked ? undefined : item.onClick}
-          className="flex flex-col items-center gap-1.5 group"
-        >
-          <div
-            className={`relative w-14 h-14 rounded-[18px] ${item.bgCls} border ${item.borderCls} flex items-center justify-center transition-all active:scale-90 ${item.locked ? "opacity-40" : ""}`}
-          >
+        <button key={item.label} onClick={item.locked ? undefined : item.onClick} className="flex flex-col items-center gap-1.5 group">
+          <div className={`relative w-14 h-14 rounded-[18px] ${item.bgCls} border ${item.borderCls} flex items-center justify-center transition-all active:scale-90 ${item.locked ? "opacity-40" : ""}`}>
             <item.icon className={`h-5 w-5 ${item.colorCls}`} />
             {item.badge != null && item.badge > 0 && (
               <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-background">
@@ -60,16 +129,145 @@ function ToolGrid({ items }: { items: ToolItem[] }) {
               </div>
             )}
           </div>
-          <span
-            className={`text-[10.5px] font-semibold text-center leading-tight ${
-              item.locked ? "text-muted-foreground/40" : "text-foreground/65 group-hover:text-foreground"
-            } transition-colors`}
-          >
+          <span className={`text-[10.5px] font-semibold text-center leading-tight ${item.locked ? "text-muted-foreground/40" : "text-foreground/65 group-hover:text-foreground"} transition-colors`}>
             {item.label}
           </span>
         </button>
       ))}
     </div>
+  );
+}
+
+// ─── 작업실 기능 아이템 ────────────────────────────────────────────────────────
+function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDashCat; lock: FeatureLock; onClick: () => void; }) {
+  const unavailable = lock !== "available";
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-1.5 group">
+      <div className={`relative w-14 h-14 rounded-[18px] ${cat.bgCls} border ${cat.borderCls} flex items-center justify-center transition-all active:scale-90 ${unavailable ? "opacity-40" : ""}`}>
+        <item.icon className={`h-5 w-5 ${cat.itemColorCls}`} />
+        {(lock === "pro" || lock === "elite") && (
+          <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
+            <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+          </div>
+        )}
+        {lock === "soon" && (
+          <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
+            <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+          </div>
+        )}
+      </div>
+      <span className={`text-[10.5px] font-semibold text-center leading-tight ${unavailable ? "text-muted-foreground/40" : "text-foreground/65 group-hover:text-foreground"} transition-colors`}>
+        {item.name}
+      </span>
+    </button>
+  );
+}
+
+// ─── 작업실 카테고리 그룹 ─────────────────────────────────────────────────────
+const INLINE_LIMIT = 8; // 2행
+
+function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; onNavigate: () => void; }) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleItems = expanded ? cat.items : cat.items.slice(0, INLINE_LIMIT);
+  const hiddenCount = cat.items.length - INLINE_LIMIT;
+
+  return (
+    <div className="rounded-2xl bg-card border border-border p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`w-6 h-6 rounded-lg ${cat.bgCls} flex items-center justify-center`}>
+          <cat.icon className={`h-3.5 w-3.5 ${cat.iconCls}`} />
+        </div>
+        <span className="text-sm font-bold">{cat.label}</span>
+        <button onClick={onNavigate} className={`ml-auto text-[11px] font-semibold ${cat.iconCls}`}>
+          작업실 →
+        </button>
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        {visibleItems.map(item => (
+          <WsToolItem
+            key={item.id}
+            item={item}
+            cat={cat}
+            lock={getFeatureLock(item.id, plan)}
+            onClick={onNavigate}
+          />
+        ))}
+      </div>
+      {hiddenCount > 0 && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="mt-3 w-full text-center text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors py-1"
+        >
+          {expanded ? "접기 ↑" : `더보기 +${hiddenCount}개 ↓`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── 전체 기능 보기 다이얼로그 ────────────────────────────────────────────────
+function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean; onClose: () => void; plan: string; onNavigate: () => void; }) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm max-h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border shrink-0">
+          <DialogTitle className="text-base font-bold">작업실 전체 기능</DialogTitle>
+          <p className="text-xs text-muted-foreground mt-0.5">모든 기능을 탭하면 작업실로 이동합니다</p>
+        </DialogHeader>
+        <div className="overflow-y-auto flex-1 px-5 pb-6 space-y-5 pt-4">
+          {WS_DASH.map(cat => (
+            <div key={cat.key}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className={`w-5 h-5 rounded-md ${cat.bgCls} flex items-center justify-center`}>
+                  <cat.icon className={`h-3 w-3 ${cat.iconCls}`} />
+                </div>
+                <span className="text-xs font-bold text-foreground/80">{cat.label}</span>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                {cat.items.map(item => (
+                  <WsToolItem
+                    key={item.id}
+                    item={item}
+                    cat={cat}
+                    lock={getFeatureLock(item.id, plan)}
+                    onClick={onNavigate}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* 플랜 안내 */}
+          <div className="rounded-xl border border-border bg-accent/30 p-3 space-y-1.5">
+            <p className="text-[11px] font-bold text-foreground/70">플랜별 기능 안내</p>
+            <div className="space-y-1">
+              {[
+                { label: "FREE", colorCls: "bg-emerald-500", desc: "브랜드 페이지, 설문, 계약서" },
+                { label: "PRO", colorCls: "bg-blue-500", desc: "FIT STEP+, 예약, 보고서, 전자계약" },
+                { label: "ELITE", colorCls: "bg-amber-500", desc: "매출 분석, KPI, AI 인사이트 등" },
+              ].map(t => (
+                <div key={t.label} className="flex items-center gap-2">
+                  <span className={`text-[9px] font-bold text-white ${t.colorCls} px-1.5 py-0.5 rounded`}>{t.label}</span>
+                  <span className="text-[11px] text-muted-foreground">{t.desc}</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-2">
+                <div className="w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
+                  <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+                </div>
+                <span className="text-[11px] text-muted-foreground">플랜 업그레이드 필요</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
+                  <Clock className="h-2.5 w-2.5 text-muted-foreground" />
+                </div>
+                <span className="text-[11px] text-muted-foreground">출시 예정</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -85,7 +283,6 @@ function AdminDashboard() {
         <h1 className="text-xl font-bold">FIT STEP 운영 현황</h1>
         <p className="text-sm text-muted-foreground mt-0.5">서비스 전체 통계</p>
       </div>
-
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "가입 STEPER", value: `${stats?.totalTrainers ?? 0}명`, icon: ShieldCheck, color: "text-blue-400" },
@@ -103,7 +300,6 @@ function AdminDashboard() {
           </Card>
         ))}
       </div>
-
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -115,11 +311,8 @@ function AdminDashboard() {
             <p className="text-sm text-muted-foreground text-center py-6">가입된 STEPER가 없습니다.</p>
           ) : (
             trainerList.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setLocation(`/admin/trainers/${t.id}`)}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border hover:border-primary/30 hover:bg-accent/40 transition-colors text-left"
-              >
+              <button key={t.id} onClick={() => setLocation(`/admin/trainers/${t.id}`)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-accent/20 border border-border hover:border-primary/30 hover:bg-accent/40 transition-colors text-left">
                 <div>
                   <p className="text-sm font-medium">{t.trainerName}</p>
                   <p className="text-xs text-muted-foreground">
@@ -187,9 +380,7 @@ function BannerAndNotices() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-bold">이벤트 &amp; 공지</p>
-            {notices.length > 3 && (
-              <button className="text-xs text-primary">전체보기 →</button>
-            )}
+            {notices.length > 3 && <button className="text-xs text-primary">전체보기 →</button>}
           </div>
           <div className="space-y-2">
             {notices.slice(0, 3).map(n => (
@@ -270,20 +461,18 @@ function TrainerDashboard() {
 
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
+  const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
-    { date: todayStr },
-    { enabled: todayModalOpen }
+    { date: todayStr }, { enabled: todayModalOpen }
   );
   const { data: memberSessionStats } = trpc.pt.memberSessionStats.useQuery(
-    undefined,
-    { enabled: ptStatsModalOpen }
+    undefined, { enabled: ptStatsModalOpen }
   );
 
   if (isLoading) return <LoadingSkeleton />;
 
   const userPlan = (user as any)?.plan ?? "free";
-  const isProOrElite = userPlan === "pro" || userPlan === "elite";
   const trainerName = (user as any)?.trainerName ?? "트레이너";
   const recentMembers = allMembers?.slice(0, 8) ?? [];
 
@@ -307,11 +496,9 @@ function TrainerDashboard() {
 
       {/* 주요 액션 카드 */}
       <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => setLocation("/pt?register=1")}
+        <button onClick={() => setLocation("/pt?register=1")}
           className="relative overflow-hidden rounded-3xl p-5 text-left flex flex-col justify-between min-h-[140px] active:scale-95 transition-transform"
-          style={{ background: "linear-gradient(145deg, #4F46E5 0%, #7C3AED 100%)", boxShadow: "0 8px 24px rgba(79,70,229,.25)" }}
-        >
+          style={{ background: "linear-gradient(145deg, #4F46E5 0%, #7C3AED 100%)", boxShadow: "0 8px 24px rgba(79,70,229,.25)" }}>
           <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
             <UserPlus className="h-5 w-5 text-white" />
           </div>
@@ -324,11 +511,9 @@ function TrainerDashboard() {
           </div>
         </button>
 
-        <button
-          onClick={() => setLocation("/attendance")}
+        <button onClick={() => setLocation("/attendance")}
           className="relative overflow-hidden rounded-3xl p-5 text-left flex flex-col justify-between min-h-[140px] active:scale-95 transition-transform"
-          style={{ background: "linear-gradient(145deg, #0EA5E9 0%, #10B981 100%)", boxShadow: "0 8px 24px rgba(14,165,233,.2)" }}
-        >
+          style={{ background: "linear-gradient(145deg, #0EA5E9 0%, #10B981 100%)", boxShadow: "0 8px 24px rgba(14,165,233,.2)" }}>
           <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
             <Dumbbell className="h-5 w-5 text-white" />
           </div>
@@ -347,36 +532,26 @@ function TrainerDashboard() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-bold">최근 회원</p>
-            <button onClick={() => setLocation("/members")} className="text-xs font-semibold text-primary">
-              전체보기
-            </button>
+            <button onClick={() => setLocation("/members")} className="text-xs font-semibold text-primary">전체보기</button>
           </div>
-          <div
-            className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4"
-            style={{ scrollbarWidth: "none" }}
-          >
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
             {recentMembers.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setLocation(`/members/${m.id}`)}
-                className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-90 transition-transform"
-              >
-                <div
-                  className={`w-14 h-14 rounded-[18px] bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center`}
-                  style={{ boxShadow: "0 2px 8px rgba(0,0,0,.1)" }}
-                >
+              <button key={m.id} onClick={() => setLocation(`/members/${m.id}`)}
+                className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-90 transition-transform">
+                <div className={`w-14 h-14 rounded-[18px] bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center`}
+                  style={{ boxShadow: "0 2px 8px rgba(0,0,0,.1)" }}>
                   <span className="text-lg font-bold text-white">{m.name.charAt(0)}</span>
                 </div>
-                <span className="text-[10.5px] font-semibold text-foreground/65 text-center w-14 truncate">
-                  {m.name}
-                </span>
+                <span className="text-[10.5px] font-semibold text-foreground/65 text-center w-14 truncate">{m.name}</span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* ─── 툴 그룹: 회원 관리 ─── */}
+      {/* ─── 운영 툴 그룹 ─── */}
+
+      {/* 회원 관리 */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center">
@@ -385,32 +560,14 @@ function TrainerDashboard() {
           <span className="text-sm font-bold">회원 관리</span>
         </div>
         <ToolGrid items={[
-          {
-            label: "회원 목록", icon: Users,
-            colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20",
-            onClick: () => setLocation("/members"),
-          },
-          {
-            label: "회원 등록", icon: UserPlus,
-            colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20",
-            onClick: () => setLocation("/pt?register=1"),
-          },
-          {
-            label: "만료 임박", icon: Clock,
-            colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20",
-            onClick: () => setLocation("/members"),
-            badge: expiring?.length ?? null,
-          },
-          {
-            label: "미수금", icon: AlertTriangle,
-            colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20",
-            onClick: () => setLocation("/members"),
-            badge: unpaid?.length ?? null,
-          },
+          { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
+          { label: "회원 등록", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/pt?register=1") },
+          { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setLocation("/members"), badge: expiring?.length ?? null },
+          { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setLocation("/members"), badge: unpaid?.length ?? null },
         ]} />
       </div>
 
-      {/* ─── 툴 그룹: 수업 ─── */}
+      {/* 수업 */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -419,31 +576,14 @@ function TrainerDashboard() {
           <span className="text-sm font-bold">수업</span>
         </div>
         <ToolGrid items={[
-          {
-            label: "수업 하기", icon: Dumbbell,
-            colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20",
-            onClick: () => setLocation("/attendance"),
-          },
-          {
-            label: "오늘 출석", icon: CalendarCheck,
-            colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20",
-            onClick: () => setTodayModalOpen(true),
-            badge: stats?.todayAttendances ?? null,
-          },
-          {
-            label: "이번달 수업", icon: BarChart3,
-            colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20",
-            onClick: () => setPtStatsModalOpen(true),
-          },
-          {
-            label: "수업 일지", icon: BookOpen,
-            colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20",
-            onClick: () => setLocation("/members"),
-          },
+          { label: "수업 하기", icon: Dumbbell, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/attendance") },
+          { label: "오늘 출석", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
+          { label: "이번달 수업", icon: BarChart3, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setPtStatsModalOpen(true) },
+          { label: "수업 일지", icon: BookOpen, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setLocation("/members") },
         ]} />
       </div>
 
-      {/* ─── 툴 그룹: 매출 & 정산 ─── */}
+      {/* 매출 & 정산 */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
@@ -452,106 +592,50 @@ function TrainerDashboard() {
           <span className="text-sm font-bold">매출 &amp; 정산</span>
         </div>
         <ToolGrid items={[
-          {
-            label: "일일 매출", icon: TrendingUp,
-            colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20",
-            onClick: () => setLocation("/settlement?view=daily"),
-          },
-          {
-            label: "월 매출", icon: BarChart3,
-            colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20",
-            onClick: () => setLocation("/settlement?view=monthly"),
-          },
-          {
-            label: "재등록 안내", icon: RefreshCw,
-            colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20",
-            onClick: () => setLocation("/members"),
-            badge: lowSessions?.length ?? null,
-          },
-          {
-            label: "정산 관리", icon: FileText,
-            colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20",
-            onClick: () => setLocation("/settlement"),
-          },
+          { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?view=daily") },
+          { label: "월 매출", icon: BarChart3, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setLocation("/settlement?view=monthly") },
+          { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLocation("/members"), badge: lowSessions?.length ?? null },
+          { label: "정산 관리", icon: FileText, colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20", onClick: () => setLocation("/settlement") },
         ]} />
       </div>
 
-      {/* ─── 툴 그룹: AI & 분석 ─── */}
+      {/* AI 분석 (외부 도구) */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
             <Cpu className="h-3.5 w-3.5 text-violet-500" />
           </div>
-          <span className="text-sm font-bold">AI &amp; 분석</span>
+          <span className="text-sm font-bold">AI 도구</span>
           <span className="ml-auto text-[10px] font-bold text-violet-500 bg-violet-500/10 px-2 py-0.5 rounded-full">NEW</span>
         </div>
         <ToolGrid items={[
-          {
-            label: "체형 분석", icon: ScanLine,
-            colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20",
-            onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank"),
-          },
-          {
-            label: "맞춤 식단", icon: UtensilsCrossed,
-            colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20",
-            onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank"),
-          },
-          {
-            label: "AI 추천", icon: Zap,
-            colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20",
-            onClick: () => setLocation("/workshop"),
-            locked: !isProOrElite,
-          },
-          {
-            label: "AI 리포트", icon: FileText,
-            colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20",
-            onClick: () => setLocation("/workshop"),
-            locked: !isProOrElite,
-          },
+          { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
+          { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
+          { label: "AI 추천", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setLocation("/workshop"), locked: userPlan === "free" },
+          { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setLocation("/workshop"), locked: userPlan !== "elite" },
         ]} />
       </div>
 
-      {/* ─── 툴 그룹: 브랜딩 & 작업실 ─── */}
-      <div className="rounded-2xl bg-card border border-border p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-6 h-6 rounded-lg bg-pink-500/10 flex items-center justify-center">
-            <Globe className="h-3.5 w-3.5 text-pink-500" />
-          </div>
-          <span className="text-sm font-bold">브랜딩 &amp; 작업실</span>
+      {/* ─── 작업실 기능 전체 ─── */}
+      <div className="flex items-center justify-between pt-2 pb-1">
+        <div>
+          <p className="text-base font-bold">작업실 기능</p>
+          <p className="text-xs text-muted-foreground mt-0.5">PRO · ELITE 포함 전체 기능</p>
         </div>
-        <ToolGrid items={[
-          {
-            label: "작업실", icon: Zap,
-            colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20",
-            onClick: () => setLocation("/workshop"),
-          },
-          {
-            label: "브랜드 페이지", icon: Globe,
-            colorCls: "text-pink-500", bgCls: "bg-pink-500/10", borderCls: "border-pink-500/20",
-            onClick: () => setLocation("/workshop"),
-          },
-          {
-            label: "전자계약", icon: FileText,
-            colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20",
-            onClick: () => setLocation("/workshop"),
-          },
-          {
-            label: "설문 관리", icon: CalendarCheck,
-            colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20",
-            onClick: () => setLocation("/workshop"),
-          },
-        ]} />
+        <button onClick={() => setAllFeaturesOpen(true)}
+          className="text-xs font-bold text-primary bg-primary/8 px-3 py-1.5 rounded-xl hover:bg-primary/15 transition-colors">
+          전체보기
+        </button>
       </div>
+
+      {WS_DASH.map(cat => (
+        <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={() => setLocation("/workshop")} />
+      ))}
 
       {/* AI 추천 배너 */}
-      <button
-        onClick={() => setLocation("/workshop")}
+      <button onClick={() => setLocation("/workshop")}
         className="w-full relative overflow-hidden rounded-2xl p-5 flex items-center gap-4 text-left active:scale-[0.98] transition-transform"
-        style={{
-          background: "linear-gradient(130deg, #1E40AF 0%, #4F46E5 55%, #7C3AED 100%)",
-          boxShadow: "0 8px 28px rgba(79,70,229,.28)",
-        }}
-      >
+        style={{ background: "linear-gradient(130deg, #1E40AF 0%, #4F46E5 55%, #7C3AED 100%)", boxShadow: "0 8px 28px rgba(79,70,229,.28)" }}>
         <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/5 -translate-y-8 translate-x-8 pointer-events-none" />
         <div className="absolute bottom-0 right-16 w-20 h-20 rounded-full bg-white/5 translate-y-8 pointer-events-none" />
         <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
@@ -574,9 +658,9 @@ function TrainerDashboard() {
               <Calendar className="h-4 w-4 text-yellow-400" />
               오늘 출석 현황
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <p className="text-xs text-muted-foreground">
               {todayStr.replace(/-/g, ".")} · 출석 {todayAttendanceList?.filter(m => m.check?.status === "attended").length ?? 0}명
-            </DialogDescription>
+            </p>
           </DialogHeader>
           <div className="space-y-1 max-h-80 overflow-y-auto">
             {!todayAttendanceList ? (
@@ -584,31 +668,20 @@ function TrainerDashboard() {
             ) : todayAttendanceList.filter(m => m.check).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">오늘 출석 기록이 없습니다.</p>
             ) : (
-              todayAttendanceList
-                .filter(m => m.check)
-                .map(m => {
-                  const statusColor =
-                    m.check?.status === "attended" ? "text-green-400" :
-                    m.check?.status === "noshow" ? "text-red-400" : "text-yellow-400";
-                  const statusLabel =
-                    m.check?.status === "attended" ? "출석" :
-                    m.check?.status === "noshow" ? "노쇼" : "캔슬";
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => { setTodayModalOpen(false); setLocation(`/members/${m.id}`); }}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors"
-                    >
-                      <span className="text-sm font-medium">{m.name}</span>
-                      <div className="flex items-center gap-2">
-                        {m.check?.checkTime && (
-                          <span className="text-xs text-muted-foreground">{m.check.checkTime}</span>
-                        )}
-                        <span className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
-                      </div>
-                    </button>
-                  );
-                })
+              todayAttendanceList.filter(m => m.check).map(m => {
+                const statusColor = m.check?.status === "attended" ? "text-green-400" : m.check?.status === "noshow" ? "text-red-400" : "text-yellow-400";
+                const statusLabel = m.check?.status === "attended" ? "출석" : m.check?.status === "noshow" ? "노쇼" : "캔슬";
+                return (
+                  <button key={m.id} onClick={() => { setTodayModalOpen(false); setLocation(`/members/${m.id}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors">
+                    <span className="text-sm font-medium">{m.name}</span>
+                    <div className="flex items-center gap-2">
+                      {m.check?.checkTime && <span className="text-xs text-muted-foreground">{m.check.checkTime}</span>}
+                      <span className={`text-xs font-semibold ${statusColor}`}>{statusLabel}</span>
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </DialogContent>
@@ -622,9 +695,7 @@ function TrainerDashboard() {
               <Dumbbell className="h-4 w-4 text-purple-400" />
               회원별 수업 현황
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              누적 세션 횟수 기준 정렬
-            </DialogDescription>
+            <p className="text-xs text-muted-foreground">누적 세션 횟수 기준 정렬</p>
           </DialogHeader>
           <div className="space-y-1 max-h-80 overflow-y-auto">
             {!memberSessionStats ? (
@@ -632,25 +703,28 @@ function TrainerDashboard() {
             ) : memberSessionStats.filter(m => Number(m.totalSessions) > 0).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">세션 기록이 없습니다.</p>
             ) : (
-              memberSessionStats
-                .filter(m => Number(m.totalSessions) > 0)
-                .map((m, idx) => (
-                  <button
-                    key={m.memberId}
-                    onClick={() => { setPtStatsModalOpen(false); setLocation(`/members/${m.memberId}`); }}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-5 text-right">{idx + 1}</span>
-                      <span className="text-sm font-medium">{m.memberName}</span>
-                    </div>
-                    <span className="text-sm font-bold text-purple-400">{Number(m.totalSessions)}회</span>
-                  </button>
-                ))
+              memberSessionStats.filter(m => Number(m.totalSessions) > 0).map((m, idx) => (
+                <button key={m.memberId} onClick={() => { setPtStatsModalOpen(false); setLocation(`/members/${m.memberId}`); }}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-accent/40 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-5 text-right">{idx + 1}</span>
+                    <span className="text-sm font-medium">{m.memberName}</span>
+                  </div>
+                  <span className="text-sm font-bold text-purple-400">{Number(m.totalSessions)}회</span>
+                </button>
+              ))
             )}
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 전체 기능 보기 다이얼로그 */}
+      <AllFeaturesDialog
+        open={allFeaturesOpen}
+        onClose={() => setAllFeaturesOpen(false)}
+        plan={userPlan}
+        onNavigate={() => { setAllFeaturesOpen(false); setLocation("/workshop"); }}
+      />
     </div>
   );
 }
@@ -669,7 +743,7 @@ function LoadingSkeleton() {
         <div className="h-36 rounded-3xl bg-card border border-border animate-pulse" />
       </div>
       <div className="h-20 rounded-2xl bg-card border border-border animate-pulse" />
-      <div className="h-36 rounded-2xl bg-card border border-border animate-pulse" />
+      {[1, 2, 3].map(i => <div key={i} className="h-36 rounded-2xl bg-card border border-border animate-pulse" />)}
     </div>
   );
 }
