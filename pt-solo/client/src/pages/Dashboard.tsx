@@ -550,7 +550,7 @@ function TrainerDashboard() {
   const { data: expenseData, refetch: refetchExpenses } = trpc.expenses.list.useQuery(
     { yearMonth: currentYearMonth }, { enabled: expenseModalOpen }
   );
-  const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => { refetchExpenses(); setExpenseForm({ memo: "", amount: "", category: "카드" }); } });
+  const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => { refetchExpenses(); setExpenseForm({ memo: "", amount: "", category: "카드", date: "" }); } });
   const deleteExpense = trpc.expenses.delete.useMutation({ onSuccess: () => refetchExpenses() });
   const updateExpense = trpc.expenses.update.useMutation({ onSuccess: () => { refetchExpenses(); setEditingId(null); } });
   const { data: memberSessionStats } = trpc.pt.memberSessionStats.useQuery(
