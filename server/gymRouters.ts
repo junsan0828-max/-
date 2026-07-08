@@ -3162,10 +3162,28 @@ const registerMutation = protectedProcedure
       const paid = Math.max(0, healthPrice - discAmt - unpaid);
       const months = input.healthMonths ?? 1;
 
-      // 재등록 시 membershipEnd 업데이트
-      if (input.memberId && input.membershipEnd) {
+      // 서비스 헬스(개월/일)를 만료일에 반영해 정확한 membershipEnd 계산 (클라이언트 값 무시)
+      const healthEnd: string | undefined = (() => {
+        const start = input.membershipStart;
+        if (!start) return input.membershipEnd ?? undefined;
+        const [yr, mo, dy] = start.split("-").map(Number);
+        const end = new Date(yr, mo - 1, dy);
+        end.setMonth(end.getMonth() + months);
+        if (input.serviceItems) {
+          for (const part of input.serviceItems.split(",").map((s: string) => s.trim())) {
+            const moM = /^헬스\((\d+)개월\)$/.exec(part);
+            if (moM) { end.setMonth(end.getMonth() + parseInt(moM[1])); continue; }
+            const dyM = /^헬스\((\d+)일\)$/.exec(part);
+            if (dyM) { end.setDate(end.getDate() + parseInt(dyM[1])); }
+          }
+        }
+        return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+      })();
+
+      // 신규/재등록 모두 서비스 일수 포함된 만료일로 회원 갱신
+      if (memberId && healthEnd) {
         await db.update(members)
-          .set({ membershipEnd: input.membershipEnd, updatedAt: now })
+          .set({ membershipEnd: healthEnd, updatedAt: now })
           .where(eq(members.id, memberId!));
       }
 
