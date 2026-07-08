@@ -18,24 +18,52 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
+// 파괴적/설정 작업(락커·배너 삭제 등)은 관리자만
+const adminProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+  if (ctx.user.role !== "admin" && ctx.user.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 가능합니다." });
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
 
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
+// KST(UTC+9) 기준 날짜 문자열(YYYY-MM-DD). UTC 사용 시 한국 오전(00~09시)에
+// 만료 판정/통계가 하루 밀리는 문제를 방지한다.
+function kstDate(offsetDays = 0): string {
+  return new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().substring(0, 10);
+}
+function kstMonthPrefix(): string {
+  return new Date(Date.now() + 9 * 3600000).toISOString().substring(0, 7);
+}
+
 // PostgreSQL REGEXP_REPLACE로 DB에서 직접 전화번호 정규화 비교
 async function findMemberByPhone(phoneInput: string) {
   const digits = normalizePhone(phoneInput);
-  const last8 = digits.slice(-8); // 010 없이 저장된 경우 대비
 
-  const result = await pool.query(
+  // 1) 전체 번호 정확히 일치
+  const exact = await pool.query(
     `SELECT * FROM members
      WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = $1
-        OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = $2
      ORDER BY id LIMIT 1`,
-    [digits, last8]
+    [digits]
   );
-  return result.rows[0] ?? null;
+  if (exact.rows[0]) return exact.rows[0];
+
+  // 2) 010 없이 저장된 경우 대비 — 뒷 8자리로 폴백하되, 유일하게 일치할 때만 허용
+  //    (뒷 8자리가 같은 다른 회원으로 잘못 체크인되는 것 방지)
+  const last8 = digits.slice(-8);
+  if (last8.length === 8) {
+    const fb = await pool.query(
+      `SELECT * FROM members
+       WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = $1
+       ORDER BY id LIMIT 2`,
+      [last8]
+    );
+    if (fb.rows.length === 1) return fb.rows[0];
+  }
+  return null;
 }
 
 // 출석번호(전화번호 뒷자리 4자리 + 중복 구분 suffix)로 회원 조회
@@ -114,7 +142,7 @@ export const accessRouter = t.router({
         return { result: "not_found", member: null, locker: null };
       }
 
-      const today = new Date().toISOString().substring(0, 10);
+      const today = kstDate();
 
       // 헬스 회원권 확인
       const hasGymMembership =
@@ -222,7 +250,7 @@ export const accessRouter = t.router({
   todayStats: protectedProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-    const today = new Date().toISOString().substring(0, 10);
+    const today = kstDate();
     const logs = await db
       .select()
       .from(accessLogs)
@@ -271,7 +299,7 @@ export const accessRouter = t.router({
     return db.select().from(lockerCategories).orderBy(lockerCategories.sortOrder, lockerCategories.id);
   }),
 
-  createLockerCategory: protectedProcedure
+  createLockerCategory: adminProcedure
     .input(z.object({
       name: z.string(),
       branchId: z.number().optional(),
@@ -285,7 +313,7 @@ export const accessRouter = t.router({
       return cat;
     }),
 
-  updateLockerCategory: protectedProcedure
+  updateLockerCategory: adminProcedure
     .input(z.object({
       id: z.number(),
       name: z.string().optional(),
@@ -300,7 +328,7 @@ export const accessRouter = t.router({
       return cat;
     }),
 
-  deleteLockerCategory: protectedProcedure
+  deleteLockerCategory: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -516,7 +544,7 @@ export const accessRouter = t.router({
     }),
 
   // 락커 삭제
-  deleteLocker: protectedProcedure
+  deleteLocker: adminProcedure
     .input(z.object({ lockerId: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -526,7 +554,7 @@ export const accessRouter = t.router({
     }),
 
   // 락커 범위 삭제 (빈 락커만, 번호 기준)
-  deleteLockerRange: protectedProcedure
+  deleteLockerRange: adminProcedure
     .input(z.object({ from: z.number(), to: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -613,7 +641,7 @@ export const accessRouter = t.router({
   }),
 
   // 배너 생성
-  createBanner: protectedProcedure
+  createBanner: adminProcedure
     .input(z.object({
       title: z.string(),
       body: z.string().optional(),
@@ -652,7 +680,7 @@ export const accessRouter = t.router({
     }),
 
   // 배너 이미지 업로드 (base64, 관리자용)
-  uploadBannerImage: protectedProcedure
+  uploadBannerImage: adminProcedure
     .input(z.object({ id: z.number(), imageData: z.string() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -662,7 +690,7 @@ export const accessRouter = t.router({
     }),
 
   // 배너 이미지 삭제 (imageData 제거, 관리자용)
-  clearBannerImage: protectedProcedure
+  clearBannerImage: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -672,7 +700,7 @@ export const accessRouter = t.router({
     }),
 
   // 배너 수정
-  updateBanner: protectedProcedure
+  updateBanner: adminProcedure
     .input(z.object({
       id: z.number(),
       title: z.string().optional(),
@@ -702,7 +730,7 @@ export const accessRouter = t.router({
     }),
 
   // 배너 삭제
-  deleteBanner: protectedProcedure
+  deleteBanner: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -889,7 +917,7 @@ export const accessRouter = t.router({
   // 활성 헬스 회원권 목록 (서비스 관리 - 헬스권 탭)
   getActiveMemberships: protectedProcedure
     .query(async () => {
-      const today = new Date().toISOString().substring(0, 10);
+      const today = kstDate();
       const result = await pool.query(
         `SELECT id, name, phone, "membershipStart", "membershipEnd"
          FROM members
@@ -906,7 +934,7 @@ export const accessRouter = t.router({
   // 활성 PT 패키지 목록 (서비스 관리 - PT권 탭)
   getActivePtPackages: protectedProcedure
     .query(async () => {
-      const today = new Date().toISOString().substring(0, 10);
+      const today = kstDate();
       const result = await pool.query(
         `SELECT p.id, p."memberId", m.name as "memberName", m.phone as "memberPhone",
                 p."packageName", p."totalSessions", p."usedSessions",
@@ -928,7 +956,7 @@ export const accessRouter = t.router({
   // 서비스 락커 (rentalType = 'service', 현재 점유 중)
   getServiceLockers: protectedProcedure
     .query(async () => {
-      const today = new Date().toISOString().substring(0, 10);
+      const today = kstDate();
       const result = await pool.query(
         `SELECT id, "lockerNumber", "lockerType", "memberId", "memberName", "memberPhone",
                 "startDate", "endDate", memo, "branchId", "categoryId"
@@ -950,7 +978,7 @@ export const accessRouter = t.router({
   // 서비스 헬스권 (PT 등록 시 서비스로 제공된 헬스 기간, serviceHealthDuration > 0)
   getServiceHealthMemberships: protectedProcedure
     .query(async () => {
-      const today = new Date().toISOString().substring(0, 10);
+      const today = kstDate();
       const result = await pool.query(
         `SELECT r.id, r."memberId", r."customerName" as "memberName", r.phone as "memberPhone",
                 r."startDate", r."serviceHealthDuration",
@@ -972,8 +1000,8 @@ export const accessRouter = t.router({
   // 관리자용 전체 회원 통계
   getAdminMemberStats: protectedProcedure
     .query(async () => {
-      const today = new Date().toISOString().substring(0, 10);
-      const in30 = new Date(Date.now() + 30 * 86400000).toISOString().substring(0, 10);
+      const today = kstDate();
+      const in30 = kstDate(30);
       const result = await pool.query(`
         SELECT
           COUNT(*)::int AS total,
@@ -998,8 +1026,8 @@ export const accessRouter = t.router({
   getAdminExpiringMembers: protectedProcedure
     .input(z.object({ days: z.number().default(30) }))
     .query(async ({ input }) => {
-      const today = new Date().toISOString().substring(0, 10);
-      const future = new Date(Date.now() + input.days * 86400000).toISOString().substring(0, 10);
+      const today = kstDate();
+      const future = kstDate(input.days);
       const result = await pool.query(
         `SELECT m.id, m.name, m.phone, m."membershipEnd",
                 t."trainerName",
@@ -1022,7 +1050,7 @@ export const accessRouter = t.router({
   // 시간대별 방문 통계 (이번달 access_logs 기준)
   getAccessHourStats: protectedProcedure
     .query(async () => {
-      const prefix = new Date().toISOString().substring(0, 7); // YYYY-MM
+      const prefix = kstMonthPrefix(); // YYYY-MM (KST)
       const result = await pool.query(
         `SELECT
            EXTRACT(HOUR FROM "accessedAt"::timestamptz)::int AS hour,

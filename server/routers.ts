@@ -1590,9 +1590,6 @@ const ptRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const trainerId = ctx.user.trainerId;
-      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-
       const pkgResult = await db
         .select()
         .from(ptPackages)
@@ -1601,6 +1598,11 @@ const ptRouter = t.router({
 
       const pkg = pkgResult[0];
       if (!pkg) throw new TRPCError({ code: "NOT_FOUND", message: "패키지를 찾을 수 없습니다." });
+
+      // 관리자이거나 본인이 담당한 패키지만 수정 가능
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
+      if (!isAdmin && (!ctx.user.trainerId || pkg.trainerId !== ctx.user.trainerId))
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원만 수정할 수 있습니다." });
 
       await db
         .update(ptPackages)
@@ -1634,6 +1636,11 @@ const ptRouter = t.router({
 
       // 동기화가 필요한 필드 변경 시 항상 기존 패키지를 조회
       const pkg = (await db.select().from(ptPackages).where(eq(ptPackages.id, packageId)).limit(1))[0];
+
+      // 관리자이거나 본인이 담당한 패키지만 수정 가능
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
+      if (pkg && !isAdmin && (!ctx.user.trainerId || pkg.trainerId !== ctx.user.trainerId))
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원만 수정할 수 있습니다." });
 
       const total = fields.totalSessions ?? pkg?.totalSessions ?? 1;
       const used = fields.usedSessions ?? pkg?.usedSessions ?? 0;
@@ -1742,6 +1749,11 @@ const ptRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [pkg] = await db.select({ trainerId: ptPackages.trainerId }).from(ptPackages).where(eq(ptPackages.id, input.packageId)).limit(1);
+      if (!pkg) throw new TRPCError({ code: "NOT_FOUND" });
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
+      if (!isAdmin && (!ctx.user.trainerId || pkg.trainerId !== ctx.user.trainerId))
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원만 변경할 수 있습니다." });
       await db.update(ptPackages).set({ status: input.status }).where(eq(ptPackages.id, input.packageId));
       return { success: true };
     }),
@@ -1751,6 +1763,11 @@ const ptRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [pkg] = await db.select({ trainerId: ptPackages.trainerId }).from(ptPackages).where(eq(ptPackages.id, input.packageId)).limit(1);
+      if (!pkg) throw new TRPCError({ code: "NOT_FOUND" });
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
+      if (!isAdmin && (!ctx.user.trainerId || pkg.trainerId !== ctx.user.trainerId))
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원만 삭제할 수 있습니다." });
       await db.delete(ptPackages).where(eq(ptPackages.id, input.packageId));
       return { success: true };
     }),

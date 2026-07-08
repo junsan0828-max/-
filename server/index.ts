@@ -1090,7 +1090,9 @@ async function initDatabase() {
             AND COALESCE("subType",'') <> '환불'
           GROUP BY "memberId", type, COALESCE("subType",''), COALESCE("programDetail",''),
                    COALESCE(sessions,0), COALESCE("serviceItems",''),
-                   COALESCE("paymentDate",''), COALESCE(amount,0), COALESCE("paidAmount",0)
+                   COALESCE("paymentDate",''), COALESCE("startDate",''), COALESCE(duration,0),
+                   COALESCE(amount,0), COALESCE("paidAmount",0),
+                   COALESCE("unpaidAmount",0), COALESCE("discountAmount",0)
         )
     `);
     if ((dup.rowCount ?? 0) > 0) console.log(`🧹 중복 매출 정리: ${dup.rowCount}건`);
@@ -1287,20 +1289,28 @@ async function initDatabase() {
         await db.update(members).set({ membershipStart: firstSession[0].sessionDate }).where(eq(members.id, m.id));
       }
 
-      // 2) 운동만료일: 운동시작일 + (totalSessions ÷ 2)주 (10회=5주, 20회=10주...)
+      // 2) 운동만료일: 운동시작일 + (활성 패키지 totalSessions ÷ 2)주 (10회=5주, 20회=10주...)
+      //    - 활성 패키지만 합산(오래된/환불 패키지가 만료일을 부풀리지 않도록)
+      //    - 기존 값보다 뒤 날짜일 때만 갱신(GREATEST) → 수동 연장/헬스 만료일을 앞으로 당기지 않음
       if (!startDate) continue;
       const pkgRows = await db
         .select({ totalSessions: ptPackages.totalSessions })
         .from(ptPackages)
-        .where(eq(ptPackages.memberId, m.id));
+        .where(and(eq(ptPackages.memberId, m.id), eq(ptPackages.status, "active")));
 
       const totalSessions = pkgRows.reduce((s, p) => s + (p.totalSessions ?? 0), 0);
       if (!totalSessions) continue;
 
       const weeks = Math.round(totalSessions / 2);
-      const d = new Date(startDate);
+      const [yr, mo, dy] = startDate.split("-").map(Number);
+      const d = new Date(yr, mo - 1, dy);
       d.setDate(d.getDate() + weeks * 7);
-      await db.update(members).set({ membershipEnd: d.toISOString().substring(0, 10) }).where(eq(members.id, m.id));
+      const newEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      await pool.query(
+        `UPDATE members SET "membershipEnd" = $1, "updatedAt" = now()::text
+         WHERE id = $2 AND ("membershipEnd" IS NULL OR "membershipEnd" < $1)`,
+        [newEnd, m.id]
+      );
     }
 
     console.log("✅ 전체 회원 운동시작일/만료일 보정 완료");
@@ -1533,8 +1543,13 @@ async function start() {
     console.error("양도양수 양수인 회원 자동 보정 오류:", e);
   }
 
-  // ── 중복 회원 1회 자동 병합 (동일 trainerId + 이름 + 전화번호) ──────────────
+  // ── 중복 회원 자동 병합: 비활성화 ────────────────────────────────────────────
+  // 매 재시작마다 실행되며 이름+전화가 같으면 되돌릴 수 없이 병합·삭제하던 로직.
+  // 공용/placeholder 번호에서 오병합 위험이 커서 자동 실행을 끈다.
+  // 중복 회원 병합은 회원 관리의 "중복 의심 → 병합"(수동)으로만 진행한다.
+  const ENABLE_AUTO_MEMBER_MERGE = false;
   try {
+    if (!ENABLE_AUTO_MEMBER_MERGE) throw new Error("__skip_auto_merge__");
     const dupResult = await pool.query(`
       SELECT
         trim(name) AS name,
@@ -1628,8 +1643,9 @@ async function start() {
     }
     if (merged > 0) console.log(`✅ 중복 회원 총 ${merged}건 병합 완료`);
     else console.log("✅ 중복 회원 없음");
-  } catch (e) {
-    console.error("중복 회원 병합 오류:", e);
+  } catch (e: any) {
+    if (e?.message === "__skip_auto_merge__") console.log("ℹ️ 중복 회원 자동 병합 비활성화됨 (수동 병합만)");
+    else console.error("중복 회원 병합 오류:", e);
   }
 
   // 구글시트 자동 동기화 (5분마다)
