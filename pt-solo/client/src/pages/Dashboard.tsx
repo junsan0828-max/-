@@ -3,28 +3,75 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
-  Users, Activity, Dumbbell, TrendingUp, Calendar,
+  Users, Dumbbell, TrendingUp, Calendar,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
   Zap, FileText, CalendarCheck, BarChart3, Globe, UtensilsCrossed, ScanLine, UserPlus,
+  Lock, Cpu, ArrowRight,
 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import { differenceInDays } from "date-fns";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
-  AreaChart, Area, LineChart, Line,
-} from "recharts";
-import ExerciseEditor, { type Exercise } from "@/components/ExerciseEditor";
-import BodyPartPicker from "@/components/BodyPartPicker";
 import TabBanner from "@/components/TabBanner";
 
-const CHART_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
+// ─── 아바타 색상 ──────────────────────────────────────────────────────────────
+const AVATAR_GRADIENTS = [
+  "from-amber-400 to-orange-500",
+  "from-emerald-400 to-teal-500",
+  "from-blue-400 to-indigo-500",
+  "from-pink-400 to-rose-500",
+  "from-violet-400 to-purple-500",
+  "from-cyan-400 to-blue-500",
+];
+
+// ─── 툴 그리드 ────────────────────────────────────────────────────────────────
+type ToolItem = {
+  label: string;
+  icon: React.ElementType;
+  colorCls: string;
+  bgCls: string;
+  borderCls: string;
+  onClick: () => void;
+  badge?: number | null;
+  locked?: boolean;
+};
+
+function ToolGrid({ items }: { items: ToolItem[] }) {
+  return (
+    <div className="grid grid-cols-4 gap-3">
+      {items.map((item) => (
+        <button
+          key={item.label}
+          onClick={item.locked ? undefined : item.onClick}
+          className="flex flex-col items-center gap-1.5 group"
+        >
+          <div
+            className={`relative w-14 h-14 rounded-[18px] ${item.bgCls} border ${item.borderCls} flex items-center justify-center transition-all active:scale-90 ${item.locked ? "opacity-40" : ""}`}
+          >
+            <item.icon className={`h-5 w-5 ${item.colorCls}`} />
+            {item.badge != null && item.badge > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-background">
+                {item.badge > 99 ? "99+" : item.badge}
+              </span>
+            )}
+            {item.locked && (
+              <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
+                <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+          <span
+            className={`text-[10.5px] font-semibold text-center leading-tight ${
+              item.locked ? "text-muted-foreground/40" : "text-foreground/65 group-hover:text-foreground"
+            } transition-colors`}
+          >
+            {item.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // ─── 운영자(Admin) SaaS 대시보드 ──────────────────────────────────────────────
 function AdminDashboard() {
@@ -39,7 +86,6 @@ function AdminDashboard() {
         <p className="text-sm text-muted-foreground mt-0.5">서비스 전체 통계</p>
       </div>
 
-      {/* 핵심 지표 */}
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "가입 STEPER", value: `${stats?.totalTrainers ?? 0}명`, icon: ShieldCheck, color: "text-blue-400" },
@@ -58,7 +104,6 @@ function AdminDashboard() {
         ))}
       </div>
 
-      {/* 트레이너 목록 */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -98,8 +143,7 @@ function AdminDashboard() {
   );
 }
 
-// ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
-
+// ─── 배너 & 공지 ──────────────────────────────────────────────────────────────
 function BannerAndNotices() {
   const { data: banner } = trpc.banner.get.useQuery();
   const { data: notices } = trpc.notices.list.useQuery();
@@ -168,6 +212,7 @@ function BannerAndNotices() {
   );
 }
 
+// ─── 작업실 프로모 배너 ────────────────────────────────────────────────────────
 function WorkshopPromoBanner({ onStart }: { onStart: () => void }) {
   return (
     <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] px-5 pt-6 pb-5 text-white">
@@ -207,44 +252,21 @@ function WorkshopPromoBanner({ onStart }: { onStart: () => void }) {
   );
 }
 
+// ─── 트레이너 대시보드 ────────────────────────────────────────────────────────
 function TrainerDashboard() {
   const [, setLocation] = useLocation();
-  const utils = trpc.useUtils();
+  const { data: user } = trpc.auth.me.useQuery();
   const { data: stats, isLoading } = trpc.dashboard.getStats.useQuery();
-  const { data: chartData } = trpc.dashboard.getMonthlyChart.useQuery();
-  const { data: revenueData } = trpc.dashboard.getMonthlyRevenue.useQuery();
   const { data: allMembers } = trpc.members.list.useQuery();
   const { data: wsStatus } = trpc.workshop.getStatus.useQuery();
-
-  const [journalOpen, setJournalOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<{ id: number; name: string } | null>(null);
-  const [journalForm, setJournalForm] = useState<{
-    sessionDate: string; exerciseType: string; bodyPart: string;
-    notes: string; exercises: Exercise[];
-  }>({
-    sessionDate: new Date().toISOString().split("T")[0],
-    exerciseType: "",
-    bodyPart: "",
-    notes: "",
-    exercises: [] as Exercise[],
-  });
+  const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
+  const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
+  const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
 
   const startTrialMutation = trpc.workshop.startTrial.useMutation({
     onSuccess: () => { toast.success("30일 전체 기능 무료 체험이 시작되었습니다!"); setLocation("/workshop"); },
     onError: (e) => toast.error(e.message),
   });
-
-  const useSessionMutation = trpc.pt.useSession.useMutation({
-    onSuccess: (data) => {
-      toast.success(`${selectedMember?.name} 수업 기록 완료! 잔여 ${data.remaining}회`);
-      setJournalOpen(false);
-      utils.dashboard.getStats.invalidate();
-    },
-    onError: (err) => toast.error(err.message || "기록 실패"),
-  });
-  const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
-  const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
-  const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
 
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
@@ -260,229 +282,289 @@ function TrainerDashboard() {
 
   if (isLoading) return <LoadingSkeleton />;
 
-  const today = new Date();
-
-  const alertItems = [
-    expiring?.length ? { label: `만료 임박 ${expiring.length}명`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" } : null,
-    unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30" } : null,
-  ].filter(Boolean) as { label: string; color: string }[];
+  const userPlan = (user as any)?.plan ?? "free";
+  const isProOrElite = userPlan === "pro" || userPlan === "elite";
+  const trainerName = (user as any)?.trainerName ?? "트레이너";
+  const recentMembers = allMembers?.slice(0, 8) ?? [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <TabBanner tabKey="dashboard" />
       <BannerAndNotices />
+
       {wsStatus?.status === "unopened" && (
         <WorkshopPromoBanner onStart={() => startTrialMutation.mutate()} />
       )}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">대시보드</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">오늘의 현황</p>
-        </div>
+
+      {/* 인사말 */}
+      <div className="pt-1">
+        <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">안녕하세요</p>
+        <h1 className="text-[22px] font-bold tracking-tight mt-0.5 leading-snug">
+          {trainerName}님,<br />
+          오늘 <span className="text-primary">무엇을 시작</span>할까요?
+        </h1>
       </div>
 
-      {/* 빠른 실행 */}
-      <div className="rounded-2xl bg-card border border-border p-4">
-        <div className="flex items-center gap-1.5 mb-3">
-          <Dumbbell className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[11px] font-bold text-primary tracking-widest uppercase">빠른 실행</span>
-        </div>
-
-        <div className="grid grid-cols-4 gap-2">
-          {/* 체형 분석 */}
-          <a
-            href="https://noble-unity-production-8100.up.railway.app/posture"
-            target="_blank"
-            rel="noreferrer"
-            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-accent/30 border border-border hover:border-primary/30 hover:bg-accent/60 transition-all active:scale-95"
-          >
-            <div className="w-9 h-9 rounded-xl bg-background border border-border flex items-center justify-center group-hover:border-primary/30 transition-colors">
-              <ScanLine className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-            <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">체형 분석</span>
-          </a>
-
-          {/* 맞춤 식단 */}
-          <a
-            href="https://noble-unity-production-8100.up.railway.app/?ref=fitstep"
-            target="_blank"
-            rel="noreferrer"
-            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-accent/30 border border-border hover:border-primary/30 hover:bg-accent/60 transition-all active:scale-95"
-          >
-            <div className="w-9 h-9 rounded-xl bg-background border border-border flex items-center justify-center group-hover:border-primary/30 transition-colors">
-              <UtensilsCrossed className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-            <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">맞춤 식단</span>
-          </a>
-
-          {/* 수업 하기 */}
-          <button
-            onClick={() => setLocation("/attendance")}
-            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary/15 hover:border-primary/40 transition-all active:scale-95"
-          >
-            <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-              <Dumbbell className="h-4 w-4 text-primary transition-colors" />
-            </div>
-            <span className="text-[11px] font-bold text-primary transition-colors">수업 하기</span>
-          </button>
-
-          {/* 회원 등록 */}
-          <button
-            onClick={() => setLocation("/pt?register=1")}
-            className="group flex flex-col items-center gap-2 py-3.5 rounded-xl bg-accent/30 border border-border hover:border-primary/30 hover:bg-accent/60 transition-all active:scale-95"
-          >
-            <div className="w-9 h-9 rounded-xl bg-background border border-border flex items-center justify-center group-hover:border-primary/30 transition-colors">
-              <UserPlus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-            <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">회원 등록</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 알림 뱃지 */}
-      {alertItems.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {alertItems.map((item) => (
-            <span key={item.label} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${item.color}`}>
-              ⚠ {item.label}
-            </span>
-          ))}
-        </div>
-      )}
-
+      {/* 주요 액션 카드 */}
       <div className="grid grid-cols-2 gap-3">
-        {[
-          { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", onClick: () => setLocation("/members") },
-          { label: "활성 회원", value: `${stats?.activeMembers ?? 0}명`, icon: Activity, color: "text-green-400", onClick: () => setLocation("/members") },
-          { label: "오늘 출석", value: `${stats?.todayAttendances ?? 0}명`, icon: Calendar, color: "text-yellow-400", onClick: () => setTodayModalOpen(true) },
-          { label: "이번달 수업", value: `${stats?.monthPtSessions ?? 0}회`, icon: Dumbbell, color: "text-purple-400", onClick: () => setPtStatsModalOpen(true) },
-        ].map((card) => (
-          <button key={card.label} onClick={card.onClick} className="text-left">
-            <Card className="bg-card border-border hover:border-primary/40 transition-colors cursor-pointer">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs text-muted-foreground">{card.label}</p>
-                  <card.icon className={`h-4 w-4 ${card.color}`} />
-                </div>
-                <p className="text-2xl font-bold">{card.value}</p>
-              </CardContent>
-            </Card>
-          </button>
-        ))}
+        <button
+          onClick={() => setLocation("/pt?register=1")}
+          className="relative overflow-hidden rounded-3xl p-5 text-left flex flex-col justify-between min-h-[140px] active:scale-95 transition-transform"
+          style={{ background: "linear-gradient(145deg, #4F46E5 0%, #7C3AED 100%)", boxShadow: "0 8px 24px rgba(79,70,229,.25)" }}
+        >
+          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+            <UserPlus className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <p className="text-[15px] font-bold text-white">회원 등록</p>
+            <p className="text-[11px] text-white/65 mt-0.5">새 회원을 빠르게 등록</p>
+          </div>
+          <div className="absolute bottom-4 right-4 w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
+            <ArrowRight className="h-3.5 w-3.5 text-white" />
+          </div>
+        </button>
+
+        <button
+          onClick={() => setLocation("/attendance")}
+          className="relative overflow-hidden rounded-3xl p-5 text-left flex flex-col justify-between min-h-[140px] active:scale-95 transition-transform"
+          style={{ background: "linear-gradient(145deg, #0EA5E9 0%, #10B981 100%)", boxShadow: "0 8px 24px rgba(14,165,233,.2)" }}
+        >
+          <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+            <Dumbbell className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <p className="text-[15px] font-bold text-white">수업 시작</p>
+            <p className="text-[11px] text-white/65 mt-0.5">오늘 PT 바로 기록</p>
+          </div>
+          <div className="absolute bottom-4 right-4 w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
+            <ArrowRight className="h-3.5 w-3.5 text-white" />
+          </div>
+        </button>
       </div>
 
-      <Card className="bg-card border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />매출 현황
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <button onClick={() => setLocation("/settlement?view=daily")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
-            <p className="text-xs text-muted-foreground mb-1">일일 매출</p>
-            <p className="text-xl font-bold text-primary">{(stats?.dailySettlement ?? 0).toLocaleString()}원</p>
-          </button>
-          <button onClick={() => setLocation("/settlement?view=monthly")} className="p-3 rounded-lg bg-accent/30 border border-border hover:border-primary/40 transition-colors text-left">
-            <p className="text-xs text-muted-foreground mb-1">월 매출</p>
-            <p className="text-xl font-bold text-primary">{(stats?.monthlySettlement ?? 0).toLocaleString()}원</p>
-          </button>
-        </CardContent>
-      </Card>
-
-
-      {expiring && expiring.length > 0 && (
-        <Card className="bg-card border-border border-yellow-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-400" />
-              <span className="text-yellow-400">만료 임박 회원</span>
-              <span className="ml-auto text-xs font-normal text-muted-foreground">7일 이내</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {expiring.map((member) => {
-              const daysLeft = member.membershipEnd ? differenceInDays(new Date(member.membershipEnd), today) : null;
-              return (
-                <button key={member.id} onClick={() => setLocation(`/members/${member.id}`)}
-                  className="w-full flex items-center justify-between p-2.5 rounded-md bg-yellow-500/10 border border-yellow-500/20 hover:border-yellow-500/40 transition-colors text-left">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 font-bold text-xs">{member.name.charAt(0)}</div>
-                    <span className="text-sm font-medium">{member.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-yellow-400">{daysLeft === 0 ? "오늘 만료" : daysLeft !== null ? `D-${daysLeft}` : "-"}</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {unpaid && unpaid.length > 0 && (
-        <Card className="bg-card border-border border-orange-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-orange-400" />
-              <span className="text-orange-400">미수금 회원</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {unpaid.map((item) => (
-              <button key={item.id} onClick={() => setLocation(`/members/${item.id}`)}
-                className="w-full flex items-center justify-between p-2.5 rounded-md bg-orange-500/10 border border-orange-500/20 hover:border-orange-500/40 transition-colors text-left">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold text-xs">{item.name.charAt(0)}</div>
-                  <div>
-                    <p className="text-sm font-medium">{item.name}</p>
-                    {item.packageName && <p className="text-xs text-muted-foreground">{item.packageName}</p>}
-                  </div>
+      {/* 최근 회원 */}
+      {recentMembers.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold">최근 회원</p>
+            <button onClick={() => setLocation("/members")} className="text-xs font-semibold text-primary">
+              전체보기
+            </button>
+          </div>
+          <div
+            className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4"
+            style={{ scrollbarWidth: "none" }}
+          >
+            {recentMembers.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setLocation(`/members/${m.id}`)}
+                className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-90 transition-transform"
+              >
+                <div
+                  className={`w-14 h-14 rounded-[18px] bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center`}
+                  style={{ boxShadow: "0 2px 8px rgba(0,0,0,.1)" }}
+                >
+                  <span className="text-lg font-bold text-white">{m.name.charAt(0)}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-orange-400">{(item.unpaidAmount ?? 0).toLocaleString()}원</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                </div>
+                <span className="text-[10.5px] font-semibold text-foreground/65 text-center w-14 truncate">
+                  {m.name}
+                </span>
               </button>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* 재등록 안내 회원 (PT 5회 이하) */}
-      {lowSessions && lowSessions.length > 0 && (
-        <Card className="bg-card border-border border-blue-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-blue-400" />
-              <span className="text-blue-400">재등록 안내 회원</span>
-              <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">5세션 이하</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {lowSessions.map((item) => {
-              const remaining = item.totalSessions - item.usedSessions;
-              return (
-                <button key={`${item.id}-${item.packageName}`} onClick={() => setLocation(`/members/${item.id}`)}
-                  className="w-full flex items-center justify-between p-2.5 rounded-md bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 transition-colors text-left">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xs">{item.name.charAt(0)}</div>
-                    <div>
-                      <p className="text-sm font-medium">{item.name}</p>
-                      {item.packageName && <p className="text-xs text-muted-foreground">{item.packageName}</p>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-blue-400">잔여 {remaining}회</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
+      {/* ─── 툴 그룹: 회원 관리 ─── */}
+      <div className="rounded-2xl bg-card border border-border p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+            <Users className="h-3.5 w-3.5 text-indigo-500" />
+          </div>
+          <span className="text-sm font-bold">회원 관리</span>
+        </div>
+        <ToolGrid items={[
+          {
+            label: "회원 목록", icon: Users,
+            colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20",
+            onClick: () => setLocation("/members"),
+          },
+          {
+            label: "회원 등록", icon: UserPlus,
+            colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20",
+            onClick: () => setLocation("/pt?register=1"),
+          },
+          {
+            label: "만료 임박", icon: Clock,
+            colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20",
+            onClick: () => setLocation("/members"),
+            badge: expiring?.length ?? null,
+          },
+          {
+            label: "미수금", icon: AlertTriangle,
+            colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20",
+            onClick: () => setLocation("/members"),
+            badge: unpaid?.length ?? null,
+          },
+        ]} />
+      </div>
 
+      {/* ─── 툴 그룹: 수업 ─── */}
+      <div className="rounded-2xl bg-card border border-border p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+            <Dumbbell className="h-3.5 w-3.5 text-emerald-500" />
+          </div>
+          <span className="text-sm font-bold">수업</span>
+        </div>
+        <ToolGrid items={[
+          {
+            label: "수업 하기", icon: Dumbbell,
+            colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20",
+            onClick: () => setLocation("/attendance"),
+          },
+          {
+            label: "오늘 출석", icon: CalendarCheck,
+            colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20",
+            onClick: () => setTodayModalOpen(true),
+            badge: stats?.todayAttendances ?? null,
+          },
+          {
+            label: "이번달 수업", icon: BarChart3,
+            colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20",
+            onClick: () => setPtStatsModalOpen(true),
+          },
+          {
+            label: "수업 일지", icon: BookOpen,
+            colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20",
+            onClick: () => setLocation("/members"),
+          },
+        ]} />
+      </div>
+
+      {/* ─── 툴 그룹: 매출 & 정산 ─── */}
+      <div className="rounded-2xl bg-card border border-border p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+          </div>
+          <span className="text-sm font-bold">매출 &amp; 정산</span>
+        </div>
+        <ToolGrid items={[
+          {
+            label: "일일 매출", icon: TrendingUp,
+            colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20",
+            onClick: () => setLocation("/settlement?view=daily"),
+          },
+          {
+            label: "월 매출", icon: BarChart3,
+            colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20",
+            onClick: () => setLocation("/settlement?view=monthly"),
+          },
+          {
+            label: "재등록 안내", icon: RefreshCw,
+            colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20",
+            onClick: () => setLocation("/members"),
+            badge: lowSessions?.length ?? null,
+          },
+          {
+            label: "정산 관리", icon: FileText,
+            colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20",
+            onClick: () => setLocation("/settlement"),
+          },
+        ]} />
+      </div>
+
+      {/* ─── 툴 그룹: AI & 분석 ─── */}
+      <div className="rounded-2xl bg-card border border-border p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center">
+            <Cpu className="h-3.5 w-3.5 text-violet-500" />
+          </div>
+          <span className="text-sm font-bold">AI &amp; 분석</span>
+          <span className="ml-auto text-[10px] font-bold text-violet-500 bg-violet-500/10 px-2 py-0.5 rounded-full">NEW</span>
+        </div>
+        <ToolGrid items={[
+          {
+            label: "체형 분석", icon: ScanLine,
+            colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20",
+            onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank"),
+          },
+          {
+            label: "맞춤 식단", icon: UtensilsCrossed,
+            colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20",
+            onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank"),
+          },
+          {
+            label: "AI 추천", icon: Zap,
+            colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20",
+            onClick: () => setLocation("/workshop"),
+            locked: !isProOrElite,
+          },
+          {
+            label: "AI 리포트", icon: FileText,
+            colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20",
+            onClick: () => setLocation("/workshop"),
+            locked: !isProOrElite,
+          },
+        ]} />
+      </div>
+
+      {/* ─── 툴 그룹: 브랜딩 & 작업실 ─── */}
+      <div className="rounded-2xl bg-card border border-border p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-6 h-6 rounded-lg bg-pink-500/10 flex items-center justify-center">
+            <Globe className="h-3.5 w-3.5 text-pink-500" />
+          </div>
+          <span className="text-sm font-bold">브랜딩 &amp; 작업실</span>
+        </div>
+        <ToolGrid items={[
+          {
+            label: "작업실", icon: Zap,
+            colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20",
+            onClick: () => setLocation("/workshop"),
+          },
+          {
+            label: "브랜드 페이지", icon: Globe,
+            colorCls: "text-pink-500", bgCls: "bg-pink-500/10", borderCls: "border-pink-500/20",
+            onClick: () => setLocation("/workshop"),
+          },
+          {
+            label: "전자계약", icon: FileText,
+            colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20",
+            onClick: () => setLocation("/workshop"),
+          },
+          {
+            label: "설문 관리", icon: CalendarCheck,
+            colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20",
+            onClick: () => setLocation("/workshop"),
+          },
+        ]} />
+      </div>
+
+      {/* AI 추천 배너 */}
+      <button
+        onClick={() => setLocation("/workshop")}
+        className="w-full relative overflow-hidden rounded-2xl p-5 flex items-center gap-4 text-left active:scale-[0.98] transition-transform"
+        style={{
+          background: "linear-gradient(130deg, #1E40AF 0%, #4F46E5 55%, #7C3AED 100%)",
+          boxShadow: "0 8px 28px rgba(79,70,229,.28)",
+        }}
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/5 -translate-y-8 translate-x-8 pointer-events-none" />
+        <div className="absolute bottom-0 right-16 w-20 h-20 rounded-full bg-white/5 translate-y-8 pointer-events-none" />
+        <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0">
+          <Cpu className="h-6 w-6 text-white" />
+        </div>
+        <div className="flex-1 relative">
+          <p className="text-[10px] font-bold text-white/60 tracking-wider uppercase mb-1">AI 추천</p>
+          <p className="text-sm font-bold text-white leading-snug">AI가 회원 데이터를 분석하여<br />맞춤 운동과 식단을 추천합니다</p>
+        </div>
+        <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0 relative">
+          <ChevronRight className="h-4 w-4 text-white" />
+        </div>
+      </button>
 
       {/* 오늘 출석 모달 */}
       <Dialog open={todayModalOpen} onOpenChange={setTodayModalOpen}>
@@ -532,7 +614,7 @@ function TrainerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* 총 PT 세션 모달 */}
+      {/* 이번달 수업 모달 */}
       <Dialog open={ptStatsModalOpen} onOpenChange={setPtStatsModalOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -569,24 +651,30 @@ function TrainerDashboard() {
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
 
+// ─── 로딩 스켈레톤 ────────────────────────────────────────────────────────────
 function LoadingSkeleton() {
   return (
-    <div className="space-y-4">
-      <div className="h-6 w-32 bg-card rounded animate-pulse" />
-      <div className="grid grid-cols-2 gap-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-28 rounded-lg bg-card border border-border animate-pulse" />
-        ))}
+    <div className="space-y-5">
+      <div className="space-y-1.5">
+        <div className="h-3 w-16 bg-card rounded animate-pulse" />
+        <div className="h-7 w-48 bg-card rounded animate-pulse" />
+        <div className="h-7 w-36 bg-card rounded animate-pulse" />
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="h-36 rounded-3xl bg-card border border-border animate-pulse" />
+        <div className="h-36 rounded-3xl bg-card border border-border animate-pulse" />
+      </div>
+      <div className="h-20 rounded-2xl bg-card border border-border animate-pulse" />
+      <div className="h-36 rounded-2xl bg-card border border-border animate-pulse" />
     </div>
   );
 }
 
+// ─── 메인 ─────────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { data: user } = trpc.auth.me.useQuery();
   if (user?.role === "admin") return <AdminDashboard />;
