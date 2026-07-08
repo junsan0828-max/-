@@ -4481,15 +4481,20 @@ const kioskRouter = t.router({
       // 전화번호로 회원 찾기 (숫자만 비교)
       const digits = input.phone.replace(/\D/g, "");
       const all = await pool.query(
-        `SELECT id, name, phone FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 AND status = 'active' LIMIT 1`,
+        `SELECT id, name, phone, "membershipEnd" FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 AND status = 'active' LIMIT 1`,
         [digits]
       );
       if (!all.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원을 찾을 수 없습니다." });
 
-      const member = all.rows[0] as { id: number; name: string; phone: string };
+      const member = all.rows[0] as { id: number; name: string; phone: string; membershipEnd: string | null };
       // KST(UTC+9) 기준 날짜·시각 사용 — UTC로 계산하면 자정~오전9시 구간에 날짜가 하루 앞서서 포인트 중복 적립 가능
       const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
       const today = kstNow.toISOString().slice(0, 10);
+
+      // 이용권 만료 확인
+      if (member.membershipEnd && member.membershipEnd < today) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "이용권이 만료되었습니다. 데스크에 문의해주세요." });
+      }
       const checkTime = `${String(kstNow.getUTCHours()).padStart(2,"0")}:${String(kstNow.getUTCMinutes()).padStart(2,"0")}`;
 
       // 오늘 이미 출입했는지 확인
