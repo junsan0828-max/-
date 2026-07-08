@@ -40,6 +40,8 @@ type WsDashCat = {
   items: WsDashItem[];
 };
 
+type WsNavFn = (featureId?: string) => void;
+
 const WS_DASH: WsDashCat[] = [
   {
     key: "branding", label: "브랜딩 & 회원 경험",
@@ -139,10 +141,10 @@ function ToolGrid({ items }: { items: ToolItem[] }) {
 }
 
 // ─── 작업실 기능 아이템 ────────────────────────────────────────────────────────
-function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDashCat; lock: FeatureLock; onClick: () => void; }) {
+function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDashCat; lock: FeatureLock; onClick: (id: string) => void; }) {
   const unavailable = lock !== "available";
   return (
-    <button onClick={onClick} className="flex flex-col items-center gap-1.5 group">
+    <button onClick={() => onClick(item.id)} className="flex flex-col items-center gap-1.5 group">
       <div className={`relative w-14 h-14 rounded-[18px] ${cat.bgCls} border ${cat.borderCls} flex items-center justify-center transition-all active:scale-90 ${unavailable ? "opacity-40" : ""}`}>
         <item.icon className={`h-5 w-5 ${cat.itemColorCls}`} />
         {(lock === "pro" || lock === "elite") && (
@@ -166,7 +168,7 @@ function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDas
 // ─── 작업실 카테고리 그룹 ─────────────────────────────────────────────────────
 const INLINE_LIMIT = 8; // 2행
 
-function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; onNavigate: () => void; }) {
+function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; onNavigate: WsNavFn; }) {
   const [expanded, setExpanded] = useState(false);
   const visibleItems = expanded ? cat.items : cat.items.slice(0, INLINE_LIMIT);
   const hiddenCount = cat.items.length - INLINE_LIMIT;
@@ -178,7 +180,7 @@ function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; o
           <cat.icon className={`h-3.5 w-3.5 ${cat.iconCls}`} />
         </div>
         <span className="text-sm font-bold">{cat.label}</span>
-        <button onClick={onNavigate} className={`ml-auto text-[11px] font-semibold ${cat.iconCls}`}>
+        <button onClick={() => onNavigate()} className={`ml-auto text-[11px] font-semibold ${cat.iconCls}`}>
           작업실 →
         </button>
       </div>
@@ -189,7 +191,7 @@ function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; o
             item={item}
             cat={cat}
             lock={getFeatureLock(item.id, plan)}
-            onClick={onNavigate}
+            onClick={(id) => onNavigate(id)}
           />
         ))}
       </div>
@@ -206,7 +208,7 @@ function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; o
 }
 
 // ─── 전체 기능 보기 다이얼로그 ────────────────────────────────────────────────
-function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean; onClose: () => void; plan: string; onNavigate: () => void; }) {
+function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean; onClose: () => void; plan: string; onNavigate: WsNavFn; }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm max-h-[85vh] flex flex-col p-0">
@@ -230,7 +232,7 @@ function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean;
                     item={item}
                     cat={cat}
                     lock={getFeatureLock(item.id, plan)}
-                    onClick={onNavigate}
+                    onClick={(id) => onNavigate(id)}
                   />
                 ))}
               </div>
@@ -473,6 +475,8 @@ function TrainerDashboard() {
   if (isLoading) return <LoadingSkeleton />;
 
   const userPlan = (user as any)?.plan ?? "free";
+  const toWorkshop: WsNavFn = (featureId?: string) =>
+    setLocation(featureId ? `/workshop?open=${featureId}` : "/workshop");
   const trainerName = (user as any)?.trainerName ?? "트레이너";
   const recentMembers = allMembers?.slice(0, 8) ?? [];
 
@@ -629,7 +633,7 @@ function TrainerDashboard() {
       </div>
 
       {WS_DASH.map(cat => (
-        <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={() => setLocation("/workshop")} />
+        <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={toWorkshop} />
       ))}
 
       {/* AI 추천 배너 */}
@@ -723,7 +727,7 @@ function TrainerDashboard() {
         open={allFeaturesOpen}
         onClose={() => setAllFeaturesOpen(false)}
         plan={userPlan}
-        onNavigate={() => { setAllFeaturesOpen(false); setLocation("/workshop"); }}
+        onNavigate={(id) => { setAllFeaturesOpen(false); toWorkshop(id); }}
       />
     </div>
   );

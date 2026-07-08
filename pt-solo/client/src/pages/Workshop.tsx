@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -4801,6 +4801,37 @@ function WorkshopContent() {
   const isAdmin = (user as any)?.role === "admin";
 
   const { data: wsStatus, isLoading } = trpc.workshop.getStatus.useQuery(undefined, { refetchInterval: 60 * 1000 });
+
+  // ── 대시보드 딥링크: ?open=feature_id → 해당 기능 시트 자동 오픈 ──────────
+  const [, wsNav] = useLocation();
+  const wsSearch = useSearch();
+  const pendingOpenRef = useRef(new URLSearchParams(wsSearch).get("open"));
+  useEffect(() => {
+    const id = pendingOpenRef.current;
+    if (!id || isLoading) return;
+    pendingOpenRef.current = null;
+    wsNav("/workshop", { replace: true });
+    const allItems = WS_CATALOG.flatMap(c => c.items);
+    const found = allItems.find(i => i.id === id);
+    if (!found) return;
+    const plan_ = ((user as any)?.plan ?? "free") as "free" | "pro" | "elite";
+    const planIds_ = new Set([
+      ...TIER_ITEMS.free,
+      ...(plan_ === "pro" || plan_ === "elite" ? TIER_ITEMS.pro : []),
+      ...(plan_ === "elite" ? TIER_ITEMS.elite : []),
+    ]);
+    const eTrialActive_ = (wsStatus as any)?.eliteTrial?.status === "active";
+    const eTrialIds_ = [...TIER_ITEMS.pro, ...TIER_ITEMS.elite];
+    const fcs_ = wsStatus?.featureConfigs ?? {};
+    const removed_ = wsStatus?.removedFeatures ?? [];
+    let status: WsItemStatus;
+    if (eTrialActive_ && eTrialIds_.includes(found.id)) status = "active";
+    else if (planIds_.has(found.id)) status = "active";
+    else if (removed_.includes(found.id)) status = found.status;
+    else status = (fcs_[found.id] ?? found.status) as WsItemStatus;
+    setSelectedItem({ ...found, status });
+  }, [isLoading]);
+
   const startTrialMutation = trpc.workshop.startTrial.useMutation({
     onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("30일 무료 체험이 시작되었습니다!"); },
     onError: (e) => toast.error(e.message),
