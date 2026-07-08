@@ -273,6 +273,63 @@ function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean;
   );
 }
 
+// ─── 회원 선택 공통 모달 ──────────────────────────────────────────────────────
+function MemberPickModal({
+  open, onClose, title, subtitle, icon: Icon, iconCls, allMembers, onPick,
+}: {
+  open: boolean; onClose: () => void; title: string; subtitle: string;
+  icon: React.ElementType; iconCls: string;
+  allMembers: { id: number; name: string; phone?: string | null }[] | undefined;
+  onPick: (id: number) => void;
+}) {
+  const [q, setQ] = useState("");
+  const filtered = (allMembers ?? []).filter(m =>
+    !q.trim() || m.name.toLowerCase().includes(q.toLowerCase())
+  );
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onClose(); if (!o) setQ(""); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Icon className={`h-4 w-4 ${iconCls}`} />
+            {title}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <input
+            autoFocus
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="회원 이름 검색..."
+            className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
+          />
+        </div>
+        <div className="space-y-1 max-h-72 overflow-y-auto -mx-1 px-1">
+          {!allMembers ? (
+            <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">회원을 찾을 수 없습니다.</p>
+          ) : filtered.map(m => (
+            <button key={m.id} onClick={() => { onClose(); onPick(m.id); }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors text-left">
+              <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
+                <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{m.name}</p>
+                {m.phone && <p className="text-xs text-muted-foreground">{m.phone}</p>}
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+            </button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── 운영자(Admin) SaaS 대시보드 ──────────────────────────────────────────────
 function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -468,7 +525,8 @@ function TrainerDashboard() {
   const [unpaidModalOpen, setUnpaidModalOpen] = useState(false);
   const [registerTypeOpen, setRegisterTypeOpen] = useState(false);
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
-  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [classStartOpen, setClassStartOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
     { date: todayStr }, { enabled: todayModalOpen }
@@ -570,7 +628,7 @@ function TrainerDashboard() {
         </div>
         <ToolGrid items={[
           { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
-          { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setMemberSearchQuery(""); setMemberSearchOpen(true); } },
+          { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setMemberSearchOpen(true) },
           { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
           { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
         ]} />
@@ -585,10 +643,10 @@ function TrainerDashboard() {
           <span className="text-sm font-bold">수업</span>
         </div>
         <ToolGrid items={[
-          { label: "수업 하기", icon: Dumbbell, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/attendance") },
+          { label: "수업 하기", icon: Dumbbell, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setClassStartOpen(true) },
           { label: "오늘 출석", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
           { label: "이번달 수업", icon: BarChart3, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setPtStatsModalOpen(true) },
-          { label: "수업 일지", icon: BookOpen, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setLocation("/members") },
+          { label: "수업 일지", icon: BookOpen, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setJournalOpen(true) },
         ]} />
       </div>
 
@@ -727,51 +785,23 @@ function TrainerDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* 정보 수정 - 회원 검색 모달 */}
-      <Dialog open={memberSearchOpen} onOpenChange={(o) => { setMemberSearchOpen(o); if (!o) setMemberSearchQuery(""); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Pencil className="h-4 w-4 text-indigo-500" />
-              회원 정보 수정
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">이름으로 검색해 회원을 선택하세요</p>
-          </DialogHeader>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <input
-              autoFocus
-              value={memberSearchQuery}
-              onChange={e => setMemberSearchQuery(e.target.value)}
-              placeholder="회원 이름 검색..."
-              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
-            />
-          </div>
-          <div className="space-y-1 max-h-72 overflow-y-auto -mx-1 px-1">
-            {(() => {
-              const q = memberSearchQuery.trim();
-              const filtered = (allMembers ?? []).filter(m =>
-                !q || m.name.toLowerCase().includes(q.toLowerCase())
-              );
-              if (!allMembers) return <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>;
-              if (filtered.length === 0) return <p className="text-sm text-muted-foreground text-center py-6">회원을 찾을 수 없습니다.</p>;
-              return filtered.map(m => (
-                <button key={m.id} onClick={() => { setMemberSearchOpen(false); setMemberSearchQuery(""); setLocation(`/members/${m.id}`); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors text-left">
-                  <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
-                    <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">{m.name}</p>
-                    {m.phone && <p className="text-xs text-muted-foreground">{m.phone}</p>}
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
-                </button>
-              ));
-            })()}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* 정보 수정 모달 */}
+      <MemberPickModal open={memberSearchOpen} onClose={() => setMemberSearchOpen(false)}
+        title="회원 정보 수정" subtitle="이름으로 검색해 회원을 선택하세요"
+        icon={Pencil} iconCls="text-indigo-500" allMembers={allMembers}
+        onPick={(id) => setLocation(`/members/${id}`)} />
+
+      {/* 수업 하기 모달 */}
+      <MemberPickModal open={classStartOpen} onClose={() => setClassStartOpen(false)}
+        title="수업 하기" subtitle="수업을 시작할 회원을 선택하세요"
+        icon={Dumbbell} iconCls="text-emerald-500" allMembers={allMembers}
+        onPick={(id) => setLocation(`/members/${id}`)} />
+
+      {/* 수업 일지 모달 */}
+      <MemberPickModal open={journalOpen} onClose={() => setJournalOpen(false)}
+        title="수업 일지" subtitle="일지를 확인할 회원을 선택하세요"
+        icon={BookOpen} iconCls="text-blue-500" allMembers={allMembers}
+        onPick={(id) => setLocation(`/members/${id}`)} />
 
       {/* 만료 임박 모달 */}
       <Dialog open={expiringModalOpen} onOpenChange={setExpiringModalOpen}>
