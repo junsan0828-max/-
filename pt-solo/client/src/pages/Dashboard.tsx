@@ -530,7 +530,7 @@ function TrainerDashboard() {
   const [dailyModalOpen, setDailyModalOpen] = useState(false);
   const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({ memo: "", amount: "", category: "카드" });
+  const [expenseForm, setExpenseForm] = useState({ memo: "", amount: "", category: "카드", date: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ memo: "", amount: "", category: "카드" });
   const todayStr = new Date().toISOString().split("T")[0];
@@ -974,26 +974,32 @@ function TrainerDashboard() {
               <select
                 value={expenseForm.category}
                 onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}
-                className="flex-1 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="w-28 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
               >
                 {["카드", "현금", "계좌이체", "기타"].map(m => <option key={m}>{m}</option>)}
               </select>
-              <button
-                onClick={() => {
-                  if (!expenseForm.memo.trim() || !expenseForm.amount) return;
-                  createExpense.mutate({
-                    memo: expenseForm.memo.trim(),
-                    amount: Number(expenseForm.amount),
-                    category: expenseForm.category,
-                    expenseDate: todayStr,
-                  });
-                }}
-                disabled={!expenseForm.memo.trim() || !expenseForm.amount || createExpense.isPending}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500 text-white text-sm font-semibold disabled:opacity-40 hover:bg-rose-600 active:scale-95 transition-all"
-              >
-                <Plus className="h-3.5 w-3.5" />추가
-              </button>
+              <input
+                type="date"
+                value={expenseForm.date || todayStr}
+                onChange={e => setExpenseForm(f => ({ ...f, date: e.target.value }))}
+                className="flex-1 min-w-0 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
             </div>
+            <button
+              onClick={() => {
+                if (!expenseForm.memo.trim() || !expenseForm.amount) return;
+                createExpense.mutate({
+                  memo: expenseForm.memo.trim(),
+                  amount: Number(expenseForm.amount),
+                  category: expenseForm.category,
+                  expenseDate: expenseForm.date || todayStr,
+                });
+              }}
+              disabled={!expenseForm.memo.trim() || !expenseForm.amount || createExpense.isPending}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-500 text-white text-sm font-semibold disabled:opacity-40 hover:bg-rose-600 active:scale-95 transition-all"
+            >
+              <Plus className="h-3.5 w-3.5" />추가
+            </button>
           </div>
 
           {/* 지출 목록 */}
