@@ -773,7 +773,7 @@ function TrainerDashboard() {
               미수금 회원
             </DialogTitle>
             <p className="text-xs text-muted-foreground">
-              총 {unpaid?.length ?? 0}명 · {(unpaid ?? []).reduce((s, m) => s + m.unpaidAmount, 0).toLocaleString()}원
+              총 {unpaid?.length ?? 0}명 · {(unpaid ?? []).reduce((s, m) => s + (m.unpaidAmount ?? 0), 0).toLocaleString()}원
             </p>
           </DialogHeader>
           <div className="space-y-1 max-h-80 overflow-y-auto">
@@ -792,7 +792,7 @@ function TrainerDashboard() {
                       {m.packageName && <p className="text-xs text-muted-foreground">{m.packageName}</p>}
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-orange-500">{m.unpaidAmount.toLocaleString()}원</span>
+                  <span className="text-sm font-bold text-orange-500">{(m.unpaidAmount ?? 0).toLocaleString()}원</span>
                 </button>
               ))
             )}
