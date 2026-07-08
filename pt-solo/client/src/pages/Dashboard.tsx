@@ -464,6 +464,9 @@ function TrainerDashboard() {
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
   const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
+  const [expiringModalOpen, setExpiringModalOpen] = useState(false);
+  const [unpaidModalOpen, setUnpaidModalOpen] = useState(false);
+  const [registerTypeOpen, setRegisterTypeOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
     { date: todayStr }, { enabled: todayModalOpen }
@@ -500,7 +503,7 @@ function TrainerDashboard() {
 
       {/* 주요 액션 카드 */}
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => setLocation("/pt?register=1")}
+        <button onClick={() => setRegisterTypeOpen(true)}
           className="relative overflow-hidden rounded-3xl p-5 text-left flex flex-col justify-between min-h-[140px] active:scale-95 transition-transform"
           style={{ background: "linear-gradient(145deg, #4F46E5 0%, #7C3AED 100%)", boxShadow: "0 8px 24px rgba(79,70,229,.25)" }}>
           <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
@@ -565,9 +568,9 @@ function TrainerDashboard() {
         </div>
         <ToolGrid items={[
           { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
-          { label: "회원 등록", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/pt?register=1") },
-          { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setLocation("/members"), badge: expiring?.length ?? null },
-          { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setLocation("/members"), badge: unpaid?.length ?? null },
+          { label: "회원 등록", icon: UserPlus, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setRegisterTypeOpen(true) },
+          { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
+          { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
         ]} />
       </div>
 
@@ -718,6 +721,116 @@ function TrainerDashboard() {
                 </button>
               ))
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 만료 임박 모달 */}
+      <Dialog open={expiringModalOpen} onOpenChange={setExpiringModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-500" />
+              만료 임박 회원
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">7일 이내 만료 예정</p>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!expiring || expiring.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">만료 임박 회원이 없습니다.</p>
+            ) : (
+              expiring.map(m => {
+                const days = Math.ceil((new Date(m.membershipEnd!).getTime() - Date.now()) / 86400000);
+                return (
+                  <button key={m.id} onClick={() => { setExpiringModalOpen(false); setLocation(`/members/${m.id}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
+                        <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold">{m.name}</p>
+                        <p className="text-xs text-muted-foreground">{m.membershipEnd?.slice(0, 10)}</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${days <= 0 ? "bg-red-500/15 text-red-500" : days <= 3 ? "bg-orange-500/15 text-orange-500" : "bg-amber-500/15 text-amber-600"}`}>
+                      {days <= 0 ? "오늘 만료" : `D-${days}`}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 미수금 모달 */}
+      <Dialog open={unpaidModalOpen} onOpenChange={setUnpaidModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              미수금 회원
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              총 {unpaid?.length ?? 0}명 · {(unpaid ?? []).reduce((s, m) => s + m.unpaidAmount, 0).toLocaleString()}원
+            </p>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!unpaid || unpaid.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">미수금 회원이 없습니다.</p>
+            ) : (
+              unpaid.map(m => (
+                <button key={m.id} onClick={() => { setUnpaidModalOpen(false); setLocation(`/members/${m.id}`); }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
+                      <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold">{m.name}</p>
+                      {m.packageName && <p className="text-xs text-muted-foreground">{m.packageName}</p>}
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-orange-500">{m.unpaidAmount.toLocaleString()}원</span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 회원 등록 유형 선택 모달 */}
+      <Dialog open={registerTypeOpen} onOpenChange={setRegisterTypeOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-indigo-500" />
+              회원 등록
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">등록 유형을 선택해주세요</p>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <button onClick={() => { setRegisterTypeOpen(false); setLocation("/pt?register=1"); }}
+              className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 active:scale-95 transition-all">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 flex items-center justify-center">
+                <UserPlus className="h-6 w-6 text-indigo-500" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-indigo-600">신규 등록</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">새 회원 추가</p>
+              </div>
+            </button>
+            <button onClick={() => { setRegisterTypeOpen(false); setLocation("/members"); }}
+              className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 flex items-center justify-center">
+                <RefreshCw className="h-6 w-6 text-emerald-500" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-emerald-600">재등록</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">기존 회원 연장</p>
+              </div>
+            </button>
           </div>
         </DialogContent>
       </Dialog>
