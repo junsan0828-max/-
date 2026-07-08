@@ -527,9 +527,21 @@ function TrainerDashboard() {
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [classStartOpen, setClassStartOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
+  const [dailyModalOpen, setDailyModalOpen] = useState(false);
+  const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
   const todayStr = new Date().toISOString().split("T")[0];
+  const currentYearMonth = todayStr.slice(0, 7);
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
     { date: todayStr }, { enabled: todayModalOpen }
+  );
+  const { data: dailySettlement } = trpc.trainers.getMonthlySettlement.useQuery(
+    { yearMonth: currentYearMonth, dateFilter: todayStr }, { enabled: dailyModalOpen }
+  );
+  const { data: monthlySettlement } = trpc.trainers.getMonthlySettlement.useQuery(
+    { yearMonth: currentYearMonth }, { enabled: monthlyModalOpen }
+  );
+  const { data: monthlyRevenue } = trpc.dashboard.getMonthlyRevenue.useQuery(
+    undefined, { enabled: monthlyModalOpen }
   );
   const { data: memberSessionStats } = trpc.pt.memberSessionStats.useQuery(
     undefined, { enabled: ptStatsModalOpen }
@@ -659,8 +671,8 @@ function TrainerDashboard() {
           <span className="text-sm font-bold">매출 &amp; 정산</span>
         </div>
         <ToolGrid items={[
-          { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?view=daily") },
-          { label: "월 매출", icon: BarChart3, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setLocation("/settlement?view=monthly") },
+          { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setDailyModalOpen(true) },
+          { label: "월 매출", icon: BarChart3, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setMonthlyModalOpen(true) },
           { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLocation("/members"), badge: lowSessions?.length ?? null },
           { label: "정산 관리", icon: FileText, colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20", onClick: () => setLocation("/settlement") },
         ]} />
@@ -802,6 +814,119 @@ function TrainerDashboard() {
         title="수업 일지" subtitle="일지를 확인할 회원을 선택하세요"
         icon={BookOpen} iconCls="text-blue-500" allMembers={allMembers}
         onPick={(id) => setLocation(`/members/${id}`)} />
+
+      {/* 일일 매출 모달 */}
+      <Dialog open={dailyModalOpen} onOpenChange={setDailyModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              오늘 매출
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">{todayStr.replace(/-/g, ".")}</p>
+          </DialogHeader>
+          {!dailySettlement ? (
+            <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "수업", value: `${dailySettlement.sessionCount}회`, color: "text-emerald-500" },
+                  { label: "매출", value: `${dailySettlement.revenue.toLocaleString()}원`, color: "text-blue-500" },
+                  { label: "세후 정산", value: `${dailySettlement.afterTax.toLocaleString()}원`, color: "text-violet-500" },
+                ].map(c => (
+                  <div key={c.label} className="rounded-xl bg-accent/30 border border-border p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-1">{c.label}</p>
+                    <p className={`text-sm font-bold ${c.color} leading-tight`}>{c.value}</p>
+                  </div>
+                ))}
+              </div>
+              {dailySettlement.noShow > 0 && (
+                <p className="text-xs text-muted-foreground text-center">노쇼 {dailySettlement.noShow}건 포함</p>
+              )}
+              <div className="space-y-1 max-h-52 overflow-y-auto">
+                {dailySettlement.logs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">오늘 수업 기록이 없습니다.</p>
+                ) : dailySettlement.logs.map(log => (
+                  <div key={log.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-accent/20">
+                    <div>
+                      <p className="text-sm font-medium">{log.memberName ?? "-"}</p>
+                      {log.packageName && <p className="text-xs text-muted-foreground">{log.packageName}</p>}
+                    </div>
+                    <p className="text-sm font-semibold text-emerald-500">{log.effectivePrice.toLocaleString()}원</p>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => { setDailyModalOpen(false); setLocation("/settlement?view=daily"); }}
+                className="w-full py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-accent/40 transition-colors">
+                자세히 보기 →
+              </button>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 월 매출 모달 */}
+      <Dialog open={monthlyModalOpen} onOpenChange={setMonthlyModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-blue-500" />
+              이번달 매출
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">{currentYearMonth.replace("-", "년 ")}월</p>
+          </DialogHeader>
+          {!monthlySettlement ? (
+            <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "수업 횟수", value: `${monthlySettlement.sessionCount}회`, color: "text-emerald-500" },
+                  { label: "총 매출", value: `${monthlySettlement.revenue.toLocaleString()}원`, color: "text-blue-500" },
+                  { label: "정산액", value: `${monthlySettlement.settlementAmount.toLocaleString()}원`, color: "text-violet-500" },
+                  { label: "세후 정산", value: `${monthlySettlement.afterTax.toLocaleString()}원`, color: "text-violet-600" },
+                ].map(c => (
+                  <div key={c.label} className="rounded-xl bg-accent/30 border border-border p-3">
+                    <p className="text-[10px] text-muted-foreground mb-1">{c.label}</p>
+                    <p className={`text-sm font-bold ${c.color}`}>{c.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-3 text-xs text-muted-foreground px-1">
+                <span>신규 <b className="text-foreground">{monthlySettlement.newMembers}명</b></span>
+                <span>재등록 <b className="text-foreground">{monthlySettlement.rereg}명</b></span>
+                <span>노쇼 <b className="text-foreground">{monthlySettlement.noShow}건</b></span>
+                <span>정산율 <b className="text-foreground">{monthlySettlement.settlementRate}%</b></span>
+              </div>
+              {monthlyRevenue && monthlyRevenue.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-muted-foreground mb-2">최근 6개월 매출</p>
+                  <div className="flex items-end gap-1.5 h-16">
+                    {(() => {
+                      const max = Math.max(...monthlyRevenue.map(r => r.매출), 1);
+                      return monthlyRevenue.map((r, i) => (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                          <div className="w-full rounded-t-md bg-blue-500/20 relative" style={{ height: `${Math.max((r.매출 / max) * 48, 4)}px` }}>
+                            {i === monthlyRevenue.length - 1 && (
+                              <div className="absolute inset-0 rounded-t-md bg-blue-500/60" />
+                            )}
+                          </div>
+                          <p className="text-[9px] text-muted-foreground">{r.month}</p>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+              <button onClick={() => { setMonthlyModalOpen(false); setLocation("/settlement?view=monthly"); }}
+                className="w-full py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-accent/40 transition-colors">
+                자세히 보기 →
+              </button>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 만료 임박 모달 */}
       <Dialog open={expiringModalOpen} onOpenChange={setExpiringModalOpen}>
