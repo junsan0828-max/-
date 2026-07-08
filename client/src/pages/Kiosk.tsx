@@ -13,6 +13,7 @@ export default function KioskPage() {
   const [stage, setStage] = useState<Stage>("input");
   const [memberName, setMemberName] = useState("");
   const [pointsEarned, setPointsEarned] = useState(0);
+  const [uniformEnd, setUniformEnd] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(nowTimeStr());
   const inputRef = useRef<HTMLInputElement>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,6 +33,7 @@ export default function KioskPage() {
     onSuccess: (data) => {
       setMemberName(data.name);
       setPointsEarned(data.pointsEarned);
+      setUniformEnd(data.uniformEnd ?? null);
       setStage(data.alreadyCheckedIn ? "already" : "success");
       scheduleReset();
     },
@@ -160,6 +162,14 @@ export default function KioskPage() {
                 </p>
               </div>
             )}
+            {uniformEnd && (
+              <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-left">
+                <p className="text-white/50 text-xs mb-1">운동복 서비스</p>
+                <p className="text-white text-sm font-semibold">
+                  이용 가능 &nbsp;·&nbsp; <span className="text-emerald-400">{uniformEnd.replace(/-/g, ".")} 까지</span>
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -175,6 +185,14 @@ export default function KioskPage() {
               <p className="text-amber-400 font-semibold mt-1">오늘 이미 출입이 확인되었습니다</p>
               <p className="text-white/40 text-sm mt-0.5">즐거운 운동 되세요!</p>
             </div>
+            {uniformEnd && (
+              <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-left">
+                <p className="text-white/50 text-xs mb-1">운동복 서비스</p>
+                <p className="text-white text-sm font-semibold">
+                  이용 가능 &nbsp;·&nbsp; <span className="text-emerald-400">{uniformEnd.replace(/-/g, ".")} 까지</span>
+                </p>
+              </div>
+            )}
           </div>
         )}
 

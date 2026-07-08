@@ -4500,7 +4500,21 @@ const kioskRouter = t.router({
       );
 
       if (existing.rows[0]) {
-        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0 };
+        // 이미 출입한 경우에도 운동복 정보 조회
+        let uniformEndAlready: string | null = null;
+        try {
+          const ur = await pool.query(
+            `SELECT ($1::date + (duration || ' months')::interval)::date::text as end_date
+             FROM revenue_entries
+             WHERE "memberId" = $2 AND type = '기타' AND "programDetail" ILIKE '%운동복%'
+               AND "startDate" IS NOT NULL AND duration IS NOT NULL
+             ORDER BY "paymentDate" DESC LIMIT 1`,
+            [today, member.id]
+          );
+          const ed = ur.rows[0]?.end_date as string | undefined;
+          if (ed && ed >= today) uniformEndAlready = ed;
+        } catch {}
+        return { name: member.name, alreadyCheckedIn: true, pointsEarned: 0, uniformEnd: uniformEndAlready };
       }
 
       // 키오스크 출입 기록 (trainerId=0: 시스템/키오스크)
@@ -4536,7 +4550,37 @@ const kioskRouter = t.router({
         console.error("kiosk point error:", e);
       }
 
-      return { name: member.name, alreadyCheckedIn: false, pointsEarned };
+      // 운동복 서비스 기간 조회 (revenue_entries type='기타', programDetail LIKE '%운동복%')
+      let uniformEnd: string | null = null;
+      try {
+        const uniformRes = await pool.query(
+          `SELECT "startDate", duration
+           FROM revenue_entries
+           WHERE "memberId" = $1
+             AND type = '기타'
+             AND "programDetail" ILIKE '%운동복%'
+             AND "startDate" IS NOT NULL
+             AND duration IS NOT NULL
+           ORDER BY "paymentDate" DESC
+           LIMIT 1`,
+          [member.id]
+        );
+        if (uniformRes.rows[0]) {
+          const { startDate, duration } = uniformRes.rows[0] as { startDate: string; duration: number };
+          const endRes = await pool.query(
+            `SELECT ($1::date + ($2 || ' months')::interval)::date::text as end_date`,
+            [startDate, duration]
+          );
+          const endDate = endRes.rows[0]?.end_date as string | undefined;
+          if (endDate && endDate >= today) {
+            uniformEnd = endDate;
+          }
+        }
+      } catch (e) {
+        console.error("kiosk uniform check error:", e);
+      }
+
+      return { name: member.name, alreadyCheckedIn: false, pointsEarned, uniformEnd };
     }),
 });
 
