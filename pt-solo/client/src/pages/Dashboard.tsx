@@ -578,7 +578,7 @@ function TrainerDashboard() {
       <div className="pt-1">
         <p className="text-xs font-semibold text-muted-foreground tracking-widest uppercase">안녕하세요</p>
         <h1 className="text-[22px] font-bold tracking-tight mt-0.5 leading-snug">
-          {trainerName}님,<br />
+          스테퍼님,<br />
           오늘 <span className="text-primary">무엇을 시작</span>할까요?
         </h1>
       </div>
