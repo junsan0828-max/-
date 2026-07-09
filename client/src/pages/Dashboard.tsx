@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Users, Activity, Dumbbell, TrendingUp, Calendar,
   AlertTriangle, UserPlus, ChevronRight, UserCog, RefreshCw, Clock, BookOpen, Trash2, UserCheck,
+  ListChecks, User, Wallet, BarChart2, ClipboardCheck, Receipt,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -479,93 +480,82 @@ function TrainerDashboard() {
       )}
 
       {/* 빠른 메뉴 */}
-      <div className="space-y-4">
-        {/* 회원 관리 */}
-        <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center">
-              <Users className="h-3.5 w-3.5 text-violet-400" />
-            </span>
-            <span className="text-sm font-semibold text-foreground">회원 관리</span>
+      {(() => {
+        const QuickSection = ({
+          icon: Icon, iconBg, iconColor, title, cols, items,
+        }: {
+          icon: React.ElementType; iconBg: string; iconColor: string; title: string;
+          cols: string;
+          items: { label: string; icon: React.ElementType; color: string; onClick: () => void }[];
+        }) => (
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center`}>
+                <Icon className={`h-3.5 w-3.5 ${iconColor}`} />
+              </span>
+              <span className="text-sm font-semibold text-foreground">{title}</span>
+            </div>
+            <div className={`grid ${cols} gap-2`}>
+              {items.map((btn) => (
+                <button
+                  key={btn.label}
+                  onClick={btn.onClick}
+                  className="flex flex-col items-center gap-2 py-3 px-1 rounded-xl bg-accent/20 hover:bg-accent/40 active:scale-95 transition-all"
+                >
+                  <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${btn.color}`}>
+                    <btn.icon className="h-5 w-5" />
+                  </span>
+                  <span className="text-[11px] font-medium text-foreground leading-tight text-center">{btn.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: "회원 목록", icon: Users, color: "bg-violet-500/10 text-violet-400", onClick: () => setLocation("/members") },
-              { label: "만료 임박", icon: Clock, color: "bg-yellow-500/10 text-yellow-400", onClick: () => setTodayModalOpen(false) || setLocation("/members?filter=expiring") },
-              { label: "장기 미출석", icon: AlertTriangle, color: "bg-red-500/10 text-red-400", onClick: () => setLocation("/members") },
-            ].map((btn) => (
-              <button
-                key={btn.label}
-                onClick={btn.onClick}
-                className="flex flex-col items-center gap-2 py-3 px-2 rounded-xl bg-accent/20 hover:bg-accent/40 active:scale-95 transition-all"
-              >
-                <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${btn.color}`}>
-                  <btn.icon className="h-5 w-5" />
-                </span>
-                <span className="text-[11px] font-medium text-foreground leading-tight text-center">{btn.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        );
 
-        {/* 수업 */}
-        <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-              <Dumbbell className="h-3.5 w-3.5 text-emerald-400" />
-            </span>
-            <span className="text-sm font-semibold text-foreground">수업</span>
+        return (
+          <div className="space-y-4">
+            <QuickSection
+              icon={Users} iconBg="bg-violet-500/15" iconColor="text-violet-400"
+              title="회원 관리" cols="grid-cols-3"
+              items={[
+                { label: "회원 목록", icon: Users, color: "bg-violet-500/10 text-violet-400", onClick: () => setLocation("/members") },
+                { label: "회원 등록", icon: UserPlus, color: "bg-indigo-500/10 text-indigo-400", onClick: () => setRegisterModalOpen(true) },
+                { label: "만료 임박", icon: Clock, color: "bg-yellow-500/10 text-yellow-400", onClick: () => setLocation("/members") },
+                { label: "미수금", icon: Wallet, color: "bg-orange-500/10 text-orange-400", onClick: () => setLocation("/members") },
+                { label: "재등록 안내", icon: RefreshCw, color: "bg-blue-500/10 text-blue-400", onClick: () => setLocation("/members") },
+                { label: "장기 미출석", icon: AlertTriangle, color: "bg-red-500/10 text-red-400", onClick: () => setLocation("/members") },
+              ]}
+            />
+            <QuickSection
+              icon={Dumbbell} iconBg="bg-emerald-500/15" iconColor="text-emerald-400"
+              title="수업" cols="grid-cols-4"
+              items={[
+                { label: "수업 하기", icon: Dumbbell, color: "bg-emerald-500/10 text-emerald-400", onClick: () => setLocation("/attendance") },
+                { label: "오늘 출석", icon: ClipboardCheck, color: "bg-blue-500/10 text-blue-400", onClick: () => setTodayModalOpen(true) },
+                { label: "PT 관리", icon: Activity, color: "bg-violet-500/10 text-violet-400", onClick: () => setLocation("/pt") },
+                { label: "수업 일지", icon: BookOpen, color: "bg-amber-500/10 text-amber-400", onClick: () => setLocation("/pt") },
+              ]}
+            />
+            <QuickSection
+              icon={TrendingUp} iconBg="bg-teal-500/15" iconColor="text-teal-400"
+              title="매출 & 정산" cols="grid-cols-3"
+              items={[
+                { label: "일일 정산", icon: Receipt, color: "bg-teal-500/10 text-teal-400", onClick: () => setLocation("/trainer-settlement?view=daily") },
+                { label: "월 정산", icon: BarChart2, color: "bg-sky-500/10 text-sky-400", onClick: () => setLocation("/trainer-settlement?view=monthly") },
+                { label: "월 지출", icon: TrendingUp, color: "bg-pink-500/10 text-pink-400", onClick: () => setLocation("/expenses") },
+              ]}
+            />
+            <QuickSection
+              icon={ListChecks} iconBg="bg-sky-500/15" iconColor="text-sky-400"
+              title="나의 업무" cols="grid-cols-2"
+              items={[
+                { label: "업무 목록", icon: ListChecks, color: "bg-sky-500/10 text-sky-400", onClick: () => setLocation("/my-work") },
+                { label: "내 프로필", icon: User, color: "bg-gray-500/10 text-gray-400", onClick: () => setLocation("/profile") },
+              ]}
+            />
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { label: "수업 하기", icon: Dumbbell, color: "bg-emerald-500/10 text-emerald-400", onClick: () => setLocation("/attendance") },
-              { label: "오늘 출석", icon: Calendar, color: "bg-blue-500/10 text-blue-400", onClick: () => setTodayModalOpen(true) },
-              { label: "이번달 수업", icon: Activity, color: "bg-violet-500/10 text-violet-400", onClick: () => setLocation("/pt") },
-              { label: "수업 일지", icon: BookOpen, color: "bg-amber-500/10 text-amber-400", onClick: () => setLocation("/pt") },
-            ].map((btn) => (
-              <button
-                key={btn.label}
-                onClick={btn.onClick}
-                className="flex flex-col items-center gap-2 py-3 px-1 rounded-xl bg-accent/20 hover:bg-accent/40 active:scale-95 transition-all"
-              >
-                <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${btn.color}`}>
-                  <btn.icon className="h-5 w-5" />
-                </span>
-                <span className="text-[11px] font-medium text-foreground leading-tight text-center">{btn.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 매출 & 정산 */}
-        <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-teal-500/15 flex items-center justify-center">
-              <TrendingUp className="h-3.5 w-3.5 text-teal-400" />
-            </span>
-            <span className="text-sm font-semibold text-foreground">매출 & 정산</span>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { label: "일일 매출", icon: TrendingUp, color: "bg-teal-500/10 text-teal-400", onClick: () => setLocation("/trainer-settlement?view=daily") },
-              { label: "월 매출", icon: Activity, color: "bg-blue-500/10 text-blue-400", onClick: () => setLocation("/trainer-settlement?view=monthly") },
-              { label: "미수금", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-400", onClick: () => setLocation("/members") },
-              { label: "월 지출", icon: ChevronRight, color: "bg-pink-500/10 text-pink-400", onClick: () => setLocation("/expenses") },
-            ].map((btn) => (
-              <button
-                key={btn.label}
-                onClick={btn.onClick}
-                className="flex flex-col items-center gap-2 py-3 px-1 rounded-xl bg-accent/20 hover:bg-accent/40 active:scale-95 transition-all"
-              >
-                <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${btn.color}`}>
-                  <btn.icon className="h-5 w-5" />
-                </span>
-                <span className="text-[11px] font-medium text-foreground leading-tight text-center">{btn.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       <div className="grid grid-cols-2 gap-3">
         {[
