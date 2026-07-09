@@ -1766,6 +1766,12 @@ export default function RegistrationManagement() {
                     </div>
                   </div>
                   <div>
+                    <label className="text-xs text-muted-foreground">만료일</label>
+                    <input type="date" value={uniformForm.endDate} onChange={e => setUniformForm(f => ({ ...f, endDate: e.target.value }))}
+                      className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
+                    <p className="text-[11px] text-muted-foreground/70 mt-1">만료일을 오늘 이후로 두면 착용중으로 유지됩니다.</p>
+                  </div>
+                  <div>
                     <label className="text-xs text-muted-foreground">메모</label>
                     <input value={uniformForm.memo} onChange={e => setUniformForm(f => ({ ...f, memo: e.target.value }))}
                       placeholder="특이사항" className="w-full mt-1 bg-background border border-border rounded-lg px-3 py-2 text-sm" />
