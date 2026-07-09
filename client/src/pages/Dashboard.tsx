@@ -478,6 +478,95 @@ function TrainerDashboard() {
         </div>
       )}
 
+      {/* 빠른 메뉴 */}
+      <div className="space-y-4">
+        {/* 회원 관리 */}
+        <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center">
+              <Users className="h-3.5 w-3.5 text-violet-400" />
+            </span>
+            <span className="text-sm font-semibold text-foreground">회원 관리</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "회원 목록", icon: Users, color: "bg-violet-500/10 text-violet-400", onClick: () => setLocation("/members") },
+              { label: "만료 임박", icon: Clock, color: "bg-yellow-500/10 text-yellow-400", onClick: () => setTodayModalOpen(false) || setLocation("/members?filter=expiring") },
+              { label: "장기 미출석", icon: AlertTriangle, color: "bg-red-500/10 text-red-400", onClick: () => setLocation("/members") },
+            ].map((btn) => (
+              <button
+                key={btn.label}
+                onClick={btn.onClick}
+                className="flex flex-col items-center gap-2 py-3 px-2 rounded-xl bg-accent/20 hover:bg-accent/40 active:scale-95 transition-all"
+              >
+                <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${btn.color}`}>
+                  <btn.icon className="h-5 w-5" />
+                </span>
+                <span className="text-[11px] font-medium text-foreground leading-tight text-center">{btn.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 수업 */}
+        <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+              <Dumbbell className="h-3.5 w-3.5 text-emerald-400" />
+            </span>
+            <span className="text-sm font-semibold text-foreground">수업</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "수업 하기", icon: Dumbbell, color: "bg-emerald-500/10 text-emerald-400", onClick: () => setLocation("/attendance") },
+              { label: "오늘 출석", icon: Calendar, color: "bg-blue-500/10 text-blue-400", onClick: () => setTodayModalOpen(true) },
+              { label: "이번달 수업", icon: Activity, color: "bg-violet-500/10 text-violet-400", onClick: () => setLocation("/pt") },
+              { label: "수업 일지", icon: BookOpen, color: "bg-amber-500/10 text-amber-400", onClick: () => setLocation("/pt") },
+            ].map((btn) => (
+              <button
+                key={btn.label}
+                onClick={btn.onClick}
+                className="flex flex-col items-center gap-2 py-3 px-1 rounded-xl bg-accent/20 hover:bg-accent/40 active:scale-95 transition-all"
+              >
+                <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${btn.color}`}>
+                  <btn.icon className="h-5 w-5" />
+                </span>
+                <span className="text-[11px] font-medium text-foreground leading-tight text-center">{btn.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 매출 & 정산 */}
+        <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-teal-500/15 flex items-center justify-center">
+              <TrendingUp className="h-3.5 w-3.5 text-teal-400" />
+            </span>
+            <span className="text-sm font-semibold text-foreground">매출 & 정산</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "일일 매출", icon: TrendingUp, color: "bg-teal-500/10 text-teal-400", onClick: () => setLocation("/trainer-settlement?view=daily") },
+              { label: "월 매출", icon: Activity, color: "bg-blue-500/10 text-blue-400", onClick: () => setLocation("/trainer-settlement?view=monthly") },
+              { label: "미수금", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-400", onClick: () => setLocation("/members") },
+              { label: "월 지출", icon: ChevronRight, color: "bg-pink-500/10 text-pink-400", onClick: () => setLocation("/expenses") },
+            ].map((btn) => (
+              <button
+                key={btn.label}
+                onClick={btn.onClick}
+                className="flex flex-col items-center gap-2 py-3 px-1 rounded-xl bg-accent/20 hover:bg-accent/40 active:scale-95 transition-all"
+              >
+                <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${btn.color}`}>
+                  <btn.icon className="h-5 w-5" />
+                </span>
+                <span className="text-[11px] font-medium text-foreground leading-tight text-center">{btn.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         {[
           { label: "전체 회원", value: `${stats?.totalMembers ?? 0}명`, icon: Users, color: "text-blue-400", onClick: () => setLocation("/members") },
