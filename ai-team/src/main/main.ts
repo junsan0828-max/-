@@ -93,7 +93,8 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
 
 function setupTray() {
   try {
-    tray = new Tray(nativeImage.createEmpty());
+    const iconPath = join(__dirname, "..", "..", "assets", "tray-icon.png");
+    tray = new Tray(nativeImage.createFromPath(iconPath));
     tray.setToolTip("자이언트짐 AI 운영팀");
     tray.setContextMenu(
       Menu.buildFromTemplate([
@@ -117,10 +118,13 @@ app.whenReady().then(() => {
     markContacted(category, name, phone);
     return { success: true };
   });
-  ipcMain.handle("run-command", async (_e, instruction: string) => {
+  ipcMain.handle("run-command", async (_e, instruction: string, agentId?: string) => {
+    const agent = agentId || "jay";
     send("command-state", "thinking");
-    const result = await runCommand(instruction);
+    agentState(agent, "working");
+    const result = await runCommand(instruction, agentId);
     send("command-state", "idle");
+    agentState(agent, "done", "답변 완료!");
     return result;
   });
 

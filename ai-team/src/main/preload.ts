@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld("jay", {
   copyText: (text: string) => clipboard.writeText(text),
   markContacted: (category: string, name: string, phone: string | null) =>
     ipcRenderer.invoke("mark-contacted", category, name, phone),
-  runCommand: (instruction: string) => ipcRenderer.invoke("run-command", instruction),
+  runCommand: (instruction: string, agentId?: string) => ipcRenderer.invoke("run-command", instruction, agentId),
   onCommandState: (cb: (state: string) => void) => ipcRenderer.on("command-state", (_e, s) => cb(s)),
   onAgentState: (cb: (payload: { agent: string; state: string; bubble?: string }) => void) =>
     ipcRenderer.on("agent-state", (_e, p) => cb(p)),

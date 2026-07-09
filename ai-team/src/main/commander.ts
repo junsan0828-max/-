@@ -18,7 +18,16 @@ export interface CommandResult {
   reply: string;
 }
 
-export async function runCommand(instruction: string): Promise<CommandResult> {
+function resolvePersona(team: any, agentId: string): { name: string; persona: string } {
+  if (agentId === "jay" || !agentId) {
+    return { name: team.orchestrator.name, persona: team.orchestrator.persona };
+  }
+  const member = team.team.find((m: any) => m.id === agentId);
+  if (member?.persona) return { name: member.name, persona: member.persona };
+  return { name: team.orchestrator.name, persona: team.orchestrator.persona };
+}
+
+export async function runCommand(instruction: string, agentId = "jay"): Promise<CommandResult> {
   const trimmed = instruction.trim();
   if (!trimmed) return { isAI: false, reply: "지시 내용을 입력해주세요." };
 
@@ -34,13 +43,15 @@ export async function runCommand(instruction: string): Promise<CommandResult> {
     const context = await gatherContext();
     const team = loadJson("team.json");
     const mindmap = loadJson("mindmap.json");
+    const { name, persona } = resolvePersona(team, agentId);
 
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: MODEL,
       max_tokens: 2000,
-      system: `${team.orchestrator.persona}
-사장님이 자유롭게 지시하거나 질문하면, 아래 데이터를 참고해 답변하거나 요청한 초안(문자·콘텐츠·리스트 등)을 작성한다.
+      system: `${persona}
+당신은 ${name}이다. 사장님이 자유롭게 지시하거나 질문하면, 아래 데이터를 참고해 본인 담당 업무 관점에서 답변하거나 요청한 초안(문자·콘텐츠·리스트 등)을 작성한다.
+담당 범위를 벗어난 질문이면 "그건 제 담당이 아니라서요, ${team.orchestrator.name}한테 물어봐주세요" 식으로 자연스럽게 안내해도 된다.
 
 중요한 제약:
 - 문자 발송, 콘텐츠 게시, 영상 업로드처럼 실제로 외부에 나가는 행동은 절대 하지 않는다 (할 수도 없다).
