@@ -106,7 +106,7 @@ function FitStepPlusApp({ trainerId }: { trainerId: number }) {
           <Route path={`/fit-step-plus/${trainerId}/workout`}>{() => <FitStepPlusWorkout />}</Route>
           <Route path={`/fit-step-plus/${trainerId}/membership`}>{() => <FitStepPlusMembership />}</Route>
           <Route path={`/fit-step-plus/${trainerId}/profile`}>{() => <FitStepPlusProfile />}</Route>
-          <Route>{() => <Redirect to={`/fit-step-plus/${trainerId}`} />}</Route>
+          <Route>{() => <Redirect to={`/fit-step-plus/${trainerId}`} replace />}</Route>
         </Switch>
       </ErrorBoundary>
     </FitStepPlusLayout>
@@ -168,7 +168,7 @@ function App() {
       <ErrorBoundary>
         <Switch>
           <Route path="/">{() => <Dashboard />}</Route>
-          <Route path="/members">{() => <Redirect to="/pt" />}</Route>
+          <Route path="/members">{() => <Redirect to="/pt" replace />}</Route>
           <Route path="/members/new">{() => <MemberForm />}</Route>
           <Route path="/members/:id/edit">
             {(params) => <MemberForm memberId={parseInt(params.id!)} />}
@@ -191,7 +191,7 @@ function App() {
           <Route path="/workshop">{() => <Workshop />}</Route>
           <Route path="/booking">{() => <BookingManagementPage />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
-          <Route path="/points">{() => <Redirect to="/profile" />}</Route>
+          <Route path="/points">{() => <Redirect to="/profile" replace />}</Route>
           <Route path="/feedback">{() => <TrainerFeedback />}</Route>
           <Route path="/admin/trainers/:id">
             {(params) => <AdminTrainerDetail trainerId={parseInt(params.id!)} />}
@@ -203,7 +203,7 @@ function App() {
           <Route path="/admin/fit-step-plus">{() => <AdminFitStepPlus />}</Route>
           <Route path="/admin/plans">{() => <AdminPlans />}</Route>
           <Route path="/admin/feedback">{() => <AdminFeedback />}</Route>
-          <Route>{() => <Redirect to="/" />}</Route>
+          <Route>{() => <Redirect to="/" replace />}</Route>
         </Switch>
       </ErrorBoundary>
     </Layout>
