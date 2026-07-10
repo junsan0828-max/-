@@ -1269,6 +1269,51 @@ async function initDatabase() {
     console.error("빈 복제 PT 패키지 정리 오류:", e);
   }
 
+  // ── PT 세션 ↔ 패키지 연결/단가 보정 (정산 단가 0원 방지) ──────────────────────
+  try {
+    // 1) 단가 없는 패키지: 결제금액 ÷ 총세션수로 pricePerSession 채우기
+    await pool.query(`
+      UPDATE pt_packages
+      SET "pricePerSession" = ROUND("paymentAmount"::numeric / "totalSessions")
+      WHERE COALESCE("pricePerSession",0) = 0
+        AND COALESCE("paymentAmount",0) > 0 AND COALESCE("totalSessions",0) > 0
+    `);
+    // 2) 결제금액 자체가 없는 패키지: 연결된 매출(revenueEntryId)에서 채우기
+    await pool.query(`
+      UPDATE pt_packages p
+      SET "paymentAmount" = r."paidAmount",
+          "pricePerSession" = CASE WHEN COALESCE(p."totalSessions",0) > 0
+                                   THEN ROUND(r."paidAmount"::numeric / p."totalSessions")
+                                   ELSE p."pricePerSession" END
+      FROM revenue_entries r
+      WHERE p."revenueEntryId" = r.id
+        AND COALESCE(p."paymentAmount",0) = 0
+        AND COALESCE(r."paidAmount",0) > 0
+    `);
+    // 3) 세션의 packageId가 NULL/삭제됨/단가없음 → 회원의 "단가 있는 활성 패키지"로 재연결
+    const relinked = await pool.query(`
+      UPDATE pt_session_logs s
+      SET "packageId" = sub.pid
+      FROM (
+        SELECT DISTINCT ON (p."memberId") p."memberId" AS mid, p.id AS pid
+        FROM pt_packages p
+        WHERE COALESCE(p."pricePerSession",0) > 0 OR COALESCE(p."paymentAmount",0) > 0
+        ORDER BY p."memberId", (p.status = 'active') DESC, p."createdAt" DESC
+      ) sub
+      WHERE s."memberId" = sub.mid
+        AND (
+          s."packageId" IS NULL
+          OR s."packageId" NOT IN (SELECT id FROM pt_packages)
+          OR s."packageId" IN (SELECT id FROM pt_packages
+                               WHERE COALESCE("pricePerSession",0) = 0 AND COALESCE("paymentAmount",0) = 0)
+        )
+        AND s."packageId" IS DISTINCT FROM sub.pid
+    `);
+    if ((relinked.rowCount ?? 0) > 0) console.log(`🔗 PT 세션 패키지 재연결: ${relinked.rowCount}건`);
+  } catch (e) {
+    console.error("PT 세션-패키지 연결 보정 오류:", e);
+  }
+
   // ── 전체 회원 운동시작일/운동만료일 자동 보정 (전체 적용) ─────────────────
   try {
     const allMembers = await db

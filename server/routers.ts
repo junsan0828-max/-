@@ -1331,9 +1331,26 @@ const ptRouter = t.router({
       const [memberRow] = await db.select({ name: members.name }).from(members).where(eq(members.id, input.memberId)).limit(1);
       const memberNameSnapshot = memberRow?.name ?? null;
 
+      // packageId 자동 연결: 회원의 활성 패키지 중 단가 정보가 있는 것을 우선 선택
+      // (연결 누락 시 정산 단가가 0원이 되는 문제 방지)
+      const memberPkgs = await db.select({
+        id: ptPackages.id, pricePerSession: ptPackages.pricePerSession,
+        paymentAmount: ptPackages.paymentAmount, status: ptPackages.status,
+      }).from(ptPackages)
+        .where(eq(ptPackages.memberId, input.memberId))
+        .orderBy(desc(ptPackages.createdAt));
+      const priced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
+      const resolvedPackageId =
+        memberPkgs.find(p => p.status === "active" && priced(p))?.id ??
+        memberPkgs.find(p => p.status === "active")?.id ??
+        memberPkgs.find(p => priced(p))?.id ??
+        memberPkgs[0]?.id ??
+        null;
+
       const { overrideTrainerId: _, isDraft, ...logFields } = input;
       const [row] = await db.insert(ptSessionLogs).values({
         ...logFields,
+        packageId: resolvedPackageId ?? undefined,
         memberName: memberNameSnapshot,
         trainerId: trainerId ?? 0,
         isDraft: isDraft ? 1 : 0,
@@ -2429,8 +2446,11 @@ const trainersRouter = t.router({
           packageName: ptPackages.packageName,
           paymentMethod: ptPackages.paymentMethod,
         }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), eq(ptPackages.status, "active"))).orderBy(desc(ptPackages.createdAt));
+        // 단가 있는 활성 패키지를 우선 폴백으로 (없으면 최신 활성)
+        const isPriced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
         for (const p of fallbackPkgs) {
-          if (!memberPkgMap[p.memberId]) memberPkgMap[p.memberId] = p;
+          const cur = memberPkgMap[p.memberId];
+          if (!cur || (isPriced(p) && !isPriced(cur))) memberPkgMap[p.memberId] = p;
         }
       }
 
