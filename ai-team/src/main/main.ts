@@ -8,8 +8,9 @@ import { analyzeFunnel } from "./dataAgent";
 import { generateContentIdeas } from "./luna";
 import { markContacted } from "./store";
 import { runCommand } from "./commander";
-import { pushDailyReport } from "./notion";
+import { pushDailyReport, pushPayrollReport } from "./notion";
 import { buildIndex, backupSpreadsheets } from "./drive/archive";
+import { runPayroll, writePayrollSheet } from "./payroll";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -101,6 +102,28 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
   }
 }
 
+// 급여 정산 AI: 매월 9일, 전월 트레이너 정산 오류 점검 → 문제없으면 구글 시트 작성 → 대표에게 보고.
+async function runPayrollJob(reason: string) {
+  send("log", `급여 정산 AI가 시작했어요 (${reason})`);
+  agentState("payroll", "working");
+  try {
+    const result = await runPayroll();
+    if (result.issues.length > 0) {
+      send("log", `급여 정산 중단 — 오류 ${result.issues.length}건 발견`);
+      agentState("payroll", "done", `오류 ${result.issues.length}건 발견, 정산 중단`);
+      await pushPayrollReport(result);
+      return;
+    }
+    const { url } = await writePayrollSheet(result);
+    send("log", `급여 정산 완료 — 구글 시트 작성 완료 (${result.yearMonth})`);
+    agentState("payroll", "done", `${result.yearMonth} 정산 완료!`);
+    await pushPayrollReport(result, url);
+  } catch (err: any) {
+    send("log", `급여 정산 오류: ${err?.message ?? err}`);
+    agentState("payroll", "done", "오류 발생");
+  }
+}
+
 function setupTray() {
   try {
     const iconPath = join(__dirname, "..", "..", "assets", "tray-icon.png");
@@ -110,6 +133,7 @@ function setupTray() {
       Menu.buildFromTemplate([
         { label: "창 열기", click: () => (win ? win.show() : createWindow()) },
         { label: "지금 분석", click: () => runJay("트레이 수동") },
+        { label: "급여 정산 지금 실행", click: () => runPayrollJob("트레이 수동") },
         { type: "separator" },
         { label: "종료", click: () => app.quit() },
       ])
@@ -145,6 +169,12 @@ app.whenReady().then(() => {
   const spec = process.env.DAILY_CRON || "0 9 * * *";
   if (cron.validate(spec)) {
     cron.schedule(spec, () => runJay("매일 예약"));
+  }
+
+  // 급여 정산 AI: 매월 9일 09:00 (기본값), 전월 급여 정산
+  const payrollSpec = process.env.PAYROLL_CRON || "0 9 9 * *";
+  if (cron.validate(payrollSpec)) {
+    cron.schedule(payrollSpec, () => runPayrollJob("매월 9일 예약"));
   }
 
   app.on("activate", () => {

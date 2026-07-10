@@ -13,7 +13,7 @@ const CONFIG: GoogleAuthConfig = {
   redirectPort: 53683,
   scopes: [
     "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    "https://www.googleapis.com/auth/spreadsheets",
   ],
   label: "구글 드라이브",
 };

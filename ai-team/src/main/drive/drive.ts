@@ -82,3 +82,45 @@ export async function readDocText(fileId: string): Promise<string> {
   const res = await drive.files.export({ fileId, mimeType: "text/plain" }, { responseType: "text" });
   return res.data as string;
 }
+
+/** 폴더 안에서 이름이 정확히 일치하는 파일을 찾는다 (없으면 undefined). */
+export async function findFileInFolder(name: string, parentFolderId: string): Promise<string | undefined> {
+  const drive = await getDrive();
+  const q = `name = '${name.replace(/'/g, "\\'")}' and '${parentFolderId}' in parents and trashed = false`;
+  const res = await drive.files.list({ q, fields: "files(id)" });
+  return res.data.files?.[0]?.id ?? undefined;
+}
+
+/** 지정한 폴더 안에 새 구글 스프레드시트를 만든다. */
+export async function createSpreadsheet(name: string, parentFolderId: string): Promise<string> {
+  const drive = await getDrive();
+  const res = await drive.files.create({
+    requestBody: { name, mimeType: "application/vnd.google-apps.spreadsheet", parents: [parentFolderId] },
+    fields: "id",
+  });
+  if (!res.data.id) throw new Error(`스프레드시트 생성 실패: ${name}`);
+  return res.data.id;
+}
+
+/** 시트(탭)가 없으면 만든다. */
+export async function ensureSheetTab(spreadsheetId: string, tabName: string): Promise<void> {
+  const sheets = await getSheets();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const exists = (meta.data.sheets ?? []).some((s) => s.properties?.title === tabName);
+  if (exists) return;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+  });
+}
+
+/** 지정한 범위(예: "시트이름!A1")부터 2차원 배열 값을 써넣는다. */
+export async function writeValues(spreadsheetId: string, range: string, values: (string | number)[][]): Promise<void> {
+  const sheets = await getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values },
+  });
+}

@@ -196,7 +196,7 @@ export async function backupSpreadsheets(index: DriveIndex): Promise<{ backed: n
 }
 
 /** 이름의 폴더를 찾고, 없으면 만든다 (parentId 생략 시 내 드라이브 최상위 기준). */
-async function findOrCreateFolder(name: string, parentId?: string): Promise<string> {
+export async function findOrCreateFolder(name: string, parentId?: string): Promise<string> {
   const drive = await getDrive();
   const escaped = name.replace(/'/g, "\\'");
   const q =

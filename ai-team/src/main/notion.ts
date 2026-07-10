@@ -5,6 +5,7 @@ import { OrchestratorResult } from "./orchestrator";
 import { MinaResult } from "./mina";
 import { FunnelResult } from "./dataAgent";
 import { ContentResult } from "./luna";
+import { PayrollResult } from "./payroll";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -115,6 +116,56 @@ export async function pushDailyReport(
           [titleProp]: { title: [{ text: { content: `자이언트짐 AI 브리핑 - ${dateStr}` } }] },
         },
         children: children.slice(0, 100), // Notion API 한 번 요청당 최대 100 블록
+      }),
+    });
+
+    return { ok: true, url: page.url };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** 급여 정산 AI의 결과를 보고한다. 오류가 있으면 정산 중단 보고, 없으면 완료 보고. */
+export async function pushPayrollReport(result: PayrollResult, sheetUrl?: string): Promise<NotionPushResult> {
+  if (!isConfigured()) {
+    return { ok: false, error: "Notion 미설정 (.env에 NOTION_API_KEY/NOTION_DATABASE_ID 필요)" };
+  }
+
+  try {
+    const databaseId = process.env.NOTION_DATABASE_ID!;
+    const titleProp = await findTitleProperty(databaseId);
+    const hasIssues = result.issues.length > 0;
+
+    const children = hasIssues
+      ? [
+          heading(`🚨 ${result.yearMonth} 급여 정산 진행 중 — 오류 발견`),
+          paragraph(`오류 ${result.issues.length}건이 발견되어 정산을 중단했습니다. 수정 후 다시 정산할 수 있습니다.`),
+          ...result.issues.map((i) => bullet(`[${i.trainerName}] ${i.detail}`)),
+          heading("자동 점검 불가 항목 (참고용, 별도 확인 필요)"),
+          ...result.uncheckable.map((u) => bullet(u)),
+        ]
+      : [
+          heading(`✅ ${result.yearMonth} 급여 정산 완료`),
+          paragraph("단가 오류: 없음 / 중복 정산 의심: 없음"),
+          heading("트레이너별 지급액"),
+          ...result.trainers.map((t) =>
+            bullet(
+              `${t.trainerName} — 수업정산 ${t.afterTax.toLocaleString()}원 + 기본급(세후) ${t.basePayAfterTax.toLocaleString()}원 = 총 ${t.totalPay.toLocaleString()}원`
+            )
+          ),
+          ...(sheetUrl ? [paragraph(`구글 시트: ${sheetUrl}`)] : []),
+          heading("자동 점검 불가 항목 (참고용, 별도 확인 필요)"),
+          ...result.uncheckable.map((u) => bullet(u)),
+        ];
+
+    const page = await notionFetch("/pages", {
+      method: "POST",
+      body: JSON.stringify({
+        parent: { database_id: databaseId },
+        properties: {
+          [titleProp]: { title: [{ text: { content: `급여 정산 - ${result.yearMonth}` } }] },
+        },
+        children: children.slice(0, 100),
       }),
     });
 
