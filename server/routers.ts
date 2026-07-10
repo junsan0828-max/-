@@ -2312,10 +2312,22 @@ const trainersRouter = t.router({
           )),
       ]);
 
+      // 트레이너 본인 userId + 회원별 상담 담당자(consultantId) 조회
+      const [trainerRow] = await db.select({ userId: trainers.userId }).from(trainers).where(eq(trainers.id, input.trainerId)).limit(1);
+      const trainerUserId = trainerRow?.userId ?? null;
+
       // 신규 vs 재등록 구분: 이번달 이전에 패키지가 있으면 재등록
       const memberIds = [...new Set(monthPackages.map(p => p.memberId))];
+      const memberConsultant = new Map<number, number | null>();
+      if (memberIds.length > 0) {
+        const mrows = await db.select({ id: members.id, consultantId: members.consultantId })
+          .from(members).where(inArray(members.id, memberIds));
+        for (const mr of mrows) memberConsultant.set(mr.id, mr.consultantId ?? null);
+      }
+
       let reregCount = 0;
       let newCount = 0;
+      let revenue = 0;
       if (memberIds.length > 0) {
         await Promise.all(memberIds.map(async (memberId) => {
           const pkgsThisMonth = monthPackages.filter(p => p.memberId === memberId);
@@ -2328,16 +2340,24 @@ const trainersRouter = t.router({
               sql`${ptPackages.createdAt} < ${earliest.createdAt}`,
             ))
             .limit(1);
-          if (prior.length > 0) {
+          const isNewMember = prior.length === 0;
+          if (!isNewMember) {
             reregCount += pkgsThisMonth.length;
           } else {
             newCount += 1;
             reregCount += pkgsThisMonth.length - 1;
           }
+          // 매출 귀속: 신규배정 패키지는 상담 담당자 = 트레이너 본인일 때만 이 트레이너 매출로 인정.
+          // (상담 담당자가 다른 사람이면 그 신규 등록 매출은 트레이너 매출에서 제외)
+          const consultantId = memberConsultant.get(memberId) ?? null;
+          const consultantIsTrainer = consultantId == null || (trainerUserId != null && consultantId === trainerUserId);
+          for (const p of pkgsThisMonth) {
+            const isNewAssignPkg = isNewMember && p.id === earliest.id;
+            if (isNewAssignPkg && !consultantIsTrainer) continue; // 다른 상담 담당자의 신규배정 → 제외
+            revenue += p.paymentAmount ?? 0;
+          }
         }));
       }
-
-      const revenue = monthPackages.reduce((s, p) => s + (p.paymentAmount ?? 0), 0);
 
       return {
         sessions: Number(sessionsResult[0]?.count ?? 0),

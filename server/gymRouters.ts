@@ -519,6 +519,7 @@ const revenueRouter = t.router({
           status: "active",
           grade: "basic",
           branchId: resolvedBranchId ?? null,
+          consultantId: input.consultantId ?? undefined,   // 상담 담당자 기록 (매출 귀속 판단용)
           createdAt: now,
           updatedAt: now,
           ...extraFields,
