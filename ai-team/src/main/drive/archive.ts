@@ -9,8 +9,13 @@ import { readAllTabs, DriveFile } from "./drive";
 
 const OUTPUT_DIR = join(__dirname, "..", "..", "..", "output", "drive-backup");
 const SNAPSHOT_DIR = join(OUTPUT_DIR, "snapshots");
+const ORGANIZE_ROOT_FOLDER = "AI팀 자동분류";
+const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 export type DriveCategory = "재무·매출" | "회원 데이터" | "마케팅" | "인사·계약" | "교육 자료" | "운영 문서" | "기타";
+
+/** "기타"는 헬스장과 무관한 개인 파일이 대부분이라 실제 드라이브 정리 대상에서 제외한다. */
+const ORGANIZE_CATEGORIES: DriveCategory[] = ["재무·매출", "회원 데이터", "마케팅", "인사·계약", "교육 자료", "운영 문서"];
 
 const CATEGORY_RULES: [DriveCategory, RegExp][] = [
   ["재무·매출", /매출|재무|손익|결산|정산|비용|예산|성과 데이터표|경영 대시보드/],
@@ -188,4 +193,80 @@ export async function backupSpreadsheets(index: DriveIndex): Promise<{ backed: n
     await new Promise((r) => setTimeout(r, 500));
   }
   return { backed, skipped, unchanged };
+}
+
+/** 이름의 폴더를 찾고, 없으면 만든다 (parentId 생략 시 내 드라이브 최상위 기준). */
+async function findOrCreateFolder(name: string, parentId?: string): Promise<string> {
+  const drive = await getDrive();
+  const escaped = name.replace(/'/g, "\\'");
+  const q =
+    `name = '${escaped}' and mimeType = '${FOLDER_MIME}' and trashed = false` +
+    (parentId ? ` and '${parentId}' in parents` : "");
+  const found = await drive.files.list({ q, fields: "files(id)" });
+  const existingId = found.data.files?.[0]?.id;
+  if (existingId) return existingId;
+
+  const created = await drive.files.create({
+    requestBody: { name, mimeType: FOLDER_MIME, parents: parentId ? [parentId] : undefined },
+    fields: "id",
+  });
+  if (!created.data.id) throw new Error(`폴더 생성 실패: ${name}`);
+  return created.data.id;
+}
+
+/**
+ * 분류된 파일을 카테고리 폴더 안에 "바로가기(shortcut)"로 넣는다. 원본 파일은 원래 있던
+ * 위치에 그대로 두고 전혀 건드리지 않는다 (개인 구글 계정은 파일 하나가 폴더 여러 개에
+ * 동시에 속하는 걸 허용하지 않아, 실제로 옮기면 기존 정리 구조가 깨진다).
+ * "기타"로 분류된 개인/무관 파일은 대상에서 제외한다.
+ */
+export async function organizeDriveFolders(index: DriveIndex): Promise<{ added: number; alreadyIn: number; failed: number }> {
+  const drive = await getDrive();
+  const rootId = await findOrCreateFolder(ORGANIZE_ROOT_FOLDER);
+  const shortcutMime = "application/vnd.google-apps.shortcut";
+
+  let added = 0;
+  let alreadyIn = 0;
+  let failed = 0;
+
+  for (const category of ORGANIZE_CATEGORIES) {
+    const entries = index.byCategory[category] ?? [];
+    if (entries.length === 0) continue;
+    const folderId = await findOrCreateFolder(category, rootId);
+
+    // 이 폴더에 이미 만들어둔 바로가기 목록 (재실행 시 중복 생성 방지)
+    const existing = await drive.files.list({
+      q: `'${folderId}' in parents and mimeType = '${shortcutMime}' and trashed = false`,
+      fields: "files(shortcutDetails)",
+      pageSize: 1000,
+    });
+    const existingTargets = new Set(
+      (existing.data.files ?? []).map((f) => f.shortcutDetails?.targetId).filter((id): id is string => !!id)
+    );
+
+    for (const entry of entries) {
+      if (existingTargets.has(entry.id)) {
+        alreadyIn++;
+        continue;
+      }
+      try {
+        await drive.files.create({
+          requestBody: {
+            name: entry.name,
+            mimeType: shortcutMime,
+            parents: [folderId],
+            shortcutDetails: { targetId: entry.id },
+          },
+          fields: "id",
+        });
+        added++;
+      } catch (err) {
+        console.error(`정리 실패: ${entry.name} — ${err instanceof Error ? err.message : err}`);
+        failed++;
+      }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+
+  return { added, alreadyIn, failed };
 }

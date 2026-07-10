@@ -2,11 +2,12 @@
 // 실행:
 //   npm run drive -- search 매출
 //   npm run drive -- sheet <스프레드시트ID> [시트이름]
-//   npm run drive -- index    (파일 분류 정리)
-//   npm run drive -- backup   (분류 + 재무·회원 스프레드시트 로컬 백업)
+//   npm run drive -- index     (파일 분류 정리)
+//   npm run drive -- backup    (분류 + 재무·회원 스프레드시트 로컬 백업)
+//   npm run drive -- organize  (분류 + 드라이브에 카테고리 폴더 만들어 실제 파일 정리)
 import "dotenv/config";
 import { searchFiles, readSpreadsheet, listSheetTabs } from "./main/drive/drive";
-import { buildIndex, backupSpreadsheets } from "./main/drive/archive";
+import { buildIndex, backupSpreadsheets, organizeDriveFolders } from "./main/drive/archive";
 
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -68,8 +69,18 @@ async function main() {
     return;
   }
 
+  if (cmd === "organize") {
+    console.log("📂 드라이브 파일 분류 중...");
+    const index = await buildIndex();
+    console.log("🗂️  드라이브에 카테고리 폴더 정리 중... (기존 위치는 그대로 두고 추가로 넣음)");
+    const { added, alreadyIn, failed } = await organizeDriveFolders(index);
+    console.log(`정리 완료: 신규 추가 ${added}개, 이미 있음 ${alreadyIn}개, 실패 ${failed}개`);
+    console.log(`드라이브에서 "AI팀 자동분류" 폴더를 확인하세요.`);
+    return;
+  }
+
   console.error(
-    "사용법:\n  npm run drive -- search <검색어>\n  npm run drive -- sheet <스프레드시트ID> [시트이름]\n  npm run drive -- index\n  npm run drive -- backup"
+    "사용법:\n  npm run drive -- search <검색어>\n  npm run drive -- sheet <스프레드시트ID> [시트이름]\n  npm run drive -- index\n  npm run drive -- backup\n  npm run drive -- organize"
   );
   process.exit(1);
 }
