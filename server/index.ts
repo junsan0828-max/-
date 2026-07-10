@@ -1377,20 +1377,23 @@ async function initDatabase() {
     console.warn("⚠️ 헬스 만료일 보정 실패:", e);
   }
 
-  // ── 상담 담당자 오지정 정리: PT가 전혀 없는 회원의 담당 트레이너 해제 ──────────
-  // 상담 담당자로 트레이너를 고른 탓에 헬스/기타 전용 회원이 그 트레이너의
-  // 담당회원 목록에 들어간 케이스를 정리. (PT 패키지·PT 매출이 있는 회원은 실제
-  // 트레이닝 관계이므로 건드리지 않음)
-  try {
-    const cleared = await pool.query(`
-      UPDATE members SET "trainerId" = NULL, "updatedAt" = now()::text
-      WHERE "trainerId" IS NOT NULL
-        AND id NOT IN (SELECT DISTINCT "memberId" FROM pt_packages WHERE "memberId" IS NOT NULL)
-        AND id NOT IN (SELECT DISTINCT "memberId" FROM revenue_entries WHERE type = 'PT' AND "memberId" IS NOT NULL)
-    `);
-    if ((cleared.rowCount ?? 0) > 0) console.log(`🧹 PT 없는 회원 담당 트레이너 해제: ${cleared.rowCount}건`);
-  } catch (e) {
-    console.error("담당 트레이너 오지정 정리 오류:", e);
+  // ── (비활성화) PT 없는 회원 담당 트레이너 자동 해제 ─────────────────────────
+  // 매 재시작마다 실행되어, PT 패키지가 아직 없는 회원에게 "일부러" 배정한 담당
+  // 트레이너까지 지워버리는 문제가 있었다(서나연→김나연 배정이 사라짐).
+  // 상담 담당자→트레이너 오지정의 근본 원인은 이미 등록 흐름에서 막았으므로,
+  // 이 자동 해제는 끈다. 잘못 배정된 기존 건은 회원 관리에서 수동으로 해제한다.
+  // (다시 켜려면 아래 false를 true로)
+  if (false as boolean) {
+    try {
+      await pool.query(`
+        UPDATE members SET "trainerId" = NULL, "updatedAt" = now()::text
+        WHERE "trainerId" IS NOT NULL
+          AND id NOT IN (SELECT DISTINCT "memberId" FROM pt_packages WHERE "memberId" IS NOT NULL)
+          AND id NOT IN (SELECT DISTINCT "memberId" FROM revenue_entries WHERE type = 'PT' AND "memberId" IS NOT NULL)
+      `);
+    } catch (e) {
+      console.error("담당 트레이너 오지정 정리 오류:", e);
+    }
   }
 
   // 관리자 계정 생성 (없으면 초기 씨드)
