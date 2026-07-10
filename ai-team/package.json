@@ -8,6 +8,7 @@
     "brain": "tsx src/cli.ts",
     "brain:dry": "tsx src/cli.ts --dry",
     "youtube": "tsx src/youtube-cli.ts",
+    "drive": "tsx src/drive-cli.ts",
     "command": "tsx src/command-cli.ts",
     "attach-log": "tsx src/attach-log-cli.ts",
     "build": "tsc -p tsconfig.json",

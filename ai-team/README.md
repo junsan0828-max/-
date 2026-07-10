@@ -30,6 +30,16 @@ npm run brain             # ANTHROPIC_API_KEY 있으면 AI 분석
 npm start
 ```
 
+## 구글 드라이브 연동
+매출/분석 스프레드시트 등 드라이브에 저장된 파일을 AI팀이 읽어서 분석할 수 있다 (읽기 전용).
+유튜브 업로드와 같은 구글 클라우드 프로젝트/OAuth 클라이언트(`config/youtube-client-secret.json`)를 그대로 쓰되,
+스코프가 달라 최초 1회 별도 브라우저 승인이 필요하다.
+
+1. 구글 클라우드 콘솔에서 해당 프로젝트에 **Google Drive API**, **Google Sheets API**를 사용 설정
+2. `npm run drive -- search <검색어>` 로 파일 검색 (최초 실행 시 브라우저 승인 창이 뜸)
+3. `npm run drive -- sheet <스프레드시트ID> [시트이름]` 로 스프레드시트 내용 읽기
+   (스프레드시트 ID는 URL의 `/d/`와 `/edit` 사이 문자열)
+
 ## 환경변수(.env)
 | 변수 | 설명 |
 |---|---|

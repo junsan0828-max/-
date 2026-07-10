@@ -1,0 +1,54 @@
+// 구글 드라이브 연동 단독 테스트.
+// 실행:
+//   npm run drive -- search 매출
+//   npm run drive -- sheet <스프레드시트ID> [시트이름]
+import "dotenv/config";
+import { searchFiles, readSpreadsheet, listSheetTabs } from "./main/drive/drive";
+
+async function main() {
+  const [cmd, ...rest] = process.argv.slice(2);
+
+  if (cmd === "search") {
+    const query = rest.join(" ").trim();
+    if (!query) {
+      console.error('사용법: npm run drive -- search <검색어>');
+      process.exit(1);
+    }
+    console.log(`🔍 "${query}" 검색 중...`);
+    const files = await searchFiles(query);
+    if (files.length === 0) {
+      console.log("검색 결과 없음.");
+      return;
+    }
+    for (const f of files) {
+      console.log(`- ${f.name}  [${f.mimeType}]  id=${f.id}`);
+    }
+    return;
+  }
+
+  if (cmd === "sheet") {
+    const [spreadsheetId, sheetName] = rest;
+    if (!spreadsheetId) {
+      console.error("사용법: npm run drive -- sheet <스프레드시트ID> [시트이름]");
+      process.exit(1);
+    }
+    if (!sheetName) {
+      const tabs = await listSheetTabs(spreadsheetId);
+      console.log(`시트 탭 목록: ${tabs.join(", ")}`);
+    }
+    const rows = await readSpreadsheet(spreadsheetId, sheetName);
+    console.log(`총 ${rows.length}행`);
+    for (const row of rows.slice(0, 20)) {
+      console.log(row.join(" | "));
+    }
+    return;
+  }
+
+  console.error("사용법:\n  npm run drive -- search <검색어>\n  npm run drive -- sheet <스프레드시트ID> [시트이름]");
+  process.exit(1);
+}
+
+main().catch((err) => {
+  console.error("❌", err instanceof Error ? err.message : err);
+  process.exit(1);
+});
