@@ -533,6 +533,31 @@ async function initDatabase() {
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `INSERT INTO gym_plus_settings (key, value) VALUES ('checkin_point_amount', '100') ON CONFLICT (key) DO NOTHING`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_diet_foods (
+      id SERIAL PRIMARY KEY,
+      category TEXT NOT NULL,
+      name TEXT NOT NULL,
+      amount TEXT NOT NULL,
+      calories INTEGER NOT NULL,
+      carbs INTEGER NOT NULL DEFAULT 0,
+      protein INTEGER NOT NULL DEFAULT 0,
+      fat INTEGER NOT NULL DEFAULT 0,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_daily_diets (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "planDate" TEXT NOT NULL,
+      "activityLevel" TEXT NOT NULL DEFAULT '보통',
+      "targetCalories" INTEGER NOT NULL,
+      "includeFoods" TEXT NOT NULL DEFAULT '',
+      "excludeFoods" TEXT NOT NULL DEFAULT '',
+      "todayMeals" TEXT NOT NULL,
+      "tomorrowMeals" TEXT NOT NULL,
+      "completedMeals" TEXT NOT NULL DEFAULT '{}',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text,
+      "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
   ];
   for (const stmt of alterStatements) {
     await pool.query(stmt);
