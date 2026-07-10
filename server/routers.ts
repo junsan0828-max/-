@@ -3435,6 +3435,9 @@ const adminRouter = t.router({
             paymentAmount: ptPackages.paymentAmount,
             totalSessions: ptPackages.totalSessions,
             paymentMethod: ptPackages.paymentMethod,
+            isServiceSession: ptSessionLogs.isServiceSession,
+            serviceSessionPrice: ptPackages.serviceSessionPrice,
+            serviceSamePrice: ptPackages.serviceSamePrice,
           })
             .from(ptSessionLogs)
             .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
@@ -3455,9 +3458,11 @@ const adminRouter = t.router({
             paymentAmount: ptPackages.paymentAmount,
             totalSessions: ptPackages.totalSessions,
             paymentMethod: ptPackages.paymentMethod,
-          }).from(ptPackages).where(inArray(ptPackages.memberId, allLogMemberIds)).orderBy(desc(ptPackages.createdAt));
+          }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), eq(ptPackages.status, "active"))).orderBy(desc(ptPackages.createdAt));
+          const isPricedPkg = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
           for (const p of fallbackPkgs) {
-            if (!memberPkgMap[p.memberId]) memberPkgMap[p.memberId] = p;
+            const cur = memberPkgMap[p.memberId];
+            if (!cur || (isPricedPkg(p) && !isPricedPkg(cur))) memberPkgMap[p.memberId] = p;
           }
         }
 
@@ -3485,16 +3490,20 @@ const adminRouter = t.router({
         }
 
         const rate = settings[0]?.settlementRate ?? 50;
-        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null }) => {
+        // ⚠️ 월별 정산 상세(getMonthlySettlement)와 동일한 계산식을 사용해야 두 화면 금액이 일치한다.
+        const calcPrice = (l: { memberId: number; pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null; paymentMethod?: string | null; isServiceSession?: number | null; serviceSessionPrice?: number | null; serviceSamePrice?: number | null }) => {
+          // 서비스 세션: serviceSamePrice=1이면 정규 단가로, 아니면 serviceSessionPrice 사용
+          if (l.isServiceSession === 1 && l.serviceSamePrice !== 1) return l.serviceSessionPrice ?? 0;
           if (l.paymentMethod === "혼합") return l.pricePerSession ?? 0;
-          if (l.pricePerSession) return l.pricePerSession;
+          // 결제금액 기준 계산 우선 (pricePerSession은 갱신 안 됐을 수 있음)
           if (l.paymentAmount && l.totalSessions && l.totalSessions > 0)
             return Math.round(calcPricePerSession(l.paymentAmount, l.totalSessions, l.paymentMethod ?? undefined) ?? 0);
+          if (l.pricePerSession) return l.pricePerSession;
           const fb = memberPkgMap[l.memberId];
           if (fb?.paymentMethod === "혼합") return fb.pricePerSession ?? 0;
-          if (fb?.pricePerSession) return fb.pricePerSession;
           if (fb?.paymentAmount && fb?.totalSessions && fb.totalSessions > 0)
-            return Math.round(calcPricePerSession(fb.paymentAmount, fb.totalSessions) ?? 0);
+            return Math.round(calcPricePerSession(fb.paymentAmount, fb.totalSessions, fb.paymentMethod ?? undefined) ?? 0);
+          if (fb?.pricePerSession) return fb.pricePerSession;
           // 최후 폴백: revenue_entries 기반 회당 단가
           return memberRevenueMap[l.memberId] ?? 0;
         };
