@@ -61,6 +61,21 @@ export async function listSheetTabs(spreadsheetId: string): Promise<string[]> {
   return (res.data.sheets ?? []).map((s) => s.properties?.title ?? "").filter(Boolean);
 }
 
+/** 스프레드시트의 모든 탭을 한 번의 배치 요청으로 읽는다 (탭마다 따로 호출하는 것보다 API 쿼터를 훨씬 덜 쓴다). */
+export async function readAllTabs(spreadsheetId: string): Promise<Record<string, string[][]>> {
+  const sheets = await getSheets();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const titles = (meta.data.sheets ?? []).map((s) => s.properties?.title).filter((t): t is string => !!t);
+  if (titles.length === 0) return {};
+
+  const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges: titles });
+  const result: Record<string, string[][]> = {};
+  (res.data.valueRanges ?? []).forEach((vr, i) => {
+    result[titles[i]] = (vr.values ?? []) as string[][];
+  });
+  return result;
+}
+
 /** 구글 문서(Docs)를 텍스트로 내보낸다. */
 export async function readDocText(fileId: string): Promise<string> {
   const drive = await getDrive();

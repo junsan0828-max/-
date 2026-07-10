@@ -9,6 +9,7 @@ import { generateContentIdeas } from "./luna";
 import { markContacted } from "./store";
 import { runCommand } from "./commander";
 import { pushDailyReport } from "./notion";
+import { buildIndex, backupSpreadsheets } from "./drive/archive";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -79,6 +80,15 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     // Notion: 오늘의 브리핑을 기록 (설정된 경우에만, 실패해도 앱 동작에는 영향 없음)
     const notion = await pushDailyReport(result, mina, funnel, content);
     send("log", notion.ok ? "노션에 브리핑 저장 완료" : `노션 저장 안 함: ${notion.error}`);
+
+    // 드라이브: 재무·회원 스프레드시트를 로컬에 백업 (인증 안 돼 있으면 조용히 건너뜀)
+    try {
+      const index = await buildIndex();
+      const backup = await backupSpreadsheets(index);
+      send("log", `드라이브 백업 완료 (신규/갱신 ${backup.backed}개)`);
+    } catch (err: any) {
+      send("log", `드라이브 백업 안 함: ${err?.message ?? err}`);
+    }
 
     return result;
   } catch (err: any) {
