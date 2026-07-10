@@ -5,7 +5,8 @@ import { Pool } from "pg";
 import { findOrCreateFolder } from "./drive/archive";
 import { findFileInFolder, createSpreadsheet, ensureSheetTab, writeValues } from "./drive/drive";
 
-const TRAINER_ORDER = ["이준산", "최성길", "김현석", "김나연", "민문무"];
+// 이준산은 대표 본인이라 급여 정산 대상에서 제외한다.
+const TRAINER_ORDER = ["최성길", "김현석", "김나연", "민문무"];
 
 /** 기본급이 있는 트레이너만 기재. 나머지는 기본급 0원(없음)으로 처리. */
 const BASE_PAY: Record<string, number> = {
