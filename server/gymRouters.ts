@@ -695,7 +695,10 @@ const revenueRouter = t.router({
           (oldSessions ? p.totalSessions === oldSessions : true)
         ) ?? pkgCandidates[0] ?? null;
 
-        const newSessions = row.sessions ?? 0;
+        // 장부(revenue_entries)에 세션수가 없어도(프로그램을 "기타"로 등록한 경우 등) 연결된
+        // 패키지의 totalSessions로 폴백한다. 이게 없으면 newSessions=0이 되어 아래 동기화 블록이
+        // 통째로 스킵되고, 금액을 아무리 고쳐도 패키지 결제금액/단가가 옛값에 묶여 정산이 틀어진다.
+        const newSessions = row.sessions ?? existingPkg?.totalSessions ?? 0;
         const newAmount = row.paidAmount ?? row.amount ?? 0;
 
         // pricePerSession 재계산

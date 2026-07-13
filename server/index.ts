@@ -1304,6 +1304,28 @@ async function initDatabase() {
         AND COALESCE(p."paymentAmount",0) = 0
         AND COALESCE(r."paidAmount",0) > 0
     `);
+    // 2-b) 매출(원본)과 결제금액이 어긋난 패키지 교정 (매출 수정 시 동기화가 과거에 실패했던 건).
+    //   매출이 원본이므로 매출→패키지 방향으로만 맞춘다. 값이 다를 때만 갱신(멱등). 혼합결제는
+    //   분할금액 기반 별도 단가 로직이 있으므로 건드리지 않는다.
+    //   예: 200,000원으로 잘못 등록 후 장부만 2,000,000원으로 고쳤는데 패키지가 안 따라온 경우.
+    const resynced = await pool.query(`
+      UPDATE pt_packages p
+      SET "paymentAmount" = r."paidAmount",
+          "unpaidAmount" = COALESCE(r."unpaidAmount", p."unpaidAmount"),
+          "pricePerSession" = CASE
+            WHEN p."paymentMethod" IN ('이체','계좌이체')
+              THEN ROUND(r."paidAmount"::numeric / p."totalSessions")
+            ELSE ROUND((r."paidAmount"::numeric / 1.1) / p."totalSessions")
+          END,
+          "updatedAt" = now()::text
+      FROM revenue_entries r
+      WHERE p."revenueEntryId" = r.id
+        AND r.type = 'PT'
+        AND COALESCE(p."totalSessions",0) > 0
+        AND COALESCE(p."paymentMethod",'') <> '혼합'
+        AND COALESCE(p."paymentAmount",0) <> COALESCE(r."paidAmount",0)
+    `);
+    if ((resynced.rowCount ?? 0) > 0) console.log(`💰 매출-패키지 결제금액 재동기화: ${resynced.rowCount}건`);
     // 3) 세션의 packageId가 NULL/삭제됨/단가없음 → 회원의 "단가 있는 활성 패키지"로 재연결
     // "기타"는 실제 PT 프로그램이 아닌 1회성 부가항목이므로 다른 단가있는 패키지가 있으면 후순위로 둔다.
     const relinked = await pool.query(`
