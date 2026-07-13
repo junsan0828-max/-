@@ -3,7 +3,42 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const Dialog = DialogPrimitive.Root;
+// 모달이 열릴 때 브라우저 히스토리에 항목을 추가해, 스마트폰 뒤로가기 버튼으로
+// 페이지 이탈 대신 모달만 닫히도록 한다 (앱 전체 Dialog에 공통 적용).
+const Dialog = ({
+  open,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) => {
+  const pushedRef = React.useRef(false);
+  const onOpenChangeRef = React.useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+
+  React.useEffect(() => {
+    if (open && !pushedRef.current) {
+      window.history.pushState({ __dialogOpen: true }, "");
+      pushedRef.current = true;
+    } else if (!open && pushedRef.current) {
+      pushedRef.current = false;
+      if ((window.history.state as any)?.__dialogOpen) {
+        window.history.back();
+      }
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    function handlePopState() {
+      if (pushedRef.current) {
+        pushedRef.current = false;
+        onOpenChangeRef.current?.(false);
+      }
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />;
+};
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
