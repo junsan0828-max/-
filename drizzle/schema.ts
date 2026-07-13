@@ -112,6 +112,12 @@ export const ptEventPrograms = pgTable("pt_event_programs", {
   pricePerSession: integer("pricePerSession").notNull(),      // 하위호환용
   serviceSessionPrice: integer("serviceSessionPrice").notNull().default(0),
   serviceSamePrice: integer("serviceSamePrice").notNull().default(0),   // 1이면 서비스 세션도 정규 회당 단가로 정산
+  // 혜택 필드 (유형 무관 공통) — 등록 시 자동 적용 + 성과 추적
+  discountType: text("discountType"),                                   // 'amount' | 'percent' | null
+  discountValue: integer("discountValue").default(0),                   // 할인 정액(원) 또는 정률(%)
+  serviceHealthDays: integer("serviceHealthDays").default(0),           // 헬스 무료 제공 일수
+  freeUniform: integer("freeUniform").default(0),                       // 1이면 운동복 무료 제공
+  freeLocker: integer("freeLocker").default(0),                         // 1이면 락커 무료 제공
   isActive: integer("isActive").notNull().default(1),
   createdAt: text("createdAt").default(now).notNull(),
 });

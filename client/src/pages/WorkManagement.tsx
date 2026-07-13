@@ -404,7 +404,7 @@ function EventManagementSection() {
   // applicableSessions: Set of selected session counts (as strings)
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [customSession, setCustomSession] = useState(""); // 직접입력 세션
-  const [form, setForm] = useState({ name: "", serviceSessions: "0", serviceSessionPrice: "0", startDate: "", endDate: "" });
+  const [form, setForm] = useState({ name: "", serviceSessions: "0", serviceSessionPrice: "0", startDate: "", endDate: "", discountType: "" as "" | "amount" | "percent", discountValue: "0", serviceHealthDays: "0", freeUniform: false, freeLocker: false });
   const [serviceSamePrice, setServiceSamePrice] = useState(false);
 
   const { data: events, refetch } = trpc.eventPrograms.list.useQuery({ type: eventType });
@@ -421,7 +421,7 @@ function EventManagementSection() {
   function resetForm() {
     setSelectedSessions(new Set());
     setCustomSession("");
-    setForm({ name: "", serviceSessions: "0", serviceSessionPrice: "0", startDate: "", endDate: "" });
+    setForm({ name: "", serviceSessions: "0", serviceSessionPrice: "0", startDate: "", endDate: "", discountType: "", discountValue: "0", serviceHealthDays: "0", freeUniform: false, freeLocker: false });
     setServiceSamePrice(false);
   }
 
@@ -438,7 +438,7 @@ function EventManagementSection() {
     });
     setSelectedSessions(presetSet);
     setCustomSession(custom);
-    setForm({ name: item.name, serviceSessions: String(item.serviceSessions), serviceSessionPrice: String(item.serviceSessionPrice), startDate: item.startDate ?? "", endDate: item.endDate ?? "" });
+    setForm({ name: item.name, serviceSessions: String(item.serviceSessions), serviceSessionPrice: String(item.serviceSessionPrice), startDate: item.startDate ?? "", endDate: item.endDate ?? "", discountType: (item.discountType ?? "") as any, discountValue: String(item.discountValue ?? 0), serviceHealthDays: String(item.serviceHealthDays ?? 0), freeUniform: item.freeUniform === 1, freeLocker: item.freeLocker === 1 });
     setServiceSamePrice(item.serviceSamePrice === 1);
     setShowForm(true);
   };
@@ -469,6 +469,11 @@ function EventManagementSection() {
       serviceSessions: parseInt(form.serviceSessions || "0"),
       serviceSessionPrice: serviceSamePrice ? 0 : parseInt(form.serviceSessionPrice || "0"),
       serviceSamePrice: serviceSamePrice ? 1 : 0,
+      discountType: form.discountType || null,
+      discountValue: parseInt(form.discountValue || "0"),
+      serviceHealthDays: parseInt(form.serviceHealthDays || "0"),
+      freeUniform: form.freeUniform ? 1 : 0,
+      freeLocker: form.freeLocker ? 1 : 0,
       isActive: editItem?.isActive ?? 1,
       startDate: form.startDate || null,
       endDate: form.endDate || null,
@@ -507,12 +512,27 @@ function EventManagementSection() {
                     {ev.isActive ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">운영중</span> : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/40 text-muted-foreground">중단</span>}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    적용 세션: {appliedSessions.split(",").map((s: string) => `${s}회`).join(" · ")}
-                    {" · "} 서비스 +{ev.serviceSessions}회
-                    {ev.serviceSamePrice === 1
-                      ? <span> · 서비스단가 정규와 동일</span>
-                      : ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
+                    {ev.type === "PT" ? (<>
+                      적용 세션: {appliedSessions.split(",").map((s: string) => `${s}회`).join(" · ")}
+                      {" · "} 서비스 +{ev.serviceSessions}회
+                      {ev.serviceSamePrice === 1
+                        ? <span> · 서비스단가 정규와 동일</span>
+                        : ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
+                    </>) : (
+                      <span>헬스 이벤트{ev.serviceHealthDays > 0 && ` · 서비스 +${ev.serviceHealthDays}일`}</span>
+                    )}
                   </p>
+                  {/* 혜택 배지 */}
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {ev.discountType && ev.discountValue > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 font-medium">
+                        할인 {ev.discountType === "percent" ? `${ev.discountValue}%` : `${ev.discountValue.toLocaleString()}원`}
+                      </span>
+                    )}
+                    {ev.freeUniform === 1 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-medium">👕 운동복</span>}
+                    {ev.freeLocker === 1 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium">🔑 락커</span>}
+                    {ev.type === "PT" && ev.serviceHealthDays > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-medium">헬스 +{ev.serviceHealthDays}일</span>}
+                  </div>
                   <p className="text-xs mt-1">
                     {(() => {
                       const perf = eventPerf?.[ev.id];
@@ -558,6 +578,8 @@ function EventManagementSection() {
               <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="예: 진단서 이벤트" className="w-full mt-1 px-3 py-2 rounded-md border border-border bg-background text-sm" />
             </div>
 
+            {/* ── PT 전용: 적용 세션 · 서비스 세션 · 서비스 단가 ── */}
+            {eventType === "PT" && (<>
             {/* 이벤트 적용 세션 */}
             <div>
               <label className="text-xs text-muted-foreground">이벤트 적용 세션 <span className="text-muted-foreground/60">(중복 선택 가능)</span></label>
@@ -631,6 +653,56 @@ function EventManagementSection() {
                   <span className="text-xs text-muted-foreground">원</span>
                 </div>
               )}
+            </div>
+            </>)}
+
+            {/* ── 헬스 전용: 서비스 제공 기간 ── */}
+            {eventType === "헬스" && (
+              <div>
+                <label className="text-xs text-muted-foreground">헬스 서비스 제공 기간 <span className="text-muted-foreground/60">(무료 추가 일수)</span></label>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  {["0", "7", "14", "30", "60", "90"].map(d => (
+                    <button key={d} type="button" onClick={() => setForm(f => ({ ...f, serviceHealthDays: d }))}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${form.serviceHealthDays === d ? "bg-emerald-500 text-white border-emerald-500" : "border-border text-muted-foreground bg-background"}`}>
+                      {d === "0" ? "없음" : `+${d}일`}
+                    </button>
+                  ))}
+                  <input type="number" min="1" value={["0","7","14","30","60","90"].includes(form.serviceHealthDays) ? "" : form.serviceHealthDays}
+                    onChange={e => setForm(f => ({ ...f, serviceHealthDays: e.target.value }))} placeholder="직접(일)"
+                    className="w-24 px-2 py-1.5 rounded-lg border border-border bg-background text-sm text-center" />
+                </div>
+              </div>
+            )}
+
+            {/* ── 공통 혜택: 할인 · 운동복 · 락커 ── */}
+            <div>
+              <label className="text-xs text-muted-foreground">할인 혜택</label>
+              <div className="flex items-center gap-2 mt-1.5">
+                {([["", "없음"], ["amount", "정액(원)"], ["percent", "정률(%)"]] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setForm(f => ({ ...f, discountType: v as any, discountValue: v ? f.discountValue : "0" }))}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${form.discountType === v ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground bg-background"}`}>
+                    {label}
+                  </button>
+                ))}
+                {form.discountType && (
+                  <div className="flex items-center gap-1 flex-1">
+                    <input type="number" min="0" value={form.discountValue} onChange={e => setForm(f => ({ ...f, discountValue: e.target.value }))} placeholder="0"
+                      className="flex-1 px-3 py-1.5 rounded-md border border-border bg-background text-sm" />
+                    <span className="text-xs text-muted-foreground">{form.discountType === "percent" ? "%" : "원"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setForm(f => ({ ...f, freeUniform: !f.freeUniform }))}
+                className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.freeUniform ? "bg-purple-500/20 border-purple-500/50 text-purple-300" : "border-border text-muted-foreground bg-background"}`}>
+                👕 운동복 무료 {form.freeUniform ? "✓" : ""}
+              </button>
+              <button type="button" onClick={() => setForm(f => ({ ...f, freeLocker: !f.freeLocker }))}
+                className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.freeLocker ? "bg-amber-500/20 border-amber-500/50 text-amber-300" : "border-border text-muted-foreground bg-background"}`}>
+                🔑 락커 무료 {form.freeLocker ? "✓" : ""}
+              </button>
             </div>
 
             {/* 날짜 */}

@@ -642,6 +642,11 @@ async function initDatabase() {
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSessionPrice" INTEGER DEFAULT 0`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "serviceSamePrice" INTEGER DEFAULT 0`,
     `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "serviceSamePrice" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "discountType" TEXT`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "discountValue" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "serviceHealthDays" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "freeUniform" INTEGER DEFAULT 0`,
+    `ALTER TABLE pt_event_programs ADD COLUMN IF NOT EXISTS "freeLocker" INTEGER DEFAULT 0`,
     `ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "isServiceSession" INTEGER DEFAULT 0`,
     `CREATE TABLE IF NOT EXISTS pt_event_programs (
       id SERIAL PRIMARY KEY,

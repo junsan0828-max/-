@@ -5197,6 +5197,8 @@ const eventProgramsRouter = t.router({
         applicableSessions: string | null;
         serviceSessions: number; pricePerSession: number; serviceSessionPrice: number;
         serviceSamePrice: number;
+        discountType: string | null; discountValue: number;
+        serviceHealthDays: number; freeUniform: number; freeLocker: number;
         isActive: number; startDate: string | null; endDate: string | null; createdAt: string;
       }>;
     }),
@@ -5212,6 +5214,12 @@ const eventProgramsRouter = t.router({
       serviceSessions: z.number().min(0).default(0),
       serviceSessionPrice: z.number().min(0).default(0),
       serviceSamePrice: z.number().default(0),
+      // 혜택 필드
+      discountType: z.enum(["amount", "percent"]).nullable().optional(),
+      discountValue: z.number().min(0).default(0),
+      serviceHealthDays: z.number().min(0).default(0),
+      freeUniform: z.number().default(0),
+      freeLocker: z.number().default(0),
       isActive: z.number().default(1),
       startDate: z.string().nullable().optional(),
       endDate: z.string().nullable().optional(),
@@ -5230,14 +5238,17 @@ const eventProgramsRouter = t.router({
             type = ${input.type}, name = ${input.name},
             sessions = ${firstSession}, "applicableSessions" = ${resolvedApplicable},
             "serviceSessions" = ${input.serviceSessions}, "pricePerSession" = ${resolvedPrice},
-            "serviceSessionPrice" = ${input.serviceSessionPrice}, "serviceSamePrice" = ${input.serviceSamePrice}, "isActive" = ${input.isActive},
+            "serviceSessionPrice" = ${input.serviceSessionPrice}, "serviceSamePrice" = ${input.serviceSamePrice},
+            "discountType" = ${input.discountType ?? null}, "discountValue" = ${input.discountValue},
+            "serviceHealthDays" = ${input.serviceHealthDays}, "freeUniform" = ${input.freeUniform}, "freeLocker" = ${input.freeLocker},
+            "isActive" = ${input.isActive},
             "startDate" = ${input.startDate ?? null}, "endDate" = ${input.endDate ?? null}
           WHERE id = ${input.id}
         `);
       } else {
         await db.execute(sql`
-          INSERT INTO pt_event_programs (type, name, sessions, "applicableSessions", "serviceSessions", "pricePerSession", "serviceSessionPrice", "serviceSamePrice", "isActive", "startDate", "endDate", "createdAt")
-          VALUES (${input.type}, ${input.name}, ${firstSession}, ${resolvedApplicable}, ${input.serviceSessions}, ${resolvedPrice}, ${input.serviceSessionPrice}, ${input.serviceSamePrice}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
+          INSERT INTO pt_event_programs (type, name, sessions, "applicableSessions", "serviceSessions", "pricePerSession", "serviceSessionPrice", "serviceSamePrice", "discountType", "discountValue", "serviceHealthDays", "freeUniform", "freeLocker", "isActive", "startDate", "endDate", "createdAt")
+          VALUES (${input.type}, ${input.name}, ${firstSession}, ${resolvedApplicable}, ${input.serviceSessions}, ${resolvedPrice}, ${input.serviceSessionPrice}, ${input.serviceSamePrice}, ${input.discountType ?? null}, ${input.discountValue}, ${input.serviceHealthDays}, ${input.freeUniform}, ${input.freeLocker}, ${input.isActive}, ${input.startDate ?? null}, ${input.endDate ?? null}, NOW()::text)
         `);
       }
       return { success: true };
