@@ -1340,16 +1340,23 @@ const ptRouter = t.router({
 
       // packageId 자동 연결: 회원의 활성 패키지 중 단가 정보가 있는 것을 우선 선택
       // (연결 누락 시 정산 단가가 0원이 되는 문제 방지)
+      // "기타"는 1회성 부가항목(운동복/락커 등과 유사한 잡항목)일 뿐 실제 PT 프로그램이 아니므로
+      // 실제 프로그램 패키지가 있으면 절대 우선순위에서 밀려나야 한다 (아니면 저단가 기타 항목이
+      // 이후 모든 세션의 단가를 잘못 끌어내리는 사고가 발생한다).
       const memberPkgs = await db.select({
         id: ptPackages.id, pricePerSession: ptPackages.pricePerSession,
         paymentAmount: ptPackages.paymentAmount, status: ptPackages.status,
+        packageName: ptPackages.packageName,
       }).from(ptPackages)
         .where(eq(ptPackages.memberId, input.memberId))
         .orderBy(desc(ptPackages.createdAt));
       const priced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
+      const isRealProgram = (p: any) => p.packageName !== "기타";
       const resolvedPackageId =
+        memberPkgs.find(p => p.status === "active" && priced(p) && isRealProgram(p))?.id ??
         memberPkgs.find(p => p.status === "active" && priced(p))?.id ??
         memberPkgs.find(p => p.status === "active")?.id ??
+        memberPkgs.find(p => priced(p) && isRealProgram(p))?.id ??
         memberPkgs.find(p => priced(p))?.id ??
         memberPkgs[0]?.id ??
         null;
@@ -2453,11 +2460,17 @@ const trainersRouter = t.router({
           packageName: ptPackages.packageName,
           paymentMethod: ptPackages.paymentMethod,
         }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), eq(ptPackages.status, "active"))).orderBy(desc(ptPackages.createdAt));
-        // 단가 있는 활성 패키지를 우선 폴백으로 (없으면 최신 활성)
+        // 단가 있는 활성 패키지를 우선 폴백으로 (없으면 최신 활성). "기타"는 실제 PT 프로그램이
+        // 아닌 1회성 부가항목이므로 다른 단가있는 패키지가 있으면 후순위로 둔다.
         const isPriced = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
+        const isRealProgram = (p: any) => p.packageName !== "기타";
         for (const p of fallbackPkgs) {
           const cur = memberPkgMap[p.memberId];
-          if (!cur || (isPriced(p) && !isPriced(cur))) memberPkgMap[p.memberId] = p;
+          if (!cur) { memberPkgMap[p.memberId] = p; continue; }
+          const curBetter = isPriced(cur) && isRealProgram(cur);
+          const pBetter = isPriced(p) && isRealProgram(p);
+          if (pBetter && !curBetter) memberPkgMap[p.memberId] = p;
+          else if (!curBetter && isPriced(p) && !isPriced(cur)) memberPkgMap[p.memberId] = p;
         }
       }
 
@@ -3465,11 +3478,18 @@ const adminRouter = t.router({
             paymentAmount: ptPackages.paymentAmount,
             totalSessions: ptPackages.totalSessions,
             paymentMethod: ptPackages.paymentMethod,
+            packageName: ptPackages.packageName,
           }).from(ptPackages).where(and(inArray(ptPackages.memberId, allLogMemberIds), eq(ptPackages.status, "active"))).orderBy(desc(ptPackages.createdAt));
+          // "기타"는 실제 PT 프로그램이 아닌 1회성 부가항목이므로 다른 단가있는 패키지가 있으면 후순위로 둔다.
           const isPricedPkg = (p: any) => (p.pricePerSession ?? 0) > 0 || (p.paymentAmount ?? 0) > 0;
+          const isRealProgramPkg = (p: any) => p.packageName !== "기타";
           for (const p of fallbackPkgs) {
             const cur = memberPkgMap[p.memberId];
-            if (!cur || (isPricedPkg(p) && !isPricedPkg(cur))) memberPkgMap[p.memberId] = p;
+            if (!cur) { memberPkgMap[p.memberId] = p; continue; }
+            const curBetter = isPricedPkg(cur) && isRealProgramPkg(cur);
+            const pBetter = isPricedPkg(p) && isRealProgramPkg(p);
+            if (pBetter && !curBetter) memberPkgMap[p.memberId] = p;
+            else if (!curBetter && isPricedPkg(p) && !isPricedPkg(cur)) memberPkgMap[p.memberId] = p;
           }
         }
 

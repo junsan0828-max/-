@@ -1298,6 +1298,7 @@ async function initDatabase() {
         AND COALESCE(r."paidAmount",0) > 0
     `);
     // 3) 세션의 packageId가 NULL/삭제됨/단가없음 → 회원의 "단가 있는 활성 패키지"로 재연결
+    // "기타"는 실제 PT 프로그램이 아닌 1회성 부가항목이므로 다른 단가있는 패키지가 있으면 후순위로 둔다.
     const relinked = await pool.query(`
       UPDATE pt_session_logs s
       SET "packageId" = sub.pid
@@ -1305,7 +1306,7 @@ async function initDatabase() {
         SELECT DISTINCT ON (p."memberId") p."memberId" AS mid, p.id AS pid
         FROM pt_packages p
         WHERE COALESCE(p."pricePerSession",0) > 0 OR COALESCE(p."paymentAmount",0) > 0
-        ORDER BY p."memberId", (p.status = 'active') DESC, p."createdAt" DESC
+        ORDER BY p."memberId", (p."packageName" IS DISTINCT FROM '기타') DESC, (p.status = 'active') DESC, p."createdAt" DESC
       ) sub
       WHERE s."memberId" = sub.mid
         AND (
@@ -1317,6 +1318,26 @@ async function initDatabase() {
         AND s."packageId" IS DISTINCT FROM sub.pid
     `);
     if ((relinked.rowCount ?? 0) > 0) console.log(`🔗 PT 세션 패키지 재연결: ${relinked.rowCount}건`);
+
+    // 4) 이미 "기타"(1회성 부가항목) 패키지로 잘못 연결되어 저단가로 정산되던 세션을
+    // 같은 회원의 실제 PT 프로그램 패키지로 재연결 (기타 패키지가 활성 상태로 남아 있으면
+    // 트레이닝 일지 기록 시 자동연결 로직이 계속 그 패키지를 골라 매번 사고가 재발했음)
+    const relinkedFromOther = await pool.query(`
+      UPDATE pt_session_logs s
+      SET "packageId" = sub.pid
+      FROM (
+        SELECT DISTINCT ON (p."memberId") p."memberId" AS mid, p.id AS pid
+        FROM pt_packages p
+        WHERE (COALESCE(p."pricePerSession",0) > 0 OR COALESCE(p."paymentAmount",0) > 0)
+          AND p."packageName" IS DISTINCT FROM '기타'
+        ORDER BY p."memberId", (p.status = 'active') DESC, p."createdAt" DESC
+      ) sub, pt_packages bad
+      WHERE bad.id = s."packageId"
+        AND bad."packageName" = '기타'
+        AND s."memberId" = sub.mid
+        AND s."packageId" IS DISTINCT FROM sub.pid
+    `);
+    if ((relinkedFromOther.rowCount ?? 0) > 0) console.log(`🔗 "기타" 오연결 PT 세션 재연결: ${relinkedFromOther.rowCount}건`);
   } catch (e) {
     console.error("PT 세션-패키지 연결 보정 오류:", e);
   }
