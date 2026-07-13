@@ -67,7 +67,7 @@ export default function GymPlusLogin() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password" className="text-sm text-muted-foreground">
-              비밀번호 <span className="text-muted-foreground/60 text-xs">(전화번호 뒷자리 4자리)</span>
+              비밀번호
             </Label>
             <Input
               id="password"

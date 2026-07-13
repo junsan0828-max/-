@@ -2659,6 +2659,11 @@ const adminOnlyGymPlus = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
+// 짐플러스 로그인 무차별 대입 방지: 계정당 연속 실패 5회 시 1분 잠금
+const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 60 * 1000;
+
 const gymPlusRouter = t.router({
   memberLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
@@ -2669,6 +2674,13 @@ const gymPlusRouter = t.router({
       // 입력 전화번호 숫자만 추출
       const inputDigits = input.username.replace(/\D/g, "");
 
+      const now = Date.now();
+      const attempt = loginAttempts.get(inputDigits);
+      if (attempt && attempt.lockedUntil > now) {
+        const waitSec = Math.ceil((attempt.lockedUntil - now) / 1000);
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `로그인 시도가 너무 많습니다. ${waitSec}초 후 다시 시도하세요.` });
+      }
+
       // 모든 짐플러스 회원 가져와서 JS에서 전화번호 숫자 비교
       const allMembers = await db.select().from(gymPlusMembers);
       const member = allMembers.find(m => m.username.replace(/\D/g, "") === inputDigits);
@@ -2678,7 +2690,16 @@ const gymPlusRouter = t.router({
         // 비밀번호는 항상 전화번호 뒷자리 4자리
         const phoneDigits = (member.phone ?? member.username).replace(/\D/g, "");
         const last4 = phoneDigits.slice(-4);
-        if (input.password !== last4) throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 잘못되었습니다. 전화번호 뒷자리 4자리를 입력하세요." });
+        if (input.password !== last4) {
+          const prev = loginAttempts.get(inputDigits);
+          const count = (prev && prev.lockedUntil <= now ? prev.count : 0) + 1;
+          loginAttempts.set(inputDigits, {
+            count,
+            lockedUntil: count >= LOGIN_MAX_ATTEMPTS ? now + LOGIN_LOCKOUT_MS : 0,
+          });
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호가 잘못되었습니다." });
+        }
+        loginAttempts.delete(inputDigits);
 
         // admin 계정이면 통합관리 세션도 설정
         const userRow = await db.select().from(users).where(eq(users.username, input.username)).limit(1);
