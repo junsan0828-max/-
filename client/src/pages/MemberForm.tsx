@@ -94,6 +94,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     serviceSessions: "",
     serviceSessionPrice: "",
     serviceSamePrice: false,
+    eventId: "",
     subType: "신규" as "신규" | "재등록",
   });
 
@@ -310,6 +311,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
           serviceSessions: hasPT && form.serviceSessions ? parseInt(form.serviceSessions) : undefined,
           serviceSessionPrice: hasPT && form.serviceSessionPrice ? parseInt(form.serviceSessionPrice) : undefined,
           serviceSamePrice: hasPT && form.serviceSamePrice ? 1 : undefined,
+          eventId: hasPT && form.eventId ? parseInt(form.eventId) : undefined,
           // 기타
           addOther: hasOther || undefined,
           otherDetail: hasOther ? form.ptProgram || undefined : undefined,
@@ -555,7 +557,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                               defaultValue=""
                               onChange={e => {
                                 const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
-                                if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0), serviceSamePrice: ev.serviceSamePrice === 1 }));
+                                if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0), serviceSamePrice: ev.serviceSamePrice === 1, eventId: String(ev.id) }));
                               }}>
                               <option value="" disabled>이벤트 선택...</option>
                               {(ptEvents ?? []).map((ev: any) => (

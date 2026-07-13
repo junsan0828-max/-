@@ -495,6 +495,7 @@ const membersRouter = t.router({
         serviceSessions: z.number().min(0).default(0).optional(),
         serviceSessionPrice: z.number().min(0).optional(),
         serviceSamePrice: z.number().optional(),
+        eventId: z.number().optional(),   // 적용 이벤트 (성과 추적)
         paymentAmount: z.number().optional(),
         discountAmount: z.number().optional(),
         unpaidAmount: z.number().optional(),
@@ -525,6 +526,7 @@ const membersRouter = t.router({
         serviceSessions,
         serviceSessionPrice,
         serviceSamePrice,
+        eventId,
         paymentAmount,
         discountAmount: inputDiscountAmount,
         unpaidAmount,
@@ -556,6 +558,7 @@ const membersRouter = t.router({
           serviceSessions: svcSessions,
           serviceSessionPrice: serviceSessionPrice ?? undefined,
           serviceSamePrice: serviceSamePrice ?? undefined,
+          eventId: eventId ?? undefined,
           usedSessions: 0,
           packageName,
           startDate: memberData.membershipStart,
@@ -608,6 +611,7 @@ const membersRouter = t.router({
           duration: healthDuration,
           type: revenueType,
           subType,
+          eventId: eventId ?? undefined,
           amount: effectiveAmount,
           discountAmount: discAmt,
           paidAmount: paid,
@@ -1210,6 +1214,7 @@ const ptRouter = t.router({
         cardAmount: z.number().optional(),
         paymentDate: z.string().optional(),
         paymentMemo: z.string().optional(),
+        eventId: z.number().optional(),   // 적용 이벤트 (성과 추적)
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1251,6 +1256,7 @@ const ptRouter = t.router({
         cardAmount: input.cardAmount ?? undefined,
         paymentDate: input.paymentDate,
         paymentMemo: input.paymentMemo,
+        eventId: input.eventId ?? undefined,
       });
 
       // 결제금액이 있으면 매출 항목 자동 생성
@@ -1270,6 +1276,7 @@ const ptRouter = t.router({
           sessions: input.totalSessions,
           type: "PT",
           subType: "재등록",
+          eventId: input.eventId ?? undefined,
           amount: input.paymentAmount,
           discountAmount: 0,
           paidAmount: paid,
@@ -5245,6 +5252,31 @@ const eventProgramsRouter = t.router({
       await db.execute(sql`DELETE FROM pt_event_programs WHERE id = ${input.id}`);
       return { success: true };
     }),
+
+  // 이벤트별 성과 (참여자 수 · 매출 합계) — eventId가 연결된 매출/패키지 기준
+  performance: protectedProcedure.query(async () => {
+    try {
+      const result = await pool.query(`
+        SELECT e.id,
+               COUNT(DISTINCT r."memberId")                 AS participants,
+               COUNT(r.id)                                  AS registrations,
+               COALESCE(SUM(r."paidAmount"), 0)             AS revenue
+        FROM pt_event_programs e
+        LEFT JOIN revenue_entries r
+          ON r."eventId" = e.id AND COALESCE(r."subType",'') <> '환불'
+        GROUP BY e.id
+      `);
+      const map: Record<number, { participants: number; registrations: number; revenue: number }> = {};
+      for (const row of result.rows) {
+        map[row.id] = {
+          participants: parseInt(row.participants ?? "0"),
+          registrations: parseInt(row.registrations ?? "0"),
+          revenue: parseInt(row.revenue ?? "0"),
+        };
+      }
+      return map;
+    } catch { return {}; }
+  }),
 });
 
 // ─── Landing Router ───────────────────────────────────────────────────────────

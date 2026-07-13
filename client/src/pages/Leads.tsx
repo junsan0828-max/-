@@ -49,6 +49,7 @@ type RegForm = {
   programCustom: string;
   sessions?: number;
   serviceSessions?: number;
+  eventId?: number;
   // 헬스
   duration?: number;
   // 기타
@@ -79,6 +80,7 @@ const defaultRegForm: RegForm = {
   programCustom: "",
   sessions: undefined,
   serviceSessions: undefined,
+  eventId: undefined,
   duration: undefined,
   otherItem: "",
   amount: "",
@@ -250,6 +252,7 @@ export default function LeadsPage() {
     membershipStart: "", membershipEnd: "",
     programTypes: [] as string[],
     ptProgram: "", ptSessions: "", serviceSessions: "", serviceSessionPrice: "",
+    eventId: "" as string,
     healthDuration: "" as string,
     healthServiceDays: "",
     otherItem: "",
@@ -267,6 +270,7 @@ export default function LeadsPage() {
     programTypes: [] as string[],  // ["PT", "헬스", "기타"]
     ptProgram: "",                  // 케어피티, 웨이트피티, 이벤트피티, 직접입력
     ptSessions: "", serviceSessions: "", serviceSessionPrice: "",
+    eventId: "" as string,
     healthDuration: "" as string,
     healthServiceDays: "",
     otherItem: "",
@@ -589,6 +593,7 @@ export default function LeadsPage() {
         ptSessions: isPT ? (f.ptSessions || undefined) : undefined,
         serviceSessions: isPT && f.serviceSessions ? parseInt(f.serviceSessions) : undefined,
         serviceSessionPrice: isPT && f.serviceSessionPrice ? parseInt(f.serviceSessionPrice) : undefined,
+        eventId: isPT && f.eventId ? parseInt(f.eventId) : undefined,
         paymentAmount: f.paymentAmount ? parseInt(f.paymentAmount) : undefined,
         unpaidAmount: f.unpaidAmount ? parseInt(f.unpaidAmount) : undefined,
         paymentMethod: f.paymentMethod || undefined,
@@ -635,6 +640,7 @@ export default function LeadsPage() {
             totalSessions: parseInt(f.ptSessions),
             serviceSessions: f.serviceSessions ? parseInt(f.serviceSessions) : undefined,
             serviceSessionPrice: f.serviceSessionPrice ? parseInt(f.serviceSessionPrice) : undefined,
+            eventId: f.eventId ? parseInt(f.eventId) : undefined,
             startDate: f.membershipStart || undefined,
             expiryDate: f.membershipEnd || undefined,
             paymentAmount: f.paymentAmount ? parseInt(f.paymentAmount) : undefined,
@@ -685,6 +691,7 @@ export default function LeadsPage() {
       programDetail: parts.length > 0 ? parts.join(" + ") : undefined,
       sessions: reg.itemTypes.includes("PT") ? reg.sessions : undefined,
       serviceSessions: reg.itemTypes.includes("PT") ? (reg.serviceSessions ?? 0) : undefined,
+      eventId: reg.itemTypes.includes("PT") ? reg.eventId : undefined,
       duration: reg.itemTypes.includes("헬스") ? reg.duration : undefined,
       amount: Number(reg.amount) || 0,
       discountAmount: Number(reg.discountAmount) || 0,
@@ -1263,7 +1270,7 @@ export default function LeadsPage() {
                             defaultValue=""
                             onChange={e => {
                               const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
-                              if (ev) setRegForm(f => ({ ...f, sessions: ev.sessions, serviceSessions: ev.serviceSessions }));
+                              if (ev) setRegForm(f => ({ ...f, sessions: ev.sessions, serviceSessions: ev.serviceSessions, eventId: ev.id }));
                             }}>
                             <option value="" disabled>이벤트 선택...</option>
                             {(ptEvents ?? []).map((ev: any) => (
@@ -1898,6 +1905,7 @@ export default function LeadsPage() {
                                         ...f,
                                         serviceSessions: String(ev.serviceSessions),
                                         serviceSessionPrice: String(ev.serviceSessionPrice ?? 0),
+                                        eventId: String(ev.id),
                                       }));
                                     }}>
                                     <option value="" disabled>이벤트 선택...</option>
@@ -2260,6 +2268,7 @@ export default function LeadsPage() {
                                   ...f,
                                   serviceSessions: String(ev.serviceSessions),
                                   serviceSessionPrice: String(ev.serviceSessionPrice ?? 0),
+                                  eventId: String(ev.id),
                                 }));
                               }}>
                               <option value="" disabled>이벤트 선택...</option>

@@ -408,6 +408,7 @@ function EventManagementSection() {
   const [serviceSamePrice, setServiceSamePrice] = useState(false);
 
   const { data: events, refetch } = trpc.eventPrograms.list.useQuery({ type: eventType });
+  const { data: eventPerf } = trpc.eventPrograms.performance.useQuery();
   const upsertMutation = trpc.eventPrograms.upsert.useMutation({
     onSuccess: () => { toast.success("저장되었습니다."); setShowForm(false); setEditItem(null); refetch(); },
     onError: (e) => toast.error(e.message || "저장 실패"),
@@ -511,6 +512,18 @@ function EventManagementSection() {
                     {ev.serviceSamePrice === 1
                       ? <span> · 서비스단가 정규와 동일</span>
                       : ev.serviceSessionPrice > 0 && <span> · 서비스단가 {ev.serviceSessionPrice.toLocaleString()}원</span>}
+                  </p>
+                  <p className="text-xs mt-1">
+                    {(() => {
+                      const perf = eventPerf?.[ev.id];
+                      if (!perf || perf.registrations === 0)
+                        return <span className="text-muted-foreground/60">📊 성과: 집계된 등록 없음</span>;
+                      return (
+                        <span className="text-emerald-400 font-medium">
+                          📊 참여 {perf.participants}명 · 등록 {perf.registrations}건 · 매출 {perf.revenue.toLocaleString()}원
+                        </span>
+                      );
+                    })()}
                   </p>
                   {(ev.startDate || ev.endDate) && (
                     <p className="text-xs text-muted-foreground/70 mt-0.5">

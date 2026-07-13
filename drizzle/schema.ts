@@ -89,6 +89,7 @@ export const ptPackages = pgTable("pt_packages", {
   pricePerSession: integer("pricePerSession"),
   serviceSessionPrice: integer("serviceSessionPrice").default(0),
   serviceSamePrice: integer("serviceSamePrice").default(0),   // 1이면 서비스 세션도 정규 회당 단가로 정산
+  eventId: integer("eventId"),                                // 적용된 이벤트(pt_event_programs.id) — 이벤트 성과 추적용
   paymentAmount: integer("paymentAmount"),
   unpaidAmount: integer("unpaidAmount"),
   paymentMethod: text("paymentMethod"),
@@ -314,6 +315,7 @@ export const revenueEntries = pgTable("revenue_entries", {
   consultantId: integer("consultantId"),
   branchId: integer("branchId"),
   channelId: integer("channelId"),
+  eventId: integer("eventId"),        // 적용된 이벤트(pt_event_programs.id) — 이벤트 성과 추적용
   createdBy: integer("createdBy"),
   customerName: text("customerName"), // 회원 이름
   phone: text("phone"),               // 연락처

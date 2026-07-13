@@ -408,6 +408,7 @@ const revenueRouter = t.router({
       consultantId: z.number().optional(),
       branchId: z.number().optional(),
       channelId: z.number().optional(),
+      eventId: z.number().optional(),   // 적용 이벤트 (성과 추적)
       type: z.enum(["PT", "헬스", "기타"]),
       subType: z.enum(["신규", "재등록", "이전", "환불"]),
       amount: z.number().min(0),
@@ -544,6 +545,7 @@ const revenueRouter = t.router({
               trainerId: resolvedTrainerId ?? null,
               packageName: input.programDetail ?? undefined,
               totalSessions: sessionCount,
+              eventId: input.eventId ?? undefined,
               usedSessions: 0,
               startDate: input.startDate ?? undefined,
               paymentAmount: input.paidAmount ?? input.amount ?? undefined,
@@ -3056,6 +3058,7 @@ const registerMutation = protectedProcedure
     serviceSessions: z.number().optional(),
     serviceSessionPrice: z.number().optional(),
     serviceSamePrice: z.number().optional(),
+    eventId: z.number().optional(),   // 적용 이벤트 (성과 추적)
 
     // 기타 (단일 타입 등록용, 예: MemberForm에서 "기타" 선택)
     addOther: z.boolean().optional(),
@@ -3263,6 +3266,7 @@ const registerMutation = protectedProcedure
           serviceSessions: svcSessions,
           serviceSessionPrice: input.serviceSessionPrice ?? undefined,
           serviceSamePrice: input.serviceSamePrice ?? undefined,
+          eventId: input.eventId ?? undefined,
           usedSessions: 0,
           startDate: input.membershipStart ?? undefined,
           paymentAmount: ptPaid,
@@ -3291,6 +3295,7 @@ const registerMutation = protectedProcedure
           memberId,
           trainerId: resolvedTrainerId,
           branchId: resolvedBranchId,
+          eventId: input.eventId ?? undefined,
           createdBy: ctx.user.id,
           customerName: input.name,
           phone: input.phone ?? null,
