@@ -415,6 +415,11 @@ export default function LeadsPage() {
     const isPT = directForm.programTypes.includes("PT");
     const isHealth = directForm.programTypes.includes("헬스");
     const isOther = directForm.programTypes.includes("기타");
+    // PT 등록 시 세션수·프로그램명 필수 (정산 단가 0원·"기타" 오분류 사고 예방)
+    if (isPT) {
+      if (!directForm.ptSessions || parseInt(directForm.ptSessions) <= 0) return toast.error("PT 세션 횟수를 입력해주세요.");
+      if (!directForm.ptProgram.trim()) return toast.error("PT 프로그램을 선택해주세요.");
+    }
     setContractDisplayForm({
       itemTypes: directForm.programTypes,
       subType: "신규",
@@ -453,6 +458,11 @@ export default function LeadsPage() {
     }
     const isPT = reRegForm.programTypes.includes("PT");
     const isHealth = reRegForm.programTypes.includes("헬스");
+    // PT 재등록 시 세션수·프로그램명 필수 (정산 단가 0원·"기타" 오분류 사고 예방)
+    if (isPT) {
+      if (!reRegForm.ptSessions || parseInt(reRegForm.ptSessions) <= 0) return toast.error("PT 세션 횟수를 입력해주세요.");
+      if (!reRegForm.ptProgram.trim()) return toast.error("PT 프로그램을 선택해주세요.");
+    }
     setContractDisplayForm({
       itemTypes: reRegForm.programTypes,
       subType: "재등록",
