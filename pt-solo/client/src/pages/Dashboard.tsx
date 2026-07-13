@@ -531,6 +531,7 @@ function TrainerDashboard() {
   const { data: expiring } = trpc.members.getExpiring.useQuery({ days: 7 });
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
+  const { data: lowSessions6 } = trpc.members.getLowSessions.useQuery({ threshold: 6 });
 
   const startTrialMutation = trpc.workshop.startTrial.useMutation({
     onSuccess: () => { toast.success("30일 전체 기능 무료 체험이 시작되었습니다!"); setLocation("/workshop"); },
@@ -542,6 +543,7 @@ function TrainerDashboard() {
   const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
   const [expiringModalOpen, setExpiringModalOpen] = useState(false);
   const [unpaidModalOpen, setUnpaidModalOpen] = useState(false);
+  const [lowSessionsModalOpen, setLowSessionsModalOpen] = useState(false);
   const [registerTypeOpen, setRegisterTypeOpen] = useState(false);
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [classStartOpen, setClassStartOpen] = useState(false);
@@ -672,6 +674,7 @@ function TrainerDashboard() {
           { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setMemberSearchOpen(true) },
           { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
           { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
+          { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
         ]} />
       </div>
 
@@ -1158,6 +1161,47 @@ function TrainerDashboard() {
                   <span className="text-sm font-bold text-orange-500">{(m.unpaidAmount ?? 0).toLocaleString()}원</span>
                 </button>
               ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 6회 이하 세션 모달 */}
+      <Dialog open={lowSessionsModalOpen} onOpenChange={setLowSessionsModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-cyan-500" />
+              6회 이하 세션 회원
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              잔여 세션 6회 이하 · 총 {lowSessions6?.length ?? 0}명 · 재등록 안내가 필요해요
+            </p>
+          </DialogHeader>
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {!lowSessions6 || lowSessions6.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">잔여 세션이 적은 회원이 없습니다.</p>
+            ) : (
+              lowSessions6.map(m => {
+                const remaining = m.totalSessions - m.usedSessions;
+                return (
+                  <button key={m.id} onClick={() => { setLowSessionsModalOpen(false); setLocation(`/members/${m.id}`); }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
+                        <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold">{m.name}</p>
+                        {m.packageName && <p className="text-xs text-muted-foreground">{m.packageName}</p>}
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${remaining <= 0 ? "bg-red-500/15 text-red-500" : remaining <= 2 ? "bg-orange-500/15 text-orange-500" : "bg-cyan-500/15 text-cyan-600"}`}>
+                      {remaining <= 0 ? "소진" : `${remaining}회 남음`}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
         </DialogContent>
