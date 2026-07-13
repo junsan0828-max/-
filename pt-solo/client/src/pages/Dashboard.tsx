@@ -546,7 +546,6 @@ function TrainerDashboard() {
   const [lowSessionsModalOpen, setLowSessionsModalOpen] = useState(false);
   const [registerTypeOpen, setRegisterTypeOpen] = useState(false);
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
-  const [classStartOpen, setClassStartOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
   const [dailyModalOpen, setDailyModalOpen] = useState(false);
   const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
@@ -687,8 +686,7 @@ function TrainerDashboard() {
           <span className="text-sm font-bold">수업</span>
         </div>
         <ToolGrid items={[
-          { label: "수업 하기", icon: Dumbbell, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setClassStartOpen(true) },
-          { label: "오늘 출석", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
+          { label: "오늘 수업 수", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
           { label: "이번달 수업", icon: BarChart3, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setPtStatsModalOpen(true) },
           { label: "수업 일지", icon: BookOpen, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setJournalOpen(true) },
         ]} />
@@ -834,12 +832,6 @@ function TrainerDashboard() {
       <MemberPickModal open={memberSearchOpen} onClose={() => setMemberSearchOpen(false)}
         title="회원 정보 수정" subtitle="이름으로 검색해 회원을 선택하세요"
         icon={Pencil} iconCls="text-indigo-500" allMembers={allMembers}
-        onPick={(id) => setLocation(`/members/${id}`)} />
-
-      {/* 수업 하기 모달 */}
-      <MemberPickModal open={classStartOpen} onClose={() => setClassStartOpen(false)}
-        title="수업 하기" subtitle="수업을 시작할 회원을 선택하세요"
-        icon={Dumbbell} iconCls="text-emerald-500" allMembers={allMembers}
         onPick={(id) => setLocation(`/members/${id}`)} />
 
       {/* 수업 일지 모달 */}
