@@ -560,6 +560,7 @@ function TrainerDashboard() {
   const [dailyModalOpen, setDailyModalOpen] = useState(false);
   const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   const [parqModalOpen, setParqModalOpen] = useState(false);
   const { data: parqMissing } = trpc.parQ.listMissing.useQuery();
   const [expenseForm, setExpenseForm] = useState({ memo: "", amount: "", category: "카드", date: "" });
@@ -581,6 +582,12 @@ function TrainerDashboard() {
   );
   const { data: expenseData, refetch: refetchExpenses } = trpc.expenses.list.useQuery(
     { yearMonth: currentYearMonth }, { enabled: expenseModalOpen }
+  );
+  const { data: settlementRevenue } = trpc.trainers.getMonthlySettlement.useQuery(
+    { yearMonth: currentYearMonth }, { enabled: settlementModalOpen }
+  );
+  const { data: settlementExpense } = trpc.expenses.list.useQuery(
+    { yearMonth: currentYearMonth }, { enabled: settlementModalOpen }
   );
   const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => { refetchExpenses(); setExpenseForm({ memo: "", amount: "", category: "카드", date: "" }); } });
   const deleteExpense = trpc.expenses.delete.useMutation({ onSuccess: () => refetchExpenses() });
@@ -718,7 +725,7 @@ function TrainerDashboard() {
           { label: "월 매출", icon: BarChart3, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setMonthlyModalOpen(true) },
           { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLocation("/members"), badge: lowSessions?.length ?? null },
           { label: "월 지출", icon: Wallet, colorCls: "text-rose-500", bgCls: "bg-rose-500/10", borderCls: "border-rose-500/20", onClick: () => setExpenseModalOpen(true) },
-          { label: "정산 관리", icon: FileText, colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20", onClick: () => setLocation("/settlement") },
+          { label: "정산 관리", icon: FileText, colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20", onClick: () => setSettlementModalOpen(true) },
         ]} />
       </div>
 
@@ -1250,6 +1257,62 @@ function TrainerDashboard() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 정산 관리 모달 */}
+      <Dialog open={settlementModalOpen} onOpenChange={setSettlementModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-slate-400" />
+              정산 관리
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">{currentYearMonth.replace("-", "년 ")}월 매출·지출 요약</p>
+          </DialogHeader>
+          {!settlementRevenue || !settlementExpense ? (
+            <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
+          ) : (() => {
+            const revenue = settlementRevenue.revenue;
+            const afterTax = settlementRevenue.afterTax;
+            const expenseTotal = settlementExpense.total;
+            const netProfit = afterTax - expenseTotal;
+            return (
+              <>
+                <div className="rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2.5 text-xs">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />총 매출
+                    </span>
+                    <span className="font-bold text-emerald-500">+{revenue.toLocaleString()}원</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2.5 text-xs">
+                    <span className="text-muted-foreground pl-5">세후 정산액</span>
+                    <span className="font-semibold text-foreground/70">{afterTax.toLocaleString()}원</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2.5 text-xs">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Wallet className="h-3.5 w-3.5 text-rose-500" />총 지출
+                    </span>
+                    <span className="font-bold text-rose-500">-{expenseTotal.toLocaleString()}원</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-3 bg-accent/30">
+                    <span className="text-sm font-bold">순수익</span>
+                    <span className={`text-base font-black ${netProfit >= 0 ? "text-blue-500" : "text-red-500"}`}>
+                      {netProfit >= 0 ? "+" : ""}{netProfit.toLocaleString()}원
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground px-1">
+                  순수익 = 세후 정산액({afterTax.toLocaleString()}원) − 총 지출({expenseTotal.toLocaleString()}원)
+                </p>
+                <button onClick={() => { setSettlementModalOpen(false); setLocation("/settlement"); }}
+                  className="w-full py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-accent/40 transition-colors">
+                  자세히 보기 →
+                </button>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
