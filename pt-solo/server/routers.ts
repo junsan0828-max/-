@@ -3794,7 +3794,7 @@ const fitStepPlusRouter = t.router({
     const rows = await pool.query<{ key: string; value: string }>(
       `SELECT key, value FROM plan_settings WHERE key IN ('plan_price_free','plan_price_pro','plan_price_elite')`
     );
-    const map: Record<string, number> = { free: 0, pro: 29000, elite: 59000 };
+    const map: Record<string, number> = { free: 0, pro: 69000, elite: 59000 };
     for (const r of rows.rows) { map[r.key.replace("plan_price_", "")] = parseInt(r.value); }
     return map;
   }),
@@ -3845,18 +3845,26 @@ const fitStepPlusRouter = t.router({
       return { success: true };
     }),
 
-  // ── 트레이너용 플랜 정보 조회 (가격+할인율) ──
+  // ── 트레이너용 플랜 정보 조회 (가격+할인율+연회비 정책) ──
   trainer_getPublicPlanInfo: protectedProcedure.query(async () => {
     const rows = await pool.query<{ key: string; value: string }>(
-      `SELECT key, value FROM plan_settings WHERE key LIKE 'plan_price_%' OR key LIKE 'plan_discount_%'`
+      `SELECT key, value FROM plan_settings
+       WHERE key LIKE 'plan_price_%' OR key LIKE 'plan_discount_%'
+          OR key IN ('addon_price','plan_billing_period')`
     );
-    const prices: Record<string, number> = { free: 0, pro: 29000, elite: 59000 };
+    const prices: Record<string, number> = { free: 0, pro: 69000, elite: 59000 };
     const discounts: Record<string, number> = { free: 0, pro: 0, elite: 0 };
+    let proOriginalPrice = 150000;
+    let addonPrice = 10000;
+    let billingPeriod = "annual";
     for (const r of rows.rows) {
-      if (r.key.startsWith("plan_price_")) prices[r.key.replace("plan_price_", "")] = parseInt(r.value);
-      if (r.key.startsWith("plan_discount_")) discounts[r.key.replace("plan_discount_", "")] = parseInt(r.value);
+      if (r.key === "plan_price_pro_original") proOriginalPrice = parseInt(r.value);
+      else if (r.key === "addon_price") addonPrice = parseInt(r.value);
+      else if (r.key === "plan_billing_period") billingPeriod = r.value;
+      else if (r.key.startsWith("plan_price_")) prices[r.key.replace("plan_price_", "")] = parseInt(r.value);
+      else if (r.key.startsWith("plan_discount_")) discounts[r.key.replace("plan_discount_", "")] = parseInt(r.value);
     }
-    return { prices, discounts };
+    return { prices, discounts, proOriginalPrice, addonPrice, billingPeriod };
   }),
 
   // ── 포인트로 플랜 즉시 구매 ──
@@ -4052,7 +4060,7 @@ const workshopRouter = t.router({
     const featureConfigs: Record<string, string> = {};
     for (const row of cfgRows.rows) featureConfigs[row.featureId] = row.status;
 
-    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures: [] as string[], eliteTrial: null as null | { status: "active"|"expired"; daysRemaining: number; extensionRequested: boolean } };
+    if (!trainerId) return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures: [] as string[], addonUnlocks: [] as string[], eliteTrial: null as null | { status: "active"|"expired"; daysRemaining: number; extensionRequested: boolean } };
 
     const settingsRow = await pool.query<{ workshopTrialStartedAt: string | null; removedFeatures: string | null }>(
       `SELECT "workshopTrialStartedAt", "removedFeatures" FROM trainer_settings WHERE "trainerId"=$1`,
@@ -4061,17 +4069,23 @@ const workshopRouter = t.router({
     const row0 = settingsRow.rows[0];
     const removedFeatures = (row0?.removedFeatures ?? "").split(",").filter(Boolean);
 
+    // 핵심(유료) 기능 개별 잠금해제 목록 — workshop_access 제외한 실제 기능 ID
+    const unlockRows = await pool.query<{ feature: string }>(
+      `SELECT feature FROM workshop_unlocks WHERE "trainerId"=$1 AND feature <> 'workshop_access'`, [trainerId]
+    );
+    const addonUnlocks = unlockRows.rows.map(r => r.feature);
+
     // 코인 활성화 여부 확인
     const activated = await pool.query(
       `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature='workshop_access'`,
       [trainerId]
     );
     if (activated.rows.length > 0) {
-      return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, eliteTrial: null };
+      return { status: "active", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, addonUnlocks, eliteTrial: null };
     }
 
     const trialStartedAt = row0?.workshopTrialStartedAt ?? null;
-    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, eliteTrial: null };
+    if (!trialStartedAt) return { status: "unopened", daysRemaining: null as number | null, trialStartedAt: null as string | null, featureConfigs, removedFeatures, addonUnlocks, eliteTrial: null };
 
     const started = new Date(trialStartedAt);
     const daysSince = Math.floor((Date.now() - started.getTime()) / (1000 * 60 * 60 * 24));
@@ -4084,12 +4098,12 @@ const workshopRouter = t.router({
         : null;
 
     if (daysSince <= WORKSHOP_TRIAL_DAYS) {
-      return { status: "trial", daysRemaining: trialDaysRemaining, trialStartedAt, featureConfigs, removedFeatures, eliteTrial };
+      return { status: "trial", daysRemaining: trialDaysRemaining, trialStartedAt, featureConfigs, removedFeatures, addonUnlocks, eliteTrial };
     }
     if (daysSince <= WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS) {
-      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures, eliteTrial: null };
+      return { status: "grace", daysRemaining: WORKSHOP_TRIAL_DAYS + WORKSHOP_GRACE_DAYS - daysSince, trialStartedAt, featureConfigs, removedFeatures, addonUnlocks, eliteTrial: null };
     }
-    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs, removedFeatures, eliteTrial: null };
+    return { status: "locked", daysRemaining: 0, trialStartedAt, featureConfigs, removedFeatures, addonUnlocks, eliteTrial: null };
   }),
 
   // (기존 호환성 유지용 - 더 이상 별도 elite trial 없음)
@@ -4185,6 +4199,52 @@ const workshopRouter = t.router({
       [trainerId, input.feature, meta.points]
     );
     return { success: true };
+  }),
+
+  // ── 핵심(유료) 기능 개별 구매 — 1개당 addon_price, 포인트 차감, 일회성 영구 해제 ──
+  purchaseAddon: protectedProcedure.input(z.object({ featureId: z.string() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+    // 관리자가 '핵심 기능(addon_premium)'으로 지정한 기능만 구매 대상
+    const cfg = await pool.query<{ status: string }>(
+      `SELECT status FROM workshop_feature_config WHERE "featureId"=$1`, [input.featureId]
+    );
+    if (cfg.rows[0]?.status !== "addon_premium") {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "개별 구매 대상 기능이 아닙니다." });
+    }
+
+    // 이미 구매(해제)했는지 확인
+    const existing = await pool.query(
+      `SELECT id FROM workshop_unlocks WHERE "trainerId"=$1 AND feature=$2`, [trainerId, input.featureId]
+    );
+    if (existing.rows.length > 0) throw new TRPCError({ code: "CONFLICT", message: "이미 이용 중인 기능입니다." });
+
+    // 가격 조회
+    const priceRow = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='addon_price'`);
+    const price = parseInt(priceRow.rows[0]?.value ?? "10000");
+
+    // 포인트 잔액 확인
+    const balRow = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs
+       WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE)`, [trainerId]
+    );
+    const balance = Number(balRow.rows[0]?.balance ?? 0);
+    if (balance < price) {
+      throw new TRPCError({ code: "FORBIDDEN", message: `포인트가 부족합니다. (필요: ${price.toLocaleString()}P, 보유: ${balance.toLocaleString()}P)` });
+    }
+
+    // 포인트 차감 + 잠금해제 기록
+    await pool.query(
+      `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'workshop_unlock',$3,'completed')`,
+      [trainerId, -price, `핵심 기능 구매: ${input.featureId}`]
+    );
+    await pool.query(
+      `INSERT INTO workshop_unlocks ("trainerId", feature, "pointsSpent") VALUES ($1,$2,$3)
+       ON CONFLICT ("trainerId", feature) DO NOTHING`,
+      [trainerId, input.featureId, price]
+    );
+    return { success: true, remaining: balance - price };
   }),
 
   remove: protectedProcedure

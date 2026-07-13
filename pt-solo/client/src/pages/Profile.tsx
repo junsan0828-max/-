@@ -17,7 +17,7 @@ const KAKAO_HOLDER  = "피트니스텝";
 
 const PLAN_INFO = {
   free:  { label: "FREE",  color: "text-gray-500",   border: "border-gray-500/30",   bg: "bg-gray-500/10",   features: ["회원 최대 7명", "기본 PT 관리"] },
-  pro:   { label: "PRO",   color: "text-blue-500",   border: "border-blue-500/30",   bg: "bg-blue-500/10",   features: ["회원 최대 15명", "수업 예약", "브랜드 페이지"] },
+  pro:   { label: "PRO",   color: "text-blue-500",   border: "border-blue-500/30",   bg: "bg-blue-500/10",   features: ["회원 최대 50명", "전체 기능 개방", "브랜딩·예약·분석·AI"] },
   elite: { label: "ELITE", color: "text-purple-500", border: "border-purple-500/30", bg: "bg-purple-500/10", features: ["회원 최대 35명", "모든 기능 포함", "FIT STEP+"] },
 } as const;
 
@@ -268,9 +268,12 @@ export default function Profile() {
       {/* 플랜 구독 */}
       {(() => {
         const currentPlan = (authUser as any)?.plan ?? "free";
-        const prices = planInfo?.prices ?? { free: 0, pro: 29000, elite: 59000 };
+        const prices = planInfo?.prices ?? { free: 0, pro: 69000, elite: 59000 };
         const discounts = planInfo?.discounts ?? { free: 0, pro: 0, elite: 0 };
-        const planKeys = (["free", "pro", "elite"] as const).filter(p => p !== "free");
+        const proOriginalPrice = (planInfo as any)?.proOriginalPrice ?? 150000;
+        const billingUnit = ((planInfo as any)?.billingPeriod ?? "annual") === "annual" ? "/년" : "/월";
+        // Elite 임시 비활성화 — Pro만 구독 대상
+        const planKeys = (["pro"] as const);
         return (
           <Card className="bg-card border-border">
             <CardContent className="p-5 space-y-4">
@@ -289,7 +292,7 @@ export default function Profile() {
               </div>
 
               {/* 플랜 카드 */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 {planKeys.map(plan => {
                   const info = PLAN_INFO[plan];
                   const price = prices[plan] ?? 0;
@@ -297,36 +300,43 @@ export default function Profile() {
                   const finalPrice = disc > 0 ? calcDiscounted(price, disc) : price;
                   const isCurrent = currentPlan === plan;
                   const isSelected = selectedPlan === plan;
+                  const hasEvent = plan === "pro" && proOriginalPrice > price;
                   return (
                     <button key={plan} type="button"
                       onClick={() => { if (!isCurrent) setSelectedPlan(isSelected ? null : plan); }}
                       disabled={isCurrent}
-                      className={`relative rounded-xl border-2 p-3 text-left transition-all ${
+                      className={`relative rounded-xl border-2 p-4 text-left transition-all ${
                         isCurrent ? "border-primary bg-primary/10 opacity-80 cursor-default"
                           : isSelected ? `border-current ${info.border} ${info.bg}`
                           : `border-border bg-card hover:${info.border}`
                       }`}>
-                      {disc > 0 && (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">
-                          -{disc}%
-                        </span>
-                      )}
-                      {isCurrent && (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">현재</span>
-                      )}
-                      <p className={`text-xs font-black mb-1 ${info.color}`}>{info.label}</p>
+                      {isCurrent ? (
+                        <span className="absolute top-2 right-2 text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">현재</span>
+                      ) : hasEvent ? (
+                        <span className="absolute top-2 right-2 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">오픈이벤트</span>
+                      ) : disc > 0 ? (
+                        <span className="absolute top-2 right-2 text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">-{disc}%</span>
+                      ) : null}
+                      <p className={`text-sm font-black mb-1 ${info.color}`}>{info.label}</p>
                       {price > 0 ? (
-                        <div>
-                          {disc > 0 && <p className="text-[10px] text-muted-foreground line-through">{price.toLocaleString()}원</p>}
-                          <p className={`text-sm font-black ${disc > 0 ? info.color : "text-foreground"}`}>{finalPrice.toLocaleString()}원<span className="text-[10px] font-normal text-muted-foreground">/월</span></p>
+                        <div className="flex items-baseline gap-1.5">
+                          {(hasEvent || disc > 0) && (
+                            <span className="text-[11px] text-muted-foreground line-through">
+                              {(hasEvent ? proOriginalPrice : price).toLocaleString()}원
+                            </span>
+                          )}
+                          <span className={`text-lg font-black ${hasEvent || disc > 0 ? info.color : "text-foreground"}`}>
+                            {finalPrice.toLocaleString()}원
+                          </span>
+                          <span className="text-[11px] font-normal text-muted-foreground">{billingUnit}</span>
                         </div>
                       ) : (
-                        <p className="text-sm font-black text-gray-500">무료</p>
+                        <p className="text-lg font-black text-gray-500">무료</p>
                       )}
-                      <ul className="mt-2 space-y-0.5">
+                      <ul className="mt-2.5 space-y-1">
                         {info.features.map(f => (
-                          <li key={f} className="text-[10px] text-muted-foreground flex items-center gap-1">
-                            <Zap className="h-2.5 w-2.5 text-primary shrink-0" />{f}
+                          <li key={f} className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                            <Zap className="h-3 w-3 text-primary shrink-0" />{f}
                           </li>
                         ))}
                       </ul>

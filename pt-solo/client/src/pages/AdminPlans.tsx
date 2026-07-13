@@ -116,8 +116,8 @@ export default function AdminPlans() {
       <Card className="bg-card border-border">
         <CardContent className="p-5 space-y-4">
           <div>
-            <p className="text-sm font-semibold">플랜별 월 구독료</p>
-            <p className="text-xs text-muted-foreground mt-0.5">변경 시 모든 STEPER에게 즉시 적용됩니다.</p>
+            <p className="text-sm font-semibold">플랜별 연회비</p>
+            <p className="text-xs text-muted-foreground mt-0.5">연 단위 요금입니다. 변경 시 모든 STEPER에게 즉시 적용됩니다. (ELITE는 현재 비활성화)</p>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {(["free", "pro", "elite"] as PlanKey[]).map(plan => {

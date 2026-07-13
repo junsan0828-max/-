@@ -854,12 +854,32 @@ async function initDatabase() {
     "updatedAt" TEXT NOT NULL DEFAULT now()::text
   )`);
   for (const [k, v] of [
-    ['fsp_limit_free','5'],['fsp_limit_pro','15'],['fsp_limit_elite','30'],
-    ['member_limit_free','7'],['member_limit_pro','15'],['member_limit_elite','35'],
-    ['plan_price_free','0'],['plan_price_pro','29000'],['plan_price_elite','59000'],
+    ['fsp_limit_free','5'],['fsp_limit_pro','30'],['fsp_limit_elite','30'],
+    ['member_limit_free','7'],['member_limit_pro','50'],['member_limit_elite','35'],
+    ['plan_price_free','0'],['plan_price_pro','69000'],['plan_price_elite','59000'],
+    ['plan_price_pro_original','150000'],
     ['plan_discount_free','0'],['plan_discount_pro','0'],['plan_discount_elite','0'],
+    ['plan_billing_period','annual'],   // 연회비
+    ['addon_price','10000'],            // 핵심(유료) 기능 1개당 결제 금액
   ]) {
     await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, [k, v]);
+  }
+  // ── 오픈이벤트 요금 정책 마이그레이션 (기존 DB 강제 갱신, 1회성) ──────────────
+  {
+    const ver = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='pricing_version'`);
+    if (ver.rows[0]?.value !== '2') {
+      for (const [k, v] of [
+        ['plan_price_pro','69000'],            // 오픈이벤트가
+        ['plan_price_pro_original','150000'],  // 정가
+        ['plan_billing_period','annual'],      // 월 → 연회비
+        ['addon_price','10000'],
+        ['member_limit_pro','50'],
+        ['fsp_limit_pro','30'],
+      ]) {
+        await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value`, [k, v]);
+      }
+      await pool.query(`INSERT INTO plan_settings (key, value) VALUES ('pricing_version','2') ON CONFLICT (key) DO UPDATE SET value='2'`);
+    }
   }
 
   // 기능 사용 포인트 차감 규칙 테이블

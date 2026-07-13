@@ -3643,18 +3643,23 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
           <div className="pt-2 border-t border-border space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">기능 상태 변경</p>
             <div className="flex gap-2">
-              {(["active", "coming_soon"] as const).map(s => {
-                const meta = { active: { label: "활성", cls: "bg-green-600 text-white" }, coming_soon: { label: "준비 중", cls: "bg-muted text-muted-foreground border border-border" } }[s];
+              {(["active", "coming_soon", "addon_premium"] as const).map(s => {
+                const meta = {
+                  active: { label: "활성", on: "bg-green-100 text-green-700 ring-2 ring-green-400", off: "bg-muted/60 text-foreground/60 hover:bg-green-50 hover:text-green-700" },
+                  coming_soon: { label: "준비 중", on: "bg-muted text-muted-foreground ring-2 ring-border", off: "bg-muted/40 text-foreground/50 hover:bg-muted" },
+                  addon_premium: { label: "핵심(유료)", on: "bg-violet-100 text-violet-700 ring-2 ring-violet-400", off: "bg-muted/40 text-foreground/50 hover:bg-violet-50 hover:text-violet-700" },
+                }[s];
                 const isCurrent = feature.status === s;
                 return (
                   <button key={s} disabled={isCurrent || updateStatusMutation.isPending}
                     onClick={() => updateStatusMutation.mutate({ featureId: feature.id, status: s })}
-                    className={`flex-1 text-xs font-semibold py-2 rounded-xl transition-all ${isCurrent ? (s === "active" ? "bg-green-100 text-green-700 ring-2 ring-green-400" : "bg-muted text-muted-foreground ring-2 ring-border") : (s === "active" ? "bg-muted/60 text-foreground/60 hover:bg-green-50 hover:text-green-700" : "bg-muted/40 text-foreground/50 hover:bg-muted")}`}>
+                    className={`flex-1 text-xs font-semibold py-2 rounded-xl transition-all ${isCurrent ? meta.on : meta.off}`}>
                     {isCurrent ? `✓ ${meta.label}` : meta.label}
                   </button>
                 );
               })}
             </div>
+            <p className="text-[10px] text-muted-foreground">핵심(유료): 모든 스테퍼에게 잠금 · 설정 금액(기본 1만원) 결제로 개별 이용</p>
           </div>
 
           {/* 전용 설정 페이지 링크 */}
@@ -4849,6 +4854,12 @@ function WorkshopContent() {
     onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("기능이 다시 추가되었습니다."); },
     onError: (e) => toast.error(e.message),
   });
+  const purchaseAddonMutation = trpc.workshop.purchaseAddon.useMutation({
+    onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("핵심 기능이 활성화되었습니다!"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const { data: planInfo } = trpc.fitStepPlus.trainer_getPublicPlanInfo.useQuery();
+  const addonPrice = planInfo?.addonPrice ?? 10000;
 
   if (isLoading) {
     return (
@@ -4998,21 +5009,32 @@ function WorkshopContent() {
   const featureConfigs = wsStatus?.featureConfigs ?? {};
   const removedFeatures = wsStatus?.removedFeatures ?? [];
 
-  // 유저 플랜에 포함된 기능 ID 세트 (하위 플랜 포함)
+  // 핵심(유료) 기능 개별 구매 목록
+  const addonUnlocks = wsStatus?.addonUnlocks ?? [];
+
+  // 유저 플랜에 포함된 기능 ID 세트 — Pro는 PRO+ELITE 전체 기능 개방 (Elite 티어는 Pro로 흡수)
   const userPlan = ((user as any)?.plan ?? "free") as "free" | "pro" | "elite";
-  const planFreeIds = TIER_ITEMS.free;
-  const planProIds = userPlan === "pro" || userPlan === "elite" ? TIER_ITEMS.pro : [];
-  const planEliteIds = userPlan === "elite" ? TIER_ITEMS.elite : [];
-  const userPlanFeatureIds = new Set([...planFreeIds, ...planProIds, ...planEliteIds]);
+  const isProPlan = userPlan === "pro" || userPlan === "elite";
+  const userPlanFeatureIds = new Set([
+    ...TIER_ITEMS.free,
+    ...(isProPlan ? [...TIER_ITEMS.pro, ...TIER_ITEMS.elite] : []),
+  ]);
 
   const getEffectiveStatus = (item: WsItem) => {
-    // elite trial 활성 중: PRO+ELITE 기능 강제 active
+    const cfg = (featureConfigs[item.id] ?? item.status) as WsItemStatus | "removed" | "hidden";
+    // 핵심(유료) 기능: 플랜 무관 잠금. 개별 구매(1만원)한 경우에만 활성
+    if (cfg === "addon_premium") {
+      return addonUnlocks.includes(item.id) ? "active" : "addon_premium";
+    }
+    // 출시 예정 / 숨김은 그대로
+    if (cfg === "coming_soon" || cfg === "hidden") return cfg;
+    // elite trial(전체 체험) 중: 플랜 기능 강제 active
     if (eliteTrialActive && ELITE_TRIAL_FEATURE_IDS.includes(item.id)) return "active";
     // 유저 플랜에 포함된 기능은 removed 여부와 무관하게 항상 active
     if (userPlanFeatureIds.has(item.id)) return "active";
     // 명시적으로 제거된 기능 (플랜 외 기능만 해당)
     if (removedFeatures.includes(item.id)) return "removed";
-    return featureConfigs[item.id] ?? item.status;
+    return cfg;
   };
 
   const activeItems = WS_CATALOG.flatMap(cat =>
@@ -5071,16 +5093,16 @@ function WorkshopContent() {
 
       {/* ── 내 작업실 ────────────────────────────────────────── */}
       {(() => {
-        const userPlan = ((user as any)?.plan ?? "free") as "free" | "pro" | "elite";
         const allItems = WS_CATALOG.flatMap(c => c.items);
 
-        // 상위 플랜에서 유저 플랜에 없는 기능만 (coming_soon / addon 제외)
-        const lockedProItems = userPlan === "free"
-          ? TIER_ITEMS.pro.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && !userPlanFeatureIds.has(i.id) && i.status !== "coming_soon" && !i.status.startsWith("addon"))
+        // PRO 잠금: Free 유저에게 Pro(엘리트 흡수 포함) 기능 노출. 핵심(addon)·출시예정 제외
+        const proTierIds = [...TIER_ITEMS.pro, ...TIER_ITEMS.elite];
+        const lockedProItems = !isProPlan
+          ? proTierIds.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && getEffectiveStatus(i) !== "active" && getEffectiveStatus(i) !== "coming_soon" && getEffectiveStatus(i) !== "addon_premium")
           : [];
-        const lockedEliteItems = userPlan !== "elite"
-          ? TIER_ITEMS.elite.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && !userPlanFeatureIds.has(i.id) && i.status !== "coming_soon" && !i.status.startsWith("addon"))
-          : [];
+
+        // 핵심(유료) 기능: 플랜 무관, 개별 1만원 구매 필요 (아직 미구매)
+        const coreAddonItems = allItems.filter(i => getEffectiveStatus(i) === "addon_premium");
 
         return (
           <div className="space-y-4 pb-6">
@@ -5106,7 +5128,38 @@ function WorkshopContent() {
               );
             })}
 
-            {/* PRO 잠금 섹션 */}
+            {/* 핵심(유료) 기능 — 1개 1만원 개별 구매 */}
+            {coreAddonItems.length > 0 && (
+              <div className="mt-6 space-y-2">
+                <div className="flex items-center gap-2 px-1 py-1.5 border-b border-violet-200/50 dark:border-violet-500/20">
+                  <Lock className="h-3.5 w-3.5 text-violet-500" />
+                  <span className="text-xs font-bold text-violet-600 dark:text-violet-400">핵심 기능 · 개별 이용</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">1개 {addonPrice.toLocaleString()}원</span>
+                </div>
+                {coreAddonItems.map(item => (
+                  <div key={item.id} className="flex items-center gap-3 rounded-xl border border-violet-200/70 dark:border-violet-500/20 bg-violet-50/50 dark:bg-violet-500/5 px-3 py-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+                      <item.icon className="h-4 w-4 text-violet-500" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate">{item.name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{item.shortDesc}</p>
+                    </div>
+                    <button
+                      onClick={() => purchaseAddonMutation.mutate({ featureId: item.id })}
+                      disabled={purchaseAddonMutation.isPending}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-violet-500 text-white hover:bg-violet-600 transition-colors shrink-0 disabled:opacity-50">
+                      {addonPrice.toLocaleString()}원 이용
+                    </button>
+                  </div>
+                ))}
+                <p className="text-[10px] text-muted-foreground px-1">
+                  ※ 한 번 결제하면 영구 이용 · FIT POINT로 결제됩니다 (포인트 부족 시 충전 필요)
+                </p>
+              </div>
+            )}
+
+            {/* PRO 잠금 섹션 (Free 유저) */}
             {lockedProItems.length > 0 && (
               <div className="mt-6 space-y-2">
                 <div className="flex items-center gap-2 px-1 py-1.5 border-b border-blue-200/50 dark:border-blue-500/20">
@@ -5120,32 +5173,11 @@ function WorkshopContent() {
                 <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold text-blue-700 dark:text-blue-400">PRO로 업그레이드</p>
-                    <p className="text-[11px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">전문가 이미지 + 회원 경험 강화</p>
+                    <p className="text-[11px] text-blue-600/70 dark:text-blue-400/70 mt-0.5">
+                      연 {(planInfo?.prices?.pro ?? 69000).toLocaleString()}원으로 전체 기능 개방
+                    </p>
                   </div>
-                  <a href="mailto:fitstep.consult@gmail.com?subject=PRO 플랜 업그레이드 문의" className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shrink-0">
-                    업그레이드
-                  </a>
-                </div>
-              </div>
-            )}
-
-            {/* ELITE 잠금 섹션 */}
-            {lockedEliteItems.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center gap-2 px-1 py-1.5 border-b border-amber-200/50 dark:border-amber-500/20">
-                  <Lock className="h-3.5 w-3.5 text-amber-500" />
-                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400">ELITE 플랜 기능</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">{lockedEliteItems.length}개</span>
-                </div>
-                {lockedEliteItems.map(item => (
-                  <LockedFeatureRow key={item.id} item={item} planLabel="ELITE" planColor="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400" />
-                ))}
-                <div className="rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400">ELITE로 업그레이드</p>
-                    <p className="text-[11px] text-amber-600/70 dark:text-amber-400/70 mt-0.5">사업 성장을 위한 분석 & 자동화</p>
-                  </div>
-                  <a href="mailto:fitstep.consult@gmail.com?subject=ELITE 플랜 업그레이드 문의" className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors shrink-0">
+                  <a href="/profile" className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shrink-0">
                     업그레이드
                   </a>
                 </div>

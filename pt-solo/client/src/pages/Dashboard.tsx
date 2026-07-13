@@ -91,13 +91,22 @@ const WS_DASH: WsDashCat[] = [
   },
 ];
 
-type FeatureLock = "available" | "pro" | "elite" | "soon";
+type FeatureLock = "available" | "pro" | "soon" | "core";
 
-function getFeatureLock(id: string, plan: string): FeatureLock {
+function getFeatureLock(
+  id: string,
+  plan: string,
+  featureConfigs?: Record<string, string>,
+  addonUnlocks?: string[],
+): FeatureLock {
+  // 핵심(유료) 기능: 관리자가 지정, 개별 구매(1만원) 전까지 잠금 — 플랜 무관
+  if (featureConfigs?.[id] === "addon_premium") {
+    return addonUnlocks?.includes(id) ? "available" : "core";
+  }
   if (COMING_SOON_IDS.has(id)) return "soon";
   if (FREE_IDS.has(id)) return "available";
-  if (PRO_IDS.has(id)) return plan === "free" ? "pro" : "available";
-  if (ELITE_IDS.has(id)) return plan === "elite" ? "available" : "elite";
+  // Elite 티어는 Pro로 흡수 — 엘리트 기능도 Pro 가입 시 개방
+  if (PRO_IDS.has(id) || ELITE_IDS.has(id)) return plan === "free" ? "pro" : "available";
   return "available";
 }
 
@@ -147,9 +156,14 @@ function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDas
     <button onClick={() => onClick(item.id)} className="flex flex-col items-center gap-1.5 group">
       <div className={`relative w-14 h-14 rounded-[18px] ${cat.bgCls} border ${cat.borderCls} flex items-center justify-center transition-all active:scale-90 ${unavailable ? "opacity-40" : ""}`}>
         <item.icon className={`h-5 w-5 ${cat.itemColorCls}`} />
-        {(lock === "pro" || lock === "elite") && (
+        {lock === "pro" && (
           <div className="absolute -top-1 -right-1 w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
             <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+          </div>
+        )}
+        {lock === "core" && (
+          <div className="absolute -top-1 -right-1 h-[18px] px-1 bg-violet-500 rounded-[5px] flex items-center justify-center">
+            <Lock className="h-2.5 w-2.5 text-white" />
           </div>
         )}
         {lock === "soon" && (
@@ -168,7 +182,7 @@ function WsToolItem({ item, cat, lock, onClick }: { item: WsDashItem; cat: WsDas
 // ─── 작업실 카테고리 그룹 ─────────────────────────────────────────────────────
 const INLINE_LIMIT = 8; // 2행
 
-function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; onNavigate: WsNavFn; }) {
+function WsCatGroup({ cat, plan, onNavigate, featureConfigs, addonUnlocks }: { cat: WsDashCat; plan: string; onNavigate: WsNavFn; featureConfigs?: Record<string, string>; addonUnlocks?: string[]; }) {
   const [expanded, setExpanded] = useState(false);
   const visibleItems = expanded ? cat.items : cat.items.slice(0, INLINE_LIMIT);
   const hiddenCount = cat.items.length - INLINE_LIMIT;
@@ -190,7 +204,7 @@ function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; o
             key={item.id}
             item={item}
             cat={cat}
-            lock={getFeatureLock(item.id, plan)}
+            lock={getFeatureLock(item.id, plan, featureConfigs, addonUnlocks)}
             onClick={(id) => onNavigate(id)}
           />
         ))}
@@ -208,7 +222,7 @@ function WsCatGroup({ cat, plan, onNavigate }: { cat: WsDashCat; plan: string; o
 }
 
 // ─── 전체 기능 보기 다이얼로그 ────────────────────────────────────────────────
-function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean; onClose: () => void; plan: string; onNavigate: WsNavFn; }) {
+function AllFeaturesDialog({ open, onClose, plan, onNavigate, featureConfigs, addonUnlocks }: { open: boolean; onClose: () => void; plan: string; onNavigate: WsNavFn; featureConfigs?: Record<string, string>; addonUnlocks?: string[]; }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm max-h-[85vh] flex flex-col p-0">
@@ -231,7 +245,7 @@ function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean;
                     key={item.id}
                     item={item}
                     cat={cat}
-                    lock={getFeatureLock(item.id, plan)}
+                    lock={getFeatureLock(item.id, plan, featureConfigs, addonUnlocks)}
                     onClick={(id) => onNavigate(id)}
                   />
                 ))}
@@ -245,8 +259,7 @@ function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean;
             <div className="space-y-1">
               {[
                 { label: "FREE", colorCls: "bg-emerald-500", desc: "브랜드 페이지, 설문, 계약서" },
-                { label: "PRO", colorCls: "bg-blue-500", desc: "FIT STEP+, 예약, 보고서, 전자계약" },
-                { label: "ELITE", colorCls: "bg-amber-500", desc: "매출 분석, KPI, AI 인사이트 등" },
+                { label: "PRO", colorCls: "bg-blue-500", desc: "전체 기능 개방 (연 69,000원)" },
               ].map(t => (
                 <div key={t.label} className="flex items-center gap-2">
                   <span className={`text-[9px] font-bold text-white ${t.colorCls} px-1.5 py-0.5 rounded`}>{t.label}</span>
@@ -257,7 +270,13 @@ function AllFeaturesDialog({ open, onClose, plan, onNavigate }: { open: boolean;
                 <div className="w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
                   <Lock className="h-2.5 w-2.5 text-muted-foreground" />
                 </div>
-                <span className="text-[11px] text-muted-foreground">플랜 업그레이드 필요</span>
+                <span className="text-[11px] text-muted-foreground">PRO 플랜 필요</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-[18px] px-1 bg-violet-500 rounded-[5px] flex items-center justify-center">
+                  <Lock className="h-2.5 w-2.5 text-white" />
+                </div>
+                <span className="text-[11px] text-muted-foreground">핵심 기능 · 1개 1만원 개별 이용</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-[18px] h-[18px] bg-background border border-border rounded-[5px] flex items-center justify-center">
@@ -702,7 +721,7 @@ function TrainerDashboard() {
           { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
           { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
           { label: "AI 추천", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setLocation("/workshop"), locked: userPlan === "free" },
-          { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setLocation("/workshop"), locked: userPlan !== "elite" },
+          { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setLocation("/workshop"), locked: userPlan === "free" },
         ]} />
       </div>
 
@@ -710,7 +729,7 @@ function TrainerDashboard() {
       <div className="flex items-center justify-between pt-2 pb-1">
         <div>
           <p className="text-base font-bold">작업실 기능</p>
-          <p className="text-xs text-muted-foreground mt-0.5">PRO · ELITE 포함 전체 기능</p>
+          <p className="text-xs text-muted-foreground mt-0.5">PRO 포함 전체 기능</p>
         </div>
         <button onClick={() => setAllFeaturesOpen(true)}
           className="text-xs font-bold text-primary bg-primary/8 px-3 py-1.5 rounded-xl hover:bg-primary/15 transition-colors">
@@ -719,7 +738,7 @@ function TrainerDashboard() {
       </div>
 
       {WS_DASH.map(cat => (
-        <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={toWorkshop} />
+        <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={toWorkshop} featureConfigs={wsStatus?.featureConfigs} addonUnlocks={wsStatus?.addonUnlocks} />
       ))}
 
       {/* AI 추천 배너 */}
@@ -1185,6 +1204,8 @@ function TrainerDashboard() {
         onClose={() => setAllFeaturesOpen(false)}
         plan={userPlan}
         onNavigate={(id) => { setAllFeaturesOpen(false); toWorkshop(id); }}
+        featureConfigs={wsStatus?.featureConfigs}
+        addonUnlocks={wsStatus?.addonUnlocks}
       />
     </div>
   );
