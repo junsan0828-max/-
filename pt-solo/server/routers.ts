@@ -1620,6 +1620,20 @@ const parQRouter = t.router({
       if (isNew && trainerId) giveAutoPoints(trainerId, "parq_submit", "PAR-Q 최초 작성");
       return { success: true };
     }),
+
+  // PAR-Q 미기록 회원 목록 (활성 회원 중 par_q 행이 없는 회원)
+  listMissing: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const result = await pool.query<{ id: number; name: string; phone: string | null }>(
+      `SELECT m.id, m.name, m.phone FROM members m
+       LEFT JOIN par_q p ON p."memberId" = m.id
+       WHERE m."trainerId" = $1 AND m.status = 'active' AND p.id IS NULL
+       ORDER BY m.name`,
+      [trainerId]
+    );
+    return result.rows;
+  }),
 });
 
 // ─── Reports ─────────────────────────────────────────────────────────────────
