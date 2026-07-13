@@ -1220,16 +1220,23 @@ async function initDatabase() {
       );
       if (parseInt(linked.rows[0]?.count ?? "0", 10) > 0) continue;
 
-      // 이 회원이 이미 PT 패키지를 가지고 있으면 건너뜀 (등록 시 만든 원본을 백필이 복제하지 않도록).
-      // 순수 레거시(매출만 있고 패키지 0개)인 회원만 새로 생성한다.
-      const hasAny = await pool.query(
-        `SELECT 1 FROM pt_packages WHERE "memberId" = $1 LIMIT 1`,
-        [rev.memberId]
-      );
-      if (hasAny.rows.length > 0) continue;
-
       const now = new Date().toISOString();
       const svcSessions = (rev as any).serviceSessions ?? 0;
+
+      // 이 매출과 내용이 일치하는 패키지가 이미 있으면 건너뜀 (복제 방지).
+      // 과거에는 "회원에게 패키지가 하나라도 있으면" 무조건 건너뛰었는데, 그러면 회원이
+      // 가진 패키지가 이 매출과 무관한 별개 항목(예: 1회성 "기타" 부가항목)일 때도
+      // 정작 이 매출을 뒷받침하는 진짜 패키지를 영영 못 만들게 되어, 세션 자동연결이
+      // 그 무관한 패키지를 잘못 골라 정산 단가가 틀어지는 사고로 이어졌다.
+      const dupMatch = await pool.query(
+        `SELECT 1 FROM pt_packages
+         WHERE "memberId" = $1
+           AND "totalSessions" = $2
+           AND "startDate" IS NOT DISTINCT FROM $3
+         LIMIT 1`,
+        [rev.memberId, (rev.sessions ?? 0) + svcSessions, rev.startDate ?? rev.paymentDate ?? null]
+      );
+      if (dupMatch.rows.length > 0) continue;
       await pool.query(`
         INSERT INTO pt_packages
           ("memberId","trainerId","totalSessions","serviceSessions","usedSessions",

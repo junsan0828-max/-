@@ -556,6 +556,36 @@ const revenueRouter = t.router({
             });
           }
         }
+      } else if (input.type === "PT" && input.memberId && (input.sessions ?? 0) > 0 && input.subType !== "이전" && input.subType !== "환불") {
+        // 이미 존재하는 회원(상담관리 등에서 memberId를 알고 등록하는 경우)의 PT 매출은
+        // 위 분기를 타지 않아 ptPackages가 전혀 안 만들어지던 사각지대였다.
+        // → 연결 누락 시 트레이닝 일지 자동연결이 회원의 다른 잡항목 패키지를 잘못 골라
+        //   정산 단가가 완전히 틀어지는 사고로 이어지므로, 여기서도 동일하게 패키지를 만든다.
+        const sessionCount = input.sessions ?? 0;
+        const svcSessions = input.serviceSessions ?? 0;
+        const [existingPkg] = await db.select({ id: ptPackages.id }).from(ptPackages)
+          .where(and(
+            eq(ptPackages.memberId, input.memberId),
+            eq(ptPackages.totalSessions, sessionCount + svcSessions),
+            input.startDate ? eq(ptPackages.startDate, input.startDate) : sql`${ptPackages.startDate} IS NULL`,
+          )).limit(1);
+        if (!existingPkg) {
+          await db.insert(ptPackages).values({
+            memberId: input.memberId,
+            trainerId: resolvedTrainerId ?? null,
+            packageName: input.programDetail ?? undefined,
+            totalSessions: sessionCount + svcSessions,
+            serviceSessions: svcSessions,
+            eventId: input.eventId ?? undefined,
+            usedSessions: 0,
+            startDate: input.startDate ?? undefined,
+            paymentAmount: input.paidAmount ?? input.amount ?? undefined,
+            unpaidAmount: input.unpaidAmount ?? 0,
+            paymentMethod: input.paymentMethod ?? undefined,
+            paymentDate: input.paymentDate ?? undefined,
+            paymentMemo: input.memo ?? undefined,
+          });
+        }
       }
 
       // 헬스 등록 시 회원 자동 생성
