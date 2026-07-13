@@ -55,6 +55,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
 
   // 운동복
   const [addUniform, setAddUniform] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [uniformMonths, setUniformMonths] = useState(1);
   const [uniformPrice, setUniformPrice] = useState("");
   const [uniformEnd, setUniformEnd] = useState("");
@@ -557,7 +558,19 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                               defaultValue=""
                               onChange={e => {
                                 const ev = (ptEvents ?? []).find((x: any) => String(x.id) === e.target.value);
-                                if (ev) setForm(f => ({ ...f, serviceSessions: String(ev.serviceSessions), serviceSessionPrice: String(ev.serviceSessionPrice ?? 0), serviceSamePrice: ev.serviceSamePrice === 1, eventId: String(ev.id) }));
+                                if (ev) {
+                                  setSelectedEvent(ev);
+                                  setForm(f => ({
+                                    ...f,
+                                    serviceSessions: String(ev.serviceSessions),
+                                    serviceSessionPrice: String(ev.serviceSessionPrice ?? 0),
+                                    serviceSamePrice: ev.serviceSamePrice === 1,
+                                    eventId: String(ev.id),
+                                    // 정액 할인은 자동 적용 (정률은 결제금액 입력 후 계산 필요 → 안내만)
+                                    discountAmount: ev.discountType === "amount" && ev.discountValue > 0 ? String(ev.discountValue) : f.discountAmount,
+                                  }));
+                                  if (ev.freeUniform === 1) { setAddUniform(true); setUniformPrice("0"); }
+                                } else { setSelectedEvent(null); }
                               }}>
                               <option value="" disabled>이벤트 선택...</option>
                               {(ptEvents ?? []).map((ev: any) => (
@@ -566,6 +579,16 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                                 </option>
                               ))}
                             </select>
+                            {selectedEvent && (() => {
+                              const benefits: string[] = [];
+                              if (selectedEvent.discountType === "amount" && selectedEvent.discountValue > 0) benefits.push(`할인 ${selectedEvent.discountValue.toLocaleString()}원 (자동적용)`);
+                              if (selectedEvent.discountType === "percent" && selectedEvent.discountValue > 0) benefits.push(`할인 ${selectedEvent.discountValue}% (결제금액 확인 후 직접 입력)`);
+                              if (selectedEvent.serviceHealthDays > 0) benefits.push(`헬스 +${selectedEvent.serviceHealthDays}일`);
+                              if (selectedEvent.freeUniform === 1) benefits.push("운동복 무료(자동)");
+                              if (selectedEvent.freeLocker === 1) benefits.push("락커 무료 → 아래 락커에서 배정");
+                              if (benefits.length === 0) return null;
+                              return <p className="text-[11px] text-emerald-400 mt-1.5">🎁 이벤트 혜택: {benefits.join(" · ")}</p>;
+                            })()}
                           </div>
                         )}
                       </div>
