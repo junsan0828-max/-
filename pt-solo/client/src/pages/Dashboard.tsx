@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -547,6 +547,16 @@ function TrainerDashboard() {
   const [registerTypeOpen, setRegisterTypeOpen] = useState(false);
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
+
+  // 회원 선택 모달에서 상세 페이지로 이동했다가 뒤로가기로 돌아오면
+  // 원래 열려있던 선택 모달을 다시 열어준다.
+  useEffect(() => {
+    const reopen = sessionStorage.getItem("dash_reopen_modal");
+    if (!reopen) return;
+    sessionStorage.removeItem("dash_reopen_modal");
+    if (reopen === "journal") setJournalOpen(true);
+    else if (reopen === "info_edit") setMemberSearchOpen(true);
+  }, []);
   const [dailyModalOpen, setDailyModalOpen] = useState(false);
   const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
@@ -832,13 +842,13 @@ function TrainerDashboard() {
       <MemberPickModal open={memberSearchOpen} onClose={() => setMemberSearchOpen(false)}
         title="회원 정보 수정" subtitle="이름으로 검색해 회원을 선택하세요"
         icon={Pencil} iconCls="text-indigo-500" allMembers={allMembers}
-        onPick={(id) => setLocation(`/members/${id}`)} />
+        onPick={(id) => { sessionStorage.setItem("dash_reopen_modal", "info_edit"); setLocation(`/members/${id}`); }} />
 
       {/* 수업 일지 모달 */}
       <MemberPickModal open={journalOpen} onClose={() => setJournalOpen(false)}
         title="수업 일지" subtitle="일지를 확인할 회원을 선택하세요"
         icon={BookOpen} iconCls="text-blue-500" allMembers={allMembers}
-        onPick={(id) => setLocation(`/members/${id}`)} />
+        onPick={(id) => { sessionStorage.setItem("dash_reopen_modal", "journal"); setLocation(`/members/${id}?tab=training`); }} />
 
       {/* 일일 매출 모달 */}
       <Dialog open={dailyModalOpen} onOpenChange={setDailyModalOpen}>

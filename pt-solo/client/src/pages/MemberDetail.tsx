@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -136,6 +136,11 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 export default function MemberDetail({ memberId }: Props) {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const initialTab = useMemo(() => {
+    const t = new URLSearchParams(search).get("tab");
+    return ["info", "pt", "stats", "training", "attendance"].includes(t ?? "") ? t! : "info";
+  }, [search]);
   const utils = trpc.useUtils();
   const autoPoints = useAutoPoints();
 
@@ -655,7 +660,7 @@ export default function MemberDetail({ memberId }: Props) {
       </div>
 
       {/* 탭 */}
-      <Tabs defaultValue="info">
+      <Tabs defaultValue={initialTab} key={initialTab}>
         <TabsList className="w-full grid grid-cols-5">
           <TabsTrigger value="info" className="text-xs px-1">기본정보</TabsTrigger>
           <TabsTrigger value="pt" className="text-xs px-1">프로그램</TabsTrigger>
