@@ -56,6 +56,8 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
   // 운동복
   const [addUniform, setAddUniform] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  // PT 프로그램 "기타" 선택 시 커스텀 프로그램명 (form.ptProgram="기타" 마커와 분리 관리)
+  const [ptCustom, setPtCustom] = useState("");
   const [uniformMonths, setUniformMonths] = useState(1);
   const [uniformPrice, setUniformPrice] = useState("");
   const [uniformEnd, setUniformEnd] = useState("");
@@ -201,6 +203,12 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     if (!form.name.trim()) newErrors.name = "이름을 입력해주세요.";
     if (!form.phone.trim()) newErrors.phone = "연락처를 입력해주세요.";
     if (!isEdit && itemTypes.length === 0) newErrors.itemTypes = "항목 유형을 선택해주세요.";
+    // PT 등록 시: 세션 횟수 + 프로그램명 필수 (정산 단가 0원·"기타" 오분류 사고 예방)
+    if (!isEdit && hasPT) {
+      if (!form.ptSessions || parseInt(form.ptSessions) <= 0) newErrors.ptSessions = "PT 세션 횟수를 입력해주세요.";
+      const prog = form.ptProgram === "기타" ? ptCustom.trim() : form.ptProgram.trim();
+      if (!prog) newErrors.ptProgram = "PT 프로그램명을 선택하거나 입력해주세요.";
+    }
     if (!isEdit && form.paymentAmount && parseInt(form.paymentAmount) > 0) {
       if (!form.paymentMethod) newErrors.paymentMethod = "결제 방법을 선택해주세요.";
       if (!form.paymentDate) newErrors.paymentDate = "결제일자를 입력해주세요.";
@@ -229,7 +237,9 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
     submittingRef.current = true;
     setErrors({});
 
-    const resolvedPtProgram = hasPT ? form.ptProgram || undefined : undefined;
+    const resolvedPtProgram = hasPT
+      ? (form.ptProgram === "기타" ? (ptCustom.trim() || undefined) : (form.ptProgram || undefined))
+      : undefined;
     const siStr = serviceItems.length > 0 ? serviceItems.map(item => {
       if (item === "PT" && servicePtCount) return `PT(${servicePtCount}회)`;
       if (item === "헬스") {
@@ -546,11 +556,15 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                           ))}
                         </div>
                         {form.ptProgram === "기타" && (
-                          <input value={form.ptProgram === "기타" ? "" : form.ptProgram}
-                            onChange={e => setForm(f => ({ ...f, ptProgram: e.target.value }))}
-                            placeholder="프로그램명 입력"
-                            className="w-full mt-2 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                          <>
+                            <input value={ptCustom}
+                              onChange={e => setPtCustom(e.target.value)}
+                              placeholder="프로그램명 입력 (필수)"
+                              className="w-full mt-2 rounded-lg px-3 py-2 text-sm text-foreground bg-input border border-border focus:outline-none" />
+                            {errors.ptProgram && <p className="text-xs text-red-400 mt-1">{errors.ptProgram}</p>}
+                          </>
                         )}
+                        {errors.ptProgram && form.ptProgram !== "기타" && <p className="text-xs text-red-400 mt-1">{errors.ptProgram}</p>}
                         {form.ptProgram === "이벤트피티" && (
                           <div className="mt-2">
                             <select
@@ -617,6 +631,7 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
                             </button>
                           ))}
                         </div>
+                        {errors.ptSessions && <p className="text-xs text-red-400 mt-1">{errors.ptSessions}</p>}
                       </div>
                     </div>
                   )}
