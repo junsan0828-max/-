@@ -39,6 +39,12 @@ interface Context {
   res: Response;
 }
 
+// KST(UTC+9) 기준 날짜 문자열(YYYY-MM-DD). UTC 기준으로 계산하면 한국 오전(00~09시)에
+// "오늘" 매출/통계가 하루 밀리는 문제가 생긴다.
+function kstDate(offsetDays = 0): string {
+  return new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().substring(0, 10);
+}
+
 const t = initTRPC.context<Context>().create();
 const publicProcedure = t.procedure;
 const protectedProcedure = t.procedure.use(({ ctx, next }) => {
@@ -1621,7 +1627,7 @@ const kpiRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const today = new Date().toISOString().substring(0, 10);
+      const today = kstDate();
       const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
 
       // 지점 필터: 명시적 branchId 매칭 + branchId 없는 항목은 트레이너 소속 지점으로 판단
@@ -3127,7 +3133,7 @@ const registerMutation = protectedProcedure
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
     const now = new Date().toISOString();
-    const today = now.substring(0, 10);
+    const today = kstDate();
 
     // 1. Resolve trainer ID
     const isStaff = ctx.user.role === "admin" || ctx.user.role === "sub_admin" || ctx.user.role === "consultant";
