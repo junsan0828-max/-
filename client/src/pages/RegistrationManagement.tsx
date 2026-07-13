@@ -934,8 +934,13 @@ export default function RegistrationManagement() {
                         onClick={() => {
                           const amt = editRevForm.amount !== "" ? Number(editRevForm.amount) : undefined;
                           const disc = editRevForm.discountAmount !== "" ? Number(editRevForm.discountAmount) : 0;
-                          const unpaid = editRevForm.unpaidAmount !== "" ? Number(editRevForm.unpaidAmount) : undefined;
-                          const paid = (amt !== undefined && unpaid !== undefined) ? Math.max(0, amt - (disc ?? 0) - unpaid) : undefined;
+                          const unpaid = editRevForm.unpaidAmount !== "" ? Number(editRevForm.unpaidAmount) : 0;
+                          // 미수금 입력칸을 비워둔 채 금액만 고쳐도(가장 흔한 오타 수정 케이스) 실제
+                          // 결제금액(paidAmount)이 갱신되도록 unpaid를 0으로 기본값 처리한다.
+                          // 이전에는 unpaid가 미입력(undefined)이면 paid 전체가 undefined가 되어 서버로
+                          // 전송되지 않았고, 그 결과 금액만 고쳐졌을 뿐 실제 정산에 쓰이는 paidAmount는
+                          // 옛날 값에 그대로 묶여 있어 PT 패키지 단가가 잘못 계산되는 사고로 이어졌다.
+                          const paid = amt !== undefined ? Math.max(0, amt - disc - unpaid) : undefined;
                           const siStr = editServiceItems.length > 0 ? editServiceItems.map(item => {
                             if (item === "헬스") {
                               const d = editServiceHealthDays ?? (editServiceHealthCustom ? parseInt(editServiceHealthCustom) : undefined);
