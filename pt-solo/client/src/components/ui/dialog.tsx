@@ -19,10 +19,12 @@ const Dialog = ({
       window.history.pushState({ __dialogOpen: true }, "");
       pushedRef.current = true;
     } else if (!open && pushedRef.current) {
+      // 모달이 X버튼·항목 선택 등 "뒤로가기가 아닌" 방식으로 닫힌 경우.
+      // 여기서 history.back()을 호출하면, 같은 클릭 핸들러 안에서 곧바로
+      // 실행되는 페이지 이동(setLocation)과 경합해 엉뚱한 화면으로 튀는
+      // 버그가 생기므로 히스토리는 건드리지 않는다. 남은 마커 항목은
+      // 이후 실제 뒤로가기 1회로 자연스럽게 소비된다(빈 걸음 1회, 무해함).
       pushedRef.current = false;
-      if ((window.history.state as any)?.__dialogOpen) {
-        window.history.back();
-      }
     }
   }, [open]);
 
