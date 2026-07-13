@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { GymPlusEventDetailContent } from "./GymPlusEventDetail";
 
 const membershipTypeLabel: Record<string, string> = {
   general: "일반회원",
@@ -23,6 +26,7 @@ function getRenewalBonus(days: number | null) {
 
 export default function GymPlusDashboard() {
   const [, navigate] = useLocation();
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
   const { data: member } = trpc.gymPlus.memberMe.useQuery();
   const { data: events } = trpc.gymPlus.listEvents.useQuery({});
   const { data: logs } = trpc.gymPlus.listWorkoutLogs.useQuery({});
@@ -123,7 +127,7 @@ export default function GymPlusDashboard() {
             {displayItems.map((e) => (
               <button
                 key={e.id}
-                onClick={() => navigate(`/gym-plus/events/${e.id}`)}
+                onClick={() => setSelectedEventId(e.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all hover:shadow-sm ${
                   e._isNotice
                     ? "bg-[#EEF4FF] border-blue-100"
@@ -230,6 +234,19 @@ export default function GymPlusDashboard() {
 
         </div>
       </div>
+
+      {/* 공지 & 이벤트 모달 */}
+      <Dialog open={selectedEventId !== null} onOpenChange={(open) => !open && setSelectedEventId(null)}>
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
+          <DialogTitle className="sr-only">공지 및 이벤트 상세</DialogTitle>
+          {selectedEventId !== null && (
+            <GymPlusEventDetailContent
+              eventId={selectedEventId}
+              onNavigateAway={() => setSelectedEventId(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

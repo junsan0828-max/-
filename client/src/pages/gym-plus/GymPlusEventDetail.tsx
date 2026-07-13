@@ -20,8 +20,7 @@ const eventTypeStyle: Record<string, string> = {
 
 const VISITED_KEY = (eventId: number) => `gp_visited_event_${eventId}`;
 
-export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
-  const [, navigate] = useLocation();
+export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId: number; onNavigateAway?: () => void }) {
   const { data: event, isLoading } = trpc.gymPlus.getEvent.useQuery({ id: eventId });
   const { data: myClaims, refetch: refetchClaims } = trpc.gymPlus.getMyPointClaims.useQuery();
   const utils = trpc.useUtils();
@@ -56,7 +55,7 @@ export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
     return (
       <div className="p-4 text-center">
         <p className="text-muted-foreground text-sm mb-4">이벤트를 찾을 수 없습니다</p>
-        <Button variant="ghost" size="sm" onClick={() => navigate("/gym-plus/events")}>목록으로</Button>
+        {onNavigateAway && <Button variant="ghost" size="sm" onClick={onNavigateAway}>목록으로</Button>}
       </div>
     );
   }
@@ -66,14 +65,7 @@ export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
   const claimStatus = existingClaim?.status;
 
   return (
-    <div className="p-4 space-y-4">
-      <button
-        className="text-sm text-muted-foreground flex items-center gap-1"
-        onClick={() => navigate("/gym-plus/events")}
-      >
-        ← 이벤트 목록
-      </button>
-
+    <div className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eventTypeStyle[event.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>
@@ -210,6 +202,21 @@ export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+export default function GymPlusEventDetail({ eventId }: { eventId: number }) {
+  const [, navigate] = useLocation();
+  return (
+    <div className="p-4 space-y-4">
+      <button
+        className="text-sm text-muted-foreground flex items-center gap-1"
+        onClick={() => navigate("/gym-plus/events")}
+      >
+        ← 이벤트 목록
+      </button>
+      <GymPlusEventDetailContent eventId={eventId} onNavigateAway={() => navigate("/gym-plus/events")} />
     </div>
   );
 }
