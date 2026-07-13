@@ -5,19 +5,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Dumbbell, Check, X } from "lucide-react";
+import { ArrowLeft, Dumbbell, X } from "lucide-react";
 
 interface Props {
   memberId: number;
 }
 
 type Status = "attended" | "noshow" | "cancelled";
-
-const DIET_OPTIONS = [
-  "인스턴트탄수화물", "건강식탄수화물",
-  "인스턴트단백질", "건강식단백질",
-  "인스턴트지방", "건강식지방",
-];
 
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 
@@ -253,7 +247,6 @@ export default function AttendanceCheck({ memberId }: Props) {
   const [conditionScore, setConditionScore] = useState("");
   const [sleepHours, setSleepHours] = useState("");
   const [energyLevel, setEnergyLevel] = useState("");
-  const [dietItems, setDietItems] = useState<string[]>([]);
   const [painLevel, setPainLevel] = useState("");
   const [painAreas, setPainAreas] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
@@ -297,7 +290,6 @@ export default function AttendanceCheck({ memberId }: Props) {
     setConditionScore(existing.conditionScore != null ? String(existing.conditionScore) : "");
     setSleepHours(existing.sleepHours ?? "");
     setEnergyLevel(existing.energyLevel ?? "");
-    setDietItems(existing.diet ? JSON.parse(existing.diet) : []);
     setPainLevel(existing.painLevel != null ? String(existing.painLevel) : "");
     try { setPainAreas(existing.painArea ? JSON.parse(existing.painArea) : []); } catch { setPainAreas(existing.painArea ? [existing.painArea] : []); }
     setNotes(existing.notes ?? "");
@@ -344,18 +336,11 @@ export default function AttendanceCheck({ memberId }: Props) {
       conditionScore: conditionScore ? parseInt(conditionScore) : undefined,
       sleepHours: sleepHours || undefined,
       energyLevel: energyLevel || undefined,
-      diet: dietItems.length ? JSON.stringify(dietItems) : undefined,
       painLevel: painLevel ? parseInt(painLevel) : undefined,
       painArea: painAreas.length ? JSON.stringify(painAreas) : undefined,
       painSide: undefined,
       notes: notes || undefined,
     });
-  };
-
-  const toggleDiet = (option: string) => {
-    setDietItems((prev) =>
-      prev.includes(option) ? prev.filter((d) => d !== option) : [...prev, option]
-    );
   };
 
   const isSaving = upsertMutation.isPending || useSessionMutation.isPending;
@@ -479,32 +464,6 @@ export default function AttendanceCheck({ memberId }: Props) {
                   }`}
                 >
                   {v}
-                </button>
-              ))}
-            </div>
-          </Field>
-        </Section>
-
-        {/* 식단 정보 */}
-        <Section title="식단 정보">
-          <Field label="오늘 섭취한 식단 유형 (중복 선택 가능)">
-            <div className="grid grid-cols-2 gap-2">
-              {DIET_OPTIONS.map((option) => (
-                <button
-                  key={option}
-                  onClick={() => toggleDiet(option)}
-                  className={`flex items-center gap-2 px-2 py-2.5 text-xs rounded-lg border transition-colors text-left ${
-                    dietItems.includes(option)
-                      ? "bg-primary/20 border-primary/40 text-primary"
-                      : "border-border text-muted-foreground hover:border-primary/30"
-                  }`}
-                >
-                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                    dietItems.includes(option) ? "bg-primary border-primary" : "border-muted-foreground/50"
-                  }`}>
-                    {dietItems.includes(option) && <Check className="h-3 w-3 text-white" />}
-                  </div>
-                  {option}
                 </button>
               ))}
             </div>
