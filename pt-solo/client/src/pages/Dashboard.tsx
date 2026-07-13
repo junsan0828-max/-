@@ -585,8 +585,8 @@ function TrainerDashboard() {
   const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => { refetchExpenses(); setExpenseForm({ memo: "", amount: "", category: "카드", date: "" }); } });
   const deleteExpense = trpc.expenses.delete.useMutation({ onSuccess: () => refetchExpenses() });
   const updateExpense = trpc.expenses.update.useMutation({ onSuccess: () => { refetchExpenses(); setEditingId(null); } });
-  const { data: memberSessionStats } = trpc.pt.memberSessionStats.useQuery(
-    undefined, { enabled: ptStatsModalOpen }
+  const { data: memberSessionStats } = trpc.pt.memberSessionStatsMonthly.useQuery(
+    { yearMonth: currentYearMonth }, { enabled: ptStatsModalOpen }
   );
 
   if (isLoading) return <LoadingSkeleton />;
@@ -818,7 +818,12 @@ function TrainerDashboard() {
               <Dumbbell className="h-4 w-4 text-purple-400" />
               회원별 수업 현황
             </DialogTitle>
-            <p className="text-xs text-muted-foreground">누적 세션 횟수 기준 정렬</p>
+            <p className="text-xs text-muted-foreground">
+              {currentYearMonth.replace("-", "년 ")}월 · 이번달 총{" "}
+              <span className="font-bold text-purple-400">
+                {(memberSessionStats ?? []).reduce((s, m) => s + Number(m.totalSessions), 0)}회
+              </span>
+            </p>
           </DialogHeader>
           <div className="space-y-1 max-h-80 overflow-y-auto">
             {!memberSessionStats ? (

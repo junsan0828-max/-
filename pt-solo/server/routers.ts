@@ -902,6 +902,26 @@ const ptRouter = t.router({
       .groupBy(members.id, members.name)
       .orderBy(desc(sql<number>`COUNT(${ptSessionLogs.id})`));
   }),
+
+  // 이번달 회원별 수업 현황 (당월로 필터링)
+  memberSessionStatsMonthly: protectedProcedure
+    .input(z.object({ yearMonth: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const db = getDb();
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      return db
+        .select({
+          memberId: members.id,
+          memberName: members.name,
+          totalSessions: sql<number>`COUNT(${ptSessionLogs.id}) FILTER (WHERE ${ptSessionLogs.sessionDate} LIKE ${input.yearMonth + "%"})`,
+        })
+        .from(members)
+        .leftJoin(ptSessionLogs, eq(ptSessionLogs.memberId, members.id))
+        .where(eq(members.trainerId, trainerId))
+        .groupBy(members.id, members.name)
+        .orderBy(desc(sql<number>`COUNT(${ptSessionLogs.id}) FILTER (WHERE ${ptSessionLogs.sessionDate} LIKE ${input.yearMonth + "%"})`));
+    }),
 });
 
 // ─── Schedules ────────────────────────────────────────────────────────────────
