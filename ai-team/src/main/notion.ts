@@ -6,6 +6,7 @@ import { MinaResult } from "./mina";
 import { FunnelResult } from "./dataAgent";
 import { ContentResult } from "./luna";
 import { PayrollResult } from "./payroll";
+import { RepoResult } from "./repo";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -51,6 +52,17 @@ function heading(text: string) {
 function bullet(text: string) {
   return { object: "block", type: "bulleted_list_item", bulleted_list_item: { rich_text: [{ text: { content: text.slice(0, 2000) } }] } };
 }
+type Block = ReturnType<typeof heading> | ReturnType<typeof paragraph> | ReturnType<typeof bullet>;
+
+/** 100개 넘는 블록을 페이지 생성 후 여러 번에 나눠 이어붙인다 (Notion API는 요청당 최대 100블록). */
+async function appendRemainingBlocks(pageId: string, blocks: unknown[]) {
+  for (let i = 0; i < blocks.length; i += 100) {
+    await notionFetch(`/blocks/${pageId}/children`, {
+      method: "PATCH",
+      body: JSON.stringify({ children: blocks.slice(i, i + 100) }),
+    });
+  }
+}
 
 function reportToBlocks(report: string) {
   return report
@@ -78,13 +90,17 @@ export async function pushDailyReport(
     const databaseId = process.env.NOTION_DATABASE_ID!;
     const titleProp = await findTitleProperty(databaseId);
     const dateStr = new Date(result.generatedAt).toLocaleDateString("ko-KR");
+    const periodLabel = result.periodLabel || "어제";
+    const OWNER_KO: Record<string, string> = { auto: "AI 처리", semi: "AI 처리(확인 필요)", manual: "사장님 처리" };
 
     const children = [
-      heading("🧑‍💼 제이 - 오늘의 헤드라인"),
+      heading(`🧑‍💼 제이 - ${periodLabel} 브리핑 헤드라인`),
       paragraph(result.headline),
-      heading("도출된 업무"),
-      ...result.tasks.map((t) => bullet(`[${t.priority}] ${t.title} — ${t.reason} (담당: ${t.assigneeRole})`)),
-      heading("주간 브리핑"),
+      heading("오늘 처리해야 할 업무 (AI 처리 / 사장님 처리 구분)"),
+      ...result.tasks.map((t) =>
+        bullet(`[${t.priority}] ${t.title} — ${t.reason} (담당: ${t.assigneeRole} · ${OWNER_KO[t.mode] ?? t.mode})`)
+      ),
+      heading(`${periodLabel} 분석`),
       ...reportToBlocks(result.report),
     ];
 
@@ -113,7 +129,7 @@ export async function pushDailyReport(
       body: JSON.stringify({
         parent: { database_id: databaseId },
         properties: {
-          [titleProp]: { title: [{ text: { content: `자이언트짐 AI 브리핑 - ${dateStr}` } }] },
+          [titleProp]: { title: [{ text: { content: `자이언트짐 AI 브리핑 - ${dateStr} (${periodLabel})` } }] },
         },
         children: children.slice(0, 100), // Notion API 한 번 요청당 최대 100 블록
       }),
@@ -168,6 +184,78 @@ export async function pushPayrollReport(result: PayrollResult, sheetUrl?: string
         children: children.slice(0, 100),
       }),
     });
+
+    return { ok: true, url: page.url };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** 채팅에서 팀원이 사장님 지시로 노션에 실제로 페이지를 만들 때 쓴다 (자유 형식 제목+본문). */
+export async function createNotionPage(title: string, content: string): Promise<NotionPushResult> {
+  if (!isConfigured()) {
+    return { ok: false, error: "Notion 미설정 (.env에 NOTION_API_KEY/NOTION_DATABASE_ID 필요)" };
+  }
+
+  try {
+    const databaseId = process.env.NOTION_DATABASE_ID!;
+    const titleProp = await findTitleProperty(databaseId);
+
+    const page = await notionFetch("/pages", {
+      method: "POST",
+      body: JSON.stringify({
+        parent: { database_id: databaseId },
+        properties: {
+          [titleProp]: { title: [{ text: { content: title.slice(0, 200) } }] },
+        },
+        children: reportToBlocks(content).slice(0, 100),
+      }),
+    });
+
+    return { ok: true, url: page.url };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** 리포 AI의 월간 전략 리포트(지점별 + 통합)를 노션에 기록한다. */
+export async function pushRepoReport(result: RepoResult): Promise<NotionPushResult> {
+  if (!isConfigured()) {
+    return { ok: false, error: "Notion 미설정 (.env에 NOTION_API_KEY/NOTION_DATABASE_ID 필요)" };
+  }
+
+  try {
+    const databaseId = process.env.NOTION_DATABASE_ID!;
+    const titleProp = await findTitleProperty(databaseId);
+
+    const children: Block[] = [
+      heading(`🗒️ 리포 - ${result.yearMonth} 월간 전략 리포트`),
+      ...(result.dataNotes.length > 0
+        ? [heading("데이터 참고사항"), ...result.dataNotes.map((n) => bullet(n))]
+        : []),
+    ];
+    for (const b of result.branches) {
+      children.push(
+        heading(`[${b.branchName}] 월 운영 전략`),
+        ...reportToBlocks(b.operationsReport),
+        heading(`[${b.branchName}] 회원권 재등록 전략`),
+        ...reportToBlocks(b.membershipRenewalReport),
+        heading(`[${b.branchName}] PT 재등록 전략`),
+        ...reportToBlocks(b.ptRenewalReport)
+      );
+    }
+
+    const page = await notionFetch("/pages", {
+      method: "POST",
+      body: JSON.stringify({
+        parent: { database_id: databaseId },
+        properties: {
+          [titleProp]: { title: [{ text: { content: `월간 전략 리포트 - ${result.yearMonth}` } }] },
+        },
+        children: children.slice(0, 100),
+      }),
+    });
+    if (children.length > 100) await appendRemainingBlocks(page.id, children.slice(100));
 
     return { ok: true, url: page.url };
   } catch (err) {
