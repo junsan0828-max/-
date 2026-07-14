@@ -10,6 +10,7 @@ import {
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  ComposedChart, Line,
 } from "recharts";
 
 const COLORS = ["#6366f1", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe", "#ede9fe", "#f3f4f6"];
@@ -262,6 +263,7 @@ export default function GymDashboard() {
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: expenseSummary } = trpc.gym.expenses.categorySummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
+  const { data: memberTrend } = trpc.gym.kpi.memberTrend.useQuery({ months: 6, ...(branchFilter ? { branchId: branchFilter } : {}) });
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12); }
@@ -472,6 +474,54 @@ export default function GymDashboard() {
               <Tooltip formatter={(v) => [`${Number(v).toLocaleString()}원`, ""]} contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
               <Area type="monotone" dataKey="매출" stroke="#6366f1" fill="url(#salesGrad)" strokeWidth={2} />
             </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* 회원 운영 트렌드 (활성회원 + 재등록률) */}
+      {(memberTrend ?? []).some(d => d.active > 0 || d.new > 0 || d.expired > 0) && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-1">회원 운영 트렌드</h2>
+          <p className="text-xs text-muted-foreground mb-4">활성 회원 수 · 재등록률 (최근 6개월)</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={memberTrend}>
+              <defs>
+                <linearGradient id="memberGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} />
+              <YAxis yAxisId="left" tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={v => `${v}명`} />
+              <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={v => `${v}%`} />
+              <Tooltip
+                formatter={(v, name) => name === "재등록률" ? [`${v}%`, name] : [`${Number(v).toLocaleString()}명`, name]}
+                contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }}
+              />
+              <Legend wrapperStyle={{ fontSize: "12px" }} />
+              <Area yAxisId="left" type="monotone" dataKey="active" name="활성회원" stroke="#6366f1" fill="url(#memberGrad)" strokeWidth={2} />
+              <Line yAxisId="right" type="monotone" dataKey="renewalRate" name="재등록률" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* 신규 vs 만료(이탈) 회원 수 */}
+      {(memberTrend ?? []).some(d => d.new > 0 || d.expired > 0) && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-1">신규 vs 만료 회원</h2>
+          <p className="text-xs text-muted-foreground mb-4">월별 순증감 (최근 6개월)</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={memberTrend}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9ca3af" }} />
+              <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickFormatter={v => `${v}명`} />
+              <Tooltip formatter={(v, name) => [`${Number(v).toLocaleString()}명`, name]} contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: "8px", fontSize: "12px" }} />
+              <Bar dataKey="new" name="신규" fill="#6366f1" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="expired" name="만료" fill="#ef4444" radius={[2, 2, 0, 0]} />
+              <Legend wrapperStyle={{ fontSize: "12px" }} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       )}

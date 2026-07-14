@@ -1737,6 +1737,72 @@ const kpiRouter = t.router({
 
     return { recentRevenue, recentLeads };
   }),
+
+  // 회원 운영 트렌드: 최근 N개월 활성회원/신규/만료/재등록률 추이
+  memberTrend: protectedProcedure
+    .input(z.object({ branchId: z.number().optional(), months: z.number().min(1).max(12).default(6) }).optional())
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const monthsCount = input?.months ?? 6;
+      const branchId = input?.branchId ?? null;
+
+      // 최근 N개월 구간 생성 (월별 매출 차트와 동일한 방식)
+      const periods: { label: string; start: string; end: string }[] = [];
+      for (let i = monthsCount - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - i);
+        const start = d.toISOString().split("T")[0];
+        const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split("T")[0];
+        periods.push({ label: `${d.getMonth() + 1}월`, start, end });
+      }
+
+      const bM = branchId != null;
+      const rows = await Promise.all(periods.map(async (p) => {
+        const [newRes, expiredRes, activeRes, reregRes] = await Promise.all([
+          // 신규 가입 (그 달에 createdAt)
+          pool.query<{ c: number }>(
+            `SELECT COUNT(*)::int AS c FROM members WHERE "createdAt" >= $1 AND "createdAt" < $2${bM ? ` AND "branchId" = $3` : ``}`,
+            bM ? [p.start, p.end, branchId] : [p.start, p.end]
+          ),
+          // 만료 (그 달에 membershipEnd 도래)
+          pool.query<{ c: number }>(
+            `SELECT COUNT(*)::int AS c FROM members WHERE "membershipEnd" >= $1 AND "membershipEnd" < $2${bM ? ` AND "branchId" = $3` : ``}`,
+            bM ? [p.start, p.end, branchId] : [p.start, p.end]
+          ),
+          // 활성 (월말 시점: 그 전까지 가입했고 회원권이 아직 유효). 회원권 기간(membershipEnd)이
+          // 정의된 회원 기준의 근사치.
+          pool.query<{ c: number }>(
+            `SELECT COUNT(*)::int AS c FROM members WHERE "createdAt" < $1 AND "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1${bM ? ` AND "branchId" = $2` : ``}`,
+            bM ? [p.end, branchId] : [p.end]
+          ),
+          // 재등록률용: 그 달 결제 건 중 subType 분포 (이전/환불 제외)
+          pool.query<{ st: string; c: number }>(
+            `SELECT COALESCE("subType",'') AS st, COUNT(*)::int AS c FROM revenue_entries
+             WHERE "paymentDate" >= $1 AND "paymentDate" < $2
+               AND COALESCE("subType",'') NOT IN ('이전','환불')${bM ? ` AND "branchId" = $3` : ``}
+             GROUP BY st`,
+            bM ? [p.start, p.end, branchId] : [p.start, p.end]
+          ),
+        ]);
+        let reg = 0, rereg = 0;
+        for (const r of reregRes.rows) {
+          reg += r.c;
+          if (r.st === "재등록") rereg += r.c;
+        }
+        return {
+          label: p.label,
+          active: activeRes.rows[0]?.c ?? 0,
+          new: newRes.rows[0]?.c ?? 0,
+          expired: expiredRes.rows[0]?.c ?? 0,
+          renewalRate: reg > 0 ? Math.round((rereg / reg) * 100) : 0,
+        };
+      }));
+
+      return rows;
+    }),
 });
 
 // ─── AI Analysis ─────────────────────────────────────────────────────────────
