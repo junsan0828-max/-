@@ -27,6 +27,7 @@ export interface RepoResult {
   isAI: boolean;
   branches: BranchStrategy[]; // [1호점, 2호점, 전체]
   dataNotes: string[]; // 데이터 품질/한계 안내 (지어내지 않기 위해 남김)
+  expenseMissing: boolean; // 이번 달 지출(expense_entries) 입력이 안 된 상태인지
 }
 
 function getPool() {
@@ -362,6 +363,7 @@ export async function runRepo(yearMonth: string = previousYearMonth()): Promise<
     isAI: !!apiKey,
     branches,
     dataNotes,
+    expenseMissing: !hasExpenseThisMonth,
   };
 }
 

@@ -7,6 +7,7 @@ import { TeamTask } from "./orchestrator";
 export interface TaskProgressItem extends TeamTask {
   id: string;
   done: boolean;
+  source?: "jay" | "manual"; // manual = 제이의 일일 분석이 아니라 다른 트리거(월간 리포트 등)가 추가한 업무
 }
 export interface TaskProgressState {
   date: string; // YYYY-MM-DD (KST 기준, 이 목록이 만들어진 날)
@@ -34,19 +35,41 @@ function save(state: TaskProgressState) {
   writeFileSync(STORE_PATH, JSON.stringify(state, null, 2), "utf-8");
 }
 
-/** 오늘 새로 도출된 업무로 갱신한다. 같은 날 재실행이면 이미 체크해둔 항목은 제목으로 매칭해 유지한다. */
+/** 제이가 오늘 새로 도출한 업무로 갱신한다. 같은 날 재실행이면 이미 체크해둔 항목은 제목으로 매칭해 유지하고,
+ * 다른 트리거(월간 리포트 등)가 추가해둔 manual 업무는 건드리지 않는다. */
 export function updateTaskProgress(tasks: TeamTask[], periodLabel: string): TaskProgressState {
   const today = todayStr();
   const prev = load();
-  const prevDone = new Set(prev && prev.date === today ? prev.items.filter((i) => i.done).map((i) => i.title) : []);
+  const sameDay = prev && prev.date === today;
+  const prevDone = new Set(sameDay ? prev!.items.filter((i) => i.done).map((i) => i.title) : []);
+  const keptManual = sameDay ? prev!.items.filter((i) => i.source === "manual") : [];
 
-  const items: TaskProgressItem[] = tasks.map((t, i) => ({
-    ...t,
-    id: `${today}-${i}`,
-    done: prevDone.has(t.title),
-  }));
+  const items: TaskProgressItem[] = [
+    ...tasks.map((t, i) => ({
+      ...t,
+      id: `${today}-jay-${i}`,
+      done: prevDone.has(t.title),
+      source: "jay" as const,
+    })),
+    ...keptManual,
+  ];
 
   const state: TaskProgressState = { date: today, periodLabel, items };
+  save(state);
+  return state;
+}
+
+/** 제이의 일일 분석과 무관하게, 다른 트리거(월간 리포트 등)가 오늘의 업무에 항목을 하나 추가한다.
+ * 같은 제목이 오늘 이미 있으면 중복 추가하지 않는다. */
+export function addManualTask(task: TeamTask): TaskProgressState {
+  const today = todayStr();
+  const prev = load();
+  const state: TaskProgressState =
+    prev && prev.date === today ? prev : { date: today, periodLabel: prev?.periodLabel ?? "", items: [] };
+
+  if (!state.items.some((i) => i.source === "manual" && i.title === task.title)) {
+    state.items.push({ ...task, id: `${today}-manual-${state.items.length}`, done: false, source: "manual" });
+  }
   save(state);
   return state;
 }

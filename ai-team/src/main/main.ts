@@ -15,7 +15,7 @@ import { buildIndex, backupSpreadsheets } from "./drive/archive";
 import { runPayroll, writePayrollSheet } from "./payroll";
 import { runRepo, saveRepoResult, loadRepoResult, previousYearMonth } from "./repo";
 import { getRecentCommands } from "./commandLog";
-import { updateTaskProgress, getTaskProgress, toggleTaskProgress } from "./taskProgress";
+import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -143,6 +143,16 @@ async function runRepoJob(reason: string) {
     send("repo", result);
     send("log", `리포 작성 완료 (${result.yearMonth})`);
     agentState("repo", "done", `${result.yearMonth} 전략 리포트 완료!`);
+    if (result.expenseMissing) {
+      addManualTask({
+        title: `${result.yearMonth} 지출 입력 필요 (운영 시스템)`,
+        assigneeRole: "대표",
+        priority: "high",
+        reason: "지출 미입력 상태라 리포 AI의 순이익 분석이 부정확함. 운영 시스템에 해당 월 지출을 입력해야 함.",
+        mode: "manual",
+      });
+      send("task-progress", getTaskProgress());
+    }
     const notion = await pushRepoReport(result);
     send("log", notion.ok ? "노션에 전략 리포트 저장 완료" : `노션 저장 안 함: ${notion.error}`);
   } catch (err: any) {
@@ -217,7 +227,19 @@ app.whenReady().then(() => {
   // 저장된 결과만 화면에 띄운다. 크레딧 절약을 위함 (매일 예약 분석은 아래 cron이 그대로 처리한다).
   win?.webContents.once("did-finish-load", () => {
     const cachedRepo = loadRepoResult(previousYearMonth());
-    if (cachedRepo) send("repo", cachedRepo);
+    if (cachedRepo) {
+      send("repo", cachedRepo);
+      // 지출 미입력이 해결 안 된 채로 남아있으면 고쳐질 때까지 매일 다시 오늘의 업무에 띄운다.
+      if (cachedRepo.expenseMissing) {
+        addManualTask({
+          title: `${cachedRepo.yearMonth} 지출 입력 필요 (운영 시스템)`,
+          assigneeRole: "대표",
+          priority: "high",
+          reason: "지출 미입력 상태라 리포 AI의 순이익 분석이 부정확함. 운영 시스템에 해당 월 지출을 입력해야 함.",
+          mode: "manual",
+        });
+      }
+    }
 
     const cached = loadTodaysResult();
     if (cached) {
