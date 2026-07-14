@@ -2013,6 +2013,46 @@ export default function MemberDetail({ memberId }: Props) {
             </CardContent>
           </Card>
 
+          {/* PT 재등록 이력 */}
+          {(stats?.history?.length ?? 0) > 0 && (
+            <Card className="bg-card border-border">
+              <CardHeader className="px-4 pb-2 pt-4">
+                <CardTitle className="text-sm flex items-center gap-2"><RefreshCw className="h-4 w-4 text-primary"/>PT 등록 이력</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="space-y-0">
+                  {stats!.history.map((h, i) => (
+                    <div key={h.id} className="flex gap-3 pb-3 last:pb-0">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-2.5 h-2.5 rounded-full ${h.status === "active" ? "bg-primary" : "bg-muted-foreground/40"}`} />
+                        {i < stats!.history.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
+                      </div>
+                      <div className="flex-1 min-w-0 -mt-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-foreground">
+                            {h.seq}차 등록 · {h.packageName || "PT"}
+                          </span>
+                          <span className="text-xs text-muted-foreground shrink-0">{h.date ?? "-"}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {h.totalSessions}회 · {(h.paymentAmount ?? 0).toLocaleString()}원
+                          {h.status !== "active" && ` · ${h.status === "completed" ? "완료" : h.status}`}
+                        </p>
+                        {h.gapDaysFromPrevExpiry != null && (
+                          <p className={`text-[11px] mt-0.5 ${h.gapDaysFromPrevExpiry > 30 ? "text-orange-400" : "text-muted-foreground"}`}>
+                            {h.gapDaysFromPrevExpiry >= 0
+                              ? `이전 만료 후 ${h.gapDaysFromPrevExpiry}일 만에 재등록`
+                              : `만료 전 ${Math.abs(h.gapDaysFromPrevExpiry)}일 남기고 재등록`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 건강 보고서 */}
           <Card className="bg-card border-border">
             <CardHeader className="px-4 pb-2 pt-4">

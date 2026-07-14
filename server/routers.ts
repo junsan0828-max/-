@@ -914,7 +914,33 @@ const membersRouter = t.router({
       const reregistered = pkgCount > 1;
       const reregistrationCount = Math.max(0, pkgCount - 1);
 
-      return { totalSessions, cancelCount, noshowCount, lastSessionDate, reregistered, reregistrationCount, totalChecks: checks.length };
+      // PT 재등록 이력: 패키지를 결제일(없으면 시작일·생성일) 순으로 정렬해 등록 타임라인 구성.
+      // 등록 간 공백(일수)으로 "쉬었다가 재등록"과 "끊기지 않고 이어서 재등록"을 구분할 수 있게 한다.
+      const sortedPkgs = [...pkgs].sort((a, b) => {
+        const da = a.paymentDate ?? a.startDate ?? a.createdAt ?? "";
+        const db_ = b.paymentDate ?? b.startDate ?? b.createdAt ?? "";
+        return da.localeCompare(db_);
+      });
+      const history = sortedPkgs.map((p, i) => {
+        const date = p.paymentDate ?? p.startDate ?? (p.createdAt ? p.createdAt.substring(0, 10) : null);
+        const prev = i > 0 ? sortedPkgs[i - 1] : null;
+        const prevEnd = prev?.expiryDate ?? null;
+        const gapDays = prevEnd && date
+          ? Math.round((new Date(date).getTime() - new Date(prevEnd).getTime()) / 86400000)
+          : null;
+        return {
+          id: p.id,
+          seq: i + 1,
+          date,
+          packageName: p.packageName,
+          totalSessions: p.totalSessions,
+          paymentAmount: p.paymentAmount,
+          status: p.status,
+          gapDaysFromPrevExpiry: gapDays,
+        };
+      });
+
+      return { totalSessions, cancelCount, noshowCount, lastSessionDate, reregistered, reregistrationCount, totalChecks: checks.length, history };
     }),
 
   // 일괄 만료일 연장
