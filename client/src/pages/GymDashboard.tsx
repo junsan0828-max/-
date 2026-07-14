@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   TrendingUp, TrendingDown, DollarSign, Users, Target,
   AlertCircle, RefreshCw, ArrowUpRight, ArrowDownRight,
-  BarChart2, Percent, CreditCard, ChevronLeft, ChevronRight, MapPin,
+  BarChart2, Percent, CreditCard, ChevronLeft, ChevronRight, ChevronDown, MapPin,
   X, Bell,
 } from "lucide-react";
 import {
@@ -252,6 +252,8 @@ export default function GymDashboard() {
   const [modal, setModal] = useState<ModalType>(null);
 
   const [dismissedBookingAlert, setDismissedBookingAlert] = useState(false);
+  const [showAnomalies, setShowAnomalies] = useState(false);
+  const { data: anomalyData } = trpc.admin.pricingAnomalies.useQuery();
   const { data: branchList } = trpc.gym.staff.listBranches.useQuery();
   const { data: kpi, isLoading } = trpc.gym.kpi.overview.useQuery(
     { year, month, ...(branchFilter ? { branchId: branchFilter } : {}) }
@@ -342,6 +344,35 @@ export default function GymDashboard() {
               <MapPin className="h-3 w-3" /> {b.name}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* 정산 단가 이상치 경보 */}
+      {(anomalyData?.anomalies?.length ?? 0) > 0 && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+          <button type="button" onClick={() => setShowAnomalies(v => !v)} className="w-full flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-red-400" />
+              <span className="text-sm font-semibold text-red-400">정산 단가 이상 항목 {anomalyData!.anomalies.length}건</span>
+            </div>
+            <ChevronDown className={`h-4 w-4 text-red-400 transition-transform ${showAnomalies ? "rotate-180" : ""}`} />
+          </button>
+          {showAnomalies && (
+            <div className="mt-3 space-y-3">
+              {anomalyData!.anomalies.map((a) => (
+                <div key={a.id} className="text-xs border-t border-red-500/20 pt-2">
+                  <div className="flex justify-between items-baseline">
+                    <span className="font-medium text-foreground">{a.memberName ?? "회원 미상"} · {a.trainerName ?? "담당 미배정"}</span>
+                    <span className="text-muted-foreground">{a.packageName ?? "-"} · {a.totalSessions}회</span>
+                  </div>
+                  {a.reasons.map((r, i) => (
+                    <p key={i} className="text-red-300 mt-0.5">⚠ {r}</p>
+                  ))}
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground pt-1">회원 상세 → 프로그램 탭에서 직접 확인 후 수정해주세요. (자동 수정하지 않습니다)</p>
+            </div>
+          )}
         </div>
       )}
 

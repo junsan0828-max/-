@@ -3885,6 +3885,56 @@ const adminRouter = t.router({
 
     return { success: true, total: rows.length, synced, skipped, failed: failedItems.length, failedItems };
   }),
+
+  // 정산 단가 이상치 탐지 (관리자) — 박경숙 사고(매출↔패키지 결제금액 불일치, 세션당 단가 이상저가)
+  // 같은 케이스를 대표가 우연히 발견하기 전에 시스템이 먼저 찾아 리포트로 보여준다.
+  // 자동 수정은 하지 않는다(데이터 무결성 원칙: 확인 후 수동 처리).
+  pricingAnomalies: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+
+    const pkgs = await pool.query<{
+      id: number; memberId: number | null; memberName: string | null;
+      trainerId: number | null; trainerName: string | null;
+      packageName: string | null; totalSessions: number | null;
+      paymentAmount: number | null; pricePerSession: number | null;
+      paymentDate: string | null; revenueEntryId: number | null;
+      revenueAmount: number | null; revenuePaidAmount: number | null;
+    }>(`
+      SELECT p.id, p."memberId", m.name AS "memberName",
+             p."trainerId", t."trainerName",
+             p."packageName", p."totalSessions", p."paymentAmount", p."pricePerSession",
+             p."paymentDate", p."revenueEntryId",
+             r.amount AS "revenueAmount", r."paidAmount" AS "revenuePaidAmount"
+      FROM pt_packages p
+      LEFT JOIN members m ON m.id = p."memberId"
+      LEFT JOIN trainers t ON t.id = p."trainerId"
+      LEFT JOIN revenue_entries r ON r.id = p."revenueEntryId"
+      WHERE p.status = 'active'
+        AND COALESCE(p."totalSessions", 0) > 0
+        AND m.id IS NOT NULL
+    `);
+
+    // 정상 단가 분포의 중앙값을 기준으로 삼는다 (트레이너/프로그램마다 가격이 달라 절대값 기준은 부정확).
+    const prices = pkgs.rows.map(r => r.pricePerSession ?? 0).filter(n => n > 0).sort((a, b) => a - b);
+    const median = prices.length > 0 ? prices[Math.floor(prices.length / 2)] : 0;
+    const lowThreshold = median > 0 ? median * 0.4 : 0;
+
+    const anomalies = pkgs.rows.map(r => {
+      const reasons: string[] = [];
+      if (lowThreshold > 0 && (r.pricePerSession ?? 0) > 0 && (r.pricePerSession ?? 0) < lowThreshold) {
+        reasons.push(`세션당 단가 ${(r.pricePerSession ?? 0).toLocaleString()}원 (전체 중앙값 ${median.toLocaleString()}원의 40% 미만)`);
+      }
+      if (r.revenueEntryId && r.revenueAmount != null) {
+        const revenuePaid = r.revenuePaidAmount ?? r.revenueAmount;
+        if (Math.abs((r.paymentAmount ?? 0) - revenuePaid) > 1000) {
+          reasons.push(`매출 결제금액(${revenuePaid.toLocaleString()}원)과 패키지 결제금액(${(r.paymentAmount ?? 0).toLocaleString()}원) 불일치`);
+        }
+      }
+      return reasons.length > 0 ? { ...r, reasons } : null;
+    }).filter((r): r is NonNullable<typeof r> => r !== null);
+
+    return { median, checkedCount: pkgs.rows.length, anomalies };
+  }),
 });
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
