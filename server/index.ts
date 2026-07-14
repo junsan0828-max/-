@@ -1160,19 +1160,19 @@ async function initDatabase() {
     console.error("고아 PT 패키지 정리 오류:", e);
   }
 
-  // ── 오등록으로 삭제된 회원("한다희")의 잔여 매출 정리 ──────────────────────
+  // ── 오등록으로 삭제된 회원("한라희")의 잔여 매출 정리 ──────────────────────
   // 과거 회원 삭제(members.delete)가 revenue_entries는 지우지 않아, 삭제된 회원의 매출이
   // 고아로 남아 매출 목록·합계에 계속 잡히는 사고가 있었다(지금은 delete가 매출도 함께 지움).
   // 이미 삭제된 회원 건은 남아있으므로 이름으로 특정해 1회성 정리. memberId가 실제 존재하는
-  // (동명이인) 회원을 가리키는 매출은 절대 건드리지 않는다.
+  // (동명이인) 회원을 가리키는 매출은 절대 건드리지 않는다 — "한다희"는 실존 회원이라 대상에서 제외.
   try {
     const cleaned = await pool.query(`
       DELETE FROM revenue_entries
-      WHERE "customerName" = '한다희'
+      WHERE "customerName" = '한라희'
         AND "memberId" IS NOT NULL
         AND "memberId" NOT IN (SELECT id FROM members)
     `);
-    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 삭제된 회원(한다희) 고아 매출 정리: ${cleaned.rowCount}건`);
+    if ((cleaned.rowCount ?? 0) > 0) console.log(`🧹 삭제된 회원(한라희) 고아 매출 정리: ${cleaned.rowCount}건`);
   } catch (e) {
     console.error("삭제된 회원 고아 매출 정리 오류:", e);
   }
