@@ -756,9 +756,12 @@ const membersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // 관련 데이터 cascade 삭제 (세션 로그·패키지·출석 등)
+      // 관련 데이터 cascade 삭제 (세션 로그·패키지·매출·출석 등)
+      // 매출도 함께 삭제한다 — 오등록/중복 회원을 완전히 지우는 용도이므로, 매출만 고아로
+      // 남아 정산·대시보드 합계에 계속 잡히는 사고를 막는다.
       await db.delete(ptSessionLogs).where(eq(ptSessionLogs.memberId, input.id));
       await db.delete(ptPackages).where(eq(ptPackages.memberId, input.id));
+      await db.delete(revenueEntries).where(eq(revenueEntries.memberId, input.id));
       await db.delete(members).where(eq(members.id, input.id));
       return { success: true };
     }),
