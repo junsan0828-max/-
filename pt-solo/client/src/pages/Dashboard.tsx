@@ -111,13 +111,16 @@ function getFeatureLock(
   featureConfigs?: Record<string, string>,
   addonUnlocks?: string[],
 ): FeatureLock {
+  const cfg = featureConfigs?.[id];
   // 핵심(유료) 기능: 관리자가 지정, 개별 구매(1만원) 전까지 잠금 — 플랜 무관
-  if (featureConfigs?.[id] === "addon_premium") {
+  if (cfg === "addon_premium") {
     return addonUnlocks?.includes(id) ? "available" : "core";
   }
-  if (COMING_SOON_IDS.has(id)) return "soon";
+  // 출시 예정/숨김은 관리자 설정을 우선 반영 (설정이 없으면 카탈로그 기본값 사용)
+  if (cfg === "coming_soon" || cfg === "hidden" || (!cfg && COMING_SOON_IDS.has(id))) return "soon";
   if (FREE_IDS.has(id)) return "available";
   // Elite 티어는 Pro로 흡수 — 엘리트 기능도 Pro 가입 시 개방
+  // (관리자가 '활성'으로 지정했더라도 준비상태와 플랜 게이트는 별개이므로 잠금 유지)
   if (PRO_IDS.has(id) || ELITE_IDS.has(id)) return plan === "free" ? "pro" : "available";
   return "available";
 }

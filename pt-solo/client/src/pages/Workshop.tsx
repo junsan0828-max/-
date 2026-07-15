@@ -5034,7 +5034,10 @@ function WorkshopContent() {
     if (userPlanFeatureIds.has(item.id)) return "active";
     // 명시적으로 제거된 기능 (플랜 외 기능만 해당)
     if (removedFeatures.includes(item.id)) return "removed";
-    return cfg;
+    // 여기 도달했다는 건 준비는 됐지만(cfg가 coming_soon/hidden이 아님) 유저 플랜에
+    // 포함되지 않은 상위 플랜 전용 기능이라는 뜻 — 관리자가 '활성'으로 지정했더라도
+    // 플랜 잠금은 그대로 유지해야 한다 (준비상태와 플랜 게이트는 별개).
+    return "locked";
   };
 
   const activeItems = WS_CATALOG.flatMap(cat =>
