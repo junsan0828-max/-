@@ -207,7 +207,7 @@ function WsCatGroup({ cat, plan, onNavigate, featureConfigs, addonUnlocks }: { c
         </div>
         <span className="text-sm font-bold">{cat.label}</span>
         <button onClick={() => onNavigate()} className={`ml-auto text-[11px] font-semibold ${cat.iconCls}`}>
-          작업실 →
+          설정 →
         </button>
       </div>
       <div className="grid grid-cols-4 gap-3">
@@ -239,8 +239,8 @@ function AllFeaturesDialog({ open, onClose, plan, onNavigate, featureConfigs, ad
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-sm max-h-[85vh] flex flex-col p-0">
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-border shrink-0">
-          <DialogTitle className="text-base font-bold">작업실 전체 기능</DialogTitle>
-          <p className="text-xs text-muted-foreground mt-0.5">모든 기능을 탭하면 작업실로 이동합니다</p>
+          <DialogTitle className="text-base font-bold">전체 기능 보기</DialogTitle>
+          <p className="text-xs text-muted-foreground mt-0.5">기능을 탭하면 해당 설정으로 이동합니다</p>
         </DialogHeader>
         <div className="overflow-y-auto flex-1 px-5 pb-6 space-y-5 pt-4">
           {WS_DASH.map(cat => (
@@ -758,15 +758,11 @@ function TrainerDashboard() {
         ]} />
       </div>
 
-      {/* ─── 작업실 기능 전체 ─── */}
-      <div className="flex items-center justify-between pt-2 pb-1">
-        <div>
-          <p className="text-base font-bold">작업실 기능</p>
-          <p className="text-xs text-muted-foreground mt-0.5">PRO 포함 전체 기능</p>
-        </div>
+      {/* ─── 전체 기능 보기 진입 ─── */}
+      <div className="flex justify-end pt-1">
         <button onClick={() => setAllFeaturesOpen(true)}
           className="text-xs font-bold text-primary bg-primary/8 px-3 py-1.5 rounded-xl hover:bg-primary/15 transition-colors">
-          전체보기
+          전체 기능 보기
         </button>
       </div>
 
