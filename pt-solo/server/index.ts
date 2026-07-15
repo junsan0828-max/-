@@ -882,6 +882,27 @@ async function initDatabase() {
     }
   }
 
+  // ── 웹 푸시 알림 ─────────────────────────────────────────────────────────────
+  await pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS push_subscriptions_trainer_idx ON push_subscriptions ("trainerId")`);
+  // VAPID 키가 없으면 최초 1회 자동 생성 (Railway 환경변수 설정 없이 바로 테스트 가능)
+  {
+    const existing = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='vapid_public_key'`);
+    if (!existing.rows[0]) {
+      const webpush = await import("web-push");
+      const keys = webpush.default.generateVAPIDKeys();
+      await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, ["vapid_public_key", keys.publicKey]);
+      await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, ["vapid_private_key", keys.privateKey]);
+    }
+  }
+
   // 기능 사용 포인트 차감 규칙 테이블
   await pool.query(`CREATE TABLE IF NOT EXISTS feature_cost_rules (
     feature TEXT PRIMARY KEY,

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users, ClipboardList, CreditCard, Zap } from "lucide-react";
+import { User, Lock, Coins, Plus, CheckCircle, Clock, XCircle, Briefcase, Gift, Star, Camera, ChevronDown, Share2, Copy, Check, Users, ClipboardList, CreditCard, Zap, Bell, BellOff, Send } from "lucide-react";
 
 const CHARGE_PACKAGES = [
   { krw: 10000,  points: 10000, bonus: 0 },
@@ -23,6 +23,110 @@ const PLAN_INFO = {
 
 function calcDiscounted(price: number, discount: number) {
   return Math.round(price * (1 - discount / 100));
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+function PushNotificationCard() {
+  const utils = trpc.useUtils();
+  const { data: vapid } = trpc.push.getVapidPublicKey.useQuery();
+  const { data: status } = trpc.push.getStatus.useQuery();
+  const [busy, setBusy] = useState(false);
+  const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
+
+  const subscribeMutation = trpc.push.subscribe.useMutation({
+    onSuccess: () => { utils.push.getStatus.invalidate(); toast.success("알림이 켜졌습니다!"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const unsubscribeMutation = trpc.push.unsubscribe.useMutation({
+    onSuccess: () => { utils.push.getStatus.invalidate(); toast.success("알림이 꺼졌습니다."); },
+    onError: (e) => toast.error(e.message),
+  });
+  const testMutation = trpc.push.sendTest.useMutation({
+    onSuccess: () => toast.success("테스트 알림을 보냈습니다. 잠시 후 확인해보세요."),
+    onError: (e) => toast.error(e.message),
+  });
+
+  async function handleEnable() {
+    if (!supported) { toast.error("이 브라우저/기기는 푸시 알림을 지원하지 않습니다."); return; }
+    if (!vapid?.publicKey) { toast.error("알림 설정이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요."); return; }
+    setBusy(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") { toast.error("알림 권한이 거부되었습니다."); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid.publicKey),
+      });
+      const json = sub.toJSON();
+      subscribeMutation.mutate({
+        endpoint: json.endpoint!,
+        keys: { p256dh: json.keys!.p256dh!, auth: json.keys!.auth! },
+      });
+    } catch (e: any) {
+      toast.error("알림 설정 중 오류가 발생했습니다: " + (e?.message ?? ""));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDisable() {
+    setBusy(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        unsubscribeMutation.mutate({ endpoint: sub.endpoint });
+        await sub.unsubscribe();
+      } else {
+        unsubscribeMutation.mutate({ endpoint: "" });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold flex items-center gap-2">
+            {status?.subscribed ? <Bell className="h-4 w-4 text-primary" /> : <BellOff className="h-4 w-4 text-muted-foreground" />}
+            푸시 알림
+          </p>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${status?.subscribed ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+            {status?.subscribed ? "켜짐" : "꺼짐"}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          만료임박·미수금 등 주요 알림을 이 기기로 바로 받아보세요. (테스트 중인 기능입니다)
+        </p>
+        <div className="flex gap-2">
+          {status?.subscribed ? (
+            <>
+              <Button size="sm" variant="outline" className="flex-1" disabled={busy} onClick={handleDisable}>알림 끄기</Button>
+              <Button size="sm" className="flex-1" disabled={busy || testMutation.isPending} onClick={() => testMutation.mutate()}>
+                <Send className="h-3.5 w-3.5 mr-1" />테스트 발송
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" className="flex-1" disabled={busy || !supported} onClick={handleEnable}>
+              {busy ? "설정 중..." : "알림 켜기"}
+            </Button>
+          )}
+        </div>
+        {!supported && <p className="text-[10px] text-red-400">이 브라우저에서는 지원되지 않습니다. 홈 화면에 앱을 추가한 뒤 이용해주세요.</p>}
+      </CardContent>
+    </Card>
+  );
 }
 import { toast } from "sonner";
 import TabBanner from "@/components/TabBanner";
@@ -264,6 +368,8 @@ export default function Profile() {
 
       {/* 프로필 완성 보너스 안내 */}
       <ProfileCompletionBanner profile={profile as any} />
+
+      <PushNotificationCard />
 
       {/* 플랜 구독 */}
       {(() => {

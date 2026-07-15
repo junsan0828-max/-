@@ -31,6 +31,42 @@ import {
 import { randomUUID } from "crypto";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
+import webpush from "web-push";
+
+// ── 웹 푸시 발송 헬퍼 ──────────────────────────────────────────────────────────
+let vapidConfigured = false;
+async function ensureVapidConfigured() {
+  if (vapidConfigured) return;
+  const rows = await pool.query<{ key: string; value: string }>(
+    `SELECT key, value FROM plan_settings WHERE key IN ('vapid_public_key','vapid_private_key')`
+  );
+  const map: Record<string, string> = {};
+  for (const r of rows.rows) map[r.key] = r.value;
+  if (!map.vapid_public_key || !map.vapid_private_key) return;
+  webpush.setVapidDetails("mailto:fitstep.consult@gmail.com", map.vapid_public_key, map.vapid_private_key);
+  vapidConfigured = true;
+}
+
+async function sendPushToTrainer(trainerId: number, payload: { title: string; body: string; url?: string }) {
+  await ensureVapidConfigured();
+  if (!vapidConfigured) return;
+  const subs = await pool.query<{ id: number; endpoint: string; p256dh: string; auth: string }>(
+    `SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE "trainerId"=$1`, [trainerId]
+  );
+  await Promise.all(subs.rows.map(async (s) => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        JSON.stringify(payload)
+      );
+    } catch (err: any) {
+      // 구독이 만료/취소된 경우(410 Gone, 404) 정리
+      if (err?.statusCode === 410 || err?.statusCode === 404) {
+        await pool.query(`DELETE FROM push_subscriptions WHERE id=$1`, [s.id]);
+      }
+    }
+  }));
+}
 
 interface Context {
   user?: AuthUser;
@@ -4073,6 +4109,59 @@ const expensesRouter = t.router({
     }),
 });
 
+// ── 웹 푸시 알림 ────────────────────────────────────────────────────────────────
+const pushRouter = t.router({
+  getVapidPublicKey: protectedProcedure.query(async () => {
+    const row = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='vapid_public_key'`);
+    return { publicKey: row.rows[0]?.value ?? null };
+  }),
+
+  getStatus: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) return { subscribed: false };
+    const row = await pool.query(`SELECT id FROM push_subscriptions WHERE "trainerId"=$1 LIMIT 1`, [trainerId]);
+    return { subscribed: row.rows.length > 0 };
+  }),
+
+  subscribe: protectedProcedure
+    .input(z.object({
+      endpoint: z.string(),
+      keys: z.object({ p256dh: z.string(), auth: z.string() }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(
+        `INSERT INTO push_subscriptions ("trainerId", endpoint, p256dh, auth) VALUES ($1,$2,$3,$4)
+         ON CONFLICT (endpoint) DO UPDATE SET "trainerId"=$1, p256dh=$3, auth=$4`,
+        [trainerId, input.endpoint, input.keys.p256dh, input.keys.auth]
+      );
+      return { success: true };
+    }),
+
+  unsubscribe: protectedProcedure
+    .input(z.object({ endpoint: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      await pool.query(`DELETE FROM push_subscriptions WHERE "trainerId"=$1 AND endpoint=$2`, [trainerId, input.endpoint]);
+      return { success: true };
+    }),
+
+  sendTest: protectedProcedure.mutation(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const count = await pool.query(`SELECT id FROM push_subscriptions WHERE "trainerId"=$1`, [trainerId]);
+    if (count.rows.length === 0) throw new TRPCError({ code: "BAD_REQUEST", message: "먼저 알림을 켜주세요." });
+    await sendPushToTrainer(trainerId, {
+      title: "FIT STEP 테스트 알림",
+      body: "푸시 알림이 정상적으로 도착했습니다 🎉",
+      url: "/",
+    });
+    return { success: true };
+  }),
+});
+
 // ─── App Router ───────────────────────────────────────────────────────────────
 
 // ── 운동 프로그램 템플릿 ───────────────────────────────────────────────────
@@ -4926,6 +5015,7 @@ export const appRouter = t.router({
   trainingLog: trainingLogRouter,
   fitPoints: fitPointsRouter,
   expenses: expensesRouter,
+  push: pushRouter,
   fitStepPlus: fitStepPlusRouter,
   brand: brandRouter,
   workoutTemplates: workoutTemplatesRouter,
