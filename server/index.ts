@@ -1300,6 +1300,27 @@ async function initDatabase() {
     console.error("빈 복제 PT 패키지 정리 오류:", e);
   }
 
+  // ── 담당 트레이너 변경이 안 따라간 진행 중 PT 패키지 보정 ────────────────────
+  // members.trainerId(회원 카드에 보이는 담당 트레이너)와 ptPackages.trainerId(PT 관리
+  // 목록이 실제로 필터링하는 값)가 따로 저장돼 있어, 트레이너 재배정 시 과거 코드가 회원만
+  // 옮기고 진행 중인 패키지는 안 옮기는 경우가 있었다. 그 결과 회원 카드·출석체크에는
+  // 새 트레이너로 보이는데 PT 관리에는 안 뜨는 사고로 이어졌다(양희정 사례).
+  // 완료/환불된 과거 패키지는 정산 소급 방지를 위해 건드리지 않는다.
+  try {
+    const trainerSynced = await pool.query(`
+      UPDATE pt_packages p
+      SET "trainerId" = m."trainerId", "updatedAt" = now()::text
+      FROM members m
+      WHERE p."memberId" = m.id
+        AND p.status = 'active'
+        AND m."trainerId" IS NOT NULL
+        AND p."trainerId" IS DISTINCT FROM m."trainerId"
+    `);
+    if ((trainerSynced.rowCount ?? 0) > 0) console.log(`🔗 PT 패키지 담당 트레이너 동기화: ${trainerSynced.rowCount}건`);
+  } catch (e) {
+    console.error("PT 패키지 담당 트레이너 동기화 오류:", e);
+  }
+
   // ── PT 세션 ↔ 패키지 연결/단가 보정 (정산 단가 0원 방지) ──────────────────────
   try {
     // 1) 단가 없는 패키지: 결제금액 ÷ 총세션수로 pricePerSession 채우기

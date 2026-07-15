@@ -700,6 +700,16 @@ const membersRouter = t.router({
 
       await db.update(members).set(memberData).where(eq(members.id, id));
 
+      // 담당 트레이너 변경 시 진행 중인(active) PT 패키지도 함께 옮긴다.
+      // ptPackages.trainerId는 members.trainerId와 별도 필드라 여기서 안 맞춰주면, 회원 카드는
+      // 새 트레이너로 보이는데 PT 관리 목록(ptPackages.trainerId 기준 필터)에는 여전히 안 뜨는
+      // 사고가 난다. 완료/환불된 과거 패키지는 정산 소급 방지를 위해 건드리지 않는다.
+      if (memberData.trainerId !== undefined) {
+        await db.update(ptPackages)
+          .set({ trainerId: memberData.trainerId })
+          .where(and(eq(ptPackages.memberId, id), eq(ptPackages.status, "active")));
+      }
+
       // 장부 자동 연동 — paymentAmount가 있거나 serviceItems가 있는 경우
       if ((paymentAmount != null || serviceItems) && subType) {
         const effectiveAmount = paymentAmount ?? 0;
@@ -3252,10 +3262,12 @@ const adminRouter = t.router({
         .set({ trainerId: input.trainerId })
         .where(eq(members.id, input.memberId));
 
-      // PT 패키지도 trainerId 업데이트
+      // PT 패키지도 trainerId 업데이트 (진행 중인 패키지만 — 완료/환불된 과거 패키지는
+      // 정산 소급 방지를 위해 건드리지 않는다. 예전엔 trainerId가 NULL일 때만 채워서,
+      // 이미 다른 트레이너로 값이 들어있던 패키지는 재배정해도 안 옮겨지는 사고가 있었다.)
       await db.update(ptPackages)
         .set({ trainerId: input.trainerId })
-        .where(and(eq(ptPackages.memberId, input.memberId), isNull(ptPackages.trainerId)));
+        .where(and(eq(ptPackages.memberId, input.memberId), eq(ptPackages.status, "active")));
 
       return { success: true };
     }),
