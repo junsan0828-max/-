@@ -214,8 +214,12 @@ export default function MemberForm({ memberId, defaultTrainerId }: Props) {
       if (!form.paymentDate) newErrors.paymentDate = "결제일자를 입력해주세요.";
     }
     if (!isEdit && form.name.trim() && form.phone.trim()) {
+      // 전화번호는 숫자만 비교 (하이픈/공백 표기 차이로 같은 회원을 다른 사람으로 오인해
+      // 중복 회원이 생성되는 사고 방지 — "신규"로 새로 만들어졌다가 나중에 "재등록"이 기존
+      // 회원 쪽으로 붙으면서 매출이 두 memberId로 갈라지는 원인이었다)
+      const normPhone = form.phone.replace(/\D/g, "");
       const dup = allMembers.find(
-        m => m.name.trim() === form.name.trim() && m.phone?.trim() === form.phone.trim()
+        m => m.name.trim() === form.name.trim() && (m.phone ?? "").replace(/\D/g, "") === normPhone
       );
       if (dup) newErrors.name = "동일한 이름, 연락처가 중복되었습니다.";
     }

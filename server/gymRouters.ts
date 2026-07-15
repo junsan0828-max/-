@@ -45,6 +45,14 @@ function kstDate(offsetDays = 0): string {
   return new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().substring(0, 10);
 }
 
+// 전화번호를 숫자만 비교(하이픈/공백 유무 무관)해 회원 중복확인이 놓치지 않도록 한다.
+// 정확 문자열 일치(eq)로 비교하면 "010-1234-5678" vs "01012345678"처럼 표기만 다른 같은
+// 회원을 다른 사람으로 오인해 중복 회원이 생기고, 그 결과 "신규"·"재등록"이 서로 다른
+// memberId로 갈라져 같은 회원이 매출에 두 번 잡히는 사고로 이어진다.
+function samePhone(col: any, phone: string) {
+  return sql`REGEXP_REPLACE(COALESCE(${col}, ''), '[^0-9]', '', 'g') = REGEXP_REPLACE(${phone}, '[^0-9]', '', 'g')`;
+}
+
 const t = initTRPC.context<Context>().create();
 const publicProcedure = t.procedure;
 const protectedProcedure = t.procedure.use(({ ctx, next }) => {
@@ -509,7 +517,7 @@ const revenueRouter = t.router({
         if (input.phone) {
           const existing = await db.select({ id: members.id })
             .from(members)
-            .where(and(eq(members.name, input.customerName), eq(members.phone, input.phone)))
+            .where(and(eq(members.name, input.customerName), samePhone(members.phone, input.phone)))
             .limit(1);
           if (existing[0]) {
             await db.update(revenueEntries).set({ memberId: existing[0].id }).where(eq(revenueEntries.id, row.id));
@@ -944,7 +952,7 @@ const revenueRouter = t.router({
         if (rev.phone) {
           const rows = await db.select({ id: members.id })
             .from(members)
-            .where(and(eq(members.name, rev.customerName), eq(members.phone, rev.phone)))
+            .where(and(eq(members.name, rev.customerName), samePhone(members.phone, rev.phone)))
             .limit(1);
           found = rows[0];
         }
@@ -3221,11 +3229,11 @@ const registerMutation = protectedProcedure
     // 3. Find or create/update member
     let memberId = input.memberId ?? null;
     if (!memberId) {
-      // 신규: 이름+전화번호 중복 확인
+      // 신규: 이름+전화번호 중복 확인 (전화번호는 숫자만 비교)
       if (input.phone) {
         const [dup] = await db.select({ id: members.id })
           .from(members)
-          .where(and(eq(members.name, input.name), eq(members.phone, input.phone)))
+          .where(and(eq(members.name, input.name), samePhone(members.phone, input.phone)))
           .limit(1);
         if (dup) memberId = dup.id;
       }

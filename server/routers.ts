@@ -72,6 +72,13 @@ const protectedProcedure = t.procedure.use(({ ctx, next }) => {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
+// 전화번호를 숫자만 비교(하이픈/공백 유무 무관)해 회원 중복확인이 놓치지 않도록 한다.
+// (gymRouters.ts의 samePhone과 동일한 목적 — 표기만 다른 같은 회원을 다른 사람으로 오인해
+// 중복 회원이 생기는 사고 방지)
+function samePhone(col: any, phone: string) {
+  return sql`REGEXP_REPLACE(COALESCE(${col}, ''), '[^0-9]', '', 'g') = REGEXP_REPLACE(${phone}, '[^0-9]', '', 'g')`;
+}
+
 // 카드/현금영수증/지역화폐는 부가세 10% 제외, 계좌이체/이체는 그대로, 혼합은 이체분+카드분(VAT제외) 합산
 function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string, transferAmount?: number, cardAmount?: number): number | undefined {
   if (!paymentAmount || !sessions || sessions <= 0) return undefined;
@@ -272,7 +279,7 @@ const membersRouter = t.router({
     for (const entry of orphanHealth) {
       if (!entry.customerName) continue;
       const cond = entry.phone
-        ? and(eq(members.name, entry.customerName), eq(members.phone, entry.phone))
+        ? and(eq(members.name, entry.customerName), samePhone(members.phone, entry.phone))
         : eq(members.name, entry.customerName);
       const existing = await db.select({ id: members.id }).from(members).where(cond)
         .orderBy(sql`"membershipEnd" DESC NULLS LAST`).limit(1);
@@ -539,11 +546,34 @@ const membersRouter = t.router({
         ...memberData
       } = input;
 
-      const [insertResult] = await db.insert(members).values({
-        ...memberData,
-        ...(trainerId != null ? { trainerId } : {}),
-      }).returning({ id: members.id });
-      const memberId = insertResult.id;
+      // 이름+전화번호(숫자만 비교) 일치하는 기존 회원이 있으면 새로 만들지 않고 재사용한다.
+      // 이 중복확인이 없어서, 같은 회원이 "신규 회원 등록"과 "재등록" 화면을 각각 거치면
+      // 서로 다른 memberId로 갈라져 매출에 동일 인물이 두 번(신규+재등록) 잡히는 사고가 있었다.
+      let memberId: number;
+      const dup = memberData.phone
+        ? await db.select({ id: members.id }).from(members)
+            .where(and(eq(members.name, memberData.name), samePhone(members.phone, memberData.phone)))
+            .limit(1)
+        : [];
+      if (dup[0]) {
+        // 기존 회원 재사용: grade/status 등은 zod 기본값(basic/active)이 항상 채워져 있어
+        // 그대로 spread하면 기존 값(예: vip, paused)을 덮어써버린다. 재등록 맥락에서 실제로
+        // 갱신할 의미가 있는 필드만 선택적으로 반영한다.
+        memberId = dup[0].id;
+        const upd: Record<string, any> = { updatedAt: new Date().toISOString() };
+        if (memberData.membershipStart) upd.membershipStart = memberData.membershipStart;
+        if (memberData.membershipEnd) upd.membershipEnd = memberData.membershipEnd;
+        if (memberData.profileNote !== undefined) upd.profileNote = memberData.profileNote;
+        if (memberData.visitRoute !== undefined) upd.visitRoute = memberData.visitRoute;
+        if (trainerId != null) upd.trainerId = trainerId;
+        await db.update(members).set(upd).where(eq(members.id, memberId));
+      } else {
+        const [insertResult] = await db.insert(members).values({
+          ...memberData,
+          ...(trainerId != null ? { trainerId } : {}),
+        }).returning({ id: members.id });
+        memberId = insertResult.id;
+      }
 
       if (ptSessions) {
         const sessionCount = parseInt(ptSessions);
