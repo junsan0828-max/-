@@ -11,8 +11,18 @@ contextBridge.exposeInMainWorld("jay", {
   copyText: (text: string) => clipboard.writeText(text),
   markContacted: (category: string, name: string, phone: string | null) =>
     ipcRenderer.invoke("mark-contacted", category, name, phone),
-  runCommand: (instruction: string) => ipcRenderer.invoke("run-command", instruction),
+  sendSms: (target: { category: string; name: string; phone: string | null; message: string }) =>
+    ipcRenderer.invoke("send-sms", target),
+  runCommand: (instruction: string, agentId?: string) => ipcRenderer.invoke("run-command", instruction, agentId),
+  getCommandHistory: (agentId: string) => ipcRenderer.invoke("get-command-history", agentId),
+  getTeamRoles: () => ipcRenderer.invoke("get-team-roles"),
+  getTaskProgress: () => ipcRenderer.invoke("get-task-progress"),
+  toggleTaskProgress: (id: string) => ipcRenderer.invoke("toggle-task-progress", id),
+  onTaskProgress: (cb: (state: unknown) => void) => ipcRenderer.on("task-progress", (_e, s) => cb(s)),
   onCommandState: (cb: (state: string) => void) => ipcRenderer.on("command-state", (_e, s) => cb(s)),
   onAgentState: (cb: (payload: { agent: string; state: string; bubble?: string }) => void) =>
     ipcRenderer.on("agent-state", (_e, p) => cb(p)),
+  onRepo: (cb: (repo: unknown) => void) => ipcRenderer.on("repo", (_e, r) => cb(r)),
+  getRepoReport: () => ipcRenderer.invoke("get-repo-report"),
+  runRepoNow: () => ipcRenderer.invoke("run-repo-now"),
 });

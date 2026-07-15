@@ -8,6 +8,8 @@
     "brain": "tsx src/cli.ts",
     "brain:dry": "tsx src/cli.ts --dry",
     "youtube": "tsx src/youtube-cli.ts",
+    "drive": "tsx src/drive-cli.ts",
+    "payroll": "tsx src/payroll-cli.ts",
     "command": "tsx src/command-cli.ts",
     "attach-log": "tsx src/attach-log-cli.ts",
     "kakao-auth": "tsx src/kakao-auth-cli.ts",

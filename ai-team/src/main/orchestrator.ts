@@ -19,6 +19,14 @@ export interface OrchestratorResult {
   tasks: TeamTask[];
   report: string; // 마크다운 리포트
   context: GymContext;
+  periodLabel: string; // 이 브리핑이 다루는 기간 ("어제" | "지난주(월~일)")
+}
+
+/** 월요일엔 주말 동안 쌓인 지난주 전체를, 화~금요일엔 전날 하루를 브리핑 대상 기간으로 삼는다. */
+export function getBriefingPeriod(date = new Date()): { label: string; isWeekly: boolean } {
+  const day = date.toLocaleString("en-US", { timeZone: "Asia/Seoul", weekday: "short" });
+  if (day === "Mon") return { label: "지난주(월~일)", isWeekly: true };
+  return { label: "어제", isWeekly: false };
 }
 
 const MODEL = process.env.AI_TEAM_MODEL || "claude-sonnet-4-6";
@@ -37,7 +45,7 @@ export function buildDataSummary(c: GymContext): string {
 }
 
 // API 키가 없거나 실패해도 항상 결과가 나오도록 규칙 기반으로 업무를 만든다.
-function fallbackResult(c: GymContext): OrchestratorResult {
+function fallbackResult(c: GymContext, periodLabel: string): OrchestratorResult {
   const tasks: TeamTask[] = [];
   if (c.members.expiringSoon.length > 0)
     tasks.push({
@@ -87,7 +95,7 @@ function fallbackResult(c: GymContext): OrchestratorResult {
     mode: "auto",
   });
 
-  const report = `## 제이의 주간 브리핑 (규칙 기반)\n\n${buildDataSummary(c)}\n\n**우선 처리**\n${tasks
+  const report = `## 제이의 브리핑 (${periodLabel} · 규칙 기반)\n\n${buildDataSummary(c)}\n\n**오늘 처리해야 할 업무**\n${tasks
     .filter((t) => t.priority === "high")
     .map((t) => `- ${t.title} — ${t.reason}`)
     .join("\n") || "- 급한 항목 없음"}\n`;
@@ -95,10 +103,11 @@ function fallbackResult(c: GymContext): OrchestratorResult {
   return {
     generatedAt: new Date().toISOString(),
     isAI: false,
-    headline: `만료예정 ${c.members.expiringSoon.length}명·미수금 ${c.money.unpaidTotal.toLocaleString()}원 확인. 오늘 우선업무 ${tasks.filter((t) => t.priority === "high").length}건.`,
+    headline: `[${periodLabel} 기준] 만료예정 ${c.members.expiringSoon.length}명·미수금 ${c.money.unpaidTotal.toLocaleString()}원 확인. 오늘 우선업무 ${tasks.filter((t) => t.priority === "high").length}건.`,
     tasks,
     report,
     context: c,
+    periodLabel,
   };
 }
 
@@ -114,8 +123,9 @@ function extractJson(text: string): any {
 
 export async function runOrchestrator(opts: { dry?: boolean } = {}): Promise<OrchestratorResult> {
   const context = await gatherContext();
+  const { label: periodLabel, isWeekly } = getBriefingPeriod();
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (opts.dry || !apiKey) return fallbackResult(context);
+  if (opts.dry || !apiKey) return fallbackResult(context, periodLabel);
 
   const mindmap = loadJson("mindmap.json");
   const team = loadJson("team.json");
@@ -131,23 +141,26 @@ export async function runOrchestrator(opts: { dry?: boolean } = {}): Promise<Orc
       messages: [
         {
           role: "user",
-          content: `아래는 자이언트짐의 사업 마인드맵과 오늘의 운영 데이터다.
+          content: `아래는 자이언트짐의 사업 마인드맵과 오늘 시점 운영 데이터(현재 스냅샷)다.
+오늘은 ${isWeekly ? "월요일" : "화~금요일 중 하루"}라서, 이번 브리핑은 "${periodLabel}"를 다루는 브리핑이다.
 
 [사업 구조 마인드맵]
 ${JSON.stringify(mindmap, null, 0)}
 
-[오늘의 데이터]
+[오늘 시점 데이터]
 ${buildDataSummary(context)}
 
 이 데이터를 마인드맵의 "고객 생애 흐름"과 "수익/재등록/마케팅" 관점으로 분석해,
-지금 당장 필요한 업무를 도출하고 팀원에게 배분하라. 아래 JSON 형식으로만 답하라.
+"${periodLabel}" 동안 있었던 일을 해석하고, 오늘 당장 처리해야 할 업무를 도출해 팀원에게 배분하라.
+(주의: 날짜별로 쪼갠 이력 데이터는 없고 현재 스냅샷만 있으니, 스냅샷 수치를 "${periodLabel}" 기준 해석으로
+자연스럽게 풀어 쓰되 없는 사실을 지어내지는 마라.) 아래 JSON 형식으로만 답하라.
 
 {
-  "headline": "원장에게 보고할 한 줄 요약",
+  "headline": "원장에게 보고할 한 줄 요약 (기간: ${periodLabel})",
   "tasks": [
     { "title": "구체적 업무", "assigneeRole": "회원관리|퍼널분석|마케팅|리포트", "priority": "high|normal|low", "reason": "왜 필요한지", "mode": "auto|semi|manual" }
   ],
-  "report": "마크다운 주간 브리핑 (데이터 해석 + 우선순위 + 다음 액션)"
+  "report": "마크다운 브리핑 — '${periodLabel} 분석'과 '오늘 처리해야 할 업무 리스트' 두 섹션 포함, 데이터 해석 + 우선순위 + 다음 액션"
 }`,
         },
       ],
@@ -161,13 +174,27 @@ ${buildDataSummary(context)}
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
       report: String(parsed.report ?? ""),
       context,
+      periodLabel,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[제이] AI 분석 실패, 규칙 기반으로 전환:", message);
-    const fb = fallbackResult(context);
+    const fb = fallbackResult(context, periodLabel);
     fb.headline = `(AI 호출 실패: ${message.slice(0, 80)} → 규칙 기반) ` + fb.headline;
     return fb;
+  }
+}
+
+/** 오늘(KST) 이미 분석한 결과가 있으면 돌려준다. 앱을 여러 번 껐다 켜도 같은 날엔 API를 다시 부르지 않기 위함. */
+export function loadTodaysResult(): OrchestratorResult | null {
+  try {
+    const raw = readFileSync(join(__dirname, "..", "..", "output", "latest.json"), "utf-8");
+    const result: OrchestratorResult = JSON.parse(raw);
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+    const resultDay = new Date(result.generatedAt).toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+    return resultDay === today ? result : null;
+  } catch {
+    return null;
   }
 }
 

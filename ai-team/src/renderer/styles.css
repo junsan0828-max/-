@@ -1,12 +1,15 @@
 :root {
-  --bg: #0f1226;
-  --card: #1a1e3a;
-  --accent: #7c5cff;
-  --text: #eef0ff;
-  --muted: #9aa0c7;
-  --high: #ff5c7c;
-  --normal: #ffc65c;
-  --low: #5cffb0;
+  --bg: #f3f4f9;
+  --card: #ffffff;
+  --card-border: #e1e4f0;
+  --accent: #1f2d5c;
+  --accent-2: #32458c;
+  --accent-soft: #e8ebf7;
+  --text: #1b2140;
+  --muted: #767c9b;
+  --high: #d92454;
+  --normal: #c98a12;
+  --low: #0f9d68;
 }
 * { box-sizing: border-box; }
 body {
@@ -18,95 +21,152 @@ body {
   display: flex;
   flex-direction: column;
 }
-header { padding: 12px 16px; background: linear-gradient(135deg, #2a1e5c, #14163a); }
-header h1 { margin: 0; font-size: 16px; }
-header .sub { font-size: 11px; color: var(--muted); }
+header { padding: 12px 16px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+header h1 { margin: 0; font-size: 16px; color: #fff; }
+header .sub { font-size: 11px; color: rgba(255,255,255,.72); }
 
-.stage { padding: 14px 16px 8px; text-align: center; }
-.office-title { font-size: 11px; color: var(--muted); margin-bottom: 8px; text-align: left; }
+/* 상단: 팀원별 주요 담당 업무를 항상 볼 수 있는 요약 줄 */
+.team-roles {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+  padding: 8px 16px; background: var(--accent-soft); border-bottom: 1px solid var(--card-border);
+  font-size: 12px; color: var(--accent);
+}
+.team-role-item b { font-weight: 700; }
+.team-role-item { white-space: nowrap; }
 
-/* 사무실 배경: 벽 + 바닥 + 창문/소품. 책상(가구)은 고정, 캐릭터(sprite)는 실제로 걸어다닌다. */
-.office-scene {
-  position: relative; height: 230px; border-radius: 14px; overflow: hidden;
-  background: linear-gradient(180deg, #232a52 0%, #232a52 55%, #171b38 55%, #171b38 100%);
-  border: 1px solid #2c3160;
-  transition: filter .4s;
-}
-.office-scene.mood-thinking { filter: saturate(1.25) brightness(1.04); }
-.office-scene.mood-reporting { filter: saturate(1.4) brightness(1.1); }
+/* 오늘의 업무 리스트 — 대시보드/업무내역/분석내역 어디서든 상단에 항상 보인다 */
+.daily-tasks { padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--card-border); }
+.daily-tasks-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.daily-tasks-title { font-weight: 700; font-size: 13px; color: var(--text); }
+.daily-tasks-period { font-size: 11px; color: var(--muted); }
+.daily-tasks-progress { margin-left: auto; font-size: 12px; color: var(--accent); font-weight: 700; }
+.daily-tasks-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; }
+.daily-tasks-list li { background: var(--bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+.daily-tasks-list li.empty { color: var(--muted); text-align: center; border: none; background: none; }
+.daily-tasks-list li.done { opacity: .55; }
+.daily-tasks-list li.done b { text-decoration: line-through; }
+.daily-tasks-list label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; cursor: pointer; }
+.daily-tasks-list input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.daily-tasks-list .meta { flex-basis: 100%; font-size: 11px; color: var(--muted); margin-top: 2px; margin-left: 21px; }
+.pill.owner-auto, .pill.owner-semi { background: var(--accent-soft); color: var(--accent); }
+.pill.owner-manual { background: var(--high); color: #fff; }
 
-/* 회의 테이블 (방 가운데, 다 같이 모여서 발표하는 자리) */
-.prop-table {
-  position: absolute; left: 50%; top: 78%; transform: translate(-50%, -50%);
-  width: 78px; height: 30px; background: #2c3160; border: 2px solid #3a4080; border-radius: 8px;
-  box-shadow: 0 4px 0 0 #171b38;
+.main-tabs {
+  display: flex; gap: 4px; padding: 8px 16px 0; background: var(--card);
+  border-bottom: 1px solid var(--card-border);
+}
+.tab-btn {
+  background: transparent; color: var(--muted); border: 0; cursor: pointer;
+  font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: 8px 8px 0 0;
+}
+.tab-btn:hover { color: var(--accent); }
+.tab-btn.active { color: var(--accent); background: var(--bg); }
+
+.tab-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+.tab-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.tab-content.hidden { display: none; }
+#tab-history, #tab-analysis { padding: 14px 16px; overflow-y: auto; }
+
+.office { padding: 0 16px 14px; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.office-title { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.office-layout { display: flex; gap: 12px; align-items: stretch; flex: 1; min-height: 0; }
+
+/* 왼쪽 열: 사무실 이미지 → (바로 아래) 팀원 선택 → 지시창. 오른쪽 답변 카드와는 완전히 분리된
+   세로 스택이라 지시창이 답변 영역 쪽으로 넘어갈 일이 없다. */
+.office-left { flex: 1.3; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.office-left .office-room { flex: none; }
+
+/* 사무실 오른쪽: 선택한 팀원의 실제 사진 + 그 팀원의 답변을 크게 보여주는 답변 카드.
+   왼쪽 열(사무실+선택+지시창) 전체 높이에 맞춰 늘어나서, 답변 카드가 세로로 길게 확보된다. */
+.side-panel { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.real-photo {
+  position: relative; height: 170px; flex-shrink: 0;
+  overflow: hidden; border-radius: 12px; background: var(--card);
+  border: 1px solid var(--card-border);
+  opacity: 0; transition: opacity .25s ease;
+}
+.real-photo.show { opacity: 1; }
+.real-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; display: block; }
+.real-photo-name {
+  position: absolute; bottom: 8px; left: 8px; font-size: 12px; font-weight: 700; color: #fff;
+  background: rgba(31,45,92,.78); padding: 3px 10px; border-radius: 10px;
 }
 
-/* 책상(가구): 뒷벽에 고정, 팀원마다 다른 벽 장식 */
-.desk {
-  position: absolute; transform: translate(-50%, 0); display: flex; flex-direction: column;
-  align-items: center; width: 74px;
+/* 답변을 사진 아래에 세로로 길게 보여주는 카드. 지시하기 전엔 안내 문구만, 답변이 오면 내용으로 교체. */
+.reply-card {
+  flex: 1; min-height: 0; background: var(--card); border-radius: 12px; padding: 16px;
+  border: 1px solid var(--card-border); box-shadow: 0 1px 4px rgba(31,45,92,.05);
+  display: flex; flex-direction: column; overflow-y: auto;
 }
-.desk.lead { width: 96px; }
-.desk::before {
-  content: ""; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
-  margin-bottom: 2px; border-radius: 4px;
-}
-#desk-jay::before {
-  width: 34px; height: 26px;
-  background: linear-gradient(180deg, #4a5ba8, #33407c);
-  border: 2px solid #5c6ad1;
-  box-shadow: inset 0 0 0 2px #232a52, inset 50% 0 0 1px #5c6ad1, inset 0 50% 0 1px #5c6ad1;
-}
-#desk-mina::before {
-  width: 26px; height: 20px; background: #8a5a3a; border-radius: 2px;
-  box-shadow: 6px 4px 0 -3px #ffb648, -6px 6px 0 -4px #ff6f91;
-}
-#desk-data::before {
-  width: 30px; height: 20px; background: #eef0ff; border-radius: 2px;
-  box-shadow: inset 0 -4px 0 -2px #2fb6a6, inset -8px -8px 0 -4px #ff5c7c, inset 8px -12px 0 -6px #ffc65c;
-}
-#desk-luna::before {
-  width: 22px; height: 26px; background: #eef0ff; border-radius: 2px;
-  box-shadow: inset -6px 8px 0 -8px #c65bff, inset 6px -6px 0 -10px #ffb648;
-  transform: translateX(-50%) rotate(-4deg);
-}
+.reply-empty { margin: auto; color: var(--muted); font-size: 13px; text-align: center; }
+.reply-body.hidden { display: none; }
+.reply-meta { font-size: 12px; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+.reply-text { font-size: 15px; line-height: 1.65; color: var(--text); white-space: pre-wrap; }
 
-.monitor {
-  width: 46px; height: 30px; background: #12142a; border-radius: 4px 4px 0 0;
-  border: 2px solid #2c3160; display: flex; align-items: center; justify-content: center;
+/* 사무실 이미지 바로 아래: 제이/미나/데이터/루나/지영 5명이 한 줄에 모두 보이는 선택 버튼 */
+.agent-picker { display: flex; gap: 6px; flex-shrink: 0; }
+.agent-picker button {
+  flex: 1; background: var(--accent-soft); color: var(--accent); border: 1px solid var(--card-border);
+  border-radius: 8px; padding: 8px 0; font-size: 12px; font-weight: 600; cursor: pointer;
 }
-.desk.lead .monitor { width: 58px; height: 36px; }
-.monitor .screen {
-  width: 80%; height: 70%; background: #1b1f3f; border-radius: 2px;
-  background-image: repeating-linear-gradient(0deg, #2c3160 0 2px, transparent 2px 6px);
-  background-size: 100% 6px; opacity: .6; transition: background .2s;
+.agent-picker button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.commander-big { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.office-room {
+  position: relative;
+  border-radius: 12px; padding: 0; overflow: hidden;
+  background-image: url("../../assets/office/background.jpg");
+  background-size: cover; background-position: center;
 }
-.desk.working .monitor .screen { background-color: #244a3a; opacity: 1; animation: screenFlicker .3s steps(2) infinite; }
-.desk.done .monitor .screen { background-color: #1e5c3f; opacity: 1; }
-
-.name { font-size: 10px; color: var(--muted); margin-top: 6px; text-align: center; line-height: 1.3; }
-.name .role { display: block; font-size: 9px; color: #6c72a0; }
-
-/* 캐릭터(sprite): 자유롭게 이동하는 요소. left/top(%)을 JS가 바꾸면 실제로 걸어간다 */
-.sprite {
-  position: absolute; transform: translate(-50%, -100%); z-index: 3;
-  transition: left 1.1s ease-in-out, top 1.1s ease-in-out;
+/* 배경 원화(900x502) 비율로 고정해야 창 크기가 바뀌어도 잘리거나 확대되지 않고
+   항상 그림 전체가 그대로 보인다 (비율이 안 맞으면 background-size:cover가 이미지를
+   확대/크롭해서 캐릭터와 배경의 크기 비율이 어긋나 보였음). */
+.office-room--large { aspect-ratio: 900 / 502; }
+.office-room::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(15,18,38,.18), rgba(15,18,38,.4));
 }
-.char { position: relative; animation: charIdle 3s ease-in-out infinite; }
-.char .eye { animation: blink 4.2s infinite; transform-origin: center; }
-.char svg { display: block; transition: transform .25s; }
-.sprite.facing-left .char svg { transform: scaleX(-1); }
+/* 2.5D 배치: JS(placeRoamer)가 left/top과 원근 scale이 포함된 transform을 모두 관리한다. */
+.desk-anchor {
+  position: absolute; width: 64px; z-index: 0;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); opacity: .92;
+  transition: left .3s linear, top .3s linear, transform .3s linear;
+}
+.desk-anchor.hide { display: none; }
 
-.sprite.walking .char { animation: strideBob .32s ease-in-out infinite alternate; }
-.desk.working ~ .sprite .char,
-.sprite.working .char { animation: charWork .5s ease-in-out infinite alternate; }
-.sprite.done .char { animation: charPop .5s ease; }
-
+/* 업무 없음(돌아다님)/업무 중(자리에 앉음)을 오가는 캐릭터. office-room은 CSS에서 배경 원화
+   비율로 고정되어 있어 JS(placeRoamer)가 계산하는 left/top(%)과 원근 scale이 실제 배경
+   위치와 항상 맞아떨어진다. */
+.roamer {
+  position: absolute; z-index: 1;
+  transition: left .3s linear, top .3s linear, transform .3s linear;
+}
+/* 캐릭터 그림체(선명한 채색)가 배경 원화(차분한 톤)와 겉돌지 않도록 톤을 살짝 낮춰 맞춘다. */
+.roamer .avatar {
+  height: 104px; width: auto; display: block;
+  transition: filter .2s; animation: deskIdle 2.6s ease-in-out infinite;
+  filter: saturate(0.88) sepia(0.07) brightness(0.97) contrast(1.02) drop-shadow(0 3px 3px rgba(0,0,0,.4));
+}
+/* 앉은 상태(-seated)는 인물+책상+의자가 통째로 합쳐진 그림이라 서있기/걷기 스프라이트와 기준 치수가
+   다르다. desk-anchor(빈 책상, width 64px)와 비슷한 폭으로 맞춰서 자리를 비웠을 때와 크기가 어긋나지
+   않게 한다. */
+.roamer .avatar.seated { height: auto; width: 80px; }
+.roamer .name {
+  font-size: 16px; color: #fff; margin-top: 4px; text-align: center;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8); font-weight: 700;
+}
+.roamer.working .avatar {
+  animation: deskWork 0.5s ease-in-out infinite;
+  filter: saturate(0.88) sepia(0.07) brightness(0.97) contrast(1.02)
+    drop-shadow(0 3px 3px rgba(0,0,0,.35)) drop-shadow(0 0 6px rgba(50,69,140,.65));
+}
+.roamer.done .avatar { animation: deskPop 0.55s ease; }
 .bubble {
-  position: absolute; bottom: 100%; margin-bottom: 6px; left: 50%; transform: translate(-50%, 4px);
-  background: #fff; color: #14163a; font-size: 10px; padding: 5px 9px; border-radius: 8px;
-  white-space: nowrap; opacity: 0; transition: all .25s; pointer-events: none; font-weight: 600; z-index: 4;
+  position: absolute; bottom: 100%; margin-bottom: 10px; left: 50%; transform: translate(-50%, 4px);
+  background: #fff; color: var(--accent); font-size: 15px; padding: 7px 12px; border-radius: 9px;
+  white-space: nowrap; opacity: 0; transition: all .25s; pointer-events: none; font-weight: 700;
+  z-index: 2;
 }
 .bubble.show { opacity: 1; transform: translate(-50%, 0); }
 .bubble::after {
@@ -114,60 +174,83 @@ header .sub { font-size: 11px; color: var(--muted); }
   border: 4px solid transparent; border-top-color: #fff;
 }
 
-@keyframes charIdle { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-@keyframes blink { 0%,92%,100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-@keyframes strideBob { 0% { transform: translateY(0) rotate(-2deg); } 100% { transform: translateY(-3px) rotate(2deg); } }
-@keyframes charWork { from { transform: rotate(-4deg) translateY(0); } to { transform: rotate(4deg) translateY(-2px); } }
-@keyframes charPop { 0% { transform: scale(1); } 50% { transform: scale(1.18); } 100% { transform: scale(1); } }
-@keyframes screenFlicker { 0% { opacity: .85; } 100% { opacity: 1; } }
-
-.state-label { font-size: 13px; color: var(--accent); margin-top: 10px; height: 18px; }
-.headline { font-size: 13px; color: var(--text); margin: 8px 12px; min-height: 18px; line-height: 1.4; }
-#runBtn {
-  margin-top: 6px; background: var(--accent); color: #fff; border: 0;
-  padding: 9px 20px; border-radius: 20px; font-size: 14px; cursor: pointer;
+.confetti { position: absolute; inset: -6px -10px auto; height: 40px; pointer-events: none; opacity: 0; z-index: 1; }
+.roamer.done .confetti { opacity: 1; animation: confettiFade 1.1s ease forwards; }
+.confetti span {
+  position: absolute; width: 4px; height: 4px; border-radius: 1px; top: 50%; left: 50%;
+  animation: confettiBurst .9s ease-out forwards;
 }
-#runBtn:disabled { opacity: .5; cursor: default; }
 
-.panel { flex: 1; overflow-y: auto; padding: 8px 16px; }
-.panel h2 { font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+@keyframes deskIdle { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes deskWork { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(1px) rotate(-1deg); } }
+@keyframes deskPop { 0% { transform: scale(1) translateY(0); } 45% { transform: scale(1.18) translateY(-6px); } 100% { transform: scale(1) translateY(0); } }
+@keyframes confettiFade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes confettiBurst { to { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
+
+.tab-content h2 { font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+.tab-content h2:first-child { margin-top: 0; }
 .tasks { list-style: none; margin: 0; padding: 0; }
-.tasks li { background: var(--card); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
-.tasks li.empty { color: var(--muted); text-align: center; }
+.tasks li { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
+.tasks li.empty { color: var(--muted); text-align: center; border: none; }
 .tasks .meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
-.pill { font-size: 10px; padding: 1px 7px; border-radius: 8px; margin-right: 6px; }
-.pill.high { background: var(--high); color: #2a0010; }
-.pill.normal { background: var(--normal); color: #2a1a00; }
-.pill.low { background: var(--low); color: #002a18; }
-.pill.mode { background: #2c3160; color: var(--text); }
-.report { white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--card); border-radius: 10px; padding: 12px; line-height: 1.5; }
-.panel h2 .sub { font-size: 10px; color: var(--muted); font-weight: normal; }
-.commander { display: flex; gap: 6px; margin-bottom: 8px; }
-.commander textarea {
-  flex: 1; resize: none; background: var(--card); color: var(--text); border: 1px solid #2c3160;
-  border-radius: 8px; padding: 8px 10px; font-size: 12px; font-family: inherit;
-}
+.pill { font-size: 10px; padding: 1px 7px; border-radius: 8px; margin-right: 6px; font-weight: 700; }
+.pill.high { background: var(--high); color: #fff; }
+.pill.normal { background: var(--normal); color: #fff; }
+.pill.low { background: var(--low); color: #fff; }
+.pill.mode { background: var(--accent-soft); color: var(--accent); }
+.report { white-space: pre-wrap; font-size: 12px; color: var(--muted); background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px; line-height: 1.5; }
+.tab-content h2 .sub { font-size: 10px; color: var(--muted); font-weight: normal; }
+
+/* 지시창: 위에 "지시하기" 버튼, 그 아래 텍스트 입력창 */
+.commander { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
 .commander button {
-  background: var(--accent); color: #fff; border: 0; border-radius: 8px;
-  padding: 0 14px; font-size: 12px; cursor: pointer; white-space: nowrap;
+  background: var(--accent); color: #fff; border: 0; border-radius: 10px;
+  padding: 12px 0; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap;
 }
 .commander button:disabled { opacity: .5; cursor: default; }
+.commander textarea {
+  flex: 1; min-height: 60px; resize: none; background: var(--card); color: var(--text); border: 1px solid var(--card-border);
+  border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.5; font-family: inherit;
+}
+.commander textarea:focus { outline: none; border-color: var(--accent); }
 .messages { list-style: none; margin: 0; padding: 0; }
-.messages li { background: var(--card); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 12px; }
-.messages li.empty { color: var(--muted); text-align: center; }
+.messages li { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; font-size: 12px; }
+.messages li.empty { color: var(--muted); text-align: center; border: none; }
 .msg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .msg-name { font-weight: bold; font-size: 13px; }
 .msg-phone { color: var(--muted); font-size: 11px; }
 .msg-body { color: var(--text); line-height: 1.5; white-space: pre-wrap; margin: 6px 0; }
 .copy-btn {
-  background: #2c3160; color: var(--text); border: 0; border-radius: 8px;
-  padding: 5px 12px; font-size: 11px; cursor: pointer; float: right;
+  background: var(--accent-soft); color: var(--accent); border: 0; border-radius: 8px;
+  padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; float: right;
 }
-.copy-btn.copied { background: var(--low); color: #002a18; }
+.copy-btn.copied { background: var(--low); color: #fff; }
 .done-btn {
   background: transparent; color: var(--low); border: 1px solid var(--low); border-radius: 8px;
   padding: 5px 12px; font-size: 11px; cursor: pointer; float: right; margin-right: 6px;
 }
 .done-btn:disabled { opacity: 0.6; cursor: default; border-color: var(--muted); color: var(--muted); }
-footer { padding: 6px 16px; border-top: 1px solid #23264a; }
+.send-btn {
+  background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; float: right; margin-right: 6px;
+}
+.send-btn:disabled { opacity: 0.5; cursor: default; }
+.msg-error { clear: both; color: var(--high, #e5484d); font-size: 11px; margin-top: 4px; }
+.repo-notes { margin-bottom: 10px; }
+.repo-note { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+.sub-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.sub-tabs button {
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--card-border); border-radius: 8px;
+  padding: 7px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.sub-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.history-list { list-style: none; margin: 0; padding: 0; }
+.history-list li { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.history-list li.empty { color: var(--muted); text-align: center; border: none; }
+.history-time { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.history-instruction { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+.history-instruction::before { content: "Q. "; color: var(--accent); }
+.history-reply { font-size: 12px; color: var(--text); white-space: pre-wrap; line-height: 1.55; }
+
+footer { padding: 6px 16px; border-top: 1px solid var(--card-border); }
 .log { font-size: 11px; color: var(--muted); }

@@ -12,44 +12,100 @@
       <span class="sub">M1 · 총괄 실장</span>
     </header>
 
-    <section class="stage">
-      <div class="office-title">AI 팀 사무실</div>
-      <div class="office-scene" id="officeScene">
-        <!-- 팀원 캐릭터/책상은 renderer.js가 만든다 -->
+    <div class="team-roles" id="teamRoles"></div>
+
+    <nav class="main-tabs" id="mainTabs">
+      <button class="tab-btn active" data-tab="dashboard">대시보드</button>
+      <button class="tab-btn" data-tab="history">업무 내역</button>
+      <button class="tab-btn" data-tab="analysis">분석 내역</button>
+    </nav>
+
+    <!-- 일일 업무 리스트: 대시보드/업무내역/분석내역 어느 탭에서도 항상 상단에 보임.
+         AI가 처리 가능한 업무와 사장님이 직접 해야 하는 업무를 구분해서 보여주고, 체크로 진행도를 남긴다. -->
+    <section class="daily-tasks" id="dailyTasks">
+      <div class="daily-tasks-head">
+        <span class="daily-tasks-title">오늘의 업무</span>
+        <span class="daily-tasks-period" id="dailyTasksPeriod"></span>
+        <span class="daily-tasks-progress" id="dailyTasksProgress"></span>
       </div>
-      <div id="stateLabel" class="state-label">대기 중</div>
-      <div id="headline" class="headline"></div>
-      <button id="runBtn">지금 분석하기</button>
+      <ul class="daily-tasks-list" id="dailyTasksList">
+        <li class="empty">아직 도출된 업무가 없어요.</li>
+      </ul>
     </section>
 
-    <section class="panel">
-      <h2>제이에게 직접 지시하기 <span class="sub">(질문·초안 요청. 발송·게시 등 실행은 안 함)</span></h2>
-      <div class="commander">
-        <textarea id="commandInput" rows="2" placeholder="예: 이번달 매출 얼마야? / 김철수 회원한테 보낼 안내 문자 써줘"></textarea>
-        <button id="commandBtn">지시하기</button>
-      </div>
-      <pre id="commandReply" class="report">아직 지시한 내용이 없어요.</pre>
+    <main class="tab-body">
+      <!-- 대시보드: 사무실 + 실제 사진/답변 + 지시창 (기본 화면) -->
+      <section class="tab-content" id="tab-dashboard">
+        <section class="office">
+          <div class="office-title">AI 팀 사무실</div>
+          <div class="office-layout">
+            <div class="office-left">
+              <div class="office-room office-room--large" id="officeRoom">
+                <!-- 팀원 자리는 renderer.js가 채운다 -->
+              </div>
+              <div class="agent-picker" id="agentPicker"></div>
+              <div class="commander-big">
+                <div class="commander">
+                  <button id="commandBtn">지시하기</button>
+                  <textarea id="commandInput" rows="4" placeholder="예: 이번달 매출 얼마야? / 김철수 회원한테 보낼 안내 문자 써줘 / 최근에 뭐 시켰었지?"></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="side-panel">
+              <div class="real-photo" id="realPhoto">
+                <img id="realPhotoImg" src="" alt="" />
+                <div id="realPhotoName" class="real-photo-name"></div>
+              </div>
+              <div class="reply-card">
+                <div class="reply-empty" id="replyEmpty">아직 지시한 내용이 없어요. 아래에서 말을 걸어보세요.</div>
+                <div class="reply-body hidden" id="replyBody">
+                  <div class="reply-meta" id="replyMeta"></div>
+                  <div class="reply-text" id="replyText"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
 
-      <h2>도출된 업무</h2>
-      <ul id="tasks" class="tasks">
-        <li class="empty">아직 분석 전이에요. “지금 분석하기”를 눌러보세요.</li>
-      </ul>
-      <h2>주간 브리핑</h2>
-      <pre id="report" class="report"></pre>
+      <!-- 업무 내역: 팀원별로 지시했던 내용 + 답변 -->
+      <section class="tab-content hidden" id="tab-history">
+        <div class="sub-tabs" id="historyAgentTabs"></div>
+        <ul id="historyList" class="history-list">
+          <li class="empty">아직 지시 이력이 없어요.</li>
+        </ul>
+      </section>
 
-      <h2>미나의 문자 초안 <span class="sub">(반자동 · 복사해서 직접 발송)</span></h2>
-      <ul id="messages" class="messages">
-        <li class="empty">아직 없어요.</li>
-      </ul>
+      <!-- 분석 내역: 총괄 AI의 자동 분석 결과 -->
+      <section class="tab-content hidden" id="tab-analysis">
+        <h2>도출된 업무</h2>
+        <ul id="tasks" class="tasks">
+          <li class="empty">아직 분석 전이에요. “지금 분석하기”를 눌러보세요.</li>
+        </ul>
+        <h2>주간 브리핑</h2>
+        <pre id="report" class="report"></pre>
 
-      <h2>데이터의 퍼널 분석</h2>
-      <pre id="funnelInsight" class="report">아직 없어요.</pre>
+        <h2>미나의 문자 초안 <span class="sub">(반자동 · 복사해서 직접 발송)</span></h2>
+        <ul id="messages" class="messages">
+          <li class="empty">아직 없어요.</li>
+        </ul>
 
-      <h2>루나의 콘텐츠 초안 <span class="sub">(반자동 · 복사해서 직접 게시)</span></h2>
-      <ul id="content" class="messages">
-        <li class="empty">아직 없어요.</li>
-      </ul>
-    </section>
+        <h2>데이터의 퍼널 분석</h2>
+        <pre id="funnelInsight" class="report">아직 없어요.</pre>
+
+        <h2>루나의 콘텐츠 초안 <span class="sub">(반자동 · 복사해서 직접 게시)</span></h2>
+        <ul id="content" class="messages">
+          <li class="empty">아직 없어요.</li>
+        </ul>
+
+        <h2>리포의 월간 전략 리포트 <span class="sub" id="repoYearMonth"></span></h2>
+        <div class="sub-tabs" id="repoBranchTabs"></div>
+        <div id="repoDataNotes" class="repo-notes"></div>
+        <div id="repoBody">
+          <p class="empty">아직 없어요. 매달 1일에 자동으로 만들어져요.</p>
+        </div>
+      </section>
+    </main>
 
     <footer><span id="log" class="log"></span></footer>
 
