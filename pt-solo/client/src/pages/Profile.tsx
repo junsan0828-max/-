@@ -57,10 +57,14 @@ function PushNotificationCard() {
   async function handleEnable() {
     if (!supported) { toast.error("이 브라우저/기기는 푸시 알림을 지원하지 않습니다."); return; }
     if (!vapid?.publicKey) { toast.error("알림 설정이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요."); return; }
+    if (Notification.permission === "denied") {
+      toast.error("이 사이트의 알림이 브라우저에서 차단되어 있습니다. 주소창 왼쪽 자물쇠(사이트 정보) 아이콘 → 권한 → 알림을 '허용'으로 바꾼 뒤 다시 시도해주세요.", { duration: 8000 });
+      return;
+    }
     setBusy(true);
     try {
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") { toast.error("알림 권한이 거부되었습니다."); return; }
+      if (permission !== "granted") { toast.error("알림 권한을 허용해야 알림을 받을 수 있어요."); return; }
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
