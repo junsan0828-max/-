@@ -44,15 +44,10 @@ type WsNavFn = (featureId?: string) => void;
 
 const WS_DASH: WsDashCat[] = [
   {
-    key: "branding", label: "브랜딩 & 회원 경험",
-    icon: Sparkles, iconCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", itemColorCls: "text-violet-500",
+    key: "content", label: "콘텐츠 · 운동 관리",
+    icon: PlaySquare, iconCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", itemColorCls: "text-violet-500",
     items: [
-      { id: "brand_page",       icon: Globe,        name: "브랜드 페이지" },
       { id: "templates",        icon: Dumbbell,     name: "운동 템플릿" },
-      { id: "booking",          icon: Calendar,     name: "수업 예약" },
-      { id: "fitstep_plus",     icon: Wrench,       name: "FIT STEP+" },
-      { id: "report_branding",  icon: BookMarked,   name: "보고서 브랜딩" },
-      { id: "contract_terms",   icon: FileText,     name: "약관 브랜딩" },
       { id: "fitstep_videos",   icon: PlaySquare,   name: "운동 영상 200" },
       { id: "fitstep_rec",      icon: Target,       name: "운동 추천" },
       { id: "fitstep_diet",     icon: Utensils,     name: "식단 관리" },
@@ -61,8 +56,19 @@ const WS_DASH: WsDashCat[] = [
     ],
   },
   {
-    key: "contract", label: "계약 & 상담 자동화",
-    icon: ClipboardList, iconCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", itemColorCls: "text-blue-500",
+    key: "branding", label: "브랜딩 · 예약",
+    icon: Globe, iconCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", itemColorCls: "text-blue-500",
+    items: [
+      { id: "brand_page",       icon: Globe,        name: "브랜드 페이지" },
+      { id: "fitstep_plus",     icon: Wrench,       name: "FIT STEP+" },
+      { id: "report_branding",  icon: BookMarked,   name: "보고서 브랜딩" },
+      { id: "contract_terms",   icon: FileText,     name: "약관 브랜딩" },
+      { id: "booking",          icon: Calendar,     name: "수업 예약" },
+    ],
+  },
+  {
+    key: "contract", label: "계약 · 상담 서류",
+    icon: FileSignature, iconCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", itemColorCls: "text-cyan-500",
     items: [
       { id: "survey",           icon: ClipboardList,  name: "상담 설문" },
       { id: "refund_contract",  icon: ReceiptText,    name: "환불 계약서" },
@@ -72,21 +78,27 @@ const WS_DASH: WsDashCat[] = [
     ],
   },
   {
-    key: "analytics", label: "분석 & 운영 인사이트",
-    icon: BarChart3, iconCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", itemColorCls: "text-amber-500",
+    key: "revenue", label: "매출 · 재등록 분석",
+    icon: TrendingUp, iconCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", itemColorCls: "text-emerald-500",
+    items: [
+      { id: "sales_analysis",     icon: BarChart3,    name: "매출 분석" },
+      { id: "monthly_pnl",        icon: PieChart,     name: "월간 손익" },
+      { id: "renewal_analysis",   icon: TrendingUp,   name: "재등록 분석" },
+      { id: "consult_conversion", icon: ArrowUpRight, name: "상담 전환율" },
+      { id: "unpaid",             icon: Coins,        name: "미수금 관리" },
+    ],
+  },
+  {
+    key: "insight", label: "운영 리포트 · AI",
+    icon: Brain, iconCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", itemColorCls: "text-amber-500",
     items: [
       { id: "member_overview",    icon: Users,       name: "회원 운영 현황" },
-      { id: "sales_analysis",     icon: BarChart3,   name: "매출 분석" },
-      { id: "monthly_pnl",        icon: PieChart,    name: "월간 손익" },
-      { id: "renewal_analysis",   icon: TrendingUp,  name: "재등록 분석" },
-      { id: "kpi_report",         icon: Target,      name: "KPI 리포트" },
-      { id: "consult_conversion", icon: ArrowUpRight,name: "상담 전환율" },
       { id: "activity_stats",     icon: Activity,    name: "활동 통계" },
+      { id: "kpi_report",         icon: Target,      name: "KPI 리포트" },
       { id: "channel_analysis",   icon: Share2,      name: "채널 분석" },
       { id: "marketing_analysis", icon: Zap,         name: "마케팅 분석" },
       { id: "ai_insights",        icon: Brain,       name: "AI 인사이트" },
       { id: "data_migration",     icon: Database,    name: "데이터 이전" },
-      { id: "unpaid",             icon: Coins,       name: "미수금 관리" },
     ],
   },
 ];
