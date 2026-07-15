@@ -9,6 +9,7 @@ import { generateContentIdeas } from "./luna";
 import { markContacted } from "./store";
 import { runCommand } from "./commander";
 import { pushDailyReport } from "./notion";
+import { pushDailyBriefingKakao } from "./kakao";
 
 dotenv.config({ path: join(__dirname, "..", "..", ".env") });
 
@@ -79,6 +80,10 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     // Notion: 오늘의 브리핑을 기록 (설정된 경우에만, 실패해도 앱 동작에는 영향 없음)
     const notion = await pushDailyReport(result, mina, funnel, content);
     send("log", notion.ok ? "노션에 브리핑 저장 완료" : `노션 저장 안 함: ${notion.error}`);
+
+    // 카카오톡: "나에게 보내기"로 브리핑 발송 (설정된 경우에만, 실패해도 앱 동작에는 영향 없음)
+    const kakao = await pushDailyBriefingKakao(result, mina, funnel, content);
+    send("log", kakao.ok ? "카카오톡으로 브리핑 발송 완료" : `카카오톡 발송 안 함: ${kakao.error}`);
 
     return result;
   } catch (err: any) {

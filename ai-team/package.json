@@ -10,6 +10,7 @@
     "youtube": "tsx src/youtube-cli.ts",
     "command": "tsx src/command-cli.ts",
     "attach-log": "tsx src/attach-log-cli.ts",
+    "kakao-auth": "tsx src/kakao-auth-cli.ts",
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron ."
