@@ -3352,7 +3352,7 @@ const registerMutation = protectedProcedure
       const totalSessions = sessionCount + svcSessions;
 
       // ptPackage 생성 (중복 방지: memberId+startDate+totalSessions)
-      const [existingPkg] = await db.select({ id: ptPackages.id })
+      const [existingPkg] = await db.select()
         .from(ptPackages)
         .where(and(
           eq(ptPackages.memberId, memberId!),
@@ -3360,17 +3360,17 @@ const registerMutation = protectedProcedure
           eq(ptPackages.totalSessions, totalSessions),
         )).limit(1);
 
-      if (!existingPkg) {
-        // 혼합결제 pricePerSession 계산
-        let ptPricePerSession: number | undefined;
-        if (input.paymentMethod === "혼합" && input.ptTransferAmount != null && input.ptCardAmount != null && sessionCount > 0) {
-          ptPricePerSession = Math.round((input.ptTransferAmount + Math.round(input.ptCardAmount / 1.1)) / sessionCount);
-        } else if (ptPaid && sessionCount > 0) {
-          const isTransfer = input.paymentMethod === "이체" || input.paymentMethod === "계좌이체";
-          const base = isTransfer ? ptPaid : Math.round(ptPaid / 1.1);
-          ptPricePerSession = Math.round(base / sessionCount);
-        }
+      // 혼합결제 pricePerSession 계산
+      let ptPricePerSession: number | undefined;
+      if (input.paymentMethod === "혼합" && input.ptTransferAmount != null && input.ptCardAmount != null && sessionCount > 0) {
+        ptPricePerSession = Math.round((input.ptTransferAmount + Math.round(input.ptCardAmount / 1.1)) / sessionCount);
+      } else if (ptPaid && sessionCount > 0) {
+        const isTransfer = input.paymentMethod === "이체" || input.paymentMethod === "계좌이체";
+        const base = isTransfer ? ptPaid : Math.round(ptPaid / 1.1);
+        ptPricePerSession = Math.round(base / sessionCount);
+      }
 
+      if (!existingPkg) {
         await db.insert(ptPackages).values({
           memberId: memberId!,
           trainerId: resolvedTrainerId,
@@ -3391,6 +3391,22 @@ const registerMutation = protectedProcedure
           paymentDate: input.paymentDate ?? today,
           paymentMemo: input.paymentMemo ?? undefined,
         });
+      } else if ((existingPkg.paymentAmount ?? 0) !== ptPaid) {
+        // 같은 회원·시작일·횟수로 이미 패키지가 있는데 결제금액이 다르면(예: 자동입력된 금액으로
+        // 한 번 저장 후 실제 금액으로 다시 저장) 중복 생성 대신 기존 패키지를 새 금액으로 갱신한다.
+        // 예전에는 무조건 스킵해서, 매출은 새 금액으로 남는데 패키지는 예전 금액에 묶여 정산
+        // 단가가 틀어지는 사고(양희정 사례)로 이어졌다.
+        await db.update(ptPackages).set({
+          paymentAmount: ptPaid,
+          unpaidAmount: unpaid,
+          paymentMethod: input.paymentMethod ?? undefined,
+          transferAmount: input.ptTransferAmount ?? undefined,
+          cardAmount: input.ptCardAmount ?? undefined,
+          pricePerSession: ptPricePerSession,
+          paymentDate: input.paymentDate ?? today,
+          paymentMemo: input.paymentMemo ?? undefined,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(ptPackages.id, existingPkg.id));
       }
 
       // 장부 항목 생성 (서비스세션이 아닐 때만, 중복 방지)

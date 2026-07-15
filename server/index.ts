@@ -1364,6 +1364,40 @@ async function initDatabase() {
         AND COALESCE(p."paymentAmount",0) <> COALESCE(r."paidAmount",0)
     `);
     if ((resynced.rowCount ?? 0) > 0) console.log(`💰 매출-패키지 결제금액 재동기화: ${resynced.rowCount}건`);
+
+    // 2-c) revenueEntryId가 아예 안 걸린 패키지(gym.register 등록 경로로 생긴 패키지는 원래
+    // revenueEntryId를 안 채움)도 memberId+시작일+세션수로 매출을 찾아 결제금액을 맞춘다.
+    // (양희정 사례: 자동입력된 금액으로 한 번 저장 후 실제 금액으로 재등록했는데 패키지가
+    // 예전 금액에 묶여 있던 것 — 이제 재등록 코드 자체는 고쳤고, 이건 기존 데이터 교정용)
+    const resynced2 = await pool.query(`
+      UPDATE pt_packages p
+      SET "paymentAmount" = r."paidAmount",
+          "unpaidAmount" = COALESCE(r."unpaidAmount", p."unpaidAmount"),
+          "pricePerSession" = CASE
+            WHEN p."paymentMethod" IN ('이체','계좌이체')
+              THEN ROUND(r."paidAmount"::numeric / p."totalSessions")
+            ELSE ROUND((r."paidAmount"::numeric / 1.1) / p."totalSessions")
+          END,
+          "updatedAt" = now()::text
+      FROM revenue_entries r
+      WHERE p."revenueEntryId" IS NULL
+        AND r.type = 'PT'
+        AND r."memberId" = p."memberId"
+        AND r."startDate" = p."startDate"
+        AND r.sessions = p."totalSessions" - COALESCE(p."serviceSessions", 0)
+        AND COALESCE(p."paymentMethod",'') <> '혼합'
+        AND COALESCE(p."totalSessions",0) > 0
+        AND COALESCE(p."paymentAmount",0) <> COALESCE(r."paidAmount",0)
+        AND r.id = (
+          SELECT r2.id FROM revenue_entries r2
+          WHERE r2.type = 'PT' AND r2."memberId" = p."memberId" AND r2."startDate" = p."startDate"
+            AND r2.sessions = p."totalSessions" - COALESCE(p."serviceSessions", 0)
+          ORDER BY r2."paymentDate" DESC NULLS LAST, r2.id DESC
+          LIMIT 1
+        )
+    `);
+    if ((resynced2.rowCount ?? 0) > 0) console.log(`💰 매출-패키지 결제금액 재동기화(시작일·세션수 기준): ${resynced2.rowCount}건`);
+
     // 3) 세션의 packageId가 NULL/삭제됨/단가없음 → 회원의 "단가 있는 활성 패키지"로 재연결
     // "기타"는 실제 PT 프로그램이 아닌 1회성 부가항목이므로 다른 단가있는 패키지가 있으면 후순위로 둔다.
     const relinked = await pool.query(`
