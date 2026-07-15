@@ -12,6 +12,7 @@ import type { AuthUser } from "./auth";
 import { users, trainers, trainerSettings, sheetSyncConfig, channels, members, ptPackages, ptSessionLogs, trainerBranches, revenueEntries, healthReports, ptReports } from "../drizzle/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { syncSheetNow } from "./sheetSync";
+import { startNotionBriefingScheduler } from "./notionBriefing";
 import { generateHealthReportHTML } from "./healthReportHTML";
 import { generatePTReportHTML } from "./ptReportHTML";
 
@@ -1834,6 +1835,9 @@ async function start() {
       console.error("시트 동기화 오류:", e);
     }
   }, 5 * 60 * 1000);
+
+  // 노션 일일/주간/월간 브리핑 자동 발송 (NOTION_API_TOKEN/NOTION_BRIEFING_PAGE_ID 설정 시에만 동작)
+  startNotionBriefingScheduler();
 }
 
 start().catch(console.error);

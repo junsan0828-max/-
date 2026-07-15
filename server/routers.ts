@@ -33,6 +33,7 @@ import {
 } from "../drizzle/schema";
 import { randomUUID } from "crypto";
 import { sheetUrlToCsvUrl, parseCSV, syncSheetNow, fetchSheetCsv } from "./sheetSync";
+import { sendDailyBriefing, sendWeeklyBriefing, sendMonthlyBriefing } from "./notionBriefing";
 import {
   sheetSyncConfig,
   sheetPendingMembers,
@@ -4006,6 +4007,20 @@ const adminRouter = t.router({
 
     return { median, checkedCount: pkgs.rows.length, anomalies };
   }),
+
+  // 노션 브리핑 즉시 테스트 발송 (관리자) — 08:00 KST 자동 스케줄과 별개로 설정 확인용
+  sendNotionBriefingNow: protectedProcedure
+    .input(z.object({ period: z.enum(["daily", "weekly", "monthly"]) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (!process.env.NOTION_API_TOKEN || !process.env.NOTION_BRIEFING_PAGE_ID) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "NOTION_API_TOKEN 또는 NOTION_BRIEFING_PAGE_ID가 설정되지 않았습니다." });
+      }
+      if (input.period === "daily") await sendDailyBriefing();
+      else if (input.period === "weekly") await sendWeeklyBriefing();
+      else await sendMonthlyBriefing();
+      return { success: true };
+    }),
 });
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────

@@ -211,6 +211,31 @@ function parseSingleRow(row: Record<string, string>): ParsedRow | null {
   };
 }
 
+function NotionBriefingTestButtons() {
+  const send = trpc.admin.sendNotionBriefingNow.useMutation({
+    onSuccess: () => toast.success("노션 브리핑 전송 완료 — 노션 페이지에서 확인하세요."),
+    onError: (err) => toast.error(err.message || "전송 실패 (서버에 NOTION_API_TOKEN/NOTION_BRIEFING_PAGE_ID가 설정됐는지 확인하세요)"),
+  });
+
+  return (
+    <div className="pt-2 border-t border-border mt-2 space-y-2">
+      <p className="text-xs text-muted-foreground">노션 브리핑을 지금 바로 테스트 발송합니다 (자동발송은 매일 08:00 KST).</p>
+      <div className="grid grid-cols-3 gap-2">
+        {(["daily", "weekly", "monthly"] as const).map((period) => (
+          <button
+            key={period}
+            disabled={send.isPending}
+            onClick={() => send.mutate({ period })}
+            className="py-2 px-3 rounded-md border border-primary/40 bg-primary/10 hover:bg-primary/20 transition-colors text-sm text-primary disabled:opacity-50"
+          >
+            {period === "daily" ? "일일 테스트" : period === "weekly" ? "주간 테스트" : "월간 테스트"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ResyncGymPlusButton() {
   const [result, setResult] = useState<{
     total: number; synced: number; skipped: number; failed: number;
@@ -1357,6 +1382,7 @@ export default function Admin() {
           <p className="text-xs text-muted-foreground">⚠ DB 복원 시 현재 모든 데이터가 업로드한 파일로 교체됩니다.</p>
           <ResyncGymPlusButton />
           <BackfillLeadMemberDataButton />
+          <NotionBriefingTestButtons />
         </CardContent>
       </Card>
 
