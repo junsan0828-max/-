@@ -11,6 +11,7 @@ import {
   ClipboardList, MessageCircle, FileSignature, ReceiptText, ArrowLeftRight,
   Wrench, PlaySquare, Target, Utensils, Activity, BookMarked, Video,
   Brain, Database, ArrowUpRight, Coins, PieChart, Share2, Sparkles, Wallet, Trash2, SquarePen, Plus, Check, X,
+  Send,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -364,6 +365,168 @@ function MemberPickModal({
   );
 }
 
+// ─── 빠른 질문 (내부 데이터 기반 규칙형 질의응답 — 외부 전송 없음) ─────────────
+type QaMsg = { role: "user" | "bot"; text: string };
+
+const QUICK_ASK_CHIPS = ["이번달 매출", "미수금", "만료임박", "6회이하 세션", "PAR-Q 미기록", "오늘 수업"];
+
+function QuickAskCard({ trainerName }: { trainerName: string }) {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<QaMsg[]>([]);
+  const [busy, setBusy] = useState(false);
+  const utils = trpc.useUtils();
+  const todayStr = new Date().toISOString().split("T")[0];
+  const yearMonth = todayStr.slice(0, 7);
+
+  async function ask(question: string) {
+    const q = question.trim();
+    if (!q || busy) return;
+    setMessages(m => [...m, { role: "user", text: q }]);
+    setInput("");
+    setBusy(true);
+    try {
+      const answer = await resolveAnswer(q);
+      setMessages(m => [...m, { role: "bot", text: answer }]);
+    } catch {
+      setMessages(m => [...m, { role: "bot", text: "데이터를 불러오는 중 문제가 발생했어요. 잠시 후 다시 시도해주세요." }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 서버에 저장된 데이터만 조회 — 외부로 전송되는 데이터 없음. 정해진 질문 패턴만 인식.
+  async function resolveAnswer(q: string): Promise<string> {
+    const has = (...kws: string[]) => kws.some(k => q.includes(k));
+
+    if (has("매출")) {
+      const monthly = has("오늘", "일일") ? null : await utils.trainers.getMonthlySettlement.fetch({ yearMonth });
+      if (has("오늘", "일일")) {
+        const daily = await utils.trainers.getMonthlySettlement.fetch({ yearMonth, dateFilter: todayStr });
+        return `오늘 매출은 ${daily.revenue.toLocaleString()}원이에요 (수업 ${daily.sessionCount}회, 세후 정산액 ${daily.afterTax.toLocaleString()}원).`;
+      }
+      return `이번달(${yearMonth.replace("-", "년 ")}월) 총 매출은 ${monthly!.revenue.toLocaleString()}원, 세후 정산액은 ${monthly!.afterTax.toLocaleString()}원이에요. (수업 ${monthly!.sessionCount}회)`;
+    }
+
+    if (has("지출")) {
+      const exp = await utils.expenses.list.fetch({ yearMonth });
+      if (exp.count === 0) return "이번달 등록된 지출 내역이 없어요.";
+      return `이번달 총 지출은 ${exp.total.toLocaleString()}원이에요 (${exp.count}건).`;
+    }
+
+    if (has("순수익", "정산")) {
+      const [monthly, exp] = await Promise.all([
+        utils.trainers.getMonthlySettlement.fetch({ yearMonth }),
+        utils.expenses.list.fetch({ yearMonth }),
+      ]);
+      const net = monthly.afterTax - exp.total;
+      return `이번달 순수익은 ${net.toLocaleString()}원이에요. (세후 정산액 ${monthly.afterTax.toLocaleString()}원 − 지출 ${exp.total.toLocaleString()}원)`;
+    }
+
+    if (has("미수금", "미납")) {
+      const unpaid = await utils.members.getWithUnpaid.fetch();
+      if (unpaid.length === 0) return "미수금이 있는 회원이 없어요. 깔끔합니다 👍";
+      const total = unpaid.reduce((s, m) => s + (m.unpaidAmount ?? 0), 0);
+      const names = unpaid.slice(0, 3).map(m => m.name).join(", ");
+      return `미수금 회원은 ${unpaid.length}명, 총 ${total.toLocaleString()}원이에요. (${names}${unpaid.length > 3 ? ` 외 ${unpaid.length - 3}명` : ""})`;
+    }
+
+    if (has("만료", "만료임박")) {
+      const expiring = await utils.members.getExpiring.fetch({ days: 7 });
+      if (expiring.length === 0) return "7일 이내 만료 예정인 회원이 없어요.";
+      const names = expiring.slice(0, 3).map(m => m.name).join(", ");
+      return `7일 이내 만료 예정 회원은 ${expiring.length}명이에요. (${names}${expiring.length > 3 ? ` 외 ${expiring.length - 3}명` : ""})`;
+    }
+
+    if (has("6회", "재등록", "세션")) {
+      const low = await utils.members.getLowSessions.fetch({ threshold: 6 });
+      if (low.length === 0) return "잔여 세션이 적은(6회 이하) 회원이 없어요.";
+      const names = low.slice(0, 3).map(m => m.name).join(", ");
+      return `잔여 세션 6회 이하 회원은 ${low.length}명이에요. (${names}${low.length > 3 ? ` 외 ${low.length - 3}명` : ""}) 재등록 안내가 필요해 보여요.`;
+    }
+
+    if (has("PAR-Q", "PARQ", "파크", "건강검사")) {
+      const missing = await utils.parQ.listMissing.fetch();
+      if (missing.length === 0) return "모든 활성 회원이 PAR-Q를 작성했어요.";
+      const names = missing.slice(0, 3).map(m => m.name).join(", ");
+      return `PAR-Q 미기록 회원은 ${missing.length}명이에요. (${names}${missing.length > 3 ? ` 외 ${missing.length - 3}명` : ""})`;
+    }
+
+    if (has("오늘 수업", "오늘 출석", "오늘")) {
+      const list = await utils.attendanceChecks.listByDate.fetch({ date: todayStr });
+      const done = list.filter(m => m.check?.status === "attended").length;
+      const total = list.filter(m => m.check).length;
+      if (total === 0) return "오늘 기록된 수업이 아직 없어요.";
+      return `오늘은 ${total}건 중 ${done}건 출석 처리됐어요.`;
+    }
+
+    if (has("이번달 수업", "이번 달 수업")) {
+      const stats = await utils.pt.memberSessionStatsMonthly.fetch({ yearMonth });
+      const total = stats.reduce((s, m) => s + Number(m.totalSessions), 0);
+      return `이번달 총 수업 수는 ${total}회예요.`;
+    }
+
+    return "아직 이해하지 못한 질문이에요. 이렇게 물어봐 주세요 → " + QUICK_ASK_CHIPS.map(c => `"${c}"`).join(", ");
+  }
+
+  return (
+    <div className="rounded-2xl bg-card border border-border overflow-hidden">
+      <button onClick={() => setOpen(v => !v)} className="w-full flex items-center gap-2 p-4">
+        <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+          <MessageCircle className="h-3.5 w-3.5 text-teal-500" />
+        </div>
+        <span className="text-sm font-bold">빠른 질문</span>
+        <span className="text-[10px] text-muted-foreground">내 데이터로 바로 확인</span>
+        <ChevronRight className={`h-4 w-4 text-muted-foreground ml-auto transition-transform ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {QUICK_ASK_CHIPS.map(c => (
+              <button key={c} onClick={() => ask(c)} disabled={busy}
+                className="text-[11px] font-semibold px-2.5 py-1.5 rounded-full bg-teal-500/8 text-teal-600 hover:bg-teal-500/15 transition-colors disabled:opacity-50">
+                {c}
+              </button>
+            ))}
+          </div>
+          {messages.length > 0 && (
+            <div className="space-y-2 max-h-64 overflow-y-auto py-1">
+              {messages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                    m.role === "user" ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-accent/50 text-foreground rounded-bl-sm"
+                  }`}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {busy && (
+                <div className="flex justify-start">
+                  <div className="bg-accent/50 rounded-2xl rounded-bl-sm px-3.5 py-2 text-xs text-muted-foreground">확인 중...</div>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") ask(input); }}
+              placeholder={`${trainerName}님, 궁금한 걸 물어보세요`}
+              className="flex-1 min-w-0 px-3 py-2.5 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
+            />
+            <button onClick={() => ask(input)} disabled={busy || !input.trim()}
+              className="w-10 h-10 rounded-xl bg-teal-500 text-white flex items-center justify-center shrink-0 disabled:opacity-40 hover:bg-teal-600 transition-colors">
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">정해진 질문 패턴에만 답해요. 회원 정보는 이 기기와 서버 사이에서만 계산돼요.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── 운영자(Admin) SaaS 대시보드 ──────────────────────────────────────────────
 function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -669,6 +832,8 @@ function TrainerDashboard() {
           </div>
         </button>
       </div>
+
+      <QuickAskCard trainerName={trainerName} />
 
       {/* 최근 회원 */}
       {recentMembers.length > 0 && (
