@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList, Layers,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
@@ -18,6 +18,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { data: user } = trpc.auth.me.useQuery();
   const { data: profile } = trpc.trainers.getMyProfile.useQuery(undefined, { enabled: user?.role === "trainer" });
   const { data: wsStatus } = trpc.workshop.getStatus.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const { data: reviewerStatus } = trpc.sequenceLab.amIReviewer.useQuery(undefined, { enabled: user?.role === "trainer" });
+  const isReviewer = !!reviewerStatus?.isReviewer;
   const { data: serverDismissed } = trpc.trainers.getGuideDismissed.useQuery(undefined, { enabled: user?.role === "trainer" });
   const dismissGuideMutation = trpc.trainers.dismissGuide.useMutation();
 
@@ -106,6 +108,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/admin/fit-step-plus", label: "FIT STEP+", icon: Zap },
     { path: "/academy", label: "성장아카데미 관리", icon: GraduationCap },
     { path: "/workshop", label: "작업실 관리", icon: Wrench },
+    { path: "/admin/sequence-review", label: "시퀀스 검토 관리", icon: Layers },
     { path: "/admin/feedback", label: "작업/오류 데이터", icon: ClipboardList },
   ];
 
@@ -114,10 +117,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/pt", label: "회원 관리", icon: Dumbbell },
     { path: "/sessions", label: "수업 관리", icon: BookOpen },
     { path: "/leads", label: "상담 관리", icon: UserPlus },
+    { path: "/sequences", label: "시퀀스 랩", icon: Layers },
     { path: "/workshop", label: "작업실", icon: Wrench },
     ...(isFeatureActive("booking") ? [{ path: "/booking", label: "예약 관리", icon: CalendarCheck }] : []),
     { path: "/settlement", label: "성장분석실", icon: TrendingUp },
     { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
+    ...(isReviewer ? [{ path: "/admin/sequence-review", label: "시퀀스 검토 관리", icon: Layers }] : []),
     { path: "/profile", label: "내 프로필", icon: User },
     { path: "/feedback", label: "작업/오류 수정", icon: MessageSquarePlus },
   ];

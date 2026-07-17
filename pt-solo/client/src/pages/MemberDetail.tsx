@@ -108,6 +108,35 @@ function TemplateLoader({ onLoad, enabled = true }: { onLoad: (exs: Exercise[]) 
   );
 }
 
+function SequenceLoader({ onLoad }: { onLoad: (exs: Exercise[], sequenceVersionId: number) => void }) {
+  const { data: versions } = trpc.sequenceLab.listPickable.useQuery();
+  const utils = trpc.useUtils();
+  const [open, setOpen] = useState(false);
+  if (!versions || versions.length === 0) return null;
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(v => !v)} className="flex items-center gap-1.5 text-xs text-primary mb-1">
+        <LayoutTemplate className="h-3.5 w-3.5" />시퀀스 불러오기
+      </button>
+      {open && (
+        <div className="absolute z-10 top-6 left-0 w-56 bg-card border border-border rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+          {versions.map((v: any) => (
+            <button key={v.id} className="w-full text-left px-3 py-2.5 text-xs hover:bg-accent/30 transition-colors border-b border-border last:border-0"
+              onClick={async () => {
+                const detail = await utils.sequenceLab.getVersionForApply.fetch({ versionId: v.id });
+                onLoad(detail.exercises, v.id);
+                setOpen(false);
+                toast.success(`${detail.title || "시퀀스"} 불러옴`);
+              }}>
+              <p className="font-medium">{v.title || "(제목 없음)"}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   memberId: number;
 }
@@ -218,6 +247,7 @@ export default function MemberDetail({ memberId }: Props) {
     exercises: [] as Exercise[],
     feedback: "",
     notes: "",
+    sequenceVersionId: undefined as number | undefined,
   });
   const [editJournalOpen, setEditJournalOpen] = useState(false);
   const [editJournalForm, setEditJournalForm] = useState({
@@ -349,7 +379,7 @@ export default function MemberDetail({ memberId }: Props) {
     onSuccess: () => {
       toast.success("트레이닝 일지가 저장되었습니다.");
       setJournalOpen(false);
-      setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "" });
+      setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "", sequenceVersionId: undefined });
       utils.pt.sessionLogs.invalidate({ memberId });
     },
     onError: (err) => toast.error(err.message || "저장 실패"),
@@ -1092,7 +1122,7 @@ export default function MemberDetail({ memberId }: Props) {
                 size="sm"
                 className="w-full gap-1.5 text-xs"
                 onClick={() => {
-                  setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "" });
+                  setJournalForm({ sessionDate: new Date().toISOString().split("T")[0], goal: "", bodyPart: "", exercises: [], feedback: "", notes: "", sequenceVersionId: undefined });
                   setJournalOpen(true);
                 }}
               >
@@ -1512,7 +1542,13 @@ export default function MemberDetail({ memberId }: Props) {
               <BodyPartPicker value={journalForm.bodyPart} onChange={v => setJournalForm(p => ({ ...p, bodyPart: v }))} />
             </div>
             <div className="space-y-1.5">
-              <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} enabled={isFeatureActive("templates")} />
+              <div className="flex items-center gap-3">
+                <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} enabled={isFeatureActive("templates")} />
+                <SequenceLoader onLoad={(exs, versionId) => setJournalForm(p => ({ ...p, exercises: exs, sequenceVersionId: versionId }))} />
+              </div>
+              {journalForm.sequenceVersionId && (
+                <p className="text-[10px] text-primary">시퀀스 랩에서 불러온 운동이 적용됐어요.</p>
+              )}
               <Label className="text-xs">운동 종목</Label>
               <div className="space-y-1.5">
                 {journalForm.exercises.map((ex, i) => (
@@ -1553,6 +1589,7 @@ export default function MemberDetail({ memberId }: Props) {
                   exercisesJson: journalForm.exercises.length > 0 ? JSON.stringify(journalForm.exercises) : undefined,
                   feedback: journalForm.feedback || undefined,
                   notes: journalForm.notes || undefined,
+                  sequenceVersionId: journalForm.sequenceVersionId,
                 })}>
                 {createLogMutation.isPending ? "저장 중..." : (
                   <span className="flex items-center gap-1.5">

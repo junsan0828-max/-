@@ -778,6 +778,7 @@ async function initDatabase() {
   }
 
   await pool.query(`ALTER TABLE fit_point_logs ADD COLUMN IF NOT EXISTS "expiresAt" TEXT`);
+  await pool.query(`ALTER TABLE pt_session_logs ADD COLUMN IF NOT EXISTS "sequenceVersionId" INTEGER`);
   await pool.query(`ALTER TABLE fit_step_plus_workout_logs ADD COLUMN IF NOT EXISTS intensity TEXT`);
   await pool.query(`ALTER TABLE fit_step_plus_workout_logs ADD COLUMN IF NOT EXISTS "totalVolume" INTEGER`);
   await pool.query(`ALTER TABLE trainer_settings ADD COLUMN IF NOT EXISTS "guideDismissed" TEXT NOT NULL DEFAULT ''`);
@@ -1011,6 +1012,134 @@ async function initDatabase() {
     "createdAt" TEXT NOT NULL DEFAULT now()::text,
     "updatedAt" TEXT NOT NULL DEFAULT now()::text
   )`);
+
+  // ── 시퀀스 랩 ─────────────────────────────────────────────────────────────
+  // sequences: 시퀀스 "가족"(고정 id). 버전이 바뀌어도 id는 유지.
+  await pool.query(`CREATE TABLE IF NOT EXISTS sequences (
+    id SERIAL PRIMARY KEY,
+    "authorTrainerId" INTEGER NOT NULL,
+    "publishedVersionId" INTEGER,
+    "sourceSequenceId" INTEGER,
+    "sourceVersionId" INTEGER,
+    "creditGranted" BOOLEAN NOT NULL DEFAULT false,
+    "importCount" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sequences_author_idx ON sequences ("authorTrainerId")`);
+
+  // sequence_versions: 실제 편집 단위. 상태머신이 여기 있음.
+  await pool.query(`CREATE TABLE IF NOT EXISTS sequence_versions (
+    id SERIAL PRIMARY KEY,
+    "sequenceId" INTEGER NOT NULL,
+    "authorTrainerId" INTEGER NOT NULL,
+    "versionNumber" INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'DRAFT',
+    title TEXT NOT NULL DEFAULT '',
+    "shortDescription" TEXT,
+    "publicDescription" TEXT,
+    category TEXT,
+    "bodyParts" TEXT,
+    "movementType" TEXT,
+    "targetAudience" TEXT,
+    difficulty TEXT,
+    "estimatedMinutes" INTEGER,
+    equipment TEXT,
+    tags TEXT,
+    "classGoal" TEXT,
+    "preCheckItems" TEXT,
+    "postCheckItems" TEXT,
+    "coachingNotes" TEXT,
+    "authorMemo" TEXT,
+    "submittedAt" TEXT,
+    "reviewedAt" TEXT,
+    "authorNotifiedAt" TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    "updatedAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sequence_versions_seq_idx ON sequence_versions ("sequenceId")`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sequence_versions_author_idx ON sequence_versions ("authorTrainerId", status)`);
+
+  // sequence_sections: 버전별 수업 단계
+  await pool.query(`CREATE TABLE IF NOT EXISTS sequence_sections (
+    id SERIAL PRIMARY KEY,
+    "versionId" INTEGER NOT NULL,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sequence_sections_version_idx ON sequence_sections ("versionId")`);
+
+  // sequence_exercises: 단계별 운동 항목
+  await pool.query(`CREATE TABLE IF NOT EXISTS sequence_exercises (
+    id SERIAL PRIMARY KEY,
+    "sectionId" INTEGER NOT NULL,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL,
+    "stageLabel" TEXT,
+    "durationOrReps" TEXT,
+    intensity TEXT,
+    "restText" TEXT,
+    "coachingCue" TEXT,
+    "easyVariant" TEXT,
+    "baseVariant" TEXT,
+    "hardVariant" TEXT,
+    cautions TEXT
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sequence_exercises_section_idx ON sequence_exercises ("sectionId")`);
+
+  // sequence_reviews: 검토 이력(감사로그)
+  await pool.query(`CREATE TABLE IF NOT EXISTS sequence_reviews (
+    id SERIAL PRIMARY KEY,
+    "versionId" INTEGER NOT NULL,
+    "reviewerTrainerId" INTEGER,
+    "reviewerLabel" TEXT,
+    decision TEXT NOT NULL,
+    feedback TEXT,
+    "criteriaJson" TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sequence_reviews_version_idx ON sequence_reviews ("versionId")`);
+
+  // sequence_imports: 가져오기 기록 — UNIQUE로 중복 차감을 DB 레벨에서 원천 차단
+  await pool.query(`CREATE TABLE IF NOT EXISTS sequence_imports (
+    id SERIAL PRIMARY KEY,
+    "importerTrainerId" INTEGER NOT NULL,
+    "sourceSequenceId" INTEGER NOT NULL,
+    "sourceVersionId" INTEGER NOT NULL,
+    "copySequenceId" INTEGER NOT NULL,
+    "copyVersionId" INTEGER NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text,
+    UNIQUE ("importerTrainerId", "sourceSequenceId")
+  )`);
+
+  // sequence_credit_transactions: 공유권 원장 (append-only, 잔액은 SUM으로 계산)
+  await pool.query(`CREATE TABLE IF NOT EXISTS sequence_credit_transactions (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    "relatedSequenceId" INTEGER,
+    "relatedImportId" INTEGER,
+    memo TEXT,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sequence_credit_tx_trainer_idx ON sequence_credit_transactions ("trainerId")`);
+
+  // reviewer_permissions: 관리자 외 지정 리뷰어
+  await pool.query(`CREATE TABLE IF NOT EXISTS reviewer_permissions (
+    id SERIAL PRIMARY KEY,
+    "trainerId" INTEGER NOT NULL UNIQUE,
+    "grantedByUserId" INTEGER,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+
+  // 시퀀스랩 플랜/제한 설정 — 관리자가 추후 조정 (가격 하드코딩 금지)
+  for (const [k, v] of [
+    ['sequence_lab_min_plan', 'free'],        // 최소 이용 가능 플랜 (free | pro)
+    ['sequence_lab_welcome_credits', '0'],    // 신규 트레이너 시작 공유권
+  ]) {
+    await pool.query(`INSERT INTO plan_settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING`, [k, v]);
+  }
 
   console.log("✨ DB 초기화 완료!");
 

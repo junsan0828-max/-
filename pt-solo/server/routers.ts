@@ -729,11 +729,16 @@ const ptRouter = t.router({
       exercisesJson: z.string().optional(),
       feedback: z.string().optional(),
       notes: z.string().optional(),
+      sequenceVersionId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = getDb();
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      if (input.sequenceVersionId) {
+        const ownRow = await pool.query(`SELECT id FROM sequence_versions WHERE id=$1 AND "authorTrainerId"=$2`, [input.sequenceVersionId, trainerId]);
+        if (ownRow.rows.length === 0) throw new TRPCError({ code: "FORBIDDEN" });
+      }
       const [row] = await db.insert(ptSessionLogs).values({
         memberId: input.memberId,
         trainerId,
@@ -744,6 +749,7 @@ const ptRouter = t.router({
         exercisesJson: input.exercisesJson,
         feedback: input.feedback,
         notes: input.notes,
+        sequenceVersionId: input.sequenceVersionId,
       }).returning();
       giveAutoPoints(trainerId, "session_log", "수업 일지 작성");
       return row;
@@ -3172,6 +3178,592 @@ const trainingLogRouter = t.router({
     }),
 });
 
+// ─── 시퀀스 랩 ───────────────────────────────────────────────────────────────
+
+const SEQUENCE_DEFAULT_SECTIONS = ["수업 전 확인", "움직임 준비", "기능 개선", "통합 움직임", "근력 및 수행", "재확인 및 기록"];
+const SEQUENCE_EDITABLE_STATUSES = ["DRAFT", "CHANGES_REQUESTED"];
+
+const sequenceExerciseSchema = z.object({
+  name: z.string().min(1),
+  stageLabel: z.string().optional(),
+  durationOrReps: z.string().optional(),
+  intensity: z.string().optional(),
+  restText: z.string().optional(),
+  coachingCue: z.string().optional(),
+  easyVariant: z.string().optional(),
+  baseVariant: z.string().optional(),
+  hardVariant: z.string().optional(),
+  cautions: z.string().optional(),
+});
+const sequenceSectionSchema = z.object({
+  name: z.string().min(1),
+  exercises: z.array(sequenceExerciseSchema),
+});
+const sequenceContentSchema = z.object({
+  title: z.string().min(1),
+  shortDescription: z.string().optional(),
+  publicDescription: z.string().optional(),
+  category: z.string().optional(),
+  bodyParts: z.string().optional(),
+  movementType: z.string().optional(),
+  targetAudience: z.string().optional(),
+  difficulty: z.string().optional(),
+  estimatedMinutes: z.number().optional(),
+  equipment: z.string().optional(),
+  tags: z.string().optional(),
+  classGoal: z.string().optional(),
+  preCheckItems: z.string().optional(),
+  postCheckItems: z.string().optional(),
+  coachingNotes: z.string().optional(),
+  authorMemo: z.string().optional(),
+  sections: z.array(sequenceSectionSchema),
+});
+
+async function seqReplaceSectionsAndExercises(versionId: number, sections: { name: string; exercises: any[] }[]) {
+  await pool.query(`DELETE FROM sequence_exercises WHERE "sectionId" IN (SELECT id FROM sequence_sections WHERE "versionId"=$1)`, [versionId]);
+  await pool.query(`DELETE FROM sequence_sections WHERE "versionId"=$1`, [versionId]);
+  for (let i = 0; i < sections.length; i++) {
+    const sec = sections[i];
+    const secRow = await pool.query<{ id: number }>(
+      `INSERT INTO sequence_sections ("versionId","sortOrder",name) VALUES ($1,$2,$3) RETURNING id`,
+      [versionId, i, sec.name]
+    );
+    const sectionId = secRow.rows[0].id;
+    for (let j = 0; j < sec.exercises.length; j++) {
+      const ex = sec.exercises[j];
+      await pool.query(
+        `INSERT INTO sequence_exercises ("sectionId","sortOrder",name,"stageLabel","durationOrReps",intensity,"restText","coachingCue","easyVariant","baseVariant","hardVariant",cautions)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [sectionId, j, ex.name, ex.stageLabel ?? null, ex.durationOrReps ?? null, ex.intensity ?? null, ex.restText ?? null,
+         ex.coachingCue ?? null, ex.easyVariant ?? null, ex.baseVariant ?? null, ex.hardVariant ?? null, ex.cautions ?? null]
+      );
+    }
+  }
+}
+
+async function seqGetSectionsWithExercises(versionId: number) {
+  const sections = await pool.query<any>(`SELECT * FROM sequence_sections WHERE "versionId"=$1 ORDER BY "sortOrder"`, [versionId]);
+  const result: any[] = [];
+  for (const sec of sections.rows) {
+    const exercises = await pool.query<any>(`SELECT * FROM sequence_exercises WHERE "sectionId"=$1 ORDER BY "sortOrder"`, [sec.id]);
+    result.push({ ...sec, exercises: exercises.rows });
+  }
+  return result;
+}
+
+// 관리자 또는 지정 리뷰어만 통과
+const reviewerProcedure = t.procedure.use(async ({ ctx, next }) => {
+  if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+  if (ctx.user.role === "admin") return next({ ctx: { ...ctx, user: ctx.user } });
+  const trainerId = ctx.user.trainerId;
+  if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+  const row = await pool.query(`SELECT id FROM reviewer_permissions WHERE "trainerId"=$1`, [trainerId]);
+  if (row.rows.length === 0) throw new TRPCError({ code: "FORBIDDEN" });
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+const sequenceLabRouter = t.router({
+  // ── 공유권 ──────────────────────────────────────────────────────────────
+  myCredits: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const balRow = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM sequence_credit_transactions WHERE "trainerId"=$1`, [trainerId]
+    );
+    const txRows = await pool.query<any>(
+      `SELECT * FROM sequence_credit_transactions WHERE "trainerId"=$1 ORDER BY id DESC LIMIT 100`, [trainerId]
+    );
+    return { balance: Number(balRow.rows[0].balance), transactions: txRows.rows };
+  }),
+
+  unreadCount: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) return { count: 0 };
+    const row = await pool.query(
+      `SELECT COUNT(*) FROM sequence_versions WHERE "authorTrainerId"=$1 AND "authorNotifiedAt" IS NULL
+       AND status IN ('CHANGES_REQUESTED','PUBLISHED','REJECTED')`,
+      [trainerId]
+    );
+    return { count: Number(row.rows[0].count) };
+  }),
+
+  markNotified: protectedProcedure.input(z.object({ versionId: z.number() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await pool.query(`UPDATE sequence_versions SET "authorNotifiedAt"=now()::text WHERE id=$1 AND "authorTrainerId"=$2`, [input.versionId, trainerId]);
+    return { success: true };
+  }),
+
+  // ── 작성 ────────────────────────────────────────────────────────────────
+  createDraft: protectedProcedure.mutation(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const seqRow = await pool.query<{ id: number }>(`INSERT INTO sequences ("authorTrainerId") VALUES ($1) RETURNING id`, [trainerId]);
+    const sequenceId = seqRow.rows[0].id;
+    const verRow = await pool.query<{ id: number }>(
+      `INSERT INTO sequence_versions ("sequenceId","authorTrainerId","versionNumber",status,title,"authorNotifiedAt")
+       VALUES ($1,$2,1,'DRAFT','',now()::text) RETURNING id`,
+      [sequenceId, trainerId]
+    );
+    const versionId = verRow.rows[0].id;
+    for (let i = 0; i < SEQUENCE_DEFAULT_SECTIONS.length; i++) {
+      await pool.query(`INSERT INTO sequence_sections ("versionId","sortOrder",name) VALUES ($1,$2,$3)`, [versionId, i, SEQUENCE_DEFAULT_SECTIONS[i]]);
+    }
+    return { sequenceId, versionId };
+  }),
+
+  updateDraft: protectedProcedure
+    .input(z.object({ versionId: z.number() }).merge(sequenceContentSchema))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const cur = await pool.query<{ status: string; authorTrainerId: number }>(
+        `SELECT status, "authorTrainerId" FROM sequence_versions WHERE id=$1`, [input.versionId]
+      );
+      const row = cur.rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (row.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      if (!SEQUENCE_EDITABLE_STATUSES.includes(row.status)) throw new TRPCError({ code: "CONFLICT", message: "현재 상태에서는 수정할 수 없습니다." });
+      const { versionId, sections, ...f } = input;
+      await pool.query(
+        `UPDATE sequence_versions SET
+          title=$1, "shortDescription"=$2, "publicDescription"=$3, category=$4, "bodyParts"=$5,
+          "movementType"=$6, "targetAudience"=$7, difficulty=$8, "estimatedMinutes"=$9, equipment=$10,
+          tags=$11, "classGoal"=$12, "preCheckItems"=$13, "postCheckItems"=$14, "coachingNotes"=$15,
+          "authorMemo"=$16, "updatedAt"=now()::text
+         WHERE id=$17`,
+        [f.title, f.shortDescription ?? null, f.publicDescription ?? null, f.category ?? null, f.bodyParts ?? null,
+         f.movementType ?? null, f.targetAudience ?? null, f.difficulty ?? null, f.estimatedMinutes ?? null, f.equipment ?? null,
+         f.tags ?? null, f.classGoal ?? null, f.preCheckItems ?? null, f.postCheckItems ?? null, f.coachingNotes ?? null,
+         f.authorMemo ?? null, versionId]
+      );
+      await seqReplaceSectionsAndExercises(versionId, sections);
+      return { success: true };
+    }),
+
+  getMyVersion: protectedProcedure.input(z.object({ versionId: z.number() })).query(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const verRows = await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [input.versionId]);
+    const version = verRows.rows[0];
+    if (!version) throw new TRPCError({ code: "NOT_FOUND" });
+    if (version.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const seqRows = await pool.query<any>(`SELECT * FROM sequences WHERE id=$1`, [version.sequenceId]);
+    const sections = await seqGetSectionsWithExercises(input.versionId);
+    const reviews = await pool.query<any>(`SELECT * FROM sequence_reviews WHERE "versionId"=$1 ORDER BY id DESC`, [input.versionId]);
+    return { version, sequence: seqRows.rows[0], sections, reviews: reviews.rows };
+  }),
+
+  submitForReview: protectedProcedure.input(z.object({ versionId: z.number() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const cur = await pool.query<any>(
+      `SELECT sv.*, s."sourceSequenceId" FROM sequence_versions sv JOIN sequences s ON s.id = sv."sequenceId" WHERE sv.id=$1`,
+      [input.versionId]
+    );
+    const row = cur.rows[0];
+    if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+    if (row.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    if (row.sourceSequenceId) throw new TRPCError({ code: "FORBIDDEN", message: "가져온 시퀀스는 라이브러리에 등록할 수 없습니다." });
+    if (!SEQUENCE_EDITABLE_STATUSES.includes(row.status)) throw new TRPCError({ code: "CONFLICT", message: "이미 검토 중이거나 등록된 시퀀스입니다." });
+    if (!row.title?.trim()) throw new TRPCError({ code: "BAD_REQUEST", message: "제목을 입력해주세요." });
+    await pool.query(
+      `UPDATE sequence_versions SET status='SUBMITTED', "submittedAt"=now()::text, "authorNotifiedAt"=now()::text, "updatedAt"=now()::text WHERE id=$1`,
+      [input.versionId]
+    );
+    return { success: true };
+  }),
+
+  withdrawSubmission: protectedProcedure.input(z.object({ versionId: z.number() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const res = await pool.query(
+      `UPDATE sequence_versions SET status='DRAFT', "updatedAt"=now()::text WHERE id=$1 AND "authorTrainerId"=$2 AND status='SUBMITTED'`,
+      [input.versionId, trainerId]
+    );
+    if (res.rowCount === 0) throw new TRPCError({ code: "CONFLICT", message: "철회할 수 없는 상태입니다." });
+    return { success: true };
+  }),
+
+  archive: protectedProcedure.input(z.object({ versionId: z.number() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const res = await pool.query(
+      `UPDATE sequence_versions SET status='ARCHIVED', "updatedAt"=now()::text WHERE id=$1 AND "authorTrainerId"=$2`,
+      [input.versionId, trainerId]
+    );
+    if (res.rowCount === 0) throw new TRPCError({ code: "NOT_FOUND" });
+    return { success: true };
+  }),
+
+  listMine: protectedProcedure
+    .input(z.object({ tab: z.enum(["draft", "submitted", "changes_requested", "published", "imported", "archived"]) }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      if (input.tab === "imported") {
+        const rows = await pool.query<any>(
+          `SELECT sv.*, s."sourceSequenceId", origAuthor."trainerName" AS "originalAuthorName"
+           FROM sequences s
+           JOIN sequence_versions sv ON sv."sequenceId" = s.id
+           LEFT JOIN sequences origSeq ON origSeq.id = s."sourceSequenceId"
+           LEFT JOIN trainers origAuthor ON origAuthor.id = origSeq."authorTrainerId"
+           WHERE s."authorTrainerId"=$1 AND s."sourceSequenceId" IS NOT NULL
+           ORDER BY sv."createdAt" DESC`,
+          [trainerId]
+        );
+        return rows.rows;
+      }
+      const statusMap: Record<string, string[]> = {
+        draft: ["DRAFT"],
+        submitted: ["SUBMITTED"],
+        changes_requested: ["CHANGES_REQUESTED"],
+        published: ["PUBLISHED"],
+        archived: ["ARCHIVED", "REJECTED"],
+      };
+      const statuses = statusMap[input.tab] ?? ["DRAFT"];
+      const rows = await pool.query<any>(
+        `SELECT sv.*, s."sourceSequenceId", s."importCount" FROM sequence_versions sv
+         JOIN sequences s ON s.id = sv."sequenceId"
+         WHERE sv."authorTrainerId"=$1 AND sv.status = ANY($2) AND s."sourceSequenceId" IS NULL
+         ORDER BY sv."updatedAt" DESC`,
+        [trainerId, statuses]
+      );
+      return rows.rows;
+    }),
+
+  amIReviewer: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role === "admin") return { isReviewer: true };
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) return { isReviewer: false };
+    const row = await pool.query(`SELECT id FROM reviewer_permissions WHERE "trainerId"=$1`, [trainerId]);
+    return { isReviewer: row.rows.length > 0 };
+  }),
+
+  // ── 리뷰어 ──────────────────────────────────────────────────────────────
+  reviewQueue: reviewerProcedure.query(async () => {
+    const rows = await pool.query<any>(
+      `SELECT sv.*, t."trainerName" AS "authorName" FROM sequence_versions sv
+       JOIN trainers t ON t.id = sv."authorTrainerId"
+       WHERE sv.status='SUBMITTED' ORDER BY sv."submittedAt" ASC`
+    );
+    return rows.rows;
+  }),
+
+  getReviewDetail: reviewerProcedure.input(z.object({ versionId: z.number() })).query(async ({ input }) => {
+    const verRows = await pool.query<any>(
+      `SELECT sv.*, t."trainerName" AS "authorName" FROM sequence_versions sv JOIN trainers t ON t.id = sv."authorTrainerId" WHERE sv.id=$1`,
+      [input.versionId]
+    );
+    const version = verRows.rows[0];
+    if (!version) throw new TRPCError({ code: "NOT_FOUND" });
+    const sections = await seqGetSectionsWithExercises(input.versionId);
+    const reviews = await pool.query<any>(
+      `SELECT * FROM sequence_reviews WHERE "versionId" IN
+       (SELECT id FROM sequence_versions WHERE "sequenceId"=$1) ORDER BY id DESC`,
+      [version.sequenceId]
+    );
+    return { version, sections, reviews: reviews.rows };
+  }),
+
+  submitReview: reviewerProcedure
+    .input(z.object({
+      versionId: z.number(),
+      decision: z.enum(["approved", "changes_requested", "rejected"]),
+      feedback: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const reviewerTrainerId = ctx.user!.trainerId ?? null;
+      const cur = await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [input.versionId]);
+      const version = cur.rows[0];
+      if (!version) throw new TRPCError({ code: "NOT_FOUND" });
+      if (version.status !== "SUBMITTED") throw new TRPCError({ code: "CONFLICT", message: "검토 대기 상태가 아닙니다." });
+
+      const reviewerLabel = ctx.user!.role === "admin" ? "관리자" : "리뷰어";
+      await pool.query(
+        `INSERT INTO sequence_reviews ("versionId","reviewerTrainerId","reviewerLabel",decision,feedback) VALUES ($1,$2,$3,$4,$5)`,
+        [input.versionId, reviewerTrainerId, reviewerLabel, input.decision, input.feedback ?? null]
+      );
+
+      if (input.decision === "changes_requested") {
+        await pool.query(
+          `UPDATE sequence_versions SET status='CHANGES_REQUESTED', "reviewedAt"=now()::text, "authorNotifiedAt"=NULL, "updatedAt"=now()::text WHERE id=$1`,
+          [input.versionId]
+        );
+      } else if (input.decision === "rejected") {
+        await pool.query(
+          `UPDATE sequence_versions SET status='REJECTED', "reviewedAt"=now()::text, "authorNotifiedAt"=NULL, "updatedAt"=now()::text WHERE id=$1`,
+          [input.versionId]
+        );
+      } else {
+        // 승인 = 즉시 공개 (MVP에서는 APPROVED를 별도 대기 상태로 두지 않음)
+        await pool.query(
+          `UPDATE sequence_versions SET status='PUBLISHED', "reviewedAt"=now()::text, "authorNotifiedAt"=NULL, "updatedAt"=now()::text WHERE id=$1`,
+          [input.versionId]
+        );
+        await pool.query(`UPDATE sequences SET "publishedVersionId"=$1, "updatedAt"=now()::text WHERE id=$2`, [input.versionId, version.sequenceId]);
+        // 최초 승인에만 공유권 지급 — 원자적 CAS로 중복 지급 방지
+        const grantRes = await pool.query(
+          `UPDATE sequences SET "creditGranted"=true WHERE id=$1 AND "creditGranted"=false RETURNING id`,
+          [version.sequenceId]
+        );
+        if (grantRes.rows.length > 0) {
+          await pool.query(
+            `INSERT INTO sequence_credit_transactions ("trainerId",amount,type,"relatedSequenceId",memo) VALUES ($1,1,'publish_grant',$2,'시퀀스 최초 승인·공개')`,
+            [version.authorTrainerId, version.sequenceId]
+          );
+        }
+      }
+      return { success: true };
+    }),
+
+  // ── 관리자: 리뷰어 지정, 공유권 조정 ──────────────────────────────────────
+  adminListReviewers: adminProcedure.query(async () => {
+    const rows = await pool.query<any>(
+      `SELECT rp.*, t."trainerName" FROM reviewer_permissions rp JOIN trainers t ON t.id = rp."trainerId" ORDER BY rp.id DESC`
+    );
+    return rows.rows;
+  }),
+  adminGrantReviewer: adminProcedure.input(z.object({ trainerId: z.number() })).mutation(async ({ ctx, input }) => {
+    await pool.query(
+      `INSERT INTO reviewer_permissions ("trainerId","grantedByUserId") VALUES ($1,$2) ON CONFLICT ("trainerId") DO NOTHING`,
+      [input.trainerId, ctx.user!.id]
+    );
+    return { success: true };
+  }),
+  adminRevokeReviewer: adminProcedure.input(z.object({ trainerId: z.number() })).mutation(async ({ input }) => {
+    await pool.query(`DELETE FROM reviewer_permissions WHERE "trainerId"=$1`, [input.trainerId]);
+    return { success: true };
+  }),
+  adminGrantCredit: adminProcedure
+    .input(z.object({ trainerId: z.number(), amount: z.number(), memo: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      await pool.query(
+        `INSERT INTO sequence_credit_transactions ("trainerId",amount,type,memo) VALUES ($1,$2,$3,$4)`,
+        [input.trainerId, input.amount, input.amount >= 0 ? "admin_grant" : "admin_revoke", input.memo ?? "관리자 조정"]
+      );
+      return { success: true };
+    }),
+
+  // ── 라이브러리 ──────────────────────────────────────────────────────────
+  libraryList: protectedProcedure
+    .input(z.object({
+      search: z.string().optional(),
+      category: z.string().optional(),
+      bodyPart: z.string().optional(),
+      targetAudience: z.string().optional(),
+      difficulty: z.string().optional(),
+      maxMinutes: z.number().optional(),
+      equipment: z.string().optional(),
+      sort: z.enum(["latest", "popular"]).default("latest"),
+      scope: z.enum(["all", "mine", "imported"]).default("all"),
+    }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const conditions: string[] = [`s."publishedVersionId" IS NOT NULL`];
+      const params: any[] = [];
+      const p = (v: any) => { params.push(v); return `$${params.length}`; };
+
+      if (input.scope === "mine") conditions.push(`s."authorTrainerId" = ${p(trainerId)}`);
+      if (input.scope === "imported") conditions.push(`EXISTS (SELECT 1 FROM sequence_imports si WHERE si."importerTrainerId"=${p(trainerId)} AND si."sourceSequenceId"=s.id)`);
+      if (input.search) { const s = `%${input.search}%`; conditions.push(`(sv.title ILIKE ${p(s)} OR sv."shortDescription" ILIKE ${p(s)} OR sv.tags ILIKE ${p(s)})`); }
+      if (input.category) conditions.push(`sv.category = ${p(input.category)}`);
+      if (input.bodyPart) conditions.push(`sv."bodyParts" ILIKE ${p("%" + input.bodyPart + "%")}`);
+      if (input.targetAudience) conditions.push(`sv."targetAudience" = ${p(input.targetAudience)}`);
+      if (input.difficulty) conditions.push(`sv.difficulty = ${p(input.difficulty)}`);
+      if (input.maxMinutes) conditions.push(`sv."estimatedMinutes" <= ${p(input.maxMinutes)}`);
+      if (input.equipment) conditions.push(`sv.equipment ILIKE ${p("%" + input.equipment + "%")}`);
+      const hasImportedParam = p(trainerId);
+
+      const orderBy = input.sort === "popular" ? `s."importCount" DESC` : `sv."updatedAt" DESC`;
+      const query = `
+        SELECT s.id AS "sequenceId", s."authorTrainerId", s."importCount", s."createdAt" AS "sequenceCreatedAt",
+               sv.id AS "versionId", sv.title, sv."shortDescription", sv.category, sv."bodyParts", sv."targetAudience",
+               sv.difficulty, sv."estimatedMinutes", sv.equipment, sv.tags, sv."updatedAt",
+               t."trainerName" AS "authorName",
+               (SELECT COUNT(*) FROM sequence_sections sec JOIN sequence_exercises ex ON ex."sectionId"=sec.id WHERE sec."versionId"=sv.id) AS "exerciseCount",
+               EXISTS(SELECT 1 FROM sequence_imports si WHERE si."importerTrainerId"=${hasImportedParam} AND si."sourceSequenceId"=s.id) AS "hasImported"
+        FROM sequences s
+        JOIN sequence_versions sv ON sv.id = s."publishedVersionId"
+        JOIN trainers t ON t.id = s."authorTrainerId"
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY ${orderBy}
+        LIMIT 100
+      `;
+      const rows = await pool.query<any>(query, params);
+      return rows.rows.map((r: any) => ({ ...r, isMine: r.authorTrainerId === trainerId }));
+    }),
+
+  libraryDetail: protectedProcedure.input(z.object({ sequenceId: z.number() })).query(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const sequence = (await pool.query<any>(`SELECT * FROM sequences WHERE id=$1`, [input.sequenceId])).rows[0];
+    if (!sequence || !sequence.publishedVersionId) throw new TRPCError({ code: "NOT_FOUND" });
+    const version = (await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [sequence.publishedVersionId])).rows[0];
+    const authorRow = (await pool.query<any>(`SELECT "trainerName" FROM trainers WHERE id=$1`, [sequence.authorTrainerId])).rows[0];
+    const isMine = sequence.authorTrainerId === trainerId;
+    const importedRow = (await pool.query<any>(
+      `SELECT "copySequenceId", "copyVersionId" FROM sequence_imports WHERE "importerTrainerId"=$1 AND "sourceSequenceId"=$2`, [trainerId, input.sequenceId]
+    )).rows[0];
+    let myOwnVersionId: number | null = null;
+    if (isMine) {
+      const mv = (await pool.query<{ id: number }>(`SELECT id FROM sequence_versions WHERE "sequenceId"=$1 ORDER BY "versionNumber" DESC LIMIT 1`, [sequence.id])).rows[0];
+      myOwnVersionId = mv?.id ?? null;
+    }
+    const hasImported = !!importedRow;
+    const unlocked = isMine || hasImported;
+
+    const sections = await seqGetSectionsWithExercises(sequence.publishedVersionId);
+    const sectionSummary = sections.map((s: any) => ({ name: s.name, exerciseCount: s.exercises.length }));
+    const totalExercises = sections.reduce((sum: number, s: any) => sum + s.exercises.length, 0);
+
+    return {
+      sequence: { ...sequence, authorName: authorRow?.trainerName ?? "" },
+      version: {
+        title: version.title, shortDescription: version.shortDescription, publicDescription: version.publicDescription,
+        category: version.category, bodyParts: version.bodyParts, movementType: version.movementType,
+        targetAudience: version.targetAudience, difficulty: version.difficulty, estimatedMinutes: version.estimatedMinutes,
+        equipment: version.equipment, tags: version.tags, classGoal: version.classGoal,
+        ...(unlocked ? { preCheckItems: version.preCheckItems, postCheckItems: version.postCheckItems, coachingNotes: version.coachingNotes } : {}),
+      },
+      sectionSummary,
+      totalExercises,
+      unlocked,
+      isMine,
+      hasImported,
+      sections: unlocked ? sections : null,
+      copySequenceId: hasImported ? importedRow.copySequenceId : null,
+      copyVersionId: hasImported ? importedRow.copyVersionId : myOwnVersionId,
+    };
+  }),
+
+  importSequence: protectedProcedure.input(z.object({ sequenceId: z.number() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+    const sequence = (await pool.query<any>(`SELECT * FROM sequences WHERE id=$1`, [input.sequenceId])).rows[0];
+    if (!sequence || !sequence.publishedVersionId) throw new TRPCError({ code: "NOT_FOUND" });
+    if (sequence.authorTrainerId === trainerId) throw new TRPCError({ code: "BAD_REQUEST", message: "자신의 시퀀스는 공유권 없이 바로 이용할 수 있습니다." });
+
+    const existing = (await pool.query<{ copySequenceId: number; copyVersionId: number }>(
+      `SELECT "copySequenceId", "copyVersionId" FROM sequence_imports WHERE "importerTrainerId"=$1 AND "sourceSequenceId"=$2`, [trainerId, input.sequenceId]
+    )).rows[0];
+    if (existing) return { copySequenceId: existing.copySequenceId, copyVersionId: existing.copyVersionId, alreadyImported: true };
+
+    const balRow = await pool.query<{ balance: string }>(
+      `SELECT COALESCE(SUM(amount),0) AS balance FROM sequence_credit_transactions WHERE "trainerId"=$1`, [trainerId]
+    );
+    if (Number(balRow.rows[0].balance) < 1) throw new TRPCError({ code: "FORBIDDEN", message: "공유권이 부족합니다." });
+
+    const srcVersion = (await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [sequence.publishedVersionId])).rows[0];
+    const srcSections = await seqGetSectionsWithExercises(sequence.publishedVersionId);
+
+    const newSeqId = (await pool.query<{ id: number }>(
+      `INSERT INTO sequences ("authorTrainerId","sourceSequenceId","sourceVersionId") VALUES ($1,$2,$3) RETURNING id`,
+      [trainerId, sequence.id, sequence.publishedVersionId]
+    )).rows[0].id;
+    const newVersionId = (await pool.query<{ id: number }>(
+      `INSERT INTO sequence_versions
+       ("sequenceId","authorTrainerId","versionNumber",status,title,"shortDescription","publicDescription",category,"bodyParts","movementType","targetAudience",difficulty,"estimatedMinutes",equipment,tags,"classGoal","preCheckItems","postCheckItems","coachingNotes","authorNotifiedAt")
+       VALUES ($1,$2,1,'DRAFT',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()::text) RETURNING id`,
+      [newSeqId, trainerId, srcVersion.title, srcVersion.shortDescription, srcVersion.publicDescription, srcVersion.category,
+       srcVersion.bodyParts, srcVersion.movementType, srcVersion.targetAudience, srcVersion.difficulty, srcVersion.estimatedMinutes,
+       srcVersion.equipment, srcVersion.tags, srcVersion.classGoal, srcVersion.preCheckItems, srcVersion.postCheckItems, srcVersion.coachingNotes]
+    )).rows[0].id;
+    await seqReplaceSectionsAndExercises(newVersionId, srcSections.map((s: any) => ({ name: s.name, exercises: s.exercises })));
+
+    // UNIQUE(importerTrainerId, sourceSequenceId)가 유일한 진짜 동시성 가드 — 여기서 이기는 요청만 과금
+    const importRes = await pool.query<{ id: number }>(
+      `INSERT INTO sequence_imports ("importerTrainerId","sourceSequenceId","sourceVersionId","copySequenceId","copyVersionId")
+       VALUES ($1,$2,$3,$4,$5) ON CONFLICT ("importerTrainerId","sourceSequenceId") DO NOTHING RETURNING id`,
+      [trainerId, sequence.id, sequence.publishedVersionId, newSeqId, newVersionId]
+    );
+
+    if (importRes.rows.length === 0) {
+      // 경쟁 상태: 동시 요청이 먼저 성공 — 방금 만든 사본은 버리고 기존 것을 반환, 과금하지 않음
+      await pool.query(`DELETE FROM sequence_exercises WHERE "sectionId" IN (SELECT id FROM sequence_sections WHERE "versionId"=$1)`, [newVersionId]);
+      await pool.query(`DELETE FROM sequence_sections WHERE "versionId"=$1`, [newVersionId]);
+      await pool.query(`DELETE FROM sequence_versions WHERE id=$1`, [newVersionId]);
+      await pool.query(`DELETE FROM sequences WHERE id=$1`, [newSeqId]);
+      const winner = (await pool.query<{ copySequenceId: number; copyVersionId: number }>(
+        `SELECT "copySequenceId", "copyVersionId" FROM sequence_imports WHERE "importerTrainerId"=$1 AND "sourceSequenceId"=$2`, [trainerId, input.sequenceId]
+      )).rows[0];
+      return { copySequenceId: winner.copySequenceId, copyVersionId: winner.copyVersionId, alreadyImported: true };
+    }
+
+    await pool.query(
+      `INSERT INTO sequence_credit_transactions ("trainerId",amount,type,"relatedSequenceId","relatedImportId",memo)
+       VALUES ($1,-1,'import_spend',$2,$3,'시퀀스 가져오기')`,
+      [trainerId, sequence.id, importRes.rows[0].id]
+    );
+    await pool.query(`UPDATE sequences SET "importCount" = "importCount" + 1 WHERE id=$1`, [sequence.id]);
+
+    return { copySequenceId: newSeqId, copyVersionId: newVersionId, alreadyImported: false };
+  }),
+
+  // ── 트레이닝 일지 연동 ──────────────────────────────────────────────────
+  listPickable: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const rows = await pool.query<any>(
+      `SELECT id, title, status FROM sequence_versions
+       WHERE "authorTrainerId"=$1 AND status NOT IN ('ARCHIVED','REJECTED')
+       ORDER BY "updatedAt" DESC LIMIT 50`,
+      [trainerId]
+    );
+    return rows.rows;
+  }),
+
+  getVersionForApply: protectedProcedure.input(z.object({ versionId: z.number() })).query(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const version = (await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [input.versionId])).rows[0];
+    if (!version) throw new TRPCError({ code: "NOT_FOUND" });
+    if (version.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const sections = await seqGetSectionsWithExercises(input.versionId);
+    const exercises = sections.flatMap((sec: any) =>
+      sec.exercises.map((ex: any) => ({
+        name: `[${sec.name}] ${ex.name}${ex.durationOrReps ? ` · ${ex.durationOrReps}` : ""}`,
+        sets: [{ reps: "", weight: "" }],
+      }))
+    );
+    return { title: version.title, exercises };
+  }),
+
+  // 공개된 시퀀스 수정 → 기존 공개본은 유지하고 새 리비전을 만들어 재검토
+  createRevision: protectedProcedure.input(z.object({ sequenceId: z.number() })).mutation(async ({ ctx, input }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const sequence = (await pool.query<any>(`SELECT * FROM sequences WHERE id=$1`, [input.sequenceId])).rows[0];
+    if (!sequence) throw new TRPCError({ code: "NOT_FOUND" });
+    if (sequence.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    if (!sequence.publishedVersionId) throw new TRPCError({ code: "CONFLICT", message: "공개된 버전이 없습니다." });
+
+    // 이미 진행 중인 리비전(DRAFT/SUBMITTED/CHANGES_REQUESTED)이 있으면 그걸 반환 (중복 생성 방지)
+    const inProgress = (await pool.query<{ id: number }>(
+      `SELECT id FROM sequence_versions WHERE "sequenceId"=$1 AND status IN ('DRAFT','SUBMITTED','CHANGES_REQUESTED') ORDER BY "versionNumber" DESC LIMIT 1`,
+      [input.sequenceId]
+    )).rows[0];
+    if (inProgress) return { versionId: inProgress.id };
+
+    const src = (await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [sequence.publishedVersionId])).rows[0];
+    const srcSections = await seqGetSectionsWithExercises(sequence.publishedVersionId);
+    const maxVer = (await pool.query<{ max: number }>(`SELECT COALESCE(MAX("versionNumber"),0) AS max FROM sequence_versions WHERE "sequenceId"=$1`, [input.sequenceId])).rows[0].max;
+
+    const newVersionId = (await pool.query<{ id: number }>(
+      `INSERT INTO sequence_versions
+       ("sequenceId","authorTrainerId","versionNumber",status,title,"shortDescription","publicDescription",category,"bodyParts","movementType","targetAudience",difficulty,"estimatedMinutes",equipment,tags,"classGoal","preCheckItems","postCheckItems","coachingNotes","authorNotifiedAt")
+       VALUES ($1,$2,$3,'DRAFT',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now()::text) RETURNING id`,
+      [input.sequenceId, trainerId, maxVer + 1, src.title, src.shortDescription, src.publicDescription, src.category,
+       src.bodyParts, src.movementType, src.targetAudience, src.difficulty, src.estimatedMinutes,
+       src.equipment, src.tags, src.classGoal, src.preCheckItems, src.postCheckItems, src.coachingNotes]
+    )).rows[0].id;
+    await seqReplaceSectionsAndExercises(newVersionId, srcSections.map((s: any) => ({ name: s.name, exercises: s.exercises })));
+    return { versionId: newVersionId };
+  }),
+});
+
 // ─── FIT POINT Router ────────────────────────────────────────────────────────
 
 const fitPointsRouter = t.router({
@@ -5013,6 +5605,7 @@ export const appRouter = t.router({
   channels: channelsRouter,
   leads: leadsRouter,
   trainingLog: trainingLogRouter,
+  sequenceLab: sequenceLabRouter,
   fitPoints: fitPointsRouter,
   expenses: expensesRouter,
   push: pushRouter,

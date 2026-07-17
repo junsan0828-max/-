@@ -36,6 +36,13 @@ import BookingManagementPage from "./pages/BookingManagementPage";
 import SurveyPage from "./pages/SurveyPage";
 import TrainerFeedback from "./pages/TrainerFeedback";
 import AdminFeedback from "./pages/AdminFeedback";
+import SequenceLab from "./pages/SequenceLab";
+import SequenceMaker from "./pages/SequenceMaker";
+import SequenceLibrary from "./pages/SequenceLibrary";
+import SequenceDetail from "./pages/SequenceDetail";
+import MySequences from "./pages/MySequences";
+import AdminSequenceReview from "./pages/AdminSequenceReview";
+import AdminSequenceReviewDetail from "./pages/AdminSequenceReviewDetail";
 import Layout from "./components/Layout";
 import FitStepPlusLogin from "./pages/fit-step-plus/FitStepPlusLogin";
 import FitStepPlusLayout from "./pages/fit-step-plus/FitStepPlusLayout";
@@ -189,6 +196,15 @@ function App() {
           <Route path="/settlement">{() => <TrainerSettlement />}</Route>
           <Route path="/sessions">{() => <Sessions />}</Route>
           <Route path="/workshop">{() => <Workshop />}</Route>
+          <Route path="/sequences/library/:id">
+            {(params) => <SequenceDetail sequenceId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/sequences/library">{() => <SequenceLibrary />}</Route>
+          <Route path="/sequences/mine">{() => <MySequences />}</Route>
+          <Route path="/sequences/:id/edit">
+            {(params) => <SequenceMaker versionId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/sequences">{() => <SequenceLab />}</Route>
           <Route path="/booking">{() => <BookingManagementPage />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" replace />}</Route>
@@ -203,6 +219,10 @@ function App() {
           <Route path="/admin/fit-step-plus">{() => <AdminFitStepPlus />}</Route>
           <Route path="/admin/plans">{() => <AdminPlans />}</Route>
           <Route path="/admin/feedback">{() => <AdminFeedback />}</Route>
+          <Route path="/admin/sequence-review/:id">
+            {(params) => <AdminSequenceReviewDetail versionId={parseInt(params.id!)} />}
+          </Route>
+          <Route path="/admin/sequence-review">{() => <AdminSequenceReview />}</Route>
           <Route>{() => <Redirect to="/" replace />}</Route>
         </Switch>
       </ErrorBoundary>
