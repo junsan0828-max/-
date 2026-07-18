@@ -5,9 +5,11 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Search, SlidersHorizontal, Users, Clock, Dumbbell, Download, X } from "lucide-react";
 
-const CATEGORY_OPTIONS = ["웨이트 트레이닝", "필라테스", "요가", "크로스핏/기능성", "재활운동", "체형교정", "유산소", "기타"];
-const DIFFICULTY_OPTIONS = ["입문", "초급", "중급", "고급"];
-const AUDIENCE_OPTIONS = ["일반", "시니어", "산전산후", "재활", "선수/경기력", "체중감량", "근력강화"];
+import {
+  SEQ_CATEGORY_OPTIONS as CATEGORY_OPTIONS,
+  SEQ_DIFFICULTY_OPTIONS as DIFFICULTY_OPTIONS,
+  SEQ_AUDIENCE_OPTIONS as AUDIENCE_OPTIONS,
+} from "@/lib/sequenceLab";
 
 export default function SequenceLibrary() {
   const [, setLocation] = useLocation();

@@ -18,18 +18,12 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "credits", label: "공유권 내역" },
 ];
 
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  DRAFT: { label: "작성 중", cls: "bg-muted text-muted-foreground" },
-  SUBMITTED: { label: "검토 중", cls: "bg-blue-500/15 text-blue-600" },
-  CHANGES_REQUESTED: { label: "수정 요청", cls: "bg-amber-500/15 text-amber-600" },
-  PUBLISHED: { label: "승인·공개", cls: "bg-emerald-500/15 text-emerald-600" },
-  REJECTED: { label: "거절", cls: "bg-red-500/15 text-red-600" },
-  ARCHIVED: { label: "보관", cls: "bg-muted text-muted-foreground" },
-};
+import { SEQ_STATUS_META as STATUS_META } from "@/lib/sequenceLab";
 
 const TX_TYPE_LABEL: Record<string, string> = {
   publish_grant: "시퀀스 승인·공개 지급",
   import_spend: "시퀀스 가져오기 사용",
+  welcome_grant: "시작 공유권 지급",
   admin_grant: "관리자 지급",
   admin_revoke: "관리자 회수",
 };

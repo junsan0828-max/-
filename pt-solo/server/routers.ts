@@ -3226,33 +3226,58 @@ type SeqQueryable = { query: (text: string, params?: any[]) => Promise<any> };
 async function seqReplaceSectionsAndExercises(versionId: number, sections: { name: string; exercises: any[] }[], db: SeqQueryable = pool) {
   await db.query(`DELETE FROM sequence_exercises WHERE "sectionId" IN (SELECT id FROM sequence_sections WHERE "versionId"=$1)`, [versionId]);
   await db.query(`DELETE FROM sequence_sections WHERE "versionId"=$1`, [versionId]);
-  for (let i = 0; i < sections.length; i++) {
-    const sec = sections[i];
-    const secRow = await db.query(
-      `INSERT INTO sequence_sections ("versionId","sortOrder",name) VALUES ($1,$2,$3) RETURNING id`,
-      [versionId, i, sec.name]
+  if (sections.length === 0) return;
+
+  // 섹션 일괄 INSERT — sortOrder로 id를 회수해 행별 왕복 제거
+  const secParams: any[] = [];
+  const secValues = sections.map((sec, i) => {
+    secParams.push(versionId, i, sec.name);
+    const b = secParams.length;
+    return `($${b - 2},$${b - 1},$${b})`;
+  });
+  const secRes = await db.query(
+    `INSERT INTO sequence_sections ("versionId","sortOrder",name) VALUES ${secValues.join(",")} RETURNING id, "sortOrder"`,
+    secParams
+  );
+  const idBySort = new Map<number, number>(secRes.rows.map((r: any) => [Number(r.sortOrder), Number(r.id)]));
+
+  // 운동 일괄 INSERT
+  const exParams: any[] = [];
+  const exValues: string[] = [];
+  sections.forEach((sec, i) => {
+    const sectionId = idBySort.get(i)!;
+    sec.exercises.forEach((ex: any, j: number) => {
+      exParams.push(sectionId, j, ex.name, ex.stageLabel ?? null, ex.durationOrReps ?? null, ex.intensity ?? null, ex.restText ?? null,
+        ex.coachingCue ?? null, ex.easyVariant ?? null, ex.baseVariant ?? null, ex.hardVariant ?? null, ex.cautions ?? null);
+      const b = exParams.length;
+      exValues.push(`($${b - 11},$${b - 10},$${b - 9},$${b - 8},$${b - 7},$${b - 6},$${b - 5},$${b - 4},$${b - 3},$${b - 2},$${b - 1},$${b})`);
+    });
+  });
+  if (exValues.length > 0) {
+    await db.query(
+      `INSERT INTO sequence_exercises ("sectionId","sortOrder",name,"stageLabel","durationOrReps",intensity,"restText","coachingCue","easyVariant","baseVariant","hardVariant",cautions)
+       VALUES ${exValues.join(",")}`,
+      exParams
     );
-    const sectionId = secRow.rows[0].id as number;
-    for (let j = 0; j < sec.exercises.length; j++) {
-      const ex = sec.exercises[j];
-      await db.query(
-        `INSERT INTO sequence_exercises ("sectionId","sortOrder",name,"stageLabel","durationOrReps",intensity,"restText","coachingCue","easyVariant","baseVariant","hardVariant",cautions)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [sectionId, j, ex.name, ex.stageLabel ?? null, ex.durationOrReps ?? null, ex.intensity ?? null, ex.restText ?? null,
-         ex.coachingCue ?? null, ex.easyVariant ?? null, ex.baseVariant ?? null, ex.hardVariant ?? null, ex.cautions ?? null]
-      );
-    }
   }
 }
 
 async function seqGetSectionsWithExercises(versionId: number, db: SeqQueryable = pool) {
+  // N+1 대신 2회 조회: 섹션 전체 + 소속 운동 전체(= ANY)
   const sections = await db.query(`SELECT * FROM sequence_sections WHERE "versionId"=$1 ORDER BY "sortOrder"`, [versionId]);
-  const result: any[] = [];
-  for (const sec of sections.rows) {
-    const exercises = await db.query(`SELECT * FROM sequence_exercises WHERE "sectionId"=$1 ORDER BY "sortOrder"`, [sec.id]);
-    result.push({ ...sec, exercises: exercises.rows });
+  if (sections.rows.length === 0) return [] as any[];
+  const sectionIds = sections.rows.map((s: any) => s.id);
+  const exercises = await db.query(
+    `SELECT * FROM sequence_exercises WHERE "sectionId" = ANY($1) ORDER BY "sortOrder"`,
+    [sectionIds]
+  );
+  const bySection = new Map<number, any[]>();
+  for (const ex of exercises.rows) {
+    const list = bySection.get(ex.sectionId) ?? [];
+    list.push(ex);
+    bySection.set(ex.sectionId, list);
   }
-  return result;
+  return sections.rows.map((sec: any) => ({ ...sec, exercises: bySection.get(sec.id) ?? [] }));
 }
 
 // 관리자 또는 지정 리뷰어만 통과
@@ -3266,11 +3291,34 @@ const reviewerProcedure = t.procedure.use(async ({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
+// 관리자 설정(plan_settings.sequence_lab_min_plan) 기반 이용 플랜 게이트 — 기본 'free'(전체 허용)
+async function seqEnsurePlanAllowed(userId: number) {
+  const row = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='sequence_lab_min_plan'`);
+  const minPlan = row.rows[0]?.value ?? "free";
+  if (minPlan === "free") return;
+  const planRow = await pool.query<{ plan: string }>(`SELECT COALESCE("plan",'free') AS plan FROM users WHERE id=$1`, [userId]);
+  if ((planRow.rows[0]?.plan ?? "free") === "free") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "시퀀스 랩은 PRO 플랜부터 이용할 수 있어요." });
+  }
+}
+
 const sequenceLabRouter = t.router({
   // ── 공유권 ──────────────────────────────────────────────────────────────
   myCredits: protectedProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    // 최초 방문 시 시작 공유권 자동 지급 (관리자 설정 sequence_lab_welcome_credits,
+    // 부분 유니크 인덱스로 새로고침·동시 요청에도 1회만 지급)
+    const wRow = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='sequence_lab_welcome_credits'`);
+    const welcome = parseInt(wRow.rows[0]?.value ?? "0");
+    if (welcome > 0) {
+      await pool.query(
+        `INSERT INTO sequence_credit_transactions ("trainerId",amount,type,memo)
+         VALUES ($1,$2,'welcome_grant','시퀀스 랩 시작 공유권')
+         ON CONFLICT ("trainerId") WHERE type='welcome_grant' DO NOTHING`,
+        [trainerId, welcome]
+      );
+    }
     const balRow = await pool.query<{ balance: string }>(
       `SELECT COALESCE(SUM(amount),0) AS balance FROM sequence_credit_transactions WHERE "trainerId"=$1`, [trainerId]
     );
@@ -3308,6 +3356,7 @@ const sequenceLabRouter = t.router({
   createDraft: protectedProcedure.mutation(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await seqEnsurePlanAllowed(ctx.user.id);
     const seqRow = await pool.query<{ id: number }>(`INSERT INTO sequences ("authorTrainerId") VALUES ($1) RETURNING id`, [trainerId]);
     const sequenceId = seqRow.rows[0].id;
     const verRow = await pool.query<{ id: number }>(
@@ -3335,19 +3384,30 @@ const sequenceLabRouter = t.router({
       if (row.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       if (!SEQUENCE_EDITABLE_STATUSES.includes(row.status)) throw new TRPCError({ code: "CONFLICT", message: "현재 상태에서는 수정할 수 없습니다." });
       const { versionId, sections, ...f } = input;
-      await pool.query(
-        `UPDATE sequence_versions SET
-          title=$1, "shortDescription"=$2, "publicDescription"=$3, category=$4, "bodyParts"=$5,
-          "movementType"=$6, "targetAudience"=$7, difficulty=$8, "estimatedMinutes"=$9, equipment=$10,
-          tags=$11, "classGoal"=$12, "preCheckItems"=$13, "postCheckItems"=$14, "coachingNotes"=$15,
-          "authorMemo"=$16, "updatedAt"=now()::text
-         WHERE id=$17`,
-        [f.title, f.shortDescription ?? null, f.publicDescription ?? null, f.category ?? null, f.bodyParts ?? null,
-         f.movementType ?? null, f.targetAudience ?? null, f.difficulty ?? null, f.estimatedMinutes ?? null, f.equipment ?? null,
-         f.tags ?? null, f.classGoal ?? null, f.preCheckItems ?? null, f.postCheckItems ?? null, f.coachingNotes ?? null,
-         f.authorMemo ?? null, versionId]
-      );
-      await seqReplaceSectionsAndExercises(versionId, sections);
+      // DELETE 후 INSERT가 실패하면 기존 단계·운동이 유실되므로 트랜잭션으로 원자화
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          `UPDATE sequence_versions SET
+            title=$1, "shortDescription"=$2, "publicDescription"=$3, category=$4, "bodyParts"=$5,
+            "movementType"=$6, "targetAudience"=$7, difficulty=$8, "estimatedMinutes"=$9, equipment=$10,
+            tags=$11, "classGoal"=$12, "preCheckItems"=$13, "postCheckItems"=$14, "coachingNotes"=$15,
+            "authorMemo"=$16, "updatedAt"=now()::text
+           WHERE id=$17`,
+          [f.title, f.shortDescription ?? null, f.publicDescription ?? null, f.category ?? null, f.bodyParts ?? null,
+           f.movementType ?? null, f.targetAudience ?? null, f.difficulty ?? null, f.estimatedMinutes ?? null, f.equipment ?? null,
+           f.tags ?? null, f.classGoal ?? null, f.preCheckItems ?? null, f.postCheckItems ?? null, f.coachingNotes ?? null,
+           f.authorMemo ?? null, versionId]
+        );
+        await seqReplaceSectionsAndExercises(versionId, sections, client);
+        await client.query("COMMIT");
+      } catch (e) {
+        try { await client.query("ROLLBACK"); } catch {}
+        throw e;
+      } finally {
+        client.release();
+      }
       return { success: true };
     }),
 
@@ -3367,6 +3427,7 @@ const sequenceLabRouter = t.router({
   submitForReview: protectedProcedure.input(z.object({ versionId: z.number() })).mutation(async ({ ctx, input }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await seqEnsurePlanAllowed(ctx.user.id);
     const cur = await pool.query<any>(
       `SELECT sv.*, s."sourceSequenceId" FROM sequence_versions sv JOIN sequences s ON s.id = sv."sequenceId" WHERE sv.id=$1`,
       [input.versionId]
@@ -3494,6 +3555,7 @@ const sequenceLabRouter = t.router({
       versionId: z.number(),
       decision: z.enum(["approved", "changes_requested", "rejected"]),
       feedback: z.string().optional(),
+      criteria: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const reviewerTrainerId = ctx.user!.trainerId ?? null;
@@ -3508,8 +3570,8 @@ const sequenceLabRouter = t.router({
 
       const reviewerLabel = ctx.user!.role === "admin" ? "관리자" : "리뷰어";
       await pool.query(
-        `INSERT INTO sequence_reviews ("versionId","reviewerTrainerId","reviewerLabel",decision,feedback) VALUES ($1,$2,$3,$4,$5)`,
-        [input.versionId, reviewerTrainerId, reviewerLabel, input.decision, input.feedback ?? null]
+        `INSERT INTO sequence_reviews ("versionId","reviewerTrainerId","reviewerLabel",decision,feedback,"criteriaJson") VALUES ($1,$2,$3,$4,$5,$6)`,
+        [input.versionId, reviewerTrainerId, reviewerLabel, input.decision, input.feedback ?? null, input.criteria ?? null]
       );
 
       if (input.decision === "changes_requested") {
@@ -3674,6 +3736,7 @@ const sequenceLabRouter = t.router({
   importSequence: protectedProcedure.input(z.object({ sequenceId: z.number() })).mutation(async ({ ctx, input }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    await seqEnsurePlanAllowed(ctx.user.id);
 
     const sequence = (await pool.query<any>(`SELECT * FROM sequences WHERE id=$1`, [input.sequenceId])).rows[0];
     if (!sequence || !sequence.publishedVersionId) throw new TRPCError({ code: "NOT_FOUND" });

@@ -46,7 +46,12 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
       toast.error("작성자에게 전달할 피드백을 입력해주세요.");
       return;
     }
-    submitReview.mutate({ versionId, decision, feedback: feedback.trim() || undefined });
+    submitReview.mutate({
+      versionId,
+      decision,
+      feedback: feedback.trim() || undefined,
+      criteria: JSON.stringify(CRITERIA.map((item, i) => ({ item, ok: !!checked[i] }))),
+    });
   }
 
   return (

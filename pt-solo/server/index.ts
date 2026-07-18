@@ -1124,6 +1124,8 @@ async function initDatabase() {
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS sequence_credit_tx_trainer_idx ON sequence_credit_transactions ("trainerId")`);
+  // 시작 공유권은 트레이너당 1회만 — 부분 유니크 인덱스로 DB 레벨 멱등성 보장
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS seq_credit_welcome_once ON sequence_credit_transactions ("trainerId") WHERE type='welcome_grant'`);
 
   // reviewer_permissions: 관리자 외 지정 리뷰어
   await pool.query(`CREATE TABLE IF NOT EXISTS reviewer_permissions (
