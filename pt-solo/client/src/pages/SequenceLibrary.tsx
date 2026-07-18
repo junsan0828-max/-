@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Search, SlidersHorizontal, Users, Clock, Dumbbell, Download, X } from "lucide-react";
 
@@ -20,6 +21,11 @@ export default function SequenceLibrary() {
   const [equipment, setEquipment] = useState("");
   const [sort, setSort] = useState<"latest" | "popular">("latest");
   const [scope, setScope] = useState<"all" | "mine" | "imported">("all");
+
+  const createDraft = trpc.sequenceLab.createDraft.useMutation({
+    onSuccess: (res) => setLocation(`/sequences/${res.versionId}/edit`),
+    onError: (e) => toast.error(e.message),
+  });
 
   const { data, isLoading } = trpc.sequenceLab.libraryList.useQuery({
     search: search || undefined,
@@ -112,7 +118,7 @@ export default function SequenceLibrary() {
       ) : !data || data.length === 0 ? (
         <div className="text-center py-16 space-y-2">
           <p className="text-sm text-muted-foreground">조건에 맞는 시퀀스가 없어요.</p>
-          <button onClick={() => setLocation("/sequences/new")} className="text-xs font-semibold text-primary">첫 시퀀스를 작성해보세요 →</button>
+          <button onClick={() => createDraft.mutate()} disabled={createDraft.isPending} className="text-xs font-semibold text-primary disabled:opacity-50">첫 시퀀스를 작성해보세요 →</button>
         </div>
       ) : (
         <div className="space-y-2.5">

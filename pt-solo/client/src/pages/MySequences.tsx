@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { fmtDbDate, fmtDbDateTime } from "@/lib/dbDate";
 import { ArrowLeft, Plus, Coins, ArrowUp, ArrowDown, Gift } from "lucide-react";
 
 type TabKey = "draft" | "submitted" | "changes_requested" | "published" | "imported" | "archived" | "credits";
@@ -43,6 +44,18 @@ export default function MySequences() {
     { tab: tab === "credits" ? "draft" : tab },
     { enabled: tab !== "credits" }
   );
+
+  // 화면 진입 시 검토 결과 배지를 읽음 처리
+  const markAllNotified = trpc.sequenceLab.markAllNotified.useMutation({
+    onSuccess: () => utils.sequenceLab.unreadCount.invalidate(),
+  });
+  const marked = useRef(false);
+  useEffect(() => {
+    if (marked.current) return;
+    marked.current = true;
+    markAllNotified.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const createDraft = trpc.sequenceLab.createDraft.useMutation({
     onSuccess: (res) => setLocation(`/sequences/${res.versionId}/edit`),
@@ -97,7 +110,7 @@ export default function MySequences() {
               <div key={tx.id} className="flex items-center justify-between rounded-xl border border-border px-3.5 py-2.5">
                 <div>
                   <p className="text-xs font-semibold">{TX_TYPE_LABEL[tx.type] ?? tx.type}</p>
-                  <p className="text-[10px] text-muted-foreground">{new Date(tx.createdAt).toLocaleString("ko-KR")}</p>
+                  <p className="text-[10px] text-muted-foreground">{fmtDbDateTime(tx.createdAt)}</p>
                 </div>
                 <span className={`text-sm font-bold flex items-center gap-0.5 ${tx.amount > 0 ? "text-emerald-600" : "text-red-500"}`}>
                   {tx.amount > 0 ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
@@ -139,17 +152,10 @@ export default function MySequences() {
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${STATUS_META[r.status]?.cls ?? ""}`}>{STATUS_META[r.status]?.label ?? r.status}</span>
               </div>
               <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
-                <span>최근 수정 {new Date(r.updatedAt).toLocaleDateString("ko-KR")}</span>
+                <span>최근 수정 {fmtDbDate(r.updatedAt)}</span>
                 {tab === "published" && r.importCount != null && <span>· 가져간 횟수 {r.importCount}회</span>}
                 {tab === "imported" && r.originalAuthorName && <span>· 원본: {r.originalAuthorName}</span>}
               </div>
-              {tab === "archived" && (
-                <div className="mt-1">
-                  <span className="text-[10px] text-muted-foreground" onClick={(e) => { e.stopPropagation(); }}>
-                    보관됨
-                  </span>
-                </div>
-              )}
             </button>
           ))}
         </div>

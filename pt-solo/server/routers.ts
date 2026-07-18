@@ -3200,7 +3200,8 @@ const sequenceSectionSchema = z.object({
   exercises: z.array(sequenceExerciseSchema),
 });
 const sequenceContentSchema = z.object({
-  title: z.string().min(1),
+  // 임시저장은 제목 없이도 가능해야 함 — 제목 필수는 submitForReview에서만 강제
+  title: z.string(),
   shortDescription: z.string().optional(),
   publicDescription: z.string().optional(),
   category: z.string().optional(),
@@ -3219,19 +3220,22 @@ const sequenceContentSchema = z.object({
   sections: z.array(sequenceSectionSchema),
 });
 
-async function seqReplaceSectionsAndExercises(versionId: number, sections: { name: string; exercises: any[] }[]) {
-  await pool.query(`DELETE FROM sequence_exercises WHERE "sectionId" IN (SELECT id FROM sequence_sections WHERE "versionId"=$1)`, [versionId]);
-  await pool.query(`DELETE FROM sequence_sections WHERE "versionId"=$1`, [versionId]);
+// 트랜잭션 안에서도 재사용할 수 있도록 실행기를 주입받음 (기본은 pool)
+type SeqQueryable = { query: (text: string, params?: any[]) => Promise<any> };
+
+async function seqReplaceSectionsAndExercises(versionId: number, sections: { name: string; exercises: any[] }[], db: SeqQueryable = pool) {
+  await db.query(`DELETE FROM sequence_exercises WHERE "sectionId" IN (SELECT id FROM sequence_sections WHERE "versionId"=$1)`, [versionId]);
+  await db.query(`DELETE FROM sequence_sections WHERE "versionId"=$1`, [versionId]);
   for (let i = 0; i < sections.length; i++) {
     const sec = sections[i];
-    const secRow = await pool.query<{ id: number }>(
+    const secRow = await db.query(
       `INSERT INTO sequence_sections ("versionId","sortOrder",name) VALUES ($1,$2,$3) RETURNING id`,
       [versionId, i, sec.name]
     );
-    const sectionId = secRow.rows[0].id;
+    const sectionId = secRow.rows[0].id as number;
     for (let j = 0; j < sec.exercises.length; j++) {
       const ex = sec.exercises[j];
-      await pool.query(
+      await db.query(
         `INSERT INTO sequence_exercises ("sectionId","sortOrder",name,"stageLabel","durationOrReps",intensity,"restText","coachingCue","easyVariant","baseVariant","hardVariant",cautions)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [sectionId, j, ex.name, ex.stageLabel ?? null, ex.durationOrReps ?? null, ex.intensity ?? null, ex.restText ?? null,
@@ -3241,11 +3245,11 @@ async function seqReplaceSectionsAndExercises(versionId: number, sections: { nam
   }
 }
 
-async function seqGetSectionsWithExercises(versionId: number) {
-  const sections = await pool.query<any>(`SELECT * FROM sequence_sections WHERE "versionId"=$1 ORDER BY "sortOrder"`, [versionId]);
+async function seqGetSectionsWithExercises(versionId: number, db: SeqQueryable = pool) {
+  const sections = await db.query(`SELECT * FROM sequence_sections WHERE "versionId"=$1 ORDER BY "sortOrder"`, [versionId]);
   const result: any[] = [];
   for (const sec of sections.rows) {
-    const exercises = await pool.query<any>(`SELECT * FROM sequence_exercises WHERE "sectionId"=$1 ORDER BY "sortOrder"`, [sec.id]);
+    const exercises = await db.query(`SELECT * FROM sequence_exercises WHERE "sectionId"=$1 ORDER BY "sortOrder"`, [sec.id]);
     result.push({ ...sec, exercises: exercises.rows });
   }
   return result;
@@ -3287,10 +3291,16 @@ const sequenceLabRouter = t.router({
     return { count: Number(row.rows[0].count) };
   }),
 
-  markNotified: protectedProcedure.input(z.object({ versionId: z.number() })).mutation(async ({ ctx, input }) => {
+  // 내 시퀀스 화면 진입 시 호출 — 검토 결과 배지를 읽음 처리
+  markAllNotified: protectedProcedure.mutation(async ({ ctx }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    await pool.query(`UPDATE sequence_versions SET "authorNotifiedAt"=now()::text WHERE id=$1 AND "authorTrainerId"=$2`, [input.versionId, trainerId]);
+    await pool.query(
+      `UPDATE sequence_versions SET "authorNotifiedAt"=now()::text
+       WHERE "authorTrainerId"=$1 AND "authorNotifiedAt" IS NULL
+       AND status IN ('CHANGES_REQUESTED','PUBLISHED','REJECTED')`,
+      [trainerId]
+    );
     return { success: true };
   }),
 
@@ -3388,11 +3398,22 @@ const sequenceLabRouter = t.router({
   archive: protectedProcedure.input(z.object({ versionId: z.number() })).mutation(async ({ ctx, input }) => {
     const trainerId = ctx.user.trainerId;
     if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    const res = await pool.query(
-      `UPDATE sequence_versions SET status='ARCHIVED', "updatedAt"=now()::text WHERE id=$1 AND "authorTrainerId"=$2`,
+    const cur = await pool.query<{ status: string; sequenceId: number }>(
+      `SELECT status, "sequenceId" FROM sequence_versions WHERE id=$1 AND "authorTrainerId"=$2`,
       [input.versionId, trainerId]
     );
-    if (res.rowCount === 0) throw new TRPCError({ code: "NOT_FOUND" });
+    const row = cur.rows[0];
+    if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+    if (row.status === "SUBMITTED") throw new TRPCError({ code: "CONFLICT", message: "검토 중인 시퀀스는 먼저 신청을 철회해주세요." });
+    await pool.query(
+      `UPDATE sequence_versions SET status='ARCHIVED', "updatedAt"=now()::text WHERE id=$1`,
+      [input.versionId]
+    );
+    // 공개 중이던 버전을 보관하면 라이브러리에서도 내려간다
+    await pool.query(
+      `UPDATE sequences SET "publishedVersionId"=NULL, "updatedAt"=now()::text WHERE id=$1 AND "publishedVersionId"=$2`,
+      [row.sequenceId, input.versionId]
+    );
     return { success: true };
   }),
 
@@ -3457,6 +3478,8 @@ const sequenceLabRouter = t.router({
     );
     const version = verRows.rows[0];
     if (!version) throw new TRPCError({ code: "NOT_FOUND" });
+    // 검토 대상은 제출된 버전뿐 — 타인의 DRAFT/작성중 사본을 id 열거로 열람하는 것 차단
+    if (version.status !== "SUBMITTED") throw new TRPCError({ code: "NOT_FOUND" });
     const sections = await seqGetSectionsWithExercises(input.versionId);
     const reviews = await pool.query<any>(
       `SELECT * FROM sequence_reviews WHERE "versionId" IN
@@ -3478,6 +3501,10 @@ const sequenceLabRouter = t.router({
       const version = cur.rows[0];
       if (!version) throw new TRPCError({ code: "NOT_FOUND" });
       if (version.status !== "SUBMITTED") throw new TRPCError({ code: "CONFLICT", message: "검토 대기 상태가 아닙니다." });
+      // 본인 시퀀스 셀프 검토 차단 — 리뷰어가 자기 시퀀스를 승인해 공유권을 자가 지급하는 루프홀 방지
+      if (reviewerTrainerId && version.authorTrainerId === reviewerTrainerId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인이 작성한 시퀀스는 직접 검토할 수 없습니다." });
+      }
 
       const reviewerLabel = ctx.user!.role === "admin" ? "관리자" : "리뷰어";
       await pool.query(
@@ -3497,6 +3524,12 @@ const sequenceLabRouter = t.router({
         );
       } else {
         // 승인 = 즉시 공개 (MVP에서는 APPROVED를 별도 대기 상태로 두지 않음)
+        // 리비전 승인 시 이전 공개 버전은 보관 처리 — PUBLISHED 중복 누적 방지
+        await pool.query(
+          `UPDATE sequence_versions SET status='ARCHIVED', "updatedAt"=now()::text
+           WHERE "sequenceId"=$1 AND status='PUBLISHED' AND id != $2`,
+          [version.sequenceId, input.versionId]
+        );
         await pool.query(
           `UPDATE sequence_versions SET status='PUBLISHED', "reviewedAt"=now()::text, "authorNotifiedAt"=NULL, "updatedAt"=now()::text WHERE id=$1`,
           [input.versionId]
@@ -3536,7 +3569,7 @@ const sequenceLabRouter = t.router({
     return { success: true };
   }),
   adminGrantCredit: adminProcedure
-    .input(z.object({ trainerId: z.number(), amount: z.number(), memo: z.string().optional() }))
+    .input(z.object({ trainerId: z.number().int(), amount: z.number().int().min(-1000).max(1000), memo: z.string().optional() }))
     .mutation(async ({ input }) => {
       await pool.query(
         `INSERT INTO sequence_credit_transactions ("trainerId",amount,type,memo) VALUES ($1,$2,$3,$4)`,
@@ -3646,60 +3679,66 @@ const sequenceLabRouter = t.router({
     if (!sequence || !sequence.publishedVersionId) throw new TRPCError({ code: "NOT_FOUND" });
     if (sequence.authorTrainerId === trainerId) throw new TRPCError({ code: "BAD_REQUEST", message: "자신의 시퀀스는 공유권 없이 바로 이용할 수 있습니다." });
 
-    const existing = (await pool.query<{ copySequenceId: number; copyVersionId: number }>(
-      `SELECT "copySequenceId", "copyVersionId" FROM sequence_imports WHERE "importerTrainerId"=$1 AND "sourceSequenceId"=$2`, [trainerId, input.sequenceId]
-    )).rows[0];
-    if (existing) return { copySequenceId: existing.copySequenceId, copyVersionId: existing.copyVersionId, alreadyImported: true };
+    // 중복 확인 → 잔액 확인 → 사본 생성 → 차감을 하나의 트랜잭션으로 묶는다.
+    // 트레이너별 어드바이저리 락으로 같은 트레이너의 동시 가져오기(서로 다른 시퀀스 포함)를
+    // 직렬화해 공유권 잔액이 음수가 되는 것을 막고, 중간 실패 시 부분 생성된 사본도 남지 않는다.
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext('seqlab_credit'), $1::int)`, [trainerId]);
 
-    const balRow = await pool.query<{ balance: string }>(
-      `SELECT COALESCE(SUM(amount),0) AS balance FROM sequence_credit_transactions WHERE "trainerId"=$1`, [trainerId]
-    );
-    if (Number(balRow.rows[0].balance) < 1) throw new TRPCError({ code: "FORBIDDEN", message: "공유권이 부족합니다." });
+      const dup = await client.query(
+        `SELECT "copySequenceId", "copyVersionId" FROM sequence_imports WHERE "importerTrainerId"=$1 AND "sourceSequenceId"=$2`,
+        [trainerId, input.sequenceId]
+      );
+      if (dup.rows[0]) {
+        await client.query("ROLLBACK");
+        return { copySequenceId: dup.rows[0].copySequenceId as number, copyVersionId: dup.rows[0].copyVersionId as number, alreadyImported: true };
+      }
 
-    const srcVersion = (await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [sequence.publishedVersionId])).rows[0];
-    const srcSections = await seqGetSectionsWithExercises(sequence.publishedVersionId);
+      const balRow = await client.query(
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM sequence_credit_transactions WHERE "trainerId"=$1`, [trainerId]
+      );
+      if (Number(balRow.rows[0].balance) < 1) throw new TRPCError({ code: "FORBIDDEN", message: "공유권이 부족합니다." });
 
-    const newSeqId = (await pool.query<{ id: number }>(
-      `INSERT INTO sequences ("authorTrainerId","sourceSequenceId","sourceVersionId") VALUES ($1,$2,$3) RETURNING id`,
-      [trainerId, sequence.id, sequence.publishedVersionId]
-    )).rows[0].id;
-    const newVersionId = (await pool.query<{ id: number }>(
-      `INSERT INTO sequence_versions
-       ("sequenceId","authorTrainerId","versionNumber",status,title,"shortDescription","publicDescription",category,"bodyParts","movementType","targetAudience",difficulty,"estimatedMinutes",equipment,tags,"classGoal","preCheckItems","postCheckItems","coachingNotes","authorNotifiedAt")
-       VALUES ($1,$2,1,'DRAFT',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()::text) RETURNING id`,
-      [newSeqId, trainerId, srcVersion.title, srcVersion.shortDescription, srcVersion.publicDescription, srcVersion.category,
-       srcVersion.bodyParts, srcVersion.movementType, srcVersion.targetAudience, srcVersion.difficulty, srcVersion.estimatedMinutes,
-       srcVersion.equipment, srcVersion.tags, srcVersion.classGoal, srcVersion.preCheckItems, srcVersion.postCheckItems, srcVersion.coachingNotes]
-    )).rows[0].id;
-    await seqReplaceSectionsAndExercises(newVersionId, srcSections.map((s: any) => ({ name: s.name, exercises: s.exercises })));
+      const srcVersion = (await client.query(`SELECT * FROM sequence_versions WHERE id=$1`, [sequence.publishedVersionId])).rows[0];
+      const srcSections = await seqGetSectionsWithExercises(sequence.publishedVersionId, client);
 
-    // UNIQUE(importerTrainerId, sourceSequenceId)가 유일한 진짜 동시성 가드 — 여기서 이기는 요청만 과금
-    const importRes = await pool.query<{ id: number }>(
-      `INSERT INTO sequence_imports ("importerTrainerId","sourceSequenceId","sourceVersionId","copySequenceId","copyVersionId")
-       VALUES ($1,$2,$3,$4,$5) ON CONFLICT ("importerTrainerId","sourceSequenceId") DO NOTHING RETURNING id`,
-      [trainerId, sequence.id, sequence.publishedVersionId, newSeqId, newVersionId]
-    );
+      const newSeqId = (await client.query(
+        `INSERT INTO sequences ("authorTrainerId","sourceSequenceId","sourceVersionId") VALUES ($1,$2,$3) RETURNING id`,
+        [trainerId, sequence.id, sequence.publishedVersionId]
+      )).rows[0].id as number;
+      const newVersionId = (await client.query(
+        `INSERT INTO sequence_versions
+         ("sequenceId","authorTrainerId","versionNumber",status,title,"shortDescription","publicDescription",category,"bodyParts","movementType","targetAudience",difficulty,"estimatedMinutes",equipment,tags,"classGoal","preCheckItems","postCheckItems","coachingNotes","authorNotifiedAt")
+         VALUES ($1,$2,1,'DRAFT',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()::text) RETURNING id`,
+        [newSeqId, trainerId, srcVersion.title, srcVersion.shortDescription, srcVersion.publicDescription, srcVersion.category,
+         srcVersion.bodyParts, srcVersion.movementType, srcVersion.targetAudience, srcVersion.difficulty, srcVersion.estimatedMinutes,
+         srcVersion.equipment, srcVersion.tags, srcVersion.classGoal, srcVersion.preCheckItems, srcVersion.postCheckItems, srcVersion.coachingNotes]
+      )).rows[0].id as number;
+      await seqReplaceSectionsAndExercises(newVersionId, srcSections.map((s: any) => ({ name: s.name, exercises: s.exercises })), client);
 
-    if (importRes.rows.length === 0) {
-      // 경쟁 상태: 동시 요청이 먼저 성공 — 방금 만든 사본은 버리고 기존 것을 반환, 과금하지 않음
-      await pool.query(`DELETE FROM sequence_exercises WHERE "sectionId" IN (SELECT id FROM sequence_sections WHERE "versionId"=$1)`, [newVersionId]);
-      await pool.query(`DELETE FROM sequence_sections WHERE "versionId"=$1`, [newVersionId]);
-      await pool.query(`DELETE FROM sequence_versions WHERE id=$1`, [newVersionId]);
-      await pool.query(`DELETE FROM sequences WHERE id=$1`, [newSeqId]);
-      const winner = (await pool.query<{ copySequenceId: number; copyVersionId: number }>(
-        `SELECT "copySequenceId", "copyVersionId" FROM sequence_imports WHERE "importerTrainerId"=$1 AND "sourceSequenceId"=$2`, [trainerId, input.sequenceId]
-      )).rows[0];
-      return { copySequenceId: winner.copySequenceId, copyVersionId: winner.copyVersionId, alreadyImported: true };
+      // UNIQUE 제약은 DB 차원의 최후 방어선으로 유지 (락 덕분에 정상 경로에서는 충돌 불가)
+      const importRes = await client.query(
+        `INSERT INTO sequence_imports ("importerTrainerId","sourceSequenceId","sourceVersionId","copySequenceId","copyVersionId")
+         VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+        [trainerId, sequence.id, sequence.publishedVersionId, newSeqId, newVersionId]
+      );
+      await client.query(
+        `INSERT INTO sequence_credit_transactions ("trainerId",amount,type,"relatedSequenceId","relatedImportId",memo)
+         VALUES ($1,-1,'import_spend',$2,$3,'시퀀스 가져오기')`,
+        [trainerId, sequence.id, importRes.rows[0].id]
+      );
+      await client.query(`UPDATE sequences SET "importCount" = "importCount" + 1 WHERE id=$1`, [sequence.id]);
+
+      await client.query("COMMIT");
+      return { copySequenceId: newSeqId, copyVersionId: newVersionId, alreadyImported: false };
+    } catch (e) {
+      try { await client.query("ROLLBACK"); } catch {}
+      throw e;
+    } finally {
+      client.release();
     }
-
-    await pool.query(
-      `INSERT INTO sequence_credit_transactions ("trainerId",amount,type,"relatedSequenceId","relatedImportId",memo)
-       VALUES ($1,-1,'import_spend',$2,$3,'시퀀스 가져오기')`,
-      [trainerId, sequence.id, importRes.rows[0].id]
-    );
-    await pool.query(`UPDATE sequences SET "importCount" = "importCount" + 1 WHERE id=$1`, [sequence.id]);
-
-    return { copySequenceId: newSeqId, copyVersionId: newVersionId, alreadyImported: false };
   }),
 
   // ── 트레이닝 일지 연동 ──────────────────────────────────────────────────

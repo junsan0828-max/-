@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { fmtDbDate } from "@/lib/dbDate";
 import { ArrowLeft, Users, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 
 interface Props {
@@ -66,7 +67,7 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
           <p className="text-xs font-semibold text-foreground/70">이전 검토 이력</p>
           {reviews.map((r: any) => (
             <div key={r.id} className="text-xs rounded-lg bg-accent/30 px-3 py-2">
-              <p className="font-semibold">{r.reviewerLabel} · {r.decision === "approved" ? "승인" : r.decision === "changes_requested" ? "수정 요청" : "거절"} · {new Date(r.createdAt).toLocaleDateString("ko-KR")}</p>
+              <p className="font-semibold">{r.reviewerLabel} · {r.decision === "approved" ? "승인" : r.decision === "changes_requested" ? "수정 요청" : "거절"} · {fmtDbDate(r.createdAt)}</p>
               {r.feedback && <p className="text-muted-foreground mt-0.5 whitespace-pre-wrap">{r.feedback}</p>}
             </div>
           ))}

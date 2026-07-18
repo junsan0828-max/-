@@ -4,6 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { fmtDbDate } from "@/lib/dbDate";
 import { ArrowLeft, Users, Clock, ShieldPlus, X } from "lucide-react";
 
 export default function AdminSequenceReview() {
@@ -91,7 +92,7 @@ export default function AdminSequenceReview() {
               <p className="text-sm font-bold truncate">{v.title || "(제목 없음)"}</p>
               <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1"><Users className="h-3 w-3" />{v.authorName}</span>
-                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />신청: {new Date(v.submittedAt).toLocaleDateString("ko-KR")}</span>
+                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />신청: {fmtDbDate(v.submittedAt)}</span>
               </div>
             </button>
           ))}

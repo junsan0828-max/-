@@ -122,7 +122,7 @@ export default function SequenceMaker({ versionId }: Props) {
 
   function setF<K extends keyof typeof form>(k: K, v: string) { setForm(f => ({ ...f, [k]: v })); setDirty(true); }
 
-  function doSave(showToast = true) {
+  function doSave(showToast = true, onSaved?: () => void) {
     updateDraft.mutate(
       {
         versionId,
@@ -135,7 +135,7 @@ export default function SequenceMaker({ versionId }: Props) {
         coachingNotes: form.coachingNotes || undefined, authorMemo: form.authorMemo || undefined,
         sections: sections.map(s => ({ name: s.name, exercises: s.exercises })),
       },
-      { onSuccess: () => { if (showToast) toast.success("임시저장했습니다."); } }
+      { onSuccess: () => { if (showToast) toast.success("임시저장했습니다."); onSaved?.(); } }
     );
   }
 
@@ -373,7 +373,9 @@ export default function SequenceMaker({ versionId }: Props) {
           <Button variant="outline" className="flex-1" onClick={() => doSave(true)} disabled={updateDraft.isPending}>
             <Save className="h-4 w-4 mr-1.5" />임시저장
           </Button>
-          <Button className="flex-1" onClick={() => { doSave(false); submitForReview.mutate({ versionId }); }} disabled={submitForReview.isPending || isImportedCopy || !form.title.trim()}>
+          <Button className="flex-1"
+            onClick={() => doSave(false, () => submitForReview.mutate({ versionId }))}
+            disabled={updateDraft.isPending || submitForReview.isPending || isImportedCopy || !form.title.trim()}>
             <Send className="h-4 w-4 mr-1.5" />등록 검토 신청
           </Button>
         </div>
