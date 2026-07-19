@@ -803,6 +803,13 @@ const membersRouter = t.router({
       await db.delete(ptSessionLogs).where(eq(ptSessionLogs.memberId, input.id));
       await db.delete(ptPackages).where(eq(ptPackages.memberId, input.id));
       await db.delete(revenueEntries).where(eq(revenueEntries.memberId, input.id));
+      // 배정된 락커는 비우고(락커 자체는 자산이므로 삭제 대신 해제), 운동복 대여는 반납 처리
+      await db.update(lockers)
+        .set({ memberId: null, memberName: null, memberPhone: null, isOccupied: 0, startDate: null, endDate: null, rentalType: null, updatedAt: new Date().toISOString() })
+        .where(eq(lockers.memberId, input.id));
+      await db.update(uniforms)
+        .set({ isActive: 0, updatedAt: new Date().toISOString() })
+        .where(eq(uniforms.memberId, input.id));
       await db.delete(members).where(eq(members.id, input.id));
       return { success: true };
     }),

@@ -1756,15 +1756,22 @@ const kpiRouter = t.router({
       const monthsCount = input?.months ?? 6;
       const branchId = input?.branchId ?? null;
 
-      // 최근 N개월 구간 생성 (월별 매출 차트와 동일한 방식)
+      // 최근 N개월 구간 생성 — KST 기준. UTC(toISOString)로 계산하면 한국시간 매월 1일
+      // 오전(00~09시)에 "이번달"이 지난달로 밀린다.
+      const [curY, curM] = kstDate().split("-").map(Number);
       const periods: { label: string; start: string; end: string }[] = [];
       for (let i = monthsCount - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(1);
-        d.setMonth(d.getMonth() - i);
-        const start = d.toISOString().split("T")[0];
-        const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split("T")[0];
-        periods.push({ label: `${d.getMonth() + 1}월`, start, end });
+        const total = curY * 12 + (curM - 1) - i;
+        const y = Math.floor(total / 12);
+        const m = (total % 12) + 1;
+        const nextTotal = total + 1;
+        const ny = Math.floor(nextTotal / 12);
+        const nm = (nextTotal % 12) + 1;
+        periods.push({
+          label: `${m}월`,
+          start: `${y}-${String(m).padStart(2, "0")}-01`,
+          end: `${ny}-${String(nm).padStart(2, "0")}-01`,
+        });
       }
 
       const bM = branchId != null;

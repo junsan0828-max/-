@@ -1178,6 +1178,32 @@ async function initDatabase() {
     console.error("삭제된 회원 고아 매출 정리 오류:", e);
   }
 
+  // ── 삭제된 회원에게 배정된 채 남은 락커/운동복 정리 ──────────────────────────
+  // 과거 회원 삭제가 락커·운동복을 정리하지 않아(지금은 delete가 함께 해제/반납 처리),
+  // 존재하지 않는 memberId를 가리키는 배정이 남아 락커 현황·운동복 목록에 유령으로 잡혔다.
+  // memberId가 실제 회원 테이블에 없는 배정만 대상으로 하므로 실회원 데이터는 건드리지 않는다.
+  try {
+    const freedLockers = await pool.query(`
+      UPDATE lockers
+      SET "memberId" = NULL, "memberName" = NULL, "memberPhone" = NULL,
+          "isOccupied" = 0, "startDate" = NULL, "endDate" = NULL, "rentalType" = NULL,
+          "updatedAt" = now()::text
+      WHERE "memberId" IS NOT NULL
+        AND "memberId" NOT IN (SELECT id FROM members)
+    `);
+    const returnedUniforms = await pool.query(`
+      UPDATE uniforms
+      SET "isActive" = 0, "updatedAt" = now()::text
+      WHERE "isActive" = 1
+        AND "memberId" IS NOT NULL
+        AND "memberId" NOT IN (SELECT id FROM members)
+    `);
+    const n = (freedLockers.rowCount ?? 0) + (returnedUniforms.rowCount ?? 0);
+    if (n > 0) console.log(`🧹 삭제된 회원 잔여 배정 정리: 락커 해제 ${freedLockers.rowCount ?? 0}건 / 운동복 반납 ${returnedUniforms.rowCount ?? 0}건`);
+  } catch (e) {
+    console.error("삭제된 회원 잔여 락커/운동복 정리 오류:", e);
+  }
+
   // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
   // revenueEntryId로 1:1 연결하여 서버 재시작 시 중복 생성 완전 방지
   try {
