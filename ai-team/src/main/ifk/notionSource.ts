@@ -155,7 +155,7 @@ async function buildArticleFromPage(page: any): Promise<IfkArticle> {
     } else if (section === "subtitle") {
       subtitleLines.push(richTextToPlain(richText));
     } else if (section === "body") {
-      bodyParagraphs.push(`<p>${richTextToHtml(richText)}</p>`);
+      bodyParagraphs.push(`<p style="margin:0 0 1em 0;">${richTextToHtml(richText)}</p>`);
     }
   }
 
@@ -165,8 +165,8 @@ async function buildArticleFromPage(page: any): Promise<IfkArticle> {
   if (image) {
     const dataUri = `data:${guessMime(image.filename)};base64,${image.buffer.toString("base64")}`;
     bodyParagraphs.unshift(
-      `<p><img src="${dataUri}" style="max-width:100%;"></p>`,
-      `<p style="color:#888;font-size:13px;">이미지=AI</p>`
+      `<p style="margin:0 0 0.3em 0;"><img src="${dataUri}" style="max-width:100%;max-height:420px;"></p>`,
+      `<p style="color:#888;font-size:13px;margin:0 0 1em 0;">이미지=AI</p>`
     );
   }
 

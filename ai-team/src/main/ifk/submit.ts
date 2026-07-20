@@ -8,9 +8,9 @@
 import { chromium, Page } from "playwright";
 import { IfkArticle } from "./notionSource";
 import { IfkReporter } from "./reporters";
+import { nextSecondarySection } from "./sectionRotation";
 
 const SECTION_FITNESS_NEWS = "20140925141441_2377"; // 1차섹션 = 피트니스뉴스
-const SECTION_INDUSTRY_NEWS = "20140925151000_1727"; // 2차섹션 = 업계소식 (1차=피트니스뉴스일 때만 노출)
 
 // 출력형태: 메인면(main_*) 체크박스만 대상 — 서브면(sub_*)은 사용하지 않기로 함
 const MAIN_POSITIONS = [
@@ -71,10 +71,10 @@ export async function submitIfkArticleAsPending(
     // 뉴스등급 = 주요뉴스 (출력형태 섹션이 이 클릭으로 나타남)
     await page.check("#wr_level_1");
 
-    // 섹션 = 피트니스뉴스(1차) / 업계소식(2차, 1차 선택 후 AJAX로 채워짐)
+    // 섹션 = 피트니스뉴스(1차) / NEWS·업계소식 순번 로테이션(2차, 1차 선택 후 AJAX로 채워짐)
     await page.selectOption("#wr_code", SECTION_FITNESS_NEWS);
     await page.waitForTimeout(800);
-    await page.selectOption("#wr_d_code", SECTION_INDUSTRY_NEWS);
+    await page.selectOption("#wr_d_code", nextSecondarySection());
 
     // 작성자 (로테이션으로 배정된 기존 기자 계정)
     await page.fill("#wr_name", reporter.name);
