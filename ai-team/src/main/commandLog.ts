@@ -48,3 +48,9 @@ export function getRecentCommands(agentId: string, limit = 8): CommandLogEntry[]
   const forAgent = loadAll().filter((e) => e.agentId === agentId);
   return forAgent.slice(-limit);
 }
+
+/** 오늘(KST) 팀원 전체에게 내려진 지시 이력을 시간순으로 돌려준다. 사업 일지의 "진행한 일" 재료로 쓴다. */
+export function getTodaysCommands(): CommandLogEntry[] {
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+  return loadAll().filter((e) => new Date(e.at).toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" }) === today);
+}

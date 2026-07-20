@@ -10,10 +10,12 @@ import { generateContentIdeas } from "./luna";
 import { markContacted } from "./store";
 import { sendSms } from "./aligo";
 import { runCommand } from "./commander";
-import { pushDailyReport, pushPayrollReport, pushRepoReport } from "./notion";
+import { pushDailyReport, pushPayrollReport, pushRepoReport, pushJournalEntry } from "./notion";
 import { buildIndex, backupSpreadsheets } from "./drive/archive";
 import { runPayroll, writePayrollSheet } from "./payroll";
 import { runRepo, saveRepoResult, loadRepoResult, previousYearMonth } from "./repo";
+import { runJournal } from "./journal";
+import { runIfkJob } from "./ifk";
 import { getRecentCommands } from "./commandLog";
 import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
 
@@ -161,6 +163,40 @@ async function runRepoJob(reason: string) {
   }
 }
 
+// 사업 일지: 매일 밤, 그날 앱에서 진행된 일 + 데이터를 묶어 노션 "사업 일지"에 기록.
+async function runJournalJob(reason: string) {
+  send("log", `제이가 오늘의 사업 일지를 정리하고 있어요 (${reason})`);
+  agentState("jay", "working");
+  try {
+    const entry = await runJournal();
+    send("log", "사업 일지 정리 완료");
+    agentState("jay", "done", "오늘의 사업 일지 완료!");
+    const notion = await pushJournalEntry(entry);
+    send("log", notion.ok ? "노션에 사업 일지 저장 완료" : `노션 저장 안 함: ${notion.error}`);
+  } catch (err: any) {
+    send("log", `사업 일지 오류: ${err?.message ?? err}`);
+    agentState("jay", "done", "오류 발생");
+  }
+}
+
+async function runIfkJobWrapper(reason: string) {
+  send("log", `피트니스경영신문 기사 등록대기를 시작했어요 (${reason})`);
+  try {
+    const result = await runIfkJob();
+    if (result.skipped) {
+      send("log", `IFK 기사 건너뜀: ${result.error}`);
+      return;
+    }
+    if (!result.ok) {
+      send("log", `IFK 기사 등록대기 실패: ${result.error}`);
+      return;
+    }
+    send("log", `IFK 기사 등록대기 완료 — "${result.title}" (작성자: ${result.reporterName})`);
+  } catch (err: any) {
+    send("log", `IFK 기사 오류: ${err?.message ?? err}`);
+  }
+}
+
 function setupTray() {
   try {
     const iconPath = join(__dirname, "..", "..", "assets", "tray-icon.png");
@@ -172,6 +208,7 @@ function setupTray() {
         { label: "지금 분석", click: () => runJay("트레이 수동") },
         { label: "급여 정산 지금 실행", click: () => runPayrollJob("트레이 수동") },
         { label: "전략 리포트 지금 실행", click: () => runRepoJob("트레이 수동") },
+        { label: "사업 일지 지금 작성", click: () => runJournalJob("트레이 수동") },
         { type: "separator" },
         { label: "종료", click: () => app.quit() },
       ])
@@ -202,6 +239,7 @@ app.whenReady().then(() => {
   ipcMain.handle("get-command-history", (_e, agentId: string) => getRecentCommands(agentId, 20));
   ipcMain.handle("get-repo-report", () => loadRepoResult(previousYearMonth()));
   ipcMain.handle("run-repo-now", () => runRepoJob("수동 실행"));
+  ipcMain.handle("run-journal-now", () => runJournalJob("수동 실행"));
   ipcMain.handle("get-task-progress", () => getTaskProgress());
   ipcMain.handle("toggle-task-progress", (_e, id: string) => toggleTaskProgress(id));
   ipcMain.handle("get-team-roles", () => {
@@ -267,6 +305,18 @@ app.whenReady().then(() => {
   const repoSpec = process.env.REPO_CRON || "0 9 1 * *";
   if (cron.validate(repoSpec)) {
     cron.schedule(repoSpec, () => runRepoJob("매월 1일 예약"));
+  }
+
+  // 사업 일지: 매일 밤 22:00 (기본값), 그날 하루 마감 정리
+  const journalSpec = process.env.JOURNAL_CRON || "0 22 * * *";
+  if (cron.validate(journalSpec)) {
+    cron.schedule(journalSpec, () => runJournalJob("매일 22시 예약"));
+  }
+
+  // 피트니스경영신문(IFK) 기사 등록대기: 매일 11:00 (기본값)
+  const ifkSpec = process.env.IFK_CRON || "0 11 * * *";
+  if (cron.validate(ifkSpec)) {
+    cron.schedule(ifkSpec, () => runIfkJobWrapper("매일 11시 예약"));
   }
 
   app.on("activate", () => {

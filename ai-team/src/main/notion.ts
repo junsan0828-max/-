@@ -7,6 +7,7 @@ import { FunnelResult } from "./dataAgent";
 import { ContentResult } from "./luna";
 import { PayrollResult } from "./payroll";
 import { RepoResult } from "./repo";
+import { JournalEntry } from "./journal";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -256,6 +257,38 @@ export async function pushRepoReport(result: RepoResult): Promise<NotionPushResu
       }),
     });
     if (children.length > 100) await appendRemainingBlocks(page.id, children.slice(100));
+
+    return { ok: true, url: page.url };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** 사업 일지를 노션 "사업 일지" 데이터베이스에 하루 한 페이지로 기록한다.
+ * 별도 데이터베이스(NOTION_JOURNAL_DATABASE_ID)를 쓴다 — 브리핑/급여/리포용 DB와는 분리. */
+export async function pushJournalEntry(entry: JournalEntry): Promise<NotionPushResult> {
+  const databaseId = process.env.NOTION_JOURNAL_DATABASE_ID;
+  if (!databaseId) {
+    return { ok: false, error: "노션 사업 일지 미설정 (.env에 NOTION_JOURNAL_DATABASE_ID 필요)" };
+  }
+
+  try {
+    const richText = (text: string) => ({ rich_text: [{ text: { content: text.slice(0, 2000) } }] });
+    const page = await notionFetch("/pages", {
+      method: "POST",
+      body: JSON.stringify({
+        parent: { database_id: databaseId },
+        properties: {
+          "제목": { title: [{ text: { content: `${entry.dateLabel} 사업 일지` } }] },
+          "날짜": { date: { start: entry.dateLabel } },
+          "진행한 일": richText(entry.progress),
+          "성과": richText(entry.achievements),
+          "현황": richText(entry.status),
+          "보완할 점": richText(entry.improvements),
+          "내일 할 일": richText(entry.tomorrow),
+        },
+      }),
+    });
 
     return { ok: true, url: page.url };
   } catch (err) {

@@ -25,4 +25,5 @@ contextBridge.exposeInMainWorld("jay", {
   onRepo: (cb: (repo: unknown) => void) => ipcRenderer.on("repo", (_e, r) => cb(r)),
   getRepoReport: () => ipcRenderer.invoke("get-repo-report"),
   runRepoNow: () => ipcRenderer.invoke("run-repo-now"),
+  runJournalNow: () => ipcRenderer.invoke("run-journal-now"),
 });

@@ -12,6 +12,7 @@
     "payroll": "tsx src/payroll-cli.ts",
     "command": "tsx src/command-cli.ts",
     "attach-log": "tsx src/attach-log-cli.ts",
+    "ifk": "tsx src/ifk-cli.ts",
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",
     "dev": "npm run build && electron ."
@@ -28,6 +29,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.20.0",
     "electron": "^32.0.0",
+    "playwright": "^1.61.1",
     "tsx": "^4.15.6",
     "typescript": "^5.4.5"
   }
