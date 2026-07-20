@@ -3,6 +3,49 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import GymPlusOnboarding from "./GymPlusOnboarding";
 
+function daysUntil(dateStr: string | null | undefined) {
+  if (!dateStr) return null;
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
+}
+
+function ExpiredMembershipModal({ onRenew, onLogout }: { onRenew: () => void; onLogout: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-5">
+      <div className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-5 shadow-2xl">
+        <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.8} stroke="currentColor" className="w-7 h-7 text-red-500">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+        </div>
+        <div className="text-center space-y-1.5">
+          <h2 className="text-lg font-bold text-[#1a2b4b]">이용권이 만료되었습니다</h2>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            회원권 만료로 앱 서비스 이용이 제한됩니다.<br />
+            계속 이용하시려면 재등록이 필요합니다.
+          </p>
+        </div>
+        <div className="bg-gray-50 rounded-2xl p-3.5 text-center">
+          <p className="text-xs text-gray-500">문의사항은 헬스장 데스크로 연락 주세요</p>
+        </div>
+        <div className="space-y-2">
+          <button
+            onClick={onRenew}
+            className="w-full h-11 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold hover:bg-[#1a43c0] transition-colors"
+          >
+            재등록하기
+          </button>
+          <button
+            onClick={onLogout}
+            className="w-full h-10 rounded-xl text-gray-400 text-xs font-medium hover:text-gray-600 transition-colors"
+          >
+            로그아웃
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const navItems = [
   {
     path: "/gym-plus",
@@ -74,12 +117,21 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
     !health?.gymRulesAgreed || !health?.appGuideConfirmed || !health?.parqSubmittedAt
   );
 
+  const daysLeft = daysUntil(me?.membershipEnd);
+  // 만료된 회원은 '인포데스크(프로필)' 탭에서만 재등록을 진행할 수 있도록 다른 기능은 모달로 차단
+  const isExpired = daysLeft !== null && daysLeft < 0;
+  const showExpiredBlock = isExpired && location !== "/gym-plus/profile";
+
   const logoutMutation = trpc.gymPlus.memberLogout.useMutation({
     onSuccess: () => {
       utils.gymPlus.memberMe.invalidate();
       navigate("/gym-plus/login");
     },
   });
+
+  const handleRenewFromBlock = () => {
+    navigate("/gym-plus/profile?renew=1");
+  };
 
   const handleNav = (path: string) => {
     navigate(path);
@@ -119,6 +171,14 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
         <GymPlusOnboarding
           health={health ?? null}
           onComplete={() => { setOnboardingDone(true); utils.gymPlus.getHealth.invalidate(); }}
+        />
+      )}
+
+      {/* 회원권 만료 차단 모달 (인포데스크 탭 제외 전 기능 제한) */}
+      {!needsOnboarding && showExpiredBlock && (
+        <ExpiredMembershipModal
+          onRenew={handleRenewFromBlock}
+          onLogout={() => logoutMutation.mutate()}
         />
       )}
 

@@ -406,6 +406,18 @@ export default function GymPlusProfile() {
     setSignatureData("");
   };
 
+  // 만료 차단 모달의 '재등록하기'(→ /gym-plus/profile?renew=1)로 진입 시 재등록 신청을 자동으로 연다
+  const autoRenewTriggered = useRef(false);
+  useEffect(() => {
+    if (autoRenewTriggered.current || !member) return;
+    if (new URLSearchParams(window.location.search).get("renew") === "1") {
+      autoRenewTriggered.current = true;
+      setActiveTab("info");
+      openRenewal();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [member]);
+
   const submitRenewal = () => {
     if (!signatureData) { toast.error("서명을 완료해 주세요."); return; }
     const bonus = getRenewalBonus(daysLeft);
