@@ -1392,6 +1392,22 @@ async function initDatabase() {
     `);
     if ((resynced.rowCount ?? 0) > 0) console.log(`💰 매출-패키지 결제금액 재동기화: ${resynced.rowCount}건`);
 
+    // 2-b-2) 세션수가 명백히 다른 매출에 잘못 연결된 revenueEntryId 해제.
+    // 과거 "패키지↔매출 연결" 백필이 회원별로 날짜가 가장 가까운 매출을 고르는 방식이라,
+    // 패키지가 여러 개인 회원은 서로 다른 매출에 잘못 엇갈려 연결될 수 있었다(박종범 사례:
+    // 케어피티 30회 패키지가 이벤트피티 3회 매출에 연결되어 결제금액이 뒤바뀜). 세션수가
+    // 객관적으로 안 맞는 연결만 끊어서, 아래 2-c가 정확한 매출로 다시 이어붙이게 한다.
+    const wrongLinks = await pool.query(`
+      UPDATE pt_packages p
+      SET "revenueEntryId" = NULL
+      FROM revenue_entries r
+      WHERE p."revenueEntryId" = r.id
+        AND r.type = 'PT'
+        AND r.sessions IS NOT NULL
+        AND r.sessions <> (p."totalSessions" - COALESCE(p."serviceSessions", 0))
+    `);
+    if ((wrongLinks.rowCount ?? 0) > 0) console.log(`🔓 세션수 불일치 매출-패키지 오연결 해제: ${wrongLinks.rowCount}건`);
+
     // 2-c) revenueEntryId가 아예 안 걸린 패키지(gym.register 등록 경로로 생긴 패키지는 원래
     // revenueEntryId를 안 채움)도 memberId+시작일+세션수로 매출을 찾아 결제금액을 맞춘다.
     // (양희정 사례: 자동입력된 금액으로 한 번 저장 후 실제 금액으로 재등록했는데 패키지가
