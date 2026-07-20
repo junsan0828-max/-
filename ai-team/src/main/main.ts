@@ -11,6 +11,7 @@ import { markContacted } from "./store";
 import { sendSms } from "./aligo";
 import { runCommand } from "./commander";
 import { pushDailyReport, pushPayrollReport, pushRepoReport, pushJournalEntry } from "./notion";
+import { pushDailyBriefingKakao } from "./kakao";
 import { buildIndex, backupSpreadsheets } from "./drive/archive";
 import { runPayroll, writePayrollSheet } from "./payroll";
 import { runRepo, saveRepoResult, loadRepoResult, previousYearMonth } from "./repo";
@@ -92,6 +93,10 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     // Notion: 오늘의 브리핑을 기록 (설정된 경우에만, 실패해도 앱 동작에는 영향 없음)
     const notion = await pushDailyReport(result, mina, funnel, content);
     send("log", notion.ok ? "노션에 브리핑 저장 완료" : `노션 저장 안 함: ${notion.error}`);
+
+    // 카카오톡: "나에게 보내기"로 브리핑 발송 (설정된 경우에만, 실패해도 앱 동작에는 영향 없음)
+    const kakao = await pushDailyBriefingKakao(result, mina, funnel, content);
+    send("log", kakao.ok ? "카카오톡으로 브리핑 발송 완료" : `카카오톡 발송 안 함: ${kakao.error}`);
 
     // 드라이브: 재무·회원 스프레드시트를 로컬에 백업 (인증 안 돼 있으면 조용히 건너뜀)
     try {
