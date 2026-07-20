@@ -3042,13 +3042,16 @@ const PREVIEW_FEATURES = [
 ];
 
 // ── 플랜 tier 매핑 ────────────────────────────────────────────────────────────
+// PRO 전용: FIT STEP+(회원 전용 앱)와 그 부가기능(FIT STEP+ 안에서만 동작), 수업 예약뿐.
+// 나머지는 전부 FREE에서도 이용 가능.
 const TIER_ITEMS: Record<"free" | "pro" | "elite", string[]> = {
-  free:  ["brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract"],
-  pro:   ["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal",
-          "booking", "report_branding", "contract_terms", "training_video", "e_contract"],
-  elite: ["member_overview", "activity_stats", "data_migration", "kpi_report",
-          "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis",
-          "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"],
+  free:  ["brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract",
+          "report_branding", "contract_terms", "training_video", "e_contract",
+          "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion",
+          "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
+          "renewal_analysis", "ai_insights"],
+  pro:   ["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking"],
+  elite: [],
 };
 
 const TIER_META = {

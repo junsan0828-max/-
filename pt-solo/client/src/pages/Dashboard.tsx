@@ -29,9 +29,17 @@ const AVATAR_GRADIENTS = [
 ];
 
 // ─── 작업실 기능 카탈로그 ──────────────────────────────────────────────────────
-const FREE_IDS = new Set(["brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract"]);
-const PRO_IDS = new Set(["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking", "report_branding", "contract_terms", "training_video", "e_contract"]);
-const ELITE_IDS = new Set(["member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
+// PRO 전용: FIT STEP+(회원 전용 앱)와 그 부가기능(FIT STEP+ 안에서만 동작), 수업 예약뿐.
+// 나머지는 전부 FREE에서도 이용 가능.
+const FREE_IDS = new Set([
+  "brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract",
+  "report_branding", "contract_terms", "training_video", "e_contract",
+  "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion",
+  "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
+  "renewal_analysis", "ai_insights",
+]);
+const PRO_IDS = new Set(["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking"]);
+const ELITE_IDS = new Set<string>([]);
 const COMING_SOON_IDS = new Set(["training_video", "contract_kakao", "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
 
 type WsDashItem = { id: string; icon: React.ElementType; name: string; };
