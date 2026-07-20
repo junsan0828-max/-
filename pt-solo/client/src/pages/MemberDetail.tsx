@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -197,6 +197,43 @@ export default function MemberDetail({ memberId }: Props) {
       toast.error(e?.message ?? "저장에 실패했습니다.");
     }
   }
+
+  // 다른 회원에게 복사 — 세션 저장소로 운동 구성을 넘겨 대상 회원 페이지에서 이어서 작성
+  const [copyPickerOpen, setCopyPickerOpen] = useState(false);
+  const [copyPickerQuery, setCopyPickerQuery] = useState("");
+  const [copyPayload, setCopyPayload] = useState<{ exercises: Exercise[]; bodyPart?: string; goal?: string } | null>(null);
+  const { data: allMembersForCopy } = trpc.members.list.useQuery(undefined, { enabled: copyPickerOpen });
+  function openCopyPicker(payload: { exercises: Exercise[]; bodyPart?: string; goal?: string }) {
+    setCopyPayload(payload);
+    setCopyPickerQuery("");
+    setCopyPickerOpen(true);
+  }
+  function pickCopyTarget(targetId: number) {
+    if (!copyPayload) return;
+    sessionStorage.setItem("copy_journal_to_member", JSON.stringify(copyPayload));
+    setCopyPickerOpen(false);
+    setLocation(`/members/${targetId}?tab=training`);
+  }
+
+  // 다른 회원 화면에서 넘어온 복사 데이터가 있으면 일지 작성 폼에 프리필
+  useEffect(() => {
+    const raw = sessionStorage.getItem("copy_journal_to_member");
+    if (!raw) return;
+    sessionStorage.removeItem("copy_journal_to_member");
+    try {
+      const payload = JSON.parse(raw) as { exercises: Exercise[]; bodyPart?: string; goal?: string };
+      setJournalForm(p => ({
+        ...p,
+        exercises: payload.exercises,
+        bodyPart: payload.bodyPart || p.bodyPart,
+        goal: payload.goal || p.goal,
+        sequenceVersionId: undefined,
+      }));
+      setJournalOpen(true);
+      toast.success("다른 회원의 프로그램을 불러왔어요. 확인 후 저장하세요.");
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 패키지 추가 다이얼로그 상태
   const [addPkgOpen, setAddPkgOpen] = useState(false);
@@ -1162,12 +1199,11 @@ export default function MemberDetail({ memberId }: Props) {
                   {sessionLogs.map((log) => {
                     const exs = parseExercisesJson((log as any).exercisesJson as string | null);
                     return (
-                      <button
+                      <div
                         key={log.id}
-                        className="w-full rounded-lg bg-accent/20 border border-border px-3 py-2.5 text-left hover:border-primary/40 transition-colors"
-                        onClick={() => openViewLog(log, exs)}
+                        className="w-full rounded-lg bg-accent/20 border border-border px-3 py-2.5 hover:border-primary/40 transition-colors flex items-start gap-2"
                       >
-                        <div className="flex items-center justify-between gap-2">
+                        <button className="flex-1 min-w-0 text-left" onClick={() => openViewLog(log, exs)}>
                           <div className="flex items-center gap-2 flex-wrap min-w-0">
                             <span className="text-xs font-semibold text-primary">{fmtDate(log.sessionDate, "yyyy.MM.dd (EEE)")}</span>
                             {(log as any).bodyPart && (log as any).bodyPart.split(",").filter(Boolean).map((bp: string) => (
@@ -1177,17 +1213,26 @@ export default function MemberDetail({ memberId }: Props) {
                               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">PT세션</span>
                             )}
                           </div>
-                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        </div>
-                        {(log as any).goal && (
-                          <p className="text-[11px] text-muted-foreground mt-1 truncate">{(log as any).goal}</p>
-                        )}
+                          {(log as any).goal && (
+                            <p className="text-[11px] text-muted-foreground mt-1 truncate">{(log as any).goal}</p>
+                          )}
+                          {exs.length > 0 && (
+                            <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">
+                              {exs.map(e => e.name).filter(Boolean).join(" · ")}
+                            </p>
+                          )}
+                        </button>
                         {exs.length > 0 && (
-                          <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">
-                            {exs.map(e => e.name).filter(Boolean).join(" · ")}
-                          </p>
+                          <button
+                            title="다른 회원에게 복사"
+                            className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                            onClick={() => openCopyPicker({ exercises: exs, bodyPart: (log as any).bodyPart, goal: (log as any).goal })}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
                         )}
-                      </button>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1.5" onClick={() => openViewLog(log, exs)} />
+                      </div>
                     );
                   })}
                 </div>
@@ -1546,6 +1591,43 @@ export default function MemberDetail({ memberId }: Props) {
                 {updateMemoMutation.isPending ? "저장 중..." : "저장"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 다른 회원에게 복사 — 대상 회원 선택 */}
+      <Dialog open={copyPickerOpen} onOpenChange={setCopyPickerOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>다른 회원에게 복사</DialogTitle>
+            <DialogDescription>프로그램을 적용할 회원을 선택하세요</DialogDescription>
+          </DialogHeader>
+          <Input
+            autoFocus
+            placeholder="회원 이름 검색..."
+            value={copyPickerQuery}
+            onChange={e => setCopyPickerQuery(e.target.value)}
+            className="h-9 text-sm"
+          />
+          <div className="space-y-1 max-h-72 overflow-y-auto">
+            {!allMembersForCopy ? (
+              <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
+            ) : (
+              allMembersForCopy
+                .filter(m => m.id !== memberId && (!copyPickerQuery.trim() || m.name.toLowerCase().includes(copyPickerQuery.toLowerCase())))
+                .map(m => (
+                  <button key={m.id} onClick={() => pickCopyTarget(m.id)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors text-left">
+                    <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-primary">{m.name.charAt(0)}</span>
+                    </div>
+                    <span className="text-sm font-medium">{m.name}</span>
+                  </button>
+                ))
+            )}
+            {allMembersForCopy && allMembersForCopy.filter(m => m.id !== memberId).length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-6">복사할 다른 회원이 없습니다.</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
