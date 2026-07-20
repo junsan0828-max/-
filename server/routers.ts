@@ -765,23 +765,47 @@ const membersRouter = t.router({
         if (sessionCount > 0) {
           const [member] = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, id)).limit(1);
           const pricePerSession = calcPricePerSession(paymentAmount ?? undefined, sessionCount, paymentMethod);
-          await db.insert(ptPackages).values({
-            memberId: id,
-            trainerId: member?.trainerId ?? null,
-            totalSessions: sessionCount,
-            usedSessions: 0,
+
+          // 중복 방지: 같은 세션수의 활성 패키지가 이미 있으면 새로 만들지 않고 그 패키지를 갱신한다.
+          // 예전에는 무조건 insert여서, 회원정보 수정 화면에서 PT 결제 정보를 넣고 저장할 때마다
+          // 시작일도 없는 유령 패키지가 하나씩 늘어나는 사고가 있었다(김용근 사례: 잔여 20/20회·
+          // 기간 없음·미수금만 달린 복제 패키지).
+          const dupPkgs = await db.select({ id: ptPackages.id })
+            .from(ptPackages)
+            .where(and(
+              eq(ptPackages.memberId, id),
+              eq(ptPackages.totalSessions, sessionCount),
+              eq(ptPackages.status, "active"),
+            ))
+            .orderBy(desc(ptPackages.createdAt))
+            .limit(1);
+
+          const pkgFields = {
             packageName: ptProgram || undefined,
-            startDate: memberData.membershipStart ?? undefined,
+            ...(memberData.membershipStart ? { startDate: memberData.membershipStart } : {}),
             pricePerSession: pricePerSession ?? undefined,
             paymentAmount: paymentAmount ?? undefined,
             unpaidAmount: unpaidAmount ?? undefined,
             paymentMethod: paymentMethod ?? undefined,
             paymentDate: paymentDate ?? undefined,
             paymentMemo: paymentMemo ?? undefined,
-            status: "active",
-            createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-          });
+          };
+
+          if (dupPkgs[0]) {
+            await db.update(ptPackages).set(pkgFields).where(eq(ptPackages.id, dupPkgs[0].id));
+          } else {
+            await db.insert(ptPackages).values({
+              memberId: id,
+              trainerId: member?.trainerId ?? null,
+              totalSessions: sessionCount,
+              usedSessions: 0,
+              ...pkgFields,
+              startDate: memberData.membershipStart ?? undefined,
+              status: "active",
+              createdAt: new Date().toISOString(),
+            });
+          }
         }
       }
 
