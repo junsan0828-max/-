@@ -2744,9 +2744,35 @@ const gymPlusRouter = t.router({
       name: gymPlusMembers.name, phone: gymPlusMembers.phone, email: gymPlusMembers.email,
       membershipType: gymPlusMembers.membershipType,
       membershipStart: gymPlusMembers.membershipStart, membershipEnd: gymPlusMembers.membershipEnd,
-      points: gymPlusMembers.points,
+      points: gymPlusMembers.points, memberId: gymPlusMembers.memberId,
     }).from(gymPlusMembers).where(eq(gymPlusMembers.id, gymMemberId)).limit(1);
-    return result[0] ?? null;
+    const me = result[0];
+    if (!me) return null;
+
+    // 회원권 만료일의 원본(源本)은 통합관리 members 테이블이다. 짐+ 복사본은
+    // 계정 생성 시점 값이라 데스크 재등록 후 갱신되지 않으므로, 연결된 회원의
+    // 실제 만료일을 우선 사용한다 (memberId 우선, 없으면 전화번호로 매칭).
+    let main: { membershipStart: string | null; membershipEnd: string | null } | undefined;
+    if (me.memberId) {
+      const [row] = await db.select({ membershipStart: members.membershipStart, membershipEnd: members.membershipEnd })
+        .from(members).where(eq(members.id, me.memberId)).limit(1);
+      main = row;
+    } else if (me.phone) {
+      const digits = me.phone.replace(/\D/g, "");
+      if (digits.length >= 4) {
+        const [row] = await db.select({ membershipStart: members.membershipStart, membershipEnd: members.membershipEnd })
+          .from(members)
+          .where(sql`REGEXP_REPLACE(COALESCE(${members.phone},''), '[^0-9]', '', 'g') = ${digits}`)
+          .limit(1);
+        main = row;
+      }
+    }
+
+    return {
+      ...me,
+      membershipStart: main?.membershipStart ?? me.membershipStart,
+      membershipEnd: main?.membershipEnd ?? me.membershipEnd,
+    };
   }),
 
   listVideoCategories: publicProcedure.query(async () => {
