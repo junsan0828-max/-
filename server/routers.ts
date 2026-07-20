@@ -3250,6 +3250,7 @@ ${dataContext}
           requestedPeriod: gymPlusMembershipRenewals.requestedPeriod,
           bonusDays: gymPlusMembershipRenewals.bonusDays,
           currentMembershipEnd: gymPlusMembershipRenewals.currentMembershipEnd,
+          notes: gymPlusMembershipRenewals.notes,
           agreedMarketing: gymPlusMembershipRenewals.agreedMarketing,
           contractDate: gymPlusMembershipRenewals.contractDate,
           signatureData: gymPlusMembershipRenewals.signatureData,
@@ -3257,8 +3258,9 @@ ${dataContext}
           createdAt: gymPlusMembershipRenewals.createdAt,
         })
         .from(gymPlusMembershipRenewals)
+        .where(input.status ? eq(gymPlusMembershipRenewals.status, input.status) : undefined)
         .orderBy(desc(gymPlusMembershipRenewals.createdAt));
-      return input.status ? rows.filter(r => r.status === input.status) : rows;
+      return rows;
     }),
 
   // 관리자: 재등록 신청 승인/거절

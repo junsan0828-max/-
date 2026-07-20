@@ -8,6 +8,7 @@ import {
   TrendingUp, Megaphone, BrainCircuit, UserPlus, ListChecks,
 } from "lucide-react";
 import Logo from "./Logo";
+import AdminRenewalRequestsModal from "./AdminRenewalRequestsModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -185,6 +186,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </div>
+
+      {/* 재등록 신청 알림 (관리자 전용) */}
+      <AdminRenewalRequestsModal enabled={user?.role === "admin" || user?.role === "sub_admin"} />
     </div>
   );
 }

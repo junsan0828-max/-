@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusProductsAdmin, GymPlusSettingsAdmin } from "./gym-plus/GymPlusAdmin";
+import AdminRenewalRequestsModal from "@/components/AdminRenewalRequestsModal";
 
 type Tab = "members" | "videos" | "events" | "logs" | "products" | "settings";
 
@@ -104,6 +105,9 @@ export default function GymPlusAdminPage() {
           </div>
         </nav>
       </div>
+
+      {/* 재등록 신청 알림 (이 페이지는 App.tsx에서 admin/sub_admin만 접근 가능) */}
+      <AdminRenewalRequestsModal enabled />
     </div>
   );
 }
