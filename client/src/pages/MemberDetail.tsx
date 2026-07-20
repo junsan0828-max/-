@@ -284,10 +284,13 @@ export default function MemberDetail({ memberId }: Props) {
   const [copied, setCopied] = useState(false);
   const [editMemoOpen, setEditMemoOpen] = useState(false);
   const [editMemoForm, setEditMemoForm] = useState({ id: 0, memoDate: "", content: "" });
-  const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string }>({
+  const [unpaidEdit, setUnpaidEdit] = useState<{ packageId: number; current: number; value: string; paymentDate: string; paymentMethod: string; manualMode: boolean }>({
     packageId: 0,
     current: 0,
     value: "",
+    paymentDate: "",
+    paymentMethod: "",
+    manualMode: false,
   });
   const [transferOpen, setTransferOpen] = useState(false);
   const [pauseOpen, setPauseOpen] = useState(false);
@@ -646,7 +649,17 @@ export default function MemberDetail({ memberId }: Props) {
     onError: (e) => toast.error(e.message || "계약서 생성 실패"),
   });
 
-  // 미수금 업데이트
+  // 미수금 수납 처리 (실제 결제일과 함께 매출로 기록)
+  const collectUnpaidMutation = trpc.pt.collectUnpaidPayment.useMutation({
+    onSuccess: () => {
+      toast.success("미수금 수납이 매출에 기록되었습니다.");
+      setUnpaidOpen(false);
+      refetchPt();
+      utils.gym.kpi.overview.invalidate();
+    },
+    onError: (err) => toast.error(err.message || "처리 실패"),
+  });
+  // 미수금 금액 직접 수정 (매출 기록 없이 — 데이터 입력 오류 정정 등 예외적인 경우만)
   const updatePaymentMutation = trpc.pt.updatePayment.useMutation({
     onSuccess: () => {
       toast.success("미수금이 업데이트되었습니다.");
@@ -1465,7 +1478,7 @@ export default function MemberDetail({ memberId }: Props) {
                                   <div className="flex items-center gap-2">
                                     <p className="font-medium text-orange-400">{pkg.unpaidAmount.toLocaleString()}원</p>
                                     <button className="text-xs text-orange-400 underline hover:text-orange-300"
-                                      onClick={() => { setUnpaidEdit({ packageId: pkg.id, current: pkg.unpaidAmount ?? 0, value: String(pkg.unpaidAmount ?? 0) }); setUnpaidOpen(true); }}>수정</button>
+                                      onClick={() => { setUnpaidEdit({ packageId: pkg.id, current: pkg.unpaidAmount ?? 0, value: "", paymentDate: today, paymentMethod: "", manualMode: false }); setUnpaidOpen(true); }}>수정</button>
                                   </div>
                                 </div>
                               ) : null}
@@ -2646,39 +2659,98 @@ export default function MemberDetail({ memberId }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* 미수금 수정 다이얼로그 */}
+      {/* 미수금 수납 다이얼로그 */}
       <Dialog open={unpaidOpen} onOpenChange={setUnpaidOpen}>
         <DialogContent className="max-w-xs">
           <DialogHeader>
-            <DialogTitle>미수금 수정</DialogTitle>
+            <DialogTitle>{unpaidEdit.manualMode ? "미수금 직접 수정" : "미수금 수납"}</DialogTitle>
             <DialogDescription>현재 미수금: {unpaidEdit.current.toLocaleString()}원</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">새 미수금 금액</Label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="0"
-                value={unpaidEdit.value}
-                onChange={(e) => setUnpaidEdit((p) => ({ ...p, value: e.target.value }))}
-                className="h-9 text-sm"
-              />
-              <p className="text-xs text-muted-foreground">0원 입력 시 미수금 완납 처리됩니다.</p>
-            </div>
+            {!unpaidEdit.manualMode ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">오늘 받은 금액</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max={unpaidEdit.current}
+                    placeholder="0"
+                    value={unpaidEdit.value}
+                    onChange={(e) => setUnpaidEdit((p) => ({ ...p, value: e.target.value }))}
+                    className="h-9 text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">받은 금액만큼 매출로 기록되고 미수금이 줄어듭니다.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">받은 날짜</Label>
+                  <Input
+                    type="date"
+                    value={unpaidEdit.paymentDate}
+                    onChange={(e) => setUnpaidEdit((p) => ({ ...p, paymentDate: e.target.value }))}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">결제 방법</Label>
+                  <select
+                    value={unpaidEdit.paymentMethod}
+                    onChange={(e) => setUnpaidEdit((p) => ({ ...p, paymentMethod: e.target.value }))}
+                    className="w-full h-9 rounded-md px-3 text-sm bg-input border border-border"
+                  >
+                    <option value="">선택 안 함</option>
+                    {["카드", "현금", "현금영수증", "계좌이체", "이체", "지역화폐", "분할결제"].map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline"
+                  onClick={() => setUnpaidEdit((p) => ({ ...p, manualMode: true, value: String(p.current) }))}
+                >
+                  실제 수납이 아니라 금액만 직접 고칠래요 (입력 오류 정정)
+                </button>
+              </>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-xs">새 미수금 금액</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={unpaidEdit.value}
+                  onChange={(e) => setUnpaidEdit((p) => ({ ...p, value: e.target.value }))}
+                  className="h-9 text-sm"
+                />
+                <p className="text-xs text-muted-foreground">매출 기록 없이 미수금 금액만 바꿉니다 (입력 오류 정정용).</p>
+              </div>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setUnpaidOpen(false)}>취소</Button>
               <Button
                 className="flex-1"
-                disabled={updatePaymentMutation.isPending}
-                onClick={() =>
-                  updatePaymentMutation.mutate({
-                    packageId: unpaidEdit.packageId,
-                    unpaidAmount: parseInt(unpaidEdit.value) || 0,
-                  })
-                }
+                disabled={updatePaymentMutation.isPending || collectUnpaidMutation.isPending}
+                onClick={() => {
+                  if (unpaidEdit.manualMode) {
+                    updatePaymentMutation.mutate({
+                      packageId: unpaidEdit.packageId,
+                      unpaidAmount: parseInt(unpaidEdit.value) || 0,
+                    });
+                  } else {
+                    const amt = parseInt(unpaidEdit.value) || 0;
+                    if (amt <= 0) { toast.error("받은 금액을 입력해주세요."); return; }
+                    if (!unpaidEdit.paymentDate) { toast.error("받은 날짜를 입력해주세요."); return; }
+                    collectUnpaidMutation.mutate({
+                      packageId: unpaidEdit.packageId,
+                      collectedAmount: amt,
+                      paymentDate: unpaidEdit.paymentDate,
+                      paymentMethod: unpaidEdit.paymentMethod ? (unpaidEdit.paymentMethod as any) : undefined,
+                    });
+                  }
+                }}
               >
-                {updatePaymentMutation.isPending ? "저장 중..." : "저장"}
+                {(updatePaymentMutation.isPending || collectUnpaidMutation.isPending) ? "저장 중..." : "저장"}
               </Button>
             </div>
           </div>

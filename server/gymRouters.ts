@@ -1694,9 +1694,11 @@ const kpiRouter = t.router({
         ? Math.round((monthLeads.filter(l => l.status === "registered").length / monthLeads.length) * 100)
         : 0;
 
-      // 재등록률 (이번달 재등록 건수 / 전체 이번달 건수)
-      const renewalRate = monthRevenue.length > 0
-        ? Math.round((monthRevenue.filter(r => r.subType === "재등록").length / monthRevenue.length) * 100)
+      // 재등록률 (이번달 재등록 건수 / 전체 이번달 건수). 미수금 수납 기록은 신규 등록 이벤트가
+      // 아니므로 분모에서 제외 — 안 그러면 미수금 받을 때마다 재등록률이 희석되어 낮아진다.
+      const monthRegistrationEvents = monthRevenue.filter(r => r.subType !== "미수금");
+      const renewalRate = monthRegistrationEvents.length > 0
+        ? Math.round((monthRegistrationEvents.filter(r => r.subType === "재등록").length / monthRegistrationEvents.length) * 100)
         : 0;
 
       // 전월 대비

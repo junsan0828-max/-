@@ -1720,6 +1720,72 @@ const ptRouter = t.router({
       return { success: true };
     }),
 
+  // 미수금 수납 처리 — 실제로 돈을 받은 날짜와 함께 매출로 기록한다.
+  // updatePayment(단순 금액 변경)과 달리, 수납액을 오늘(또는 지정일) 매출로 새로 남기고
+  // 원본 매출의 미수금도 같이 줄여서 "미수금 총액" KPI와 "오늘/이번달 매출"이 둘 다 정확하게
+  // 맞도록 한다. 원본 매출의 결제일자(최초 계약일)는 건드리지 않는다.
+  collectUnpaidPayment: protectedProcedure
+    .input(
+      z.object({
+        packageId: z.number(),
+        collectedAmount: z.number().min(1),
+        paymentDate: z.string(),
+        paymentMethod: z.enum(["카드", "현금", "현금영수증", "계좌이체", "이체", "지역화폐", "분할결제"]).optional(),
+        memo: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const pkg = (await db.select().from(ptPackages).where(eq(ptPackages.id, input.packageId)).limit(1))[0];
+      if (!pkg) throw new TRPCError({ code: "NOT_FOUND", message: "패키지를 찾을 수 없습니다." });
+
+      const isAdmin = ctx.user.role === "admin" || ctx.user.role === "sub_admin";
+      if (!isAdmin && (!ctx.user.trainerId || pkg.trainerId !== ctx.user.trainerId))
+        throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원만 수정할 수 있습니다." });
+
+      const currentUnpaid = pkg.unpaidAmount ?? 0;
+      if (input.collectedAmount > currentUnpaid) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `현재 미수금(${currentUnpaid.toLocaleString()}원)보다 많이 받을 수 없습니다.` });
+      }
+      const newUnpaid = currentUnpaid - input.collectedAmount;
+
+      await db.update(ptPackages).set({ unpaidAmount: newUnpaid }).where(eq(ptPackages.id, input.packageId));
+
+      // 원본 매출(있으면)의 미수금도 같이 줄인다 — "전체 미수금" KPI가 revenue_entries 기준이라
+      // 패키지만 고치면 화면상 미수금이 안 줄어든다.
+      const [origRevenue] = pkg.revenueEntryId
+        ? await db.select().from(revenueEntries).where(eq(revenueEntries.id, pkg.revenueEntryId)).limit(1)
+        : [];
+      if (origRevenue) {
+        const origNewUnpaid = Math.max(0, (origRevenue.unpaidAmount ?? 0) - input.collectedAmount);
+        await db.update(revenueEntries).set({ unpaidAmount: origNewUnpaid, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, origRevenue.id));
+      }
+
+      const [member] = await db.select({ name: members.name, phone: members.phone }).from(members).where(eq(members.id, pkg.memberId)).limit(1);
+
+      await db.insert(revenueEntries).values({
+        memberId: pkg.memberId,
+        trainerId: pkg.trainerId,
+        createdBy: ctx.user.id,
+        customerName: member?.name ?? "",
+        phone: member?.phone ?? null,
+        programDetail: `${pkg.packageName ?? "PT"} 미수금 수납`,
+        type: "PT",
+        subType: "미수금",
+        amount: input.collectedAmount,
+        discountAmount: 0,
+        paidAmount: input.collectedAmount,
+        unpaidAmount: 0,
+        paymentMethod: input.paymentMethod ?? undefined,
+        paymentDate: input.paymentDate,
+        memo: input.memo ?? null,
+      });
+
+      return { success: true, newUnpaid };
+    }),
+
   // PT 패키지 전체 정보 수정
   updatePackage: protectedProcedure
     .input(z.object({
