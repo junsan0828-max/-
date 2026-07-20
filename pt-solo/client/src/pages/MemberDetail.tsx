@@ -173,6 +173,31 @@ export default function MemberDetail({ memberId }: Props) {
   const utils = trpc.useUtils();
   const autoPoints = useAutoPoints();
 
+  // 일지 → 시퀀스로 저장 (빈 화면에서 다시 만들지 않도록, 이미 기록한 운동을 바로 개인 시퀀스로)
+  const createSeqDraft = trpc.sequenceLab.createDraft.useMutation();
+  const updateSeqDraft = trpc.sequenceLab.updateDraft.useMutation();
+  async function saveExercisesAsSequence(exercises: Exercise[]) {
+    if (exercises.length === 0) { toast.error("저장할 운동이 없습니다."); return; }
+    try {
+      const { versionId } = await createSeqDraft.mutateAsync();
+      await updateSeqDraft.mutateAsync({
+        versionId,
+        title: `${member?.name ?? "회원"}님 프로그램 (${fmtDate(new Date().toISOString(), "yyyy.MM.dd")})`,
+        sections: [{
+          name: "근력 및 수행",
+          exercises: exercises.map(ex => ({
+            name: ex.name || "운동",
+            durationOrReps: ex.sets.map(s => `${s.reps || "-"}회${s.weight ? `/${s.weight}kg` : ""}`).join(", "),
+          })),
+        }],
+      });
+      toast.success("내 시퀀스로 저장했습니다. 이어서 다듬어보세요.");
+      setLocation(`/sequences/${versionId}/edit`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "저장에 실패했습니다.");
+    }
+  }
+
   // 패키지 추가 다이얼로그 상태
   const [addPkgOpen, setAddPkgOpen] = useState(false);
   const [pkgForm, setPkgForm] = useState({
@@ -1572,6 +1597,15 @@ export default function MemberDetail({ memberId }: Props) {
                 >
                   + 운동 종목 추가
                 </button>
+                {journalForm.exercises.length > 0 && (
+                  <button
+                    onClick={() => saveExercisesAsSequence(journalForm.exercises)}
+                    disabled={createSeqDraft.isPending || updateSeqDraft.isPending}
+                    className="w-full py-2 rounded-lg text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50"
+                  >
+                    {createSeqDraft.isPending || updateSeqDraft.isPending ? "저장 중..." : "이 운동들 내 시퀀스로 저장"}
+                  </button>
+                )}
               </div>
             </div>
             <div className="space-y-1.5">
@@ -1624,6 +1658,15 @@ export default function MemberDetail({ memberId }: Props) {
             <div className="space-y-1.5">
               <Label className="text-xs">운동 종목</Label>
               <ExerciseEditor exercises={editJournalForm.exercises} onChange={exs => setEditJournalForm(p => ({ ...p, exercises: exs }))} />
+              {editJournalForm.exercises.length > 0 && (
+                <button
+                  onClick={() => saveExercisesAsSequence(editJournalForm.exercises)}
+                  disabled={createSeqDraft.isPending || updateSeqDraft.isPending}
+                  className="w-full py-2 rounded-lg text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50"
+                >
+                  {createSeqDraft.isPending || updateSeqDraft.isPending ? "저장 중..." : "이 운동들 내 시퀀스로 저장"}
+                </button>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">메모 (선택)</Label>
