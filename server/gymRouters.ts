@@ -698,10 +698,16 @@ const revenueRouter = t.router({
           .where(eq(ptPackages.memberId, row.memberId))
           .orderBy(desc(ptPackages.id));
 
+        // 이 매출을 뒷받침하는 패키지를 확실하게 특정할 수 있을 때만 골라야 한다.
+        // 예전에는 startDate+세션수가 매칭 안 되면 "회원의 아무 패키지나(가장 최근 것)"로
+        // 폴백해서, 패키지가 여러 개인 회원(박종범 사례)은 전혀 무관한 매출 수정이 엉뚱한
+        // 패키지의 결제금액을 덮어써버리는 사고로 이어졌다. 회원에게 패키지가 정확히 1개뿐일
+        // 때만 "그 패키지겠거니" 하고 폴백하고, 그 외엔 새 패키지를 만든다(기존 것을 절대
+        // 건드리지 않음 — 잘못 만들어진 여분 패키지는 기존 "빈 복제 패키지 정리" 백필이 치운다).
         const existingPkg = pkgCandidates.find(p =>
           (oldStartDate ? p.startDate === oldStartDate : true) &&
           (oldSessions ? p.totalSessions === oldSessions : true)
-        ) ?? pkgCandidates[0] ?? null;
+        ) ?? (pkgCandidates.length === 1 ? pkgCandidates[0] : null);
 
         // 장부(revenue_entries)에 세션수가 없어도(프로그램을 "기타"로 등록한 경우 등) 연결된
         // 패키지의 totalSessions로 폴백한다. 이게 없으면 newSessions=0이 되어 아래 동기화 블록이
