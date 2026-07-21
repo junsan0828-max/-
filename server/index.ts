@@ -411,6 +411,8 @@ async function initDatabase() {
     `ALTER TABLE gym_plus_member_health ADD COLUMN IF NOT EXISTS "parqJson" TEXT`,
     `ALTER TABLE gym_plus_events ADD COLUMN IF NOT EXISTS "linkUrl" TEXT`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "currentMembershipEnd" TEXT`,
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "requestedPeriod" TEXT`,
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "createdAt" TEXT DEFAULT now()::text`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "bonusDays" INTEGER DEFAULT 0`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "memberName" TEXT`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "memberPhone" TEXT`,
