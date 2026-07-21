@@ -4102,7 +4102,24 @@ const adminRouter = t.router({
       return reasons.length > 0 ? { ...r, reasons } : null;
     }).filter((r): r is NonNullable<typeof r> => r !== null);
 
-    return { median, checkedCount: pkgs.rows.length, anomalies };
+    // 장부 자체 불일치: 정가 − 할인 − 미수금 ≠ 실결제. 화면마다 다른 금액이 보이는 원인
+    // (예: 문정현 198,000원 vs 197,999원 — 매출 팝업은 실결제, 등록관리는 정가를 표시).
+    // 환불/이전은 계산 규칙이 달라 제외. 수정은 등록관리에서 해당 건을 열어 재저장하면 된다.
+    const mismatchRes = await pool.query<{
+      id: number; customerName: string | null; paymentDate: string | null; type: string;
+      amount: number; discount: number; unpaid: number; paid: number;
+    }>(`
+      SELECT id, "customerName", "paymentDate", type,
+             COALESCE(amount,0) AS amount, COALESCE("discountAmount",0) AS discount,
+             COALESCE("unpaidAmount",0) AS unpaid, COALESCE("paidAmount",0) AS paid
+      FROM revenue_entries
+      WHERE COALESCE("subType",'') NOT IN ('환불','이전')
+        AND (COALESCE(amount,0) - COALESCE("discountAmount",0) - COALESCE("unpaidAmount",0)) <> COALESCE("paidAmount",0)
+      ORDER BY "paymentDate" DESC NULLS LAST
+      LIMIT 30
+    `);
+
+    return { median, checkedCount: pkgs.rows.length, anomalies, revenueMismatches: mismatchRes.rows };
   }),
 
   // 노션 브리핑 즉시 테스트 발송 (관리자) — 08:00 KST 자동 스케줄과 별개로 설정 확인용

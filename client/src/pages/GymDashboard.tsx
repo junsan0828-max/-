@@ -347,20 +347,28 @@ export default function GymDashboard() {
         </div>
       )}
 
-      {/* 정산 단가 이상치 경보 */}
-      {(anomalyData?.anomalies?.length ?? 0) > 0 && (
+      {/* 정산 단가·장부 불일치 경보 */}
+      {((anomalyData?.anomalies?.length ?? 0) > 0 || (anomalyData?.revenueMismatches?.length ?? 0) > 0) && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
           <button type="button" onClick={() => setShowAnomalies(v => !v)} className="w-full flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-red-400" />
-              <span className="text-sm font-semibold text-red-400">정산 단가 이상 항목 {anomalyData!.anomalies.length}건</span>
+              <span className="text-sm font-semibold text-red-400">
+                데이터 이상 항목 {(anomalyData?.anomalies?.length ?? 0) + (anomalyData?.revenueMismatches?.length ?? 0)}건
+                <span className="font-normal text-red-300/70 ml-1.5">
+                  {[
+                    (anomalyData?.anomalies?.length ?? 0) > 0 ? `정산단가 ${anomalyData!.anomalies.length}` : null,
+                    (anomalyData?.revenueMismatches?.length ?? 0) > 0 ? `장부불일치 ${anomalyData!.revenueMismatches.length}` : null,
+                  ].filter(Boolean).join(" · ")}
+                </span>
+              </span>
             </div>
             <ChevronDown className={`h-4 w-4 text-red-400 transition-transform ${showAnomalies ? "rotate-180" : ""}`} />
           </button>
           {showAnomalies && (
             <div className="mt-3 space-y-3">
               {anomalyData!.anomalies.map((a) => (
-                <div key={a.id} className="text-xs border-t border-red-500/20 pt-2">
+                <div key={`pkg-${a.id}`} className="text-xs border-t border-red-500/20 pt-2">
                   <div className="flex justify-between items-baseline">
                     <span className="font-medium text-foreground">{a.memberName ?? "회원 미상"} · {a.trainerName ?? "담당 미배정"}</span>
                     <span className="text-muted-foreground">{a.packageName ?? "-"} · {a.totalSessions}회</span>
@@ -368,9 +376,22 @@ export default function GymDashboard() {
                   {a.reasons.map((r, i) => (
                     <p key={i} className="text-red-300 mt-0.5">⚠ {r}</p>
                   ))}
+                  <p className="text-[11px] text-muted-foreground mt-0.5">→ 회원 상세 → 프로그램 탭에서 결제금액 확인 후 수정</p>
                 </div>
               ))}
-              <p className="text-[11px] text-muted-foreground pt-1">회원 상세 → 프로그램 탭에서 직접 확인 후 수정해주세요. (자동 수정하지 않습니다)</p>
+              {(anomalyData?.revenueMismatches ?? []).map((m) => (
+                <div key={`rev-${m.id}`} className="text-xs border-t border-red-500/20 pt-2">
+                  <div className="flex justify-between items-baseline">
+                    <span className="font-medium text-foreground">{m.customerName ?? "고객 미상"} · {m.type}</span>
+                    <span className="text-muted-foreground">{m.paymentDate ?? "-"}</span>
+                  </div>
+                  <p className="text-red-300 mt-0.5">
+                    ⚠ 정가 {m.amount.toLocaleString()} − 할인 {m.discount.toLocaleString()} − 미수 {m.unpaid.toLocaleString()} = {(m.amount - m.discount - m.unpaid).toLocaleString()}원인데 실결제가 {m.paid.toLocaleString()}원으로 저장됨
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">→ 등록관리에서 이 건을 열어 금액 확인 후 재저장하면 맞춰집니다</p>
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground pt-1">자동 수정하지 않습니다 — 확인 후 직접 수정해주세요.</p>
             </div>
           )}
         </div>
