@@ -1,6 +1,9 @@
 // 데이터 수집: ZIANTGYM+ DB(Neon/Postgres)에서 총괄 AI가 분석할 지표를 모은다.
 // DATABASE_URL 이 없으면 샘플 데이터로 동작해 앱이 항상 켜지게 한다.
-import { Pool } from "pg";
+// Neon 공식 서버리스 드라이버(WebSocket, 443 포트) 사용 — 라이브 TCP(5432) 포트가
+// 막힌 클라우드 예약실행 환경(아침 브리핑 크론)에서도 실제 DB에 붙을 수 있어야 해서
+// 일반 pg 대신 이걸 씀. API가 거의 동일해서 로컬 실행에는 영향 없음.
+import { Pool } from "@neondatabase/serverless";
 
 export interface GymContext {
   source: "db" | "sample";
