@@ -1,9 +1,11 @@
 // 데이터 수집: ZIANTGYM+ DB(Neon/Postgres)에서 총괄 AI가 분석할 지표를 모은다.
 // DATABASE_URL 이 없으면 샘플 데이터로 동작해 앱이 항상 켜지게 한다.
-// Neon 공식 서버리스 드라이버(WebSocket, 443 포트) 사용 — 라이브 TCP(5432) 포트가
-// 막힌 클라우드 예약실행 환경(아침 브리핑 크론)에서도 실제 DB에 붙을 수 있어야 해서
-// 일반 pg 대신 이걸 씀. API가 거의 동일해서 로컬 실행에는 영향 없음.
-import { Pool } from "@neondatabase/serverless";
+// Neon 공식 서버리스 드라이버의 순수 HTTP 쿼리 함수(neon()) 사용 — 일반 pg(TCP 5432)는
+// 클라우드 예약실행 환경에서 포트가 막혀 있고, 같은 드라이버의 WebSocket 기반 Pool도
+// 이 환경의 아웃바운드 프록시가 WebSocket 업그레이드를 막아 실패하는 것으로 확인됨
+// ("Received network error or non-101 status code"). neon()은 일반 HTTPS 요청 하나로
+// 쿼리하기 때문에 노션 API 호출과 동일하게 문제없이 통과함.
+import { neon } from "@neondatabase/serverless";
 
 export interface GymContext {
   source: "db" | "sample";
@@ -73,94 +75,90 @@ export async function gatherContext(): Promise<GymContext> {
   const url = process.env.DATABASE_URL;
   if (!url) return sampleContext();
 
-  const pool = new Pool({
-    connectionString: url,
-    ssl: url.includes("localhost") ? false : { rejectUnauthorized: false },
-  });
+  const sql = neon(url);
 
-  try {
-    const now = new Date();
-    const today = ymd(now);
-    const in30 = ymd(new Date(now.getTime() + 30 * 864e5));
-    const ago14 = ymd(new Date(now.getTime() - 14 * 864e5));
-    const monthPrefix = today.slice(0, 7);
+  const now = new Date();
+  const today = ymd(now);
+  const in30 = ymd(new Date(now.getTime() + 30 * 864e5));
+  const ago14 = ymd(new Date(now.getTime() - 14 * 864e5));
+  const monthPrefix = today.slice(0, 7);
 
-    const [mCount, mActive, expiring, expired, leadsRows, revRows, channelRows] = await Promise.all([
-      pool.query<{ c: string }>(`SELECT COUNT(*) c FROM members`),
-      pool.query<{ c: string }>(`SELECT COUNT(*) c FROM members WHERE status = 'active'`),
-      pool.query<{ name: string; phone: string | null; membershipEnd: string }>(
-        `SELECT name, phone, "membershipEnd" FROM members
-         WHERE "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1 AND "membershipEnd" <= $2
-         ORDER BY "membershipEnd" ASC LIMIT 30`,
-        [today, in30]
-      ),
-      pool.query<{ name: string; phone: string | null; membershipEnd: string }>(
-        `SELECT name, phone, "membershipEnd" FROM members
-         WHERE "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1 AND "membershipEnd" < $2
-         ORDER BY "membershipEnd" DESC LIMIT 30`,
-        [ago14, today]
-      ),
-      pool.query<{ status: string; channelId: number | null }>(`SELECT status, "channelId" FROM leads`),
-      pool.query<{ subType: string; paidAmount: number; unpaidAmount: number; customerName: string | null; phone: string | null; paymentDate: string }>(
-        `SELECT "subType", "paidAmount", "unpaidAmount", "customerName", phone, "paymentDate" FROM revenue_entries`
-      ),
-      pool.query<{ id: number; name: string }>(`SELECT id, name FROM channels`),
-    ]);
+  type MemberRow = { name: string; phone: string | null; membershipEnd: string };
+  type LeadRow = { status: string; channelId: number | null };
+  type RevenueRow = { subType: string; paidAmount: number; unpaidAmount: number; customerName: string | null; phone: string | null; paymentDate: string };
+  type ChannelRow = { id: number; name: string };
 
-    const statusCount = (s: string) => leadsRows.rows.filter((r) => r.status === s).length;
-    const pending = statusCount("pending");
-    const consulted = statusCount("consulted");
-    const registered = statusCount("registered");
-    const dropped = statusCount("dropped");
-    const totalLeads = leadsRows.rows.length || 1;
+  const [mCountRows, mActiveRows, expiring, expired, leadsRows, revRows, channelRows] = (await Promise.all([
+    sql.query(`SELECT COUNT(*) c FROM members`),
+    sql.query(`SELECT COUNT(*) c FROM members WHERE status = 'active'`),
+    sql.query(
+      `SELECT name, phone, "membershipEnd" FROM members
+       WHERE "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1 AND "membershipEnd" <= $2
+       ORDER BY "membershipEnd" ASC LIMIT 30`,
+      [today, in30]
+    ),
+    sql.query(
+      `SELECT name, phone, "membershipEnd" FROM members
+       WHERE "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1 AND "membershipEnd" < $2
+       ORDER BY "membershipEnd" DESC LIMIT 30`,
+      [ago14, today]
+    ),
+    sql.query(`SELECT status, "channelId" FROM leads`),
+    sql.query(`SELECT "subType", "paidAmount", "unpaidAmount", "customerName", phone, "paymentDate" FROM revenue_entries`),
+    sql.query(`SELECT id, name FROM channels`),
+  ])) as [{ c: string }[], { c: string }[], MemberRow[], MemberRow[], LeadRow[], RevenueRow[], ChannelRow[]];
 
-    const monthRev = revRows.rows.filter((r) => (r.paymentDate || "").startsWith(monthPrefix));
-    const unpaidRows = revRows.rows.filter((r) => Number(r.unpaidAmount) > 0);
+  const statusCount = (s: string) => leadsRows.filter((r) => r.status === s).length;
+  const pending = statusCount("pending");
+  const consulted = statusCount("consulted");
+  const registered = statusCount("registered");
+  const dropped = statusCount("dropped");
+  const totalLeads = leadsRows.length || 1;
 
-    const channelStats = channelRows.rows
-      .map((ch) => {
-        const chLeads = leadsRows.rows.filter((l) => l.channelId === ch.id);
-        const chRegistered = chLeads.filter((l) => l.status === "registered").length;
-        return {
-          channel: ch.name,
-          leads: chLeads.length,
-          registered: chRegistered,
-          rate: chLeads.length > 0 ? Math.round((chRegistered / chLeads.length) * 100) : 0,
-        };
-      })
-      .filter((c) => c.leads > 0)
-      .sort((a, b) => b.leads - a.leads);
+  const monthRev = revRows.filter((r) => (r.paymentDate || "").startsWith(monthPrefix));
+  const unpaidRows = revRows.filter((r) => Number(r.unpaidAmount) > 0);
 
-    return {
-      source: "db",
-      asOf: today,
-      members: {
-        total: Number(mCount.rows[0]?.c ?? 0),
-        active: Number(mActive.rows[0]?.c ?? 0),
-        expiringSoon: expiring.rows,
-        recentlyExpired: expired.rows,
-      },
-      funnel: {
-        pending,
-        consulted,
-        registered,
-        dropped,
-        consultRate: Math.round(((consulted + registered) / totalLeads) * 100),
-        registerRate: consulted + registered > 0 ? Math.round((registered / (consulted + registered)) * 100) : 0,
-      },
-      money: {
-        monthRevenue: monthRev.reduce((s, r) => s + Number(r.paidAmount || 0), 0),
-        reRegisterCount: monthRev.filter((r) => r.subType === "재등록").length,
-        newCount: monthRev.filter((r) => r.subType === "신규").length,
-        unpaidTotal: unpaidRows.reduce((s, r) => s + Number(r.unpaidAmount || 0), 0),
-        unpaidMembers: unpaidRows
-          .map((r) => ({ name: r.customerName ?? "이름없음", phone: r.phone, unpaid: Number(r.unpaidAmount) }))
-          .sort((a, b) => b.unpaid - a.unpaid)
-          .slice(0, 20),
-      },
-      channels: channelStats,
-    };
-  } finally {
-    await pool.end();
-  }
+  const channelStats = channelRows
+    .map((ch) => {
+      const chLeads = leadsRows.filter((l) => l.channelId === ch.id);
+      const chRegistered = chLeads.filter((l) => l.status === "registered").length;
+      return {
+        channel: ch.name,
+        leads: chLeads.length,
+        registered: chRegistered,
+        rate: chLeads.length > 0 ? Math.round((chRegistered / chLeads.length) * 100) : 0,
+      };
+    })
+    .filter((c) => c.leads > 0)
+    .sort((a, b) => b.leads - a.leads);
+
+  return {
+    source: "db",
+    asOf: today,
+    members: {
+      total: Number(mCountRows[0]?.c ?? 0),
+      active: Number(mActiveRows[0]?.c ?? 0),
+      expiringSoon: expiring,
+      recentlyExpired: expired,
+    },
+    funnel: {
+      pending,
+      consulted,
+      registered,
+      dropped,
+      consultRate: Math.round(((consulted + registered) / totalLeads) * 100),
+      registerRate: consulted + registered > 0 ? Math.round((registered / (consulted + registered)) * 100) : 0,
+    },
+    money: {
+      monthRevenue: monthRev.reduce((s, r) => s + Number(r.paidAmount || 0), 0),
+      reRegisterCount: monthRev.filter((r) => r.subType === "재등록").length,
+      newCount: monthRev.filter((r) => r.subType === "신규").length,
+      unpaidTotal: unpaidRows.reduce((s, r) => s + Number(r.unpaidAmount || 0), 0),
+      unpaidMembers: unpaidRows
+        .map((r) => ({ name: r.customerName ?? "이름없음", phone: r.phone, unpaid: Number(r.unpaidAmount) }))
+        .sort((a, b) => b.unpaid - a.unpaid)
+        .slice(0, 20),
+    },
+    channels: channelStats,
+  };
 }
