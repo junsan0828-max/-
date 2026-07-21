@@ -94,6 +94,15 @@ export async function pushDailyReport(
     const periodLabel = result.periodLabel || "어제";
     const OWNER_KO: Record<string, string> = { auto: "AI 처리", semi: "AI 처리(확인 필요)", manual: "사장님 처리" };
 
+    // "업무보고" 테이블(제목/오늘 업무/분석 리포트)에 표에서 바로 보이도록 요약을 채운다.
+    // 전체 상세 내용은 아래 children 블록으로 페이지 본문에 그대로 남긴다.
+    const truncate = (text: string, max = 1900) =>
+      text.length > max ? text.slice(0, max) + "\n…(전체 내용은 페이지 본문 참고)" : text;
+    const todayTasksSummary = truncate(
+      [result.headline, "", ...result.tasks.map((t) => `[${t.priority}] ${t.title} — ${t.reason}`)].join("\n")
+    );
+    const analysisReportSummary = truncate(result.report);
+
     const children = [
       heading(`🧑‍💼 제이 - ${periodLabel} 브리핑 헤드라인`),
       paragraph(result.headline),
@@ -131,6 +140,8 @@ export async function pushDailyReport(
         parent: { database_id: databaseId },
         properties: {
           [titleProp]: { title: [{ text: { content: `자이언트짐 AI 브리핑 - ${dateStr} (${periodLabel})` } }] },
+          "오늘 업무": { rich_text: [{ text: { content: todayTasksSummary } }] },
+          "분석 리포트": { rich_text: [{ text: { content: analysisReportSummary } }] },
         },
         children: children.slice(0, 100), // Notion API 한 번 요청당 최대 100 블록
       }),
