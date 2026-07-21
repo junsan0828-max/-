@@ -1728,6 +1728,34 @@ const kpiRouter = t.router({
       };
     }),
 
+  // 미수금 내역 — 매출(revenue_entries) 기준. 미수금 KPI 카드(overview.totalUnpaid)와
+  // 동일한 소스라 두 숫자가 항상 일치한다. (예전 팝업은 ptPackages 기준이라 패키지만 처리되고
+  // 매출은 안 처리된 건에서 카드와 목록 합계가 어긋나는 사고가 있었다.)
+  unpaidList: protectedProcedure
+    .input(z.object({ branchId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role === "consultant") throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({
+        id: revenueEntries.id,
+        customerName: revenueEntries.customerName,
+        memberName: members.name,
+        type: revenueEntries.type,
+        programDetail: revenueEntries.programDetail,
+        unpaidAmount: revenueEntries.unpaidAmount,
+        paymentDate: revenueEntries.paymentDate,
+        trainerName: trainers.trainerName,
+        branchId: revenueEntries.branchId,
+      })
+        .from(revenueEntries)
+        .leftJoin(members, eq(revenueEntries.memberId, members.id))
+        .leftJoin(trainers, eq(revenueEntries.trainerId, trainers.id))
+        .where(sql`COALESCE(${revenueEntries.unpaidAmount},0) > 0`)
+        .orderBy(desc(revenueEntries.unpaidAmount));
+      return input?.branchId ? rows.filter(r => r.branchId === input.branchId) : rows;
+    }),
+
   recentActivity: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });

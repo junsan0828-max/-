@@ -1741,6 +1741,14 @@ const ptRouter = t.router({
         .set({ unpaidAmount: input.unpaidAmount })
         .where(eq(ptPackages.id, input.packageId));
 
+      // 연결된 원본 매출의 미수금도 같이 맞춘다 — 미수금 KPI/목록은 revenue_entries 기준이라
+      // 패키지만 고치면 화면상 미수금이 안 줄어드는 불일치가 생긴다(김용근 사례).
+      if (pkg.revenueEntryId) {
+        await db.update(revenueEntries)
+          .set({ unpaidAmount: input.unpaidAmount, updatedAt: new Date().toISOString() })
+          .where(eq(revenueEntries.id, pkg.revenueEntryId));
+      }
+
       return { success: true };
     }),
 

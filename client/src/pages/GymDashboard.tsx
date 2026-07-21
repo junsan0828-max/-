@@ -61,7 +61,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const { data: entries, isLoading: revenueLoading } = trpc.gym.revenue.list.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: leads, isLoading: leadsLoading } = trpc.gym.leads.list.useQuery();
-  const { data: ptUnpaid, isLoading: unpaidLoading } = trpc.pt.listUnpaid.useQuery();
+  const { data: unpaidRows, isLoading: unpaidLoading } = trpc.gym.kpi.unpaidList.useQuery(branchFilter ? { branchId: branchFilter } : undefined);
 
   if (!type) return null;
 
@@ -83,7 +83,7 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
   const healthEntries = monthEntries.filter(r => r.entry.type === "헬스");
   const monthLeads = (leads ?? []).filter(l => (l.lead.createdAt ?? "").startsWith(prefix));
   const registeredLeads = monthLeads.filter(l => l.lead.status === "registered");
-  const unpaidList = (ptUnpaid ?? []).filter(p => (p.unpaidAmount ?? 0) > 0);
+  const unpaidList = (unpaidRows ?? []).filter(p => (p.unpaidAmount ?? 0) > 0);
 
   // 전체 뷰일 때 지점명 추가 표시, 지점 자체가 없을 때만 경고
   function rowSub(r: typeof monthEntries[0], parts: string[]) {
@@ -189,9 +189,9 @@ function KpiDetailModal({ type, year, month, branchFilter, kpi, onClose }: {
     unpaid: {
       title: "미수금 내역",
       rows: unpaidList.map(p => ({
-        label: p.memberName ?? "-",
+        label: p.memberName ?? p.customerName ?? "-",
         value: `${(p.unpaidAmount ?? 0).toLocaleString()}원`,
-        sub: `${p.packageName ?? "PT"} · ${p.trainerName ?? ""}`,
+        sub: [p.type, p.programDetail, p.trainerName, p.paymentDate].filter(Boolean).join(" · "),
       })),
       detail: unpaidList.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">미수금이 없습니다</p> : null,
     },
