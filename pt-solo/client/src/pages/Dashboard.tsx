@@ -17,6 +17,15 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import TabBanner from "@/components/TabBanner";
+import ReportBrandingEditor from "@/components/editors/ReportBrandingEditor";
+import ContractTermsEditor from "@/components/editors/ContractTermsEditor";
+
+// 작업실을 거치지 않고 대시보드 모달로 바로 여는 기능 — 하나씩 여기 추가하며 이전 중
+const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms"]);
+const MODAL_FEATURE_META: Record<string, { title: string; Component: React.ComponentType }> = {
+  report_branding: { title: "보고서 브랜딩", Component: ReportBrandingEditor },
+  contract_terms: { title: "약관 브랜딩", Component: ContractTermsEditor },
+};
 
 // ─── 아바타 색상 ──────────────────────────────────────────────────────────────
 const AVATAR_GRADIENTS = [
@@ -727,6 +736,7 @@ function TrainerDashboard() {
   const [todayModalOpen, setTodayModalOpen] = useState(false);
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
   const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
+  const [editorModalId, setEditorModalId] = useState<string | null>(null);
   const [expiringModalOpen, setExpiringModalOpen] = useState(false);
   const [unpaidModalOpen, setUnpaidModalOpen] = useState(false);
   const [lowSessionsModalOpen, setLowSessionsModalOpen] = useState(false);
@@ -787,6 +797,11 @@ function TrainerDashboard() {
   const userPlan = (user as any)?.plan ?? "free";
   const toWorkshop: WsNavFn = (featureId?: string) =>
     setLocation(featureId ? `/workshop?open=${featureId}` : "/workshop");
+  // 작업실을 거치지 않고 대시보드에서 바로 여는 기능 — 모달화 진행 중, 하나씩 여기로 이동
+  const openFeature: WsNavFn = (featureId?: string) => {
+    if (featureId && MODAL_FEATURE_IDS.has(featureId)) { setEditorModalId(featureId); return; }
+    toWorkshop(featureId);
+  };
   const trainerName = (user as any)?.trainerName ?? (user as any)?.username ?? "스테퍼";
   const recentMembers = allMembers?.slice(0, 8) ?? [];
 
@@ -943,7 +958,7 @@ function TrainerDashboard() {
       </div>
 
       {WS_DASH.map(cat => (
-        <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={toWorkshop} featureConfigs={wsStatus?.featureConfigs} addonUnlocks={wsStatus?.addonUnlocks} />
+        <WsCatGroup key={cat.key} cat={cat} plan={userPlan} onNavigate={openFeature} featureConfigs={wsStatus?.featureConfigs} addonUnlocks={wsStatus?.addonUnlocks} />
       ))}
 
       {/* AI 추천 배너 */}
@@ -1540,10 +1555,23 @@ function TrainerDashboard() {
         open={allFeaturesOpen}
         onClose={() => setAllFeaturesOpen(false)}
         plan={userPlan}
-        onNavigate={(id) => { setAllFeaturesOpen(false); toWorkshop(id); }}
+        onNavigate={(id) => { setAllFeaturesOpen(false); openFeature(id); }}
         featureConfigs={wsStatus?.featureConfigs}
         addonUnlocks={wsStatus?.addonUnlocks}
       />
+
+      {/* 기능 편집 모달 (작업실 경유 없이 대시보드에서 바로) */}
+      <Dialog open={!!editorModalId} onOpenChange={(o) => { if (!o) setEditorModalId(null); }}>
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editorModalId ? MODAL_FEATURE_META[editorModalId]?.title : ""}</DialogTitle>
+          </DialogHeader>
+          {editorModalId && (() => {
+            const Editor = MODAL_FEATURE_META[editorModalId].Component;
+            return <Editor />;
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

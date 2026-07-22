@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Wrench, ExternalLink, Video, Bell, Plus, Trash2, Edit2, ChevronDown, ChevronUp, Eye, EyeOff, FileText, Copy, Check, Users, CalendarCheck, ClipboardList, X, Globe, Instagram, Youtube, MessageCircle, Calendar, Dumbbell, Lock, Coins, BookMarked, BarChart3, TrendingUp, Database, Brain, FileSignature, Share2, Zap, Target, Utensils, Activity, ArrowUpRight, Sparkles, PlaySquare, PieChart, Award, Star, MapPin, Layers, Camera, ReceiptText, ArrowLeftRight } from "lucide-react";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 import TabBanner from "@/components/TabBanner";
+import ReportBrandingEditor from "@/components/editors/ReportBrandingEditor";
+import ContractTermsEditor from "@/components/editors/ContractTermsEditor";
 
 
 const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate: "중급", advanced: "고급" };
@@ -647,56 +649,6 @@ function AdminFspLimitsPanel() {
 }
 
 // ── 메인 Workshop 페이지 ────────────────────────────────────────────────────
-function ContractTermsEditor() {
-  const utils = trpc.useUtils();
-  const { data: terms } = trpc.trainers.getContractTerms.useQuery();
-  const updateMutation = trpc.trainers.updateContractTerms.useMutation({
-    onSuccess: () => { toast.success("약관이 저장되었습니다"); utils.trainers.getContractTerms.invalidate(); },
-    onError: () => toast.error("저장에 실패했습니다"),
-  });
-
-  const [termsOfService, setTermsOfService] = useState("");
-  const [privacyPolicy, setPrivacyPolicy] = useState("");
-  const [marketingConsent, setMarketingConsent] = useState("");
-
-  useEffect(() => {
-    if (terms) {
-      setTermsOfService(terms.termsOfService ?? "");
-      setPrivacyPolicy(terms.privacyPolicy ?? "");
-      setMarketingConsent(terms.marketingConsent ?? "");
-    }
-  }, [terms]);
-
-  return (
-    <div className="space-y-4">
-      {[
-        { label: "이용 약관", value: termsOfService, onChange: setTermsOfService },
-        { label: "개인정보 수집·이용 동의서", value: privacyPolicy, onChange: setPrivacyPolicy },
-        { label: "광고성 정보 수신 동의서", value: marketingConsent, onChange: setMarketingConsent },
-      ].map(({ label, value, onChange }) => (
-        <div key={label} className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">{label}</Label>
-          <textarea
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            rows={6}
-            placeholder={`${label} 내용을 입력하세요...`}
-            className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none font-mono leading-relaxed"
-          />
-        </div>
-      ))}
-      <Button
-        size="sm"
-        className="w-full"
-        disabled={updateMutation.isPending}
-        onClick={() => updateMutation.mutate({ termsOfService, privacyPolicy, marketingConsent })}
-      >
-        {updateMutation.isPending ? "저장 중..." : "저장"}
-      </Button>
-    </div>
-  );
-}
-
 // ── 운동 프로그램 템플릿 관리 ─────────────────────────────────────────────────
 function WorkoutTemplateEditor() {
   const utils = trpc.useUtils();
@@ -2851,84 +2803,6 @@ function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
 }
 
 // ── 회원 보고서 브랜딩 에디터 ──────────────────────────────────────────────────
-function ReportBrandingEditor() {
-  const utils = trpc.useUtils();
-  const { data: brand } = trpc.brand.getMyBrand.useQuery();
-  const updateMutation = trpc.brand.updateMyBrand.useMutation({
-    onSuccess: () => { utils.brand.getMyBrand.invalidate(); toast.success("저장되었습니다"); },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const [msgDraft, setMsgDraft] = useState((brand as any)?.brandMessage ?? "");
-  useEffect(() => { setMsgDraft((brand as any)?.brandMessage ?? ""); }, [brand]);
-
-  const brandColor = (brand as any)?.brandColor || "#1a80ff";
-  const brandMsg = (brand as any)?.brandMessage || "";
-
-  return (
-    <div className="space-y-4">
-      {/* 미리보기 */}
-      <div className="bg-muted/40 border border-border rounded-xl p-3 space-y-2">
-        <p className="text-xs font-semibold text-muted-foreground">미리보기 · 공유 보고서 상단</p>
-        <div className="rounded-lg overflow-hidden border border-border">
-          <div className="h-2" style={{ background: brandColor }} />
-          <div className="flex items-center gap-3 p-3 bg-background">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-              style={{ backgroundColor: brandColor }}>
-              {(brand as any)?.trainerName?.[0] ?? "T"}
-            </div>
-            <div>
-              <p className="text-sm font-bold">{(brand as any)?.trainerName ?? "STEPER 이름"}</p>
-              <p className="text-xs text-muted-foreground">STEPER · Powered by FIT STEP</p>
-            </div>
-          </div>
-          {brandMsg && (
-            <div className="px-3 pb-3">
-              <p className="text-xs rounded-lg px-3 py-2 font-medium" style={{ backgroundColor: `${brandColor}18`, color: brandColor }}>
-                💬 {brandMsg}
-              </p>
-            </div>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">공유 보고서에 위 형태로 표시됩니다.</p>
-      </div>
-
-      {/* 브랜드 컬러 */}
-      <div className="space-y-2">
-        <Label className="text-xs font-semibold">브랜드 컬러</Label>
-        <div className="flex items-center gap-3">
-          <input type="color" value={brandColor}
-            onChange={(e) => updateMutation.mutate({ brandColor: e.target.value } as any)}
-            className="w-10 h-10 rounded-lg border border-border cursor-pointer bg-transparent" />
-          <span className="text-sm text-muted-foreground">{brandColor}</span>
-        </div>
-      </div>
-
-      {/* 인사 메시지 */}
-      <div className="space-y-2">
-        <Label className="text-xs font-semibold">인사 메시지</Label>
-        <p className="text-[11px] text-muted-foreground">보고서 상단에 표시되는 짧은 한 마디입니다.</p>
-        <div className="flex gap-2">
-          <Input
-            value={msgDraft}
-            onChange={e => setMsgDraft(e.target.value)}
-            placeholder="오늘도 수고했습니다 💪"
-            maxLength={50}
-            className="h-9 text-sm flex-1"
-          />
-          <Button size="sm" disabled={updateMutation.isPending}
-            onClick={() => updateMutation.mutate({ brandMessage: msgDraft } as any)}>
-            저장
-          </Button>
-        </div>
-        <p className="text-[10px] text-muted-foreground text-right">{msgDraft.length}/50</p>
-      </div>
-
-      <p className="text-xs text-muted-foreground">이름·프로필 사진은 내 프로필 페이지에서 변경할 수 있습니다.</p>
-    </div>
-  );
-}
-
 // ── 잠금 게이트 ────────────────────────────────────────────────────────────────
 function FeatureCard({
   icon,
