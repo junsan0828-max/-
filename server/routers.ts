@@ -4691,13 +4691,31 @@ const gymPlusProtected = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, gymPlusMemberId: gymMemberId } });
 });
 
-const adminOnlyGymPlus = t.procedure;
+// 자이언트짐++ 관리자 전용(처리): 통합운영 관리자(admin/sub_admin) 세션이거나,
+// gymPlus.adminLogin으로 인증된 세션(session.gymPlusAdmin)만 통과. 예전엔 인증이 전혀
+// 없어(t.procedure) 누구나 재등록 승인/거절·회원삭제가 가능했다.
+const adminOnlyGymPlus = t.procedure.use(({ ctx, next }) => {
+  const role = ctx.user?.role;
+  const isStaffAdmin = role === "admin" || role === "sub_admin";
+  const isGymPlusAdmin = !!(ctx.req.session as any)?.gymPlusAdmin;
+  if (!isStaffAdmin && !isGymPlusAdmin) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return next({ ctx });
+});
+
+// 조회 전용(대시보드/상담관리 배너 포함): 위 관리자 + 컨설턴트도 허용.
+const gymPlusRenewalView = t.procedure.use(({ ctx, next }) => {
+  const role = ctx.user?.role;
+  const ok = role === "admin" || role === "sub_admin" || role === "consultant" || !!(ctx.req.session as any)?.gymPlusAdmin;
+  if (!ok) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return next({ ctx });
+});
 
 const gymPlusRouter = t.router({
-  // 관리자 로그인 (기존 admin 계정으로 인증)
+  // 관리자 로그인 (기존 admin 계정으로 인증) — 성공 시 세션에 gymPlusAdmin 플래그를 남겨
+  // 이후 admin_* API가 서버에서 실제로 인증을 검증할 수 있게 한다(예전엔 클라이언트 게이트뿐).
   adminLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const [user] = await db.select().from(users)
@@ -4707,8 +4725,25 @@ const gymPlusRouter = t.router({
         throw new TRPCError({ code: "FORBIDDEN", message: "관리자 계정만 접근할 수 있습니다." });
       const valid = await bcrypt.compare(input.password, user.password);
       if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "아이디 또는 비밀번호가 잘못되었습니다." });
+      (ctx.req.session as any).gymPlusAdmin = { username: user.username, role: user.role };
       return { success: true, username: user.username, role: user.role };
     }),
+
+  // 현재 자이언트짐++ 관리자 세션 확인 (없으면 null). 클라이언트가 로그인 게이트 표시 판단에 사용.
+  adminMe: publicProcedure.query(({ ctx }) => {
+    const gp = (ctx.req.session as any)?.gymPlusAdmin;
+    const role = ctx.user?.role;
+    if (gp) return gp as { username: string; role: string };
+    // 통합운영 관리자 세션도 자이언트짐++ 관리자로 인정
+    if (role === "admin" || role === "sub_admin") return { username: ctx.user!.username, role };
+    return null;
+  }),
+
+  // 자이언트짐++ 관리자 로그아웃 (세션 플래그 제거)
+  adminLogout: publicProcedure.mutation(({ ctx }) => {
+    delete (ctx.req.session as any).gymPlusAdmin;
+    return { success: true };
+  }),
 
   memberLogin: publicProcedure
     .input(z.object({ username: z.string(), password: z.string() }))
@@ -5407,8 +5442,8 @@ const gymPlusRouter = t.router({
         .orderBy(desc(gymPlusMembershipRenewals.requestedAt));
     }),
 
-  // 관리자: 전체 재등록 신청 목록
-  admin_listRenewals: adminOnlyGymPlus
+  // 관리자/컨설턴트: 전체 재등록 신청 목록 (대시보드·상담관리 배너 조회 포함)
+  admin_listRenewals: gymPlusRenewalView
     .input(z.object({ status: z.enum(["pending", "approved", "rejected", "all"]).default("pending") }))
     .query(async ({ input }) => {
       const db = await getDb();

@@ -20,9 +20,11 @@ const SESSION_KEY = "gymplus_admin_verified";
 function AdminLoginGate({ onVerified }: { onVerified: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const utils = trpc.useUtils();
   const loginMutation = trpc.gymPlus.adminLogin.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       sessionStorage.setItem(SESSION_KEY, data.username);
+      await utils.gymPlus.adminMe.invalidate();
       onVerified();
     },
     onError: (err) => toast.error(err.message || "로그인 실패"),
@@ -77,6 +79,18 @@ function AdminLoginGate({ onVerified }: { onVerified: () => void }) {
   );
 }
 
+function LogoutButton({ onDone }: { onDone: () => void }) {
+  const logout = trpc.gymPlus.adminLogout.useMutation({ onSettled: onDone });
+  return (
+    <button
+      onClick={() => logout.mutate()}
+      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+    >
+      로그아웃
+    </button>
+  );
+}
+
 export default function GymPlusAdminPage() {
   const [verified, setVerified] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("members");
@@ -84,6 +98,16 @@ export default function GymPlusAdminPage() {
   useEffect(() => {
     if (sessionStorage.getItem(SESSION_KEY)) setVerified(true);
   }, []);
+
+  // 서버 세션 검증: sessionStorage에 흔적이 남아있어도 서버 세션이 없으면(만료·배포 등)
+  // 로그인 게이트로 되돌린다. 안 그러면 admin_* 호출이 401로 깨진다.
+  const { data: adminSession, isFetched } = trpc.gymPlus.adminMe.useQuery();
+  useEffect(() => {
+    if (isFetched && !adminSession && verified) {
+      sessionStorage.removeItem(SESSION_KEY);
+      setVerified(false);
+    }
+  }, [isFetched, adminSession, verified]);
 
   if (!verified) {
     return <AdminLoginGate onVerified={() => setVerified(true)} />;
@@ -98,12 +122,7 @@ export default function GymPlusAdminPage() {
         >
           ZIANTGYM<span className="text-primary">+</span>
         </span>
-        <button
-          onClick={() => { sessionStorage.removeItem(SESSION_KEY); setVerified(false); }}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          로그아웃
-        </button>
+        <LogoutButton onDone={() => { sessionStorage.removeItem(SESSION_KEY); setVerified(false); }} />
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20 max-w-2xl w-full mx-auto">
