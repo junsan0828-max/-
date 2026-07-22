@@ -63,7 +63,13 @@ export async function submitIfkArticleAsPending(
 
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage();
+    // ifk.co.kr 서버가 TLS 중간 인증서 체인을 불완전하게 보내고 있어 (curl -k로 확인됨),
+    // 리눅스 기반 헤드리스 크롬은 이 사이트에서 net::ERR_CONNECTION_RESET으로 접속이 막힌다.
+    // Windows Chrome은 OS 차원에서 부족한 중간 인증서를 자동 보완해 조용히 성공하지만
+    // 리눅스에는 그 기능이 없다. 신뢰하는 우리 사이트(회사 관리자 페이지)이므로 이 컨텍스트에
+    // 한해 인증서 검증을 건너뛴다.
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await context.newPage();
     await login(page);
     await page.goto("https://www.ifk.co.kr/nad/news/insert.php", { waitUntil: "networkidle" });
     await page.waitForTimeout(2000); // Cheditor iframe 초기화 대기
