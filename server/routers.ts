@@ -4110,9 +4110,11 @@ const adminRouter = t.router({
       return reasons.length > 0 ? { ...r, reasons } : null;
     }).filter((r): r is NonNullable<typeof r> => r !== null);
 
-    // 장부 자체 불일치: 정가 − 할인 − 미수금 ≠ 실결제. 화면마다 다른 금액이 보이는 원인
-    // (예: 문정현 198,000원 vs 197,999원 — 매출 팝업은 실결제, 등록관리는 정가를 표시).
-    // 환불/이전은 계산 규칙이 달라 제외. 수정은 등록관리에서 해당 건을 열어 재저장하면 된다.
+    // 장부 이상 감지. 실결제(paidAmount)가 정가(amount)보다 "큰" 것은 정상이다 —
+    // 이체가 아닌 결제는 부가세 10%가 붙고, 락커·운동복 같은 서비스 항목이 같은 건에 합산되기
+    // 때문(예: 최지훈 204,000→224,400은 정확히 ×1.1 부가세, 궁연화 216,000→276,000은 서비스 합산).
+    // 따라서 "실결제가 받았어야 할 금액보다 적게 기록된 경우"(매출 누락 위험)와 "미수금이 정가보다
+    // 큰 경우"(명백한 데이터 오류)만 이상으로 잡는다. 반올림 오차(±100원)는 무시.
     const mismatchRes = await pool.query<{
       id: number; customerName: string | null; paymentDate: string | null; type: string;
       amount: number; discount: number; unpaid: number; paid: number;
@@ -4122,7 +4124,10 @@ const adminRouter = t.router({
              COALESCE("unpaidAmount",0) AS unpaid, COALESCE("paidAmount",0) AS paid
       FROM revenue_entries
       WHERE COALESCE("subType",'') NOT IN ('환불','이전')
-        AND (COALESCE(amount,0) - COALESCE("discountAmount",0) - COALESCE("unpaidAmount",0)) <> COALESCE("paidAmount",0)
+        AND (
+          COALESCE("unpaidAmount",0) > COALESCE(amount,0)
+          OR COALESCE("paidAmount",0) < (COALESCE(amount,0) - COALESCE("discountAmount",0) - COALESCE("unpaidAmount",0)) - 100
+        )
       ORDER BY "paymentDate" DESC NULLS LAST
       LIMIT 30
     `);

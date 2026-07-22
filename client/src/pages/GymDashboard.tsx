@@ -395,9 +395,15 @@ export default function GymDashboard() {
                     <span className="font-medium text-foreground underline decoration-red-400/40 underline-offset-2">{m.customerName ?? "고객 미상"} · {m.type}</span>
                     <span className="text-muted-foreground">{m.paymentDate ?? "-"}</span>
                   </div>
-                  <p className="text-red-300 mt-0.5">
-                    ⚠ 정가 {m.amount.toLocaleString()} − 할인 {m.discount.toLocaleString()} − 미수 {m.unpaid.toLocaleString()} = {(m.amount - m.discount - m.unpaid).toLocaleString()}원인데 실결제가 {m.paid.toLocaleString()}원으로 저장됨
-                  </p>
+                  {m.unpaid > m.amount ? (
+                    <p className="text-red-300 mt-0.5">
+                      ⚠ 미수금 {m.unpaid.toLocaleString()}원이 정가 {m.amount.toLocaleString()}원보다 큼 (데이터 오류)
+                    </p>
+                  ) : (
+                    <p className="text-red-300 mt-0.5">
+                      ⚠ 받을 금액 {(m.amount - m.discount - m.unpaid).toLocaleString()}원(정가 {m.amount.toLocaleString()} − 할인 {m.discount.toLocaleString()} − 미수 {m.unpaid.toLocaleString()})인데 실결제가 {m.paid.toLocaleString()}원으로 적게 기록됨
+                    </p>
+                  )}
                   <p className="text-[11px] text-primary mt-0.5">→ 눌러서 등록관리에서 수정</p>
                 </button>
               ))}
