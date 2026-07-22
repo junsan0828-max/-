@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useLocation, useSearch } from "wouter";
+import { useLocation, useSearch, Redirect } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -425,7 +425,7 @@ function AttendanceSection() {
 }
 
 // ── 운동기록 조회 섹션 ──────────────────────────────────────────────────────
-function WorkoutLogSection() {
+export function WorkoutLogSection() {
   const today = new Date().toISOString().slice(0, 10);
   const [month, setMonth] = useState(today.slice(0, 7));
   const { data: logs } = trpc.fitStepPlus.trainer_listWorkoutLogs.useQuery({ month });
@@ -1984,11 +1984,11 @@ const TIER_META = {
 
 // ── 작업실 기능 카탈로그 ───────────────────────────────────────────────────────
 
-type WsItemStatus = "active" | "coming_soon" | "addon_fsp" | "addon_premium";
-interface WsItem { id: string; icon: React.ElementType; name: string; shortDesc: string; description: string; tags: string[]; useCases: string[]; status: WsItemStatus; }
+export type WsItemStatus = "active" | "coming_soon" | "addon_fsp" | "addon_premium";
+export interface WsItem { id: string; icon: React.ElementType; name: string; shortDesc: string; description: string; tags: string[]; useCases: string[]; status: WsItemStatus; }
 interface WsCatDef { key: string; label: string; icon: React.ElementType; iconCls: string; bgCls: string; items: WsItem[]; }
 
-const WS_CATALOG: WsCatDef[] = [
+export const WS_CATALOG: WsCatDef[] = [
   {
     key: "branding", label: "브랜딩 & 회원 경험", icon: Sparkles, iconCls: "text-violet-500", bgCls: "bg-violet-500/10",
     items: [
@@ -2979,7 +2979,7 @@ function buildDietPlan(options: MealOption[], tdee: number, goal: string): DietR
   return { tdee: targetKcal, goalLabel, meals };
 }
 
-function TrainerDietManager() {
+export function TrainerDietManager() {
   const { data: memberList = [] } = trpc.members.list.useQuery();
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [goal, setGoal] = useState<"loss" | "maintain" | "gain">("maintain");
@@ -4010,9 +4010,14 @@ function WorkshopContent() {
 }
 
 export default function Workshop() {
-  const { data: user } = trpc.auth.me.useQuery();
+  const { data: user, isLoading } = trpc.auth.me.useQuery();
   const [adminTab, setAdminTab] = useState<"manage" | "workshop">("manage");
   const isAdmin = (user as any)?.role === "admin";
+
+  // 작업실은 관리자 전용 — 트레이너 계정은 대시보드로 리다이렉트
+  if (!isLoading && !isAdmin) {
+    return <Redirect to="/" />;
+  }
 
   if (isAdmin) {
     return (

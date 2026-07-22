@@ -24,9 +24,10 @@ import SurveyBuilder from "@/components/editors/SurveyBuilder";
 import EContractManager from "@/components/editors/EContractManager";
 import RefundContractManager from "@/components/editors/RefundContractManager";
 import TransferContractManager from "@/components/editors/TransferContractManager";
+import { WorkoutLogSection, TrainerDietManager, WS_CATALOG } from "@/pages/Workshop";
 
 // 작업실을 거치지 않고 대시보드 모달로 바로 여는 기능 — 하나씩 여기 추가하며 이전 중
-const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract"]);
+const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract", "contract_kakao", "fitstep_personal", "fitstep_diet"]);
 const MODAL_FEATURE_META: Record<string, { title: string; Component: React.ComponentType }> = {
   report_branding: { title: "보고서 브랜딩", Component: ReportBrandingEditor },
   contract_terms: { title: "약관 브랜딩", Component: ContractTermsEditor },
@@ -35,6 +36,9 @@ const MODAL_FEATURE_META: Record<string, { title: string; Component: React.Compo
   e_contract: { title: "비대면 전자계약", Component: EContractManager },
   refund_contract: { title: "환불 계약서", Component: RefundContractManager },
   transfer_contract: { title: "양도양수 계약서", Component: TransferContractManager },
+  contract_kakao: { title: "계약서 카카오톡 공유", Component: EContractManager },
+  fitstep_personal: { title: "개인 운동 기록 관리", Component: WorkoutLogSection },
+  fitstep_diet: { title: "맞춤 식단 관리", Component: TrainerDietManager },
 };
 
 // ─── 아바타 색상 ──────────────────────────────────────────────────────────────
@@ -703,6 +707,7 @@ function TrainerDashboard() {
   const [ptStatsModalOpen, setPtStatsModalOpen] = useState(false);
   const [allFeaturesOpen, setAllFeaturesOpen] = useState(false);
   const [editorModalId, setEditorModalId] = useState<string | null>(null);
+  const [infoFeatureId, setInfoFeatureId] = useState<string | null>(null);
   const [expiringModalOpen, setExpiringModalOpen] = useState(false);
   const [unpaidModalOpen, setUnpaidModalOpen] = useState(false);
   const [lowSessionsModalOpen, setLowSessionsModalOpen] = useState(false);
@@ -761,18 +766,17 @@ function TrainerDashboard() {
   if (isLoading) return <LoadingSkeleton />;
 
   const userPlan = (user as any)?.plan ?? "free";
-  const toWorkshop: WsNavFn = (featureId?: string) =>
-    setLocation(featureId ? `/workshop?open=${featureId}` : "/workshop");
-  // 작업실을 거치지 않고 대시보드에서 바로 여는 기능 — 모달화/전용페이지화 진행 중, 하나씩 여기로 이동
+  // 작업실(/workshop)을 거치지 않고 대시보드에서 바로 여는 기능 — 모달/전용페이지/정보 안내로 분기
   const PAGE_FEATURE_ROUTES: Record<string, string> = {
     brand_page: "/brand-page",
     booking: "/booking",
     fitstep_plus: "/fitstep-plus-manage",
   };
   const openFeature: WsNavFn = (featureId?: string) => {
-    if (featureId && MODAL_FEATURE_IDS.has(featureId)) { setEditorModalId(featureId); return; }
-    if (featureId && PAGE_FEATURE_ROUTES[featureId]) { setLocation(PAGE_FEATURE_ROUTES[featureId]); return; }
-    toWorkshop(featureId);
+    if (!featureId) return;
+    if (MODAL_FEATURE_IDS.has(featureId)) { setEditorModalId(featureId); return; }
+    if (PAGE_FEATURE_ROUTES[featureId]) { setLocation(PAGE_FEATURE_ROUTES[featureId]); return; }
+    setInfoFeatureId(featureId);
   };
   const trainerName = (user as any)?.trainerName ?? (user as any)?.username ?? "스테퍼";
   const recentMembers = allMembers?.slice(0, 8) ?? [];
@@ -912,8 +916,8 @@ function TrainerDashboard() {
         <ToolGrid items={[
           { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
           { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
-          { label: "AI 추천", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setLocation("/workshop"), locked: userPlan === "free" },
-          { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setLocation("/workshop"), locked: userPlan === "free" },
+          { label: "AI 추천", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("fitstep_rec"), locked: userPlan === "free" },
+          { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("ai_insights"), locked: userPlan === "free" },
         ]} />
       </div>
 
@@ -930,7 +934,7 @@ function TrainerDashboard() {
       ))}
 
       {/* AI 추천 배너 */}
-      <button onClick={() => setLocation("/workshop")}
+      <button onClick={() => openFeature("fitstep_rec")}
         className="w-full relative overflow-hidden rounded-2xl p-5 flex items-center gap-4 text-left active:scale-[0.98] transition-transform"
         style={{ background: "linear-gradient(130deg, #1E40AF 0%, #4F46E5 55%, #7C3AED 100%)", boxShadow: "0 8px 28px rgba(79,70,229,.28)" }}>
         <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/5 -translate-y-8 translate-x-8 pointer-events-none" />
@@ -1537,6 +1541,40 @@ function TrainerDashboard() {
           {editorModalId && (() => {
             const Editor = MODAL_FEATURE_META[editorModalId].Component;
             return <Editor />;
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* 준비 중/안내성 기능 정보 모달 (작업실 경유 없이) */}
+      <Dialog open={!!infoFeatureId} onOpenChange={(o) => { if (!o) setInfoFeatureId(null); }}>
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
+          {infoFeatureId && (() => {
+            const item = WS_CATALOG.flatMap(c => c.items).find(i => i.id === infoFeatureId);
+            if (!item) return null;
+            return (
+              <div className="space-y-3">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    {item.name}
+                    {item.status === "coming_soon" && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">준비 중</span>
+                    )}
+                  </DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {item.tags.map(tag => (
+                    <span key={tag} className="text-[11px] px-2 py-1 rounded-full bg-accent/50 text-foreground/70">{tag}</span>
+                  ))}
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground">활용 예시</p>
+                  {item.useCases.map(uc => (
+                    <p key={uc} className="text-xs text-muted-foreground">· {uc}</p>
+                  ))}
+                </div>
+              </div>
+            );
           })()}
         </DialogContent>
       </Dialog>
