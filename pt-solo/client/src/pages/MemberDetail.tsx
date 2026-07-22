@@ -123,14 +123,10 @@ function SequenceLoader({ memberId, onLoad }: { memberId: number; onLoad: (exs: 
           {versions.map((v: any) => (
             <button key={v.id} className="w-full text-left px-3 py-2.5 text-xs hover:bg-accent/30 transition-colors border-b border-border last:border-0"
               onClick={async () => {
-                const detail = await utils.sequenceLab.getVersionForApply.fetch({ versionId: v.id, memberId });
+                const detail = await utils.sequenceLab.getVersionForApply.fetch({ versionId: v.id });
                 onLoad(detail.exercises, v.id);
                 setOpen(false);
-                if (detail.adjustedForCaution) {
-                  toast.success(`${detail.title || "시퀀스"} 불러옴 — 회원 건강 이력을 고려해 쉬운 동작으로 자동 조정했어요.`, { duration: 5000 });
-                } else {
-                  toast.success(`${detail.title || "시퀀스"} 불러옴`);
-                }
+                toast.success(`${detail.title || "시퀀스"} 불러옴`);
               }}>
               <p className="font-medium">{v.title || "(제목 없음)"}</p>
             </button>

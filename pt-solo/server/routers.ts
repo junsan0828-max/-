@@ -3180,20 +3180,13 @@ const trainingLogRouter = t.router({
 
 // ─── 시퀀스 랩 ───────────────────────────────────────────────────────────────
 
-const SEQUENCE_DEFAULT_SECTIONS = ["수업 전 확인", "움직임 준비", "기능 개선", "통합 움직임", "근력 및 수행", "재확인 및 기록"];
+const SEQUENCE_DEFAULT_SECTIONS = ["운동 목록"];
 const SEQUENCE_EDITABLE_STATUSES = ["DRAFT", "CHANGES_REQUESTED"];
 
 const sequenceExerciseSchema = z.object({
   name: z.string().min(1),
-  stageLabel: z.string().optional(),
   durationOrReps: z.string().optional(),
-  intensity: z.string().optional(),
-  restText: z.string().optional(),
-  coachingCue: z.string().optional(),
-  easyVariant: z.string().optional(),
-  baseVariant: z.string().optional(),
-  hardVariant: z.string().optional(),
-  cautions: z.string().optional(),
+  videoUrl: z.string().optional(),
 });
 const sequenceSectionSchema = z.object({
   name: z.string().min(1),
@@ -3247,15 +3240,14 @@ async function seqReplaceSectionsAndExercises(versionId: number, sections: { nam
   sections.forEach((sec, i) => {
     const sectionId = idBySort.get(i)!;
     sec.exercises.forEach((ex: any, j: number) => {
-      exParams.push(sectionId, j, ex.name, ex.stageLabel ?? null, ex.durationOrReps ?? null, ex.intensity ?? null, ex.restText ?? null,
-        ex.coachingCue ?? null, ex.easyVariant ?? null, ex.baseVariant ?? null, ex.hardVariant ?? null, ex.cautions ?? null);
+      exParams.push(sectionId, j, ex.name, ex.durationOrReps ?? null, ex.videoUrl ?? null);
       const b = exParams.length;
-      exValues.push(`($${b - 11},$${b - 10},$${b - 9},$${b - 8},$${b - 7},$${b - 6},$${b - 5},$${b - 4},$${b - 3},$${b - 2},$${b - 1},$${b})`);
+      exValues.push(`($${b - 4},$${b - 3},$${b - 2},$${b - 1},$${b})`);
     });
   });
   if (exValues.length > 0) {
     await db.query(
-      `INSERT INTO sequence_exercises ("sectionId","sortOrder",name,"stageLabel","durationOrReps",intensity,"restText","coachingCue","easyVariant","baseVariant","hardVariant",cautions)
+      `INSERT INTO sequence_exercises ("sectionId","sortOrder",name,"durationOrReps","videoUrl")
        VALUES ${exValues.join(",")}`,
       exParams
     );
@@ -3818,7 +3810,7 @@ const sequenceLabRouter = t.router({
   }),
 
   getVersionForApply: protectedProcedure
-    .input(z.object({ versionId: z.number(), memberId: z.number().optional() }))
+    .input(z.object({ versionId: z.number() }))
     .query(async ({ ctx, input }) => {
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
@@ -3827,32 +3819,13 @@ const sequenceLabRouter = t.router({
       if (version.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const sections = await seqGetSectionsWithExercises(input.versionId);
 
-      // 회원의 PAR-Q·최근 통증 이력을 확인해 쉬운 동작 자동 선택 여부 판단
-      // (운동별 부위 태그가 없어 "이 회원=주의 필요"로 통째 판단하는 보수적인 V1)
-      let useEasyVariant = false;
-      if (input.memberId) {
-        const memberRow = await pool.query(`SELECT id FROM members WHERE id=$1 AND "trainerId"=$2`, [input.memberId, trainerId]);
-        if (memberRow.rows.length > 0) {
-          const parq = (await pool.query<any>(`SELECT "musculoskeletalIssues", "chronicDiseases" FROM par_q WHERE "memberId"=$1`, [input.memberId])).rows[0];
-          const hasParqFlag = !!(parq?.musculoskeletalIssues?.trim() || parq?.chronicDiseases?.trim());
-          const lastCheck = (await pool.query<{ painLevel: number | null }>(
-            `SELECT "painLevel" FROM attendance_checks WHERE "memberId"=$1 ORDER BY "checkDate" DESC, id DESC LIMIT 1`, [input.memberId]
-          )).rows[0];
-          const hasRecentPain = (lastCheck?.painLevel ?? 0) >= 5;
-          useEasyVariant = hasParqFlag || hasRecentPain;
-        }
-      }
-
       const exercises = sections.flatMap((sec: any) =>
-        sec.exercises.map((ex: any) => {
-          const variantNote = useEasyVariant && ex.easyVariant ? ` — 쉬운 동작: ${ex.easyVariant}` : ex.durationOrReps ? ` · ${ex.durationOrReps}` : "";
-          return {
-            name: `[${sec.name}] ${ex.name}${variantNote}`,
-            sets: [{ reps: "", weight: "" }],
-          };
-        })
+        sec.exercises.map((ex: any) => ({
+          name: `${ex.name}${ex.durationOrReps ? ` · ${ex.durationOrReps}` : ""}`,
+          sets: [{ reps: "", weight: "" }],
+        }))
       );
-      return { title: version.title, exercises, adjustedForCaution: useEasyVariant };
+      return { title: version.title, exercises };
     }),
 
   // 공개된 시퀀스 수정 → 기존 공개본은 유지하고 새 리비전을 만들어 재검토

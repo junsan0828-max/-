@@ -111,10 +111,15 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
             <p className="text-xs text-muted-foreground">운동 항목이 없습니다.</p>
           ) : sec.exercises.map((ex: any, j: number) => (
             <div key={j} className="rounded-lg bg-accent/20 p-2.5 text-xs space-y-1">
-              <p className="font-semibold">{ex.name}</p>
-              <p className="text-muted-foreground">{ex.durationOrReps} {ex.intensity && `· 강도 ${ex.intensity}`} {ex.restText && `· 휴식 ${ex.restText}`}</p>
-              {ex.coachingCue && <p>💬 {ex.coachingCue}</p>}
-              {ex.cautions && <p className="text-amber-600">⚠ {ex.cautions}</p>}
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-semibold">{ex.name}</p>
+                {ex.durationOrReps && <span className="text-muted-foreground shrink-0">{ex.durationOrReps}</span>}
+              </div>
+              {ex.videoUrl && (
+                <a href={ex.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-red-600 hover:underline">
+                  ▶ 동작 영상 보기
+                </a>
+              )}
             </div>
           ))}
         </div>

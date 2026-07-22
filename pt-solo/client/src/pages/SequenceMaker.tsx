@@ -6,23 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, Save, Send, X, Check, Undo2,
+  ArrowLeft, Plus, ChevronUp, ChevronDown, ChevronRight, Save, Send, X, Check, Youtube,
 } from "lucide-react";
 
 interface Props {
   versionId: number;
 }
 
-type ExerciseForm = {
-  name: string; stageLabel: string; durationOrReps: string; intensity: string; restText: string;
-  coachingCue: string; easyVariant: string; baseVariant: string; hardVariant: string; cautions: string;
-};
-type SectionForm = { name: string; exercises: ExerciseForm[] };
+type ExerciseForm = { name: string; durationOrReps: string; videoUrl: string };
 
-const emptyExercise = (): ExerciseForm => ({
-  name: "", stageLabel: "", durationOrReps: "", intensity: "", restText: "",
-  coachingCue: "", easyVariant: "", baseVariant: "", hardVariant: "", cautions: "",
-});
+const emptyExercise = (): ExerciseForm => ({ name: "", durationOrReps: "", videoUrl: "" });
 
 import {
   SEQ_CATEGORY_OPTIONS as CATEGORY_OPTIONS,
@@ -64,9 +57,8 @@ export default function SequenceMaker({ versionId }: Props) {
     movementType: "", targetAudience: "", difficulty: "", estimatedMinutes: "", equipment: "", tags: "",
     classGoal: "", preCheckItems: "", postCheckItems: "", coachingNotes: "", authorMemo: "",
   });
-  const [sections, setSections] = useState<SectionForm[]>([]);
-  const [openSection, setOpenSection] = useState<number | null>(0);
-  const [openExercise, setOpenExercise] = useState<string | null>(null);
+  const [exercises, setExercises] = useState<ExerciseForm[]>([]);
+  const [openExercise, setOpenExercise] = useState<number | null>(null);
   const [dirty, setDirty] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const hydrated = useRef(false);
@@ -84,16 +76,12 @@ export default function SequenceMaker({ versionId }: Props) {
       preCheckItems: v.preCheckItems ?? "", postCheckItems: v.postCheckItems ?? "", coachingNotes: v.coachingNotes ?? "",
       authorMemo: v.authorMemo ?? "",
     });
-    setSections(
-      data.sections.map((s: any) => ({
-        name: s.name,
-        exercises: s.exercises.map((ex: any) => ({
-          name: ex.name ?? "", stageLabel: ex.stageLabel ?? "", durationOrReps: ex.durationOrReps ?? "",
-          intensity: ex.intensity ?? "", restText: ex.restText ?? "", coachingCue: ex.coachingCue ?? "",
-          easyVariant: ex.easyVariant ?? "", baseVariant: ex.baseVariant ?? "", hardVariant: ex.hardVariant ?? "",
-          cautions: ex.cautions ?? "",
-        })),
-      }))
+    setExercises(
+      data.sections.flatMap((s: any) =>
+        s.exercises.map((ex: any) => ({
+          name: ex.name ?? "", durationOrReps: ex.durationOrReps ?? "", videoUrl: ex.videoUrl ?? "",
+        }))
+      )
     );
   }, [data]);
 
@@ -128,59 +116,29 @@ export default function SequenceMaker({ versionId }: Props) {
         equipment: form.equipment || undefined, tags: form.tags || undefined, classGoal: form.classGoal || undefined,
         preCheckItems: form.preCheckItems || undefined, postCheckItems: form.postCheckItems || undefined,
         coachingNotes: form.coachingNotes || undefined, authorMemo: form.authorMemo || undefined,
-        sections: sections.map(s => ({ name: s.name, exercises: s.exercises })),
+        sections: [{ name: "운동 목록", exercises }],
       },
       { onSuccess: () => { if (showToast) toast.success("임시저장했습니다."); onSaved?.(); } }
     );
   }
 
-  // 섹션 조작
-  function addSection() { setSections(s => [...s, { name: "새 단계", exercises: [] }]); setDirty(true); }
-  function removeSection(i: number) { setSections(s => s.filter((_, idx) => idx !== i)); setDirty(true); }
-  function moveSection(i: number, dir: -1 | 1) {
-    setSections(s => {
-      const j = i + dir;
-      if (j < 0 || j >= s.length) return s;
-      const next = [...s];
-      [next[i], next[j]] = [next[j], next[i]];
+  // 운동 조작
+  function addExercise() { setExercises(ex => [...ex, emptyExercise()]); setDirty(true); }
+  function removeExercise(exIdx: number) { setExercises(ex => ex.filter((_, i) => i !== exIdx)); setDirty(true); }
+  function moveExercise(exIdx: number, dir: -1 | 1) {
+    setExercises(ex => {
+      const j = exIdx + dir;
+      if (j < 0 || j >= ex.length) return ex;
+      const next = [...ex];
+      [next[exIdx], next[j]] = [next[j], next[exIdx]];
       return next;
     });
     setDirty(true);
   }
-  function renameSection(i: number, name: string) {
-    setSections(s => s.map((sec, idx) => idx === i ? { ...sec, name } : sec));
+  function updateExercise(exIdx: number, field: keyof ExerciseForm, value: string) {
+    setExercises(ex => ex.map((e, i) => i === exIdx ? { ...e, [field]: value } : e));
     setDirty(true);
   }
-
-  // 운동 조작
-  function addExercise(secIdx: number) {
-    setSections(s => s.map((sec, idx) => idx === secIdx ? { ...sec, exercises: [...sec.exercises, emptyExercise()] } : sec));
-    setDirty(true);
-  }
-  function removeExercise(secIdx: number, exIdx: number) {
-    setSections(s => s.map((sec, idx) => idx === secIdx ? { ...sec, exercises: sec.exercises.filter((_, i) => i !== exIdx) } : sec));
-    setDirty(true);
-  }
-  function moveExercise(secIdx: number, exIdx: number, dir: -1 | 1) {
-    setSections(s => s.map((sec, idx) => {
-      if (idx !== secIdx) return sec;
-      const j = exIdx + dir;
-      if (j < 0 || j >= sec.exercises.length) return sec;
-      const next = [...sec.exercises];
-      [next[exIdx], next[j]] = [next[j], next[exIdx]];
-      return { ...sec, exercises: next };
-    }));
-    setDirty(true);
-  }
-  function updateExercise(secIdx: number, exIdx: number, field: keyof ExerciseForm, value: string) {
-    setSections(s => s.map((sec, idx) => idx !== secIdx ? sec : {
-      ...sec,
-      exercises: sec.exercises.map((ex, i) => i === exIdx ? { ...ex, [field]: value } : ex),
-    }));
-    setDirty(true);
-  }
-
-  const totalExercises = sections.reduce((sum, s) => sum + s.exercises.length, 0);
 
   if (isLoading || !data) {
     return <div className="py-20 text-center text-sm text-muted-foreground">불러오는 중...</div>;
@@ -277,87 +235,59 @@ export default function SequenceMaker({ versionId }: Props) {
           <Field label="작성자 메모" hint="검토자에게만 보이는 내부 메모"><Textarea rows={2} value={form.authorMemo} onChange={e => setF("authorMemo", e.target.value)} /></Field>
         </div>
 
-        {/* 수업 단계 + 운동 항목 */}
-        <div className="rounded-2xl bg-card border border-border p-4 space-y-3 mt-4">
+        {/* 운동 항목 */}
+        <div className="rounded-2xl bg-card border border-border p-4 space-y-2 mt-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-bold">수업 단계 · 운동 항목</p>
-            <span className="text-[10px] text-muted-foreground">{sections.length}단계 · 운동 {totalExercises}개</span>
+            <p className="text-sm font-bold">운동 항목</p>
+            <span className="text-[10px] text-muted-foreground">운동 {exercises.length}개</span>
           </div>
 
-          {sections.map((sec, si) => (
-            <div key={si} className="rounded-xl border border-border overflow-hidden">
-              <div className="flex items-center gap-1.5 px-3 py-2.5 bg-accent/30">
-                <button onClick={() => setOpenSection(openSection === si ? null : si)} className="shrink-0">
-                  <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${openSection === si ? "rotate-90" : ""}`} />
-                </button>
-                <Input
-                  value={sec.name}
-                  onChange={e => renameSection(si, e.target.value)}
-                  className="h-8 text-sm font-semibold border-none bg-transparent px-1 focus-visible:ring-1"
-                />
-                <span className="text-[10px] text-muted-foreground shrink-0">{sec.exercises.length}개</span>
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <button onClick={() => moveSection(si, -1)} disabled={si === 0} className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
-                  <button onClick={() => moveSection(si, 1)} disabled={si === sections.length - 1} className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
-                  <button onClick={() => removeSection(si)} className="p-1.5 text-muted-foreground hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
-                </div>
-              </div>
-
-              {openSection === si && (
-                <div className="p-2.5 space-y-2">
-                  {sec.exercises.map((ex, ei) => {
-                    const key = `${si}-${ei}`;
-                    const expanded = openExercise === key;
-                    return (
-                      <div key={ei} className="rounded-lg border border-border/70 bg-background">
-                        <div className="flex items-center gap-1.5 px-2.5 py-2">
-                          <button onClick={() => setOpenExercise(expanded ? null : key)} className="shrink-0">
-                            <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} />
-                          </button>
-                          <Input
-                            value={ex.name}
-                            onChange={e => updateExercise(si, ei, "name", e.target.value)}
-                            placeholder="운동명"
-                            className="h-8 text-sm flex-1"
-                          />
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <button onClick={() => moveExercise(si, ei, -1)} disabled={ei === 0} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-3 w-3" /></button>
-                            <button onClick={() => moveExercise(si, ei, 1)} disabled={ei === sec.exercises.length - 1} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-3 w-3" /></button>
-                            <button onClick={() => removeExercise(si, ei)} className="p-1 text-muted-foreground hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
-                          </div>
-                        </div>
-                        {expanded && (
-                          <div className="px-2.5 pb-2.5 space-y-2">
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input value={ex.stageLabel} onChange={e => updateExercise(si, ei, "stageLabel", e.target.value)} placeholder="단계 구분" className="h-8 text-xs" />
-                              <Input value={ex.durationOrReps} onChange={e => updateExercise(si, ei, "durationOrReps", e.target.value)} placeholder="시간 또는 세트·횟수" className="h-8 text-xs" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input value={ex.intensity} onChange={e => updateExercise(si, ei, "intensity", e.target.value)} placeholder="강도" className="h-8 text-xs" />
-                              <Input value={ex.restText} onChange={e => updateExercise(si, ei, "restText", e.target.value)} placeholder="휴식시간" className="h-8 text-xs" />
-                            </div>
-                            <Textarea value={ex.coachingCue} onChange={e => updateExercise(si, ei, "coachingCue", e.target.value)} placeholder="지도 포인트" rows={2} className="text-xs" />
-                            <div className="grid grid-cols-3 gap-2">
-                              <Input value={ex.easyVariant} onChange={e => updateExercise(si, ei, "easyVariant", e.target.value)} placeholder="쉬운 동작" className="h-8 text-xs" />
-                              <Input value={ex.baseVariant} onChange={e => updateExercise(si, ei, "baseVariant", e.target.value)} placeholder="기본 동작" className="h-8 text-xs" />
-                              <Input value={ex.hardVariant} onChange={e => updateExercise(si, ei, "hardVariant", e.target.value)} placeholder="어려운 동작" className="h-8 text-xs" />
-                            </div>
-                            <Textarea value={ex.cautions} onChange={e => updateExercise(si, ei, "cautions", e.target.value)} placeholder="주의사항" rows={2} className="text-xs" />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  <button onClick={() => addExercise(si)} className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-primary/40 rounded-lg text-xs text-primary hover:bg-primary/5 transition-colors">
-                    <Plus className="h-3.5 w-3.5" />운동 항목 추가
+          {exercises.map((ex, ei) => {
+            const expanded = openExercise === ei;
+            return (
+              <div key={ei} className="rounded-xl border border-border overflow-hidden bg-background">
+                <div className="flex items-center gap-1.5 px-3 py-2.5">
+                  <button onClick={() => setOpenExercise(expanded ? null : ei)} className="shrink-0">
+                    <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} />
                   </button>
+                  <Input
+                    value={ex.name}
+                    onChange={e => updateExercise(ei, "name", e.target.value)}
+                    placeholder="운동명"
+                    className="h-9 text-sm flex-1"
+                  />
+                  {ex.videoUrl && <Youtube className="h-4 w-4 text-red-500 shrink-0" />}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button onClick={() => moveExercise(ei, -1)} disabled={ei === 0} className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => moveExercise(ei, 1)} disabled={ei === exercises.length - 1} className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => removeExercise(ei)} className="p-1.5 text-muted-foreground hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+                {expanded && (
+                  <div className="px-3 pb-3 space-y-2">
+                    <Input
+                      value={ex.durationOrReps}
+                      onChange={e => updateExercise(ei, "durationOrReps", e.target.value)}
+                      placeholder="세트·횟수 (예: 3세트 x 12회)"
+                      className="h-9 text-xs"
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <Youtube className="h-4 w-4 text-red-500 shrink-0" />
+                      <Input
+                        value={ex.videoUrl}
+                        onChange={e => updateExercise(ei, "videoUrl", e.target.value)}
+                        placeholder="유튜브 링크 (https://youtube.com/watch?v=...)"
+                        className="h-9 text-xs flex-1"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
-          <button onClick={addSection} className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-border rounded-xl text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
-            <Plus className="h-4 w-4" />수업 단계 추가
+          <button onClick={addExercise} className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-primary/40 rounded-xl text-sm text-primary hover:bg-primary/5 transition-colors">
+            <Plus className="h-4 w-4" />운동 항목 추가
           </button>
         </div>
       </fieldset>

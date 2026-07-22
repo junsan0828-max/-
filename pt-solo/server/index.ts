@@ -1086,6 +1086,8 @@ async function initDatabase() {
     cautions TEXT
   )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS sequence_exercises_section_idx ON sequence_exercises ("sectionId")`);
+  // 운동 동작을 보여주는 유튜브 링크 — 단순화된 시퀀스 메이커용
+  await pool.query(`ALTER TABLE sequence_exercises ADD COLUMN IF NOT EXISTS "videoUrl" TEXT`);
 
   // sequence_reviews: 검토 이력(감사로그)
   await pool.query(`CREATE TABLE IF NOT EXISTS sequence_reviews (

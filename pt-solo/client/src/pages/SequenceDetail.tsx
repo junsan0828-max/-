@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, Clock, Dumbbell, Lock, Download, ShieldCheck, ListChecks } from "lucide-react";
+import { ArrowLeft, Users, Clock, Dumbbell, Lock, Download, ShieldCheck, ListChecks, Youtube } from "lucide-react";
 
 interface Props {
   sequenceId: number;
@@ -107,22 +107,17 @@ export default function SequenceDetail({ sequenceId }: Props) {
             <div key={i} className="rounded-2xl bg-card border border-border p-4 space-y-2">
               <p className="text-sm font-bold">{i + 1}. {sec.name}</p>
               {sec.exercises.map((ex: any, j: number) => (
-                <div key={j} className="rounded-xl bg-accent/20 p-3 space-y-1">
-                  <p className="text-sm font-semibold">{ex.name}</p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                    {ex.durationOrReps && <span>{ex.durationOrReps}</span>}
-                    {ex.intensity && <span>강도: {ex.intensity}</span>}
-                    {ex.restText && <span>휴식: {ex.restText}</span>}
+                <div key={j} className="rounded-xl bg-accent/20 p-3 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">{ex.name}</p>
+                    {ex.durationOrReps && <span className="text-[11px] text-muted-foreground shrink-0">{ex.durationOrReps}</span>}
                   </div>
-                  {ex.coachingCue && <p className="text-xs text-foreground/80">💬 {ex.coachingCue}</p>}
-                  {(ex.easyVariant || ex.baseVariant || ex.hardVariant) && (
-                    <div className="flex gap-1.5 flex-wrap pt-1">
-                      {ex.easyVariant && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600">쉬움: {ex.easyVariant}</span>}
-                      {ex.baseVariant && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600">기본: {ex.baseVariant}</span>}
-                      {ex.hardVariant && <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600">어려움: {ex.hardVariant}</span>}
-                    </div>
+                  {ex.videoUrl && (
+                    <a href={ex.videoUrl} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-600 hover:underline">
+                      <Youtube className="h-3.5 w-3.5" />동작 영상 보기
+                    </a>
                   )}
-                  {ex.cautions && <p className="text-[11px] text-amber-600">⚠ {ex.cautions}</p>}
                 </div>
               ))}
             </div>
