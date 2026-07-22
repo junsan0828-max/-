@@ -3611,43 +3611,6 @@ function AdminWorkshopView() {
   );
 }
 
-// ── 스토어 카드 (기능 구매 탭용) ──────────────────────────────────────────────
-function WorkshopStoreCard({ item, effectiveStatus, onClick, onRestore }: { item: WsItem; effectiveStatus?: string; onClick: () => void; onRestore?: () => void }) {
-  const Icon = item.icon;
-  const status = effectiveStatus ?? item.status;
-  const isActive = status === "active";
-  const isRemoved = status === "removed";
-
-  return (
-    <button onClick={onClick}
-      className="w-full bg-card px-4 py-3.5 text-left hover:bg-accent/30 active:bg-accent/50 transition-colors">
-      <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isActive ? "bg-primary/10" : "bg-muted/50"}`}>
-          <Icon className={`h-[18px] w-[18px] ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className={`text-sm font-semibold ${(!isActive || isRemoved) ? "text-foreground/60" : ""}`}>{item.name}</p>
-          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-1 mt-0.5">{item.shortDesc}</p>
-        </div>
-        {isRemoved ? (
-          <span
-            onClick={e => { e.stopPropagation(); onRestore?.(); }}
-            className="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 cursor-pointer hover:bg-blue-200 transition-colors">
-            다시 추가
-          </span>
-        ) : (
-          <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-            isActive ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400" :
-                       "bg-muted text-muted-foreground"
-          }`}>
-            {isActive ? "포함" : "준비 중"}
-          </span>
-        )}
-      </div>
-    </button>
-  );
-}
-
 // ── 잠금 기능 행 (업그레이드 유도) ────────────────────────────────────────────
 function LockedFeatureRow({ item, planLabel, planColor }: { item: WsItem; planLabel: string; planColor: string }) {
   const Icon = item.icon;
@@ -3673,7 +3636,7 @@ function LockedFeatureRow({ item, planLabel, planColor }: { item: WsItem; planLa
 }
 
 // ── 내 작업실 기능 행 ──────────────────────────────────────────────────────────
-function WorkspaceFeatureRow({ item, onClick, onRemove }: { item: WsItem & { catLabel: string }; onClick: () => void; onRemove?: () => void }) {
+function WorkspaceFeatureRow({ item, onClick }: { item: WsItem & { catLabel: string }; onClick: () => void }) {
   const Icon = item.icon;
   const hasEditor = FORM_IDS.has(item.id);
 
@@ -3753,20 +3716,7 @@ function WorkshopContent() {
     onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("작업실이 활성화되었습니다!"); },
     onError: (e) => toast.error(e.message),
   });
-  const removeMutation = trpc.workshop.remove.useMutation({
-    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("기능이 삭제되었습니다. 기능 구매 탭에서 다시 추가할 수 있습니다."); },
-    onError: (e) => toast.error(e.message),
-  });
-  const restoreMutation = trpc.workshop.restore.useMutation({
-    onSuccess: () => { utils.workshop.getStatus.invalidate(); toast.success("기능이 다시 추가되었습니다."); },
-    onError: (e) => toast.error(e.message),
-  });
-  const purchaseAddonMutation = trpc.workshop.purchaseAddon.useMutation({
-    onSuccess: () => { utils.workshop.getStatus.invalidate(); utils.fitPoints.getBalance.invalidate(); toast.success("핵심 기능이 활성화되었습니다!"); },
-    onError: (e) => toast.error(e.message),
-  });
   const { data: planInfo } = trpc.fitStepPlus.trainer_getPublicPlanInfo.useQuery();
-  const addonPrice = planInfo?.addonPrice ?? 10000;
 
   if (isLoading) {
     return (
@@ -3969,22 +3919,6 @@ function WorkshopContent() {
           <span className="text-xs font-bold text-yellow-700">D-{daysRemaining}</span>
         </div>
       )}
-      {status === "grace" && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-red-700">무료 체험 종료 · {daysRemaining}일 후 완전 잠금</p>
-              <p className="text-[10px] text-red-600 mt-0.5">지금 활성화하면 기존 데이터가 그대로 유지됩니다</p>
-            </div>
-          </div>
-          <Button size="sm" className="w-full bg-amber-500 hover:bg-amber-600 text-white"
-            onClick={() => unlockMutation.mutate({ feature: "workshop_access" })}
-            disabled={unlockMutation.isPending}>
-            {unlockMutation.isPending ? "처리 중..." : "작업실 활성화"}
-          </Button>
-        </div>
-      )}
-
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
@@ -4011,9 +3945,6 @@ function WorkshopContent() {
           ? proTierIds.map(id => allItems.find(i => i.id === id)).filter((i): i is WsItem => !!i && getEffectiveStatus(i) !== "active" && getEffectiveStatus(i) !== "coming_soon" && getEffectiveStatus(i) !== "addon_premium")
           : [];
 
-        // 핵심(유료) 기능: 플랜 무관, 개별 1만원 구매 필요 (아직 미구매)
-        const coreAddonItems = allItems.filter(i => getEffectiveStatus(i) === "addon_premium");
-
         return (
           <div className="space-y-4 pb-6">
             <p className="text-xs text-muted-foreground">
@@ -4032,42 +3963,11 @@ function WorkshopContent() {
                     <span className="ml-auto text-[10px] text-muted-foreground">{catItems.length}개</span>
                   </div>
                   {catItems.map(item => (
-                    <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} onRemove={() => removeMutation.mutate({ feature: item.id })} />
+                    <WorkspaceFeatureRow key={item.id} item={item} onClick={() => setSelectedItem({ ...item, status: getEffectiveStatus(item) as WsItemStatus })} />
                   ))}
                 </div>
               );
             })}
-
-            {/* 핵심(유료) 기능 — 1개 1만원 개별 구매 */}
-            {coreAddonItems.length > 0 && (
-              <div className="mt-6 space-y-2">
-                <div className="flex items-center gap-2 px-1 py-1.5 border-b border-violet-200/50 dark:border-violet-500/20">
-                  <Lock className="h-3.5 w-3.5 text-violet-500" />
-                  <span className="text-xs font-bold text-violet-600 dark:text-violet-400">핵심 기능 · 개별 이용</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground">1개 {addonPrice.toLocaleString()}원</span>
-                </div>
-                {coreAddonItems.map(item => (
-                  <div key={item.id} className="flex items-center gap-3 rounded-xl border border-violet-200/70 dark:border-violet-500/20 bg-violet-50/50 dark:bg-violet-500/5 px-3 py-2.5">
-                    <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-                      <item.icon className="h-4 w-4 text-violet-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate">{item.name}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{item.shortDesc}</p>
-                    </div>
-                    <button
-                      onClick={() => purchaseAddonMutation.mutate({ featureId: item.id })}
-                      disabled={purchaseAddonMutation.isPending}
-                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-violet-500 text-white hover:bg-violet-600 transition-colors shrink-0 disabled:opacity-50">
-                      {addonPrice.toLocaleString()}원 이용
-                    </button>
-                  </div>
-                ))}
-                <p className="text-[10px] text-muted-foreground px-1">
-                  ※ 한 번 결제하면 영구 이용 · FIT POINT로 결제됩니다 (포인트 부족 시 충전 필요)
-                </p>
-              </div>
-            )}
 
             {/* PRO 잠금 섹션 (Free 유저) */}
             {lockedProItems.length > 0 && (
