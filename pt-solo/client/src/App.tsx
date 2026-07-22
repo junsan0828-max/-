@@ -33,6 +33,8 @@ import Academy from "./pages/Academy";
 import TrainerBrandPage from "./pages/TrainerBrandPage";
 import ClassBookingPage from "./pages/ClassBookingPage";
 import BookingManagementPage from "./pages/BookingManagementPage";
+import BrandPageManagementPage from "./pages/BrandPageManagementPage";
+import FitStepPlusManagementPage from "./pages/FitStepPlusManagementPage";
 import SurveyPage from "./pages/SurveyPage";
 import TrainerFeedback from "./pages/TrainerFeedback";
 import AdminFeedback from "./pages/AdminFeedback";
@@ -206,6 +208,8 @@ function App() {
           </Route>
           <Route path="/sequences">{() => <SequenceLab />}</Route>
           <Route path="/booking">{() => <BookingManagementPage />}</Route>
+          <Route path="/brand-page">{() => <BrandPageManagementPage />}</Route>
+          <Route path="/fitstep-plus-manage">{() => <FitStepPlusManagementPage />}</Route>
           <Route path="/academy">{() => <Academy />}</Route>
           <Route path="/points">{() => <Redirect to="/profile" replace />}</Route>
           <Route path="/feedback">{() => <TrainerFeedback />}</Route>

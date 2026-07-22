@@ -807,9 +807,15 @@ function TrainerDashboard() {
   const userPlan = (user as any)?.plan ?? "free";
   const toWorkshop: WsNavFn = (featureId?: string) =>
     setLocation(featureId ? `/workshop?open=${featureId}` : "/workshop");
-  // 작업실을 거치지 않고 대시보드에서 바로 여는 기능 — 모달화 진행 중, 하나씩 여기로 이동
+  // 작업실을 거치지 않고 대시보드에서 바로 여는 기능 — 모달화/전용페이지화 진행 중, 하나씩 여기로 이동
+  const PAGE_FEATURE_ROUTES: Record<string, string> = {
+    brand_page: "/brand-page",
+    booking: "/booking",
+    fitstep_plus: "/fitstep-plus-manage",
+  };
   const openFeature: WsNavFn = (featureId?: string) => {
     if (featureId && MODAL_FEATURE_IDS.has(featureId)) { setEditorModalId(featureId); return; }
+    if (featureId && PAGE_FEATURE_ROUTES[featureId]) { setLocation(PAGE_FEATURE_ROUTES[featureId]); return; }
     toWorkshop(featureId);
   };
   const trainerName = (user as any)?.trainerName ?? (user as any)?.username ?? "스테퍼";

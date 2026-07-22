@@ -464,7 +464,7 @@ function WorkoutLogSection() {
 }
 
 // ── FIT STEP+ 메인 관리 패널 ────────────────────────────────────────────────
-function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
+export function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
   const [, navigate] = useLocation();
   const [activeSection, setActiveSection] = useState<"members" | "attendance" | "workoutlogs" | "videos" | "events" | null>(null);
   const [copied, setCopied] = useState(false);
@@ -1557,7 +1557,7 @@ function ProgramAddInput({ onAdd }: { onAdd: (name: string) => void }) {
 }
 
 // ── 브랜드 페이지 빌더 (메인) ────────────────────────────────────────────────
-function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
+export function BrandPageEditor({ bookingOnly }: { bookingOnly?: boolean } = {}) {
   const { data: user } = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const { data: brand, isLoading } = trpc.brand.getMyBrand.useQuery();
