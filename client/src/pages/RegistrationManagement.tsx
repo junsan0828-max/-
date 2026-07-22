@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Portal } from "@/components/Portal";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -64,8 +64,10 @@ export default function RegistrationManagement() {
   const [selectedBranch, setSelectedBranch] = useState<number | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
 
-  // 등록 내역
-  const [regSearch, setRegSearch] = useState("");
+  // 등록 내역 — 대시보드 데이터 이상 배너 등에서 ?q=회원명 으로 진입하면 자동 검색된다
+  const searchParams = useSearch();
+  const initialQ = new URLSearchParams(searchParams).get("q") ?? "";
+  const [regSearch, setRegSearch] = useState(initialQ);
   const [regTypeFilter, setRegTypeFilter] = useState<"all" | "PT" | "헬스" | "기타">("all");
   const [regShowNullOnly, setRegShowNullOnly] = useState(false);
   const [editRev, setEditRev] = useState<any | null>(null);

@@ -368,28 +368,38 @@ export default function GymDashboard() {
           {showAnomalies && (
             <div className="mt-3 space-y-3">
               {anomalyData!.anomalies.map((a) => (
-                <div key={`pkg-${a.id}`} className="text-xs border-t border-red-500/20 pt-2">
+                <button
+                  type="button"
+                  key={`pkg-${a.id}`}
+                  onClick={() => setLocation(`/registration?q=${encodeURIComponent(a.memberName ?? "")}`)}
+                  className="w-full text-left text-xs border-t border-red-500/20 pt-2 hover:bg-red-500/5 rounded-b-md -mx-1 px-1 transition-colors"
+                >
                   <div className="flex justify-between items-baseline">
-                    <span className="font-medium text-foreground">{a.memberName ?? "회원 미상"} · {a.trainerName ?? "담당 미배정"}</span>
+                    <span className="font-medium text-foreground underline decoration-red-400/40 underline-offset-2">{a.memberName ?? "회원 미상"} · {a.trainerName ?? "담당 미배정"}</span>
                     <span className="text-muted-foreground">{a.packageName ?? "-"} · {a.totalSessions}회</span>
                   </div>
                   {a.reasons.map((r, i) => (
                     <p key={i} className="text-red-300 mt-0.5">⚠ {r}</p>
                   ))}
-                  <p className="text-[11px] text-muted-foreground mt-0.5">→ 회원 상세 → 프로그램 탭에서 결제금액 확인 후 수정</p>
-                </div>
+                  <p className="text-[11px] text-primary mt-0.5">→ 눌러서 등록관리에서 수정</p>
+                </button>
               ))}
               {(anomalyData?.revenueMismatches ?? []).map((m) => (
-                <div key={`rev-${m.id}`} className="text-xs border-t border-red-500/20 pt-2">
+                <button
+                  type="button"
+                  key={`rev-${m.id}`}
+                  onClick={() => setLocation(`/registration?q=${encodeURIComponent(m.customerName ?? "")}`)}
+                  className="w-full text-left text-xs border-t border-red-500/20 pt-2 hover:bg-red-500/5 rounded-b-md -mx-1 px-1 transition-colors"
+                >
                   <div className="flex justify-between items-baseline">
-                    <span className="font-medium text-foreground">{m.customerName ?? "고객 미상"} · {m.type}</span>
+                    <span className="font-medium text-foreground underline decoration-red-400/40 underline-offset-2">{m.customerName ?? "고객 미상"} · {m.type}</span>
                     <span className="text-muted-foreground">{m.paymentDate ?? "-"}</span>
                   </div>
                   <p className="text-red-300 mt-0.5">
                     ⚠ 정가 {m.amount.toLocaleString()} − 할인 {m.discount.toLocaleString()} − 미수 {m.unpaid.toLocaleString()} = {(m.amount - m.discount - m.unpaid).toLocaleString()}원인데 실결제가 {m.paid.toLocaleString()}원으로 저장됨
                   </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">→ 등록관리에서 이 건을 열어 금액 확인 후 재저장하면 맞춰집니다</p>
-                </div>
+                  <p className="text-[11px] text-primary mt-0.5">→ 눌러서 등록관리에서 수정</p>
+                </button>
               ))}
               <p className="text-[11px] text-muted-foreground pt-1">자동 수정하지 않습니다 — 확인 후 직접 수정해주세요.</p>
             </div>
