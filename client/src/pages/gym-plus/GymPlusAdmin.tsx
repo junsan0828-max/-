@@ -668,7 +668,7 @@ export function GymPlusWorkoutLogsAdmin() {
 }
 
 // ─── 메인 어드민 짐+ 섹션 ─────────────────────────────────────────────────────
-function GymPlusRenewalsAdmin() {
+export function GymPlusRenewalsAdmin() {
   const utils = trpc.useUtils();
   const { data: renewals, isLoading } = trpc.gymPlus.admin_listRenewals.useQuery({ status: "all" });
   const [approveTarget, setApproveTarget] = useState<{ id: number; memberName: string; currentEnd: string | null } | null>(null);

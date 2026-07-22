@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin } from "./gym-plus/GymPlusAdmin";
+import { GymPlusMembersAdmin, GymPlusVideosAdmin, GymPlusEventsAdmin, GymPlusWorkoutLogsAdmin, GymPlusRenewalsAdmin } from "./gym-plus/GymPlusAdmin";
 import GymPlusMessageAdmin from "./gym-plus/GymPlusMessageAdmin";
 
-type Tab = "members" | "videos" | "events" | "logs" | "messages";
+type Tab = "members" | "renewals" | "videos" | "events" | "logs" | "messages";
 
 const tabs: { key: Tab; label: string; icon: string }[] = [
   { key: "members", label: "회원관리", icon: "◎" },
+  { key: "renewals", label: "재등록신청", icon: "↻" },
   { key: "videos", label: "운동영상", icon: "▶" },
   { key: "events", label: "공지", icon: "★" },
   { key: "logs", label: "기록관리", icon: "≡" },
@@ -108,6 +109,7 @@ export default function GymPlusAdminPage() {
       <main className="flex-1 overflow-y-auto pb-20 max-w-2xl w-full mx-auto">
         <div className="p-4">
           {activeTab === "members" && <GymPlusMembersAdmin />}
+          {activeTab === "renewals" && <GymPlusRenewalsAdmin />}
           {activeTab === "videos" && <GymPlusVideosAdmin />}
           {activeTab === "events" && <GymPlusEventsAdmin />}
           {activeTab === "logs" && <GymPlusWorkoutLogsAdmin />}

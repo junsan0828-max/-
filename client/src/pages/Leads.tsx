@@ -212,7 +212,9 @@ const MARKETING_TERMS = `광고성 정보 수신 및 활용 동의 (선택)
 
 export default function LeadsPage() {
   const utils = trpc.useUtils();
+  const [, setPageLocation] = useLocation();
   const { data: me } = trpc.auth.me.useQuery();
+  const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery({ status: "pending" }, { refetchInterval: 30000 });
   const isSubAdmin = me?.role === "sub_admin";
   const isTrainer = me?.role === "trainer";
   const now = new Date();
@@ -823,6 +825,22 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-4">
+      {/* 앱 재등록 신청 알림 배너 */}
+      {(pendingRenewals?.length ?? 0) > 0 && (
+        <div
+          className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 cursor-pointer"
+          onClick={() => setPageLocation("/admin/gymplus")}
+        >
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 shrink-0">
+            <RotateCcw className="h-4 w-4 text-emerald-400 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-emerald-300">앱 재등록 신청 {pendingRenewals!.length}건</p>
+            <p className="text-xs text-emerald-400/70">회원앱에서 들어온 재등록 신청이 처리 대기 중입니다. 탭하여 처리하세요.</p>
+          </div>
+        </div>
+      )}
+
       {/* 온라인 예약 알림 배너 (컨설턴트/어드민용) */}
       {unviewedCount > 0 && (
         <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3">

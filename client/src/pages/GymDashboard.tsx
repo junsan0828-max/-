@@ -261,6 +261,8 @@ export default function GymDashboard() {
   const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, {
     refetchInterval: 30000,
   });
+  const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery({ status: "pending" }, { refetchInterval: 30000 });
+  const [dismissedRenewalAlert, setDismissedRenewalAlert] = useState(false);
   const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: trainerSummary } = trpc.gym.revenue.trainerSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
   const { data: channelSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month, ...(branchFilter ? { branchId: branchFilter } : {}) });
@@ -295,6 +297,28 @@ export default function GymDashboard() {
 
   return (
     <div className="space-y-5">
+      {/* 앱 재등록 신청 알림 배너 */}
+      {(pendingRenewals?.length ?? 0) > 0 && !dismissedRenewalAlert && (
+        <div
+          className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 cursor-pointer"
+          onClick={() => setLocation("/admin/gymplus")}
+        >
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 shrink-0">
+            <RefreshCw className="h-4 w-4 text-emerald-400 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-emerald-300">앱 재등록 신청 {pendingRenewals!.length}건</p>
+            <p className="text-xs text-emerald-400/70">회원앱에서 들어온 재등록 신청이 처리 대기 중입니다. 탭하여 처리하세요.</p>
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); setDismissedRenewalAlert(true); }}
+            className="text-emerald-400/50 hover:text-emerald-300 shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* 온라인 예약 알림 배너 */}
       {unviewedCount > 0 && !dismissedBookingAlert && (
         <div
