@@ -5721,28 +5721,56 @@ const landingRouter = t.router({
   }),
 
   // 월간/연간 랜딩페이지 통계 (month 있으면 해당 월, 없으면 해당 연도 전체). KST 기준 집계.
+  // 순 방문자(중복 제거) + 신규/재방문 구분. 신규 = 그 기간에 처음 방문한 세션,
+  // 재방문 = 이전에도 방문한 적 있는 세션. (세션ID가 재방문 시 유지될 때만 정확)
   getPageStatsByPeriod: protectedProcedure
     .input(z.object({ year: z.number(), month: z.number().optional() }))
     .query(async ({ input }) => {
       try {
+        const fmt = input.month != null ? "'YYYY-MM'" : "'YYYY'";
         const prefix = input.month != null
           ? `${input.year}-${String(input.month).padStart(2, "0")}`
           : `${input.year}`;
-        const res = await pool.query(`
-          SELECT
-            COUNT(DISTINCT CASE WHEN event='page_view' THEN session_id END) as views,
-            COUNT(CASE WHEN event='naver_click' THEN 1 END) as naver_clicks,
-            COUNT(CASE WHEN event='body_analysis_complete' THEN 1 END) as conversions
-          FROM landing_page_stats
-          WHERE to_char("createdAt"::timestamp + interval '9 hours', ${input.month != null ? "'YYYY-MM'" : "'YYYY'"}) = $1
-        `, [prefix]);
-        const row = res.rows[0];
+        const [visitorRes, otherRes] = await Promise.all([
+          // 순 방문자 + 신규/재방문: 이 기간에 방문한 세션을, 그 세션의 "최초 방문 시점"이
+          // 이 기간 안인지(신규) 밖인지(재방문)로 나눈다.
+          pool.query(`
+            WITH sf AS (
+              SELECT session_id, MIN("createdAt"::timestamp) AS first_ts
+              FROM landing_page_stats
+              WHERE event='page_view' AND session_id IS NOT NULL
+              GROUP BY session_id
+            ),
+            period AS (
+              SELECT DISTINCT session_id
+              FROM landing_page_stats
+              WHERE event='page_view' AND session_id IS NOT NULL
+                AND to_char("createdAt"::timestamp + interval '9 hours', ${fmt}) = $1
+            )
+            SELECT
+              COUNT(*) AS views,
+              COUNT(*) FILTER (WHERE to_char(sf.first_ts + interval '9 hours', ${fmt}) = $1) AS new_visitors,
+              COUNT(*) FILTER (WHERE to_char(sf.first_ts + interval '9 hours', ${fmt}) <> $1) AS returning_visitors
+            FROM period p JOIN sf ON p.session_id = sf.session_id
+          `, [prefix]),
+          pool.query(`
+            SELECT
+              COUNT(CASE WHEN event='naver_click' THEN 1 END) as naver_clicks,
+              COUNT(CASE WHEN event='body_analysis_complete' THEN 1 END) as conversions
+            FROM landing_page_stats
+            WHERE to_char("createdAt"::timestamp + interval '9 hours', ${fmt}) = $1
+          `, [prefix]),
+        ]);
+        const v = visitorRes.rows[0];
+        const o = otherRes.rows[0];
         return {
-          views: parseInt(row?.views ?? "0"),
-          naverClicks: parseInt(row?.naver_clicks ?? "0"),
-          analysisComplete: parseInt(row?.conversions ?? "0"),
+          views: parseInt(v?.views ?? "0"),
+          newVisitors: parseInt(v?.new_visitors ?? "0"),
+          returningVisitors: parseInt(v?.returning_visitors ?? "0"),
+          naverClicks: parseInt(o?.naver_clicks ?? "0"),
+          analysisComplete: parseInt(o?.conversions ?? "0"),
         };
-      } catch (e) { console.error("getPageStatsByPeriod error:", e); return { views: 0, naverClicks: 0, analysisComplete: 0 }; }
+      } catch (e) { console.error("getPageStatsByPeriod error:", e); return { views: 0, newVisitors: 0, returningVisitors: 0, naverClicks: 0, analysisComplete: 0 }; }
     }),
 });
 

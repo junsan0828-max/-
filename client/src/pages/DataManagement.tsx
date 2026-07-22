@@ -459,16 +459,19 @@ function MarketingTab() {
               <h2 className="font-semibold text-sm">랜딩페이지 {month}월 현황</h2>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "방문자", value: pageStatsMonth?.views ?? 0, unit: "명", color: "text-blue-400" },
-                { label: "네이버 클릭", value: pageStatsMonth?.naverClicks ?? 0, unit: "회", color: "text-emerald-400" },
-                { label: "체형분석 신청", value: pageStatsMonth?.analysisComplete ?? 0, unit: "건", color: "text-amber-400" },
-              ].map((s) => (
-                <div key={s.label} className="bg-muted/30 rounded-lg p-3 text-center">
-                  <p className={`text-2xl font-black ${s.color}`}>{s.value}<span className="text-xs font-medium text-muted-foreground ml-0.5">{s.unit}</span></p>
-                  <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
-                </div>
-              ))}
+              <div className="bg-muted/30 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black text-blue-400">{pageStatsMonth?.views ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">명</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">방문자(순)</p>
+                <p className="text-[9px] text-muted-foreground/80 mt-0.5">신규 {pageStatsMonth?.newVisitors ?? 0} · 재방문 {pageStatsMonth?.returningVisitors ?? 0}</p>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black text-emerald-400">{pageStatsMonth?.naverClicks ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">회</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">네이버 클릭</p>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black text-amber-400">{pageStatsMonth?.analysisComplete ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">건</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">체형분석 신청</p>
+              </div>
             </div>
           </div>
 
@@ -697,16 +700,19 @@ function MarketingTab() {
               <h2 className="font-semibold text-sm">랜딩페이지 {year}년 누적</h2>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "방문자", value: pageStatsAnnual?.views ?? 0, unit: "명", color: "text-blue-400" },
-                { label: "네이버 클릭", value: pageStatsAnnual?.naverClicks ?? 0, unit: "회", color: "text-emerald-400" },
-                { label: "체형분석 신청", value: pageStatsAnnual?.analysisComplete ?? 0, unit: "건", color: "text-amber-400" },
-              ].map((s) => (
-                <div key={s.label} className="bg-muted/30 rounded-lg p-3 text-center">
-                  <p className={`text-2xl font-black ${s.color}`}>{s.value}<span className="text-xs font-medium text-muted-foreground ml-0.5">{s.unit}</span></p>
-                  <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
-                </div>
-              ))}
+              <div className="bg-muted/30 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black text-blue-400">{pageStatsAnnual?.views ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">명</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">방문자(순)</p>
+                <p className="text-[9px] text-muted-foreground/80 mt-0.5">신규 {pageStatsAnnual?.newVisitors ?? 0} · 재방문 {pageStatsAnnual?.returningVisitors ?? 0}</p>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black text-emerald-400">{pageStatsAnnual?.naverClicks ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">회</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">네이버 클릭</p>
+              </div>
+              <div className="bg-muted/30 rounded-lg p-3 text-center">
+                <p className="text-2xl font-black text-amber-400">{pageStatsAnnual?.analysisComplete ?? 0}<span className="text-xs font-medium text-muted-foreground ml-0.5">건</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">체형분석 신청</p>
+              </div>
             </div>
           </div>
 
