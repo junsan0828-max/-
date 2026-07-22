@@ -110,7 +110,11 @@ export default function SequenceDetail({ sequenceId }: Props) {
                 <div key={j} className="rounded-xl bg-accent/20 p-3 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold">{ex.name}</p>
-                    {ex.durationOrReps && <span className="text-[11px] text-muted-foreground shrink-0">{ex.durationOrReps}</span>}
+                    {(ex.sets || ex.reps) && (
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {[ex.sets && `${ex.sets}세트`, ex.reps && `${ex.reps}회`].filter(Boolean).join(" x ")}
+                      </span>
+                    )}
                   </div>
                   {ex.videoUrl && (
                     <a href={ex.videoUrl} target="_blank" rel="noreferrer"

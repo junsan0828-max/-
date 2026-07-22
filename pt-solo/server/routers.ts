@@ -3185,7 +3185,8 @@ const SEQUENCE_EDITABLE_STATUSES = ["DRAFT", "CHANGES_REQUESTED"];
 
 const sequenceExerciseSchema = z.object({
   name: z.string().min(1),
-  durationOrReps: z.string().optional(),
+  sets: z.string().optional(),
+  reps: z.string().optional(),
   videoUrl: z.string().optional(),
 });
 const sequenceSectionSchema = z.object({
@@ -3240,14 +3241,14 @@ async function seqReplaceSectionsAndExercises(versionId: number, sections: { nam
   sections.forEach((sec, i) => {
     const sectionId = idBySort.get(i)!;
     sec.exercises.forEach((ex: any, j: number) => {
-      exParams.push(sectionId, j, ex.name, ex.durationOrReps ?? null, ex.videoUrl ?? null);
+      exParams.push(sectionId, j, ex.name, ex.sets ?? null, ex.reps ?? null, ex.videoUrl ?? null);
       const b = exParams.length;
-      exValues.push(`($${b - 4},$${b - 3},$${b - 2},$${b - 1},$${b})`);
+      exValues.push(`($${b - 5},$${b - 4},$${b - 3},$${b - 2},$${b - 1},$${b})`);
     });
   });
   if (exValues.length > 0) {
     await db.query(
-      `INSERT INTO sequence_exercises ("sectionId","sortOrder",name,"durationOrReps","videoUrl")
+      `INSERT INTO sequence_exercises ("sectionId","sortOrder",name,"sets","reps","videoUrl")
        VALUES ${exValues.join(",")}`,
       exParams
     );
@@ -3819,12 +3820,15 @@ const sequenceLabRouter = t.router({
       if (version.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
       const sections = await seqGetSectionsWithExercises(input.versionId);
 
-      const exercises = sections.flatMap((sec: any) =>
-        sec.exercises.map((ex: any) => ({
-          name: `${ex.name}${ex.durationOrReps ? ` · ${ex.durationOrReps}` : ""}`,
-          sets: [{ reps: "", weight: "" }],
-        }))
-      );
+      const exercises = sections.flatMap((sec: any) => {
+        return sec.exercises.map((ex: any) => {
+          const note = [ex.sets && `${ex.sets}세트`, ex.reps && `${ex.reps}회`].filter(Boolean).join(" x ");
+          return {
+            name: `${ex.name}${note ? ` · ${note}` : ""}`,
+            sets: [{ reps: "", weight: "" }],
+          };
+        });
+      });
       return { title: version.title, exercises };
     }),
 

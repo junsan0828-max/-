@@ -113,7 +113,11 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
             <div key={j} className="rounded-lg bg-accent/20 p-2.5 text-xs space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-semibold">{ex.name}</p>
-                {ex.durationOrReps && <span className="text-muted-foreground shrink-0">{ex.durationOrReps}</span>}
+                {(ex.sets || ex.reps) && (
+                  <span className="text-muted-foreground shrink-0">
+                    {[ex.sets && `${ex.sets}세트`, ex.reps && `${ex.reps}회`].filter(Boolean).join(" x ")}
+                  </span>
+                )}
               </div>
               {ex.videoUrl && (
                 <a href={ex.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-red-600 hover:underline">

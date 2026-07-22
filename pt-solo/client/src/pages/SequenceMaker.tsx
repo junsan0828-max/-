@@ -13,9 +13,9 @@ interface Props {
   versionId: number;
 }
 
-type ExerciseForm = { name: string; durationOrReps: string; videoUrl: string };
+type ExerciseForm = { name: string; sets: string; reps: string; videoUrl: string };
 
-const emptyExercise = (): ExerciseForm => ({ name: "", durationOrReps: "", videoUrl: "" });
+const emptyExercise = (): ExerciseForm => ({ name: "", sets: "", reps: "", videoUrl: "" });
 
 import {
   SEQ_CATEGORY_OPTIONS as CATEGORY_OPTIONS,
@@ -79,7 +79,7 @@ export default function SequenceMaker({ versionId }: Props) {
     setExercises(
       data.sections.flatMap((s: any) =>
         s.exercises.map((ex: any) => ({
-          name: ex.name ?? "", durationOrReps: ex.durationOrReps ?? "", videoUrl: ex.videoUrl ?? "",
+          name: ex.name ?? "", sets: ex.sets ?? "", reps: ex.reps ?? "", videoUrl: ex.videoUrl ?? "",
         }))
       )
     );
@@ -265,12 +265,20 @@ export default function SequenceMaker({ versionId }: Props) {
                 </div>
                 {expanded && (
                   <div className="px-3 pb-3 space-y-2">
-                    <Input
-                      value={ex.durationOrReps}
-                      onChange={e => updateExercise(ei, "durationOrReps", e.target.value)}
-                      placeholder="세트·횟수 (예: 3세트 x 12회)"
-                      className="h-9 text-xs"
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        value={ex.sets}
+                        onChange={e => updateExercise(ei, "sets", e.target.value)}
+                        placeholder="세트 (예: 3)"
+                        className="h-9 text-xs"
+                      />
+                      <Input
+                        value={ex.reps}
+                        onChange={e => updateExercise(ei, "reps", e.target.value)}
+                        placeholder="횟수 (예: 12)"
+                        className="h-9 text-xs"
+                      />
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <Youtube className="h-4 w-4 text-red-500 shrink-0" />
                       <Input
