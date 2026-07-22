@@ -10,7 +10,7 @@ import { generateContentIdeas } from "./luna";
 import { markContacted } from "./store";
 import { sendSms } from "./aligo";
 import { runCommand } from "./commander";
-import { pushDailyReport, pushPayrollReport, pushRepoReport, pushJournalEntry } from "./notion";
+import { pushDailyReport, pushPayrollReport, pushRepoReport, pushJournalEntry, createTaskRecords, logTaskExecution } from "./notion";
 import { pushDailyBriefingKakao } from "./kakao";
 import { buildIndex, backupSpreadsheets } from "./drive/archive";
 import { runPayroll, writePayrollSheet } from "./payroll";
@@ -94,9 +94,34 @@ async function runJay(reason: string): Promise<OrchestratorResult | null> {
     const notion = await pushDailyReport(result, mina, funnel, content);
     send("log", notion.ok ? "노션에 브리핑 저장 완료" : `노션 저장 안 함: ${notion.error}`);
 
-    // 카카오톡: "나에게 보내기"로 브리핑 발송 (설정된 경우에만, 실패해도 앱 동작에는 영향 없음)
-    const kakao = await pushDailyBriefingKakao(result, mina, funnel, content);
-    send("log", kakao.ok ? "카카오톡으로 브리핑 발송 완료" : `카카오톡 발송 안 함: ${kakao.error}`);
+    // 보고서 본문에 업무를 나열한 것만으론 완료로 치지 않는다 — 상위 업무를 "업무관리"에
+    // 개별 업무로 만들고, "업무 로그"에 실행 결과를 남겨야 전체 완료다.
+    if (!notion.ok) {
+      send("log", "⚠️ 전체 작업 미완료 — 보고서가 저장되지 않아 업무 생성을 진행하지 않음");
+    } else {
+      const taskResult = await createTaskRecords(result.tasks, result.context, notion.url ?? null);
+      if (taskResult.ok) {
+        send("log", `업무관리에 업무 ${taskResult.createdUrls.length}건 생성됨`);
+        const log = await logTaskExecution({
+          performedBy: "제이(총괄 AI) - 데스크톱 앱",
+          createdTaskUrls: taskResult.createdUrls,
+          outcome: "전체 성공",
+        });
+        send("log", log.ok ? "업무 로그 기록됨" : `⚠️ 전체 작업 미완료 — 업무 로그 저장 실패: ${log.error}`);
+      } else {
+        send("log", `⚠️ 전체 작업 미완료 — 보고서만 생성됨, 업무관리 생성 실패: ${taskResult.error}`);
+        await logTaskExecution({
+          performedBy: "제이(총괄 AI) - 데스크톱 앱",
+          createdTaskUrls: [],
+          outcome: "보고서만 생성",
+          incompleteReason: taskResult.error,
+        });
+      }
+    }
+
+    // 카카오톡 브리핑 발송: 대표 요청으로 일단 정지 (2026-07-22). 재개하려면 아래 주석 해제.
+    // const kakao = await pushDailyBriefingKakao(result, mina, funnel, content);
+    // send("log", kakao.ok ? "카카오톡으로 브리핑 발송 완료" : `카카오톡 발송 안 함: ${kakao.error}`);
 
     // 드라이브: 재무·회원 스프레드시트를 로컬에 백업 (인증 안 돼 있으면 조용히 건너뜀)
     try {
