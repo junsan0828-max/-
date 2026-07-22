@@ -3311,33 +3311,53 @@ ${dataContext}
         .where(eq(gymPlusMembershipRenewals.id, input.renewalId));
 
       if (input.action === "approved") {
-        // 새 만료일 계산
         const periodMonths: Record<string, number> = { "1개월": 1, "3개월": 3, "6개월": 6, "12개월": 12 };
         const addMonths = periodMonths[renewal.requestedPeriod] ?? 1;
         const [gymMember] = await db.select({ membershipEnd: gymPlusMembers.membershipEnd, memberId: gymPlusMembers.memberId, phone: gymPlusMembers.phone, username: gymPlusMembers.username })
           .from(gymPlusMembers).where(eq(gymPlusMembers.id, renewal.gymPlusMemberId)).limit(1);
-        const base = gymMember?.membershipEnd && new Date(gymMember.membershipEnd) > new Date()
-          ? new Date(gymMember.membershipEnd)
-          : new Date();
-        base.setMonth(base.getMonth() + addMonths);
-        base.setDate(base.getDate() + (renewal.bonusDays ?? 0));
+
+        // 만료일의 원본은 통합관리 members 테이블이다. 짐+ 복사본은 오래된 값일 수
+        // 있으므로 원본 만료일을 조회해 연장 기준으로 삼는다 (memberId 우선, 없으면 전화번호).
+        const phone = gymMember?.phone || gymMember?.username;
+        let mainMember: { id: number; membershipEnd: string | null } | undefined;
+        if (gymMember?.memberId) {
+          [mainMember] = await db.select({ id: members.id, membershipEnd: members.membershipEnd })
+            .from(members).where(eq(members.id, gymMember.memberId)).limit(1);
+        } else if (phone) {
+          const digits = phone.replace(/\D/g, "");
+          if (digits.length >= 4) {
+            [mainMember] = await db.select({ id: members.id, membershipEnd: members.membershipEnd })
+              .from(members)
+              .where(sql`REGEXP_REPLACE(COALESCE(${members.phone},''), '[^0-9]', '', 'g') = ${digits}`)
+              .limit(1);
+          }
+        }
+
+        // 연장 기준일: 원본 만료일과 짐+ 복사본 중 더 늦은 유효일, 둘 다 과거면 오늘.
+        // toISOString의 UTC 변환으로 날짜가 하루 밀리지 않도록 연/월/일을 직접 계산한다.
+        const candidates = [mainMember?.membershipEnd, gymMember?.membershipEnd]
+          .filter((d): d is string => !!d)
+          .map((d) => new Date(`${d.slice(0, 10)}T00:00:00Z`))
+          .filter((d) => !isNaN(d.getTime()));
+        const todayUtc = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
+        const baseMs = Math.max(todayUtc.getTime(), ...candidates.map((d) => d.getTime()));
+        const base = new Date(baseMs);
+        // 월 단위 가산 시 말일 오버플로우(예: 1/31 + 1개월 → 3/3) 방지
+        const targetMonthDay = base.getUTCDate();
+        base.setUTCMonth(base.getUTCMonth() + addMonths);
+        if (base.getUTCDate() < targetMonthDay) base.setUTCDate(0); // 넘친 만큼 해당 월 말일로 보정
+        base.setUTCDate(base.getUTCDate() + (renewal.bonusDays ?? 0));
         const newEnd = base.toISOString().slice(0, 10);
 
-        // gymPlusMembers 업데이트
+        // gymPlusMembers 복사본 및 원본 members 동시 갱신
         await db.update(gymPlusMembers)
           .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
           .where(eq(gymPlusMembers.id, renewal.gymPlusMemberId));
 
-        // 메인 members 업데이트 (memberId 우선, 없으면 전화번호 매칭)
-        const phone = gymMember?.phone || gymMember?.username;
-        if (gymMember?.memberId) {
+        if (mainMember) {
           await db.update(members)
             .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
-            .where(eq(members.id, gymMember.memberId));
-        } else if (phone) {
-          await db.update(members)
-            .set({ membershipEnd: newEnd, updatedAt: new Date().toISOString() })
-            .where(eq(members.phone, phone));
+            .where(eq(members.id, mainMember.id));
         }
 
         return { success: true, newMembershipEnd: newEnd };
