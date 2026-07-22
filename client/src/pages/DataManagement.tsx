@@ -392,13 +392,14 @@ function MarketingTab() {
         {pageStats?.daily && pageStats.daily.length > 0 && (
           <div className="pt-2 border-t border-border">
             <p className="text-[10px] text-muted-foreground mb-2">최근 14일 방문자</p>
-            <div className="flex items-end gap-1 h-16">
+            <div className="flex items-end gap-1 h-20">
               {pageStats.daily.map((d: { date: string; views: number }) => {
                 const max = Math.max(...pageStats.daily.map((x: { views: number }) => Number(x.views)), 1);
-                const h = Math.max(4, Math.round((Number(d.views) / max) * 56));
+                const h = Math.max(4, Math.round((Number(d.views) / max) * 52));
                 const dateStr = String(d.date).slice(0, 10);
                 return (
-                  <div key={dateStr} className="flex-1 flex flex-col items-center gap-1" title={`${dateStr}: ${d.views}명`}>
+                  <div key={dateStr} className="flex-1 flex flex-col items-center gap-0.5" title={`${dateStr}: ${d.views}명`}>
+                    <span className="text-[9px] font-bold text-foreground leading-none">{Number(d.views)}</span>
                     <div className="w-full bg-primary/60 rounded-sm" style={{ height: h }} />
                     <span className="text-[8px] text-muted-foreground">{dateStr.slice(5)}</span>
                   </div>
