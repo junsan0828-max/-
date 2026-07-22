@@ -332,6 +332,8 @@ function MarketingTab() {
   const [tab, setTab] = useState<"month" | "annual">("month");
 
   const { data: pageStats } = trpc.landing.getPageStats.useQuery();
+  const { data: pageStatsMonth } = trpc.landing.getPageStatsByPeriod.useQuery({ year, month });
+  const { data: pageStatsAnnual } = trpc.landing.getPageStatsByPeriod.useQuery({ year });
   const { data: channels } = trpc.gym.channels.list.useQuery();
   const { data: monthStats } = trpc.gym.leads.statsByMonth.useQuery({ year, month });
   const { data: channelRevSummary } = trpc.gym.revenue.channelSummary.useQuery({ year, month });
@@ -447,6 +449,26 @@ function MarketingTab() {
               <DollarSign className="h-4 w-4 text-amber-400 mx-auto mb-1" />
               <div className="text-lg font-bold text-foreground">{fmtWon(totalRevenue)}</div>
               <div className="text-xs text-muted-foreground">채널 매출</div>
+            </div>
+          </div>
+
+          {/* 랜딩페이지 월간 통계 */}
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Megaphone className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold text-sm">랜딩페이지 {month}월 현황</h2>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "방문자", value: pageStatsMonth?.views ?? 0, unit: "명", color: "text-blue-400" },
+                { label: "네이버 클릭", value: pageStatsMonth?.naverClicks ?? 0, unit: "회", color: "text-emerald-400" },
+                { label: "체형분석 신청", value: pageStatsMonth?.analysisComplete ?? 0, unit: "건", color: "text-amber-400" },
+              ].map((s) => (
+                <div key={s.label} className="bg-muted/30 rounded-lg p-3 text-center">
+                  <p className={`text-2xl font-black ${s.color}`}>{s.value}<span className="text-xs font-medium text-muted-foreground ml-0.5">{s.unit}</span></p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -665,6 +687,26 @@ function MarketingTab() {
               <TrendingUp className="h-4 w-4 text-amber-400 mx-auto mb-1" />
               <div className="text-lg font-bold text-foreground">{fmtWon(annualTotalRevenue)}</div>
               <div className="text-xs text-muted-foreground">연간 매출</div>
+            </div>
+          </div>
+
+          {/* 랜딩페이지 연간 통계 */}
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Megaphone className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold text-sm">랜딩페이지 {year}년 누적</h2>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "방문자", value: pageStatsAnnual?.views ?? 0, unit: "명", color: "text-blue-400" },
+                { label: "네이버 클릭", value: pageStatsAnnual?.naverClicks ?? 0, unit: "회", color: "text-emerald-400" },
+                { label: "체형분석 신청", value: pageStatsAnnual?.analysisComplete ?? 0, unit: "건", color: "text-amber-400" },
+              ].map((s) => (
+                <div key={s.label} className="bg-muted/30 rounded-lg p-3 text-center">
+                  <p className={`text-2xl font-black ${s.color}`}>{s.value}<span className="text-xs font-medium text-muted-foreground ml-0.5">{s.unit}</span></p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+                </div>
+              ))}
             </div>
           </div>
 

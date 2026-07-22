@@ -5719,6 +5719,31 @@ const landingRouter = t.router({
       };
     } catch (e) { console.error("getPageStats error:", e); return { todayViews: 0, naverClicks: 0, analysisComplete: 0, daily: [] }; }
   }),
+
+  // 월간/연간 랜딩페이지 통계 (month 있으면 해당 월, 없으면 해당 연도 전체). KST 기준 집계.
+  getPageStatsByPeriod: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number().optional() }))
+    .query(async ({ input }) => {
+      try {
+        const prefix = input.month != null
+          ? `${input.year}-${String(input.month).padStart(2, "0")}`
+          : `${input.year}`;
+        const res = await pool.query(`
+          SELECT
+            COUNT(DISTINCT CASE WHEN event='page_view' THEN session_id END) as views,
+            COUNT(CASE WHEN event='naver_click' THEN 1 END) as naver_clicks,
+            COUNT(CASE WHEN event='body_analysis_complete' THEN 1 END) as conversions
+          FROM landing_page_stats
+          WHERE to_char("createdAt"::timestamp + interval '9 hours', ${input.month != null ? "'YYYY-MM'" : "'YYYY'"}) = $1
+        `, [prefix]);
+        const row = res.rows[0];
+        return {
+          views: parseInt(row?.views ?? "0"),
+          naverClicks: parseInt(row?.naver_clicks ?? "0"),
+          analysisComplete: parseInt(row?.conversions ?? "0"),
+        };
+      } catch (e) { console.error("getPageStatsByPeriod error:", e); return { views: 0, naverClicks: 0, analysisComplete: 0 }; }
+    }),
 });
 
 // ─── 무료 체형분석 예약 라우터 ────────────────────────────────────────────────
