@@ -413,6 +413,25 @@ async function initDatabase() {
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "currentMembershipEnd" TEXT`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "requestedPeriod" TEXT`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "createdAt" TEXT DEFAULT now()::text`,
+    // 레거시 스키마에서 남은, 현재 코드가 채우지 않는 NOT NULL(기본값 없음) 컬럼 방어 정리.
+    // requestedAt 등 옛 컬럼이 NOT NULL로 남아 신청 INSERT를 막던 문제를 근본 해결한다.
+    // (id/gymPlusMemberId는 무결성 유지를 위해 제외, 나머지는 기본값 부여 후 NOT NULL 해제)
+    `DO $$
+      DECLARE col TEXT;
+      BEGIN
+        FOR col IN
+          SELECT column_name FROM information_schema.columns
+          WHERE table_name = 'gym_plus_membership_renewals'
+            AND is_nullable = 'NO'
+            AND column_default IS NULL
+            AND column_name NOT IN ('id', 'gymPlusMemberId')
+        LOOP
+          IF col IN ('requestedAt', 'createdAt', 'updatedAt') THEN
+            EXECUTE format('ALTER TABLE gym_plus_membership_renewals ALTER COLUMN %I SET DEFAULT now()::text', col);
+          END IF;
+          EXECUTE format('ALTER TABLE gym_plus_membership_renewals ALTER COLUMN %I DROP NOT NULL', col);
+        END LOOP;
+      END $$`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "bonusDays" INTEGER DEFAULT 0`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "memberName" TEXT`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "memberPhone" TEXT`,
@@ -562,7 +581,12 @@ async function initDatabase() {
     )`,
   ];
   for (const stmt of alterStatements) {
-    await pool.query(stmt);
+    try {
+      await pool.query(stmt);
+    } catch (e) {
+      // 개별 마이그레이션(주로 방어적 ALTER) 실패가 전체 초기화를 막지 않도록 로깅 후 계속 진행
+      console.error("⚠️ 마이그레이션 문 실패 (계속 진행):", (e as Error).message, "\n  SQL:", stmt.slice(0, 120));
+    }
   }
 
   console.log("✅ 테이블 준비 완료");
