@@ -134,7 +134,7 @@ export default function SequenceDetail({ sequenceId }: Props) {
           )}
           {version.coachingNotes && (
             <div className="rounded-2xl bg-card border border-border p-4">
-              <p className="text-xs font-semibold text-foreground/70 mb-1">지도 시 주의사항</p>
+              <p className="text-xs font-semibold text-foreground/70 mb-1">주의사항 및 코칭 포인트</p>
               <p className="text-xs text-muted-foreground whitespace-pre-wrap">{version.coachingNotes}</p>
             </div>
           )}

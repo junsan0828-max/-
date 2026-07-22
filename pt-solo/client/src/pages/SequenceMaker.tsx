@@ -55,7 +55,7 @@ export default function SequenceMaker({ versionId }: Props) {
   const [form, setForm] = useState({
     title: "", shortDescription: "", publicDescription: "", category: "", bodyParts: "",
     movementType: "", targetAudience: "", difficulty: "", estimatedMinutes: "", equipment: "", tags: "",
-    classGoal: "", preCheckItems: "", postCheckItems: "", coachingNotes: "", authorMemo: "",
+    classGoal: "", coachingNotes: "", authorMemo: "",
   });
   const [exercises, setExercises] = useState<ExerciseForm[]>([]);
   const [openExercise, setOpenExercise] = useState<number | null>(null);
@@ -73,8 +73,7 @@ export default function SequenceMaker({ versionId }: Props) {
       targetAudience: v.targetAudience ?? "", difficulty: v.difficulty ?? "",
       estimatedMinutes: v.estimatedMinutes != null ? String(v.estimatedMinutes) : "",
       equipment: v.equipment ?? "", tags: v.tags ?? "", classGoal: v.classGoal ?? "",
-      preCheckItems: v.preCheckItems ?? "", postCheckItems: v.postCheckItems ?? "", coachingNotes: v.coachingNotes ?? "",
-      authorMemo: v.authorMemo ?? "",
+      coachingNotes: v.coachingNotes ?? "", authorMemo: v.authorMemo ?? "",
     });
     setExercises(
       data.sections.flatMap((s: any) =>
@@ -114,7 +113,6 @@ export default function SequenceMaker({ versionId }: Props) {
         targetAudience: form.targetAudience || undefined, difficulty: form.difficulty || undefined,
         estimatedMinutes: form.estimatedMinutes ? parseInt(form.estimatedMinutes) : undefined,
         equipment: form.equipment || undefined, tags: form.tags || undefined, classGoal: form.classGoal || undefined,
-        preCheckItems: form.preCheckItems || undefined, postCheckItems: form.postCheckItems || undefined,
         coachingNotes: form.coachingNotes || undefined, authorMemo: form.authorMemo || undefined,
         sections: [{ name: "운동 목록", exercises }],
       },
@@ -229,9 +227,7 @@ export default function SequenceMaker({ versionId }: Props) {
         <div className="rounded-2xl bg-card border border-border p-4 space-y-3 mt-4">
           <p className="text-sm font-bold">수업 설계</p>
           <Field label="수업 목표"><Textarea rows={2} value={form.classGoal} onChange={e => setF("classGoal", e.target.value)} /></Field>
-          <Field label="수업 전 확인 항목"><Textarea rows={2} value={form.preCheckItems} onChange={e => setF("preCheckItems", e.target.value)} /></Field>
-          <Field label="수업 후 재확인 항목"><Textarea rows={2} value={form.postCheckItems} onChange={e => setF("postCheckItems", e.target.value)} /></Field>
-          <Field label="지도 시 주의사항"><Textarea rows={2} value={form.coachingNotes} onChange={e => setF("coachingNotes", e.target.value)} /></Field>
+          <Field label="주의사항 및 코칭 포인트"><Textarea rows={3} value={form.coachingNotes} onChange={e => setF("coachingNotes", e.target.value)} /></Field>
           <Field label="작성자 메모" hint="검토자에게만 보이는 내부 메모"><Textarea rows={2} value={form.authorMemo} onChange={e => setF("authorMemo", e.target.value)} /></Field>
         </div>
 

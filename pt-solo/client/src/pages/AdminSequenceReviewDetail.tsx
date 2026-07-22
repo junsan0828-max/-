@@ -99,7 +99,7 @@ export default function AdminSequenceReviewDetail({ versionId }: Props) {
         {version.classGoal && <p><span className="font-semibold text-foreground/70">목표: </span>{version.classGoal}</p>}
         {version.preCheckItems && <p><span className="font-semibold text-foreground/70">사전 확인: </span>{version.preCheckItems}</p>}
         {version.postCheckItems && <p><span className="font-semibold text-foreground/70">사후 확인: </span>{version.postCheckItems}</p>}
-        {version.coachingNotes && <p><span className="font-semibold text-foreground/70">주의사항: </span>{version.coachingNotes}</p>}
+        {version.coachingNotes && <p><span className="font-semibold text-foreground/70">주의사항 및 코칭 포인트: </span>{version.coachingNotes}</p>}
         {version.authorMemo && <p className="text-amber-600"><span className="font-semibold">작성자 메모: </span>{version.authorMemo}</p>}
       </div>
 
