@@ -19,12 +19,16 @@ import {
 import TabBanner from "@/components/TabBanner";
 import ReportBrandingEditor from "@/components/editors/ReportBrandingEditor";
 import ContractTermsEditor from "@/components/editors/ContractTermsEditor";
+import WorkoutTemplateEditor from "@/components/editors/WorkoutTemplateEditor";
+import SurveyBuilder from "@/components/editors/SurveyBuilder";
 
 // 작업실을 거치지 않고 대시보드 모달로 바로 여는 기능 — 하나씩 여기 추가하며 이전 중
-const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms"]);
+const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey"]);
 const MODAL_FEATURE_META: Record<string, { title: string; Component: React.ComponentType }> = {
   report_branding: { title: "보고서 브랜딩", Component: ReportBrandingEditor },
   contract_terms: { title: "약관 브랜딩", Component: ContractTermsEditor },
+  templates: { title: "운동 프로그램 템플릿", Component: WorkoutTemplateEditor },
+  survey: { title: "맞춤 상담 설문 빌더", Component: SurveyBuilder },
 };
 
 // ─── 아바타 색상 ──────────────────────────────────────────────────────────────
