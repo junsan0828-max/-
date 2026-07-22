@@ -108,7 +108,7 @@ function TemplateLoader({ onLoad, enabled = true }: { onLoad: (exs: Exercise[]) 
   );
 }
 
-function SequenceLoader({ onLoad }: { onLoad: (exs: Exercise[], sequenceVersionId: number) => void }) {
+function SequenceLoader({ memberId, onLoad }: { memberId: number; onLoad: (exs: Exercise[], sequenceVersionId: number) => void }) {
   const { data: versions } = trpc.sequenceLab.listPickable.useQuery();
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
@@ -123,10 +123,14 @@ function SequenceLoader({ onLoad }: { onLoad: (exs: Exercise[], sequenceVersionI
           {versions.map((v: any) => (
             <button key={v.id} className="w-full text-left px-3 py-2.5 text-xs hover:bg-accent/30 transition-colors border-b border-border last:border-0"
               onClick={async () => {
-                const detail = await utils.sequenceLab.getVersionForApply.fetch({ versionId: v.id });
+                const detail = await utils.sequenceLab.getVersionForApply.fetch({ versionId: v.id, memberId });
                 onLoad(detail.exercises, v.id);
                 setOpen(false);
-                toast.success(`${detail.title || "시퀀스"} 불러옴`);
+                if (detail.adjustedForCaution) {
+                  toast.success(`${detail.title || "시퀀스"} 불러옴 — 회원 건강 이력을 고려해 쉬운 동작으로 자동 조정했어요.`, { duration: 5000 });
+                } else {
+                  toast.success(`${detail.title || "시퀀스"} 불러옴`);
+                }
               }}>
               <p className="font-medium">{v.title || "(제목 없음)"}</p>
             </button>
@@ -1651,7 +1655,7 @@ export default function MemberDetail({ memberId }: Props) {
             <div className="space-y-1.5">
               <div className="flex items-center gap-3">
                 <TemplateLoader onLoad={exs => setJournalForm(p => ({ ...p, exercises: exs }))} enabled={isFeatureActive("templates")} />
-                <SequenceLoader onLoad={(exs, versionId) => setJournalForm(p => ({ ...p, exercises: exs, sequenceVersionId: versionId }))} />
+                <SequenceLoader memberId={memberId} onLoad={(exs, versionId) => setJournalForm(p => ({ ...p, exercises: exs, sequenceVersionId: versionId }))} />
               </div>
               {journalForm.sequenceVersionId && (
                 <p className="text-[10px] text-primary">시퀀스 랩에서 불러온 운동이 적용됐어요.</p>

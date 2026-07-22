@@ -3817,21 +3817,43 @@ const sequenceLabRouter = t.router({
     return rows.rows;
   }),
 
-  getVersionForApply: protectedProcedure.input(z.object({ versionId: z.number() })).query(async ({ ctx, input }) => {
-    const trainerId = ctx.user.trainerId;
-    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    const version = (await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [input.versionId])).rows[0];
-    if (!version) throw new TRPCError({ code: "NOT_FOUND" });
-    if (version.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-    const sections = await seqGetSectionsWithExercises(input.versionId);
-    const exercises = sections.flatMap((sec: any) =>
-      sec.exercises.map((ex: any) => ({
-        name: `[${sec.name}] ${ex.name}${ex.durationOrReps ? ` · ${ex.durationOrReps}` : ""}`,
-        sets: [{ reps: "", weight: "" }],
-      }))
-    );
-    return { title: version.title, exercises };
-  }),
+  getVersionForApply: protectedProcedure
+    .input(z.object({ versionId: z.number(), memberId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const version = (await pool.query<any>(`SELECT * FROM sequence_versions WHERE id=$1`, [input.versionId])).rows[0];
+      if (!version) throw new TRPCError({ code: "NOT_FOUND" });
+      if (version.authorTrainerId !== trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const sections = await seqGetSectionsWithExercises(input.versionId);
+
+      // 회원의 PAR-Q·최근 통증 이력을 확인해 쉬운 동작 자동 선택 여부 판단
+      // (운동별 부위 태그가 없어 "이 회원=주의 필요"로 통째 판단하는 보수적인 V1)
+      let useEasyVariant = false;
+      if (input.memberId) {
+        const memberRow = await pool.query(`SELECT id FROM members WHERE id=$1 AND "trainerId"=$2`, [input.memberId, trainerId]);
+        if (memberRow.rows.length > 0) {
+          const parq = (await pool.query<any>(`SELECT "musculoskeletalIssues", "chronicDiseases" FROM par_q WHERE "memberId"=$1`, [input.memberId])).rows[0];
+          const hasParqFlag = !!(parq?.musculoskeletalIssues?.trim() || parq?.chronicDiseases?.trim());
+          const lastCheck = (await pool.query<{ painLevel: number | null }>(
+            `SELECT "painLevel" FROM attendance_checks WHERE "memberId"=$1 ORDER BY "checkDate" DESC, id DESC LIMIT 1`, [input.memberId]
+          )).rows[0];
+          const hasRecentPain = (lastCheck?.painLevel ?? 0) >= 5;
+          useEasyVariant = hasParqFlag || hasRecentPain;
+        }
+      }
+
+      const exercises = sections.flatMap((sec: any) =>
+        sec.exercises.map((ex: any) => {
+          const variantNote = useEasyVariant && ex.easyVariant ? ` — 쉬운 동작: ${ex.easyVariant}` : ex.durationOrReps ? ` · ${ex.durationOrReps}` : "";
+          return {
+            name: `[${sec.name}] ${ex.name}${variantNote}`,
+            sets: [{ reps: "", weight: "" }],
+          };
+        })
+      );
+      return { title: version.title, exercises, adjustedForCaution: useEasyVariant };
+    }),
 
   // 공개된 시퀀스 수정 → 기존 공개본은 유지하고 새 리비전을 만들어 재검토
   createRevision: protectedProcedure.input(z.object({ sequenceId: z.number() })).mutation(async ({ ctx, input }) => {
