@@ -674,9 +674,17 @@ export function GymPlusRenewalsAdmin() {
   const [approveTarget, setApproveTarget] = useState<{ id: number; memberName: string; currentEnd: string | null } | null>(null);
   const [newEnd, setNewEnd] = useState("");
   const [adminNote, setAdminNote] = useState("");
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState("");
+  const [payType, setPayType] = useState<"헬스" | "PT" | "기타">("헬스");
+  const [payDate, setPayDate] = useState("");
 
   const approveMutation = trpc.gymPlus.admin_approveRenewal.useMutation({
-    onSuccess: () => { utils.gymPlus.admin_listRenewals.invalidate(); setApproveTarget(null); setNewEnd(""); setAdminNote(""); toast.success("승인되었습니다."); },
+    onSuccess: () => {
+      utils.gymPlus.admin_listRenewals.invalidate();
+      setApproveTarget(null); setNewEnd(""); setAdminNote(""); setPayAmount(""); setPayMethod(""); setPayType("헬스"); setPayDate("");
+      toast.success("승인되었습니다.");
+    },
     onError: (e) => toast.error(e.message),
   });
   const rejectMutation = trpc.gymPlus.admin_rejectRenewal.useMutation({
@@ -740,6 +748,36 @@ export function GymPlusRenewalsAdmin() {
               <Label className="text-xs text-muted-foreground">연장 후 만료일</Label>
               <Input type="date" value={newEnd} onChange={e => setNewEnd(e.target.value)} className="h-8 text-sm" />
             </div>
+            <div className="pt-2 border-t border-border space-y-3">
+              <p className="text-[11px] text-muted-foreground">💳 결제 정보 (입금 확인 후 입력 — 입력하면 등록관리·매출·회원권에 반영됩니다. 비워두면 만료일만 연장)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">결제 금액</Label>
+                  <Input type="number" min="0" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0" className="h-8 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">결제일</Label>
+                  <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="h-8 text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">유형</Label>
+                  <select value={payType} onChange={e => setPayType(e.target.value as any)} className="w-full h-8 rounded-md px-2 text-sm bg-input border border-border">
+                    <option value="헬스">헬스</option>
+                    <option value="PT">PT</option>
+                    <option value="기타">기타</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">결제 방법</Label>
+                  <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className="w-full h-8 rounded-md px-2 text-sm bg-input border border-border">
+                    <option value="">선택</option>
+                    {["카드", "현금", "현금영수증", "계좌이체", "이체", "지역화폐"].map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">관리자 메모 (선택)</Label>
               <Input value={adminNote} onChange={e => setAdminNote(e.target.value)} placeholder="메모 입력" className="h-8 text-sm" />
@@ -747,7 +785,15 @@ export function GymPlusRenewalsAdmin() {
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setApproveTarget(null)}>취소</Button>
               <Button className="flex-1 h-8 text-sm" disabled={!newEnd || approveMutation.isPending}
-                onClick={() => approveMutation.mutate({ id: approveTarget!.id, newMembershipEnd: newEnd, adminNote: adminNote || undefined })}>
+                onClick={() => approveMutation.mutate({
+                  id: approveTarget!.id,
+                  newMembershipEnd: newEnd,
+                  adminNote: adminNote || undefined,
+                  paidAmount: payAmount ? parseInt(payAmount) : undefined,
+                  paymentMethod: payMethod || undefined,
+                  paymentDate: payDate || undefined,
+                  type: payType,
+                })}>
                 {approveMutation.isPending ? "승인 중..." : "승인"}
               </Button>
             </div>

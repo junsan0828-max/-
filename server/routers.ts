@@ -5461,23 +5461,78 @@ const gymPlusRouter = t.router({
       return rows;
     }),
 
-  // 관리자: 재등록 승인
+  // 관리자: 재등록 승인 — 앱 회원 만료일 연장 + (연결된) 통합운영 회원 만료일 연장 +
+  // 결제금액이 입력되면 재등록 매출(revenue_entries)까지 기록해 등록관리·정산에 반영한다.
   admin_approveRenewal: adminOnlyGymPlus
-    .input(z.object({ id: z.number(), newMembershipEnd: z.string(), adminNote: z.string().optional() }))
-    .mutation(async ({ input }) => {
+    .input(z.object({
+      id: z.number(),
+      newMembershipEnd: z.string(),
+      adminNote: z.string().optional(),
+      // 결제 정보(관리자가 입금 확인 후 입력). 없으면 매출은 만들지 않고 만료일만 연장.
+      paidAmount: z.number().min(0).optional(),
+      paymentMethod: z.string().optional(),
+      paymentDate: z.string().optional(),
+      type: z.enum(["헬스", "PT", "기타"]).optional(),
+      programDetail: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const renewal = await db.select().from(gymPlusMembershipRenewals).where(eq(gymPlusMembershipRenewals.id, input.id)).limit(1);
       if (!renewal[0]) throw new TRPCError({ code: "NOT_FOUND" });
+
       await db.update(gymPlusMembershipRenewals).set({
         status: "approved",
         newMembershipEnd: input.newMembershipEnd,
         adminNote: input.adminNote,
         processedAt: new Date().toISOString(),
       }).where(eq(gymPlusMembershipRenewals.id, input.id));
+
+      // 앱 회원 만료일 연장
+      const [gpMember] = await db.select().from(gymPlusMembers).where(eq(gymPlusMembers.id, renewal[0].gymPlusMemberId)).limit(1);
       await db.update(gymPlusMembers).set({ membershipEnd: input.newMembershipEnd })
         .where(eq(gymPlusMembers.id, renewal[0].gymPlusMemberId));
-      return { success: true };
+
+      // 연결된 통합운영 회원(members) 찾기: gymPlusMembers.memberId 우선, 없으면 이름+전화(숫자)로.
+      let linkedMemberId: number | null = gpMember?.memberId ?? null;
+      if (!linkedMemberId && gpMember?.name && gpMember?.phone) {
+        const [m] = await db.select({ id: members.id }).from(members)
+          .where(and(eq(members.name, gpMember.name), samePhone(members.phone, gpMember.phone))).limit(1);
+        if (m) {
+          linkedMemberId = m.id;
+          // 다음부터 바로 연결되도록 gymPlusMembers.memberId도 채워둔다
+          await db.update(gymPlusMembers).set({ memberId: m.id }).where(eq(gymPlusMembers.id, gpMember.id));
+        }
+      }
+      // 통합운영 회원 만료일도 연장 (연장이 뒤로 가는 경우만 갱신 — 되돌리기 방지)
+      if (linkedMemberId) {
+        await db.update(members).set({ membershipEnd: input.newMembershipEnd, updatedAt: new Date().toISOString() })
+          .where(eq(members.id, linkedMemberId));
+      }
+
+      // 결제금액이 입력되면 재등록 매출 기록
+      if (input.paidAmount != null && input.paidAmount > 0) {
+        const today = new Date().toISOString().substring(0, 10);
+        await db.insert(revenueEntries).values({
+          memberId: linkedMemberId ?? undefined,
+          createdBy: ctx.user?.id ?? null,
+          customerName: gpMember?.name ?? "",
+          phone: gpMember?.phone ?? null,
+          programDetail: input.programDetail ?? "앱 재등록",
+          type: input.type ?? "헬스",
+          subType: "재등록",
+          amount: input.paidAmount,
+          discountAmount: 0,
+          paidAmount: input.paidAmount,
+          unpaidAmount: 0,
+          paymentMethod: input.paymentMethod ?? undefined,
+          paymentDate: input.paymentDate ?? today,
+          startDate: input.paymentDate ?? today,
+          memo: "자이언트짐++ 앱 재등록 승인",
+        });
+      }
+
+      return { success: true, linkedMemberId, revenueCreated: (input.paidAmount ?? 0) > 0 };
     }),
 
   // 관리자: 재등록 거절
