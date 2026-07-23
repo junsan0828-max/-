@@ -1,7 +1,10 @@
 // 급여 정산 AI — 매달 9일, 전월 트레이너 수업 정산 + 기본급을 계산해
 // 구글 드라이브 급여 시트에 기록하고 대표에게 보고한다.
 // 수업 정산 계산은 자이언트짐 운영관리시스템(server/routers.ts getMonthlySettlement)과 동일한 로직을 그대로 따른다.
-import { Pool } from "pg";
+// Neon 공식 서버리스 드라이버의 HTTP 쿼리 함수(neon()) 사용 — 일반 pg(TCP 5432)는 클라우드
+// 예약실행 환경에서 막혀있고, WebSocket 기반 Pool도 그 환경 아웃바운드 프록시가 막는 것으로
+// 확인됨(자세한 내용은 data.ts 주석/메모리 참고). 순수 HTTPS 요청이라 문제없이 통과함.
+import { neon } from "@neondatabase/serverless";
 import { findOrCreateFolder } from "./drive/archive";
 import { findFileInFolder, createSpreadsheet, ensureSheetTab, writeValues, searchFiles, readAllTabs } from "./drive/drive";
 
@@ -58,18 +61,14 @@ export function previousYearMonth(date = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function getPool() {
-  return new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-}
-
 export async function runPayroll(yearMonth: string = previousYearMonth()): Promise<PayrollResult> {
-  const pool = getPool();
-  try {
-    const trainerRows = await pool.query<{ id: number; trainerName: string }>(
+  const sql = neon(process.env.DATABASE_URL!);
+  {
+    const trainerRows = (await sql.query(
       `SELECT id, "trainerName" FROM trainers WHERE "trainerName" = ANY($1)`,
       [TRAINER_ORDER]
-    );
-    const byName = new Map(trainerRows.rows.map((t) => [t.trainerName, t]));
+    )) as { id: number; trainerName: string }[];
+    const byName = new Map(trainerRows.map((t) => [t.trainerName, t]));
     const orderedTrainers = TRAINER_ORDER.map((name) => byName.get(name)).filter(
       (t): t is { id: number; trainerName: string } => !!t
     );
@@ -87,21 +86,13 @@ export async function runPayroll(yearMonth: string = previousYearMonth()): Promi
     const trainers: TrainerSettlement[] = [];
 
     for (const trainer of orderedTrainers) {
-      const rateRow = await pool.query<{ settlementRate: number }>(
+      const rateRow = (await sql.query(
         `SELECT "settlementRate" FROM trainer_settings WHERE "trainerId" = $1 LIMIT 1`,
         [trainer.id]
-      );
-      const settlementRate = rateRow.rows[0]?.settlementRate ?? 50;
+      )) as { settlementRate: number }[];
+      const settlementRate = rateRow[0]?.settlementRate ?? 50;
 
-      const logs = await pool.query<{
-        id: number;
-        sessionDate: string;
-        memberId: number;
-        memberName: string | null;
-        pricePerSession: number | null;
-        paymentAmount: number | null;
-        totalSessions: number | null;
-      }>(
+      const logs = (await sql.query(
         `SELECT l.id, l."sessionDate", l."memberId", mem.name as "memberName",
                 pkg."pricePerSession", pkg."paymentAmount", pkg."totalSessions"
          FROM pt_session_logs l
@@ -109,9 +100,17 @@ export async function runPayroll(yearMonth: string = previousYearMonth()): Promi
          LEFT JOIN members mem ON l."memberId" = mem.id
          WHERE l."trainerId" = $1 AND l."sessionDate" >= $2 AND l."sessionDate" < $3`,
         [trainer.id, monthStart, monthEnd]
-      );
+      )) as {
+        id: number;
+        sessionDate: string;
+        memberId: number;
+        memberName: string | null;
+        pricePerSession: number | null;
+        paymentAmount: number | null;
+        totalSessions: number | null;
+      }[];
 
-      const withPrice = logs.rows.map((l) => ({
+      const withPrice = logs.map((l) => ({
         ...l,
         effectivePrice: l.pricePerSession
           ? l.pricePerSession
@@ -166,8 +165,6 @@ export async function runPayroll(yearMonth: string = previousYearMonth()): Promi
     }
 
     return { yearMonth, issues, trainers, uncheckable: UNCHECKABLE_ITEMS };
-  } finally {
-    await pool.end();
   }
 }
 

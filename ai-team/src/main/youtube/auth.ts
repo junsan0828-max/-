@@ -9,7 +9,10 @@ const CONFIG: GoogleAuthConfig = {
   clientSecretPath: join(__dirname, "..", "..", "..", "config", "youtube-client-secret.json"),
   tokenPath: join(__dirname, "..", "..", "..", "output", "youtube-token.json"),
   redirectPort: 53682,
-  scopes: ["https://www.googleapis.com/auth/youtube.upload"],
+  scopes: [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly", // 채널 영상 목록(숏츠) 조회용
+  ],
   label: "유튜브",
 };
 

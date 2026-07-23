@@ -4,7 +4,9 @@
 // 테이블이 비어있어 대신 revenue_entries의 subType='재등록'을 실제 신호로 쓴다) 그걸 기본 소스로 쓰고,
 // 구글 드라이브의 "브로제이데이터" 엑셀은 DB에 없는 특이사항 메모만 보조로 참고한다.
 import Anthropic from "@anthropic-ai/sdk";
-import { Pool } from "pg";
+// Neon 공식 서버리스 드라이버의 HTTP 쿼리 함수(neon()) 사용 — data.ts/payroll.ts와 동일한 이유
+// (클라우드 예약실행 환경에서 일반 pg TCP/WebSocket이 막혀있고, 순수 HTTPS만 통과함).
+import { neon } from "@neondatabase/serverless";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { google } from "googleapis";
@@ -28,10 +30,6 @@ export interface RepoResult {
   branches: BranchStrategy[]; // [1호점, 2호점, 전체]
   dataNotes: string[]; // 데이터 품질/한계 안내 (지어내지 않기 위해 남김)
   expenseMissing: boolean; // 이번 달 지출(expense_entries) 입력이 안 된 상태인지
-}
-
-function getPool() {
-  return new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 }
 
 /** 오늘 기준 "전월" (YYYY-MM). */
@@ -65,8 +63,8 @@ interface RawData {
 }
 
 async function gatherRawData(yearMonth: string): Promise<RawData> {
-  const pool = getPool();
-  try {
+  const sql = neon(process.env.DATABASE_URL!);
+  {
     const [y, m] = yearMonth.split("-").map(Number);
     const nextMonth = m === 12 ? 1 : m + 1;
     const nextYear = m === 12 ? y + 1 : y;
@@ -76,38 +74,32 @@ async function gatherRawData(yearMonth: string): Promise<RawData> {
     const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
     const ago14 = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
 
-    const [revenue, expense, expiring, expired, ptEnding, attendance, nullBranch] = await Promise.all([
-      pool.query<{ branchId: number | null; ym: string; type: string; subType: string; c: string; amt: string }>(
+    const [revenue, expense, expiring, expired, ptEnding, attendance, nullBranch] = (await Promise.all([
+      sql.query(
         `SELECT "branchId", substr("paymentDate",1,7) ym, type, "subType", COUNT(*) c, SUM("paidAmount") amt
          FROM revenue_entries WHERE "paymentDate" >= $1 AND "paymentDate" < $2
          GROUP BY 1,2,3,4 ORDER BY 2`,
         [sixMonthsBack, monthEnd]
       ),
-      pool.query<{ branchId: number | null; ym: string; category: string; amt: string }>(
+      sql.query(
         `SELECT "branchId", substr("expenseDate",1,7) ym, category, SUM(amount) amt
          FROM expense_entries WHERE "expenseDate" >= $1 AND "expenseDate" < $2
          GROUP BY 1,2,3 ORDER BY 2`,
         [sixMonthsBack, monthEnd]
       ),
-      pool.query<{ branchId: number | null; name: string; membershipEnd: string }>(
+      sql.query(
         `SELECT "branchId", name, "membershipEnd" FROM members
          WHERE "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1 AND "membershipEnd" <= $2
          ORDER BY "membershipEnd" ASC LIMIT 200`,
         [today, in30]
       ),
-      pool.query<{ branchId: number | null; name: string; membershipEnd: string }>(
+      sql.query(
         `SELECT "branchId", name, "membershipEnd" FROM members
          WHERE "membershipEnd" IS NOT NULL AND "membershipEnd" >= $1 AND "membershipEnd" < $2
          ORDER BY "membershipEnd" DESC LIMIT 200`,
         [ago14, today]
       ),
-      pool.query<{
-        branchId: number | null;
-        memberName: string;
-        usedSessions: number;
-        totalSessions: number;
-        expiryDate: string;
-      }>(
+      sql.query(
         `SELECT m."branchId", p."packageName" || ' - ' || m.name as "memberName", p."usedSessions", p."totalSessions", p."expiryDate"
          FROM pt_packages p JOIN members m ON p."memberId" = m.id
          WHERE p.status = 'active'
@@ -115,21 +107,29 @@ async function gatherRawData(yearMonth: string): Promise<RawData> {
          ORDER BY p."expiryDate" ASC LIMIT 200`,
         [today, in30]
       ),
-      pool.query<{ branchId: number | null; ym: string; c: string }>(
+      sql.query(
         `SELECT m."branchId", substr(a."attendDate",1,7) ym, COUNT(*) c
          FROM attendances a JOIN members m ON a."memberId" = m.id
          WHERE a."attendDate" >= $1 AND a."attendDate" < $2
          GROUP BY 1,2 ORDER BY 2`,
         [sixMonthsBack, monthEnd]
       ),
-      pool.query<{ c: string }>(
+      sql.query(
         `SELECT COUNT(*) c FROM revenue_entries WHERE "paymentDate" >= $1 AND "paymentDate" < $2 AND "branchId" IS NULL`,
         [`${yearMonth}-01`, monthEnd]
       ),
-    ]);
+    ])) as [
+      { branchId: number | null; ym: string; type: string; subType: string; c: string; amt: string }[],
+      { branchId: number | null; ym: string; category: string; amt: string }[],
+      { branchId: number | null; name: string; membershipEnd: string }[],
+      { branchId: number | null; name: string; membershipEnd: string }[],
+      { branchId: number | null; memberName: string; usedSessions: number; totalSessions: number; expiryDate: string }[],
+      { branchId: number | null; ym: string; c: string }[],
+      { c: string }[]
+    ];
 
     return {
-      revenueByMonth: revenue.rows.map((r) => ({
+      revenueByMonth: revenue.map((r) => ({
         branchId: r.branchId,
         ym: r.ym,
         type: r.type,
@@ -137,21 +137,19 @@ async function gatherRawData(yearMonth: string): Promise<RawData> {
         count: Number(r.c),
         amount: Number(r.amt ?? 0),
       })),
-      expenseByMonth: expense.rows.map((r) => ({ branchId: r.branchId, ym: r.ym, category: r.category, amount: Number(r.amt ?? 0) })),
-      expiringSoon: expiring.rows,
-      recentlyExpired: expired.rows,
-      ptEndingSoon: ptEnding.rows.map((r) => ({
+      expenseByMonth: expense.map((r) => ({ branchId: r.branchId, ym: r.ym, category: r.category, amount: Number(r.amt ?? 0) })),
+      expiringSoon: expiring,
+      recentlyExpired: expired,
+      ptEndingSoon: ptEnding.map((r) => ({
         branchId: r.branchId,
         memberName: r.memberName,
         usedSessions: Number(r.usedSessions),
         totalSessions: Number(r.totalSessions),
         expiryDate: r.expiryDate,
       })),
-      attendanceByMonth: attendance.rows.map((r) => ({ branchId: r.branchId, ym: r.ym, count: Number(r.c) })),
-      nullBranchRevenueCount: Number(nullBranch.rows[0]?.c ?? 0),
+      attendanceByMonth: attendance.map((r) => ({ branchId: r.branchId, ym: r.ym, count: Number(r.c) })),
+      nullBranchRevenueCount: Number(nullBranch[0]?.c ?? 0),
     };
-  } finally {
-    await pool.end();
   }
 }
 

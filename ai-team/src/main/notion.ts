@@ -9,6 +9,7 @@ import { PayrollResult } from "./payroll";
 import { RepoResult } from "./repo";
 import { JournalEntry } from "./journal";
 import { GymContext } from "./data";
+import { ShortVideo } from "./youtube/shorts";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -430,6 +431,54 @@ export async function logTaskExecution(input: ExecutionLogInput): Promise<Notion
     return { ok: true, url: page.url };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export interface YoutubeShortsPushResult {
+  ok: boolean;
+  addedCount: number;
+  skippedExisting: number;
+  error?: string;
+}
+
+/** 유튜브 숏츠 목록을 "유튜브 숏츠 목록" DB에 적는다. 이미 있는 링크는 건너뛴다(중복 방지). */
+export async function pushYoutubeShorts(shorts: ShortVideo[]): Promise<YoutubeShortsPushResult> {
+  const databaseId = process.env.NOTION_YOUTUBE_SHORTS_DATABASE_ID;
+  if (!databaseId) return { ok: false, addedCount: 0, skippedExisting: 0, error: "미설정 (.env에 NOTION_YOUTUBE_SHORTS_DATABASE_ID 필요)" };
+
+  try {
+    const existing = await notionFetch(`/databases/${databaseId}/query`, {
+      method: "POST",
+      body: JSON.stringify({ page_size: 100 }),
+    });
+    const existingUrls = new Set<string>(
+      (existing.results ?? []).map((p: any) => p.properties?.["링크"]?.url).filter(Boolean)
+    );
+
+    let addedCount = 0;
+    let skippedExisting = 0;
+    for (const s of shorts) {
+      if (existingUrls.has(s.url)) {
+        skippedExisting++;
+        continue;
+      }
+      await notionFetch("/pages", {
+        method: "POST",
+        body: JSON.stringify({
+          parent: { database_id: databaseId },
+          properties: {
+            "제목": { title: [{ text: { content: s.title.slice(0, 200) } }] },
+            "링크": { url: s.url },
+            ...(s.publishedAt ? { "게시일": { date: { start: s.publishedAt.slice(0, 10) } } } : {}),
+          },
+        }),
+      });
+      addedCount++;
+    }
+
+    return { ok: true, addedCount, skippedExisting };
+  } catch (err) {
+    return { ok: false, addedCount: 0, skippedExisting: 0, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
