@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Dumbbell, LogOut,
   User, ClipboardCheck, X, ShieldCheck, Bell,
-  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList, Layers,
+  UserPlus, TrendingUp, Wrench, Zap, Coins, Menu, GraduationCap, BookOpen, CalendarCheck, CreditCard, HelpCircle, MessageSquarePlus, ClipboardList, Layers, Globe,
 } from "lucide-react";
 import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
@@ -118,6 +118,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/sessions", label: "수업 관리", icon: BookOpen },
     { path: "/leads", label: "상담 관리", icon: UserPlus },
     { path: "/sequences", label: "시퀀스 랩", icon: Layers },
+    ...(isFeatureActive("brand_page") ? [{ path: "/brand-page", label: "브랜드 페이지", icon: Globe }] : []),
+    ...(isFeatureActive("fitstep_plus") ? [{ path: "/fitstep-plus-manage", label: "FIT STEP+", icon: Wrench }] : []),
     ...(isFeatureActive("booking") ? [{ path: "/booking", label: "예약 관리", icon: CalendarCheck }] : []),
     { path: "/settlement", label: "성장분석실", icon: TrendingUp },
     { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
