@@ -712,11 +712,30 @@ export function GymPlusRenewalsAdmin() {
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">대기중</span>
           </div>
           {r.renewal.memo && <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">메모: {r.renewal.memo}</p>}
+          {((r.renewal as any).requestedAmount || (r.renewal as any).requestedMonths || (r.renewal as any).membershipType) && (
+            <p className="text-xs text-emerald-400 bg-emerald-500/10 rounded-lg px-3 py-2">
+              📱 앱 신청 내용: {(r.renewal as any).membershipType ?? "-"}
+              {(r.renewal as any).requestedMonths ? ` · ${(r.renewal as any).requestedMonths}개월` : ""}
+              {(r.renewal as any).requestedAmount ? ` · ${(r.renewal as any).requestedAmount.toLocaleString()}원` : ""}
+              {(r.renewal as any).paymentMethod ? ` · ${(r.renewal as any).paymentMethod}` : ""}
+            </p>
+          )}
           <p className="text-[10px] text-muted-foreground">{r.renewal.requestedAt?.slice(0, 16).replace("T", " ")} 신청</p>
           <div className="flex gap-2 pt-1">
             <button onClick={() => rejectMutation.mutate({ id: r.renewal.id })} disabled={rejectMutation.isPending}
               className="flex-1 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:text-red-400 hover:border-red-400/40">거절</button>
-            <button onClick={() => { setApproveTarget({ id: r.renewal.id, memberName: r.memberName ?? "", currentEnd: r.membershipEnd }); setNewEnd(r.membershipEnd ?? ""); }}
+            <button onClick={() => {
+              setApproveTarget({ id: r.renewal.id, memberName: r.memberName ?? "", currentEnd: r.membershipEnd });
+              const months = (r.renewal as any).requestedMonths as number | null;
+              if (months && r.membershipEnd) {
+                const d = new Date(r.membershipEnd); d.setMonth(d.getMonth() + months);
+                setNewEnd(d.toISOString().substring(0, 10));
+              } else { setNewEnd(r.membershipEnd ?? ""); }
+              setPayAmount((r.renewal as any).requestedAmount ? String((r.renewal as any).requestedAmount) : "");
+              setPayMethod((r.renewal as any).paymentMethod ?? "");
+              setPayType(((r.renewal as any).membershipType as any) ?? "헬스");
+              setPayDate(new Date().toISOString().substring(0, 10));
+            }}
               className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold">승인</button>
           </div>
         </div>

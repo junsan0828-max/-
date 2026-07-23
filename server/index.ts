@@ -739,6 +739,11 @@ async function initDatabase() {
     )`,
     `ALTER TABLE lockers ADD COLUMN IF NOT EXISTS "categoryId" INTEGER`,
     `ALTER TABLE lockers ADD COLUMN IF NOT EXISTS "rentalType" TEXT`,
+    // 앱 재등록 신청에 결제 정보를 담아 통합운영으로 전달 (자이언트짐++가 채워 보냄)
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "requestedAmount" INTEGER`,
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "requestedMonths" INTEGER`,
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`,
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "membershipType" TEXT`,
     `CREATE TABLE IF NOT EXISTS access_logs (
       id SERIAL PRIMARY KEY,
       "memberId" INTEGER,

@@ -5411,9 +5411,16 @@ const gymPlusRouter = t.router({
 
   // ── 재등록 신청 ─────────────────────────────────────────────────────────────
 
-  // 회원: 재등록 신청
+  // 회원: 재등록 신청 (앱에서 결제금액·기간·결제방법·유형을 담아 보내면 승인 화면에 자동 표시)
   requestRenewal: t.procedure
-    .input(z.object({ gymPlusMemberId: z.number(), memo: z.string().optional() }))
+    .input(z.object({
+      gymPlusMemberId: z.number(),
+      memo: z.string().optional(),
+      requestedAmount: z.number().min(0).optional(),
+      requestedMonths: z.number().min(0).optional(),
+      paymentMethod: z.string().optional(),
+      membershipType: z.string().optional(),
+    }))
     .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -5426,6 +5433,10 @@ const gymPlusRouter = t.router({
         gymPlusMemberId: input.gymPlusMemberId,
         status: "pending",
         memo: input.memo,
+        requestedAmount: input.requestedAmount,
+        requestedMonths: input.requestedMonths,
+        paymentMethod: input.paymentMethod,
+        membershipType: input.membershipType,
         requestedAt: new Date().toISOString(),
       });
       return { success: true };

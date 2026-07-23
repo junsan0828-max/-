@@ -639,6 +639,11 @@ export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals",
   requestedAt: text("requestedAt").notNull(),
   processedAt: text("processedAt"),
   newMembershipEnd: text("newMembershipEnd"), // 승인 시 연장된 만료일
+  // 앱에서 회원이 신청 시 담은 결제 정보 (자이언트짐++가 전달) — 승인 화면에 자동 표시
+  requestedAmount: integer("requestedAmount"),
+  requestedMonths: integer("requestedMonths"),
+  paymentMethod: text("paymentMethod"),
+  membershipType: text("membershipType"), // 헬스 | PT | 기타
 });
 
 // 양도양수 계약서
