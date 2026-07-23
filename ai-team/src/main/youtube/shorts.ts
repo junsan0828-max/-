@@ -2,7 +2,7 @@
 // YouTube Data API에는 "이거 숏츠임" 필드가 따로 없어서, 업계 통용 기준대로
 // 영상 길이 60초 이하를 숏츠로 판단한다.
 import { google } from "googleapis";
-import { getAuthorizedClient } from "./auth";
+import { getAuthorizedClient, listConnectedAccountIds } from "./auth";
 
 export interface ShortVideo {
   videoId: string;
@@ -10,6 +10,7 @@ export interface ShortVideo {
   url: string;
   publishedAt: string; // ISO
   durationSeconds: number;
+  accountId: string; // 어느 유튜브 계정(트레이너)에서 가져온 영상인지
 }
 
 /** ISO 8601 재생시간(PT1M5S 등)을 초 단위로 변환한다. */
@@ -20,9 +21,10 @@ function parseDurationSeconds(iso: string): number {
   return (Number(h) || 0) * 3600 + (Number(min) || 0) * 60 + (Number(s) || 0);
 }
 
-/** 내 채널에 업로드된 영상 중 최근 것부터 숏츠(60초 이하)만 골라 돌려준다. */
-export async function listRecentShorts(maxCount = 20): Promise<ShortVideo[]> {
-  const auth = await getAuthorizedClient();
+/** 지정한 계정(accountId)의 채널에 업로드된 영상 중 최근 것부터 숏츠(60초 이하)만 골라 돌려준다.
+ * accountId를 처음 쓰는 경우 브라우저 인증이 1회 뜬다. */
+export async function listRecentShorts(accountId = "default", maxCount = 20): Promise<ShortVideo[]> {
+  const auth = await getAuthorizedClient(accountId);
   const youtube = google.youtube({ version: "v3", auth });
 
   const channelRes = await youtube.channels.list({ part: ["contentDetails"], mine: true });
@@ -55,6 +57,7 @@ export async function listRecentShorts(maxCount = 20): Promise<ShortVideo[]> {
           url: `https://youtube.com/shorts/${v.id}`,
           publishedAt: v.snippet?.publishedAt ?? "",
           durationSeconds,
+          accountId,
         });
       }
     }
@@ -64,4 +67,20 @@ export async function listRecentShorts(maxCount = 20): Promise<ShortVideo[]> {
   }
 
   return shorts.slice(0, maxCount);
+}
+
+/** 지금까지 인증(로그인)해둔 모든 유튜브 계정의 숏츠를 한번에 모아 온다.
+ * 계정 하나가 실패해도 나머지는 계속 진행하고, 실패한 계정은 콘솔에 남긴다. */
+export async function listAllAccountsRecentShorts(maxCountPerAccount = 20): Promise<ShortVideo[]> {
+  const accountIds = listConnectedAccountIds();
+  const all: ShortVideo[] = [];
+  for (const accountId of accountIds) {
+    try {
+      const shorts = await listRecentShorts(accountId, maxCountPerAccount);
+      all.push(...shorts);
+    } catch (err) {
+      console.error(`[유튜브 숏츠] ${accountId} 계정 조회 실패:`, err instanceof Error ? err.message : err);
+    }
+  }
+  return all;
 }
