@@ -5,12 +5,17 @@
 //   npm run youtube-shorts -- 계정이름   (그 계정만 조회 — 처음 쓰는 이름이면 브라우저 인증 1회 뜸, 새 계정 추가용)
 import "dotenv/config";
 import { listRecentShorts, listAllAccountsRecentShorts } from "./main/youtube/shorts";
-import { pushYoutubeShorts } from "./main/notion";
+import { pushYoutubeShorts, getKnownYoutubeShortUrls } from "./main/notion";
 
 async function main() {
   const [accountId] = process.argv.slice(2);
   console.log("=== 유튜브 숏츠 목록 조회 ===\n");
-  const shorts = accountId ? await listRecentShorts(accountId, 20) : await listAllAccountsRecentShorts(20);
+  // 노션에 이미 있는 링크를 먼저 받아두면, 채널을 훑다가 아는 영상을 만나는 순간 멈출 수 있다
+  // (채널에 영상이 아무리 쌓여도 매번 "새로 올라온 것"만 조회하게 됨).
+  const knownUrls = await getKnownYoutubeShortUrls();
+  const shorts = accountId
+    ? await listRecentShorts(accountId, 20, knownUrls)
+    : await listAllAccountsRecentShorts(20, knownUrls);
   console.log(`숏츠 ${shorts.length}건 발견:`);
   for (const s of shorts) {
     console.log(`- [${s.accountId} · ${s.durationSeconds}초] ${s.title} — ${s.url}`);

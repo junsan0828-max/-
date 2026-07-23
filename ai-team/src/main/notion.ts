@@ -441,19 +441,35 @@ export interface YoutubeShortsPushResult {
   error?: string;
 }
 
-/** 유튜브 숏츠 목록을 "유튜브 숏츠 목록" DB에 적는다. 이미 있는 링크는 건너뛴다(중복 방지). */
+/** "유튜브 숏츠 목록" DB에 이미 기록된 영상 링크 전체(페이지네이션 포함). 유튜브 쪽을 훑기
+ * 전에 먼저 이걸 가져와 넘기면, 채널에 영상이 아무리 많아도 새로 올라온 것만 조회하게 된다. */
+export async function getKnownYoutubeShortUrls(): Promise<Set<string>> {
+  const databaseId = process.env.NOTION_YOUTUBE_SHORTS_DATABASE_ID;
+  if (!databaseId) return new Set();
+
+  const urls = new Set<string>();
+  let cursor: string | undefined;
+  do {
+    const data = await notionFetch(`/databases/${databaseId}/query`, {
+      method: "POST",
+      body: JSON.stringify({ page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }),
+    });
+    for (const p of data.results ?? []) {
+      const url = p.properties?.["링크"]?.url;
+      if (url) urls.add(url);
+    }
+    cursor = data.has_more ? data.next_cursor : undefined;
+  } while (cursor);
+  return urls;
+}
+
+/** 유튜브 숏츠 목록을 "유튜브 숏츠 목록" DB에 적는다. 이미 있는 링크는 건너뛴다(중복 방지, 안전망). */
 export async function pushYoutubeShorts(shorts: ShortVideo[]): Promise<YoutubeShortsPushResult> {
   const databaseId = process.env.NOTION_YOUTUBE_SHORTS_DATABASE_ID;
   if (!databaseId) return { ok: false, addedCount: 0, skippedExisting: 0, error: "미설정 (.env에 NOTION_YOUTUBE_SHORTS_DATABASE_ID 필요)" };
 
   try {
-    const existing = await notionFetch(`/databases/${databaseId}/query`, {
-      method: "POST",
-      body: JSON.stringify({ page_size: 100 }),
-    });
-    const existingUrls = new Set<string>(
-      (existing.results ?? []).map((p: any) => p.properties?.["링크"]?.url).filter(Boolean)
-    );
+    const existingUrls = await getKnownYoutubeShortUrls();
 
     let addedCount = 0;
     let skippedExisting = 0;

@@ -22,8 +22,14 @@ function parseDurationSeconds(iso: string): number {
 }
 
 /** 지정한 계정(accountId)의 채널에 업로드된 영상 중 최근 것부터 숏츠(60초 이하)만 골라 돌려준다.
- * accountId를 처음 쓰는 경우 브라우저 인증이 1회 뜬다. */
-export async function listRecentShorts(accountId = "default", maxCount = 20): Promise<ShortVideo[]> {
+ * accountId를 처음 쓰는 경우 브라우저 인증이 1회 뜬다.
+ * knownUrls를 주면, 업로드 목록(최신순)을 훑다가 이미 아는 영상을 만나는 순간 멈춘다 — 채널에
+ * 영상이 아무리 많이 쌓여도 매번 "지난번 이후 새로 올라온 것"만 훑게 되어 계속 빨라진다. */
+export async function listRecentShorts(
+  accountId = "default",
+  maxCount = 20,
+  knownUrls?: Set<string>
+): Promise<ShortVideo[]> {
   const auth = await getAuthorizedClient(accountId);
   const youtube = google.youtube({ version: "v3", auth });
 
@@ -34,7 +40,7 @@ export async function listRecentShorts(accountId = "default", maxCount = 20): Pr
   const shorts: ShortVideo[] = [];
   let pageToken: string | undefined;
 
-  while (shorts.length < maxCount) {
+  outer: while (shorts.length < maxCount) {
     const itemsRes = await youtube.playlistItems.list({
       part: ["snippet", "contentDetails"],
       playlistId: uploadsPlaylistId,
@@ -49,12 +55,16 @@ export async function listRecentShorts(accountId = "default", maxCount = 20): Pr
 
     const videosRes = await youtube.videos.list({ part: ["contentDetails", "snippet"], id: videoIds });
     for (const v of videosRes.data.items ?? []) {
+      if (!v.id) continue;
+      const url = `https://youtube.com/shorts/${v.id}`;
+      if (knownUrls?.has(url)) break outer; // 최신순이므로 여기서부턴 전부 이미 본 것들
+
       const durationSeconds = parseDurationSeconds(v.contentDetails?.duration ?? "");
-      if (durationSeconds > 0 && durationSeconds <= 60 && v.id) {
+      if (durationSeconds > 0 && durationSeconds <= 60) {
         shorts.push({
           videoId: v.id,
           title: v.snippet?.title ?? "(제목 없음)",
-          url: `https://youtube.com/shorts/${v.id}`,
+          url,
           publishedAt: v.snippet?.publishedAt ?? "",
           durationSeconds,
           accountId,
@@ -71,12 +81,12 @@ export async function listRecentShorts(accountId = "default", maxCount = 20): Pr
 
 /** 지금까지 인증(로그인)해둔 모든 유튜브 계정의 숏츠를 한번에 모아 온다.
  * 계정 하나가 실패해도 나머지는 계속 진행하고, 실패한 계정은 콘솔에 남긴다. */
-export async function listAllAccountsRecentShorts(maxCountPerAccount = 20): Promise<ShortVideo[]> {
+export async function listAllAccountsRecentShorts(maxCountPerAccount = 20, knownUrls?: Set<string>): Promise<ShortVideo[]> {
   const accountIds = listConnectedAccountIds();
   const all: ShortVideo[] = [];
   for (const accountId of accountIds) {
     try {
-      const shorts = await listRecentShorts(accountId, maxCountPerAccount);
+      const shorts = await listRecentShorts(accountId, maxCountPerAccount, knownUrls);
       all.push(...shorts);
     } catch (err) {
       console.error(`[유튜브 숏츠] ${accountId} 계정 조회 실패:`, err instanceof Error ? err.message : err);
