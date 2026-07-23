@@ -699,7 +699,6 @@ interface LogFormData {
 
 export default function GymPlusWorkout() {
   const today = new Date().toISOString().slice(0, 10);
-  const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7));
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<LogFormData>({ logDate: today, title: "", notes: "", conditionScore: null, sleepHours: "", energyLevel: "" });
@@ -802,7 +801,7 @@ export default function GymPlusWorkout() {
   const utils = trpc.useUtils();
   const { data: health } = trpc.gymPlus.getHealth.useQuery();
   const defaultWeight = health?.weight ?? "70";
-  const { data: logs, isLoading } = trpc.gymPlus.listWorkoutLogs.useQuery({ month: selectedMonth });
+  const { data: logs, isLoading } = trpc.gymPlus.listWorkoutLogs.useQuery({});
   const { data: patternData, isFetching: patternLoading, refetch: refetchPattern } =
     trpc.gymPlus.analyzeWorkoutPattern.useQuery(undefined, { enabled: false });
 
@@ -879,12 +878,16 @@ export default function GymPlusWorkout() {
     });
   }
 
-  const months = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(); d.setMonth(d.getMonth() - i);
-    return d.toISOString().slice(0, 7);
-  });
-
   // 로그 카드 렌더 (두 탭 공유)
+  function formatUploadedAt(createdAt: string | null | undefined) {
+    if (!createdAt) return null;
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return null;
+    const y = d.getFullYear(), mo = String(d.getMonth() + 1).padStart(2, "0"), da = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0"), mm = String(d.getMinutes()).padStart(2, "0");
+    return `${y}.${mo}.${da} ${hh}:${mm}`;
+  }
+
   function renderLogCard(log: any) {
     let parsedExercises: any[] = [];
     try { parsedExercises = log.exercisesJson ? JSON.parse(log.exercisesJson) : []; } catch {}
@@ -896,6 +899,7 @@ export default function GymPlusWorkout() {
     const displayNotes = isTrainerSent
       ? log.notes.replace(/\n?__src:\d+/g, "").trim()
       : log.notes;
+    const uploadedAt = formatUploadedAt(log.createdAt);
 
     return (
       <div key={log.id} className={`bg-card border rounded-xl p-4 space-y-2 ${isTrainerSent ? "border-primary/40" : "border-border"}`}>
@@ -908,6 +912,9 @@ export default function GymPlusWorkout() {
               )}
             </div>
             <p className="font-semibold text-sm">{log.title || "운동 기록"}</p>
+            {uploadedAt && (
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">업로드 {uploadedAt}</p>
+            )}
           </div>
           <div className="flex gap-1">
             {!isCheckIn && !isTrainerSent && (
@@ -1316,24 +1323,11 @@ export default function GymPlusWorkout() {
             )}
           </div>
 
-          {/* 월 선택 */}
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
-            {months.map((m) => (
-              <button key={m} onClick={() => setSelectedMonth(m)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  selectedMonth === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {m.replace("-", "년 ")}월
-              </button>
-            ))}
-          </div>
-
           {isLoading ? (
             <div className="text-center py-10 text-muted-foreground text-sm">불러오는 중...</div>
           ) : !logs || logs.filter(l => l.title !== "출석체크").length === 0 ? (
             <div className="text-center py-10 space-y-3">
-              <p className="text-muted-foreground text-sm">이 달의 운동 기록이 없습니다</p>
+              <p className="text-muted-foreground text-sm">아직 운동 기록이 없습니다</p>
               <Button variant="outline" size="sm" onClick={openCreate}>첫 기록 남기기</Button>
             </div>
           ) : (
