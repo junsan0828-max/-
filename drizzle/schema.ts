@@ -510,6 +510,11 @@ export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals",
   contractDate: text("contractDate"),
   signatureData: text("signatureData"), // base64 canvas PNG
   status: text("status").default("pending").notNull(), // "pending","approved","rejected"
+  // 통합운영 연동: 승인 시 관리자가 금액을 다시 입력하지 않도록 회원 앱 입력값을 함께 전달
+  requestedAmount: integer("requestedAmount"), // 결제 금액(원)
+  requestedMonths: integer("requestedMonths"), // 재등록 개월 수
+  paymentMethod: text("paymentMethod"),        // "카드"/"현금"/"계좌이체" 등
+  membershipType: text("membershipType"),      // "헬스"/"PT"/"기타"
   createdAt: text("createdAt").default(now).notNull(),
 });
 

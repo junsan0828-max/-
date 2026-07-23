@@ -443,6 +443,11 @@ async function initDatabase() {
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "contractDate" TEXT`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "signatureData" TEXT`,
     `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'pending'`,
+    // 통합운영 연동: 회원 앱에서 입력한 금액·개월·결제방법·회원권 유형 전달용
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "requestedAmount" INTEGER`,
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "requestedMonths" INTEGER`,
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT`,
+    `ALTER TABLE gym_plus_membership_renewals ADD COLUMN IF NOT EXISTS "membershipType" TEXT`,
     `CREATE TABLE IF NOT EXISTS gym_plus_membership_renewals (
       "id" SERIAL PRIMARY KEY,
       "gymPlusMemberId" INTEGER NOT NULL,

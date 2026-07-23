@@ -437,6 +437,11 @@ export default function GymPlusProfile() {
       trainerName: "본인계약",
       contractDate,
       signatureData,
+      // 통합운영 연동: 승인 시 자동 채움용 구조화 값
+      requestedAmount: PERIOD_PRICES[renewalForm.requestedPeriod],
+      requestedMonths: parseInt(renewalForm.requestedPeriod) || undefined,
+      paymentMethod: renewalForm.paymentMethod || undefined,
+      membershipType: "헬스",
     });
   };
 

@@ -76,7 +76,9 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
               <p className="text-sm text-muted-foreground text-center py-8">대기 중인 재등록 신청이 없습니다.</p>
             ) : (
               pending.map((r) => {
-                const paymentMethod = r.notes?.match(/결제방법:\s*([^\n]+)/)?.[1];
+                // 결제방법·금액은 구조화 필드 우선, 없으면 옛 기록 호환(메모/기간표 파싱)
+                const paymentMethod = r.paymentMethod ?? r.notes?.match(/결제방법:\s*([^\n]+)/)?.[1];
+                const amount = r.requestedAmount ?? PERIOD_PRICES[r.requestedPeriod];
                 const extraNotes = r.notes?.replace(/결제방법:\s*[^\n]+\n?/, "").trim();
                 return (
                   <div key={r.id} className="border border-border rounded-xl p-3.5 space-y-2 bg-accent/10">
@@ -86,8 +88,10 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
                         <p className="text-xs text-muted-foreground">{r.memberPhone ?? "-"}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-primary text-sm">{r.requestedPeriod}</p>
-                        <p className="text-xs text-muted-foreground">{PERIOD_PRICES[r.requestedPeriod]?.toLocaleString() ?? "-"}원</p>
+                        <p className="font-bold text-primary text-sm">
+                          {r.membershipType ? `${r.membershipType} · ` : ""}{r.requestedPeriod}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{amount != null ? `${amount.toLocaleString()}원` : "-"}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">

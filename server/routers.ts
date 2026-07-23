@@ -3231,6 +3231,11 @@ ${dataContext}
       trainerName: z.string().optional(),
       contractDate: z.string().optional(),
       signatureData: z.string().optional(),
+      // 통합운영 연동: 승인 시 관리자가 다시 입력하지 않도록 앱 입력값 전달 (모두 선택값)
+      requestedAmount: z.number().optional(),
+      requestedMonths: z.number().optional(),
+      paymentMethod: z.string().optional(),
+      membershipType: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -3277,6 +3282,10 @@ ${dataContext}
           bonusDays: gymPlusMembershipRenewals.bonusDays,
           currentMembershipEnd: gymPlusMembershipRenewals.currentMembershipEnd,
           notes: gymPlusMembershipRenewals.notes,
+          requestedAmount: gymPlusMembershipRenewals.requestedAmount,
+          requestedMonths: gymPlusMembershipRenewals.requestedMonths,
+          paymentMethod: gymPlusMembershipRenewals.paymentMethod,
+          membershipType: gymPlusMembershipRenewals.membershipType,
           agreedMarketing: gymPlusMembershipRenewals.agreedMarketing,
           contractDate: gymPlusMembershipRenewals.contractDate,
           signatureData: gymPlusMembershipRenewals.signatureData,
