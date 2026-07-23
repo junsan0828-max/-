@@ -26,10 +26,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (serverDismissed && serverDismissed.length > 0) syncServerDismissed(serverDismissed);
   }, [serverDismissed]);
+  // 예전 "기능 삭제" 기능(트레이너별 removedFeatures)은 폐지됐고 복원 UI도 없으므로
+  // 과거에 삭제했던 계정에서 메뉴가 영구히 숨는 걸 막기 위해 여기서는 참조하지 않는다.
+  // 관리자가 전역으로 숨김/준비중 처리한 기능만 반영한다.
   const isFeatureActive = (featureId: string) => {
-    const removed = (wsStatus?.removedFeatures ?? []) as string[];
     const configs = (wsStatus?.featureConfigs ?? {}) as Record<string, string>;
-    if (removed.includes(featureId)) return false;
     return (configs[featureId] ?? "active") === "active";
   };
   const logoutMutation = trpc.auth.logout.useMutation({
