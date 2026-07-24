@@ -25,13 +25,12 @@ import { CSS } from "@dnd-kit/utilities";
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
 
-// ── 유산소 MET 데이터 ─────────────────────────────────────────────────────────
+// ── 유산소 MET 데이터 (센터 보유 기구: 러닝머신-걷기/조깅/러닝, 고정식 입식 사이클) ──
 const CARDIO_INTENSITY_MAP: Record<string, { label: string; met: number }[]> = {
-  "걷기":    [{ label: "느리게 (3km/h)", met: 2.5 }, { label: "보통 (5km/h)", met: 3.5 }, { label: "빠르게 (6km/h)", met: 4.5 }],
-  "조깅":    [{ label: "천천히 (7km/h)", met: 7.0 }, { label: "보통 (8km/h)", met: 8.5 }, { label: "빠르게 (10km/h)", met: 10.5 }],
-  "러닝":    [{ label: "10 km/h", met: 11.0 }, { label: "12 km/h", met: 13.5 }, { label: "14km/h+", met: 16.0 }],
-  "자전거":  [{ label: "저강도", met: 4.0 }, { label: "중강도", met: 6.8 }, { label: "고강도", met: 10.0 }],
-  "로잉머신":[{ label: "저강도", met: 7.0 }, { label: "중강도", met: 8.5 }, { label: "고강도", met: 12.0 }],
+  "걷기":      [{ label: "느리게 (3km/h)", met: 2.5 }, { label: "보통 (5km/h)", met: 3.5 }, { label: "빠르게 (6km/h)", met: 4.5 }],
+  "조깅":      [{ label: "천천히 (7km/h)", met: 7.0 }, { label: "보통 (8km/h)", met: 8.5 }, { label: "빠르게 (10km/h)", met: 10.5 }],
+  "러닝":      [{ label: "10 km/h", met: 11.0 }, { label: "12 km/h", met: 13.5 }, { label: "14km/h+", met: 16.0 }],
+  "고정식 사이클": [{ label: "저강도", met: 4.0 }, { label: "중강도", met: 6.8 }, { label: "고강도", met: 10.0 }],
 };
 const CARDIO_TYPES = Object.keys(CARDIO_INTENSITY_MAP);
 const CARDIO_EMOJI: Record<string, string> = {};
@@ -1128,7 +1127,7 @@ export default function GymPlusWorkout() {
                 <span className="w-5 h-5 rounded bg-green-500/20 text-green-600 text-[10px] font-bold flex items-center justify-center">유산</span>
                 <div>
                   <p className="font-semibold text-sm">유산소운동</p>
-                  <p className="text-[10px] text-muted-foreground">걷기 · 조깅 · 러닝 · 자전거 · 로잉</p>
+                  <p className="text-[10px] text-muted-foreground">걷기 · 조깅 · 러닝 · 고정식 사이클</p>
                 </div>
               </div>
               <span className={`text-[10px] px-2.5 py-1 rounded-full font-medium ${
