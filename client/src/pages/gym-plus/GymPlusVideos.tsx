@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -84,13 +84,13 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
   const conditionDots = ["", "●", "●●", "●●●", "●●●●", "●●●●●"];
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={() => {}}>
+      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto [&>button]:hidden" onEscapeKeyDown={(e) => e.preventDefault()}>
         {step === "form" ? (
           <>
             <DialogHeader>
               <h2 className="font-bold text-base">출석 체크인</h2>
-              <p className="text-xs text-muted-foreground">오늘의 컨디션을 알려주세요</p>
+              <p className="text-xs text-muted-foreground">오늘 첫 이용은 출석 체크부터 시작해요. 컨디션을 알려주시면 맞춤 운동을 추천해드려요</p>
             </DialogHeader>
 
             <div className="space-y-2">
@@ -185,9 +185,8 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 h-9" onClick={onClose}>취소</Button>
-              <Button className="flex-1 h-9" onClick={handleSubmit} disabled={checkInMutation.isPending}>
+            <div className="pt-1">
+              <Button className="w-full h-9" onClick={handleSubmit} disabled={checkInMutation.isPending}>
                 {checkInMutation.isPending ? "저장 중..." : "출석 완료"}
               </Button>
             </div>
@@ -316,6 +315,11 @@ export default function GymPlusVideos() {
 
   const today = new Date().toISOString().slice(0, 10);
   const todayCheckedIn = logs?.some((l) => l.logDate === today && l.title === "출석체크");
+
+  // 출석 체크가 가장 우선 — 로그 로딩이 끝났는데 아직 오늘 출석 전이면 자동으로 열어 필수로 진행시킨다
+  useEffect(() => {
+    if (logs !== undefined && !todayCheckedIn) setShowCheckIn(true);
+  }, [logs, todayCheckedIn]);
 
   // 내 정보(GymPlusProfile) 탭의 "추천 운동 활성화 미션"과 동일한 3가지 기준을 사용한다
   const allMissionsDone = !!(health?.gymRulesAgreed && health?.appGuideConfirmed && health?.parqJson);
