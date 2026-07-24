@@ -428,7 +428,7 @@ function TrainerDashboard() {
   const { data: unpaid } = trpc.members.getWithUnpaid.useQuery();
   const { data: lowSessions } = trpc.members.getLowSessions.useQuery({ threshold: 5 });
   const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
-  const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 8 });
+  const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 5 });
   const [monthExpiringOpen, setMonthExpiringOpen] = useState(false);
 
   const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({

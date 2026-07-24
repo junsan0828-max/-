@@ -63,7 +63,7 @@ export default function TrainerDetail({ trainerId }: Props) {
     onError: (err) => toast.error(err.message || "삭제 실패"),
   });
   const { data: trainerStats } = trpc.trainers.getMyStats.useQuery({ trainerId });
-  const { data: expiringMembers, refetch: refetchExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 8, trainerId });
+  const { data: expiringMembers, refetch: refetchExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 5, trainerId });
   const [expiringOpen, setExpiringOpen] = useState(false);
   const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
     onSuccess: () => refetchExpiring(),

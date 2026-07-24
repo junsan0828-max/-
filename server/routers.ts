@@ -911,9 +911,9 @@ const membersRouter = t.router({
       return result.filter(m => !m.lastAttendDate || m.lastAttendDate < cutoff);
     }),
 
-  // 이번달 마감 임박 회원 (잔여 세션 ≤ threshold, 기본 8회)
+  // 이번달 마감 임박 회원 (잔여 세션 ≤ threshold, 기본 5회)
   getMonthExpiring: protectedProcedure
-    .input(z.object({ threshold: z.number().default(8), trainerId: z.number().optional() }))
+    .input(z.object({ threshold: z.number().default(5), trainerId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -3802,7 +3802,7 @@ const adminRouter = t.router({
                 sql`${ptPackages.expiryDate} >= ${monthStart}`,
                 sql`${ptPackages.expiryDate} < ${monthEnd}`,
               ),
-              sql`(${ptPackages.totalSessions} - ${ptPackages.usedSessions}) <= 8`,
+              sql`(${ptPackages.totalSessions} - ${ptPackages.usedSessions}) <= 5`,
             ),
           ));
 
