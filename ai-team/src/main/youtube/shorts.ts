@@ -1,8 +1,25 @@
-// 채널에 업로드된 숏츠(세로/60초 이하 영상) 목록을 읽어온다.
-// YouTube Data API에는 "이거 숏츠임" 필드가 따로 없어서, 업계 통용 기준대로
-// 영상 길이 60초 이하를 숏츠로 판단한다.
+// 채널에 업로드된 숏츠 목록을 읽어온다.
+// YouTube Data API에는 "이거 숏츠임" 필드가 따로 없다. 재생시간 60초 이하는 필요조건일 뿐 충분조건이
+// 아니어서(가로 영상이 짧기만 해도 60초 이하일 수 있음), 실제로는 youtube.com/shorts/{id}에 접속했을 때
+// /watch?v=...로 리다이렉트되지 않고 그대로 유지되는지로 진짜 숏츠 여부를 확인한다
+// (유튜브가 숏츠로 인식하지 않는 영상은 /shorts/ 경로 접근 시 일반 시청 페이지로 돌려보낸다).
 import { google } from "googleapis";
 import { getAuthorizedClient, listConnectedAccountIds } from "./auth";
+
+/** youtube.com/shorts/{id}가 리다이렉트 없이 그대로 유지되는지로 진짜 숏츠인지 확인한다. */
+async function isActuallyShort(videoId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://www.youtube.com/shorts/${videoId}`, { redirect: "manual" });
+    // 리다이렉트가 없으면(200) 숏츠 그대로, 302 등으로 /watch?v=...로 보내면 숏츠 아님.
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location") ?? "";
+      return !location.includes("/watch?v=");
+    }
+    return res.status === 200;
+  } catch {
+    return false; // 확인 실패 시 안전하게 숏츠 아님으로 처리 (잘못 포함시키는 것보다 낫다)
+  }
+}
 
 export interface ShortVideo {
   videoId: string;
@@ -60,7 +77,8 @@ export async function listRecentShorts(
       if (knownUrls?.has(url)) break outer; // 최신순이므로 여기서부턴 전부 이미 본 것들
 
       const durationSeconds = parseDurationSeconds(v.contentDetails?.duration ?? "");
-      if (durationSeconds > 0 && durationSeconds <= 60) {
+      // 60초 이하는 필요조건일 뿐이라 실제 /shorts/ 유지 여부까지 확인해야 한다.
+      if (durationSeconds > 0 && durationSeconds <= 60 && (await isActuallyShort(v.id))) {
         shorts.push({
           videoId: v.id,
           title: v.snippet?.title ?? "(제목 없음)",

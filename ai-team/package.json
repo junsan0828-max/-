@@ -9,6 +9,7 @@
     "brain:dry": "tsx src/cli.ts --dry",
     "youtube": "tsx src/youtube-cli.ts",
     "youtube-shorts": "tsx src/youtube-shorts-cli.ts",
+    "youtube-sync": "tsx src/youtube-training-sync-cli.ts",
     "drive": "tsx src/drive-cli.ts",
     "payroll": "tsx src/payroll-cli.ts",
     "repo": "tsx src/repo-cli.ts",

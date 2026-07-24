@@ -485,6 +485,7 @@ export async function pushYoutubeShorts(shorts: ShortVideo[]): Promise<YoutubeSh
           properties: {
             "제목": { title: [{ text: { content: s.title.slice(0, 200) } }] },
             "링크": { url: s.url },
+            "트레이너": { select: { name: s.accountId } },
             ...(s.publishedAt ? { "게시일": { date: { start: s.publishedAt.slice(0, 10) } } } : {}),
           },
         }),
@@ -496,6 +497,25 @@ export async function pushYoutubeShorts(shorts: ShortVideo[]): Promise<YoutubeSh
   } catch (err) {
     return { ok: false, addedCount: 0, skippedExisting: 0, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/** 유튜브 숏츠 목록에서 해당 링크 항목의 "트레이닝일지연동" 체크박스를 갱신한다. */
+export async function markTrainingLogSynced(url: string, synced: boolean): Promise<void> {
+  const databaseId = process.env.NOTION_YOUTUBE_SHORTS_DATABASE_ID;
+  if (!databaseId) return;
+  const data = await notionFetch(`/databases/${databaseId}/query`, {
+    method: "POST",
+    body: JSON.stringify({
+      filter: { property: "링크", url: { equals: url } },
+      page_size: 1,
+    }),
+  });
+  const page = data.results?.[0];
+  if (!page) return;
+  await notionFetch(`/pages/${page.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ properties: { "트레이닝일지연동": { checkbox: synced } } }),
+  });
 }
 
 export function isNotionEnabled(): boolean {
