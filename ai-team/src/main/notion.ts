@@ -463,6 +463,11 @@ export async function getKnownYoutubeShortUrls(): Promise<Set<string>> {
   return urls;
 }
 
+// 트레이너 개인 계정이 아니라 체육관 공식 채널인 경우, 노션 트레이너 속성에 사람 이름 대신 이렇게 표시한다.
+const ACCOUNT_TRAINER_LABEL: Record<string, string> = {
+  ziantgym: "자이언트짐 공식",
+};
+
 /** 유튜브 숏츠 목록을 "유튜브 숏츠 목록" DB에 적는다. 이미 있는 링크는 건너뛴다(중복 방지, 안전망). */
 export async function pushYoutubeShorts(shorts: ShortVideo[]): Promise<YoutubeShortsPushResult> {
   const databaseId = process.env.NOTION_YOUTUBE_SHORTS_DATABASE_ID;
@@ -485,7 +490,7 @@ export async function pushYoutubeShorts(shorts: ShortVideo[]): Promise<YoutubeSh
           properties: {
             "제목": { title: [{ text: { content: s.title.slice(0, 200) } }] },
             "링크": { url: s.url },
-            "트레이너": { select: { name: s.accountId } },
+            "트레이너": { select: { name: ACCOUNT_TRAINER_LABEL[s.accountId] ?? s.accountId } },
             ...(s.publishedAt ? { "게시일": { date: { start: s.publishedAt.slice(0, 10) } } } : {}),
           },
         }),
