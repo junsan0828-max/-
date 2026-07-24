@@ -25,15 +25,22 @@ import { CSS } from "@dnd-kit/utilities";
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
 const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
 
-// ── 유산소 MET 데이터 (센터 보유 기구: 러닝머신-걷기/조깅/러닝, 고정식 입식 사이클) ──
-const CARDIO_INTENSITY_MAP: Record<string, { label: string; met: number }[]> = {
-  "걷기":      [{ label: "느리게 (3km/h)", met: 2.5 }, { label: "보통 (5km/h)", met: 3.5 }, { label: "빠르게 (6km/h)", met: 4.5 }],
-  "조깅":      [{ label: "천천히 (7km/h)", met: 7.0 }, { label: "보통 (8km/h)", met: 8.5 }, { label: "빠르게 (10km/h)", met: 10.5 }],
-  "러닝":      [{ label: "10 km/h", met: 11.0 }, { label: "12 km/h", met: 13.5 }, { label: "14km/h+", met: 16.0 }],
-  "고정식 사이클": [{ label: "저강도", met: 4.0 }, { label: "중강도", met: 6.8 }, { label: "고강도", met: 10.0 }],
-};
-const CARDIO_TYPES = Object.keys(CARDIO_INTENSITY_MAP);
+// ── 유산소 기구 (센터 보유: 러닝머신, 고정식 입식 사이클) — 속도/강도 자유 조절 ──
+const CARDIO_TYPES = ["러닝머신", "고정식 사이클"] as const;
 const CARDIO_EMOJI: Record<string, string> = {};
+
+// ACSM 대사공식: 8km/h(=133m/min) 미만은 걷기식, 이상은 달리기식 계산 사용
+function treadmillMet(speedKmh: number): number {
+  const speedMmin = speedKmh * (1000 / 60);
+  const vo2 = speedKmh < 8 ? 0.1 * speedMmin + 3.5 : 0.2 * speedMmin + 3.5;
+  return Math.max(1, vo2 / 3.5);
+}
+
+// 고정식 사이클: 저항 레벨(1~10)을 MET 3.5~12 구간에 선형 보간
+function cycleMet(level: number): number {
+  const t = (Math.min(10, Math.max(1, level)) - 1) / 9;
+  return 3.5 + t * (12 - 3.5);
+}
 
 const BODY_PARTS = [
   "전신", "상체", "하체",
@@ -278,7 +285,7 @@ function BodyPartSelector({ selected, onChange }: { selected: string[]; onChange
   );
 }
 
-// ── 유산소 설정 모달 ──────────────────────────────────────────────────────────
+// ── 유산소 설정 모달 (속도/강도 자유 조절) ────────────────────────────────────
 function CardioSettingsModal({
   defaultWeight,
   onClose,
@@ -288,27 +295,29 @@ function CardioSettingsModal({
   onClose: () => void;
   onStart: (type: string, intensityLabel: string, met: number, weight: number) => void;
 }) {
-  const [type, setType] = useState("조깅");
-  const options = CARDIO_INTENSITY_MAP[type] ?? [];
-  const [intensity, setIntensity] = useState(options[0]?.label ?? "");
+  const [type, setType] = useState<typeof CARDIO_TYPES[number]>("러닝머신");
+  const [speed, setSpeed] = useState("6.0");   // 러닝머신: km/h
+  const [level, setLevel] = useState("5");     // 고정식 사이클: 저항 레벨 1~10
   const [weight, setWeight] = useState(defaultWeight || "70");
 
-  useEffect(() => {
-    setIntensity(CARDIO_INTENSITY_MAP[type]?.[0]?.label ?? "");
-  }, [type]);
+  const isTreadmill = type === "러닝머신";
+  const speedNum = parseFloat(speed) || 0;
+  const levelNum = parseInt(level) || 1;
+  const met = isTreadmill ? treadmillMet(speedNum) : cycleMet(levelNum);
+  const intensityLabel = isTreadmill ? `${speedNum.toFixed(1)}km/h` : `레벨 ${levelNum}`;
+  const valid = isTreadmill ? speedNum > 0 : levelNum >= 1;
 
-  const selected = options.find(o => o.label === intensity);
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <h2 className="font-bold text-base">유산소운동 설정</h2>
-          <p className="text-xs text-muted-foreground">운동 종류와 속도를 선택하고 시작하세요</p>
+          <p className="text-xs text-muted-foreground">기구를 선택하고 속도/강도를 자유롭게 입력하세요</p>
         </DialogHeader>
         <div className="space-y-4 pt-1">
-          {/* 종류 */}
+          {/* 기구 */}
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">운동 종류</p>
+            <p className="text-xs text-muted-foreground">기구</p>
             <div className="flex gap-1.5 flex-wrap">
               {CARDIO_TYPES.map(t => (
                 <button key={t} type="button"
@@ -321,21 +330,34 @@ function CardioSettingsModal({
             </div>
           </div>
 
-          {/* 속도/강도 */}
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">속도 / 강도</p>
-            <div className="space-y-1.5">
-              {options.map(o => (
-                <button key={o.label} type="button"
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-colors ${intensity === o.label ? "bg-primary/15 border-primary text-primary" : "border-border text-foreground hover:border-primary/30"}`}
-                  onClick={() => setIntensity(o.label)}
-                >
-                  <span className="font-medium">{o.label}</span>
-                  <span className={`text-xs ${intensity === o.label ? "text-primary/70" : "text-muted-foreground"}`}>MET {o.met}</span>
-                </button>
-              ))}
+          {/* 속도(러닝머신) / 저항 레벨(사이클) — 실제 기구 표시값을 그대로 입력 */}
+          {isTreadmill ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">속도 (km/h) — 러닝머신 화면에 표시된 값을 입력하세요</p>
+              <div className="flex items-center gap-2">
+                <input type="range" min={1} max={18} step={0.1} value={speedNum}
+                  onChange={e => setSpeed(e.target.value)}
+                  className="flex-1 accent-primary" />
+                <Input type="number" step={0.1} min={0} value={speed}
+                  onChange={e => setSpeed(e.target.value)}
+                  className="bg-input border-border h-9 text-sm w-20 text-center flex-shrink-0" />
+                <span className="text-sm text-muted-foreground flex-shrink-0">km/h</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">저항 레벨 (1~10) — 사이클 화면에 표시된 레벨을 입력하세요</p>
+              <div className="flex items-center gap-2">
+                <input type="range" min={1} max={10} step={1} value={levelNum}
+                  onChange={e => setLevel(e.target.value)}
+                  className="flex-1 accent-primary" />
+                <Input type="number" step={1} min={1} max={10} value={level}
+                  onChange={e => setLevel(e.target.value)}
+                  className="bg-input border-border h-9 text-sm w-20 text-center flex-shrink-0" />
+                <span className="text-sm text-muted-foreground flex-shrink-0">Lv</span>
+              </div>
+            </div>
+          )}
 
           {/* 체중 */}
           <div className="space-y-1.5">
@@ -348,19 +370,20 @@ function CardioSettingsModal({
           </div>
 
           {/* 예상 칼로리 미리보기 (30분 기준) */}
-          {selected && (
+          {valid && (
             <div className="bg-primary/5 border border-primary/20 rounded-xl px-3 py-2 text-xs text-center">
               30분 운동 시 예상 소모:
               <span className="font-bold text-primary ml-1">
-                {Math.round(selected.met * (parseFloat(weight) || 70) * 0.5)} kcal
+                {Math.round(met * (parseFloat(weight) || 70) * 0.5)} kcal
               </span>
+              <span className="text-muted-foreground ml-1">(MET {met.toFixed(1)})</span>
             </div>
           )}
 
           <div className="flex gap-2 pt-1">
             <Button variant="outline" className="flex-1 h-9" onClick={onClose}>취소</Button>
-            <Button className="flex-1 h-9" disabled={!intensity}
-              onClick={() => { if (selected) onStart(type, intensity, selected.met, parseFloat(weight) || 70); }}
+            <Button className="flex-1 h-9" disabled={!valid}
+              onClick={() => onStart(type, intensityLabel, met, parseFloat(weight) || 70)}
             >시작하기</Button>
           </div>
         </div>
