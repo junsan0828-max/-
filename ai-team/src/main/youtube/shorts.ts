@@ -56,6 +56,11 @@ export async function listRecentShorts(
 
   const shorts: ShortVideo[] = [];
   let pageToken: string | undefined;
+  // 아는 링크가 연속으로 이 개수만큼 나오면 그 뒤는 전부 이미 본 것으로 보고 멈춘다.
+  // 1개만 나오면 바로 멈추지 않는 이유: 누군가 영상 하나만 수동으로 먼저 기록해두면(순서상 구멍)
+  // 그보다 오래된 미기록 영상들을 영영 못 보게 되기 때문 — 연속 스트릭으로 완충한다.
+  const KNOWN_STREAK_TO_STOP = 5;
+  let consecutiveKnown = 0;
 
   outer: while (shorts.length < maxCount) {
     const itemsRes = await youtube.playlistItems.list({
@@ -74,7 +79,12 @@ export async function listRecentShorts(
     for (const v of videosRes.data.items ?? []) {
       if (!v.id) continue;
       const url = `https://youtube.com/shorts/${v.id}`;
-      if (knownUrls?.has(url)) break outer; // 최신순이므로 여기서부턴 전부 이미 본 것들
+      if (knownUrls?.has(url)) {
+        consecutiveKnown++;
+        if (consecutiveKnown >= KNOWN_STREAK_TO_STOP) break outer;
+        continue;
+      }
+      consecutiveKnown = 0;
 
       const durationSeconds = parseDurationSeconds(v.contentDetails?.duration ?? "");
       // 60초 이하는 필요조건일 뿐이라 실제 /shorts/ 유지 여부까지 확인해야 한다.
