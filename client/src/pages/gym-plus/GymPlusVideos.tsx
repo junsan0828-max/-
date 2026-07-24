@@ -317,11 +317,12 @@ export default function GymPlusVideos() {
   const today = new Date().toISOString().slice(0, 10);
   const todayCheckedIn = logs?.some((l) => l.logDate === today && l.title === "출석체크");
 
-  const allMissionsDone = !!(health?.height && health?.weight && health?.parqSubmittedAt && health?.bodyAnalysisRequested);
+  // 내 정보(GymPlusProfile) 탭의 "추천 운동 활성화 미션"과 동일한 3가지 기준을 사용한다
+  const allMissionsDone = !!(health?.gymRulesAgreed && health?.appGuideConfirmed && health?.parqJson);
   const missionCount = [
-    !!(health?.height && health?.weight),
-    !!health?.parqSubmittedAt,
-    !!health?.bodyAnalysisRequested,
+    !!health?.gymRulesAgreed,
+    !!health?.appGuideConfirmed,
+    !!health?.parqJson,
   ].filter(Boolean).length;
 
   return (
@@ -458,9 +459,9 @@ export default function GymPlusVideos() {
 
               <div className="space-y-2">
                 {[
-                  { label: "신체정보 입력", done: !!(health?.height && health?.weight) },
-                  { label: "사전 건강검사 (PAR-Q)", done: !!health?.parqSubmittedAt },
-                  { label: "체형분석 데이터 신청", done: !!health?.bodyAnalysisRequested },
+                  { label: "센터 이용규정 안내 동의", done: !!health?.gymRulesAgreed },
+                  { label: "자이언트짐+ 이용방법 안내 확인", done: !!health?.appGuideConfirmed },
+                  { label: "PAR-Q 완료", done: !!health?.parqJson },
                 ].map((m) => (
                   <div key={m.label} className={`flex items-center gap-3 p-3.5 rounded-xl border ${m.done ? "border-green-100 bg-green-50" : "border-gray-100 bg-white"}`}>
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${m.done ? "bg-green-500" : "bg-gray-200"}`}>
