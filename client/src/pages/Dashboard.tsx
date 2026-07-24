@@ -430,6 +430,8 @@ function TrainerDashboard() {
   const { data: longAbsent } = trpc.members.getLongAbsent.useQuery({ days: 14 });
   const { data: monthExpiring, refetch: refetchMonthExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 5 });
   const [monthExpiringOpen, setMonthExpiringOpen] = useState(false);
+  const { data: rollover } = trpc.members.getRolloverToNextMonth.useQuery({});
+  const [rolloverOpen, setRolloverOpen] = useState(false);
 
   const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
     onSuccess: () => refetchMonthExpiring(),
@@ -479,6 +481,7 @@ function TrainerDashboard() {
     unpaid?.length ? { label: `미수금 ${unpaid.length}명`, color: "bg-orange-500/20 text-orange-400 border-orange-500/30", onClick: undefined } : null,
     longAbsent?.length ? { label: `장기 미출석 ${longAbsent.length}명`, color: "bg-red-500/20 text-red-400 border-red-500/30", onClick: undefined } : null,
     monthExpiring?.length ? { label: `이번달 마감 ${monthExpiring.length}명`, color: "bg-purple-500/20 text-purple-400 border-purple-500/30", onClick: () => setMonthExpiringOpen(true) } : null,
+    rollover?.length ? { label: `다음달 이월 예상 ${rollover.length}명`, color: "bg-blue-500/20 text-blue-400 border-blue-500/30", onClick: () => setRolloverOpen(true) } : null,
   ].filter(Boolean) as { label: string; color: string; onClick?: () => void }[];
 
   return (
@@ -1140,6 +1143,41 @@ function TrainerDashboard() {
                     ))}
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 다음달 이월 예상 회원 모달 */}
+      {rolloverOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/70 flex items-end md:items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setRolloverOpen(false)}>
+          <div className="bg-card border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-md flex flex-col" style={{ maxHeight: 'calc(80svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <div>
+                <h2 className="font-semibold text-foreground">다음달 이월 예상</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">이번달 만료 예정인데 세션이 많이 남은 회원 {rollover?.length ?? 0}명 — 출석 관리 필요</p>
+              </div>
+              <button onClick={() => setRolloverOpen(false)} className="text-muted-foreground hover:text-foreground p-1">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {!rollover?.length ? (
+                <p className="text-center text-sm text-muted-foreground py-8">이월 예상 회원이 없습니다.</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {rollover.map((m: any) => (
+                    <div key={m.id} className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-foreground">{m.name}</span>
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">잔여 {m.remaining}회</span>
+                        {m.packageName && <span className="text-xs text-muted-foreground">{m.packageName}</span>}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        만료예정 {m.expiryDate ?? "-"} · 마지막 출석 {m.lastSessionDate ?? "기록 없음"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>

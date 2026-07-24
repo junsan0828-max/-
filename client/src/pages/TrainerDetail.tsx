@@ -65,6 +65,8 @@ export default function TrainerDetail({ trainerId }: Props) {
   const { data: trainerStats } = trpc.trainers.getMyStats.useQuery({ trainerId });
   const { data: expiringMembers, refetch: refetchExpiring } = trpc.members.getMonthExpiring.useQuery({ threshold: 5, trainerId });
   const [expiringOpen, setExpiringOpen] = useState(false);
+  const { data: rollover } = trpc.members.getRolloverToNextMonth.useQuery({ trainerId });
+  const [rolloverOpen, setRolloverOpen] = useState(false);
   const setRenewalIntentMutation = trpc.members.setRenewalIntent.useMutation({
     onSuccess: () => refetchExpiring(),
     onError: (e) => toast.error(e.message),
@@ -646,6 +648,41 @@ export default function TrainerDetail({ trainerId }: Props) {
                   <div key={m.id} className="py-2.5 flex items-center gap-3 opacity-70">
                     <span className="text-sm font-medium text-foreground">{m.name}</span>
                     <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">잔여 {m.remaining}회 · 이탈</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* 다음달 이월 예상 */}
+      {rollover && rollover.length > 0 && (
+        <Card className="bg-card border-blue-500/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2 text-blue-400">
+                <span className="text-base">↷</span> 다음달 이월 예상
+              </span>
+              <button onClick={() => setRolloverOpen(!rolloverOpen)} className="text-xs text-muted-foreground hover:text-foreground">
+                {rolloverOpen ? "접기" : `${rollover.length}명 보기`}
+              </button>
+            </CardTitle>
+          </CardHeader>
+          {rolloverOpen && (
+            <CardContent className="pt-0">
+              <p className="text-[11px] text-muted-foreground pb-2">이번달 만료 예정인데 세션이 많이 남은 회원 — 출석 관리 필요</p>
+              <div className="divide-y divide-border">
+                {rollover.map((m: any) => (
+                  <div key={m.id} className="py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{m.name}</span>
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">잔여 {m.remaining}회</span>
+                      {m.packageName && <span className="text-xs text-muted-foreground">{m.packageName}</span>}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      만료예정 {m.expiryDate ?? "-"} · 마지막 출석 {m.lastSessionDate ?? "기록 없음"}
+                    </p>
                   </div>
                 ))}
               </div>

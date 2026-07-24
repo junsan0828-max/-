@@ -981,6 +981,71 @@ const membersRouter = t.router({
       return result.sort((a, b) => a.remaining - b.remaining);
     }),
 
+  // 다음달 이월 예상 회원: 이번달 만료 예정(또는 이미 만료)인 진행중 패키지인데 세션이 많이
+  // 남아 있는 경우 — 출석이 뜸해서 진도가 밀려 다음달로 넘어갈 가능성이 큰 회원.
+  // "마감임박"(잔여 적음, 곧 끝남)과는 반대 신호라 별도로 분리한다.
+  getRolloverToNextMonth: protectedProcedure
+    .input(z.object({ trainerId: z.number().optional(), minRemaining: z.number().default(3) }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      let tid: number | undefined;
+      if (input.trainerId !== undefined) {
+        if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
+          throw new TRPCError({ code: "FORBIDDEN" });
+        tid = input.trainerId;
+      } else {
+        tid = ctx.user.trainerId;
+        if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      const today = kstDate();
+      const monthEnd = `${today.substring(0, 7)}-31`; // 문자열 비교라 31로 둬도 그 달 안이면 안전
+
+      const activeMembers = await db.select({ id: members.id, name: members.name, phone: members.phone })
+        .from(members)
+        .where(and(eq(members.trainerId, tid), eq(members.status, "active")));
+      if (activeMembers.length === 0) return [];
+      const memberIds = activeMembers.map(m => m.id);
+
+      const pkgs = await db.select({
+        id: ptPackages.id, memberId: ptPackages.memberId,
+        totalSessions: ptPackages.totalSessions, usedSessions: ptPackages.usedSessions,
+        packageName: ptPackages.packageName, expiryDate: ptPackages.expiryDate,
+      }).from(ptPackages)
+        .where(and(inArray(ptPackages.memberId, memberIds), eq(ptPackages.status, "active")));
+
+      const candidates = pkgs.filter(p =>
+        p.expiryDate && p.expiryDate <= monthEnd &&
+        ((p.totalSessions ?? 0) - (p.usedSessions ?? 0)) >= input.minRemaining
+      );
+      if (candidates.length === 0) return [];
+
+      const logRows = await db.select({ memberId: ptSessionLogs.memberId, sessionDate: ptSessionLogs.sessionDate })
+        .from(ptSessionLogs)
+        .where(inArray(ptSessionLogs.memberId, candidates.map(c => c.memberId)))
+        .orderBy(desc(ptSessionLogs.sessionDate));
+      const lastSessionByMember = new Map<number, string>();
+      for (const l of logRows) {
+        if (!lastSessionByMember.has(l.memberId) && l.sessionDate) lastSessionByMember.set(l.memberId, l.sessionDate);
+      }
+      const memberMap = new Map(activeMembers.map(m => [m.id, m]));
+
+      return candidates.map(p => {
+        const mem = memberMap.get(p.memberId);
+        return {
+          id: p.memberId,
+          name: mem?.name ?? "-",
+          phone: mem?.phone ?? null,
+          packageName: p.packageName,
+          remaining: (p.totalSessions ?? 0) - (p.usedSessions ?? 0),
+          expiryDate: p.expiryDate,
+          lastSessionDate: lastSessionByMember.get(p.memberId) ?? null,
+        };
+      }).sort((a, b) => b.remaining - a.remaining);
+    }),
+
   // 재등록 의향 설정
   setRenewalIntent: protectedProcedure
     .input(z.object({ memberId: z.number(), intent: z.enum(["재등록예정", "이탈예정"]).nullable() }))
