@@ -398,6 +398,9 @@ async function initDatabase() {
     `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "sleepHours" TEXT`,
     `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "energyLevel" TEXT`,
     `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "workoutTheme" TEXT`,
+    `ALTER TABLE gym_plus_videos ADD COLUMN IF NOT EXISTS "recommendedSets" INTEGER`,
+    `ALTER TABLE gym_plus_videos ADD COLUMN IF NOT EXISTS "recommendedReps" TEXT`,
+    `ALTER TABLE gym_plus_videos ADD COLUMN IF NOT EXISTS "restSeconds" INTEGER`,
     `ALTER TABLE gym_plus_workout_logs ADD COLUMN IF NOT EXISTS "intensity" TEXT`,
     `CREATE TABLE IF NOT EXISTS trainer_branches (
       id SERIAL PRIMARY KEY,

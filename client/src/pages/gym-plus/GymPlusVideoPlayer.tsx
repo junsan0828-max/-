@@ -76,6 +76,29 @@ export default function GymPlusVideoPlayer({ videoId }: { videoId: number }) {
           )}
         </div>
 
+        {(video.recommendedSets || video.recommendedReps || video.restSeconds) && (
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 grid grid-cols-3 gap-2 text-center">
+            {video.recommendedSets != null && (
+              <div>
+                <p className="text-lg font-bold text-primary">{video.recommendedSets}</p>
+                <p className="text-[10px] text-muted-foreground">세트</p>
+              </div>
+            )}
+            {video.recommendedReps && (
+              <div>
+                <p className="text-lg font-bold text-primary">{video.recommendedReps}</p>
+                <p className="text-[10px] text-muted-foreground">횟수</p>
+              </div>
+            )}
+            {video.restSeconds != null && (
+              <div>
+                <p className="text-lg font-bold text-primary">{video.restSeconds}초</p>
+                <p className="text-[10px] text-muted-foreground">세트 간 휴식</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {video.description && (
           <div className="bg-muted/50 rounded-xl p-3">
             <p className="text-sm text-muted-foreground whitespace-pre-wrap">{video.description}</p>

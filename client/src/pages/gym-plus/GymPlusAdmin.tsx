@@ -233,6 +233,7 @@ export function GymPlusVideosAdmin() {
     title: "", description: "", videoUrl: "", thumbnailUrl: "", duration: "",
     level: "beginner" as "beginner" | "intermediate" | "advanced",
     bodyPart: "", categoryId: "", isPublished: "1", sortOrder: "0",
+    recommendedSets: "", recommendedReps: "", restSeconds: "",
   });
 
   const createMutation = trpc.gymPlus.admin_createVideo.useMutation({
@@ -261,17 +262,29 @@ export function GymPlusVideosAdmin() {
   });
 
   function resetForm() {
-    setForm({ title: "", description: "", videoUrl: "", thumbnailUrl: "", duration: "", level: "beginner", bodyPart: "", categoryId: "", isPublished: "1", sortOrder: "0" });
+    setForm({ title: "", description: "", videoUrl: "", thumbnailUrl: "", duration: "", level: "beginner", bodyPart: "", categoryId: "", isPublished: "1", sortOrder: "0", recommendedSets: "", recommendedReps: "", restSeconds: "" });
   }
 
   function openEdit(v: any) {
-    setForm({ title: v.title, description: v.description ?? "", videoUrl: v.videoUrl, thumbnailUrl: v.thumbnailUrl ?? "", duration: v.duration ?? "", level: v.level, bodyPart: v.bodyPart ?? "", categoryId: v.categoryId?.toString() ?? "", isPublished: v.isPublished.toString(), sortOrder: v.sortOrder.toString() });
+    setForm({
+      title: v.title, description: v.description ?? "", videoUrl: v.videoUrl, thumbnailUrl: v.thumbnailUrl ?? "", duration: v.duration ?? "", level: v.level, bodyPart: v.bodyPart ?? "", categoryId: v.categoryId?.toString() ?? "", isPublished: v.isPublished.toString(), sortOrder: v.sortOrder.toString(),
+      recommendedSets: v.recommendedSets?.toString() ?? "", recommendedReps: v.recommendedReps ?? "", restSeconds: v.restSeconds?.toString() ?? "",
+    });
     setEditingId(v.id);
     setShowForm(true);
   }
 
   function handleSubmit() {
-    const data = { ...form, categoryId: form.categoryId ? parseInt(form.categoryId) : undefined, isPublished: parseInt(form.isPublished), sortOrder: parseInt(form.sortOrder) || 0, duration: form.duration ? parseInt(form.duration) : undefined };
+    const data = {
+      ...form,
+      categoryId: form.categoryId ? parseInt(form.categoryId) : undefined,
+      isPublished: parseInt(form.isPublished),
+      sortOrder: parseInt(form.sortOrder) || 0,
+      duration: form.duration ? parseInt(form.duration) : undefined,
+      recommendedSets: form.recommendedSets ? parseInt(form.recommendedSets) : undefined,
+      recommendedReps: form.recommendedReps || undefined,
+      restSeconds: form.restSeconds ? parseInt(form.restSeconds) : undefined,
+    };
     if (!data.title || !data.videoUrl) { toast.error("제목과 영상 URL은 필수입니다."); return; }
     if (editingId) {
       updateMutation.mutate({ id: editingId, ...data });
@@ -346,6 +359,20 @@ export function GymPlusVideosAdmin() {
               </Select>
             </div>
           </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">추천 세트</Label>
+              <Input type="number" placeholder="3" value={form.recommendedSets} onChange={(e) => setForm((p) => ({ ...p, recommendedSets: e.target.value }))} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">추천 횟수</Label>
+              <Input placeholder="12~15회" value={form.recommendedReps} onChange={(e) => setForm((p) => ({ ...p, recommendedReps: e.target.value }))} className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">휴식(초)</Label>
+              <Input type="number" placeholder="60" value={form.restSeconds} onChange={(e) => setForm((p) => ({ ...p, restSeconds: e.target.value }))} className="h-8 text-sm" />
+            </div>
+          </div>
           <div className="flex gap-2 pt-1">
             <Button variant="outline" className="flex-1 h-8 text-sm" onClick={() => setShowForm(false)}>취소</Button>
             <Button className="flex-1 h-8 text-sm" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
@@ -381,6 +408,15 @@ export function GymPlusVideosAdmin() {
           <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{levelLabel[selectedVideo.level ?? "beginner"]}</span>
           {selectedVideo.bodyPart && <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{selectedVideo.bodyPart}</span>}
           <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full">{selectedVideo.isPublished ? "공개" : "비공개"}</span>
+          {(selectedVideo.recommendedSets || selectedVideo.recommendedReps || selectedVideo.restSeconds) && (
+            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+              {[
+                selectedVideo.recommendedSets ? `${selectedVideo.recommendedSets}세트` : null,
+                selectedVideo.recommendedReps ? `${selectedVideo.recommendedReps}` : null,
+                selectedVideo.restSeconds ? `휴식 ${selectedVideo.restSeconds}초` : null,
+              ].filter(Boolean).join(" · ")}
+            </span>
+          )}
         </div>
 
         <div className="space-y-2">

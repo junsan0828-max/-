@@ -418,6 +418,10 @@ export const gymPlusVideos = pgTable("gym_plus_videos", {
   bodyPart: text("bodyPart"),
   isPublished: integer("isPublished").default(1).notNull(),
   sortOrder: integer("sortOrder").default(0).notNull(),
+  // 세트/횟수/휴식시간 가이드 (구조화 — 추천 카드·영상 재생 화면에 표시)
+  recommendedSets: integer("recommendedSets"),
+  recommendedReps: text("recommendedReps"), // 자유형식: "12~15회", "30초" 등
+  restSeconds: integer("restSeconds"),
   createdAt: text("createdAt").default(now).notNull(),
 });
 

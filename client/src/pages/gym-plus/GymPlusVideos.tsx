@@ -229,7 +229,14 @@ function CheckInModal({ onClose }: { onClose: () => void }) {
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium line-clamp-2">{v.title}</p>
-                      {v.bodyPart && <p className="text-[10px] text-muted-foreground">{v.bodyPart}</p>}
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        {v.bodyPart && <p className="text-[10px] text-muted-foreground">{v.bodyPart}</p>}
+                        {(v.recommendedSets || v.recommendedReps) && (
+                          <span className="text-[10px] text-primary font-medium">
+                            {[v.recommendedSets ? `${v.recommendedSets}세트` : null, v.recommendedReps].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -291,6 +298,11 @@ function VideoCard({ v, onClick }: { v: any; onClick: () => void }) {
           </span>
           {v.bodyPart && <span className="text-[9px] text-gray-400">{v.bodyPart}</span>}
         </div>
+        {(v.recommendedSets || v.recommendedReps) && (
+          <p className="text-[9px] text-[#1D4ED8] font-medium">
+            {[v.recommendedSets ? `${v.recommendedSets}세트` : null, v.recommendedReps].filter(Boolean).join(" · ")}
+          </p>
+        )}
         {v.duration && <p className="text-[9px] text-gray-400">{v.duration}</p>}
       </div>
     </div>

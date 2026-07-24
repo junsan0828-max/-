@@ -3803,6 +3803,9 @@ ${dataContext}
       bodyPart: z.string().optional(),
       isPublished: z.number().default(1),
       sortOrder: z.number().default(0),
+      recommendedSets: z.number().optional(),
+      recommendedReps: z.string().optional(),
+      restSeconds: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -3824,6 +3827,9 @@ ${dataContext}
       bodyPart: z.string().optional(),
       isPublished: z.number().optional(),
       sortOrder: z.number().optional(),
+      recommendedSets: z.number().optional(),
+      recommendedReps: z.string().optional(),
+      restSeconds: z.number().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
