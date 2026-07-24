@@ -80,6 +80,12 @@ function samePhone(col: any, phone: string) {
   return sql`REGEXP_REPLACE(COALESCE(${col}, ''), '[^0-9]', '', 'g') = REGEXP_REPLACE(${phone}, '[^0-9]', '', 'g')`;
 }
 
+// KST(UTC+9) 기준 날짜 문자열(YYYY-MM-DD). UTC 기준으로 계산하면 한국 오전(00~09시)에
+// 만료/이탈 판정이 하루 밀리는 문제가 생긴다.
+function kstDate(offsetDays = 0): string {
+  return new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().substring(0, 10);
+}
+
 // 카드/현금영수증/지역화폐는 부가세 10% 제외, 계좌이체/이체는 그대로, 혼합은 이체분+카드분(VAT제외) 합산
 function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string, transferAmount?: number, cardAmount?: number): number | undefined {
   if (!paymentAmount || !sessions || sessions <= 0) return undefined;
@@ -911,7 +917,13 @@ const membersRouter = t.router({
       return result.filter(m => !m.lastAttendDate || m.lastAttendDate < cutoff);
     }),
 
-  // 이번달 마감 임박 회원 (잔여 세션 ≤ threshold, 기본 5회)
+  // 이번달 마감 임박 회원 (잔여 세션 ≤ threshold, 기본 5회).
+  // 회원별로 "가장 최근 시작한 패키지"만 기준으로 판단한다 — 그래야 이미 새 패키지를
+  // 구매한(재등록 완료한) 회원의 예전 패키지가 여전히 active 상태로 남아 "재등록 물어봐야 할
+  // 사람"으로 계속 잡히는 걸 막을 수 있다. status를 3가지로 나눈다:
+  //   재등록완료 = 이 패키지보다 나중에 시작한 패키지가 이미 있음 (더 물어볼 필요 없음)
+  //   이탈       = 새 패키지 없이 잔여 0(or 만료일 경과)로 끝남 (이미 이탈)
+  //   마감임박   = 새 패키지 없이 잔여 낮음, 아직 만료 전 (지금 확인 필요한 대상)
   getMonthExpiring: protectedProcedure
     .input(z.object({ threshold: z.number().default(5), trainerId: z.number().optional() }))
     .query(async ({ ctx, input }) => {
@@ -928,25 +940,45 @@ const membersRouter = t.router({
         if (!tid) throw new TRPCError({ code: "FORBIDDEN" });
       }
 
-      const rows = await db
-        .select({
-          id: members.id,
-          name: members.name,
-          phone: members.phone,
-          renewalIntent: members.renewalIntent,
-          totalSessions: ptPackages.totalSessions,
-          usedSessions: ptPackages.usedSessions,
-          packageName: ptPackages.packageName,
-        })
+      const activeMembers = await db.select({ id: members.id, name: members.name, phone: members.phone, renewalIntent: members.renewalIntent })
         .from(members)
-        .innerJoin(ptPackages, and(eq(ptPackages.memberId, members.id), eq(ptPackages.status, "active")))
-        .where(and(eq(members.trainerId, tid), eq(members.status, "active")))
-        .orderBy(members.name);
+        .where(and(eq(members.trainerId, tid), eq(members.status, "active")));
+      if (activeMembers.length === 0) return [];
+      const memberIds = activeMembers.map(m => m.id);
 
-      return rows
-        .map(r => ({ ...r, remaining: r.totalSessions - r.usedSessions }))
-        .filter(r => r.remaining <= input.threshold)
-        .sort((a, b) => a.remaining - b.remaining);
+      const allPkgs = await db.select({
+        id: ptPackages.id,
+        memberId: ptPackages.memberId,
+        totalSessions: ptPackages.totalSessions,
+        usedSessions: ptPackages.usedSessions,
+        packageName: ptPackages.packageName,
+        status: ptPackages.status,
+        startDate: ptPackages.startDate,
+        expiryDate: ptPackages.expiryDate,
+      }).from(ptPackages).where(inArray(ptPackages.memberId, memberIds));
+
+      const today = kstDate();
+      const result: any[] = [];
+      for (const m of activeMembers) {
+        const pkgs = allPkgs.filter(p => p.memberId === m.id)
+          .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? "") || b.id - a.id);
+        const latest = pkgs[0];
+        if (!latest) continue;
+        const remaining = (latest.totalSessions ?? 0) - (latest.usedSessions ?? 0);
+        if (remaining > input.threshold && latest.status === "active") continue; // 아직 여유 있음
+
+        const hasNewer = pkgs.some(p => p.id !== latest.id && (p.startDate ?? "") > (latest.startDate ?? ""));
+        if (hasNewer) continue; // 이미 다음 패키지를 구매함 — 더 물어볼 필요 없어 목록에서 제외
+
+        const expired = (latest.expiryDate && latest.expiryDate < today) || remaining <= 0 || latest.status === "completed";
+        result.push({
+          id: m.id, name: m.name, phone: m.phone, renewalIntent: m.renewalIntent,
+          totalSessions: latest.totalSessions, usedSessions: latest.usedSessions,
+          packageName: latest.packageName, remaining,
+          renewalStatus: expired ? "이탈" : "마감임박",
+        });
+      }
+      return result.sort((a, b) => a.remaining - b.remaining);
     }),
 
   // 재등록 의향 설정
@@ -3769,7 +3801,9 @@ const adminRouter = t.router({
       return withPt;
     }),
 
-  // 관리자: 전체 트레이너 마감 임박 회원 요약
+  // 관리자: 전체 트레이너 마감 임박 회원 요약.
+  // getMonthExpiring과 동일한 기준(회원별 최신 패키지만 판단, 이미 재등록한 회원은 제외)을
+  // 써야 이 요약 숫자와 트레이너 상세의 실제 목록 건수가 어긋나지 않는다.
   getTrainersExpiringSummary: protectedProcedure
     .query(async ({ ctx }) => {
       if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin")
@@ -3777,45 +3811,47 @@ const adminRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const today = new Date();
-      const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
-      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-      const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
+      const threshold = 5;
+      const today = kstDate();
 
-      const trainerList = await db
-        .select({ id: trainers.id })
-        .from(trainers);
+      const allActiveMembers = await db.select({ id: members.id, trainerId: members.trainerId, renewalIntent: members.renewalIntent })
+        .from(members)
+        .where(eq(members.status, "active"));
+      const memberIds = allActiveMembers.map(m => m.id);
+      const allPkgs = memberIds.length > 0 ? await db.select({
+        id: ptPackages.id,
+        memberId: ptPackages.memberId,
+        totalSessions: ptPackages.totalSessions,
+        usedSessions: ptPackages.usedSessions,
+        status: ptPackages.status,
+        startDate: ptPackages.startDate,
+        expiryDate: ptPackages.expiryDate,
+      }).from(ptPackages).where(inArray(ptPackages.memberId, memberIds)) : [];
 
-      const summary = await Promise.all(trainerList.map(async ({ id: tid }) => {
-        const rows = await db
-          .select({
-            id: members.id,
-            renewalIntent: members.renewalIntent,
-          })
-          .from(members)
-          .innerJoin(ptPackages, and(eq(ptPackages.memberId, members.id), eq(ptPackages.status, "active")))
-          .where(and(
-            eq(members.trainerId, tid),
-            eq(members.status, "active"),
-            or(
-              and(
-                sql`${ptPackages.expiryDate} >= ${monthStart}`,
-                sql`${ptPackages.expiryDate} < ${monthEnd}`,
-              ),
-              sql`(${ptPackages.totalSessions} - ${ptPackages.usedSessions}) <= 5`,
-            ),
-          ));
+      const byTrainer: Record<number, { total: number; rereg: number; churn: number }> = {};
+      for (const m of allActiveMembers) {
+        if (!m.trainerId) continue;
+        const pkgs = allPkgs.filter(p => p.memberId === m.id)
+          .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? "") || b.id - a.id);
+        const latest = pkgs[0];
+        if (!latest) continue;
+        const remaining = (latest.totalSessions ?? 0) - (latest.usedSessions ?? 0);
+        if (remaining > threshold && latest.status === "active") continue;
+        const hasNewer = pkgs.some(p => p.id !== latest.id && (p.startDate ?? "") > (latest.startDate ?? ""));
+        if (hasNewer) continue;
 
-        // 중복 제거 (회원 1명이 PT패키지 여러 개인 경우)
-        const seen = new Set<number>();
-        const unique = rows.filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+        if (!byTrainer[m.trainerId]) byTrainer[m.trainerId] = { total: 0, rereg: 0, churn: 0 };
+        byTrainer[m.trainerId].total++;
+        if (m.renewalIntent === "재등록예정") byTrainer[m.trainerId].rereg++;
+        if (m.renewalIntent === "이탈예정") byTrainer[m.trainerId].churn++;
+      }
 
-        return {
-          trainerId: tid,
-          total: unique.length,
-          rereg: unique.filter(r => r.renewalIntent === "재등록예정").length,
-          churn: unique.filter(r => r.renewalIntent === "이탈예정").length,
-        };
+      const trainerList = await db.select({ id: trainers.id }).from(trainers);
+      const summary = trainerList.map(({ id: tid }) => ({
+        trainerId: tid,
+        total: byTrainer[tid]?.total ?? 0,
+        rereg: byTrainer[tid]?.rereg ?? 0,
+        churn: byTrainer[tid]?.churn ?? 0,
       }));
 
       return Object.fromEntries(summary.map(s => [s.trainerId, s]));

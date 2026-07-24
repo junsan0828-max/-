@@ -600,9 +600,13 @@ export default function TrainerDetail({ trainerId }: Props) {
             </CardTitle>
           </CardHeader>
           {expiringOpen && (
-            <CardContent className="pt-0">
+            <CardContent className="pt-0 space-y-1">
+              <p className="text-[11px] text-muted-foreground pb-1">이미 재등록한 회원은 자동 제외됩니다</p>
+              {(expiringMembers.filter((m: any) => m.renewalStatus === "마감임박")).length > 0 && (
+                <p className="text-[11px] font-semibold text-orange-400 pt-1">⏳ 확인 필요 — 아직 마감 전</p>
+              )}
               <div className="divide-y divide-border">
-                {expiringMembers.map((m) => (
+                {expiringMembers.filter((m: any) => m.renewalStatus === "마감임박").map((m) => (
                   <div key={m.id} className="py-2.5 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -631,6 +635,17 @@ export default function TrainerDetail({ trainerId }: Props) {
                         이탈
                       </button>
                     </div>
+                  </div>
+                ))}
+              </div>
+              {(expiringMembers.filter((m: any) => m.renewalStatus === "이탈")).length > 0 && (
+                <p className="text-[11px] font-semibold text-red-400 pt-2 border-t border-border">✘ 이미 이탈</p>
+              )}
+              <div className="divide-y divide-border">
+                {expiringMembers.filter((m: any) => m.renewalStatus === "이탈").map((m) => (
+                  <div key={m.id} className="py-2.5 flex items-center gap-3 opacity-70">
+                    <span className="text-sm font-medium text-foreground">{m.name}</span>
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">잔여 {m.remaining}회 · 이탈</span>
                   </div>
                 ))}
               </div>

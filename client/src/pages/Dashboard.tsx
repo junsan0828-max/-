@@ -1079,7 +1079,7 @@ function TrainerDashboard() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
               <div>
                 <h2 className="font-semibold text-foreground">이번달 마감 임박</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">잔여 8회 이하 회원 {monthExpiring?.length ?? 0}명</p>
+                <p className="text-xs text-muted-foreground mt-0.5">잔여 5회 이하 회원 {monthExpiring?.length ?? 0}명 (이미 재등록한 회원은 자동 제외)</p>
               </div>
               <button onClick={() => setMonthExpiringOpen(false)} className="text-muted-foreground hover:text-foreground p-1">✕</button>
             </div>
@@ -1087,39 +1087,59 @@ function TrainerDashboard() {
               {!monthExpiring?.length ? (
                 <p className="text-center text-sm text-muted-foreground py-8">마감 임박 회원이 없습니다.</p>
               ) : (
-                <div className="divide-y divide-border">
-                  {monthExpiring.map((m) => (
-                    <div key={m.id} className="px-4 py-3 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm text-foreground">{m.name}</span>
-                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${m.remaining <= 3 ? "bg-red-500/20 text-red-400" : m.remaining <= 5 ? "bg-orange-500/20 text-orange-400" : "bg-purple-500/20 text-purple-400"}`}>
-                            잔여 {m.remaining}회
-                          </span>
+                <>
+                  {(monthExpiring.filter((m: any) => m.renewalStatus === "마감임박")).length > 0 && (
+                    <div className="px-4 pt-3 pb-1 text-[11px] font-semibold text-orange-400">⏳ 확인 필요 — 아직 마감 전</div>
+                  )}
+                  <div className="divide-y divide-border">
+                    {monthExpiring.filter((m: any) => m.renewalStatus === "마감임박").map((m: any) => (
+                      <div key={m.id} className="px-4 py-3 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm text-foreground">{m.name}</span>
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${m.remaining <= 3 ? "bg-red-500/20 text-red-400" : m.remaining <= 5 ? "bg-orange-500/20 text-orange-400" : "bg-purple-500/20 text-purple-400"}`}>
+                              잔여 {m.remaining}회
+                            </span>
+                          </div>
+                          {m.renewalIntent && (
+                            <span className={`text-[11px] mt-0.5 inline-block ${m.renewalIntent === "재등록예정" ? "text-emerald-400" : "text-red-400"}`}>
+                              {m.renewalIntent === "재등록예정" ? "✔ 재등록 예정" : "✘ 이탈 예정"}
+                            </span>
+                          )}
                         </div>
-                        {m.renewalIntent && (
-                          <span className={`text-[11px] mt-0.5 inline-block ${m.renewalIntent === "재등록예정" ? "text-emerald-400" : "text-red-400"}`}>
-                            {m.renewalIntent === "재등록예정" ? "✔ 재등록 예정" : "✘ 이탈 예정"}
-                          </span>
-                        )}
+                        <div className="flex gap-1.5 shrink-0">
+                          <button
+                            onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "재등록예정" ? null : "재등록예정" })}
+                            className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "재등록예정" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"}`}
+                          >
+                            재등록
+                          </button>
+                          <button
+                            onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "이탈예정" ? null : "이탈예정" })}
+                            className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "이탈예정" ? "bg-red-500/20 text-red-400 border-red-500/30" : "border-border text-muted-foreground hover:border-red-500/50 hover:text-red-400"}`}
+                          >
+                            이탈
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex gap-1.5 shrink-0">
-                        <button
-                          onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "재등록예정" ? null : "재등록예정" })}
-                          className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "재등록예정" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"}`}
-                        >
-                          재등록
-                        </button>
-                        <button
-                          onClick={() => setRenewalIntentMutation.mutate({ memberId: m.id, intent: m.renewalIntent === "이탈예정" ? null : "이탈예정" })}
-                          className={`text-[11px] px-2 py-1 rounded-lg font-medium border transition-colors ${m.renewalIntent === "이탈예정" ? "bg-red-500/20 text-red-400 border-red-500/30" : "border-border text-muted-foreground hover:border-red-500/50 hover:text-red-400"}`}
-                        >
-                          이탈
-                        </button>
+                    ))}
+                  </div>
+                  {(monthExpiring.filter((m: any) => m.renewalStatus === "이탈")).length > 0 && (
+                    <div className="px-4 pt-3 pb-1 text-[11px] font-semibold text-red-400 border-t border-border">✘ 이미 이탈</div>
+                  )}
+                  <div className="divide-y divide-border">
+                    {monthExpiring.filter((m: any) => m.renewalStatus === "이탈").map((m: any) => (
+                      <div key={m.id} className="px-4 py-3 flex items-center gap-3 opacity-70">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm text-foreground">{m.name}</span>
+                            <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">잔여 {m.remaining}회 · 이탈</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           </div>
