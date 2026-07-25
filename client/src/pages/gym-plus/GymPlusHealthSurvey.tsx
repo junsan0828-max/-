@@ -109,6 +109,16 @@ export default function GymPlusHealthSurvey({ initialData, onComplete, saveExtra
   };
 
   const handleNext = () => {
+    // 신체정보(성별/키/몸무게/생년)는 여기서 바로 저장한다 — 이후 8단계(생활습관·건강수치·
+    // 통증·체형·안전체크)를 마치지 않고 이탈해도 맞춤 식단 등에 필요한 정보는 남아있도록.
+    if (step === 2) {
+      upsert.mutate({
+        height: data.height || undefined,
+        weight: data.weight || undefined,
+        gender: data.gender || undefined,
+        birthYear: data.birthYear || undefined,
+      });
+    }
     if (step < TOTAL) { setStep(s => s + 1); return; }
     handleSubmit();
   };
