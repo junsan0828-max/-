@@ -66,7 +66,7 @@ const FREE_IDS = new Set([
 const PRO_IDS = new Set(["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking"]);
 const ELITE_IDS = new Set<string>([]);
 // contract_kakao는 이미 편집 모달(EContractManager 재사용)로 연결돼 있어 "준비 중"이 아님
-const COMING_SOON_IDS = new Set(["training_video", "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
+const COMING_SOON_IDS = new Set(["training_video", "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
 
 type WsDashItem = { id: string; icon: React.ElementType; name: string; };
 type WsDashCat = {
@@ -755,6 +755,8 @@ function TrainerDashboard() {
     brand_page: "/brand-page",
     booking: "/booking",
     fitstep_plus: "/fitstep-plus-manage",
+    monthly_pnl: "/settlement?tab=analysis",
+    sales_analysis: "/settlement?tab=analysis",
   };
   const isProPlan = userPlan === "pro" || userPlan === "elite";
   const openFeature: WsNavFn = (featureId?: string) => {

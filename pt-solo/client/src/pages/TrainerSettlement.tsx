@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, BarChart2, Wallet, Plus, Trash2 } from "lucide-react";
+import { TrendingUp, FileText, Calendar, ChevronLeft, ChevronRight, BarChart2, Wallet, Plus, Trash2, LineChart as LineChartIcon } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
 import TabBanner from "@/components/TabBanner";
 import PointSpendConfirm from "@/components/PointSpendConfirm";
 
@@ -491,15 +492,76 @@ function MonthSummaryStrip() {
   );
 }
 
+function AnalysisTab() {
+  const { data } = trpc.dashboard.getMonthlyPnl.useQuery();
+
+  const latest = data?.[data.length - 1];
+  const totalRevenue = data?.reduce((s, m) => s + m.매출, 0) ?? 0;
+  const totalExpense = data?.reduce((s, m) => s + m.지출, 0) ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <StatItem label="최근 6개월 매출" value={`${fmt(totalRevenue)}원`} color="text-emerald-500" />
+        <StatItem label="최근 6개월 지출" value={`${fmt(totalExpense)}원`} color="text-rose-500" />
+      </div>
+
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <LineChartIcon className="h-4 w-4 text-primary" />
+            월별 매출·지출 추이
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!data ? (
+            <p className="text-sm text-muted-foreground text-center py-10">불러오는 중...</p>
+          ) : (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} width={48}
+                    tickFormatter={(v) => v >= 10000 ? `${Math.round(v / 10000)}만` : `${v}`} />
+                  <Tooltip
+                    formatter={(v) => `${fmt(Number(v))}원`}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Bar dataKey="매출" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="지출" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {latest && (
+        <div className="rounded-xl border border-border bg-card px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold">{latest.month} 순이익</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">세후 정산액 − 지출 {fmt(latest.지출)}원 기준</p>
+          </div>
+          <span className={`text-lg font-black ${latest.순이익 >= 0 ? "text-blue-500" : "text-red-500"}`}>
+            {latest.순이익 >= 0 ? "+" : ""}{fmt(latest.순이익)}원
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TrainerSettlement() {
   const search = useSearch();
   const params = new URLSearchParams(search);
   const tabParam = params.get("tab");
   const viewParam = params.get("view");
-  const initialTab = (tabParam === "expense" || tabParam === "stats") ? tabParam : "revenue";
+  const initialTab = (tabParam === "expense" || tabParam === "stats" || tabParam === "analysis") ? tabParam : "revenue";
   const initialView = viewParam === "daily" ? "daily" : viewParam === "monthly" ? "monthly" : undefined;
 
-  const [tab, setTab] = useState<"revenue" | "expense" | "stats">(initialTab);
+  const [tab, setTab] = useState<"revenue" | "expense" | "stats" | "analysis">(initialTab);
 
   return (
     <div className="space-y-4">
@@ -526,10 +588,15 @@ export default function TrainerSettlement() {
           className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "stats" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <BarChart2 className="h-4 w-4 inline mr-1.5 mb-0.5" />통계
         </button>
+        <button onClick={() => setTab("analysis")}
+          className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === "analysis" ? "border-emerald-500 text-emerald-500" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <LineChartIcon className="h-4 w-4 inline mr-1.5 mb-0.5" />분석
+        </button>
       </div>
 
       {tab === "revenue" && <RevenueTab initialView={initialView} />}
       {tab === "expense" && <ExpenseTab />}
+      {tab === "analysis" && <AnalysisTab />}
       {tab === "stats" && <StatsTab />}
     </div>
   );

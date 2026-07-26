@@ -1495,6 +1495,53 @@ const dashboardRouter = t.router({
       return { month: m.label, 매출: revenue, 정산: Math.round(revenue * rate) };
     }));
   }),
+
+  // 최근 6개월 매출·지출·순이익 추이 — 성장분석실 "분석" 탭
+  // 순이익은 "이번달 요약" 스트립과 동일하게 세후 정산액 기준으로 맞춤 (매출/지출 막대는 원 매출 표시)
+  getMonthlyPnl: protectedProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.user.trainerId;
+    if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+    const db = getDb();
+
+    const settingResult = await db.select({ settlementRate: trainerSettings.settlementRate }).from(trainerSettings).where(eq(trainerSettings.trainerId, trainerId)).limit(1);
+    const rate = settingResult[0]?.settlementRate ?? 50;
+
+    const months: { label: string; ym: string; start: string; end: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      const start = d.toISOString().split("T")[0];
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split("T")[0];
+      months.push({ label: `${d.getMonth() + 1}월`, ym: start.slice(0, 7), start, end });
+    }
+
+    return Promise.all(months.map(async (m) => {
+      const [revRows, expRows] = await Promise.all([
+        db.select({
+          pricePerSession: ptPackages.pricePerSession,
+          paymentAmount: ptPackages.paymentAmount,
+          totalSessions: ptPackages.totalSessions,
+        })
+          .from(ptSessionLogs)
+          .leftJoin(ptPackages, eq(ptSessionLogs.packageId, ptPackages.id))
+          .where(and(eq(ptSessionLogs.trainerId, trainerId), sql`${ptSessionLogs.sessionDate} >= ${m.start}`, sql`${ptSessionLogs.sessionDate} < ${m.end}`)),
+        pool.query<{ total: string }>(
+          `SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE "trainerId"=$1 AND "expenseDate" >= $2 AND "expenseDate" < $3`,
+          [trainerId, m.start, m.end]
+        ),
+      ]);
+      const calcPrice = (l: { pricePerSession: number | null; paymentAmount: number | null; totalSessions: number | null }) => {
+        if (l.pricePerSession) return l.pricePerSession;
+        if (l.paymentAmount && l.totalSessions && l.totalSessions > 0) return Math.round(l.paymentAmount / l.totalSessions);
+        return 0;
+      };
+      const revenue = revRows.reduce((s, l) => s + calcPrice(l), 0);
+      const expense = Number(expRows.rows[0]?.total ?? 0);
+      const afterTax = Math.round(Math.round(revenue * rate / 100) * (1 - 0.033));
+      return { month: m.label, 매출: revenue, 지출: expense, 순이익: afterTax - expense };
+    }));
+  }),
 });
 
 // ─── Workout Memos ────────────────────────────────────────────────────────────
