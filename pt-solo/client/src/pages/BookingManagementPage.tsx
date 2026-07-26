@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { CalendarCheck, ExternalLink, Link2, Share2, AlertCircle } from "lucide-react";
+import { CalendarCheck, ExternalLink, Link2, Share2, AlertCircle, Lock } from "lucide-react";
 import TabBanner from "@/components/TabBanner";
 
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
@@ -18,7 +18,10 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 };
 
 export default function BookingManagementPage() {
-  const { data: brand, isLoading: brandLoading } = trpc.brand.getMyBrand.useQuery();
+  const { data: me, isLoading: meLoading } = trpc.auth.me.useQuery();
+  const isPro = me?.plan === "pro" || me?.plan === "elite";
+  const { data: planInfo } = trpc.fitStepPlus.trainer_getPublicPlanInfo.useQuery(undefined, { enabled: !isPro });
+  const { data: brand, isLoading: brandLoading } = trpc.brand.getMyBrand.useQuery(undefined, { enabled: isPro });
 
   const [tab, setTab] = useState<"schedule" | "list">("list");
 
@@ -85,6 +88,44 @@ export default function BookingManagementPage() {
     if (bookingTypeFilter === "consultation" && isClass) return false;
     return statusFilter === "all" || b.status === statusFilter;
   });
+
+  if (meLoading) return (
+    <div className="flex items-center justify-center py-12">
+      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (!isPro) {
+    return (
+      <div className="space-y-5 pb-8">
+        <TabBanner tabKey="booking" />
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-primary/10">
+            <CalendarCheck className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold">수업 예약 관리</h1>
+            <p className="text-xs text-muted-foreground">시간 관리 · 예약 확인</p>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-dashed border-blue-300 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-6 text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/15 flex items-center justify-center mx-auto">
+            <Lock className="h-6 w-6 text-blue-600" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-blue-700 dark:text-blue-400">예약 관리는 PRO 전용 기능입니다</p>
+            <p className="text-xs text-blue-600/80 dark:text-blue-400/80 leading-relaxed">
+              PRO로 업그레이드하면 근무 요일·시간 설정부터 예약 확인·노쇼 관리까지 사용할 수 있어요.
+            </p>
+          </div>
+          <a href="/profile"
+            className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition-colors">
+            연 {(planInfo?.prices?.pro ?? 69000).toLocaleString()}원으로 업그레이드
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   if (brandLoading) return (
     <div className="flex items-center justify-center py-12">
