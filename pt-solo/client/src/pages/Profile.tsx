@@ -237,7 +237,7 @@ export default function Profile() {
   const [showSurveyModal, setShowSurveyModal] = useState(false);
 
   // 플랜 구매
-  const [selectedPlan, setSelectedPlan] = useState<"pro" | "elite" | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<"pro" | null>(null);
   const [planDepositor, setPlanDepositor] = useState("");
   const [planAcctCopied, setPlanAcctCopied] = useState(false);
   const submitPlanMutation = trpc.fitStepPlus.trainer_submitPlanPurchase.useMutation({

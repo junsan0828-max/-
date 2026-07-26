@@ -4650,7 +4650,7 @@ const fitStepPlusRouter = t.router({
   // ── 포인트로 플랜 즉시 구매 ──
   trainer_purchasePlanWithPoints: protectedProcedure
     .input(z.object({
-      plan: z.enum(["pro", "elite"]),
+      plan: z.enum(["pro"]), // ELITE는 현재 운영하지 않음 — 자체 구매 경로에서 제외
       amount: z.number().int().min(0),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -4682,7 +4682,7 @@ const fitStepPlusRouter = t.router({
   // ── 플랜 구매 신청 (포인트 일부 + 계좌이체) ──
   trainer_submitPlanPurchase: protectedProcedure
     .input(z.object({
-      plan: z.enum(["pro", "elite"]),
+      plan: z.enum(["pro"]), // ELITE는 현재 운영하지 않음 — 자체 구매 경로에서 제외
       totalAmount: z.number().int().min(0),
       pointsUsed: z.number().int().min(0),
       bankAmount: z.number().int().min(0),
