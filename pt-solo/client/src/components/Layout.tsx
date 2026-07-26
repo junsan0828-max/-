@@ -113,23 +113,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: "/admin/feedback", label: "작업/오류 데이터", icon: ClipboardList },
   ];
 
-  const trainerNavItems = [
-    { path: "/", label: "대시보드", icon: LayoutDashboard },
-    { path: "/pt", label: "회원 관리", icon: Dumbbell },
-    { path: "/sessions", label: "수업 관리", icon: BookOpen },
-    { path: "/leads", label: "상담 관리", icon: UserPlus },
-    { path: "/sequences", label: "시퀀스 랩", icon: Layers },
-    ...(isFeatureActive("brand_page") ? [{ path: "/brand-page", label: "브랜드 페이지", icon: Globe }] : []),
-    ...(isFeatureActive("fitstep_plus") ? [{ path: "/fitstep-plus-manage", label: "FIT STEP+", icon: Wrench }] : []),
-    ...(isFeatureActive("booking") ? [{ path: "/booking", label: "예약 관리", icon: CalendarCheck }] : []),
-    { path: "/settlement", label: "성장분석실", icon: TrendingUp },
-    { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
-    ...(isReviewer ? [{ path: "/admin/sequence-review", label: "시퀀스 검토 관리", icon: Layers }] : []),
-    { path: "/profile", label: "내 프로필", icon: User },
-    { path: "/feedback", label: "작업/오류 수정", icon: MessageSquarePlus },
+  // 성격이 비슷한 메뉴끼리 묶어서 사이드바에 그룹 헤더로 표시
+  const trainerNavGroups = [
+    { items: [
+      { path: "/", label: "대시보드", icon: LayoutDashboard },
+    ] },
+    { label: "회원 운영", items: [
+      { path: "/pt", label: "회원 관리", icon: Dumbbell },
+      { path: "/sessions", label: "수업 관리", icon: BookOpen },
+      { path: "/leads", label: "상담 관리", icon: UserPlus },
+      ...(isFeatureActive("booking") ? [{ path: "/booking", label: "예약 관리", icon: CalendarCheck }] : []),
+    ] },
+    { label: "브랜딩 & 콘텐츠", items: [
+      { path: "/sequences", label: "시퀀스 랩", icon: Layers },
+      ...(isFeatureActive("brand_page") ? [{ path: "/brand-page", label: "브랜드 페이지", icon: Globe }] : []),
+      ...(isFeatureActive("fitstep_plus") ? [{ path: "/fitstep-plus-manage", label: "FIT STEP+", icon: Wrench }] : []),
+    ] },
+    { label: "성장", items: [
+      { path: "/settlement", label: "성장분석실", icon: TrendingUp },
+      { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
+      ...(isReviewer ? [{ path: "/admin/sequence-review", label: "시퀀스 검토 관리", icon: Layers }] : []),
+    ] },
+    { label: "계정", items: [
+      { path: "/profile", label: "내 프로필", icon: User },
+      { path: "/feedback", label: "작업/오류 수정", icon: MessageSquarePlus },
+    ] },
   ];
 
-  const navItems = isAdmin ? adminNavItems : trainerNavItems;
+  const navGroups = isAdmin ? [{ items: adminNavItems }] : trainerNavGroups;
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";
@@ -147,20 +158,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => setLocation(item.path)}
-              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive(item.path)
-                  ? "bg-primary/20 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
-              }`}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {item.label}
-            </button>
+        <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+          {navGroups.map((group, gi) => (
+            <div key={gi} className="space-y-1">
+              {group.label && (
+                <p className="px-3 pb-1 text-[10px] font-bold text-muted-foreground/60 tracking-wider uppercase">{group.label}</p>
+              )}
+              {group.items.map((item) => (
+                <button
+                  key={item.path}
+                  onClick={() => setLocation(item.path)}
+                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive(item.path)
+                      ? "bg-primary/20 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  }`}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -198,20 +216,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-              {navItems.map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => { setLocation(item.path); setSidebarOpen(false); }}
-                  className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive(item.path)
-                      ? "bg-primary/20 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                  }`}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  {item.label}
-                </button>
+            <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+              {navGroups.map((group, gi) => (
+                <div key={gi} className="space-y-1">
+                  {group.label && (
+                    <p className="px-3 pb-1 text-[10px] font-bold text-muted-foreground/60 tracking-wider uppercase">{group.label}</p>
+                  )}
+                  {group.items.map((item) => (
+                    <button
+                      key={item.path}
+                      onClick={() => { setLocation(item.path); setSidebarOpen(false); }}
+                      className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                        isActive(item.path)
+                          ? "bg-primary/20 text-primary"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      }`}
+                    >
+                      <item.icon className="h-4 w-4 shrink-0" />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               ))}
             </nav>
             <div className="px-3 py-4 border-t border-border space-y-1">
