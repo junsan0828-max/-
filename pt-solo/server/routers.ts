@@ -3967,6 +3967,23 @@ const fitStepPlusProtected = t.procedure.use(({ ctx, next }) => {
   return next({ ctx: { ...ctx, fitStepPlusMemberId: memberId ?? 0 } });
 });
 
+// 관리자가 설정한 plan_settings를 기준으로 최종 결제가를 서버에서 직접 계산.
+// 클라이언트가 보낸 금액은 절대 신뢰하지 않는다 — 결제 검증은 항상 여기서.
+async function getPlanFinalPrice(plan: string): Promise<number> {
+  const rows = await pool.query<{ key: string; value: string }>(
+    `SELECT key, value FROM plan_settings WHERE key = $1 OR key = $2`,
+    [`plan_price_${plan}`, `plan_discount_${plan}`]
+  );
+  const defaults: Record<string, number> = { free: 0, pro: 69000, elite: 59000 };
+  let price = defaults[plan] ?? 0;
+  let discount = 0;
+  for (const r of rows.rows) {
+    if (r.key === `plan_price_${plan}`) price = parseInt(r.value);
+    else if (r.key === `plan_discount_${plan}`) discount = parseInt(r.value);
+  }
+  return discount > 0 ? Math.round(price * (1 - discount / 100)) : price;
+}
+
 const fitStepPlusRouter = t.router({
   // ── 회원 로그인/세션 ──
   memberLogin: publicProcedure
@@ -4639,18 +4656,23 @@ const fitStepPlusRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
-      if (input.amount > 0) {
+      // 클라이언트가 보낸 amount를 신뢰하지 않고 서버가 실제 가격을 다시 계산해 검증
+      const finalPrice = await getPlanFinalPrice(input.plan);
+      if (input.amount < finalPrice) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `결제 금액이 올바르지 않습니다. (정가: ${finalPrice.toLocaleString()}P)` });
+      }
+      if (finalPrice > 0) {
         const balRow = await pool.query<{ balance: string }>(
           `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
           [trainerId]
         );
         const balance = Number(balRow.rows[0]?.balance ?? 0);
-        if (balance < input.amount) {
-          throw new TRPCError({ code: "FORBIDDEN", message: `포인트가 부족합니다. (필요: ${input.amount.toLocaleString()}P, 보유: ${balance.toLocaleString()}P)` });
+        if (balance < finalPrice) {
+          throw new TRPCError({ code: "FORBIDDEN", message: `포인트가 부족합니다. (필요: ${finalPrice.toLocaleString()}P, 보유: ${balance.toLocaleString()}P)` });
         }
         await pool.query(
           `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'usage',$3,'completed')`,
-          [trainerId, -input.amount, `${input.plan.toUpperCase()} 플랜 구독 결제`]
+          [trainerId, -finalPrice, `${input.plan.toUpperCase()} 플랜 구독 결제`]
         );
       }
       await pool.query(`UPDATE users SET plan=$1 WHERE id=$2`, [input.plan, ctx.user.id]);
@@ -4669,20 +4691,31 @@ const fitStepPlusRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const trainerId = ctx.user.trainerId;
       if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+
+      // 서버가 실제 가격을 다시 계산 — 클라이언트가 보낸 totalAmount는 신뢰하지 않음
+      const finalPrice = await getPlanFinalPrice(input.plan);
+
+      const balRow = await pool.query<{ balance: string }>(
+        `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
+        [trainerId]
+      );
+      const balance = Number(balRow.rows[0]?.balance ?? 0);
+      const actualPoints = Math.min(input.pointsUsed, balance);
+
+      // 포인트+계좌이체 합계가 실제 가격에 못 미치면 거부 (무료/헐값 업그레이드 방지)
+      if (actualPoints + input.bankAmount < finalPrice) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `결제 금액이 부족합니다. (정가: ${finalPrice.toLocaleString()}원, 포인트+이체 합계: ${(actualPoints + input.bankAmount).toLocaleString()}원)`,
+        });
+      }
+
       // 포인트 사용분 즉시 차감
-      if (input.pointsUsed > 0) {
-        const balRow = await pool.query<{ balance: string }>(
-          `SELECT COALESCE(SUM(amount),0) AS balance FROM fit_point_logs WHERE "trainerId"=$1 AND status='completed' AND ("expiresAt" IS NULL OR "expiresAt" > CURRENT_DATE::text)`,
-          [trainerId]
+      if (actualPoints > 0) {
+        await pool.query(
+          `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'usage',$3,'completed')`,
+          [trainerId, -actualPoints, `${input.plan.toUpperCase()} 플랜 포인트 적용`]
         );
-        const balance = Number(balRow.rows[0]?.balance ?? 0);
-        const actualPoints = Math.min(input.pointsUsed, balance);
-        if (actualPoints > 0) {
-          await pool.query(
-            `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'usage',$3,'completed')`,
-            [trainerId, -actualPoints, `${input.plan.toUpperCase()} 플랜 포인트 적용`]
-          );
-        }
       }
       // 잔여금 없으면 즉시 플랜 업그레이드
       if (input.bankAmount <= 0) {
@@ -4693,7 +4726,7 @@ const fitStepPlusRouter = t.router({
       await pool.query(
         `INSERT INTO plan_purchase_requests ("trainerId", plan, amount, "pointsUsed", depositor, status, "createdAt")
          VALUES ($1,$2,$3,$4,$5,'pending',now()::text)`,
-        [trainerId, input.plan, input.bankAmount, input.pointsUsed, input.depositor]
+        [trainerId, input.plan, input.bankAmount, actualPoints, input.depositor]
       );
       return { success: true, instant: false };
     }),
@@ -4717,23 +4750,49 @@ const fitStepPlusRouter = t.router({
 
   // ── 관리자: 플랜 구매 승인 ──
   admin_approvePlanPurchase: adminProcedure
-    .input(z.object({ requestId: z.number(), trainerId: z.number(), plan: z.enum(["pro", "elite"]) }))
+    .input(z.object({ requestId: z.number() }))
     .mutation(async ({ input }) => {
-      await pool.query(`UPDATE plan_purchase_requests SET status='approved' WHERE id=$1`, [input.requestId]);
+      // trainerId/plan은 클라이언트 입력이 아니라 신청 행 자체에서 읽는다 (데이터 정합성)
+      const reqRow = await pool.query<{ trainerId: number; plan: string; status: string }>(
+        `SELECT "trainerId", plan, status FROM plan_purchase_requests WHERE id=$1`, [input.requestId]
+      );
+      const row = reqRow.rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (row.status !== "pending") throw new TRPCError({ code: "CONFLICT", message: "이미 처리된 신청입니다." });
+
+      const res = await pool.query(`UPDATE plan_purchase_requests SET status='approved' WHERE id=$1 AND status='pending'`, [input.requestId]);
+      if (res.rowCount === 0) throw new TRPCError({ code: "CONFLICT", message: "이미 처리된 신청입니다." });
+
       const userRow = await pool.query<{ userId: number }>(
-        `SELECT "userId" FROM trainers WHERE id=$1`, [input.trainerId]
+        `SELECT "userId" FROM trainers WHERE id=$1`, [row.trainerId]
       );
       if (userRow.rows[0]) {
-        await pool.query(`UPDATE users SET plan=$1 WHERE id=$2`, [input.plan, userRow.rows[0].userId]);
+        await pool.query(`UPDATE users SET plan=$1 WHERE id=$2`, [row.plan, userRow.rows[0].userId]);
       }
       return { success: true };
     }),
 
-  // ── 관리자: 플랜 구매 거절 ──
+  // ── 관리자: 플랜 구매 거절 (신청 시 차감된 포인트는 환불) ──
   admin_rejectPlanPurchase: adminProcedure
     .input(z.object({ requestId: z.number() }))
     .mutation(async ({ input }) => {
-      await pool.query(`UPDATE plan_purchase_requests SET status='rejected' WHERE id=$1`, [input.requestId]);
+      const reqRow = await pool.query<{ trainerId: number; plan: string; status: string; pointsUsed: number | null }>(
+        `SELECT "trainerId", plan, status, "pointsUsed" FROM plan_purchase_requests WHERE id=$1`, [input.requestId]
+      );
+      const row = reqRow.rows[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (row.status !== "pending") throw new TRPCError({ code: "CONFLICT", message: "이미 처리된 신청입니다." });
+
+      const res = await pool.query(`UPDATE plan_purchase_requests SET status='rejected' WHERE id=$1 AND status='pending'`, [input.requestId]);
+      if (res.rowCount === 0) throw new TRPCError({ code: "CONFLICT", message: "이미 처리된 신청입니다." });
+
+      const pointsUsed = Number(row.pointsUsed ?? 0);
+      if (pointsUsed > 0) {
+        await pool.query(
+          `INSERT INTO fit_point_logs ("trainerId", amount, type, memo, status) VALUES ($1,$2,'refund',$3,'completed')`,
+          [row.trainerId, pointsUsed, `${row.plan.toUpperCase()} 플랜 구매 거절에 따른 포인트 환불`]
+        );
+      }
       return { success: true };
     }),
 });

@@ -102,7 +102,7 @@ export default function AdminPlans() {
                   </Button>
                   <Button size="sm" className="h-7 px-2 text-xs"
                     disabled={approveMutation.isPending}
-                    onClick={() => approveMutation.mutate({ requestId: req.id, trainerId: req.trainerId, plan: req.plan as "pro" | "elite" })}>
+                    onClick={() => approveMutation.mutate({ requestId: req.id })}>
                     승인
                   </Button>
                 </div>

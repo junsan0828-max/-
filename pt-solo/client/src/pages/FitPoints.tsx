@@ -12,6 +12,7 @@ const TYPE_LABEL: Record<string, string> = {
   charge_request: "충전 신청",
   daily_reset: "일일 초기화 (300P)",
   usage: "사용",
+  refund: "환불",
   profile_bonus: "프로필 완성 보너스",
   referral_bonus: "친구 초대 보너스",
   academy_complete: "아카데미 강의 완료 보상",

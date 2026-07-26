@@ -404,7 +404,7 @@ export default function AdminTrainerDetail({ trainerId }: Props) {
                         onClick={() => rejectPlanMutation.mutate({ requestId: req.id })}>거절</Button>
                       <Button size="sm" className="h-7 px-2 text-xs"
                         disabled={approvePlanMutation.isPending}
-                        onClick={() => approvePlanMutation.mutate({ requestId: req.id, trainerId, plan: req.plan as "pro" | "elite" })}>승인</Button>
+                        onClick={() => approvePlanMutation.mutate({ requestId: req.id })}>승인</Button>
                     </div>
                   )}
                 </div>
