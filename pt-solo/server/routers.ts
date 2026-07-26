@@ -68,6 +68,30 @@ async function sendPushToTrainer(trainerId: number, payload: { title: string; bo
   }));
 }
 
+// FIT STEP+ 회원(members.id 기준)에게 푸시 발송 — 재등록 안내 등에 사용
+async function sendPushToMember(memberId: number, payload: { title: string; body: string; url?: string }): Promise<boolean> {
+  await ensureVapidConfigured();
+  if (!vapidConfigured) return false;
+  const subs = await pool.query<{ id: number; endpoint: string; p256dh: string; auth: string }>(
+    `SELECT id, endpoint, p256dh, auth FROM fit_step_plus_push_subscriptions WHERE "fitStepPlusMemberId"=$1`, [memberId]
+  );
+  let sent = false;
+  await Promise.all(subs.rows.map(async (s) => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        JSON.stringify(payload)
+      );
+      sent = true;
+    } catch (err: any) {
+      if (err?.statusCode === 410 || err?.statusCode === 404) {
+        await pool.query(`DELETE FROM fit_step_plus_push_subscriptions WHERE id=$1`, [s.id]);
+      }
+    }
+  }));
+  return sent;
+}
+
 interface Context {
   user?: AuthUser;
   req: Request;
@@ -4471,6 +4495,68 @@ const fitStepPlusRouter = t.router({
     const parse = (v: string | null) => { try { return v ? JSON.parse(v) as string[] : []; } catch { return []; } };
     return { bodyParts: parse(r.bodyParts), workoutTheme: parse(r.workoutTheme) };
   }),
+
+  // ── 회원 푸시 알림 구독 ──
+  member_getVapidPublicKey: fitStepPlusProtected.query(async () => {
+    const row = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='vapid_public_key'`);
+    return { publicKey: row.rows[0]?.value ?? null };
+  }),
+
+  member_getPushStatus: fitStepPlusProtected.query(async ({ ctx }) => {
+    const memberId = (ctx as any).fitStepPlusMemberId as number;
+    const row = await pool.query(`SELECT id FROM fit_step_plus_push_subscriptions WHERE "fitStepPlusMemberId"=$1 LIMIT 1`, [memberId]);
+    return { subscribed: row.rows.length > 0 };
+  }),
+
+  member_pushSubscribe: fitStepPlusProtected
+    .input(z.object({
+      endpoint: z.string(),
+      keys: z.object({ p256dh: z.string(), auth: z.string() }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const memberId = (ctx as any).fitStepPlusMemberId as number;
+      const memberRow = await pool.query<{ trainerId: number }>(`SELECT "trainerId" FROM members WHERE id=$1`, [memberId]);
+      if (!memberRow.rows[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      await pool.query(
+        `INSERT INTO fit_step_plus_push_subscriptions ("fitStepPlusMemberId","trainerId",endpoint,p256dh,auth)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (endpoint) DO UPDATE SET "fitStepPlusMemberId"=$1, "trainerId"=$2, p256dh=$4, auth=$5`,
+        [memberId, memberRow.rows[0].trainerId, input.endpoint, input.keys.p256dh, input.keys.auth]
+      );
+      return { success: true };
+    }),
+
+  member_pushUnsubscribe: fitStepPlusProtected
+    .input(z.object({ endpoint: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const memberId = (ctx as any).fitStepPlusMemberId as number;
+      await pool.query(`DELETE FROM fit_step_plus_push_subscriptions WHERE "fitStepPlusMemberId"=$1 AND endpoint=$2`, [memberId, input.endpoint]);
+      return { success: true };
+    }),
+
+  // ── 트레이너: 재등록 안내 푸시 발송 ──
+  trainer_sendRenewalPush: protectedProcedure
+    .input(z.object({ memberIds: z.array(z.number()).min(1).max(200) }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.user.trainerId;
+      if (!trainerId) throw new TRPCError({ code: "FORBIDDEN" });
+      const rows = await pool.query<{ id: number; name: string }>(
+        `SELECT id, name FROM members WHERE "trainerId"=$1 AND id = ANY($2)`,
+        [trainerId, input.memberIds]
+      );
+      const trainerRow = await pool.query<{ trainerName: string }>(`SELECT "trainerName" FROM trainers WHERE id=$1`, [trainerId]);
+      const trainerName = trainerRow.rows[0]?.trainerName ?? "트레이너";
+      let sent = 0;
+      for (const m of rows.rows) {
+        const ok = await sendPushToMember(m.id, {
+          title: "재등록 안내 💪",
+          body: `${trainerName} 트레이너님이 재등록을 안내드려요. 잊지 말고 확인해보세요!`,
+          url: `/fit-step-plus/${trainerId}/membership`,
+        });
+        if (ok) sent++;
+      }
+      return { sent, total: rows.rows.length };
+    }),
 
   // ── 트레이너: 출석 현황 조회 ──
   trainer_listAttendance: protectedProcedure

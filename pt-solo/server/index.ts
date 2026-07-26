@@ -893,6 +893,20 @@ async function initDatabase() {
     "createdAt" TEXT NOT NULL DEFAULT now()::text
   )`);
   await pool.query(`CREATE INDEX IF NOT EXISTS push_subscriptions_trainer_idx ON push_subscriptions ("trainerId")`);
+
+  // FIT STEP+ 회원용 푸시 구독 — 재등록 안내 등 트레이너가 회원에게 보내는 알림에 사용
+  await pool.query(`CREATE TABLE IF NOT EXISTS fit_step_plus_push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    "fitStepPlusMemberId" INTEGER NOT NULL,
+    "trainerId" INTEGER NOT NULL,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    "createdAt" TEXT NOT NULL DEFAULT now()::text
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS fsp_push_subscriptions_member_idx ON fit_step_plus_push_subscriptions ("fitStepPlusMemberId")`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS fsp_push_subscriptions_trainer_idx ON fit_step_plus_push_subscriptions ("trainerId")`);
+
   // VAPID 키가 없으면 최초 1회 자동 생성 (Railway 환경변수 설정 없이 바로 테스트 가능)
   {
     const existing = await pool.query<{ value: string }>(`SELECT value FROM plan_settings WHERE key='vapid_public_key'`);

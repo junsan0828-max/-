@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Users, Dumbbell, TrendingUp, Calendar,
   AlertTriangle, ChevronRight, RefreshCw, Clock, BookOpen, ShieldCheck,
@@ -712,6 +713,16 @@ function TrainerDashboard() {
   const [expiringModalOpen, setExpiringModalOpen] = useState(false);
   const [unpaidModalOpen, setUnpaidModalOpen] = useState(false);
   const [lowSessionsModalOpen, setLowSessionsModalOpen] = useState(false);
+  const [renewalModalOpen, setRenewalModalOpen] = useState(false);
+  const [renewalSelected, setRenewalSelected] = useState<Set<number>>(new Set());
+  const sendRenewalPushMutation = trpc.fitStepPlus.trainer_sendRenewalPush.useMutation({
+    onSuccess: (res) => {
+      if (res.sent === 0) toast.error("발송된 알림이 없어요. 회원이 FIT STEP+ 앱에서 알림을 켜야 받을 수 있어요.");
+      else toast.success(`${res.total}명 중 ${res.sent}명에게 재등록 안내를 보냈어요.`);
+      setRenewalModalOpen(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const [registerTypeOpen, setRegisterTypeOpen] = useState(false);
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
@@ -849,7 +860,7 @@ function TrainerDashboard() {
           { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
           { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
           { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
-          { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLocation("/members"), badge: lowSessions?.length ?? null },
+          { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions?.length ?? null },
         ]} />
       </div>
 
@@ -1136,6 +1147,57 @@ function TrainerDashboard() {
               })
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 재등록 안내 푸시 모달 */}
+      <Dialog open={renewalModalOpen} onOpenChange={setRenewalModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-cyan-500" />
+              재등록 안내 보내기
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              선택한 회원의 FIT STEP+ 앱으로 재등록 안내 푸시 알림을 보내요. 앱에서 알림을 켠 회원만 받을 수 있어요.
+            </p>
+          </DialogHeader>
+          <div className="space-y-1 max-h-72 overflow-y-auto">
+            {!lowSessions || lowSessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">재등록 안내가 필요한 회원이 없습니다.</p>
+            ) : (
+              lowSessions.map(m => {
+                const remaining = m.totalSessions - m.usedSessions;
+                const checked = renewalSelected.has(m.id);
+                return (
+                  <label key={m.id} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/40 transition-colors cursor-pointer">
+                    <input type="checkbox" className="accent-primary" checked={checked}
+                      onChange={() => setRenewalSelected(prev => {
+                        const next = new Set(prev);
+                        checked ? next.delete(m.id) : next.add(m.id);
+                        return next;
+                      })} />
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${AVATAR_GRADIENTS[m.id % AVATAR_GRADIENTS.length]} flex items-center justify-center shrink-0`}>
+                      <span className="text-sm font-bold text-white">{m.name.charAt(0)}</span>
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-sm font-semibold truncate">{m.name}</p>
+                      {m.packageName && <p className="text-xs text-muted-foreground truncate">{m.packageName}</p>}
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${remaining <= 0 ? "bg-red-500/15 text-red-500" : "bg-cyan-500/15 text-cyan-600"}`}>
+                      {remaining <= 0 ? "소진" : `${remaining}회 남음`}
+                    </span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          {lowSessions && lowSessions.length > 0 && (
+            <Button className="w-full" disabled={renewalSelected.size === 0 || sendRenewalPushMutation.isPending}
+              onClick={() => sendRenewalPushMutation.mutate({ memberIds: Array.from(renewalSelected) })}>
+              {sendRenewalPushMutation.isPending ? "발송 중..." : `선택한 ${renewalSelected.size}명에게 알림 보내기`}
+            </Button>
+          )}
         </DialogContent>
       </Dialog>
 
