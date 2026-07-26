@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { ChevronRight, Lock, Star, RefreshCw, Sparkles, X, Video } from "lucide-react";
+import { ChevronRight, Star, RefreshCw, X } from "lucide-react";
 
 const CONDITION_EMOJI = ["😴", "😑", "😐", "☺️", "💪"];
 const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
@@ -15,7 +15,7 @@ const PREV_LOG_UNLOCK = 10; // 이전 운동 잠금 해제 기준
 
 function WorkoutTypeModal({ onClose, onSelect, logCount }: {
   onClose: () => void;
-  onSelect: (type: "new" | "prev") => void;
+  onSelect: (type: "new" | "prev" | "rec") => void;
   logCount: number;
 }) {
   const prevUnlocked = logCount >= PREV_LOG_UNLOCK;
@@ -52,19 +52,20 @@ function WorkoutTypeModal({ onClose, onSelect, logCount }: {
           <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
         </button>
 
-        {/* 추천 운동 (잠금) */}
-        <div className="w-full flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl px-4 py-4 opacity-60 cursor-not-allowed">
+        {/* 추천 운동 */}
+        <button
+          onClick={() => onSelect("rec")}
+          className="w-full flex items-center gap-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/50 rounded-2xl px-4 py-4 text-left transition-colors active:scale-[0.98]"
+        >
           <div className="w-11 h-11 rounded-xl bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center shrink-0">
             <Star className="w-5 h-5 text-yellow-400" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white font-semibold text-sm">추천 운동</p>
-            <p className="text-white/50 text-xs mt-0.5">내 정보 탭에서 미션 3가지를 완료하세요</p>
+            <p className="text-white/50 text-xs mt-0.5">오늘 체크인한 부위에 맞는 영상 보기</p>
           </div>
-          <span className="text-[11px] bg-white/10 text-white/60 px-2 py-0.5 rounded-full font-medium shrink-0 flex items-center gap-1">
-            <Lock className="w-3 h-3" />잠금
-          </span>
-        </div>
+          <ChevronRight className="w-4 h-4 text-white/30 shrink-0" />
+        </button>
 
         {/* 이전 운동 */}
         <button
@@ -277,6 +278,7 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
   const thisMonth = today.slice(0, 7);
   const { data: attendance } = trpc.fitStepPlus.member_getAttendance.useQuery({ month: thisMonth });
   const checkedInToday = attendance?.includes(today) ?? false;
+  const { data: todayCheckIn } = trpc.fitStepPlus.member_getTodayCheckIn.useQuery(undefined, { enabled: checkedInToday });
 
   const checkInMutation = trpc.fitStepPlus.member_checkIn.useMutation({
     onSuccess: () => {
@@ -312,6 +314,11 @@ export default function FitStepPlusDashboard({ trainerId }: { trainerId: number 
           logCount={logs?.length ?? 0}
           onSelect={(type) => {
             setShowWorkoutModal(false);
+            if (type === "rec") {
+              const parts = todayCheckIn?.bodyParts ?? [];
+              navigate(`${base}/videos${parts.length ? `?parts=${encodeURIComponent(parts.join(","))}` : ""}`);
+              return;
+            }
             navigate(`${base}/workout${type === "prev" ? "?mode=prev" : ""}`);
           }}
         />

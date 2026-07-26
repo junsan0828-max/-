@@ -4428,7 +4428,7 @@ const fitStepPlusRouter = t.router({
         const result = await pool.query(
           `INSERT INTO fit_step_plus_attendance
             ("fitStepPlusMemberId","trainerId","attendDate","conditionScore","sleepHours","energyLevel","bodyParts","workoutTheme","intensity","createdAt")
-           SELECT $1,"trainerId",$2,$3,$4,$5,$6,$7,$8,now()::text FROM fit_step_plus_members WHERE id=$1
+           SELECT $1,"trainerId",$2,$3,$4,$5,$6,$7,$8,now()::text FROM members WHERE id=$1
            RETURNING id`,
           [
             memberId, today,
@@ -4457,6 +4457,20 @@ const fitStepPlusRouter = t.router({
       );
       return rows.rows.map((r) => r.attendDate);
     }),
+
+  // 오늘 체크인에서 고른 운동 부위·테마 — "추천 영상" 필터링에 사용
+  member_getTodayCheckIn: fitStepPlusProtected.query(async ({ ctx }) => {
+    const memberId = (ctx as any).fitStepPlusMemberId as number;
+    const today = new Date().toISOString().slice(0, 10);
+    const row = await pool.query<{ bodyParts: string | null; workoutTheme: string | null }>(
+      `SELECT "bodyParts", "workoutTheme" FROM fit_step_plus_attendance WHERE "fitStepPlusMemberId"=$1 AND "attendDate"=$2 LIMIT 1`,
+      [memberId, today]
+    );
+    const r = row.rows[0];
+    if (!r) return null;
+    const parse = (v: string | null) => { try { return v ? JSON.parse(v) as string[] : []; } catch { return []; } };
+    return { bodyParts: parse(r.bodyParts), workoutTheme: parse(r.workoutTheme) };
+  }),
 
   // ── 트레이너: 출석 현황 조회 ──
   trainer_listAttendance: protectedProcedure

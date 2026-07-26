@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 
 const levelLabel: Record<string, string> = {
@@ -16,9 +16,16 @@ const levelColor: Record<string, string> = {
 
 export default function FitStepPlusVideos({ trainerId }: { trainerId: number }) {
   const [, navigate] = useLocation();
+  const search = useSearch();
   const base = `/fit-step-plus/${trainerId}`;
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
   const [selectedLevel, setSelectedLevel] = useState<string | undefined>();
+
+  const recommendParts = useMemo(() => {
+    const raw = new URLSearchParams(search).get("parts");
+    return raw ? raw.split(",").filter(Boolean) : [];
+  }, [search]);
+  const [showRecOnly, setShowRecOnly] = useState(recommendParts.length > 0);
 
   const { data: categories } = trpc.fitStepPlus.listVideoCategories.useQuery({ trainerId });
   const { data: videos, isLoading } = trpc.fitStepPlus.listVideos.useQuery({
@@ -27,9 +34,31 @@ export default function FitStepPlusVideos({ trainerId }: { trainerId: number }) 
     level: selectedLevel,
   });
 
+  const recommendedVideos = useMemo(() => {
+    if (!videos || recommendParts.length === 0) return [];
+    return videos.filter(v => v.bodyPart && recommendParts.some(p => v.bodyPart!.includes(p)));
+  }, [videos, recommendParts]);
+
+  const displayedVideos = showRecOnly && recommendedVideos.length > 0 ? recommendedVideos : videos;
+
   return (
     <div className="p-4 space-y-4">
       <h1 className="font-bold text-lg">운동 영상</h1>
+
+      {recommendParts.length > 0 && (
+        <div className="rounded-2xl bg-primary/10 border border-primary/20 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-primary">오늘 체크인 기반 추천</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{recommendParts.join(" · ")} 관련 영상 {recommendedVideos.length}개</p>
+          </div>
+          <button
+            onClick={() => setShowRecOnly(v => !v)}
+            className="shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground"
+          >
+            {showRecOnly ? "전체 보기" : "추천만 보기"}
+          </button>
+        </div>
+      )}
 
       {categories && categories.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
@@ -71,11 +100,13 @@ export default function FitStepPlusVideos({ trainerId }: { trainerId: number }) 
 
       {isLoading ? (
         <div className="text-center py-10 text-muted-foreground text-sm">불러오는 중...</div>
-      ) : !videos || videos.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground text-sm">등록된 영상이 없습니다</div>
+      ) : !displayedVideos || displayedVideos.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground text-sm">
+          {showRecOnly && recommendParts.length > 0 ? "오늘 부위에 딱 맞는 영상이 아직 없어요. 전체 영상을 둘러보세요." : "등록된 영상이 없습니다"}
+        </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {videos.map((v) => (
+          {displayedVideos.map((v) => (
             <div
               key={v.id}
               className="bg-card border border-border rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
