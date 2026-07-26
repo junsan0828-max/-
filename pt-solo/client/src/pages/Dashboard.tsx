@@ -24,10 +24,10 @@ import SurveyBuilder from "@/components/editors/SurveyBuilder";
 import EContractManager from "@/components/editors/EContractManager";
 import RefundContractManager from "@/components/editors/RefundContractManager";
 import TransferContractManager from "@/components/editors/TransferContractManager";
-import { WorkoutLogSection, TrainerDietManager, WS_CATALOG } from "@/pages/Workshop";
+import { WorkoutLogSection, TrainerDietManager, VideoSection, WS_CATALOG } from "@/pages/Workshop";
 
 // 작업실을 거치지 않고 대시보드 모달로 바로 여는 기능 — 하나씩 여기 추가하며 이전 중
-const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract", "contract_kakao", "fitstep_personal", "fitstep_diet"]);
+const MODAL_FEATURE_IDS = new Set(["report_branding", "contract_terms", "templates", "survey", "e_contract", "refund_contract", "transfer_contract", "contract_kakao", "fitstep_personal", "fitstep_diet", "fitstep_videos"]);
 const MODAL_FEATURE_META: Record<string, { title: string; Component: React.ComponentType }> = {
   report_branding: { title: "보고서 브랜딩", Component: ReportBrandingEditor },
   contract_terms: { title: "약관 브랜딩", Component: ContractTermsEditor },
@@ -39,6 +39,7 @@ const MODAL_FEATURE_META: Record<string, { title: string; Component: React.Compo
   contract_kakao: { title: "계약서 카카오톡 공유", Component: EContractManager },
   fitstep_personal: { title: "개인 운동 기록 관리", Component: WorkoutLogSection },
   fitstep_diet: { title: "맞춤 식단 관리", Component: TrainerDietManager },
+  fitstep_videos: { title: "운동 영상 관리", Component: VideoSection },
 };
 
 // ─── 아바타 색상 ──────────────────────────────────────────────────────────────
@@ -744,8 +745,16 @@ function TrainerDashboard() {
     booking: "/booking",
     fitstep_plus: "/fitstep-plus-manage",
   };
+  const isProPlan = userPlan === "pro" || userPlan === "elite";
   const openFeature: WsNavFn = (featureId?: string) => {
     if (!featureId) return;
+    // PRO 전용 기능은 모달/전용페이지를 열기 전에 먼저 플랜을 확인 — 잠금 배지만 보이고
+    // 실제로는 열려버리는 일이 없도록 여기서 막는다 (전용페이지는 자체적으로도 한 번 더 확인함)
+    if (PRO_IDS.has(featureId) && !isProPlan) {
+      toast.error("PRO 플랜에서 이용할 수 있는 기능입니다.");
+      setLocation("/profile");
+      return;
+    }
     if (MODAL_FEATURE_IDS.has(featureId)) { setEditorModalId(featureId); return; }
     if (PAGE_FEATURE_ROUTES[featureId]) { setLocation(PAGE_FEATURE_ROUTES[featureId]); return; }
     setInfoFeatureId(featureId);

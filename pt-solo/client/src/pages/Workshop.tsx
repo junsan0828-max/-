@@ -22,7 +22,7 @@ const LEVEL_LABELS: Record<string, string> = { beginner: "초급", intermediate:
 const EVENT_TYPE_LABELS: Record<string, string> = { notice: "공지", event: "이벤트", promotion: "프로모션" };
 
 // ── 영상 관리 섹션 ──────────────────────────────────────────────────────────
-function VideoSection({ trainerId }: { trainerId: number }) {
+export function VideoSection() {
   const utils = trpc.useUtils();
   const { data: videos } = trpc.fitStepPlus.trainer_listVideos.useQuery();
   const { data: categories } = trpc.fitStepPlus.trainer_listCategories.useQuery();
@@ -531,7 +531,7 @@ export function FitStepPlusPanel({ trainerId }: { trainerId: number }) {
               {key === "members" && <MemberSection />}
               {key === "attendance" && <AttendanceSection />}
               {key === "workoutlogs" && <WorkoutLogSection />}
-              {key === "videos" && <VideoSection trainerId={trainerId} />}
+              {key === "videos" && <VideoSection />}
               {key === "events" && <EventSection trainerId={trainerId} />}
             </CardContent>
           )}
