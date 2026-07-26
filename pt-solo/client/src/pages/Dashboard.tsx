@@ -724,41 +724,13 @@ function TrainerDashboard() {
     if (reopen === "journal") setJournalOpen(true);
     else if (reopen === "info_edit") setMemberSearchOpen(true);
   }, []);
-  const [dailyModalOpen, setDailyModalOpen] = useState(false);
-  const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
-  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
-  const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   const [parqModalOpen, setParqModalOpen] = useState(false);
   const { data: parqMissing } = trpc.parQ.listMissing.useQuery();
-  const [expenseForm, setExpenseForm] = useState({ memo: "", amount: "", category: "카드", date: "" });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ memo: "", amount: "", category: "카드" });
   const todayStr = new Date().toISOString().split("T")[0];
   const currentYearMonth = todayStr.slice(0, 7);
   const { data: todayAttendanceList } = trpc.attendanceChecks.listByDate.useQuery(
     { date: todayStr }, { enabled: todayModalOpen }
   );
-  const { data: dailySettlement } = trpc.trainers.getMonthlySettlement.useQuery(
-    { yearMonth: currentYearMonth, dateFilter: todayStr }, { enabled: dailyModalOpen }
-  );
-  const { data: monthlySettlement } = trpc.trainers.getMonthlySettlement.useQuery(
-    { yearMonth: currentYearMonth }, { enabled: monthlyModalOpen }
-  );
-  const { data: monthlyRevenue } = trpc.dashboard.getMonthlyRevenue.useQuery(
-    undefined, { enabled: monthlyModalOpen }
-  );
-  const { data: expenseData, refetch: refetchExpenses } = trpc.expenses.list.useQuery(
-    { yearMonth: currentYearMonth }, { enabled: expenseModalOpen }
-  );
-  const { data: settlementRevenue } = trpc.trainers.getMonthlySettlement.useQuery(
-    { yearMonth: currentYearMonth }, { enabled: settlementModalOpen }
-  );
-  const { data: settlementExpense } = trpc.expenses.list.useQuery(
-    { yearMonth: currentYearMonth }, { enabled: settlementModalOpen }
-  );
-  const createExpense = trpc.expenses.create.useMutation({ onSuccess: () => { refetchExpenses(); setExpenseForm({ memo: "", amount: "", category: "카드", date: "" }); } });
-  const deleteExpense = trpc.expenses.delete.useMutation({ onSuccess: () => refetchExpenses() });
-  const updateExpense = trpc.expenses.update.useMutation({ onSuccess: () => { refetchExpenses(); setEditingId(null); } });
   const { data: memberSessionStats } = trpc.pt.memberSessionStatsMonthly.useQuery(
     { yearMonth: currentYearMonth }, { enabled: ptStatsModalOpen }
   );
@@ -868,6 +840,7 @@ function TrainerDashboard() {
           { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
           { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
           { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
+          { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLocation("/members"), badge: lowSessions?.length ?? null },
         ]} />
       </div>
 
@@ -887,20 +860,25 @@ function TrainerDashboard() {
         ]} />
       </div>
 
-      {/* 매출 & 정산 */}
+      {/* 매출·통계 — 성장분석실로 바로 이동 (중복 화면 없이 한 곳에서 관리) */}
       <div className="rounded-2xl bg-card border border-border p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-            <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+            </div>
+            <span className="text-sm font-bold">매출·통계</span>
           </div>
-          <span className="text-sm font-bold">매출 &amp; 정산</span>
+          <button onClick={() => setLocation("/settlement")}
+            className="text-[11px] font-semibold text-muted-foreground hover:text-primary transition-colors">
+            성장분석실 전체보기 →
+          </button>
         </div>
         <ToolGrid items={[
-          { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setDailyModalOpen(true) },
-          { label: "월 매출", icon: BarChart3, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setMonthlyModalOpen(true) },
-          { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLocation("/members"), badge: lowSessions?.length ?? null },
-          { label: "월 지출", icon: Wallet, colorCls: "text-rose-500", bgCls: "bg-rose-500/10", borderCls: "border-rose-500/20", onClick: () => setExpenseModalOpen(true) },
-          { label: "정산 관리", icon: FileText, colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20", onClick: () => setSettlementModalOpen(true) },
+          { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=daily") },
+          { label: "월 매출", icon: BarChart3, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=monthly") },
+          { label: "월 지출", icon: Wallet, colorCls: "text-rose-500", bgCls: "bg-rose-500/10", borderCls: "border-rose-500/20", onClick: () => setLocation("/settlement?tab=expense") },
+          { label: "정산 요약", icon: FileText, colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20", onClick: () => setLocation("/settlement?tab=revenue") },
         ]} />
       </div>
 
@@ -1035,249 +1013,6 @@ function TrainerDashboard() {
         title="수업 일지" subtitle="일지를 확인할 회원을 선택하세요"
         icon={BookOpen} iconCls="text-blue-500" allMembers={allMembers}
         onPick={(id) => { sessionStorage.setItem("dash_reopen_modal", "journal"); setLocation(`/members/${id}?tab=training`); }} />
-
-      {/* 일일 매출 모달 */}
-      <Dialog open={dailyModalOpen} onOpenChange={setDailyModalOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-500" />
-              오늘 매출
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">{todayStr.replace(/-/g, ".")}</p>
-          </DialogHeader>
-          {!dailySettlement ? (
-            <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: "수업", value: `${dailySettlement.sessionCount}회`, color: "text-emerald-500" },
-                  { label: "매출", value: `${dailySettlement.revenue.toLocaleString()}원`, color: "text-blue-500" },
-                  { label: "세후 정산", value: `${dailySettlement.afterTax.toLocaleString()}원`, color: "text-violet-500" },
-                ].map(c => (
-                  <div key={c.label} className="rounded-xl bg-accent/30 border border-border p-3 text-center">
-                    <p className="text-[10px] text-muted-foreground mb-1">{c.label}</p>
-                    <p className={`text-sm font-bold ${c.color} leading-tight`}>{c.value}</p>
-                  </div>
-                ))}
-              </div>
-              {dailySettlement.noShow > 0 && (
-                <p className="text-xs text-muted-foreground text-center">노쇼 {dailySettlement.noShow}건 포함</p>
-              )}
-              <div className="space-y-1 max-h-52 overflow-y-auto">
-                {dailySettlement.logs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">오늘 수업 기록이 없습니다.</p>
-                ) : dailySettlement.logs.map(log => (
-                  <div key={log.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-accent/20">
-                    <div>
-                      <p className="text-sm font-medium">{log.memberName ?? "-"}</p>
-                      {log.packageName && <p className="text-xs text-muted-foreground">{log.packageName}</p>}
-                    </div>
-                    <p className="text-sm font-semibold text-emerald-500">{log.effectivePrice.toLocaleString()}원</p>
-                  </div>
-                ))}
-              </div>
-              <button onClick={() => { setDailyModalOpen(false); setLocation("/settlement?view=daily"); }}
-                className="w-full py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-accent/40 transition-colors">
-                자세히 보기 →
-              </button>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* 월 매출 모달 */}
-      <Dialog open={monthlyModalOpen} onOpenChange={setMonthlyModalOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-blue-500" />
-              이번달 매출
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">{currentYearMonth.replace("-", "년 ")}월</p>
-          </DialogHeader>
-          {!monthlySettlement ? (
-            <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "수업 횟수", value: `${monthlySettlement.sessionCount}회`, color: "text-emerald-500" },
-                  { label: "총 매출", value: `${monthlySettlement.revenue.toLocaleString()}원`, color: "text-blue-500" },
-                  { label: "정산액", value: `${monthlySettlement.settlementAmount.toLocaleString()}원`, color: "text-violet-500" },
-                  { label: "세후 정산", value: `${monthlySettlement.afterTax.toLocaleString()}원`, color: "text-violet-600" },
-                ].map(c => (
-                  <div key={c.label} className="rounded-xl bg-accent/30 border border-border p-3">
-                    <p className="text-[10px] text-muted-foreground mb-1">{c.label}</p>
-                    <p className={`text-sm font-bold ${c.color}`}>{c.value}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-3 text-xs text-muted-foreground px-1">
-                <span>신규 <b className="text-foreground">{monthlySettlement.newMembers}명</b></span>
-                <span>재등록 <b className="text-foreground">{monthlySettlement.rereg}명</b></span>
-                <span>노쇼 <b className="text-foreground">{monthlySettlement.noShow}건</b></span>
-                <span>정산율 <b className="text-foreground">{monthlySettlement.settlementRate}%</b></span>
-              </div>
-              {monthlyRevenue && monthlyRevenue.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-bold text-muted-foreground mb-2">최근 6개월 매출</p>
-                  <div className="flex items-end gap-1.5 h-16">
-                    {(() => {
-                      const max = Math.max(...monthlyRevenue.map(r => r.매출), 1);
-                      return monthlyRevenue.map((r, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                          <div className="w-full rounded-t-md bg-blue-500/20 relative" style={{ height: `${Math.max((r.매출 / max) * 48, 4)}px` }}>
-                            {i === monthlyRevenue.length - 1 && (
-                              <div className="absolute inset-0 rounded-t-md bg-blue-500/60" />
-                            )}
-                          </div>
-                          <p className="text-[9px] text-muted-foreground">{r.month}</p>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-              )}
-              <button onClick={() => { setMonthlyModalOpen(false); setLocation("/settlement?view=monthly"); }}
-                className="w-full py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-accent/40 transition-colors">
-                자세히 보기 →
-              </button>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* 월 지출 모달 */}
-      <Dialog open={expenseModalOpen} onOpenChange={setExpenseModalOpen}>
-        <DialogContent className="max-w-sm flex flex-col max-h-[85vh] p-0">
-          <DialogHeader className="px-5 pt-5 pb-3 border-b border-border shrink-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-rose-500" />
-              월 지출
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">
-              {currentYearMonth.replace("-", "년 ")}월 ·{" "}
-              총 <span className="font-semibold text-rose-500">{(expenseData?.total ?? 0).toLocaleString()}원</span>
-            </p>
-          </DialogHeader>
-
-          {/* 입력 폼 */}
-          <div className="px-5 py-4 border-b border-border shrink-0 space-y-2.5">
-            <div className="flex gap-2">
-              <input
-                value={expenseForm.memo}
-                onChange={e => setExpenseForm(f => ({ ...f, memo: e.target.value }))}
-                placeholder="내용"
-                className="flex-1 min-w-0 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
-              />
-              <input
-                type="number"
-                value={expenseForm.amount}
-                onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))}
-                placeholder="비용"
-                className="w-24 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/50"
-              />
-            </div>
-            <div className="flex gap-2 items-center">
-              <select
-                value={expenseForm.category}
-                onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}
-                className="w-28 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
-              >
-                {["카드", "현금", "계좌이체", "기타"].map(m => <option key={m}>{m}</option>)}
-              </select>
-              <input
-                type="date"
-                value={expenseForm.date || todayStr}
-                onChange={e => setExpenseForm(f => ({ ...f, date: e.target.value }))}
-                className="flex-1 min-w-0 px-3 py-2 text-sm rounded-xl border border-border bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
-            <button
-              onClick={() => {
-                if (!expenseForm.memo.trim() || !expenseForm.amount) return;
-                createExpense.mutate({
-                  memo: expenseForm.memo.trim(),
-                  amount: Number(expenseForm.amount),
-                  category: expenseForm.category,
-                  expenseDate: expenseForm.date || todayStr,
-                });
-              }}
-              disabled={!expenseForm.memo.trim() || !expenseForm.amount || createExpense.isPending}
-              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-500 text-white text-sm font-semibold disabled:opacity-40 hover:bg-rose-600 active:scale-95 transition-all"
-            >
-              <Plus className="h-3.5 w-3.5" />추가
-            </button>
-          </div>
-
-          {/* 지출 목록 */}
-          <div className="overflow-y-auto flex-1 px-5 py-3 space-y-2">
-            {!expenseData ? (
-              <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
-            ) : expenseData.expenses.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">이번달 지출 내역이 없습니다.</p>
-            ) : expenseData.expenses.map(exp => (
-              <div key={exp.id} className="rounded-xl border border-border bg-accent/20 p-3">
-                {editingId === exp.id ? (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        value={editForm.memo}
-                        onChange={e => setEditForm(f => ({ ...f, memo: e.target.value }))}
-                        className="flex-1 min-w-0 px-2.5 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
-                      />
-                      <input
-                        type="number"
-                        value={editForm.amount}
-                        onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
-                        className="w-24 px-2.5 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
-                      />
-                    </div>
-                    <div className="flex gap-2 items-center">
-                      <select
-                        value={editForm.category}
-                        onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
-                        className="flex-1 px-2.5 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none"
-                      >
-                        {["카드", "현금", "계좌이체", "기타"].map(m => <option key={m}>{m}</option>)}
-                      </select>
-                      <button onClick={() => updateExpense.mutate({ id: exp.id, amount: Number(editForm.amount), category: editForm.category, memo: editForm.memo })}
-                        className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 transition-colors">
-                        <Check className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => setEditingId(null)}
-                        className="p-1.5 rounded-lg bg-accent/50 text-muted-foreground hover:bg-accent transition-colors">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{exp.memo || "—"}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] font-semibold bg-rose-500/10 text-rose-500 px-1.5 py-0.5 rounded-full">{exp.category}</span>
-                        <span className="text-xs text-muted-foreground">{exp.expenseDate?.slice(5)}</span>
-                      </div>
-                    </div>
-                    <p className="text-sm font-bold text-rose-500 shrink-0">{exp.amount.toLocaleString()}원</p>
-                    <button onClick={() => { setEditingId(exp.id); setEditForm({ memo: exp.memo ?? "", amount: String(exp.amount), category: exp.category }); }}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent transition-colors shrink-0">
-                      <SquarePen className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => deleteExpense.mutate({ id: exp.id })}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors shrink-0">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* 만료 임박 모달 */}
       <Dialog open={expiringModalOpen} onOpenChange={setExpiringModalOpen}>
@@ -1428,62 +1163,6 @@ function TrainerDashboard() {
               ))
             )}
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* 정산 관리 모달 */}
-      <Dialog open={settlementModalOpen} onOpenChange={setSettlementModalOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-400" />
-              정산 관리
-            </DialogTitle>
-            <p className="text-xs text-muted-foreground">{currentYearMonth.replace("-", "년 ")}월 매출·지출 요약</p>
-          </DialogHeader>
-          {!settlementRevenue || !settlementExpense ? (
-            <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
-          ) : (() => {
-            const revenue = settlementRevenue.revenue;
-            const afterTax = settlementRevenue.afterTax;
-            const expenseTotal = settlementExpense.total;
-            const netProfit = afterTax - expenseTotal;
-            return (
-              <>
-                <div className="rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
-                  <div className="flex items-center justify-between px-3 py-2.5 text-xs">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />총 매출
-                    </span>
-                    <span className="font-bold text-emerald-500">+{revenue.toLocaleString()}원</span>
-                  </div>
-                  <div className="flex items-center justify-between px-3 py-2.5 text-xs">
-                    <span className="text-muted-foreground pl-5">세후 정산액</span>
-                    <span className="font-semibold text-foreground/70">{afterTax.toLocaleString()}원</span>
-                  </div>
-                  <div className="flex items-center justify-between px-3 py-2.5 text-xs">
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <Wallet className="h-3.5 w-3.5 text-rose-500" />총 지출
-                    </span>
-                    <span className="font-bold text-rose-500">-{expenseTotal.toLocaleString()}원</span>
-                  </div>
-                  <div className="flex items-center justify-between px-3 py-3 bg-accent/30">
-                    <span className="text-sm font-bold">순수익</span>
-                    <span className={`text-base font-black ${netProfit >= 0 ? "text-blue-500" : "text-red-500"}`}>
-                      {netProfit >= 0 ? "+" : ""}{netProfit.toLocaleString()}원
-                    </span>
-                  </div>
-                </div>
-                <p className="text-[10px] text-muted-foreground px-1">
-                  순수익 = 세후 정산액({afterTax.toLocaleString()}원) − 총 지출({expenseTotal.toLocaleString()}원)
-                </p>
-                <button onClick={() => { setSettlementModalOpen(false); setLocation("/settlement"); }}
-                  className="w-full py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-accent/40 transition-colors">
-                  자세히 보기 →
-                </button>
-              </>
-            );
-          })()}
         </DialogContent>
       </Dialog>
 

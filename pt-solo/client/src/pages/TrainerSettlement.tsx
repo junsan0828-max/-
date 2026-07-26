@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,13 +31,13 @@ function StatItem({ label, value, color }: { label: string; value: string; color
   );
 }
 
-function RevenueTab() {
+function RevenueTab({ initialView }: { initialView?: "monthly" | "daily" }) {
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
   const [yearMonth, setYearMonth] = useState(
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`
   );
-  const [view, setView] = useState<"monthly" | "daily">("monthly");
+  const [view, setView] = useState<"monthly" | "daily">(initialView ?? "monthly");
   const [showPdfConfirm, setShowPdfConfirm] = useState(false);
   const [pendingPdfAction, setPendingPdfAction] = useState<"csv" | "pdf" | null>(null);
   const spendFeatureMutation = trpc.fitPoints.spendFeature.useMutation();
@@ -458,8 +459,47 @@ function StatsTab() {
   );
 }
 
+function MonthSummaryStrip() {
+  const today = new Date();
+  const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const { data: revenue } = trpc.trainers.getMonthlySettlement.useQuery({ yearMonth });
+  const { data: expense } = trpc.expenses.list.useQuery({ yearMonth });
+
+  if (!revenue || !expense) {
+    return <div className="rounded-xl border border-border bg-card h-[68px] animate-pulse" />;
+  }
+  const netProfit = revenue.afterTax - expense.total;
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="grid grid-cols-3 divide-x divide-border">
+        <div className="px-2 py-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">이번달 매출</p>
+          <p className="text-sm font-bold text-emerald-500">{fmt(revenue.revenue)}원</p>
+        </div>
+        <div className="px-2 py-3 text-center">
+          <p className="text-[10px] text-muted-foreground mb-1">이번달 지출</p>
+          <p className="text-sm font-bold text-rose-500">{fmt(expense.total)}원</p>
+        </div>
+        <div className="px-2 py-3 text-center bg-accent/20">
+          <p className="text-[10px] text-muted-foreground mb-1">순수익</p>
+          <p className={`text-sm font-bold ${netProfit >= 0 ? "text-blue-500" : "text-red-500"}`}>
+            {netProfit >= 0 ? "+" : ""}{fmt(netProfit)}원
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TrainerSettlement() {
-  const [tab, setTab] = useState<"revenue" | "expense" | "stats">("revenue");
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const tabParam = params.get("tab");
+  const viewParam = params.get("view");
+  const initialTab = (tabParam === "expense" || tabParam === "stats") ? tabParam : "revenue";
+  const initialView = viewParam === "daily" ? "daily" : viewParam === "monthly" ? "monthly" : undefined;
+
+  const [tab, setTab] = useState<"revenue" | "expense" | "stats">(initialTab);
 
   return (
     <div className="space-y-4">
@@ -468,6 +508,9 @@ export default function TrainerSettlement() {
         <h1 className="text-xl font-bold">성장분석</h1>
         <p className="text-sm text-muted-foreground mt-0.5">매출 현황 및 활동 통계</p>
       </div>
+
+      {/* 이번달 요약 — 탭과 무관하게 항상 한눈에 보이는 정산 요약 */}
+      <MonthSummaryStrip />
 
       {/* 탭 선택 */}
       <div className="flex gap-2 border-b border-border">
@@ -485,7 +528,7 @@ export default function TrainerSettlement() {
         </button>
       </div>
 
-      {tab === "revenue" && <RevenueTab />}
+      {tab === "revenue" && <RevenueTab initialView={initialView} />}
       {tab === "expense" && <ExpenseTab />}
       {tab === "stats" && <StatsTab />}
     </div>
