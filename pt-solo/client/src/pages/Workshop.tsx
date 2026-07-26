@@ -1952,7 +1952,7 @@ const TIER_ITEMS: Record<"free" | "pro" | "elite", string[]> = {
   free:  ["brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract",
           "report_branding", "contract_terms", "training_video", "e_contract",
           "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion",
-          "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
+          "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
           "renewal_analysis", "ai_insights"],
   pro:   ["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking"],
   elite: [],
@@ -2066,10 +2066,6 @@ export const WS_CATALOG: WsCatDef[] = [
         description: "상담한 회원 중 실제로 등록한 비율을 분석하세요. 전환율 개선 포인트를 찾고 상담 성과를 높일 수 있습니다.",
         tags: ["전환율", "상담 성과", "등록 분석"],
         useCases: ["상담 전략 개선", "전환율 목표 설정", "월별 성과 비교"] },
-      { id: "unpaid", icon: Coins, name: "미수금 관리", shortDesc: "회원별 미납 현황 관리", status: "coming_soon",
-        description: "미수금 현황을 회원별로 파악하고 납부 관리를 체계화하세요. 미납 알림과 납부 추적으로 수익 누수를 방지합니다.",
-        tags: ["미수금 현황", "회원별 미납", "납부 추적"],
-        useCases: ["미납 회원 파악", "수납 관리 자동화", "수익 누수 방지"] },
       { id: "monthly_pnl", icon: PieChart, name: "월간 손익 현황", shortDesc: "월별 수익·비용·손익 확인", status: "coming_soon",
         description: "월별 매출과 비용을 비교하고 순이익을 확인하세요. 운영 비용 구조를 파악해 수익성을 개선할 수 있습니다.",
         tags: ["월별 수익", "비용 분석", "손익 확인"],
@@ -2103,7 +2099,7 @@ export const WS_CATALOG: WsCatDef[] = [
         description: "상담 전에 고객 정보를 미리 수집하는 설문을 직접 만들어 링크로 공유하세요. 주관식·객관식·척도 문항을 자유롭게 구성할 수 있습니다.",
         tags: ["주관식·객관식", "척도 문항", "링크 공유"],
         useCases: ["상담 전 사전 정보 수집", "고객 맞춤 상담 준비", "설문 링크 배포"] },
-      { id: "contract_kakao", icon: MessageCircle, name: "계약서 카카오톡 공유", shortDesc: "계약서 링크 카카오톡 전달", status: "coming_soon",
+      { id: "contract_kakao", icon: MessageCircle, name: "계약서 카카오톡 공유", shortDesc: "계약서 링크 카카오톡 전달", status: "active",
         description: "상담실에서 작성·서명한 계약서를 카카오톡으로 회원에게 바로 전달하세요. 회원이 언제든 계약 내용을 다시 확인할 수 있습니다.",
         tags: ["카카오톡 공유", "계약서 링크", "빠른 전달"],
         useCases: ["비대면 계약 체결", "원격 회원 등록", "계약 프로세스 간소화"] },
@@ -2633,7 +2629,6 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
                   {feature.id === "contract_kakao"    && <EContractManager />}
                   {feature.id === "refund_contract"   && <RefundContractManager />}
                   {feature.id === "transfer_contract" && <TransferContractManager />}
-                  {feature.id === "unpaid"            && <UnpaidManager />}
                   {feature.id === "consult_conversion"    && <ConsultConversionPreview />}
                   {feature.id === "member_overview"       && <MemberOverviewPreview />}
                   {feature.id === "activity_stats"        && <ActivityStatsPreview />}
@@ -2655,44 +2650,6 @@ function WsAdminFeatureModal({ feature, trainers, onClose }: {
           </div>
 
         </div>
-      </div>
-    </div>
-  );
-}
-
-function UnpaidManager() {
-  const { data: list = [], isLoading } = trpc.members.getWithUnpaid.useQuery();
-  const total = list.reduce((s: number, m: any) => s + (m.unpaidAmount ?? 0), 0);
-
-  if (isLoading) return <p className="text-sm text-muted-foreground text-center py-4">로딩 중...</p>;
-  if (list.length === 0) return (
-    <div className="text-center py-8 space-y-1">
-      <p className="text-sm font-semibold text-muted-foreground">미수금 회원이 없습니다</p>
-      <p className="text-xs text-muted-foreground">모든 회원의 결제가 완료되었습니다.</p>
-    </div>
-  );
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-xl px-4 py-3">
-        <div>
-          <p className="text-xs font-semibold text-orange-700 dark:text-orange-400">총 미수금</p>
-          <p className="text-lg font-black text-orange-600 dark:text-orange-400">{total.toLocaleString()}원</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-orange-600 dark:text-orange-400">{list.length}명</p>
-        </div>
-      </div>
-      <div className="space-y-2">
-        {list.map((m: any) => (
-          <div key={m.id} className="flex items-center justify-between bg-background border border-border rounded-xl px-3 py-2.5">
-            <div>
-              <p className="text-sm font-semibold">{m.name}</p>
-              <p className="text-[11px] text-muted-foreground">{m.packageName}</p>
-            </div>
-            <span className="text-sm font-bold text-orange-500">{(m.unpaidAmount ?? 0).toLocaleString()}원</span>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -3739,7 +3696,7 @@ function WorkshopContent() {
     ...["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal",
         "booking", "report_branding", "contract_terms", "training_video", "e_contract"],
     ...["member_overview", "activity_stats", "data_migration", "kpi_report",
-        "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis",
+        "consult_conversion", "monthly_pnl", "sales_analysis",
         "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"],
   ];
 

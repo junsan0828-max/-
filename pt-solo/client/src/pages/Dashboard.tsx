@@ -10,7 +10,7 @@ import {
   Lock, Cpu, ArrowRight, Search, Pencil,
   ClipboardList, MessageCircle, FileSignature, ReceiptText, ArrowLeftRight,
   Wrench, PlaySquare, Target, Utensils, Activity, BookMarked, Video,
-  Brain, Database, ArrowUpRight, Coins, PieChart, Share2, Sparkles, Wallet, Trash2, SquarePen, Plus, Check, X,
+  Brain, Database, ArrowUpRight, PieChart, Share2, Sparkles, Wallet, Trash2, SquarePen, Plus, Check, X,
   Send,
 } from "lucide-react";
 import {
@@ -58,12 +58,13 @@ const FREE_IDS = new Set([
   "brand_page", "contract_kakao", "survey", "templates", "refund_contract", "transfer_contract",
   "report_branding", "contract_terms", "training_video", "e_contract",
   "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion",
-  "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
+  "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis",
   "renewal_analysis", "ai_insights",
 ]);
 const PRO_IDS = new Set(["fitstep_plus", "fitstep_videos", "fitstep_rec", "fitstep_diet", "fitstep_personal", "booking"]);
 const ELITE_IDS = new Set<string>([]);
-const COMING_SOON_IDS = new Set(["training_video", "contract_kakao", "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "unpaid", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
+// contract_kakao는 이미 편집 모달(EContractManager 재사용)로 연결돼 있어 "준비 중"이 아님
+const COMING_SOON_IDS = new Set(["training_video", "member_overview", "activity_stats", "data_migration", "kpi_report", "consult_conversion", "monthly_pnl", "sales_analysis", "channel_analysis", "marketing_analysis", "renewal_analysis", "ai_insights"]);
 
 type WsDashItem = { id: string; icon: React.ElementType; name: string; };
 type WsDashCat = {
@@ -117,7 +118,6 @@ const WS_DASH: WsDashCat[] = [
       { id: "monthly_pnl",        icon: PieChart,     name: "월간 손익" },
       { id: "renewal_analysis",   icon: TrendingUp,   name: "재등록 분석" },
       { id: "consult_conversion", icon: ArrowUpRight, name: "상담 전환율" },
-      { id: "unpaid",             icon: Coins,        name: "미수금 관리" },
     ],
   },
   {
