@@ -123,14 +123,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       { path: "/sessions", label: "수업 관리", icon: BookOpen },
       { path: "/leads", label: "상담 관리", icon: UserPlus },
       ...(isFeatureActive("booking") ? [{ path: "/booking", label: "예약 관리", icon: CalendarCheck }] : []),
+      { path: "/settlement", label: "성장분석실", icon: TrendingUp },
     ] },
     { label: "브랜딩 & 콘텐츠", items: [
-      { path: "/sequences", label: "시퀀스 랩", icon: Layers },
       ...(isFeatureActive("brand_page") ? [{ path: "/brand-page", label: "브랜드 페이지", icon: Globe }] : []),
       ...(isFeatureActive("fitstep_plus") ? [{ path: "/fitstep-plus-manage", label: "FIT STEP+", icon: Wrench }] : []),
     ] },
     { label: "성장", items: [
-      { path: "/settlement", label: "성장분석실", icon: TrendingUp },
+      { path: "/sequences", label: "시퀀스 랩", icon: Layers },
       { path: "/academy", label: "성장 아카데미", icon: GraduationCap },
       ...(isReviewer ? [{ path: "/admin/sequence-review", label: "시퀀스 검토 관리", icon: Layers }] : []),
     ] },
@@ -140,7 +140,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     ] },
   ];
 
-  const navGroups = isAdmin ? [{ items: adminNavItems }] : trainerNavGroups;
+  const navGroups = (isAdmin ? [{ items: adminNavItems }] : trainerNavGroups).filter(g => g.items.length > 0);
 
   const isActive = (path: string) => {
     if (path === "/") return location === "/";
