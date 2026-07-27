@@ -2403,12 +2403,28 @@ const attendanceChecksRouter = t.router({
   listByMember: protectedProcedure
     .input(z.object({ memberId: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
-      return db
-        .select()
-        .from(attendanceChecks)
-        .where(eq(attendanceChecks.memberId, input.memberId))
-        .orderBy(desc(attendanceChecks.checkDate));
+      // 키오스크는 전화번호로 members를 찾아(LIMIT 1) 그 행에 출입을 기록한다. 같은 사람이
+      // 중복 등록되어 있으면 키오스크가 쓴 행과 지금 열어본 행이 달라 출입 기록이 안 보인다.
+      // 동일 전화번호를 가진 모든 회원 행의 기록을 함께 조회해 이런 누락을 막는다.
+      const ids = new Set<number>([input.memberId]);
+      const [self] = await pool.query(
+        `SELECT phone FROM members WHERE id = $1 LIMIT 1`, [input.memberId]
+      ).then(r => r.rows as { phone: string | null }[]);
+      const digits = self?.phone?.replace(/\D/g, "");
+      if (digits && digits.length >= 9) {
+        const dupes = await pool.query(
+          `SELECT id FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1`,
+          [digits]
+        );
+        for (const row of dupes.rows) ids.add(row.id);
+      }
+
+      const result = await pool.query(
+        `SELECT * FROM attendance_checks WHERE "memberId" = ANY($1::int[])
+         ORDER BY "checkDate" DESC`,
+        [Array.from(ids)]
+      );
+      return result.rows;
     }),
 
   getByMemberDate: protectedProcedure
@@ -4693,8 +4709,13 @@ const kioskRouter = t.router({
     .mutation(async ({ input }) => {
       // 전화번호로 회원 찾기 (숫자만 비교)
       const digits = input.phone.replace(/\D/g, "");
+      // 같은 전화번호로 중복 등록된 회원이 있을 수 있다. 정렬 없이 LIMIT 1을 쓰면 매번 다른 행이
+      // 뽑혀 출입 기록·포인트가 여러 행으로 흩어지므로, 만료일이 가장 나중인(=현재 유효한) 행을 고정 선택한다.
       const all = await pool.query(
-        `SELECT id, name, phone, "membershipEnd" FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 AND status = 'active' LIMIT 1`,
+        `SELECT id, name, phone, "membershipEnd" FROM members
+         WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 AND status = 'active'
+         ORDER BY "membershipEnd" DESC NULLS LAST, id DESC
+         LIMIT 1`,
         [digits]
       );
       if (!all.rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "등록된 회원을 찾을 수 없습니다." });
