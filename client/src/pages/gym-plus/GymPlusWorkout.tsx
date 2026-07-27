@@ -1098,12 +1098,26 @@ export default function GymPlusWorkout() {
 
             <div className="px-4 py-4">
               {warmupStatus === "idle" && (
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">준비운동으로 부상을 예방하세요</p>
-                  <button
-                    onClick={startWarmup}
-                    className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
-                  >▶ 시작</button>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">준비운동으로 부상을 예방하세요</p>
+                    <button
+                      onClick={startWarmup}
+                      className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+                    >▶ 시작</button>
+                  </div>
+                  {/* 무엇을 할지 몰라 타이머만 돌지 않도록, 준비운동용 영상으로 바로 연결 */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {["스트레칭", "폼롤러"].map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => navigate(`/gym-plus/videos?category=${encodeURIComponent(cat)}`)}
+                        className="py-2 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                      >
+                        {cat} 영상 보기
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -328,6 +328,20 @@ export default function GymPlusVideos() {
   const today = new Date().toISOString().slice(0, 10);
   const todayCheckedIn = logs?.some((l) => l.logDate === today && l.title === "출석체크");
 
+  // 준비운동 카드 등에서 ?category=스트레칭 으로 넘어오면 해당 카테고리를 미리 선택해 준다
+  const categoryParamApplied = useRef(false);
+  useEffect(() => {
+    if (categoryParamApplied.current || !categories) return;
+    const wanted = new URLSearchParams(window.location.search).get("category");
+    if (!wanted) return;
+    categoryParamApplied.current = true;
+    const match = categories.find((c) => c.name === wanted);
+    if (match) {
+      setTab("gym");
+      setSelectedCategory(match.id);
+    }
+  }, [categories]);
+
   // 출석 체크가 가장 우선 — 로그 로딩이 끝났는데 아직 오늘 출석 전이면 자동으로 열어 필수로 진행시킨다
   useEffect(() => {
     if (logs !== undefined && !todayCheckedIn) setShowCheckIn(true);
@@ -387,7 +401,7 @@ export default function GymPlusVideos() {
             tab === "gym" ? "text-[#1D4ED8] border-b-2 border-[#1D4ED8]" : "text-gray-400"
           }`}
         >
-          자이언트짐 기구운동
+          운동영상
         </button>
         <button
           onClick={() => setTab("custom")}
