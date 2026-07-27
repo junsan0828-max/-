@@ -4452,38 +4452,39 @@ ${dataContext}
       [ctx.gymPlusMemberId]
     );
 
-    // gym_plus_members의 memberId로 attendance_checks에서 출입 횟수 조회
-    // (memberId 연결이 안 된 계정은 전화번호로 대체 매칭 — 키오스크 출입은 members 테이블 기준으로 기록되므로
-    // memberId 연결이 누락되면 실제 출입 기록이 있어도 0회로 보이는 문제를 방지)
+    // 출입 횟수 조회용 members.id 후보 수집.
+    // 키오스크는 항상 전화번호로 members를 찾아 attendance_checks를 기록하므로, 전화번호로
+    // 다시 찾은 id를 우선 신뢰한다. gym_plus_members.memberId는 계정 생성 시점에 한 번 연결된
+    // 값이라 이후 어긋나 있을 수 있어(오래된/잘못된 연결) 참고용 후보로만 함께 사용한다.
     const [gymMember] = await db.select({ memberId: gymPlusMembers.memberId, phone: gymPlusMembers.phone, username: gymPlusMembers.username })
       .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
 
-    let mainMemberId: number | null = gymMember?.memberId ?? null;
-    if (!mainMemberId) {
-      const phone = gymMember?.phone || gymMember?.username;
-      const digits = phone?.replace(/\D/g, "");
-      if (digits && digits.length >= 4) {
-        const phoneMatch = await pool.query(
-          `SELECT id FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 LIMIT 1`,
-          [digits]
-        );
-        mainMemberId = phoneMatch.rows[0]?.id ?? null;
-      }
+    const candidateIds = new Set<number>();
+    if (gymMember?.memberId) candidateIds.add(gymMember.memberId);
+    const phone = gymMember?.phone || gymMember?.username;
+    const digits = phone?.replace(/\D/g, "");
+    if (digits && digits.length >= 4) {
+      const phoneMatches = await pool.query(
+        `SELECT id FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1`,
+        [digits]
+      );
+      for (const row of phoneMatches.rows) candidateIds.add(row.id);
     }
 
     let attendanceCount = 0;
     let recentAttendances: { checkDate: string; checkTime: string | null; status: string }[] = [];
 
-    if (mainMemberId) {
+    if (candidateIds.size > 0) {
+      const ids = Array.from(candidateIds);
       const acResult = await pool.query(
-        `SELECT COUNT(*) as count FROM attendance_checks WHERE "memberId" = $1 AND status = 'attended'`,
-        [mainMemberId]
+        `SELECT COUNT(*) as count FROM attendance_checks WHERE "memberId" = ANY($1::int[]) AND status = 'attended'`,
+        [ids]
       );
       attendanceCount = parseInt(acResult.rows[0]?.count ?? "0", 10);
 
       const recentAcResult = await pool.query(
-        `SELECT "checkDate", "checkTime", status FROM attendance_checks WHERE "memberId" = $1 ORDER BY "checkDate" DESC, "checkTime" DESC LIMIT 5`,
-        [mainMemberId]
+        `SELECT "checkDate", "checkTime", status FROM attendance_checks WHERE "memberId" = ANY($1::int[]) ORDER BY "checkDate" DESC, "checkTime" DESC LIMIT 5`,
+        [ids]
       );
       recentAttendances = recentAcResult.rows;
     }
