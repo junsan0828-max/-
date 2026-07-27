@@ -6,18 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import GymPlusHealthSurvey from "./GymPlusHealthSurvey";
+import { membershipTypeLabel } from "@/lib/membership";
 
 const PERIOD_PRICES: Record<string, number> = {
   "1개월": 80000,
   "3개월": 159000,
   "6개월": 216000,
   "12개월": 312000,
-};
-
-const membershipTypeLabel: Record<string, string> = {
-  general: "일반회원",
-  premium: "프리미엄",
-  vip: "VIP",
 };
 
 const membershipTypeBadge: Record<string, string> = {

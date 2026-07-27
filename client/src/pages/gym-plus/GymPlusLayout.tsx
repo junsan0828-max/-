@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { formatMembershipType } from "@/lib/membership";
 import GymPlusOnboarding from "./GymPlusOnboarding";
 
 function daysUntil(dateStr: string | null | undefined) {
@@ -209,7 +210,7 @@ export default function GymPlusLayout({ children }: { children: ReactNode }) {
           {me && (
             <div className="mt-3">
               <p className="text-sm font-bold text-[#1a2b4b]">{me.name}님</p>
-              <p className="text-xs text-gray-400 mt-0.5">{me.membershipType ?? "일반회원"}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{formatMembershipType(me.membershipType)}</p>
             </div>
           )}
         </div>

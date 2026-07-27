@@ -3,12 +3,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { GymPlusEventDetailContent } from "./GymPlusEventDetail";
-
-const membershipTypeLabel: Record<string, string> = {
-  general: "일반회원",
-  premium: "프리미엄",
-  vip: "VIP",
-};
+import { membershipTypeLabel } from "@/lib/membership";
 
 function daysUntil(dateStr: string | null | undefined) {
   if (!dateStr) return null;

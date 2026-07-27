@@ -1,10 +1,5 @@
 import { trpc } from "@/lib/trpc";
-
-const membershipTypeLabel: Record<string, string> = {
-  general: "일반회원",
-  premium: "프리미엄",
-  vip: "VIP",
-};
+import { membershipTypeLabel } from "@/lib/membership";
 
 const membershipTypeBadge: Record<string, string> = {
   general: "bg-blue-500/10 text-blue-400 border-blue-500/30",
