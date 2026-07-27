@@ -1260,13 +1260,16 @@ export default function MemberDetail({ memberId }: Props) {
             </CardContent>
           </Card>
 
-          {/* 컨디션 체크 이력 */}
-          {conditionChecks && conditionChecks.length > 0 && (
-            <Card className="bg-card border-border">
-              <CardHeader className="px-4 pb-2 pt-4">
-                <CardTitle className="text-sm">컨디션 체크 이력</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
+          {/* 헬스장 출입 / 컨디션 체크 이력 (키오스크 출입이 여기에 기록된다) */}
+          <Card className="bg-card border-border">
+            <CardHeader className="px-4 pb-2 pt-4">
+              <CardTitle className="text-sm">헬스장 출입 · 컨디션 체크 이력</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">키오스크 출입 기록이 여기에 표시됩니다</p>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {!conditionChecks || conditionChecks.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-3">출입 기록이 없습니다</p>
+              ) : (
                 <div className="space-y-0">
                   {conditionChecks.map((check) => (
                     <div key={check.id} className="flex items-start gap-3 py-2.5 border-b border-border last:border-0">
@@ -1301,9 +1304,9 @@ export default function MemberDetail({ memberId }: Props) {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
