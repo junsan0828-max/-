@@ -4453,22 +4453,37 @@ ${dataContext}
     );
 
     // gym_plus_members의 memberId로 attendance_checks에서 출입 횟수 조회
-    const [gymMember] = await db.select({ memberId: gymPlusMembers.memberId })
+    // (memberId 연결이 안 된 계정은 전화번호로 대체 매칭 — 키오스크 출입은 members 테이블 기준으로 기록되므로
+    // memberId 연결이 누락되면 실제 출입 기록이 있어도 0회로 보이는 문제를 방지)
+    const [gymMember] = await db.select({ memberId: gymPlusMembers.memberId, phone: gymPlusMembers.phone, username: gymPlusMembers.username })
       .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+
+    let mainMemberId: number | null = gymMember?.memberId ?? null;
+    if (!mainMemberId) {
+      const phone = gymMember?.phone || gymMember?.username;
+      const digits = phone?.replace(/\D/g, "");
+      if (digits && digits.length >= 4) {
+        const phoneMatch = await pool.query(
+          `SELECT id FROM members WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = $1 LIMIT 1`,
+          [digits]
+        );
+        mainMemberId = phoneMatch.rows[0]?.id ?? null;
+      }
+    }
 
     let attendanceCount = 0;
     let recentAttendances: { checkDate: string; checkTime: string | null; status: string }[] = [];
 
-    if (gymMember?.memberId) {
+    if (mainMemberId) {
       const acResult = await pool.query(
         `SELECT COUNT(*) as count FROM attendance_checks WHERE "memberId" = $1 AND status = 'attended'`,
-        [gymMember.memberId]
+        [mainMemberId]
       );
       attendanceCount = parseInt(acResult.rows[0]?.count ?? "0", 10);
 
       const recentAcResult = await pool.query(
         `SELECT "checkDate", "checkTime", status FROM attendance_checks WHERE "memberId" = $1 ORDER BY "checkDate" DESC, "checkTime" DESC LIMIT 5`,
-        [gymMember.memberId]
+        [mainMemberId]
       );
       recentAttendances = recentAcResult.rows;
     }
