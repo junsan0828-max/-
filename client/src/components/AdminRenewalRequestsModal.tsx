@@ -12,7 +12,7 @@ const PERIOD_PRICES: Record<string, number> = {
   "12개월": 312000,
 };
 
-// ZIANTGYM+ 회원앱에서 들어오는 재등록 신청을 관리자가 즉시 확인·승인할 수 있는 알림 모달
+// ZIANTGYM+ 회원앱에서 들어오는 재등록/포인트 충전 신청을 관리자가 즉시 확인·승인할 수 있는 알림 모달
 // (선택지 A: 관리자 승인 화면 + 선택지 B: 즉시 알림을 하나로 결합)
 export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolean }) {
   const [open, setOpen] = useState(false);
@@ -23,8 +23,14 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
     { status: "pending" },
     { enabled, refetchInterval: 30000 }
   );
+  const { data: pendingCharges } = trpc.gymPlus.admin_listPointChargeRequests.useQuery(
+    { status: "pending" },
+    { enabled, refetchInterval: 30000 }
+  );
 
-  const pendingCount = pending?.length ?? 0;
+  const renewalCount = pending?.length ?? 0;
+  const chargeCount = pendingCharges?.length ?? 0;
+  const pendingCount = renewalCount + chargeCount;
 
   useEffect(() => {
     if (!autoOpened.current && pendingCount > 0) {
@@ -37,6 +43,14 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
     onSuccess: (_, variables) => {
       toast.success(variables.action === "approved" ? "재등록을 승인했습니다. 만료일이 자동 연장되었습니다." : "신청을 거절했습니다.");
       utils.gymPlus.adminListRenewals.invalidate();
+    },
+    onError: (e) => toast.error(e.message || "처리 실패"),
+  });
+
+  const approveChargeMutation = trpc.gymPlus.admin_approvePointChargeRequest.useMutation({
+    onSuccess: (_, variables) => {
+      toast.success(variables.action === "approved" ? "포인트 충전을 승인했습니다." : "신청을 거절했습니다.");
+      utils.gymPlus.admin_listPointChargeRequests.invalidate();
     },
     onError: (e) => toast.error(e.message || "처리 실패"),
   });
@@ -64,18 +78,62 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bell className="h-4 w-4 text-primary" />
-              재등록 신청 {pendingCount > 0 ? `(${pendingCount}건 대기)` : ""}
+              회원 신청 알림 {pendingCount > 0 ? `(${pendingCount}건 대기)` : ""}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              ZIANTGYM+ 회원앱에서 접수된 재등록 신청입니다. 결제 확인 후 승인하면 회원권 만료일이 자동으로 연장됩니다.
+              ZIANTGYM+ 회원앱에서 접수된 재등록·포인트 충전 신청입니다.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-            {!pending || pending.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">대기 중인 재등록 신청이 없습니다.</p>
-            ) : (
-              pending.map((r) => {
+          <div className="space-y-4 max-h-[65vh] overflow-y-auto">
+            {/* 포인트 충전 신청 */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-muted-foreground">포인트 충전 신청 {chargeCount > 0 ? `(${chargeCount})` : ""}</p>
+              {!pendingCharges || pendingCharges.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-3">대기 중인 충전 신청이 없습니다.</p>
+              ) : (
+                <div className="space-y-2">
+                  {pendingCharges.map((c) => (
+                    <div key={c.id} className="border border-border rounded-xl p-3.5 space-y-2 bg-accent/10">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-bold text-sm">{c.memberName ?? "-"}</p>
+                          <p className="text-xs text-muted-foreground">{c.memberPhone ?? "-"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-primary text-sm">{c.requestedAmount.toLocaleString()}P</p>
+                          <p className="text-xs text-muted-foreground">{c.paymentMethod}</p>
+                        </div>
+                      </div>
+                      {c.note && <p className="text-xs text-muted-foreground bg-background/40 rounded-lg p-2">{c.note}</p>}
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          variant="outline" size="sm" className="flex-1 h-8 text-xs"
+                          disabled={approveChargeMutation.isPending}
+                          onClick={() => approveChargeMutation.mutate({ id: c.id, action: "rejected" })}
+                        >거절</Button>
+                        <Button
+                          size="sm" className="flex-1 h-8 text-xs"
+                          disabled={approveChargeMutation.isPending}
+                          onClick={() => approveChargeMutation.mutate({ id: c.id, action: "approved" })}
+                        >승인 (포인트 자동 충전)</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* 재등록 신청 */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-muted-foreground">재등록 신청 {renewalCount > 0 ? `(${renewalCount})` : ""}</p>
+              {!pending || pending.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-3">대기 중인 재등록 신청이 없습니다.</p>
+              ) : (
+                <div className="space-y-2">
+                  {pending.map((r) => {
                 // 결제방법·금액은 구조화 필드 우선, 없으면 옛 기록 호환(메모/기간표 파싱)
                 const paymentMethod = r.paymentMethod ?? r.notes?.match(/결제방법:\s*([^\n]+)/)?.[1];
                 const amount = r.requestedAmount ?? PERIOD_PRICES[r.requestedPeriod];
@@ -130,9 +188,11 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
                       </Button>
                     </div>
                   </div>
-                );
-              })
-            )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -42,6 +42,7 @@ import {
   gymPlusPointLogs,
   gymPlusPurchaseRequests,
   gymPlusPointClaims,
+  gymPlusPointChargeRequests,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -4196,6 +4197,94 @@ ${dataContext}
         reason: input.reason,
       });
       return { balance: newBalance };
+    }),
+
+  // ─── 포인트 충전 신청 ────────────────────────────────────────────────────────
+
+  requestPointCharge: gymPlusProtected
+    .input(z.object({
+      requestedAmount: z.number().int().min(1000).max(1000000),
+      paymentMethod: z.string(),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      await db.insert(gymPlusPointChargeRequests).values({
+        gymPlusMemberId: ctx.gymPlusMemberId,
+        requestedAmount: input.requestedAmount,
+        paymentMethod: input.paymentMethod,
+        note: input.note,
+        status: "pending",
+      });
+      return { success: true };
+    }),
+
+  getMyPointChargeRequests: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(gymPlusPointChargeRequests)
+      .where(eq(gymPlusPointChargeRequests.gymPlusMemberId, ctx.gymPlusMemberId))
+      .orderBy(desc(gymPlusPointChargeRequests.createdAt))
+      .limit(30);
+  }),
+
+  admin_listPointChargeRequests: adminOnlyGymPlus
+    .input(z.object({ status: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const rows = await db.select({
+        id: gymPlusPointChargeRequests.id,
+        gymPlusMemberId: gymPlusPointChargeRequests.gymPlusMemberId,
+        requestedAmount: gymPlusPointChargeRequests.requestedAmount,
+        paymentMethod: gymPlusPointChargeRequests.paymentMethod,
+        note: gymPlusPointChargeRequests.note,
+        status: gymPlusPointChargeRequests.status,
+        createdAt: gymPlusPointChargeRequests.createdAt,
+        memberName: gymPlusMembers.name,
+        memberPhone: gymPlusMembers.phone,
+      }).from(gymPlusPointChargeRequests)
+        .leftJoin(gymPlusMembers, eq(gymPlusPointChargeRequests.gymPlusMemberId, gymPlusMembers.id))
+        .where(input?.status ? eq(gymPlusPointChargeRequests.status, input.status) : undefined)
+        .orderBy(desc(gymPlusPointChargeRequests.createdAt));
+      return rows;
+    }),
+
+  admin_approvePointChargeRequest: adminOnlyGymPlus
+    .input(z.object({
+      id: z.number(),
+      action: z.enum(["approved", "rejected"]),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [reqRow] = await db.select().from(gymPlusPointChargeRequests)
+        .where(eq(gymPlusPointChargeRequests.id, input.id)).limit(1);
+      if (!reqRow) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
+      if (reqRow.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 처리된 신청입니다." });
+
+      await db.update(gymPlusPointChargeRequests).set({ status: input.action })
+        .where(eq(gymPlusPointChargeRequests.id, input.id));
+
+      if (input.action === "approved") {
+        const [member] = await db.select({ points: gymPlusMembers.points })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, reqRow.gymPlusMemberId)).limit(1);
+        if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "회원을 찾을 수 없습니다." });
+        const newBalance = (member.points ?? 0) + reqRow.requestedAmount;
+        await db.update(gymPlusMembers).set({ points: newBalance })
+          .where(eq(gymPlusMembers.id, reqRow.gymPlusMemberId));
+        await db.insert(gymPlusPointLogs).values({
+          gymPlusMemberId: reqRow.gymPlusMemberId,
+          type: "charge",
+          amount: reqRow.requestedAmount,
+          balanceAfter: newBalance,
+          reason: `포인트 충전 신청 승인 (${reqRow.paymentMethod})`,
+        });
+        return { success: true, balance: newBalance };
+      }
+
+      return { success: true };
     }),
 
   // ─── 출입 포인트 설정 ────────────────────────────────────────────────────────

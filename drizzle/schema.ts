@@ -586,3 +586,13 @@ export const gymPlusPurchaseRequests = pgTable("gym_plus_purchase_requests", {
   note: text("note"),
   createdAt: text("createdAt").default(now).notNull(),
 });
+
+export const gymPlusPointChargeRequests = pgTable("gym_plus_point_charge_requests", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  requestedAmount: integer("requestedAmount").notNull(), // 충전 신청 포인트 (1P = 1원)
+  paymentMethod: text("paymentMethod").notNull(), // "카드" | "현금" | "계좌이체"
+  note: text("note"),
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected"
+  createdAt: text("createdAt").default(now).notNull(),
+});

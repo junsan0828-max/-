@@ -556,6 +556,15 @@ async function initDatabase() {
       note TEXT,
       "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
+    `CREATE TABLE IF NOT EXISTS gym_plus_point_charge_requests (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "requestedAmount" INTEGER NOT NULL,
+      "paymentMethod" TEXT NOT NULL,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
     `CREATE TABLE IF NOT EXISTS gym_plus_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
