@@ -70,6 +70,7 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  LogIn,
 } from "lucide-react";
 
 interface Props {
@@ -443,6 +444,8 @@ export default function MemberDetail({ memberId }: Props) {
     ?.filter(p => p.status === "active")
     .reduce((sum, p) => sum + (p.totalSessions - p.usedSessions), 0) ?? 0;
   const totalAttendance = attendanceList?.filter(a => a.status === "attended").length ?? 0;
+  // 키오스크 출입은 attendance_checks(컨디션 체크)에 기록된다 — PT 출석(attendances)과는 별개 데이터
+  const totalGymEntries = conditionChecks?.filter(c => c.status === "attended").length ?? 0;
   const memoCount = memoList?.length ?? 0;
 
   return (
@@ -524,10 +527,11 @@ export default function MemberDetail({ memberId }: Props) {
       </div>
 
       {/* 요약 통계 카드 */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {[
           { icon: <Dumbbell className="h-5 w-5 text-primary" />, value: remainingPt, label: "잔여 PT 횟수" },
-          { icon: <CheckCircle className="h-5 w-5 text-green-400" />, value: totalAttendance, label: "총 출석 횟수" },
+          { icon: <CheckCircle className="h-5 w-5 text-green-400" />, value: totalAttendance, label: "PT 출석 횟수" },
+          { icon: <LogIn className="h-5 w-5 text-violet-400" />, value: totalGymEntries, label: "헬스장 출입 횟수" },
           { icon: <BookOpen className="h-5 w-5 text-blue-400" />, value: memoCount, label: "운동 메모" },
         ].map((item) => (
           <Card key={item.label} className="bg-card border-border">
