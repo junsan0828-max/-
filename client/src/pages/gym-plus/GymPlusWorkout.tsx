@@ -53,7 +53,7 @@ const BODY_PARTS = [
 ];
 
 interface ExerciseSet { reps: string; weight: string; }
-interface Exercise { name: string; sets: ExerciseSet[]; videoUrl?: string; }
+interface Exercise { name: string; sets: ExerciseSet[]; videoUrl?: string; restSeconds?: number; }
 
 // ── 칼로리 계산 ───────────────────────────────────────────────────────────────
 const COMPOUND_KEYWORDS = ["스쿼트", "데드리프트", "벤치", "랫풀", "런지", "로우", "딥스", "풀업", "프레스", "클린", "턱걸이", "친업"];
@@ -173,8 +173,10 @@ function ExerciseRowWithVideo({ ex }: { ex: any }) {
         <span className="text-foreground font-medium flex-1">{ex.name}</span>
         {hasSets && (
           <span>{ex.sets.length}세트
-            {ex.sets[0]?.reps ? ` × ${ex.sets[0].reps}회` : ""}
+            {/* 추천 횟수는 "12~15회"처럼 단위가 이미 붙어 올 수 있어, 숫자만일 때만 '회'를 덧붙인다 */}
+            {ex.sets[0]?.reps ? ` × ${ex.sets[0].reps}${/^\d+$/.test(String(ex.sets[0].reps)) ? "회" : ""}` : ""}
             {ex.sets[0]?.weight ? ` ${ex.sets[0].weight}kg` : ""}
+            {ex.restSeconds ? ` · 휴식 ${ex.restSeconds}초` : ""}
           </span>
         )}
         {ex.videoUrl && (
@@ -395,7 +397,7 @@ function CardioSettingsModal({
 
 // ── 운동 진행 모달 (타이머 + 세트 기록) ───────────────────────────────────────
 interface ActiveSet { reps: string; weight: string; done: boolean; }
-interface ActiveExercise { name: string; sets: ActiveSet[]; done: boolean; videoUrl?: string; }
+interface ActiveExercise { name: string; sets: ActiveSet[]; done: boolean; videoUrl?: string; restSeconds?: number; }
 
 function ActiveWorkoutModal({
   log,
@@ -427,6 +429,7 @@ function ActiveWorkoutModal({
         sets: Array.isArray(e.sets) && e.sets.length > 0 ? e.sets.map((s: any) => ({ reps: s.reps ?? "", weight: s.weight ?? "", done: false })) : [{ reps: "", weight: "", done: false }],
         done: false,
         videoUrl: e.videoUrl,
+        restSeconds: e.restSeconds,
       }));
     } catch { return []; }
   });
@@ -492,7 +495,7 @@ function ActiveWorkoutModal({
 
   function handleFinish() {
     const minutes = Math.max(1, Math.round(elapsed / 60));
-    const updated: Exercise[] = exList.map((e) => ({ name: e.name, sets: e.sets, videoUrl: e.videoUrl }));
+    const updated: Exercise[] = exList.map((e) => ({ name: e.name, sets: e.sets, videoUrl: e.videoUrl, restSeconds: e.restSeconds }));
     const stats = calculateWorkoutStats(exList, minutes, bodyParts, parseFloat(bodyWeightKg) || 70);
     setResult(stats);
     setUpdatedExercises(updated);
@@ -636,9 +639,14 @@ function ActiveWorkoutModal({
               <div key={ei} className={`border rounded-xl overflow-hidden transition-colors ${allDone ? "border-green-500/40 bg-green-500/5" : "border-border bg-card"}`}>
                 {/* 종목 헤더 */}
                 <div className="flex items-center gap-2 px-3 py-2.5">
-                  <span className={`flex-1 text-sm font-medium ${allDone ? "text-green-400" : "text-foreground"}`}>
-                    {ex.name}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-sm font-medium ${allDone ? "text-green-400" : "text-foreground"}`}>
+                      {ex.name}
+                    </span>
+                    {ex.restSeconds ? (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">세트 간 휴식 {ex.restSeconds}초</p>
+                    ) : null}
+                  </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${allDone ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
                     {doneSets}/{ex.sets.length} 완료
                   </span>
@@ -826,6 +834,7 @@ export default function GymPlusWorkout() {
   const { data: health } = trpc.gymPlus.getHealth.useQuery();
   const defaultWeight = health?.weight ?? "70";
   const { data: logs, isLoading } = trpc.gymPlus.listWorkoutLogs.useQuery({});
+  const { data: todayRec } = trpc.gymPlus.getTodayRecommendations.useQuery();
   const { data: patternData, isFetching: patternLoading, refetch: refetchPattern } =
     trpc.gymPlus.analyzeWorkoutPattern.useQuery(undefined, { enabled: false });
 
@@ -859,6 +868,32 @@ export default function GymPlusWorkout() {
   }
 
   function openCreate() { resetForm(); setEditingId(null); setShowForm(true); }
+
+  // 출석체크 시 추천된 운동을 오늘의 본 운동 종목으로 그대로 채워 넣는다.
+  // 회원이 종목명을 직접 타이핑할 필요 없이 세트 체크만 하면 되도록 하는 것이 목적.
+  const recommendedVideos = todayRec?.recommendedVideos ?? [];
+  function startRecommendedWorkout() {
+    if (recommendedVideos.length === 0) return;
+    const exercises: Exercise[] = recommendedVideos.map((v: any) => ({
+      name: v.title,
+      videoUrl: v.videoUrl ?? undefined,
+      restSeconds: v.restSeconds ?? undefined,
+      // 추천 세트 수만큼 세트를 미리 만들어 두고, 목표 횟수를 기본값으로 채운다
+      sets: Array.from({ length: v.recommendedSets ?? 3 }, () => ({
+        reps: v.recommendedReps ?? "",
+        weight: "",
+      })),
+    }));
+    createMutation.mutate({
+      logDate: today,
+      title: "맞춤 운동",
+      exercisesJson: JSON.stringify(exercises),
+      bodyPartsJson: todayRec?.checkIn?.bodyPartsJson ?? undefined,
+      conditionScore: todayRec?.checkIn?.conditionScore ?? undefined,
+      sleepHours: todayRec?.checkIn?.sleepHours ?? undefined,
+      energyLevel: todayRec?.checkIn?.energyLevel ?? undefined,
+    });
+  }
 
   function openEdit(log: any) {
     setForm({ logDate: log.logDate, title: log.title ?? "", notes: log.notes ?? "", conditionScore: log.conditionScore ?? null, sleepHours: log.sleepHours ?? "", energyLevel: log.energyLevel ?? "" });
@@ -1133,14 +1168,14 @@ export default function GymPlusWorkout() {
             </div>
           </div>
 
-          {/* ── 2. 근력운동 카드 ── */}
+          {/* ── 2. 본 운동 카드 ── */}
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">근력</span>
+                <span className="w-5 h-5 rounded bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">본</span>
                 <div>
-                  <p className="font-semibold text-sm">근력운동</p>
-                  <p className="text-[10px] text-muted-foreground">운동 계획 · 세트 기록</p>
+                  <p className="font-semibold text-sm">본 운동</p>
+                  <p className="text-[10px] text-muted-foreground">맞춤 운동 받기 · 직접 기록</p>
                 </div>
               </div>
               {todayLogs.length > 0 && (
@@ -1148,20 +1183,45 @@ export default function GymPlusWorkout() {
               )}
             </div>
             <div className="px-4 py-3 space-y-3">
-              <button
-                onClick={openCreate}
-                className="w-full py-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 flex items-center justify-center gap-2 hover:bg-primary/10 transition-colors"
-              >
-                <span className="text-primary font-bold text-lg leading-none">+</span>
-                <span className="text-sm font-semibold text-primary">오늘 운동 계획 추가</span>
-              </button>
-              {todayLogs.length > 0 && (
-                <div className="space-y-2">
-                  {todayLogs.map(log => renderLogCard(log))}
-                </div>
-              )}
-              {todayLogs.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-1">종목을 입력하고 운동을 시작하세요</p>
+              {todayLogs.length === 0 ? (
+                <>
+                  <p className="text-xs text-muted-foreground text-center">오늘 운동을 어떻게 시작할까요?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* 맞춤 운동 받기 — 추천 종목·세트·횟수가 자동으로 채워진다 */}
+                    <button
+                      onClick={startRecommendedWorkout}
+                      disabled={recommendedVideos.length === 0 || createMutation.isPending}
+                      className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl bg-primary text-primary-foreground font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all"
+                    >
+                      <span className="text-lg leading-none">✦</span>
+                      <span className="text-sm">맞춤 운동 받기</span>
+                      <span className="text-[10px] font-normal opacity-80">
+                        {recommendedVideos.length > 0 ? `${recommendedVideos.length}개 종목 자동 입력` : "출석체크 후 이용 가능"}
+                      </span>
+                    </button>
+                    {/* 직접 기록 — 기존 방식 */}
+                    <button
+                      onClick={openCreate}
+                      className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 active:scale-95 transition-all"
+                    >
+                      <span className="text-primary font-bold text-lg leading-none">+</span>
+                      <span className="text-sm font-semibold text-primary">직접 기록하기</span>
+                      <span className="text-[10px] text-muted-foreground">종목을 직접 입력</span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {todayLogs.map(log => renderLogCard(log))}
+                  </div>
+                  <button
+                    onClick={openCreate}
+                    className="w-full py-2.5 rounded-xl border border-dashed border-border text-xs text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                  >
+                    + 운동 추가
+                  </button>
+                </>
               )}
             </div>
           </div>
