@@ -4439,18 +4439,42 @@ ${dataContext}
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    // 운동 기록 횟수
+    // 운동 기록 횟수 (앱 출석체크 로그는 운동 기록이 아니므로 제외 — 앱의 다른 화면과 동일 기준)
     const workoutCountResult = await pool.query(
-      `SELECT COUNT(*) as count FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1`,
+      `SELECT COUNT(*) as count FROM gym_plus_workout_logs
+       WHERE "gymPlusMemberId" = $1 AND title <> '출석체크'`,
       [ctx.gymPlusMemberId]
     );
     const workoutCount = parseInt(workoutCountResult.rows[0]?.count ?? "0", 10);
 
     // 최근 운동 기록 (최근 5개)
-    const recentWorkouts = await pool.query(
-      `SELECT "workoutDate", "totalSets", "workoutTheme" FROM gym_plus_workout_logs WHERE "gymPlusMemberId" = $1 ORDER BY "workoutDate" DESC LIMIT 5`,
+    // 이 테이블의 날짜 컬럼은 logDate이고 totalSets 컬럼은 없다. 세트 수는 exercisesJson에서 계산한다.
+    const recentWorkoutRows = await pool.query(
+      `SELECT "logDate", "workoutTheme", "exercisesJson" FROM gym_plus_workout_logs
+       WHERE "gymPlusMemberId" = $1 AND title <> '출석체크'
+       ORDER BY "logDate" DESC LIMIT 5`,
       [ctx.gymPlusMemberId]
     );
+    const recentWorkouts = recentWorkoutRows.rows.map((r: any) => {
+      let totalSets: number | null = null;
+      try {
+        const exercises = r.exercisesJson ? JSON.parse(r.exercisesJson) : [];
+        if (Array.isArray(exercises)) {
+          const n = exercises.reduce(
+            (sum: number, e: any) => sum + (Array.isArray(e?.sets) ? e.sets.length : 0), 0);
+          if (n > 0) totalSets = n;
+        }
+      } catch { /* 형식이 깨진 기록은 세트 수 없이 표시 */ }
+
+      // workoutTheme은 JSON 배열 문자열로 저장되므로 사람이 읽을 수 있게 변환
+      let theme: string | null = r.workoutTheme ?? null;
+      try {
+        const parsed = r.workoutTheme ? JSON.parse(r.workoutTheme) : null;
+        if (Array.isArray(parsed)) theme = parsed.join(", ") || null;
+      } catch { /* 평문이면 그대로 사용 */ }
+
+      return { workoutDate: r.logDate, totalSets, workoutTheme: theme };
+    });
 
     // 출입 횟수 조회용 members.id 후보 수집.
     // 키오스크는 항상 전화번호로 members를 찾아 attendance_checks를 기록하므로, 전화번호로
@@ -4492,7 +4516,7 @@ ${dataContext}
     return {
       workoutCount,
       attendanceCount,
-      recentWorkouts: recentWorkouts.rows,
+      recentWorkouts,
       recentAttendances,
     };
   }),
