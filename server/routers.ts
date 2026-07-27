@@ -4527,6 +4527,31 @@ ${dataContext}
         [ids]
       );
       recentAttendances = recentAcResult.rows;
+
+      // 통합운영시스템 키오스크는 출입을 access_logs에 기록한다(attendance_checks가 아님).
+      // 같은 DB를 쓰는 경우 그 출입도 합산해야 회원이 실제 출입 횟수를 볼 수 있다.
+      // access_logs가 없는 환경에서는 조용히 건너뛴다.
+      try {
+        const alCount = await pool.query(
+          `SELECT COUNT(*) as count FROM access_logs
+           WHERE "memberId" = ANY($1::int[]) AND "accessResult" = 'allowed'`,
+          [ids]
+        );
+        attendanceCount += parseInt(alCount.rows[0]?.count ?? "0", 10);
+
+        const alRecent = await pool.query(
+          `SELECT LEFT("accessedAt", 10) as "checkDate",
+                  SUBSTRING("accessedAt" FROM 12 FOR 5) as "checkTime",
+                  'attended' as status
+           FROM access_logs
+           WHERE "memberId" = ANY($1::int[]) AND "accessResult" = 'allowed'
+           ORDER BY "accessedAt" DESC LIMIT 5`,
+          [ids]
+        );
+        recentAttendances = [...recentAttendances, ...alRecent.rows]
+          .sort((a, b) => (b.checkDate ?? "").localeCompare(a.checkDate ?? ""))
+          .slice(0, 5);
+      } catch { /* access_logs 미존재(별도 DB) — 무시 */ }
     }
 
     return {
