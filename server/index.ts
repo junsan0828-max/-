@@ -29,7 +29,9 @@ const pgStore = new PgSession({
   pool,
   tableName: "session",
   createTableIfMissing: true,
-  disableTouch: true,
+  // disableTouch(false, 기본값): 활동이 있을 때마다 만료시각을 연장한다(rolling session).
+  // 예전엔 true였는데, 그러면 로그인 시점 기준 정확히 7일 뒤 활동 여부와 무관하게 무조건
+  // 로그아웃되어 "계속 쓰는데도 자꾸 세션 만료" 문제로 이어졌다.
   errorLog: (err: Error) => console.error("session store error:", err.message),
 });
 
@@ -43,6 +45,10 @@ app.use(
     secret: process.env.SESSION_SECRET || "trainer-app-secret",
     resave: false,
     saveUninitialized: false,
+    // rolling: 요청마다 쿠키를 다시 내려보내 브라우저 쪽 만료시각도 같이 연장한다.
+    // 위 pgStore의 touch(서버 쪽 연장)만으로는 부족하다 — 브라우저 쿠키 자체가 로그인 시점
+    // 기준 만료로 고정되어 있으면, 서버가 연장해봐야 그 쿠키가 먼저 사라져 소용없다.
+    rolling: true,
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
