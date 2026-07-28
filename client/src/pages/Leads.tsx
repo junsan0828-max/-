@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
+import { GymPlusRenewalsAdmin } from "./gym-plus/GymPlusAdmin";
 import {
   Plus, Search, Phone, MessageSquare, CheckCircle2,
   Bell, UserCheck, ChevronLeft, ChevronRight, X,
@@ -215,6 +216,7 @@ export default function LeadsPage() {
   const [, setPageLocation] = useLocation();
   const { data: me } = trpc.auth.me.useQuery();
   const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery({ status: "pending" }, { refetchInterval: 30000 });
+  const [renewalModalOpen, setRenewalModalOpen] = useState(false);
   const isSubAdmin = me?.role === "sub_admin";
   const isTrainer = me?.role === "trainer";
   const now = new Date();
@@ -825,11 +827,11 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-4">
-      {/* 앱 재등록 신청 알림 배너 */}
+      {/* 앱 재등록 신청 알림 배너 — 별도 로그인 없이 그 자리에서 모달로 바로 처리 */}
       {(pendingRenewals?.length ?? 0) > 0 && (
         <div
           className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 cursor-pointer"
-          onClick={() => setPageLocation("/admin/gymplus")}
+          onClick={() => setRenewalModalOpen(true)}
         >
           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 shrink-0">
             <RotateCcw className="h-4 w-4 text-emerald-400 animate-pulse" />
@@ -837,6 +839,20 @@ export default function LeadsPage() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-emerald-300">앱 재등록 신청 {pendingRenewals!.length}건</p>
             <p className="text-xs text-emerald-400/70">회원앱에서 들어온 재등록 신청이 처리 대기 중입니다. 탭하여 처리하세요.</p>
+          </div>
+        </div>
+      )}
+
+      {renewalModalOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/70 flex items-end md:items-center justify-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} onClick={() => setRenewalModalOpen(false)}>
+          <div className="bg-background border border-border rounded-t-2xl md:rounded-2xl w-full md:max-w-lg flex flex-col" style={{ maxHeight: 'calc(85svh - env(safe-area-inset-bottom))' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+              <h2 className="font-semibold text-foreground">앱 재등록 신청 처리</h2>
+              <button onClick={() => setRenewalModalOpen(false)} className="text-muted-foreground hover:text-foreground p-1">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4">
+              <GymPlusRenewalsAdmin />
+            </div>
           </div>
         </div>
       )}
