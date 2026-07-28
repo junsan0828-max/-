@@ -86,6 +86,11 @@ function kstDate(offsetDays = 0): string {
   return new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000).toISOString().substring(0, 10);
 }
 
+// 트레이너의 "담당 회원"은 PT 회원만이다. 헬스권/락커/운동복만 있는 회원은 담당 트레이너
+// 개념이 없으므로(일반 회원관리에서만 관리) 트레이너 화면 목록에서 제외한다.
+// PT 이력이 한 번이라도 있으면(완료된 패키지 포함) 담당 회원으로 본다.
+const hasPtPackage = sql`EXISTS (SELECT 1 FROM pt_packages p WHERE p."memberId" = ${members.id})`;
+
 // 카드/현금영수증/지역화폐는 부가세 10% 제외, 계좌이체/이체는 그대로, 혼합은 이체분+카드분(VAT제외) 합산
 function calcPricePerSession(paymentAmount: number | undefined, sessions: number | undefined, paymentMethod?: string, transferAmount?: number, cardAmount?: number): number | undefined {
   if (!paymentAmount || !sessions || sessions <= 0) return undefined;
@@ -905,7 +910,7 @@ const membersRouter = t.router({
       const allMembers = await db
         .select({ id: members.id, name: members.name, phone: members.phone })
         .from(members)
-        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")));
+        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active"), hasPtPackage));
 
       const result = await Promise.all(
         allMembers.map(async (m) => {
@@ -2213,7 +2218,7 @@ const ptRouter = t.router({
       })
       .from(members)
       .leftJoin(ptSessionLogs, eq(ptSessionLogs.memberId, members.id))
-      .where(eq(members.trainerId, trainerId))
+      .where(and(eq(members.trainerId, trainerId), hasPtPackage))
       .groupBy(members.id, members.name)
       .orderBy(desc(sql<number>`COUNT(${ptSessionLogs.id})`));
     return rows;
@@ -2538,10 +2543,10 @@ const trainersRouter = t.router({
       remainingPtResult,
       trainerResult,
     ] = await Promise.all([
-      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, trainerId)),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, trainerId), hasPtPackage)),
       db.select({ count: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, trainerId)),
       db.select({ count: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, trainerId), eq(attendanceChecks.status, "noshow"))),
-      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, trainerId), eq(members.status, "inactive"))),
+      db.select({ count: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, trainerId), eq(members.status, "inactive"), hasPtPackage)),
       db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
         .from(ptPackages)
         .where(and(eq(ptPackages.trainerId, trainerId), eq(ptPackages.status, "active"))),
@@ -3856,7 +3861,7 @@ const adminRouter = t.router({
       const memberList = await db
         .select()
         .from(members)
-        .where(eq(members.trainerId, input.trainerId))
+        .where(and(eq(members.trainerId, input.trainerId), hasPtPackage))
         .orderBy(desc(members.createdAt));
 
       const withPt = await Promise.all(memberList.map(async (m) => {
@@ -4021,10 +4026,10 @@ const adminRouter = t.router({
           pkgCountByMember,
           totalMemosRes, monthMemosRes, todayMemosRes,
         ] = await Promise.all([
-          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(eq(members.trainerId, tid)),
+          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), hasPtPackage)),
           db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(eq(ptSessionLogs.trainerId, tid)),
           db.select({ c: sql<number>`COUNT(*)` }).from(attendanceChecks).where(and(eq(attendanceChecks.trainerId, tid), eq(attendanceChecks.status, "noshow"))),
-          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), eq(members.status, "inactive"))),
+          db.select({ c: sql<number>`COUNT(*)` }).from(members).where(and(eq(members.trainerId, tid), eq(members.status, "inactive"), hasPtPackage)),
           db.select({ total: sql<number>`COALESCE(SUM(${ptPackages.totalSessions} - ${ptPackages.usedSessions}), 0)` })
             .from(ptPackages).where(and(eq(ptPackages.trainerId, tid), eq(ptPackages.status, "active"))),
           db.select({ c: sql<number>`COUNT(*)` }).from(ptSessionLogs).where(and(
@@ -4297,7 +4302,8 @@ const dashboardRouter = t.router({
           .where(and(
             eq(members.trainerId, trainerId),
             sql`${members.createdAt} >= ${m.start}`,
-            sql`${members.createdAt} < ${m.end}`
+            sql`${members.createdAt} < ${m.end}`,
+            hasPtPackage
           )),
       ]);
       return {
@@ -4426,7 +4432,7 @@ const attendanceChecksRouter = t.router({
       const memberList = await db
         .select({ id: members.id, name: members.name, status: members.status })
         .from(members)
-        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active")))
+        .where(and(eq(members.trainerId, trainerId), eq(members.status, "active"), hasPtPackage))
         .orderBy(members.name);
 
       const checks = await db
