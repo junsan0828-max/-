@@ -3002,39 +3002,53 @@ const gymPlusRouter = t.router({
     const levelMap: Record<string, string> = { "높음": "advanced", "보통": "intermediate", "낮음": "beginner" };
     const level = checkIn.intensity ? levelMap[checkIn.intensity] : null;
 
-    let videos: any[] = [];
+    // 항상 3종목을 채운다. 단계마다 바로 중복을 걸러야 하며(마지막에 한꺼번에 걸러내면
+    // 중복이 개수를 부풀려 실제로는 3개 미만이 나온다), 마지막 랜덤 보충은 이미 고른 영상을 제외한다.
+    const TARGET = 3;
+    const picked: any[] = [];
+    const seen = new Set<number>();
+    const add = (rows: any[]) => {
+      for (const v of rows) {
+        if (picked.length >= TARGET) return;
+        if (seen.has(v.id)) continue;
+        seen.add(v.id);
+        picked.push(v);
+      }
+    };
+
     if (bodyParts.length > 0) {
       for (const part of bodyParts) {
-        const found = await db.select().from(gymPlusVideos)
-          .where(and(eq(gymPlusVideos.isPublished, 1), sql`${gymPlusVideos.bodyPart} ILIKE ${'%' + part + '%'}`)).limit(2);
-        videos.push(...found);
+        if (picked.length >= TARGET) break;
+        add(await db.select().from(gymPlusVideos)
+          .where(and(eq(gymPlusVideos.isPublished, 1), sql`${gymPlusVideos.bodyPart} ILIKE ${'%' + part + '%'}`))
+          .orderBy(sql`RANDOM()`).limit(TARGET));
       }
     }
-    if (videos.length < 3 && themes.length > 0) {
+    if (picked.length < TARGET && themes.length > 0) {
       for (const theme of themes) {
+        if (picked.length >= TARGET) break;
         const keyword = theme === "유산소 위주" ? "유산소" : theme === "스트레칭 위주" ? "스트레칭" : null;
-        if (keyword) {
-          const found = await db.select().from(gymPlusVideos)
-            .where(and(eq(gymPlusVideos.isPublished, 1), sql`(${gymPlusVideos.bodyPart} ILIKE ${'%' + keyword + '%'} OR ${gymPlusVideos.title} ILIKE ${'%' + keyword + '%'})`)).limit(2);
-          videos.push(...found);
-        }
+        if (!keyword) continue;
+        add(await db.select().from(gymPlusVideos)
+          .where(and(eq(gymPlusVideos.isPublished, 1), sql`(${gymPlusVideos.bodyPart} ILIKE ${'%' + keyword + '%'} OR ${gymPlusVideos.title} ILIKE ${'%' + keyword + '%'})`))
+          .orderBy(sql`RANDOM()`).limit(TARGET));
       }
     }
-    if (videos.length < 3 && level) {
-      const found = await db.select().from(gymPlusVideos)
+    if (picked.length < TARGET && level) {
+      add(await db.select().from(gymPlusVideos)
         .where(and(eq(gymPlusVideos.isPublished, 1), eq(gymPlusVideos.level, level)))
-        .orderBy(sql`RANDOM()`).limit(3);
-      videos.push(...found);
+        .orderBy(sql`RANDOM()`).limit(TARGET));
     }
-    if (videos.length < 3) {
-      const found = await db.select().from(gymPlusVideos)
-        .where(eq(gymPlusVideos.isPublished, 1)).orderBy(sql`RANDOM()`).limit(3);
-      videos.push(...found);
+    if (picked.length < TARGET) {
+      const excluded = Array.from(seen);
+      add(await db.select().from(gymPlusVideos)
+        .where(excluded.length > 0
+          ? and(eq(gymPlusVideos.isPublished, 1), sql`${gymPlusVideos.id} <> ALL(${excluded}::int[])`)
+          : eq(gymPlusVideos.isPublished, 1))
+        .orderBy(sql`RANDOM()`).limit(TARGET));
     }
-    const seen = new Set<number>();
-    const unique = videos.filter(v => { if (seen.has(v.id)) return false; seen.add(v.id); return true; }).slice(0, 3);
 
-    return { checkIn, recommendedVideos: unique };
+    return { checkIn, recommendedVideos: picked };
   }),
 
   analyzeWorkoutPattern: gymPlusProtected.query(async ({ ctx }) => {

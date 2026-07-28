@@ -41,6 +41,9 @@ function cycleMet(level: number): number {
   return 3.5 + t * (12 - 3.5);
 }
 
+// 맞춤 운동으로 생성된 운동 기록의 제목 (하루 1회 제한 판별에도 사용)
+const RECOMMENDED_TITLE = "맞춤 운동";
+
 const BODY_PARTS = [
   "전신", "상체", "하체",
   "등", "어깨", "가슴",
@@ -877,21 +880,42 @@ export default function GymPlusWorkout() {
   // 출석체크 시 추천된 운동을 오늘의 본 운동 종목으로 그대로 채워 넣는다.
   // 회원이 종목명을 직접 타이핑할 필요 없이 세트 체크만 하면 되도록 하는 것이 목적.
   const recommendedVideos = todayRec?.recommendedVideos ?? [];
+  // 맞춤 운동은 하루 한 번만 받을 수 있다 (같은 날 여러 번 받아 기록이 중복되지 않도록)
+  const recommendedTakenToday = (logs ?? []).some(
+    l => l.logDate === today && l.title === RECOMMENDED_TITLE
+  );
+
+  // 컨디션·수면·에너지에 따라 세트 수를 3~5로 조절한다.
+  // 컨디션이 좋고 잘 잤으면 볼륨을 올리고, 피곤하면 최소 3세트로 낮춰 무리하지 않게 한다.
+  function adaptiveSetCount(baseSets: number | null | undefined) {
+    const ci = todayRec?.checkIn;
+    let score = ci?.conditionScore ?? 3;              // 1~5
+    if (ci?.energyLevel === "높음") score += 1;
+    else if (ci?.energyLevel === "낮음") score -= 1;
+    if (ci?.sleepHours === "4h↓" || ci?.sleepHours === "5h") score -= 1;
+    else if (ci?.sleepHours === "8h" || ci?.sleepHours === "9h+") score += 1;
+
+    // 트레이너가 영상에 지정한 세트를 기준으로 ±1 조정 후 3~5로 제한
+    const base = baseSets ?? 4;
+    const adjusted = score <= 2 ? base - 1 : score >= 6 ? base + 1 : base;
+    return Math.max(3, Math.min(5, adjusted));
+  }
+
   function startRecommendedWorkout() {
-    if (recommendedVideos.length === 0) return;
+    if (recommendedVideos.length === 0 || recommendedTakenToday) return;
     const exercises: Exercise[] = recommendedVideos.map((v: any) => ({
       name: v.title,
       videoUrl: v.videoUrl ?? undefined,
       restSeconds: v.restSeconds ?? undefined,
-      // 추천 세트 수만큼 세트를 미리 만들어 두고, 목표 횟수를 기본값으로 채운다
-      sets: Array.from({ length: v.recommendedSets ?? 3 }, () => ({
+      // 조절된 세트 수만큼 세트를 미리 만들어 두고, 목표 횟수를 기본값으로 채운다
+      sets: Array.from({ length: adaptiveSetCount(v.recommendedSets) }, () => ({
         reps: v.recommendedReps ?? "",
         weight: "",
       })),
     }));
     createMutation.mutate({
       logDate: today,
-      title: "맞춤 운동",
+      title: RECOMMENDED_TITLE,
       exercisesJson: JSON.stringify(exercises),
       bodyPartsJson: todayRec?.checkIn?.bodyPartsJson ?? undefined,
       conditionScore: todayRec?.checkIn?.conditionScore ?? undefined,
@@ -1209,13 +1233,17 @@ export default function GymPlusWorkout() {
                     {/* 맞춤 운동 받기 — 추천 종목·세트·횟수가 자동으로 채워진다 */}
                     <button
                       onClick={startRecommendedWorkout}
-                      disabled={recommendedVideos.length === 0 || createMutation.isPending}
+                      disabled={recommendedVideos.length === 0 || recommendedTakenToday || createMutation.isPending}
                       className="flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl bg-primary text-primary-foreground font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 active:scale-95 transition-all"
                     >
                       <span className="text-lg leading-none">✦</span>
                       <span className="text-sm">맞춤 운동 받기</span>
                       <span className="text-[10px] font-normal opacity-80">
-                        {recommendedVideos.length > 0 ? `${recommendedVideos.length}개 종목 자동 입력` : "출석체크 후 이용 가능"}
+                        {recommendedTakenToday
+                          ? "오늘은 이미 받았어요"
+                          : recommendedVideos.length > 0
+                          ? `${recommendedVideos.length}개 종목 자동 입력`
+                          : "출석체크 후 이용 가능"}
                       </span>
                     </button>
                     {/* 직접 기록 — 기존 방식 */}
@@ -1234,12 +1262,24 @@ export default function GymPlusWorkout() {
                   <div className="space-y-2">
                     {todayLogs.map(log => renderLogCard(log))}
                   </div>
-                  <button
-                    onClick={openCreate}
-                    className="w-full py-2.5 rounded-xl border border-dashed border-border text-xs text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
-                  >
-                    + 운동 추가
-                  </button>
+                  <div className="flex gap-2">
+                    {/* 직접 기록으로 시작했더라도 그날의 맞춤 운동은 아직 안 받았다면 받을 수 있게 둔다 */}
+                    {!recommendedTakenToday && recommendedVideos.length > 0 && (
+                      <button
+                        onClick={startRecommendedWorkout}
+                        disabled={createMutation.isPending}
+                        className="flex-1 py-2.5 rounded-xl bg-primary/10 border border-primary/30 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-40 transition-colors"
+                      >
+                        ✦ 맞춤 운동 받기
+                      </button>
+                    )}
+                    <button
+                      onClick={openCreate}
+                      className="flex-1 py-2.5 rounded-xl border border-dashed border-border text-xs text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors"
+                    >
+                      + 운동 추가
+                    </button>
+                  </div>
                 </>
               )}
             </div>
