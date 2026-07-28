@@ -4808,15 +4808,46 @@ const adminOnlyGymPlus = t.procedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
-// 조회 전용(대시보드/상담관리 배너 포함): 위 관리자 + 컨설턴트도 허용.
+// 재등록 조회/처리(대시보드·상담관리 배너 포함): 관리자 + 컨설턴트 + 트레이너.
+// 트레이너는 "본인 담당 회원"의 신청만 볼 수 있고 처리할 수 있다(아래 각 procedure에서
+// 소유권 검사) — 재등록 승인은 회원권 연장 + 매출 생성이 걸린 재무 작업이라
+// 프로젝트 규칙(관리자이거나 본인 담당일 때만)을 따른다.
 const gymPlusRenewalView = t.procedure.use(({ ctx, next }) => {
   const role = ctx.user?.role;
   const isGymPlusAdmin = !!(ctx.req.session as any)?.gymPlusAdmin;
   if (!ctx.user && !isGymPlusAdmin) throw new TRPCError({ code: "UNAUTHORIZED" });
-  const ok = role === "admin" || role === "sub_admin" || role === "consultant" || isGymPlusAdmin;
+  const ok = role === "admin" || role === "sub_admin" || role === "consultant" || role === "trainer" || isGymPlusAdmin;
   if (!ok) throw new TRPCError({ code: "FORBIDDEN" });
   return next({ ctx });
 });
+
+// 재등록 승인/거절: 위와 동일한 대상. 전체 권한이 없는 트레이너는 각 procedure에서
+// 해당 신청이 본인 담당 회원인지 확인한 뒤에만 처리된다.
+function isFullRenewalAdmin(ctx: Context): boolean {
+  const role = ctx.user?.role;
+  return role === "admin" || role === "sub_admin" || !!(ctx.req.session as any)?.gymPlusAdmin;
+}
+
+// 이 재등록 신청이 요청자(트레이너)의 담당 회원인지 확인. 관리자는 항상 통과.
+async function assertCanHandleRenewal(ctx: Context, db: any, gymPlusMemberId: number) {
+  if (isFullRenewalAdmin(ctx)) return;
+  const trainerId = ctx.user?.trainerId;
+  if (!trainerId) throw new TRPCError({ code: "FORBIDDEN", message: "재등록을 처리할 권한이 없습니다." });
+  const [gp] = await db.select({ memberId: gymPlusMembers.memberId, name: gymPlusMembers.name, phone: gymPlusMembers.phone })
+    .from(gymPlusMembers).where(eq(gymPlusMembers.id, gymPlusMemberId)).limit(1);
+  if (!gp) throw new TRPCError({ code: "NOT_FOUND" });
+  let ownerTrainerId: number | null = null;
+  if (gp.memberId) {
+    const [m] = await db.select({ trainerId: members.trainerId }).from(members).where(eq(members.id, gp.memberId)).limit(1);
+    ownerTrainerId = m?.trainerId ?? null;
+  } else if (gp.name && gp.phone) {
+    const [m] = await db.select({ trainerId: members.trainerId }).from(members)
+      .where(and(eq(members.name, gp.name), samePhone(members.phone, gp.phone))).limit(1);
+    ownerTrainerId = m?.trainerId ?? null;
+  }
+  if (ownerTrainerId !== trainerId)
+    throw new TRPCError({ code: "FORBIDDEN", message: "본인 담당 회원의 재등록만 처리할 수 있습니다." });
+}
 
 const gymPlusRouter = t.router({
   // 관리자 로그인 (기존 admin 계정으로 인증) — 성공 시 세션에 gymPlusAdmin 플래그를 남겨
@@ -5561,10 +5592,11 @@ const gymPlusRouter = t.router({
         .orderBy(desc(gymPlusMembershipRenewals.requestedAt));
     }),
 
-  // 관리자/컨설턴트: 전체 재등록 신청 목록 (대시보드·상담관리 배너 조회 포함)
+  // 관리자/컨설턴트/트레이너: 재등록 신청 목록 (대시보드·상담관리 배너 조회 포함).
+  // 트레이너는 본인 담당 회원의 신청만 보인다.
   admin_listRenewals: gymPlusRenewalView
     .input(z.object({ status: z.enum(["pending", "approved", "rejected", "all"]).default("pending") }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const rows = await db.select({
@@ -5572,17 +5604,31 @@ const gymPlusRouter = t.router({
         memberName: gymPlusMembers.name,
         memberPhone: gymPlusMembers.phone,
         membershipEnd: gymPlusMembers.membershipEnd,
+        linkedMemberId: gymPlusMembers.memberId,
       })
         .from(gymPlusMembershipRenewals)
         .leftJoin(gymPlusMembers, eq(gymPlusMembershipRenewals.gymPlusMemberId, gymPlusMembers.id))
         .where(input.status === "all" ? undefined : eq(gymPlusMembershipRenewals.status, input.status))
         .orderBy(desc(gymPlusMembershipRenewals.requestedAt));
-      return rows;
+
+      if (isFullRenewalAdmin(ctx) || ctx.user?.role === "consultant") return rows;
+
+      // 트레이너: 본인 담당 회원 건만 남긴다 (memberId 연결 우선, 없으면 이름+전화 매칭)
+      const trainerId = ctx.user?.trainerId;
+      if (!trainerId) return [];
+      const myMembers = await db.select({ id: members.id, name: members.name, phone: members.phone })
+        .from(members).where(eq(members.trainerId, trainerId));
+      const myIds = new Set(myMembers.map(m => m.id));
+      const myKeys = new Set(myMembers.map(m => `${m.name}|${(m.phone ?? "").replace(/\D/g, "")}`));
+      return rows.filter(r =>
+        (r.linkedMemberId != null && myIds.has(r.linkedMemberId)) ||
+        myKeys.has(`${r.memberName}|${(r.memberPhone ?? "").replace(/\D/g, "")}`)
+      );
     }),
 
-  // 관리자: 재등록 승인 — 앱 회원 만료일 연장 + (연결된) 통합운영 회원 만료일 연장 +
+  // 관리자/담당 트레이너: 재등록 승인 — 앱 회원 만료일 연장 + (연결된) 통합운영 회원 만료일 연장 +
   // 결제금액이 입력되면 재등록 매출(revenue_entries)까지 기록해 등록관리·정산에 반영한다.
-  admin_approveRenewal: adminOnlyGymPlus
+  admin_approveRenewal: gymPlusRenewalView
     .input(z.object({
       id: z.number(),
       newMembershipEnd: z.string(),
@@ -5599,6 +5645,7 @@ const gymPlusRouter = t.router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const renewal = await db.select().from(gymPlusMembershipRenewals).where(eq(gymPlusMembershipRenewals.id, input.id)).limit(1);
       if (!renewal[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertCanHandleRenewal(ctx, db, renewal[0].gymPlusMemberId);
 
       await db.update(gymPlusMembershipRenewals).set({
         status: "approved",
@@ -5654,12 +5701,16 @@ const gymPlusRouter = t.router({
       return { success: true, linkedMemberId, revenueCreated: (input.paidAmount ?? 0) > 0 };
     }),
 
-  // 관리자: 재등록 거절
-  admin_rejectRenewal: adminOnlyGymPlus
+  // 관리자/담당 트레이너: 재등록 거절
+  admin_rejectRenewal: gymPlusRenewalView
     .input(z.object({ id: z.number(), adminNote: z.string().optional() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [target] = await db.select({ gymPlusMemberId: gymPlusMembershipRenewals.gymPlusMemberId })
+        .from(gymPlusMembershipRenewals).where(eq(gymPlusMembershipRenewals.id, input.id)).limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND" });
+      await assertCanHandleRenewal(ctx, db, target.gymPlusMemberId);
       await db.update(gymPlusMembershipRenewals).set({
         status: "rejected",
         adminNote: input.adminNote,

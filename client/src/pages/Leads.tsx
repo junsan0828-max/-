@@ -215,10 +215,10 @@ export default function LeadsPage() {
   const utils = trpc.useUtils();
   const [, setPageLocation] = useLocation();
   const { data: me } = trpc.auth.me.useQuery();
-  // 트레이너 계정은 이 API 권한이 없다 — 굳이 호출해서 FORBIDDEN 받을 필요 없이 애초에 안 부른다.
+  // 트레이너도 본인 담당 회원의 재등록 신청을 보고 처리한다(서버에서 담당 건만 걸러 내려줌).
   const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery(
     { status: "pending" },
-    { refetchInterval: 30000, enabled: !!me && me.role !== "trainer" }
+    { refetchInterval: 30000, enabled: !!me }
   );
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
   const isSubAdmin = me?.role === "sub_admin";
