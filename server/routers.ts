@@ -3064,7 +3064,7 @@ const gymPlusRouter = t.router({
       .where(and(
         eq(gymPlusWorkoutLogs.gymPlusMemberId, memberId),
         sql`${gymPlusWorkoutLogs.logDate} >= ${sinceStr}`,
-        sql`${gymPlusWorkoutLogs.title} != '출석체크'`,
+        sql`${gymPlusWorkoutLogs.title} NOT IN ('출석체크','준비운동','유산소운동')`,
       ))
       .orderBy(desc(gymPlusWorkoutLogs.logDate));
 
@@ -4472,7 +4472,7 @@ ${dataContext}
     // 운동 기록 횟수 (앱 출석체크 로그는 운동 기록이 아니므로 제외 — 앱의 다른 화면과 동일 기준)
     const workoutCountResult = await pool.query(
       `SELECT COUNT(*) as count FROM gym_plus_workout_logs
-       WHERE "gymPlusMemberId" = $1 AND title <> '출석체크'`,
+       WHERE "gymPlusMemberId" = $1 AND title NOT IN ('출석체크','준비운동','유산소운동')`,
       [ctx.gymPlusMemberId]
     );
     const workoutCount = parseInt(workoutCountResult.rows[0]?.count ?? "0", 10);
@@ -4481,7 +4481,7 @@ ${dataContext}
     // 이 테이블의 날짜 컬럼은 logDate이고 totalSets 컬럼은 없다. 세트 수는 exercisesJson에서 계산한다.
     const recentWorkoutRows = await pool.query(
       `SELECT "logDate", "workoutTheme", "exercisesJson" FROM gym_plus_workout_logs
-       WHERE "gymPlusMemberId" = $1 AND title <> '출석체크'
+       WHERE "gymPlusMemberId" = $1 AND title NOT IN ('출석체크','준비운동','유산소운동')
        ORDER BY "logDate" DESC LIMIT 5`,
       [ctx.gymPlusMemberId]
     );

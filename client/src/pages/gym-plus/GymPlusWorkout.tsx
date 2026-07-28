@@ -43,6 +43,10 @@ function cycleMet(level: number): number {
 
 // 맞춤 운동으로 생성된 운동 기록의 제목 (하루 1회 제한 판별에도 사용)
 const RECOMMENDED_TITLE = "맞춤 운동";
+// 준비운동·유산소는 종목이 없는 세션 기록이라, 본 운동 목록과 섞이지 않도록 제목으로 구분한다
+const WARMUP_TITLE = "준비운동";
+const CARDIO_TITLE = "유산소운동";
+const NON_MAIN_TITLES = ["출석체크", WARMUP_TITLE, CARDIO_TITLE];
 
 const BODY_PARTS = [
   "전신", "상체", "하체",
@@ -776,6 +780,9 @@ export default function GymPlusWorkout() {
   function completeWarmup() {
     if (warmupIntervalRef.current) clearInterval(warmupIntervalRef.current);
     setWarmupStatus("done");
+    // 실제 수행 시간을 기록으로 남긴다 (남은 시간을 뺀 경과 시간, 최소 1분)
+    const minutes = Math.max(1, Math.round((600 - warmupRemaining) / 60));
+    sessionLogMutation.mutate({ logDate: today, title: WARMUP_TITLE, durationMinutes: minutes });
   }
   function resetWarmup() {
     if (warmupIntervalRef.current) clearInterval(warmupIntervalRef.current);
@@ -806,6 +813,13 @@ export default function GymPlusWorkout() {
     const calories = Math.round(cardioInfo.met * cardioInfo.weight * (durationMin / 60));
     setCardioReport({ calories, duration: durationMin, type: cardioInfo.type, intensityLabel: cardioInfo.intensityLabel });
     setCardioStatus("done");
+    sessionLogMutation.mutate({
+      logDate: today,
+      title: CARDIO_TITLE,
+      durationMinutes: durationMin,
+      caloriesBurned: calories,
+      notes: `${cardioInfo.type} · ${cardioInfo.intensityLabel}`,
+    });
   }
   function resetCardio() {
     if (cardioIntervalRef.current) clearInterval(cardioIntervalRef.current);
@@ -849,6 +863,12 @@ export default function GymPlusWorkout() {
 
   const createMutation = trpc.gymPlus.createWorkoutLog.useMutation({
     onSuccess: () => { utils.gymPlus.listWorkoutLogs.invalidate(); setShowForm(false); resetForm(); toast.success("운동 계획이 저장되었습니다"); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // 준비운동·유산소 세션 저장용 — 폼과 무관하므로 폼 초기화나 계획 저장 토스트 없이 조용히 기록만 남긴다
+  const sessionLogMutation = trpc.gymPlus.createWorkoutLog.useMutation({
+    onSuccess: () => utils.gymPlus.listWorkoutLogs.invalidate(),
     onError: (err) => toast.error(err.message),
   });
 
@@ -1056,7 +1076,26 @@ export default function GymPlusWorkout() {
     );
   }
 
-  const todayLogs = (logs ?? []).filter(l => l.logDate === today && l.title !== "출석체크");
+  const todayLogs = (logs ?? []).filter(l => l.logDate === today && !NON_MAIN_TITLES.includes(l.title));
+
+  // 준비운동·유산소 세션 요약 (횟수 / 평균 시간 / 이번달 누적)
+  const thisMonth = today.slice(0, 7);
+  function sessionStats(title: string) {
+    const rows = (logs ?? []).filter(l => l.title === title);
+    const mins = rows.map(l => l.durationMinutes ?? 0);
+    const total = mins.reduce((a, b) => a + b, 0);
+    const monthTotal = rows
+      .filter(l => l.logDate.startsWith(thisMonth))
+      .reduce((sum, l) => sum + (l.durationMinutes ?? 0), 0);
+    return {
+      count: rows.length,
+      monthCount: rows.filter(l => l.logDate.startsWith(thisMonth)).length,
+      avg: rows.length > 0 ? Math.round(total / rows.length) : 0,
+      monthTotal,
+    };
+  }
+  const warmupStats = sessionStats(WARMUP_TITLE);
+  const cardioStats = sessionStats(CARDIO_TITLE);
   const todayCheckedIn = (logs ?? []).some(l => l.logDate === today && l.title === "출석체크");
 
   // 출석 체크를 먼저 완료해야 운동 기록을 확인/작성할 수 있다
@@ -1487,16 +1526,43 @@ export default function GymPlusWorkout() {
             )}
           </div>
 
+          {/* 준비운동 · 유산소 요약 (종목이 없는 세션이라 개별 카드 대신 통계로 보여준다) */}
+          {(warmupStats.count > 0 || cardioStats.count > 0) && (
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "준비운동", accent: "text-orange-500", s: warmupStats },
+                { label: "유산소운동", accent: "text-green-600", s: cardioStats },
+              ].map(({ label, accent, s }) => (
+                <div key={label} className="bg-card border border-border rounded-xl p-3 space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-xs font-semibold text-foreground">{label}</p>
+                    <p className={`text-lg font-bold ${accent}`}>{s.count}<span className="text-[10px] font-normal text-muted-foreground ml-0.5">회</span></p>
+                  </div>
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">평균</span>
+                      <span className="font-medium">{s.avg}분</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">이번달</span>
+                      <span className="font-medium">{s.monthCount}회 · {s.monthTotal}분</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {isLoading ? (
             <div className="text-center py-10 text-muted-foreground text-sm">불러오는 중...</div>
-          ) : !logs || logs.filter(l => l.title !== "출석체크").length === 0 ? (
+          ) : !logs || logs.filter(l => !NON_MAIN_TITLES.includes(l.title)).length === 0 ? (
             <div className="text-center py-10 space-y-3">
               <p className="text-muted-foreground text-sm">아직 운동 기록이 없습니다</p>
               <Button variant="outline" size="sm" onClick={openCreate}>첫 기록 남기기</Button>
             </div>
           ) : (
             <div className="space-y-3">
-              {(logs ?? []).filter(l => l.title !== "출석체크").map(log => renderLogCard(log))}
+              {(logs ?? []).filter(l => !NON_MAIN_TITLES.includes(l.title)).map(log => renderLogCard(log))}
             </div>
           )}
         </div>
