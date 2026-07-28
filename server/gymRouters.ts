@@ -3255,11 +3255,20 @@ const registerMutation = protectedProcedure
     const now = new Date().toISOString();
     const today = kstDate();
 
-    // 1. Resolve trainer ID
-    const isStaff = ctx.user.role === "admin" || ctx.user.role === "sub_admin" || ctx.user.role === "consultant";
-    const resolvedTrainerId: number | null = isStaff
-      ? (input.trainerId ?? null)
-      : ctx.user.trainerId ?? null;
+    // 1. 담당 트레이너(trainerId) 결정.
+    //    ⚠ 상담 담당자 ≠ 담당 트레이너 (CLAUDE.md 데이터 무결성 원칙 6).
+    //    - 폼에서 고른 트레이너(input.trainerId)가 항상 우선한다. 예전엔 로그인한 사람이
+    //      트레이너면 폼 선택을 무시하고 무조건 본인을 담당으로 박아서, 상담만 진행한
+    //      트레이너의 회원 목록에 남의 회원이 들어가는 사고가 있었다.
+    //    - PT가 없는 등록(헬스권/락커/운동복만)은 담당 트레이너 개념 자체가 없으므로
+    //      trainerId를 비운다. 자기 담당으로 자동 귀속되면 안 된다.
+    const hasPt = !!input.addPt && (input.ptSessions ?? 0) > 0;
+    let resolvedTrainerId: number | null = input.trainerId ?? null;
+    if (!resolvedTrainerId && hasPt && ctx.user.role === "trainer") {
+      // 트레이너가 PT를 직접 등록하면서 담당을 따로 안 골랐을 때만 본인으로 채운다.
+      resolvedTrainerId = ctx.user.trainerId ?? null;
+    }
+    if (!hasPt) resolvedTrainerId = null;
 
     // 2. Resolve branch ID
     let resolvedBranchId: number | null = input.branchId ?? null;

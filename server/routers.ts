@@ -528,11 +528,17 @@ const membersRouter = t.router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // admin/sub_admin/consultant: adminTrainerId 선택(미배정 허용), trainer: 본인 ID 사용
-      const isStaff = ctx.user.role === "admin" || ctx.user.role === "sub_admin" || ctx.user.role === "consultant";
-      const trainerId = isStaff
-        ? (input.adminTrainerId ?? null)
-        : ctx.user.trainerId ?? (() => { throw new TRPCError({ code: "FORBIDDEN" }); })();
+      // 담당 트레이너(trainerId) 결정.
+      // ⚠ 상담 담당자 ≠ 담당 트레이너 (CLAUDE.md 데이터 무결성 원칙 6).
+      // 폼에서 고른 트레이너가 항상 우선한다. 로그인한 사람이 트레이너라는 이유로 본인을
+      // 담당으로 박으면, 상담만 진행한 트레이너의 회원 목록에 남의 회원이 들어간다.
+      // PT 세션이 없는 등록(헬스/기타)은 담당 트레이너 개념이 없으므로 비워 둔다.
+      const hasPtSessions = !!input.ptSessions && parseInt(String(input.ptSessions)) > 0;
+      let trainerId: number | null = input.adminTrainerId ?? null;
+      if (!trainerId && hasPtSessions && ctx.user.role === "trainer") {
+        trainerId = ctx.user.trainerId ?? null;
+      }
+      if (!hasPtSessions) trainerId = null;
 
       const {
         ptProgram,
