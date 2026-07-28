@@ -4795,19 +4795,26 @@ const gymPlusProtected = t.procedure.use(({ ctx, next }) => {
 // 자이언트짐++ 관리자 전용(처리): 통합운영 관리자(admin/sub_admin) 세션이거나,
 // gymPlus.adminLogin으로 인증된 세션(session.gymPlusAdmin)만 통과. 예전엔 인증이 전혀
 // 없어(t.procedure) 누구나 재등록 승인/거절·회원삭제가 가능했다.
+// 주의: 로그인 자체가 안 된 경우만 UNAUTHORIZED(클라이언트가 이걸 "세션 만료"로 보고
+// 강제 로그아웃시킨다 — main.tsx 전역 핸들러). 로그인은 됐지만 권한이 부족한 경우는
+// FORBIDDEN이어야 한다. 예전에 이걸 구분 안 해서, 트레이너 계정이 상담관리에 들어가
+// (권한 없는 이 API를 배너용으로 호출하다가) 멀쩡한 세션인데 로그아웃되는 사고가 있었다.
 const adminOnlyGymPlus = t.procedure.use(({ ctx, next }) => {
-  const role = ctx.user?.role;
+  if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const role = ctx.user.role;
   const isStaffAdmin = role === "admin" || role === "sub_admin";
   const isGymPlusAdmin = !!(ctx.req.session as any)?.gymPlusAdmin;
-  if (!isStaffAdmin && !isGymPlusAdmin) throw new TRPCError({ code: "UNAUTHORIZED" });
+  if (!isStaffAdmin && !isGymPlusAdmin) throw new TRPCError({ code: "FORBIDDEN" });
   return next({ ctx });
 });
 
 // 조회 전용(대시보드/상담관리 배너 포함): 위 관리자 + 컨설턴트도 허용.
 const gymPlusRenewalView = t.procedure.use(({ ctx, next }) => {
   const role = ctx.user?.role;
-  const ok = role === "admin" || role === "sub_admin" || role === "consultant" || !!(ctx.req.session as any)?.gymPlusAdmin;
-  if (!ok) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const isGymPlusAdmin = !!(ctx.req.session as any)?.gymPlusAdmin;
+  if (!ctx.user && !isGymPlusAdmin) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const ok = role === "admin" || role === "sub_admin" || role === "consultant" || isGymPlusAdmin;
+  if (!ok) throw new TRPCError({ code: "FORBIDDEN" });
   return next({ ctx });
 });
 

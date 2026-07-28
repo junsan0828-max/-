@@ -262,7 +262,12 @@ export default function GymDashboard() {
   const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, {
     refetchInterval: 30000,
   });
-  const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery({ status: "pending" }, { refetchInterval: 30000 });
+  const { data: me } = trpc.auth.me.useQuery();
+  // 트레이너 계정은 이 API 권한이 없다 — 굳이 호출해서 FORBIDDEN 받을 필요 없이 애초에 안 부른다.
+  const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery(
+    { status: "pending" },
+    { refetchInterval: 30000, enabled: !!me && me.role !== "trainer" }
+  );
   const [dismissedRenewalAlert, setDismissedRenewalAlert] = useState(false);
   const [renewalModalOpen, setRenewalModalOpen] = useState(false);
   const { data: monthly } = trpc.gym.revenue.monthlySummary.useQuery({ year, ...(branchFilter ? { branchId: branchFilter } : {}) });
