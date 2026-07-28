@@ -23,8 +23,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const SLEEP_OPTIONS = ["4h↓", "5h", "6h", "7h", "8h", "9h+"];
-const ENERGY_OPTIONS = ["높음", "보통", "낮음"];
 
 // ── 유산소 기구 (센터 보유: 러닝머신, 고정식 입식 사이클) — 속도/강도 자유 조절 ──
 const CARDIO_TYPES = ["러닝머신", "고정식 사이클"] as const;
@@ -862,7 +860,14 @@ export default function GymPlusWorkout() {
   });
 
   function resetForm() {
-    setForm({ logDate: today, title: "", notes: "", conditionScore: null, sleepHours: "", energyLevel: "" });
+    // 컨디션·수면·에너지는 출석체크에서 받은 값을 그대로 승계한다(중복 입력 방지)
+    const ci = todayRec?.checkIn;
+    setForm({
+      logDate: today, title: "", notes: "",
+      conditionScore: ci?.conditionScore ?? null,
+      sleepHours: ci?.sleepHours ?? "",
+      energyLevel: ci?.energyLevel ?? "",
+    });
     setExercises([]);
     setBodyParts([]);
   }
@@ -1471,49 +1476,21 @@ export default function GymPlusWorkout() {
                 onChange={(e) => setForm((p) => ({ ...p, logDate: e.target.value }))}
                 className="bg-input border-border text-sm h-9" />
             </div>
-            {/* 컨디션 */}
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-primary">컨디션 평가</p>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">오늘 컨디션 (1 매우안좋음 → 5 최고)</Label>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {[1,2,3,4,5].map((n) => (
-                    <button key={n}
-                      onClick={() => setForm((p) => ({ ...p, conditionScore: p.conditionScore === n ? null : n }))}
-                      className={`py-3 rounded-xl text-sm font-bold transition-colors border ${
-                        form.conditionScore === n ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"
-                      }`}
-                    >{n}</button>
-                  ))}
-                </div>
+            {/* 컨디션은 출석체크에서 이미 입력받으므로 여기서 다시 묻지 않고 그 값을 그대로 사용한다 */}
+            {(form.conditionScore || form.sleepHours || form.energyLevel) && (
+              <div className="flex items-center gap-1.5 flex-wrap bg-muted/30 rounded-xl px-3 py-2">
+                <span className="text-[10px] text-muted-foreground">출석체크 기록</span>
+                {form.conditionScore && (
+                  <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">컨디션 {form.conditionScore}/5</span>
+                )}
+                {form.sleepHours && (
+                  <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">수면 {form.sleepHours}</span>
+                )}
+                {form.energyLevel && (
+                  <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">에너지 {form.energyLevel}</span>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">수면시간</Label>
-                <div className="grid grid-cols-6 gap-1">
-                  {SLEEP_OPTIONS.map((s) => (
-                    <button key={s}
-                      onClick={() => setForm((p) => ({ ...p, sleepHours: p.sleepHours === s ? "" : s }))}
-                      className={`py-2.5 rounded-xl text-xs font-medium transition-colors border ${
-                        form.sleepHours === s ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"
-                      }`}
-                    >{s}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">에너지 수준</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {ENERGY_OPTIONS.map((e) => (
-                    <button key={e}
-                      onClick={() => setForm((p) => ({ ...p, energyLevel: p.energyLevel === e ? "" : e }))}
-                      className={`py-3 rounded-xl text-sm font-medium transition-colors border ${
-                        form.energyLevel === e ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"
-                      }`}
-                    >{e}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            )}
 
             <BodyPartSelector selected={bodyParts} onChange={setBodyParts} />
 
