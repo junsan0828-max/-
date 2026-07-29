@@ -43,6 +43,7 @@ import {
   gymPlusPurchaseRequests,
   gymPlusPointClaims,
   gymPlusPointChargeRequests,
+  gymPlusPointExtensionRequests,
 } from "../drizzle/schema";
 import type { AuthUser } from "./auth";
 import type { Request, Response } from "express";
@@ -2664,6 +2665,9 @@ const reportsRouter = t.router({
 
 // ─── ZIANTGYM+ 회원앱 ─────────────────────────────────────────────────────────
 
+// 포인트 회원권 연장 단가 (1,000P = 1일)
+const POINTS_PER_EXTENSION_DAY = 1000;
+
 const gymPlusProtected = t.procedure.use(({ ctx, next }) => {
   const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
   if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -4315,6 +4319,111 @@ ${dataContext}
       }
 
       return { success: true };
+    }),
+
+  // ─── 포인트 회원권 연장 신청 ─────────────────────────────────────────────────
+
+  requestPointExtension: gymPlusProtected
+    .input(z.object({ days: z.number().int().min(1).max(30) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const cost = input.days * POINTS_PER_EXTENSION_DAY;
+      const [member] = await db.select({ points: gymPlusMembers.points })
+        .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
+      if (!member) throw new TRPCError({ code: "NOT_FOUND", message: "회원을 찾을 수 없습니다." });
+      if ((member.points ?? 0) < cost)
+        throw new TRPCError({ code: "BAD_REQUEST", message: "포인트가 부족합니다." });
+
+      // 승인 전에 다른 곳에 써버리지 못하도록 신청 시점에 차감(선점)한다. 거절되면 환불.
+      const newBalance = (member.points ?? 0) - cost;
+      await db.update(gymPlusMembers).set({ points: newBalance })
+        .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
+
+      const [row] = await db.insert(gymPlusPointExtensionRequests).values({
+        gymPlusMemberId: ctx.gymPlusMemberId,
+        requestedDays: input.days,
+        pointsUsed: cost,
+        status: "pending",
+      }).returning();
+
+      await db.insert(gymPlusPointLogs).values({
+        gymPlusMemberId: ctx.gymPlusMemberId,
+        type: "spend",
+        amount: -cost,
+        balanceAfter: newBalance,
+        reason: `회원권 ${input.days}일 연장 신청`,
+        relatedId: row.id,
+      });
+
+      return { success: true, pointsUsed: cost, balance: newBalance };
+    }),
+
+  getMyPointExtensionRequests: gymPlusProtected.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(gymPlusPointExtensionRequests)
+      .where(eq(gymPlusPointExtensionRequests.gymPlusMemberId, ctx.gymPlusMemberId))
+      .orderBy(desc(gymPlusPointExtensionRequests.createdAt))
+      .limit(30);
+  }),
+
+  admin_listPointExtensionRequests: adminOnlyGymPlus
+    .input(z.object({ status: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      return db.select({
+        id: gymPlusPointExtensionRequests.id,
+        gymPlusMemberId: gymPlusPointExtensionRequests.gymPlusMemberId,
+        requestedDays: gymPlusPointExtensionRequests.requestedDays,
+        pointsUsed: gymPlusPointExtensionRequests.pointsUsed,
+        status: gymPlusPointExtensionRequests.status,
+        createdAt: gymPlusPointExtensionRequests.createdAt,
+        memberName: gymPlusMembers.name,
+        memberPhone: gymPlusMembers.phone,
+        membershipEnd: gymPlusMembers.membershipEnd,
+      }).from(gymPlusPointExtensionRequests)
+        .leftJoin(gymPlusMembers, eq(gymPlusPointExtensionRequests.gymPlusMemberId, gymPlusMembers.id))
+        .where(input?.status ? eq(gymPlusPointExtensionRequests.status, input.status) : undefined)
+        .orderBy(desc(gymPlusPointExtensionRequests.createdAt));
+    }),
+
+  admin_approvePointExtensionRequest: adminOnlyGymPlus
+    .input(z.object({ id: z.number(), action: z.enum(["approved", "rejected"]) }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const [reqRow] = await db.select().from(gymPlusPointExtensionRequests)
+        .where(eq(gymPlusPointExtensionRequests.id, input.id)).limit(1);
+      if (!reqRow) throw new TRPCError({ code: "NOT_FOUND", message: "신청 내역을 찾을 수 없습니다." });
+      if (reqRow.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 처리된 신청입니다." });
+
+      await db.update(gymPlusPointExtensionRequests).set({ status: input.action })
+        .where(eq(gymPlusPointExtensionRequests.id, input.id));
+
+      if (input.action === "rejected") {
+        // 신청 시 선점 차감했던 포인트를 되돌려준다
+        const [member] = await db.select({ points: gymPlusMembers.points })
+          .from(gymPlusMembers).where(eq(gymPlusMembers.id, reqRow.gymPlusMemberId)).limit(1);
+        const newBalance = (member?.points ?? 0) + reqRow.pointsUsed;
+        await db.update(gymPlusMembers).set({ points: newBalance })
+          .where(eq(gymPlusMembers.id, reqRow.gymPlusMemberId));
+        await db.insert(gymPlusPointLogs).values({
+          gymPlusMemberId: reqRow.gymPlusMemberId,
+          type: "charge",
+          amount: reqRow.pointsUsed,
+          balanceAfter: newBalance,
+          reason: `회원권 ${reqRow.requestedDays}일 연장 신청 거절 · 포인트 반환`,
+          relatedId: reqRow.id,
+        });
+        return { success: true, refunded: reqRow.pointsUsed };
+      }
+
+      // 승인: 만료일 갱신은 통합운영시스템과 규칙 합의 후 연결한다(현재는 수동 처리).
+      // 포인트 차감은 신청 시점에 이미 완료된 상태.
+      return { success: true, manualExtensionDays: reqRow.requestedDays };
     }),
 
   // ─── 출입 포인트 설정 ────────────────────────────────────────────────────────

@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import GymPlusHealthSurvey from "./GymPlusHealthSurvey";
 import { membershipTypeLabel } from "@/lib/membership";
 
+// 포인트 회원권 연장 단가 (서버의 POINTS_PER_EXTENSION_DAY와 동일해야 함)
+const POINTS_PER_EXTENSION_DAY = 1000;
+
 const PERIOD_PRICES: Record<string, number> = {
   "1개월": 80000,
   "3개월": 159000,
@@ -267,6 +270,9 @@ export default function GymPlusProfile() {
   const [purchaseNote, setPurchaseNote] = useState("");
   const [showChargeModal, setShowChargeModal] = useState(false);
   const [chargeDone, setChargeDone] = useState(false);
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [extendDone, setExtendDone] = useState(false);
+  const [extendDays, setExtendDays] = useState(1);
   const [chargeAmount, setChargeAmount] = useState("");
   const [chargeMethod, setChargeMethod] = useState("");
   const [chargeNote, setChargeNote] = useState("");
@@ -286,6 +292,20 @@ export default function GymPlusProfile() {
     onSuccess: () => setChargeDone(true),
     onError: (e) => toast.error(e.message),
   });
+
+  const requestPointExtension = trpc.gymPlus.requestPointExtension.useMutation({
+    onSuccess: () => {
+      utils.gymPlus.memberMe.invalidate();
+      setExtendDone(true);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function closeExtendModal() {
+    setShowExtendModal(false);
+    setExtendDone(false);
+    setExtendDays(1);
+  }
 
   function closeChargeModal() {
     setShowChargeModal(false);
@@ -570,6 +590,16 @@ export default function GymPlusProfile() {
             충전 신청
           </button>
         </div>
+        {/* 포인트로 회원권 기간 연장 */}
+        <button
+          onClick={() => setShowExtendModal(true)}
+          className="mt-4 w-full bg-white/15 hover:bg-white/25 transition-colors rounded-xl py-2.5 text-xs font-bold text-white flex items-center justify-center gap-1.5"
+        >
+          회원권 연장하기
+          <span className="font-normal text-white/70">
+            {POINTS_PER_EXTENSION_DAY.toLocaleString("ko-KR")}P = 1일
+          </span>
+        </button>
       </div>
 
       {/* 카테고리 필터 */}
@@ -791,6 +821,92 @@ export default function GymPlusProfile() {
           </div>
         </div>
       )}
+
+      {/* 포인트 회원권 연장 신청 모달 */}
+      {showExtendModal && (() => {
+        const balance = member?.points ?? 0;
+        const cost = extendDays * POINTS_PER_EXTENSION_DAY;
+        const maxDays = Math.max(1, Math.min(30, Math.floor(balance / POINTS_PER_EXTENSION_DAY)));
+        const enough = balance >= cost;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={closeExtendModal} />
+            <div className="relative bg-background rounded-2xl w-full max-w-xs p-5 space-y-4">
+              {extendDone ? (
+                <>
+                  <p className="font-bold text-base text-foreground">연장 신청 완료</p>
+                  <div className="bg-muted/50 rounded-xl p-4 space-y-1.5 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">신청 기간</span><span className="font-bold">{extendDays}일</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">사용 포인트</span><span className="font-medium">{cost.toLocaleString("ko-KR")}P</span></div>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    포인트가 차감되었습니다.<br />데스크 확인 후 회원권 만료일이 연장됩니다.
+                  </p>
+                  <button onClick={closeExtendModal} className="w-full py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold">확인</button>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-base text-foreground">회원권 연장 신청</p>
+                  <div className="bg-muted/50 rounded-xl p-3 space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">보유 포인트</span>
+                      <span className="font-bold">{balance.toLocaleString("ko-KR")}P</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">현재 만료일</span>
+                      <span className="font-medium">{formatDate(member?.membershipEnd)}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">연장 기간</Label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setExtendDays(d => Math.max(1, d - 1))}
+                        className="w-10 h-10 rounded-xl border border-border text-lg font-bold text-muted-foreground hover:border-primary/40"
+                      >−</button>
+                      <div className="flex-1 text-center">
+                        <p className="text-2xl font-black text-foreground">{extendDays}<span className="text-sm font-medium text-muted-foreground ml-1">일</span></p>
+                      </div>
+                      <button
+                        onClick={() => setExtendDays(d => Math.min(maxDays, d + 1))}
+                        className="w-10 h-10 rounded-xl border border-border text-lg font-bold text-muted-foreground hover:border-primary/40"
+                      >+</button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      보유 포인트로 최대 {maxDays}일까지 연장할 수 있어요
+                    </p>
+                  </div>
+
+                  <div className={`rounded-xl px-3 py-2.5 text-center text-sm ${enough ? "bg-primary/5 border border-primary/20" : "bg-red-500/10 border border-red-500/30"}`}>
+                    {enough ? (
+                      <>사용 포인트 <span className="font-bold text-primary">{cost.toLocaleString("ko-KR")}P</span>
+                        <span className="text-muted-foreground"> · 잔액 {(balance - cost).toLocaleString("ko-KR")}P</span></>
+                    ) : (
+                      <span className="text-red-500 font-medium">포인트가 부족합니다</span>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    신청 시 포인트가 먼저 차감되며, 데스크 확인 후 만료일이 연장됩니다. 거절 시 포인트는 자동으로 반환됩니다.
+                  </p>
+
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="outline" className="flex-1 h-9" onClick={closeExtendModal}>취소</Button>
+                    <Button
+                      className="flex-1 h-9"
+                      disabled={!enough || requestPointExtension.isPending}
+                      onClick={() => requestPointExtension.mutate({ days: extendDays })}
+                    >
+                      {requestPointExtension.isPending ? "신청 중..." : "연장 신청"}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 포인트 충전 신청 모달 */}
       {showChargeModal && (

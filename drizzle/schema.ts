@@ -587,6 +587,18 @@ export const gymPlusPurchaseRequests = pgTable("gym_plus_purchase_requests", {
   createdAt: text("createdAt").default(now).notNull(),
 });
 
+// 포인트로 회원권 기간을 연장하는 신청.
+// 신청 시점에 포인트를 즉시 차감(선점)하고, 거절되면 환불한다 — 승인 전에 다른 곳에
+// 포인트를 써버려 잔액이 모자라는 상황을 막기 위함.
+export const gymPlusPointExtensionRequests = pgTable("gym_plus_point_extension_requests", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  requestedDays: integer("requestedDays").notNull(),
+  pointsUsed: integer("pointsUsed").notNull(),
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected"
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 export const gymPlusPointChargeRequests = pgTable("gym_plus_point_charge_requests", {
   id: serial("id").primaryKey(),
   gymPlusMemberId: integer("gymPlusMemberId").notNull(),

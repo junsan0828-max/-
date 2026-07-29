@@ -28,9 +28,15 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
     { enabled, refetchInterval: 30000 }
   );
 
+  const { data: pendingExtensions } = trpc.gymPlus.admin_listPointExtensionRequests.useQuery(
+    { status: "pending" },
+    { enabled, refetchInterval: 30000 }
+  );
+
   const renewalCount = pending?.length ?? 0;
   const chargeCount = pendingCharges?.length ?? 0;
-  const pendingCount = renewalCount + chargeCount;
+  const extensionCount = pendingExtensions?.length ?? 0;
+  const pendingCount = renewalCount + chargeCount + extensionCount;
 
   useEffect(() => {
     if (!autoOpened.current && pendingCount > 0) {
@@ -43,6 +49,18 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
     onSuccess: (_, variables) => {
       toast.success(variables.action === "approved" ? "재등록을 승인했습니다. 만료일이 자동 연장되었습니다." : "신청을 거절했습니다.");
       utils.gymPlus.adminListRenewals.invalidate();
+    },
+    onError: (e) => toast.error(e.message || "처리 실패"),
+  });
+
+  const approveExtensionMutation = trpc.gymPlus.admin_approvePointExtensionRequest.useMutation({
+    onSuccess: (res: any, variables) => {
+      toast.success(
+        variables.action === "approved"
+          ? `승인 완료 — 회원권 만료일을 ${res?.manualExtensionDays ?? ""}일 연장해 주세요.`
+          : "신청을 거절하고 포인트를 반환했습니다."
+      );
+      utils.gymPlus.admin_listPointExtensionRequests.invalidate();
     },
     onError: (e) => toast.error(e.message || "처리 실패"),
   });
@@ -117,6 +135,52 @@ export default function AdminRenewalRequestsModal({ enabled }: { enabled: boolea
                           disabled={approveChargeMutation.isPending}
                           onClick={() => approveChargeMutation.mutate({ id: c.id, action: "approved" })}
                         >승인 (포인트 자동 충전)</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* 포인트 회원권 연장 신청 */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-muted-foreground">회원권 연장 신청 (포인트) {extensionCount > 0 ? `(${extensionCount})` : ""}</p>
+              {!pendingExtensions || pendingExtensions.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-3">대기 중인 연장 신청이 없습니다.</p>
+              ) : (
+                <div className="space-y-2">
+                  {pendingExtensions.map((x) => (
+                    <div key={x.id} className="border border-border rounded-xl p-3.5 space-y-2 bg-accent/10">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-bold text-sm">{x.memberName ?? "-"}</p>
+                          <p className="text-xs text-muted-foreground">{x.memberPhone ?? "-"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-primary text-sm">{x.requestedDays}일 연장</p>
+                          <p className="text-xs text-muted-foreground">{x.pointsUsed.toLocaleString()}P 차감됨</p>
+                        </div>
+                      </div>
+                      <div className="bg-background/60 rounded-lg p-2 text-xs">
+                        <p className="text-muted-foreground">현재 만료일</p>
+                        <p className="font-medium mt-0.5">{x.membershipEnd ?? "-"}</p>
+                      </div>
+                      <p className="text-[11px] text-orange-500 bg-orange-500/10 rounded-lg p-2">
+                        승인 후 회원 만료일을 {x.requestedDays}일 <b>직접 연장</b>해 주세요. (자동 연장 연동 준비 중)
+                      </p>
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          variant="outline" size="sm" className="flex-1 h-8 text-xs"
+                          disabled={approveExtensionMutation.isPending}
+                          onClick={() => approveExtensionMutation.mutate({ id: x.id, action: "rejected" })}
+                        >거절 (포인트 반환)</Button>
+                        <Button
+                          size="sm" className="flex-1 h-8 text-xs"
+                          disabled={approveExtensionMutation.isPending}
+                          onClick={() => approveExtensionMutation.mutate({ id: x.id, action: "approved" })}
+                        >승인</Button>
                       </div>
                     </div>
                   ))}
