@@ -1,7 +1,9 @@
-// 피트니스경영신문(ifk.co.kr/nad) 기사 자동 등록대기 — 매일 11시,
-// 노션에 준비된 오늘자 기사를 IFK 관리자 "뉴스등록" 폼에 채워 등록대기 상태로 올린다.
+// 피트니스경영신문(ifk.co.kr/nad) 기사 자동 등록대기 — 매시 정각,
+// 노션에 준비된 미게시 기사(작성일이 오늘 이하인 것 중 가장 오래된 1건)를 IFK 관리자
+// "뉴스등록" 폼에 채워 등록대기 상태로 올린다. 마감 시각에 기사가 아직 안 써져 있어도
+// 다음 정각에 다시 확인하고, 밀린 기사가 여러 건이면 매시 하나씩 순서대로 소진한다.
 // (실제 게시는 사람이 IFK 관리자 "등록대기 뉴스관리"에서 최종 확인 후 등록)
-import { getTodaysArticle, getArticleByNumber, markPosted, IfkArticle } from "./notionSource";
+import { getNextPendingArticle, getArticleByNumber, markPosted, IfkArticle } from "./notionSource";
 import { nextReporter } from "./reporters";
 import { submitIfkArticleAsPending } from "./submit";
 
@@ -23,11 +25,11 @@ async function submitAndMark(article: IfkArticle): Promise<IfkJobResult> {
   return { ok: true, title: article.title, reporterName: reporter.name };
 }
 
-/** 매일 11시 자동 실행: 오늘(작성일=오늘) 작성된 미게시 기사를 올린다. */
+/** 매시 정각 자동 실행: 작성일이 오늘 이하인 미게시 기사 중 가장 오래된 1건을 올린다. */
 export async function runIfkJob(): Promise<IfkJobResult> {
-  const article = await getTodaysArticle();
+  const article = await getNextPendingArticle();
   if (!article) {
-    return { ok: false, skipped: true, error: "오늘 작성일로 등록된 미게시 기사가 노션에 없습니다." };
+    return { ok: false, skipped: true, error: "게시 대기 중인 기사가 노션에 없습니다 (작성일 도래 + 미게시 기준)." };
   }
   return submitAndMark(article);
 }

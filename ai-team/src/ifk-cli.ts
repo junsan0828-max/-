@@ -1,6 +1,6 @@
 // 피트니스경영신문(IFK) 자동 등록대기 단독 테스트.
 // 실행:
-//   npm run ifk           (오늘 작성일 기사, 매일 11시 자동 실행과 동일)
+//   npm run ifk           (작성일 도래 + 미게시 기사 중 가장 오래된 1건, 매시 정각 자동 실행과 동일)
 //   npm run ifk -- 1      (번호 1 기사를 게시완료 여부 무시하고 강제로 다시 올림 — 수정 후 재업로드용)
 import "dotenv/config";
 import { runIfkJob, runIfkJobForNumber } from "./main/ifk";

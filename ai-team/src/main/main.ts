@@ -343,10 +343,11 @@ app.whenReady().then(() => {
     cron.schedule(journalSpec, () => runJournalJob("매일 22시 예약"));
   }
 
-  // 피트니스경영신문(IFK) 기사 등록대기: 매일 11:00 (기본값)
-  const ifkSpec = process.env.IFK_CRON || "0 11 * * *";
+  // 피트니스경영신문(IFK) 기사 등록대기: 매시 정각 (기본값) — 마감 시각에 기사가 안 써져 있어도
+  // 다음 정각에 재시도하고, 밀린 기사는 매시 하나씩 순서대로 소진한다.
+  const ifkSpec = process.env.IFK_CRON || "0 * * * *";
   if (cron.validate(ifkSpec)) {
-    cron.schedule(ifkSpec, () => runIfkJobWrapper("매일 11시 예약"));
+    cron.schedule(ifkSpec, () => runIfkJobWrapper("매시 정각 예약"));
   }
 
   app.on("activate", () => {

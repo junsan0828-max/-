@@ -181,8 +181,11 @@ async function buildArticleFromPage(page: any): Promise<IfkArticle> {
   };
 }
 
-/** 오늘(작성일=오늘) 작성됐고 아직 게시완료가 아닌 기사 1건을 찾는다. 없으면 null. */
-export async function getTodaysArticle(): Promise<IfkArticle | null> {
+/** 작성일이 오늘 이하(오늘 포함 과거)이면서 아직 게시완료가 안 된 기사 중 가장 오래된 1건을 찾는다.
+ * (예전엔 "작성일=오늘" 정확히 일치만 찾아서, 기사가 마감 시각까지 안 써져 있으면 그날 몫을 영영
+ * 놓치는 문제가 있었다 — 2026-07-30. 이제 매시 정각 재시도하면서 밀린 기사를 오래된 순으로 하나씩
+ * 자동으로 소진한다. 없으면 null.) */
+export async function getNextPendingArticle(): Promise<IfkArticle | null> {
   if (!isConfigured()) {
     throw new Error("피트니스경영신문 노션 연동 미설정 (.env에 NOTION_API_KEY/NOTION_IFK_DATABASE_ID 필요)");
   }
@@ -192,10 +195,11 @@ export async function getTodaysArticle(): Promise<IfkArticle | null> {
     body: JSON.stringify({
       filter: {
         and: [
-          { property: "작성일", date: { equals: todayStr() } },
+          { property: "작성일", date: { on_or_before: todayStr() } },
           { property: "게시완료", checkbox: { equals: false } },
         ],
       },
+      sorts: [{ property: "작성일", direction: "ascending" }],
       page_size: 1,
     }),
   });
