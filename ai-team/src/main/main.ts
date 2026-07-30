@@ -18,6 +18,7 @@ import { runRepo, saveRepoResult, loadRepoResult, previousYearMonth } from "./re
 import { runJournal } from "./journal";
 import { runIfkJob } from "./ifk";
 import { runBlogEventJob } from "./blogEvent";
+import { processPendingPointClaims } from "./pointClaims";
 import { getRecentCommands } from "./commandLog";
 import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
 
@@ -246,6 +247,18 @@ async function runBlogEventJobWrapper(reason: string) {
   }
 }
 
+async function runPointClaimsJobWrapper() {
+  try {
+    const results = await processPendingPointClaims();
+    const approved = results.filter((r) => r.approved);
+    if (approved.length > 0) {
+      send("log", `포인트 자동 적립 ${approved.length}건 완료`);
+    }
+  } catch (err: any) {
+    send("log", `포인트 자동 적립 확인 오류: ${err?.message ?? err}`);
+  }
+}
+
 function setupTray() {
   try {
     const iconPath = join(__dirname, "..", "..", "assets", "tray-icon.png");
@@ -373,6 +386,14 @@ app.whenReady().then(() => {
   const blogEventSpec = process.env.BLOG_EVENT_CRON || "0 */3 * * *";
   if (cron.validate(blogEventSpec)) {
     cron.schedule(blogEventSpec, () => runBlogEventJobWrapper("3시간마다 예약"));
+  }
+
+  // 포인트 적립 신청 자동 승인: 1분마다 확인 (기본값). 대기 중인 신청이 없으면 그냥 건너뜀.
+  // 매번 브라우저를 새로 설치하는 클라우드 예약작업과 달리, 상주 중인 이 앱에서만 돈다
+  // (3분 이내 인식이라는 요건상 클라우드 왕복(체크아웃+설치)으로는 속도를 맞출 수 없음).
+  const pointClaimsSpec = process.env.POINT_CLAIMS_CRON || "*/1 * * * *";
+  if (cron.validate(pointClaimsSpec)) {
+    cron.schedule(pointClaimsSpec, () => runPointClaimsJobWrapper());
   }
 
   app.on("activate", () => {
