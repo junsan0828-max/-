@@ -65,7 +65,9 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
   const claimStatus = existingClaim?.status;
 
   return (
-    <div className="space-y-4">
+    // min-w-0: Dialog가 grid라서 자식이 내용(긴 URL 등)의 원래 폭만큼 커지려는 것을 막아
+    // 화면이 좌우로 밀리지 않게 한다
+    <div className="space-y-4 min-w-0">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${eventTypeStyle[event.eventType ?? "notice"] ?? "bg-muted text-muted-foreground"}`}>

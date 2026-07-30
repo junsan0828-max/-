@@ -232,7 +232,7 @@ export default function GymPlusDashboard() {
 
       {/* 공지 & 이벤트 모달 */}
       <Dialog open={selectedEventId !== null} onOpenChange={(open) => !open && setSelectedEventId(null)}>
-        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogTitle className="sr-only">공지 및 이벤트 상세</DialogTitle>
           {selectedEventId !== null && (
             <GymPlusEventDetailContent
