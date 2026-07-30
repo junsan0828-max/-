@@ -17,6 +17,7 @@ import { runPayroll, writePayrollSheet } from "./payroll";
 import { runRepo, saveRepoResult, loadRepoResult, previousYearMonth } from "./repo";
 import { runJournal } from "./journal";
 import { runIfkJob } from "./ifk";
+import { runBlogEventJob } from "./blogEvent";
 import { getRecentCommands } from "./commandLog";
 import { updateTaskProgress, getTaskProgress, toggleTaskProgress, addManualTask } from "./taskProgress";
 
@@ -227,6 +228,24 @@ async function runIfkJobWrapper(reason: string) {
   }
 }
 
+async function runBlogEventJobWrapper(reason: string) {
+  send("log", `블로그 인증 이벤트 확인을 시작했어요 (${reason})`);
+  try {
+    const result = await runBlogEventJob();
+    if (result.skipped) {
+      send("log", `블로그 이벤트 건너뜀: ${result.error}`);
+      return;
+    }
+    if (!result.ok) {
+      send("log", `블로그 이벤트 등록 실패: ${result.error}`);
+      return;
+    }
+    send("log", `블로그 인증 이벤트 등록 완료 — "${result.post?.title}"`);
+  } catch (err: any) {
+    send("log", `블로그 이벤트 오류: ${err?.message ?? err}`);
+  }
+}
+
 function setupTray() {
   try {
     const iconPath = join(__dirname, "..", "..", "assets", "tray-icon.png");
@@ -348,6 +367,12 @@ app.whenReady().then(() => {
   const ifkSpec = process.env.IFK_CRON || "0 * * * *";
   if (cron.validate(ifkSpec)) {
     cron.schedule(ifkSpec, () => runIfkJobWrapper("매시 정각 예약"));
+  }
+
+  // 블로그 인증 이벤트: 3시간마다 새 글 확인 (기본값). 새 글이 없으면 그냥 건너뜀.
+  const blogEventSpec = process.env.BLOG_EVENT_CRON || "0 */3 * * *";
+  if (cron.validate(blogEventSpec)) {
+    cron.schedule(blogEventSpec, () => runBlogEventJobWrapper("3시간마다 예약"));
   }
 
   app.on("activate", () => {
