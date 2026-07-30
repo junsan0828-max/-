@@ -34,7 +34,12 @@ export async function sendRequestNotification({
   actionHint: string;
   requestedAt?: string;
 }) {
-  const to = process.env.ADMIN_EMAIL ?? "junsan0828@gmail.com";
+  // 대표 메일은 항상 받는다. ADMIN_EMAIL로 담당 직원 주소를 추가 지정할 수 있으며,
+  // 그 값이 대표 주소와 다르면 함께 발송한다(설정이 잘못돼도 대표가 놓치지 않도록).
+  const OWNER_EMAIL = "junsan0828@gmail.com";
+  const extra = process.env.ADMIN_EMAIL?.trim();
+  const to = extra && extra !== OWNER_EMAIL ? `${OWNER_EMAIL}, ${extra}` : OWNER_EMAIL;
+
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
 
   const at = requestedAt ?? new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
