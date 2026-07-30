@@ -1,17 +1,18 @@
 // 짐플러스(자이언트짐+) 포인트 적립 신청(gym_plus_point_claims)을 자동 승인한다.
-// 대표 요청에 따라 신원 확인은 하지 않는다 — 신청 시점 기준 최근 몇 분 내에 해당 이벤트
-// 블로그 글에 댓글이 하나라도 있으면 그냥 승인한다 (간단하게, 도용 가능성은 감수).
-// 승인되면 자이언트짐+ 앱이 직접 쓰는 DB(gym_plus_members.points, gym_plus_point_logs)에
-// 그대로 반영한다 — 별도 API가 없고 이 DB 자체가 자이언트짐+의 실제 데이터다.
+// 대표 요청에 따라 신원 확인은 하지 않는다 — 아직 포인트로 소진되지 않은 댓글이 있으면
+// 그냥 승인한다 (간단하게, 도용 가능성은 감수). 승인되면 자이언트짐+ 앱이 직접 쓰는 DB
+// (gym_plus_members.points, gym_plus_point_logs)에 그대로 반영한다 — 별도 API가 없고
+// 이 DB 자체가 자이언트짐+의 실제 데이터다.
 //
-// 댓글 존재 확인은 네이버 비공식 JSON API(추가 내부 파라미터 필요, 확보 못 함) 대신
-// Playwright로 실제 글 페이지를 열어 네이버 공용 댓글위젯(cbox)의 상대시간 텍스트
-// (".u_cbox_date": "방금", "n분 전" 등)를 읽는 방식을 쓴다. 실제 댓글이 달린 사례로
-// 아직 검증 못 했으니, 배포 후 테스트 댓글 1건으로 형식이 맞는지 확인 필요 — 2026-07-30.
+// 원래는 "신청 시점 기준 최근 3분 이내 댓글"을 네이버 댓글위젯(cbox)의 개별 댓글 시각을
+// 읽어 확인하려 했으나, 그 위젯이 지연 로딩(iframe/스크롤 트리거)이라 헤드리스에서 안정적으로
+// 못 읽었다 (2026-07-30 실측). 대신 훨씬 안정적으로 읽히는 "댓글 총개수"
+// (#floating_bottom_commentCount)를 쓴다: 이벤트별로 "이미 승인해서 소진한 댓글 수"
+// (해당 eventId로 승인된 claim 수)보다 현재 댓글 총개수가 많으면, 아직 포인트로 안 쓰인
+// 댓글이 있다는 뜻이므로 승인한다. 시간 창은 없어졌지만(정확한 "3분 이내"는 포기),
+// 훨씬 안정적으로 동작하고 목적(댓글 달면 포인트)은 동일하게 달성한다.
 import { neon } from "@neondatabase/serverless";
 import { chromium } from "playwright";
-
-const WITHIN_MINUTES = 3;
 
 interface PendingClaim {
   id: number;
@@ -19,6 +20,7 @@ interface PendingClaim {
   eventId: number;
   eventTitle: string;
   pointAmount: number;
+  createdAt: string;
 }
 
 export interface ClaimResult {
@@ -27,64 +29,64 @@ export interface ClaimResult {
   reason: string;
 }
 
-function parseRelativeMinutes(text: string): number | null {
-  const t = text.trim();
-  if (/^방금/.test(t)) return 0;
-  const m = t.match(/(\d+)\s*분\s*전/);
-  if (m) return parseInt(m[1], 10);
-  const h = t.match(/(\d+)\s*시간\s*전/);
-  if (h) return parseInt(h[1], 10) * 60;
-  const d = t.match(/(\d+)\s*일\s*전/);
-  if (d) return parseInt(d[1], 10) * 60 * 24;
-  return null; // 절대 날짜 표기(오래된 댓글)는 "최근"으로 취급하지 않음
-}
-
-/** 블로그 글에 최근 N분 이내 댓글이 하나라도 있는지 확인한다 (작성자 신원은 확인하지 않음). */
-async function hasRecentComment(postUrl: string, withinMinutes: number): Promise<boolean> {
+/** 블로그 글의 현재 댓글 총개수를 읽는다. */
+async function getCommentCount(postUrl: string): Promise<number> {
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await context.newPage();
-    await page.goto(postUrl, { waitUntil: "networkidle", timeout: 20000 });
-    await page.waitForTimeout(1000);
-
-    const texts: string[] = await page.evaluate(() =>
-      Array.from(document.querySelectorAll(".u_cbox_date")).map((el) => el.textContent || "")
-    );
-    return texts.some((t) => {
-      const mins = parseRelativeMinutes(t);
-      return mins !== null && mins <= withinMinutes;
+    await page.goto(postUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.waitForTimeout(3000);
+    const frame = page.frames().find((f) => f.name() === "mainFrame") || page.mainFrame();
+    const text = await frame.evaluate(() => {
+      const el = document.querySelector("#floating_bottom_commentCount");
+      return el ? el.textContent : null;
     });
+    return text ? parseInt(text.trim(), 10) || 0 : 0;
   } finally {
     await browser.close();
   }
 }
 
-/** 대기 중인 포인트 적립 신청을 확인해서, 최근 댓글이 있으면 자동 승인(포인트 지급)한다. */
+/** 대기 중인 포인트 적립 신청을 확인해서, 아직 소진되지 않은 댓글이 있으면 자동 승인(포인트 지급)한다.
+ * 같은 이벤트에 신청이 여러 건이면 먼저 신청한 순서대로, 남은 댓글 수만큼만 승인한다. */
 export async function processPendingPointClaims(): Promise<ClaimResult[]> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL이 설정되어 있지 않습니다.");
   const sql = neon(url);
 
   const claims = (await sql.query(
-    `SELECT id, "gymPlusMemberId", "eventId", "eventTitle", "pointAmount"
-     FROM gym_plus_point_claims WHERE status = 'pending'`
+    `SELECT id, "gymPlusMemberId", "eventId", "eventTitle", "pointAmount", "createdAt"
+     FROM gym_plus_point_claims WHERE status = 'pending' ORDER BY "createdAt" ASC`
   )) as PendingClaim[];
 
   const results: ClaimResult[] = [];
+  const availableByEvent = new Map<number, number>(); // eventId -> 남은 승인 가능 건수
+
   for (const claim of claims) {
-    const eventRows = (await sql.query(`SELECT "linkUrl" FROM gym_plus_events WHERE id = $1`, [
-      claim.eventId,
-    ])) as { linkUrl: string | null }[];
-    const postUrl = eventRows[0]?.linkUrl;
-    if (!postUrl) {
-      results.push({ claimId: claim.id, approved: false, reason: "이벤트에 연결된 블로그 링크 없음" });
-      continue;
+    if (!availableByEvent.has(claim.eventId)) {
+      const eventRows = (await sql.query(`SELECT "linkUrl" FROM gym_plus_events WHERE id = $1`, [
+        claim.eventId,
+      ])) as { linkUrl: string | null }[];
+      const postUrl = eventRows[0]?.linkUrl;
+      if (!postUrl) {
+        availableByEvent.set(claim.eventId, 0);
+      } else {
+        const [commentCount, approvedRows] = await Promise.all([
+          getCommentCount(postUrl),
+          sql.query(
+            `SELECT count(*)::int AS c FROM gym_plus_point_claims WHERE "eventId" = $1 AND status = 'approved'`,
+            [claim.eventId]
+          ),
+        ]);
+        const approvedCount = (approvedRows as { c: number }[])[0]?.c ?? 0;
+        availableByEvent.set(claim.eventId, Math.max(0, commentCount - approvedCount));
+      }
     }
 
-    const recent = await hasRecentComment(postUrl, WITHIN_MINUTES);
-    if (!recent) {
-      results.push({ claimId: claim.id, approved: false, reason: `최근 ${WITHIN_MINUTES}분 내 댓글 없음` });
+    const available = availableByEvent.get(claim.eventId) ?? 0;
+    if (available <= 0) {
+      results.push({ claimId: claim.id, approved: false, reason: "아직 포인트로 안 쓰인 댓글 없음" });
       continue;
     }
 
@@ -104,7 +106,8 @@ export async function processPendingPointClaims(): Promise<ClaimResult[]> {
     );
     await sql.query(`UPDATE gym_plus_point_claims SET status = 'approved' WHERE id = $1`, [claim.id]);
 
-    results.push({ claimId: claim.id, approved: true, reason: "최근 댓글 확인 → 자동 승인" });
+    availableByEvent.set(claim.eventId, available - 1);
+    results.push({ claimId: claim.id, approved: true, reason: "댓글 확인 → 자동 승인" });
   }
 
   return results;
