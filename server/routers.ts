@@ -1,5 +1,5 @@
 import { gymRouter } from "./gymRouters";
-import { sendPointClaimNotification } from "./email";
+import { sendPointClaimNotification, sendRequestNotification } from "./email";
 import Anthropic from "@anthropic-ai/sdk";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -2668,6 +2668,20 @@ const reportsRouter = t.router({
 // 포인트 회원권 연장 단가 (1,000P = 1일)
 const POINTS_PER_EXTENSION_DAY = 1000;
 
+// 신청 알림 메일에 넣을 회원 연락처 조회 (실패해도 알림만 영향받도록 예외를 삼킨다)
+async function gymPlusMemberContact(gymPlusMemberId: number) {
+  try {
+    const db = await getDb();
+    if (!db) return { name: "-", phone: "-" };
+    const [m] = await db
+      .select({ name: gymPlusMembers.name, phone: gymPlusMembers.phone, username: gymPlusMembers.username })
+      .from(gymPlusMembers).where(eq(gymPlusMembers.id, gymPlusMemberId)).limit(1);
+    return { name: m?.name ?? "-", phone: m?.phone || m?.username || "-" };
+  } catch {
+    return { name: "-", phone: "-" };
+  }
+}
+
 const gymPlusProtected = t.procedure.use(({ ctx, next }) => {
   const gymMemberId = (ctx.req.session as any).gymPlusMemberId as number | undefined;
   if (!gymMemberId) throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -3288,6 +3302,23 @@ ${dataContext}
         ...input,
         status: "pending",
       });
+
+      const renewalContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
+      sendRequestNotification({
+        kind: "재등록",
+        memberName: input.memberName || renewalContact.name,
+        memberPhone: input.memberPhone || renewalContact.phone,
+        rows: [
+          { label: "재등록 기간", value: input.requestedPeriod },
+          ...(input.requestedAmount != null
+            ? [{ label: "결제 금액", value: `${input.requestedAmount.toLocaleString("ko-KR")}원`, highlight: true }]
+            : []),
+          ...(input.paymentMethod ? [{ label: "결제 방법", value: input.paymentMethod }] : []),
+          { label: "현재 만료일", value: gymMember?.membershipEnd ?? "-" },
+          ...(input.bonusDays ? [{ label: "보너스", value: `+${input.bonusDays}일` }] : []),
+        ],
+        actionHint: "결제를 확인한 후 관리자 페이지에서 승인하면 회원권 만료일이 자동 연장됩니다.",
+      }).catch(() => {});
 
       return { success: true };
     }),
@@ -4251,6 +4282,20 @@ ${dataContext}
         note: input.note,
         status: "pending",
       });
+
+      const chargeContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
+      sendRequestNotification({
+        kind: "포인트 충전",
+        memberName: chargeContact.name,
+        memberPhone: chargeContact.phone,
+        rows: [
+          { label: "충전 금액", value: `${input.requestedAmount.toLocaleString("ko-KR")}P`, highlight: true },
+          { label: "결제 방법", value: input.paymentMethod },
+          ...(input.note ? [{ label: "메모", value: input.note }] : []),
+        ],
+        actionHint: "카운터에서 결제를 확인한 후 승인하면 포인트가 적립됩니다.",
+      }).catch(() => {});
+
       return { success: true };
     }),
 
@@ -4356,6 +4401,19 @@ ${dataContext}
         reason: `회원권 ${input.days}일 연장 신청`,
         relatedId: row.id,
       });
+
+      const extContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
+      sendRequestNotification({
+        kind: "회원권 연장(포인트)",
+        memberName: extContact.name,
+        memberPhone: extContact.phone,
+        rows: [
+          { label: "연장 기간", value: `${input.days}일`, highlight: true },
+          { label: "차감 포인트", value: `${cost.toLocaleString("ko-KR")}P (차감 완료)` },
+          { label: "남은 포인트", value: `${newBalance.toLocaleString("ko-KR")}P` },
+        ],
+        actionHint: `승인 후 회원권 만료일을 ${input.days}일 직접 연장해 주세요. 거절하면 포인트는 자동 반환됩니다.`,
+      }).catch(() => {});
 
       return { success: true, pointsUsed: cost, balance: newBalance };
     }),
@@ -4503,6 +4561,21 @@ ${dataContext}
         status: "pending",
         note: input.note,
       });
+
+      const purchaseContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
+      sendRequestNotification({
+        kind: "상품 구매",
+        memberName: purchaseContact.name,
+        memberPhone: purchaseContact.phone,
+        rows: [
+          { label: "상품", value: product.name, highlight: true },
+          { label: "금액", value: `${product.price.toLocaleString("ko-KR")}원` },
+          { label: "결제 방법", value: input.paymentMethod },
+          ...(input.note ? [{ label: "메모", value: input.note }] : []),
+        ],
+        actionHint: "결제를 확인한 후 관리자 페이지에서 승인하고 상품을 전달해 주세요.",
+      }).catch(() => {});
+
       return { success: true, status: "pending", pointsUsed: 0 };
     }),
 
