@@ -10,6 +10,8 @@ import { membershipTypeLabel } from "@/lib/membership";
 
 // 포인트 회원권 연장 단가 (서버의 POINTS_PER_EXTENSION_DAY와 동일해야 함)
 const POINTS_PER_EXTENSION_DAY = 1000;
+// 서버의 MIN_POINTS_FOR_EXTENSION과 동일해야 함
+const MIN_POINTS_FOR_EXTENSION = 5000;
 
 const PERIOD_PRICES: Record<string, number> = {
   "1개월": 80000,
@@ -590,16 +592,26 @@ export default function GymPlusProfile() {
             충전 신청
           </button>
         </div>
-        {/* 포인트로 회원권 기간 연장 */}
-        <button
-          onClick={() => setShowExtendModal(true)}
-          className="mt-4 w-full bg-white/15 hover:bg-white/25 transition-colors rounded-xl py-2.5 text-xs font-bold text-white flex items-center justify-center gap-1.5"
-        >
-          회원권 연장하기
-          <span className="font-normal text-white/70">
-            {POINTS_PER_EXTENSION_DAY.toLocaleString("ko-KR")}P = 1일
-          </span>
-        </button>
+        {/* 포인트로 회원권 기간 연장 — 소액으로 재등록을 계속 미루지 않도록 최소 보유 포인트 기준 이상만 가능 */}
+        {(() => {
+          const eligible = (member?.points ?? 0) >= MIN_POINTS_FOR_EXTENSION;
+          return (
+            <button
+              onClick={() => eligible && setShowExtendModal(true)}
+              disabled={!eligible}
+              className={`mt-4 w-full rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                eligible ? "bg-white/15 hover:bg-white/25 text-white" : "bg-white/5 text-white/40 cursor-not-allowed"
+              }`}
+            >
+              회원권 연장하기
+              <span className="font-normal opacity-70">
+                {eligible
+                  ? `${POINTS_PER_EXTENSION_DAY.toLocaleString("ko-KR")}P = 1일`
+                  : `${MIN_POINTS_FOR_EXTENSION.toLocaleString("ko-KR")}P부터 이용 가능`}
+              </span>
+            </button>
+          );
+        })()}
       </div>
 
       {/* 카테고리 필터 */}
@@ -827,7 +839,8 @@ export default function GymPlusProfile() {
         const balance = member?.points ?? 0;
         const cost = extendDays * POINTS_PER_EXTENSION_DAY;
         const maxDays = Math.max(1, Math.min(30, Math.floor(balance / POINTS_PER_EXTENSION_DAY)));
-        const enough = balance >= cost;
+        const meetsMinimum = balance >= MIN_POINTS_FOR_EXTENSION;
+        const enough = meetsMinimum && balance >= cost;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50" onClick={closeExtendModal} />
@@ -882,6 +895,10 @@ export default function GymPlusProfile() {
                     {enough ? (
                       <>사용 포인트 <span className="font-bold text-primary">{cost.toLocaleString("ko-KR")}P</span>
                         <span className="text-muted-foreground"> · 잔액 {(balance - cost).toLocaleString("ko-KR")}P</span></>
+                    ) : !meetsMinimum ? (
+                      <span className="text-red-500 font-medium">
+                        {MIN_POINTS_FOR_EXTENSION.toLocaleString("ko-KR")}P 이상 보유 시 이용할 수 있어요
+                      </span>
                     ) : (
                       <span className="text-red-500 font-medium">포인트가 부족합니다</span>
                     )}
