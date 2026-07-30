@@ -71,7 +71,8 @@ export async function runBlogEventJob(): Promise<BlogEventJobResult> {
 
   const start = todayStr();
   const end = addDays(start, EVENT_WINDOW_DAYS);
-  const content = `자이언트짐 블로그 글에 댓글을 남기면 ${POINT_AMOUNT}포인트를 드립니다!\n\n"${post.title}"\n${post.link}`;
+  // 링크는 본문 텍스트가 아니라 "블로그 글 보러가기" 버튼(linkUrl 컬럼)으로만 노출한다.
+  const content = `자이언트짐 블로그 글에 댓글을 남기면 ${POINT_AMOUNT}포인트를 드립니다!\n\n"${post.title}"`;
 
   await sql.query(
     `INSERT INTO gym_plus_events (title, content, "eventType", "startDate", "endDate", "isPublished", "linkUrl", "pointAmount")
