@@ -36,7 +36,7 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
     onSuccess: () => {
       refetchClaims();
       utils.gymPlus.memberMe.invalidate();
-      toast.success("적립 신청이 완료됐습니다. 확인 후 포인트가 지급됩니다.");
+      toast.success("적립 신청이 완료됐습니다. AI 확인 후 다음 날 아침 포인트가 적립됩니다.");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -140,6 +140,14 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
                   <li className="list-disc">지정된 글이 아닌 다른 글에 작성</li>
                 </ul>
               </div>
+
+              {/* 적립 인정 기준: 댓글 작성 후 3분 내 신청 버튼 클릭 여부를 AI가 확인 */}
+              <div className="bg-[#1D4ED8]/10 border border-[#1D4ED8]/30 rounded-xl px-3 py-2.5 space-y-1">
+                <p className="text-xs font-bold text-[#1D4ED8]">⏱ 댓글 작성 후 3분 이내에 아래 버튼을 눌러주세요</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  AI가 댓글 작성 시각과 신청 시각을 대조해 확인하며, 다음 날 아침 포인트가 자동으로 적립됩니다.
+                </p>
+              </div>
             </div>
           )}
 
@@ -164,7 +172,7 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
               </svg>
               <div>
                 <p className="text-sm font-semibold text-foreground">적립 신청 완료</p>
-                <p className="text-xs text-muted-foreground mt-0.5">확인 후 포인트가 지급됩니다</p>
+                <p className="text-xs text-muted-foreground mt-0.5">AI 확인 후 다음 날 아침 포인트가 적립됩니다</p>
               </div>
             </div>
           )}
