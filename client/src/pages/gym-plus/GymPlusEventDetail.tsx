@@ -92,12 +92,55 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
       )}
 
       <div className="bg-card border border-border rounded-xl p-4">
-        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{event.content}</p>
+        {/* break-words: 긴 URL을 그대로 붙여 써도 줄바꿈되어 모달이 가로로 넘치지 않도록 */}
+        <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">{event.content}</p>
       </div>
 
       {/* 포인트 이벤트 전용 영역 */}
       {isPointsEvent && event.linkUrl && (
         <div className="space-y-3">
+          {/* 참여 방법 안내 — 관리자가 이벤트마다 새로 쓰지 않아도 되도록 고정 노출 */}
+          {!claimStatus && (
+            <div className="bg-muted/40 border border-border rounded-2xl p-4 space-y-3">
+              <p className="text-xs font-bold text-muted-foreground tracking-wide">참여 방법</p>
+              <div className="space-y-2">
+                {[
+                  { n: 1, label: "블로그 글 읽기", done: visited },
+                  { n: 2, label: "댓글 남기기", done: visited },
+                  { n: 3, label: "돌아와서 적립 신청", done: false },
+                ].map((step) => (
+                  <div key={step.n} className="flex items-center gap-2.5">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                      step.done ? "bg-green-500 text-white" : "bg-border text-muted-foreground"
+                    }`}>
+                      {step.done ? "✓" : step.n}
+                    </span>
+                    <span className={`text-sm ${step.done ? "text-foreground line-through decoration-1" : "text-foreground"}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-border pt-3 space-y-1.5">
+                <p className="text-xs font-semibold text-foreground">💬 이런 내용을 남겨주세요</p>
+                <ul className="text-xs text-muted-foreground space-y-0.5 pl-3.5">
+                  <li className="list-disc">글을 읽고 느낀 점</li>
+                  <li className="list-disc">궁금한 운동이나 식단 질문</li>
+                  <li className="list-disc">15자 이상 작성</li>
+                </ul>
+              </div>
+
+              <div className="pt-1 space-y-1.5">
+                <p className="text-xs font-semibold text-red-400">⚠ 이런 경우는 인정되지 않아요</p>
+                <ul className="text-xs text-muted-foreground space-y-0.5 pl-3.5">
+                  <li className="list-disc">"좋아요"처럼 한 줄뿐인 댓글</li>
+                  <li className="list-disc">지정된 글이 아닌 다른 글에 작성</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
           {/* 승인됨 */}
           {claimStatus === "approved" && (
             <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 rounded-2xl px-5 py-4">
@@ -146,8 +189,8 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
                 className="flex items-center justify-between w-full px-5 py-4 rounded-2xl bg-[#1D4ED8] text-white active:bg-[#1a44c2] transition-colors"
               >
                 <div>
-                  <p className="text-[11px] text-white/60 font-medium tracking-wide uppercase">Points</p>
-                  <p className="text-[15px] font-bold mt-0.5">포인트 적립하기</p>
+                  <p className="text-[11px] text-white/60 font-medium tracking-wide uppercase">Step 1</p>
+                  <p className="text-[15px] font-bold mt-0.5">블로그 글 보러가기</p>
                 </div>
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/70">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
@@ -192,8 +235,8 @@ export function GymPlusEventDetailContent({ eventId, onNavigateAway }: { eventId
               className="flex items-center justify-between w-full px-5 py-4 rounded-2xl bg-[#1D4ED8] text-white active:bg-[#1a44c2] transition-colors"
             >
               <div>
-                <p className="text-[11px] text-white/60 font-medium tracking-wide uppercase">Points</p>
-                <p className="text-[15px] font-bold mt-0.5">포인트 적립하기</p>
+                <p className="text-[11px] text-white/60 font-medium tracking-wide uppercase">Step 1</p>
+                <p className="text-[15px] font-bold mt-0.5">블로그 글 다시 보러가기</p>
               </div>
               <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white/70">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
