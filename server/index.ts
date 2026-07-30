@@ -209,6 +209,121 @@ app.post("/api/booking", async (req, res) => {
   }
 });
 
+// ─── 포인트 회원권 연장 (자이언트짐++ → 통합운영) ──────────────────────────────
+// 만료일 계산·갱신은 통합운영만 수행한다(CLAUDE.md: 데이터 정의·운영 규칙은 통합운영 소유).
+// 자이언트짐++는 승인 시 이 API를 호출하고, 성공 응답을 받은 뒤에만 포인트를 차감해야
+// "연장은 됐는데 포인트가 안 깎임"(또는 그 반대) 상태를 피할 수 있다.
+const POINT_EXTENSION_MIN_BALANCE = 5000; // 이 미만이면 사용 불가 → 만료 시 재등록 유도
+const POINT_EXTENSION_UNIT_POINTS = 5000; // 1회 사용 단위
+const POINT_EXTENSION_UNIT_DAYS = 5;      // 1,000P = 1일
+
+app.post("/api/point-extension", async (req, res) => {
+  const { gymPlusMemberId, pointBalance, requestId, approvedBy } = req.body ?? {};
+  if (!gymPlusMemberId || !requestId) {
+    return res.status(400).json({ error: "gymPlusMemberId와 requestId는 필수입니다." });
+  }
+  const balance = Number(pointBalance);
+  if (!Number.isFinite(balance)) {
+    return res.status(400).json({ error: "pointBalance가 올바르지 않습니다." });
+  }
+  if (balance < POINT_EXTENSION_MIN_BALANCE) {
+    return res.status(400).json({
+      error: `포인트 ${POINT_EXTENSION_MIN_BALANCE.toLocaleString()}P 이상부터 사용할 수 있습니다. (현재 ${balance.toLocaleString()}P)`,
+      code: "INSUFFICIENT_POINTS",
+    });
+  }
+
+  try {
+    // 멱등성: 같은 신청(requestId)이 이미 처리됐으면 기존 결과를 그대로 돌려준다.
+    // (자이언트짐++ 쪽 재시도/중복 클릭으로 회원권이 두 번 늘어나는 사고 방지)
+    const dup = await pool.query(
+      `SELECT * FROM point_membership_extensions WHERE "requestId" = $1 LIMIT 1`,
+      [requestId]
+    );
+    if (dup.rows[0]) {
+      const r = dup.rows[0];
+      return res.json({
+        success: true, alreadyProcessed: true,
+        extensionDays: r.extensionDays, pointsUsed: r.pointsUsed,
+        newMembershipEnd: r.newEnd, memberId: r.memberId,
+      });
+    }
+
+    const gp = await pool.query(
+      `SELECT id, "memberId", name, phone, "membershipEnd" FROM gym_plus_members WHERE id = $1 LIMIT 1`,
+      [gymPlusMemberId]
+    );
+    if (!gp.rows[0]) return res.status(404).json({ error: "회원을 찾을 수 없습니다." });
+    const appMember = gp.rows[0];
+
+    // 연결된 통합운영 회원 찾기: memberId 우선, 없으면 이름+전화(숫자만) 매칭
+    let linkedMemberId: number | null = appMember.memberId ?? null;
+    let opsEnd: string | null = null;
+    if (!linkedMemberId && appMember.name && appMember.phone) {
+      const m = await pool.query(
+        `SELECT id, "membershipEnd" FROM members
+         WHERE name = $1
+           AND REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g') = REGEXP_REPLACE($2, '[^0-9]', '', 'g')
+         LIMIT 1`,
+        [appMember.name, appMember.phone]
+      );
+      if (m.rows[0]) {
+        linkedMemberId = m.rows[0].id;
+        opsEnd = m.rows[0].membershipEnd ?? null;
+        await pool.query(`UPDATE gym_plus_members SET "memberId" = $1 WHERE id = $2`, [linkedMemberId, appMember.id]);
+      }
+    } else if (linkedMemberId) {
+      const m = await pool.query(`SELECT "membershipEnd" FROM members WHERE id = $1 LIMIT 1`, [linkedMemberId]);
+      opsEnd = m.rows[0]?.membershipEnd ?? null;
+    }
+
+    // 연장 기준일: 통합운영 회원의 만료일이 원본. 아직 안 지났으면 그 날짜에서, 이미
+    // 지났으면 오늘(KST)부터 연장한다. UTC로 계산하면 한국 오전에 하루 밀린다.
+    const todayKst = new Date(Date.now() + 9 * 3600000).toISOString().substring(0, 10);
+    const baseEndStr = opsEnd ?? appMember.membershipEnd ?? null;
+    const base = baseEndStr && baseEndStr >= todayKst ? baseEndStr : todayKst;
+    const [by, bm, bd] = base.split("-").map(Number);
+    const endDate = new Date(Date.UTC(by, bm - 1, bd));
+    endDate.setUTCDate(endDate.getUTCDate() + POINT_EXTENSION_UNIT_DAYS);
+    const newEnd = endDate.toISOString().substring(0, 10);
+
+    // 이력 먼저 기록(UNIQUE requestId로 동시 중복 요청도 여기서 걸린다)
+    await pool.query(
+      `INSERT INTO point_membership_extensions
+       ("gymPlusMemberId","memberId","customerName","requestId","pointsUsed","extensionDays","previousEnd","newEnd","approvedBy","createdAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [appMember.id, linkedMemberId, appMember.name ?? null, requestId,
+       POINT_EXTENSION_UNIT_POINTS, POINT_EXTENSION_UNIT_DAYS, baseEndStr, newEnd,
+       approvedBy ?? null, new Date().toISOString()]
+    );
+
+    // 만료일 갱신: 통합운영 회원(원본) + 앱 회원 양쪽
+    if (linkedMemberId) {
+      await pool.query(
+        `UPDATE members SET "membershipEnd" = $1, "updatedAt" = $2 WHERE id = $3`,
+        [newEnd, new Date().toISOString(), linkedMemberId]
+      );
+    }
+    await pool.query(`UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`, [newEnd, appMember.id]);
+
+    console.log(`🎁 포인트 연장: ${appMember.name ?? gymPlusMemberId} · ${POINT_EXTENSION_UNIT_DAYS}일 (${baseEndStr ?? "-"} → ${newEnd})`);
+    return res.json({
+      success: true,
+      extensionDays: POINT_EXTENSION_UNIT_DAYS,
+      pointsUsed: POINT_EXTENSION_UNIT_POINTS,
+      newMembershipEnd: newEnd,
+      memberId: linkedMemberId,
+    });
+  } catch (e: any) {
+    // UNIQUE 위반 = 동시에 들어온 중복 요청. 이미 처리된 것으로 응답.
+    if (e?.code === "23505") {
+      return res.status(409).json({ error: "이미 처리된 신청입니다.", code: "ALREADY_PROCESSED" });
+    }
+    console.error("/api/point-extension error:", e);
+    return res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 // 프론트엔드 정적 파일 서빙
 const clientDistPath = path.join(process.cwd(), "client", "dist");
 if (fs.existsSync(clientDistPath)) {
@@ -801,6 +916,19 @@ async function initDatabase() {
       id SERIAL PRIMARY KEY,
       content TEXT NOT NULL,
       "updatedAt" TEXT NOT NULL DEFAULT now()::text
+    )`,
+    `CREATE TABLE IF NOT EXISTS point_membership_extensions (
+      id SERIAL PRIMARY KEY,
+      "gymPlusMemberId" INTEGER NOT NULL,
+      "memberId" INTEGER,
+      "customerName" TEXT,
+      "requestId" INTEGER NOT NULL UNIQUE,
+      "pointsUsed" INTEGER NOT NULL,
+      "extensionDays" INTEGER NOT NULL,
+      "previousEnd" TEXT,
+      "newEnd" TEXT NOT NULL,
+      "approvedBy" TEXT,
+      "createdAt" TEXT NOT NULL DEFAULT now()::text
     )`,
     `CREATE TABLE IF NOT EXISTS gym_plus_membership_renewals (
       id SERIAL PRIMARY KEY,

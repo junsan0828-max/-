@@ -262,6 +262,7 @@ export default function GymDashboard() {
   const { data: unviewedCount = 0 } = trpc.gym.leads.unviewedCount.useQuery(undefined, {
     refetchInterval: 30000,
   });
+  const { data: pointExt } = trpc.gym.kpi.pointExtensionSummary.useQuery({ year, month });
   const { data: me } = trpc.auth.me.useQuery();
   // 트레이너도 본인 담당 회원의 재등록 신청을 보고 처리한다(서버에서 담당 건만 걸러 내려줌).
   const { data: pendingRenewals } = trpc.gymPlus.admin_listRenewals.useQuery(
@@ -552,6 +553,12 @@ export default function GymDashboard() {
               {(kpi?.monthProfit ?? 0) >= 0 ? "+" : ""}{fmt(kpi?.monthProfit ?? 0)}원
             </span>
           </div>
+          {(pointExt?.count ?? 0) > 0 && (
+            <div className="pt-2 border-t border-border flex justify-between text-xs">
+              <span className="text-muted-foreground">포인트 회원권 연장 <span className="text-[10px]">(매출 외 무상 제공)</span></span>
+              <span className="font-medium text-amber-400">{pointExt!.count}건 · {pointExt!.totalDays}일</span>
+            </div>
+          )}
         </div>
       </div>
 

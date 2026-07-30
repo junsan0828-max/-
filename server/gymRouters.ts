@@ -1731,6 +1731,32 @@ const kpiRouter = t.router({
   // 미수금 내역 — 매출(revenue_entries) 기준. 미수금 KPI 카드(overview.totalUnpaid)와
   // 동일한 소스라 두 숫자가 항상 일치한다. (예전 팝업은 ptPackages 기준이라 패키지만 처리되고
   // 매출은 안 처리된 건에서 카드와 목록 합계가 어긋나는 사고가 있었다.)
+  // 이번달 포인트 회원권 연장 현황. 매출 0원이지만 실질은 무상 제공(비용)이라,
+  // 매출 지표와 별개로 "이번달 며칠이나 나갔는지"를 볼 수 있어야 통제가 된다.
+  pointExtensionSummary: protectedProcedure
+    .input(z.object({ year: z.number(), month: z.number() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user?.role !== "admin" && ctx.user?.role !== "sub_admin") return { count: 0, totalDays: 0, rows: [] };
+      const prefix = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      try {
+        const r = await pool.query<{ customerName: string | null; extensionDays: number; newEnd: string; createdAt: string }>(
+          `SELECT "customerName", "extensionDays", "newEnd", "createdAt"
+           FROM point_membership_extensions
+           WHERE to_char(("createdAt"::timestamp + interval '9 hours'), 'YYYY-MM') = $1
+           ORDER BY "createdAt" DESC`,
+          [prefix]
+        );
+        const rows = r.rows;
+        return {
+          count: rows.length,
+          totalDays: rows.reduce((s, x) => s + (x.extensionDays ?? 0), 0),
+          rows,
+        };
+      } catch {
+        return { count: 0, totalDays: 0, rows: [] };
+      }
+    }),
+
   unpaidList: protectedProcedure
     .input(z.object({ branchId: z.number().optional() }).optional())
     .query(async ({ ctx, input }) => {

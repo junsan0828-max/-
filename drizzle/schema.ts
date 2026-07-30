@@ -646,6 +646,25 @@ export const gymPlusMembershipRenewals = pgTable("gym_plus_membership_renewals",
   membershipType: text("membershipType"), // 헬스 | PT | 기타
 });
 
+// ─── 포인트 회원권 연장 이력 ────────────────────────────────────────────────────
+// 자이언트짐++ 포인트로 회원권을 연장한 기록. 결제금액 0원이라 revenue_entries에는
+// 넣지 않는다 — 매출 집계에서 subType으로 특정 유형을 제외하는 코드가 12곳 이상 흩어져
+// 있어, 0원 항목을 매출에 넣으면 한 곳만 빠뜨려도 재등록률·객단가가 조용히 틀어진다.
+// 별도 테이블로 두면 매출·정산에서 구조적으로 제외되므로 누락 위험이 없다.
+export const pointMembershipExtensions = pgTable("point_membership_extensions", {
+  id: serial("id").primaryKey(),
+  gymPlusMemberId: integer("gymPlusMemberId").notNull(),
+  memberId: integer("memberId"),                 // 연결된 통합운영 회원(없을 수 있음)
+  customerName: text("customerName"),
+  requestId: integer("requestId").notNull().unique(), // 자이언트짐++ 신청 ID — 중복 처리 방지
+  pointsUsed: integer("pointsUsed").notNull(),
+  extensionDays: integer("extensionDays").notNull(),
+  previousEnd: text("previousEnd"),
+  newEnd: text("newEnd").notNull(),
+  approvedBy: text("approvedBy"),
+  createdAt: text("createdAt").default(now).notNull(),
+});
+
 // 양도양수 계약서
 export const transferContracts = pgTable("transfer_contracts", {
   id: serial("id").primaryKey(),
