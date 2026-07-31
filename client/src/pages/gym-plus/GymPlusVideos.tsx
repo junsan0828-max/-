@@ -314,6 +314,8 @@ export default function GymPlusVideos() {
   const [tab, setTab] = useState<"gym" | "custom">("gym");
   const [selectedCategory, setSelectedCategory] = useState<number | undefined>();
   const [selectedLevel, setSelectedLevel] = useState<string | undefined>();
+  const [selectedBodyPart, setSelectedBodyPart] = useState<string | undefined>();
+  const [searchText, setSearchText] = useState("");
   const [showCheckIn, setShowCheckIn] = useState(false);
 
   const { data: categories } = trpc.gymPlus.listVideoCategories.useQuery();
@@ -324,6 +326,20 @@ export default function GymPlusVideos() {
   const { data: health } = trpc.gymPlus.getHealth.useQuery();
   const { data: todayRec, refetch: refetchRec } = trpc.gymPlus.getTodayRecommendations.useQuery();
   const { data: logs, refetch: refetchLogs } = trpc.gymPlus.listWorkoutLogs.useQuery({});
+
+  // 카테고리·난이도로 좁혀진 목록 안에서 실제 존재하는 부위만 칩으로 노출 (영상이 늘어도 계속 유효)
+  const bodyPartOptions = Array.from(
+    new Set((videos ?? []).map((v) => v.bodyPart).filter((b): b is string => !!b))
+  ).sort();
+
+  const filteredVideos = (videos ?? []).filter((v) => {
+    if (selectedBodyPart && v.bodyPart !== selectedBodyPart) return false;
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      if (!v.title.toLowerCase().includes(q) && !(v.bodyPart ?? "").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   const today = new Date().toISOString().slice(0, 10);
   const todayCheckedIn = logs?.some((l) => l.logDate === today && l.title === "출석체크");
@@ -419,17 +435,30 @@ export default function GymPlusVideos() {
       {/* 자이언트짐 기구운동 탭 */}
       {tab === "gym" && (
         <div className="p-4 space-y-4">
+          {/* 영상 검색 — 영상이 많아질수록 스크롤 대신 검색으로 바로 찾도록 */}
+          <div className="relative">
+            <svg viewBox="0 0 24 24" fill="none" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="영상 이름·부위로 검색"
+              className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-3 py-2.5 text-sm placeholder:text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]/30"
+            />
+          </div>
+
           {categories && categories.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
               <button
-                onClick={() => setSelectedCategory(undefined)}
+                onClick={() => { setSelectedCategory(undefined); setSelectedBodyPart(undefined); }}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                   !selectedCategory ? "bg-[#1D4ED8] text-white" : "bg-gray-100 text-gray-500"
                 }`}
               >전체</button>
               {categories.map((c) => (
                 <button key={c.id}
-                  onClick={() => setSelectedCategory(selectedCategory === c.id ? undefined : c.id)}
+                  onClick={() => { setSelectedCategory(selectedCategory === c.id ? undefined : c.id); setSelectedBodyPart(undefined); }}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                     selectedCategory === c.id ? "bg-[#1D4ED8] text-white" : "bg-gray-100 text-gray-500"
                   }`}
@@ -449,13 +478,35 @@ export default function GymPlusVideos() {
             ))}
           </div>
 
+          {/* 부위 필터 — 현재 필터(카테고리·난이도) 안에 실제로 존재하는 부위만 보여준다 */}
+          {bodyPartOptions.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+              <button
+                onClick={() => setSelectedBodyPart(undefined)}
+                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  !selectedBodyPart ? "bg-gray-800 text-white" : "bg-gray-50 text-gray-400 border border-gray-100"
+                }`}
+              >전체 부위</button>
+              {bodyPartOptions.map((bp) => (
+                <button key={bp}
+                  onClick={() => setSelectedBodyPart(selectedBodyPart === bp ? undefined : bp)}
+                  className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    selectedBodyPart === bp ? "bg-gray-800 text-white" : "bg-gray-50 text-gray-400 border border-gray-100"
+                  }`}
+                >{bp}</button>
+              ))}
+            </div>
+          )}
+
           {isLoading ? (
             <div className="text-center py-10 text-gray-400 text-sm">불러오는 중...</div>
           ) : !videos || videos.length === 0 ? (
             <div className="text-center py-10 text-gray-400 text-sm">등록된 영상이 없습니다</div>
+          ) : filteredVideos.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 text-sm">검색 결과가 없습니다</div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {videos.map((v) => (
+              {filteredVideos.map((v) => (
                 <VideoCard key={v.id} v={v} onClick={() => navigate(`/gym-plus/videos/${v.id}`)} />
               ))}
             </div>
