@@ -15,7 +15,9 @@ import PageGuideModal, { shouldShowGuide, hasGuide, syncServerDismissed } from "
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { data: user } = trpc.auth.me.useQuery();
+  // 관리자가 다른 탭/세션에서 이 트레이너의 플랜을 바꿔도 반영되도록,
+  // 앱 전역 기본값(refetchOnWindowFocus: false)과 무관하게 이 쿼리만 탭 포커스 시 재조회한다.
+  const { data: user } = trpc.auth.me.useQuery(undefined, { refetchOnWindowFocus: true });
   const { data: profile } = trpc.trainers.getMyProfile.useQuery(undefined, { enabled: user?.role === "trainer" });
   const { data: wsStatus } = trpc.workshop.getStatus.useQuery(undefined, { enabled: user?.role === "trainer" });
   const { data: reviewerStatus } = trpc.sequenceLab.amIReviewer.useQuery(undefined, { enabled: user?.role === "trainer" });
@@ -70,6 +72,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // location이 실제로 바뀔 때만 트리거 — user refetch 등으로 재실행돼도 이미 dismissed면 무시
   useEffect(() => {
     if (!user) return;
+    if (user.role === "admin") { setGuideOpen(false); return; } // 관리자 본인 계정은 온보딩 가이드가 불필요
     if (showSurvey || needsBasicInfo || profileModalOpen) { setGuideOpen(false); return; }
     if (!shouldShowGuide(location)) { setGuideOpen(false); return; }
     const t = setTimeout(() => {
@@ -270,7 +273,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
           </button>
           <div className="flex items-center gap-1">
-            {hasGuide(location) && (
+            {!isAdmin && hasGuide(location) && (
               <button onClick={() => setGuideOpen(true)} className="text-muted-foreground hover:text-primary p-1 transition-colors">
                 <HelpCircle className="h-4 w-4" />
               </button>
