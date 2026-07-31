@@ -30,9 +30,21 @@ export default function ProfileSetupModal({ onOpenChange }: { onOpenChange?: (op
     if (!profile) return;
     if (profile.profileBonusGranted) return;          // 이미 완성
     if (sessionStorage.getItem(SESSION_KEY)) return;  // 이번 세션 이미 봄
-    // 약간 딜레이 후 표시 (화면 로드 후)
-    const t = setTimeout(() => setOpenWithCb(true), 600);
-    return () => clearTimeout(t);
+
+    // 다른 모달/바텀시트가 열려있으면 그 위로 뜨지 않도록 대기 후 재확인
+    // (예: 회원 등록 시트가 열려있는 도중 이 팝업이 뜨면 등록완료 버튼을 가려서 터치가 씹히는 문제)
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tryOpen = () => {
+      if (cancelled) return;
+      if (!document.querySelector(".fixed.inset-0")) { setOpenWithCb(true); return; }
+      attempts += 1;
+      if (attempts > 30) return; // 이번 세션엔 포기 (다음 세션에 다시 시도)
+      timer = setTimeout(tryOpen, 800);
+    };
+    timer = setTimeout(tryOpen, 600);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [isSuccess, profile]);
 
   const dismiss = () => {

@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { toast } from "sonner";
-import TabBanner from "@/components/TabBanner";
 
 const gradeLabels: Record<string, string> = {
   basic: "기본",
@@ -449,17 +448,17 @@ function MembersTab() {
           placeholder="이름 또는 연락처로 검색"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 bg-input border-border"
+          className="pl-9 bg-card border-border shadow-sm"
         />
       </div>
 
       {/* 특수 필터 */}
       <div className="grid grid-cols-2 gap-2">
         {[
-          { key: "unpaid" as SpecialFilter, label: "미수금", count: counts.unpaid, icon: <AlertCircle className="h-3.5 w-3.5" />, activeClass: "bg-orange-500/20 text-orange-400 border-orange-500/40", inactiveClass: "text-orange-400/70 border-orange-500/20 hover:border-orange-500/40" },
-          { key: "low_sessions" as SpecialFilter, label: "수업 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" />, activeClass: "bg-primary/20 text-primary border-primary/40", inactiveClass: "text-primary/60 border-primary/20 hover:border-primary/40" },
-          { key: "expiring" as SpecialFilter, label: "만료 임박 (7일)", count: counts.expiring, icon: <Clock className="h-3.5 w-3.5" />, activeClass: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40", inactiveClass: "text-yellow-400/70 border-yellow-500/20 hover:border-yellow-500/40" },
-          { key: "expired" as SpecialFilter, label: "만료됨", count: counts.expired, icon: <XCircle className="h-3.5 w-3.5" />, activeClass: "bg-red-500/20 text-red-400 border-red-500/40", inactiveClass: "text-red-400/70 border-red-500/20 hover:border-red-500/40" },
+          { key: "unpaid" as SpecialFilter, label: "미수금", count: counts.unpaid, icon: <AlertCircle className="h-3.5 w-3.5" />, activeClass: "bg-orange-500/10 text-orange-600 border-orange-500/40", inactiveClass: "text-orange-600/70 border-border hover:border-orange-500/40" },
+          { key: "low_sessions" as SpecialFilter, label: "수업 3회 이하", count: counts.lowSessions, icon: <Dumbbell className="h-3.5 w-3.5" />, activeClass: "bg-primary/10 text-primary border-primary/40", inactiveClass: "text-primary/70 border-border hover:border-primary/40" },
+          { key: "expiring" as SpecialFilter, label: "만료 임박 (7일)", count: counts.expiring, icon: <Clock className="h-3.5 w-3.5" />, activeClass: "bg-amber-500/10 text-amber-600 border-amber-500/40", inactiveClass: "text-amber-600/70 border-border hover:border-amber-500/40" },
+          { key: "expired" as SpecialFilter, label: "만료됨", count: counts.expired, icon: <XCircle className="h-3.5 w-3.5" />, activeClass: "bg-red-500/10 text-red-600 border-red-500/40", inactiveClass: "text-red-600/70 border-border hover:border-red-500/40" },
         ].map((f) => (
           <button
             key={f.key}
@@ -474,22 +473,24 @@ function MembersTab() {
         ))}
       </div>
 
-      {/* 상태 필터 */}
-      <div className="flex gap-1.5 flex-wrap">
-        {(["all", "active", "paused"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-              statusFilter === s
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border text-muted-foreground hover:border-primary/40"
-            }`}
-          >
-            {s === "all" ? "전체" : s === "active" ? "활성" : "정지"}
-          </button>
-        ))}
-      </div>
+      {/* 상태 필터 — 등록된 회원이 있을 때만 표시 */}
+      {members && members.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap">
+          {(["all", "active", "paused"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                statusFilter === s
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:border-primary/40"
+              }`}
+            >
+              {s === "all" ? "전체" : s === "active" ? "활성" : "정지"}
+            </button>
+          ))}
+        </div>
+      )}
 
       {selectMode && filtered && filtered.length > 0 && (
         <button onClick={toggleSelectAll} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -799,7 +800,6 @@ export default function PT() {
 
   return (
     <div className="space-y-4">
-      <TabBanner tabKey="pt" />
       <div>
         <h1 className="text-xl font-bold">회원관리</h1>
         <p className="text-sm text-muted-foreground">총 {members?.length ?? 0}명</p>
