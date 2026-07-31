@@ -104,12 +104,6 @@ export default function ProfileSetupModal({ onOpenChange }: { onOpenChange?: (op
             <span style={BEBAS} className="text-lg tracking-wider">프로필 설정하고 200P 받기</span>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <button
-            onClick={dismiss}
-            className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5"
-          >
-            나중에 할게요
-          </button>
         </div>
       </DialogContent>
     </Dialog>

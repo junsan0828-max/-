@@ -7,7 +7,6 @@ import Landing from "./pages/Landing";
 import AdminLogin from "./pages/AdminLogin";
 import Privacy from "./pages/Privacy";
 import Dashboard from "./pages/Dashboard";
-import Members from "./pages/Members";
 import MemberForm from "./pages/MemberForm";
 import MemberDetail from "./pages/MemberDetail";
 import ParQ from "./pages/ParQ";
