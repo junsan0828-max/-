@@ -859,26 +859,26 @@ function TrainerDashboard() {
         <ToolGrid items={[
           { label: "회원 목록", icon: Users, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLocation("/members") },
           { label: "정보 수정", icon: Pencil, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setMemberSearchOpen(true) },
-          { label: "만료 임박", icon: Clock, colorCls: "text-amber-500", bgCls: "bg-amber-500/10", borderCls: "border-amber-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
-          { label: "미수금", icon: AlertTriangle, colorCls: "text-orange-500", bgCls: "bg-orange-500/10", borderCls: "border-orange-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
-          { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
-          { label: "재등록 안내", icon: RefreshCw, colorCls: "text-cyan-500", bgCls: "bg-cyan-500/10", borderCls: "border-cyan-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions?.length ?? null },
+          { label: "만료 임박", icon: Clock, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setExpiringModalOpen(true), badge: expiring?.length ?? null },
+          { label: "미수금", icon: AlertTriangle, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setUnpaidModalOpen(true), badge: unpaid?.length ?? null },
+          { label: "6회 이하 세션", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => setLowSessionsModalOpen(true), badge: lowSessions6?.length ?? null },
+          { label: "재등록 안내", icon: RefreshCw, colorCls: "text-indigo-500", bgCls: "bg-indigo-500/10", borderCls: "border-indigo-500/20", onClick: () => { setRenewalSelected(new Set((lowSessions ?? []).map(m => m.id))); setRenewalModalOpen(true); }, badge: lowSessions?.length ?? null },
         ]} />
       </div>
 
       {/* 수업 */}
       <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-            <Dumbbell className="h-3.5 w-3.5 text-emerald-500" />
+          <div className="w-6 h-6 rounded-lg bg-teal-500/10 flex items-center justify-center">
+            <Dumbbell className="h-3.5 w-3.5 text-teal-500" />
           </div>
           <span className="text-sm font-semibold">수업</span>
         </div>
         <ToolGrid items={[
           { label: "오늘 수업 수", icon: CalendarCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setTodayModalOpen(true), badge: stats?.todayAttendances ?? null },
-          { label: "이번달 수업", icon: BarChart3, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => setPtStatsModalOpen(true) },
-          { label: "수업 일지", icon: BookOpen, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setJournalOpen(true) },
-          { label: "PAR-Q 미기록", icon: ShieldCheck, colorCls: "text-rose-500", bgCls: "bg-rose-500/10", borderCls: "border-rose-500/20", onClick: () => setParqModalOpen(true), badge: parqMissing?.length ?? null },
+          { label: "이번달 수업", icon: BarChart3, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setPtStatsModalOpen(true) },
+          { label: "수업 일지", icon: BookOpen, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setJournalOpen(true) },
+          { label: "PAR-Q 미기록", icon: ShieldCheck, colorCls: "text-teal-500", bgCls: "bg-teal-500/10", borderCls: "border-teal-500/20", onClick: () => setParqModalOpen(true), badge: parqMissing?.length ?? null },
         ]} />
       </div>
 
@@ -898,9 +898,9 @@ function TrainerDashboard() {
         </div>
         <ToolGrid items={[
           { label: "일일 매출", icon: TrendingUp, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=daily") },
-          { label: "월 매출", icon: BarChart3, colorCls: "text-blue-500", bgCls: "bg-blue-500/10", borderCls: "border-blue-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=monthly") },
-          { label: "월 지출", icon: Wallet, colorCls: "text-rose-500", bgCls: "bg-rose-500/10", borderCls: "border-rose-500/20", onClick: () => setLocation("/settlement?tab=expense") },
-          { label: "정산 요약", icon: FileText, colorCls: "text-slate-400", bgCls: "bg-slate-500/10", borderCls: "border-slate-500/20", onClick: () => setLocation("/settlement?tab=revenue") },
+          { label: "월 매출", icon: BarChart3, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue&view=monthly") },
+          { label: "월 지출", icon: Wallet, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=expense") },
+          { label: "정산 요약", icon: FileText, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => setLocation("/settlement?tab=revenue") },
         ]} />
       </div>
 
@@ -915,7 +915,7 @@ function TrainerDashboard() {
         </div>
         <ToolGrid items={[
           { label: "체형 분석", icon: ScanLine, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/posture", "_blank") },
-          { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-emerald-500", bgCls: "bg-emerald-500/10", borderCls: "border-emerald-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
+          { label: "맞춤 식단", icon: UtensilsCrossed, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => window.open("https://noble-unity-production-8100.up.railway.app/?ref=fitstep", "_blank") },
           { label: "AI 추천", icon: Zap, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("fitstep_rec"), locked: userPlan === "free" },
           { label: "AI 리포트", icon: Brain, colorCls: "text-violet-500", bgCls: "bg-violet-500/10", borderCls: "border-violet-500/20", onClick: () => openFeature("ai_insights"), locked: userPlan === "free" },
         ]} />
