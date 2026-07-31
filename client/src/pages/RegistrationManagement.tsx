@@ -540,7 +540,24 @@ export default function RegistrationManagement() {
           {/* 등록 내역 */}
           {(() => {
             const allRevs: any[] = (revListQuery.data ?? []).map((r: any) => ({ ...r.entry, memberName: r.memberName, trainerName: r.trainerName }));
-            const filtered = allRevs.filter((r) => {
+            // 미수금 수납은 "등록"이 아니라 기존 등록 건에 대한 입금이다. 별도 카드로 띄우면
+            // 새 등록처럼 보여 헷갈리므로, 목록에서 빼고 원본 등록 카드 안에 이력으로 표시한다.
+            // (매출·월별 집계에는 그대로 잡히므로 수납한 달 매출은 정확하다)
+            const collections = allRevs.filter(r => r.subType === "미수금");
+            const collectionsByParent = new Map<number, any[]>();
+            const collectionsByMember = new Map<string, any[]>();
+            for (const c of collections) {
+              if (c.relatedEntryId) {
+                if (!collectionsByParent.has(c.relatedEntryId)) collectionsByParent.set(c.relatedEntryId, []);
+                collectionsByParent.get(c.relatedEntryId)!.push(c);
+              } else {
+                // relatedEntryId 도입 전에 만들어진 기존 수납 건은 회원 기준으로 붙인다.
+                const k = c.memberId ? `m${c.memberId}` : `n:${(c.customerName || c.memberName || "").trim()}`;
+                if (!collectionsByMember.has(k)) collectionsByMember.set(k, []);
+                collectionsByMember.get(k)!.push(c);
+              }
+            }
+            const filtered = allRevs.filter(r => r.subType !== "미수금").filter((r) => {
               const q = regSearch.toLowerCase();
               const name = r.customerName ?? r.memberName ?? "";
               const nameMatch = name.toLowerCase().includes(q) || (r.programDetail ?? "").toLowerCase().includes(q);
@@ -619,6 +636,27 @@ export default function RegistrationManagement() {
                               </div>
                               {startDate && <p className="text-xs text-muted-foreground">시작일: {startDate}</p>}
                               {unpaid > 0 && <p className="text-xs text-red-400 font-medium">미수금 {unpaid.toLocaleString()}원</p>}
+                              {/* 이 등록 건에 대한 미수금 수납 이력 */}
+                              {(() => {
+                                const memberKey = head.memberId ? `m${head.memberId}` : `n:${(head.customerName || head.memberName || "").trim()}`;
+                                const linked = items.flatMap((x: any) => collectionsByParent.get(x.id) ?? []);
+                                // 연결고리 없는 예전 수납 건은, 그 회원의 등록 카드 중 가장 최근 것 하나에만 붙인다
+                                const isNewestCard = groups.find(g =>
+                                  (g[0].memberId ? `m${g[0].memberId}` : `n:${(g[0].customerName || g[0].memberName || "").trim()}`) === memberKey
+                                ) === items;
+                                const legacy = isNewestCard ? (collectionsByMember.get(memberKey) ?? []) : [];
+                                const paidBacks = [...linked, ...legacy];
+                                if (paidBacks.length === 0) return null;
+                                return (
+                                  <div className="space-y-0.5 pt-1">
+                                    {paidBacks.map((c: any) => (
+                                      <p key={c.id} className="text-xs text-emerald-400">
+                                        ✓ {c.paymentDate} 미수금 {(c.paidAmount ?? c.amount ?? 0).toLocaleString()}원 수납
+                                      </p>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                               {/* 항목별 행 */}
                               <div className="divide-y divide-border/60 border-t border-border/60">
                                 {items.map((r: any) => {

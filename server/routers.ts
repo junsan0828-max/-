@@ -1948,6 +1948,8 @@ const ptRouter = t.router({
         unpaidAmount: 0,
         paymentMethod: input.paymentMethod ?? undefined,
         paymentDate: input.paymentDate,
+        // 어느 등록 건에 대한 입금인지 연결 — 등록관리에서 원본 카드 안에 이력으로 표시된다.
+        relatedEntryId: origRevenue?.id ?? null,
         memo: input.memo ?? null,
       });
 

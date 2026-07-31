@@ -835,6 +835,7 @@ async function initDatabase() {
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "revenueEntryId" INTEGER`,
     `ALTER TABLE pt_packages ADD COLUMN IF NOT EXISTS "eventId" INTEGER`,
     `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "eventId" INTEGER`,
+    `ALTER TABLE revenue_entries ADD COLUMN IF NOT EXISTS "relatedEntryId" INTEGER`,
     `CREATE TABLE IF NOT EXISTS body_analysis_reservations (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,

@@ -341,6 +341,9 @@ export const revenueEntries = pgTable("revenue_entries", {
   paymentDate: text("paymentDate").notNull(),
   startDate: text("startDate"),
   installments: integer("installments").default(1).notNull(),
+  // 미수금 수납(subType='미수금') 건이 어느 등록 건에 대한 입금인지 가리킨다.
+  // 등록관리에서 수납 건을 별도 카드가 아니라 원본 등록 카드 안의 이력으로 보여주기 위함.
+  relatedEntryId: integer("relatedEntryId"),
   memo: text("memo"),
   serviceItems: text("serviceItems"), // 서비스 제공 항목 (쉼표 구분: "PT,헬스,락커,운동복")
   transferAmount: integer("transferAmount"),
