@@ -211,6 +211,10 @@ function safeSet(storage: Storage, key: string, value: string) {
   try { storage.setItem(key, value); } catch { /* noop */ }
 }
 
+export function hasGuide(path: string): boolean {
+  return canonicalKey(path) !== null;
+}
+
 export function shouldShowGuide(path: string): boolean {
   const key = canonicalKey(path);
   if (!key) return false;

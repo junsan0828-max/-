@@ -11,7 +11,7 @@ import ProfileSetupModal from "./ProfileSetupModal";
 import OnboardingSurveyModal from "./OnboardingSurveyModal";
 import BasicInfoModal from "./BasicInfoModal";
 import InstallPromptModal from "./InstallPromptModal";
-import PageGuideModal, { shouldShowGuide, syncServerDismissed } from "./PageGuideModal";
+import PageGuideModal, { shouldShowGuide, hasGuide, syncServerDismissed } from "./PageGuideModal";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -270,9 +270,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-xl tracking-wider text-primary" style={{ fontFamily: "'Bebas Neue', 'Arial Black', Arial, sans-serif", letterSpacing: "0.12em" }}>STEP</span>
           </button>
           <div className="flex items-center gap-1">
-            <button onClick={() => setGuideOpen(true)} className="text-muted-foreground hover:text-primary p-1 transition-colors">
-              <HelpCircle className="h-4 w-4" />
-            </button>
+            {hasGuide(location) && (
+              <button onClick={() => setGuideOpen(true)} className="text-muted-foreground hover:text-primary p-1 transition-colors">
+                <HelpCircle className="h-4 w-4" />
+              </button>
+            )}
             <span className="text-xs text-muted-foreground">{user?.username}</span>
           </div>
         </header>
@@ -291,6 +293,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           />
         )}
         {showSurvey && <OnboardingSurveyModal onClose={() => { sessionStorage.setItem("onboarding-survey-dismissed", "1"); setSurveyDone(true); }} />}
+        {guideOpen && (
+          <PageGuideModal
+            path={location}
+            onClose={() => setGuideOpen(false)}
+            onDismissPermanent={(key) => dismissGuideMutation.mutate({ key })}
+          />
+        )}
       </div>
     </div>
   );
