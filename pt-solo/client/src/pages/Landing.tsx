@@ -238,7 +238,9 @@ function AnalyticsMockup() {
           <div className="flex items-end gap-1 h-12">
             {[[72,"Jan"],[78,"Feb"],[81,"Mar"],[85,"Apr"],[90,"May"]].map(([h, m]) => (
               <div key={m as string} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full rounded-t-sm bg-gradient-to-t from-blue-600/60 to-blue-400/30" style={{ height: `${h as number * 0.12}rem` }} />
+                <div className="w-full h-8 flex items-end">
+                  <div className="w-full rounded-t-sm bg-gradient-to-t from-blue-600/60 to-blue-400/30" style={{ height: `${h}%` }} />
+                </div>
                 <span className="text-[8px] text-white/25">{m as string}</span>
               </div>
             ))}
