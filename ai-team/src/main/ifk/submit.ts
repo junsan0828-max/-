@@ -61,14 +61,20 @@ export async function submitIfkArticleAsPending(
     return { ok: false, error: "IFK 관리자 로그인 정보 미설정 (.env에 IFK_ADMIN_ID/IFK_ADMIN_PASSWORD 필요)" };
   }
 
-  // ifk.co.kr 서버가 TLS 중간 인증서 체인을 불완전하게 보내고 있어 (openssl s_client로 재확인,
-  // 2026-07-30), 리눅스 기반 헤드리스 크롬은 이 사이트에서 net::ERR_CONNECTION_RESET으로 접속이
-  // 막힌다. Windows Chrome은 OS 차원에서 부족한 중간 인증서를 자동 보완해 조용히 성공하지만
-  // 리눅스에는 그 기능이 없다. context의 ignoreHTTPSErrors만으로 클라우드에서 다시 막히는
-  // 사례가 재현돼(2026-07-30), 브라우저 실행 인자에도 동일한 무시 옵션을 추가로 걸어 이중으로
-  // 우회한다 — 신뢰하는 우리 사이트(회사 관리자 페이지)이므로 이 컨텍스트에 한해 인증서 검증을
-  // 건너뛴다.
-  const browser = await chromium.launch({ headless: true, args: ["--ignore-certificate-errors"] });
+  // 진짜 원인(2026-07-31 클라우드 진단으로 확정): 인증서 체인 문제가 아니라, 클라우드 샌드박스가
+  // 외부 HTTPS 접속을 HTTPS_PROXY 환경변수의 프록시로만 허용하는데 Playwright의 Chromium은 그
+  // 환경변수를 자동으로 읽지 않아 직접 접속을 시도하다가 net::ERR_CONNECTION_RESET으로 막혔다.
+  // (curl은 HTTPS_PROXY를 자동으로 타서 정상 접속됐던 것 — 그래서 이전엔 "인증서 문제"로 오진단함.)
+  // 프록시 환경변수가 있으면 명시적으로 Chromium에 전달한다. 로컬(Windows, 프록시 없음)에서는
+  // 아무 값도 안 잡히므로 기존과 동일하게 동작한다. ignoreHTTPSErrors는 ifk.co.kr의 불완전한 TLS
+  // 체인(중간 인증서 누락, openssl s_client로 확인) 우회용으로 계속 유지한다.
+  const proxyServer =
+    process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--ignore-certificate-errors"],
+    proxy: proxyServer ? { server: proxyServer } : undefined,
+  });
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await context.newPage();
