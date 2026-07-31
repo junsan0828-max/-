@@ -469,8 +469,9 @@ export default function Landing() {
           <div className="mt-12 text-center">
             <div className="inline-block bg-gradient-to-br from-blue-600/12 to-violet-600/8 border border-blue-500/18 rounded-2xl px-8 py-6 max-w-md">
               <p className="text-white/55 text-sm leading-loose">
-                핏스텝은 <span className="text-white font-semibold">"혼자 살아남는 업계"</span>가 아니라<br />
-                <span className="text-blue-400 font-semibold">"함께 성장하는 업계"</span>를 만들기 위해 시작되었습니다.
+                핏스텝은 <span className="text-white font-semibold">"혼자 살아남는 업계"</span>가 아니라{" "}
+                <span className="text-blue-400 font-semibold">"함께 성장하는 업계"</span>를 만들기 위해
+                시작되었습니다.
               </p>
             </div>
           </div>
@@ -567,7 +568,7 @@ export default function Landing() {
           </div>
           <h2 className="text-center text-[2rem] sm:text-[2.25rem] font-bold leading-tight tracking-tight mb-4">
             회원에게 제공하는<br />
-            <span className="text-blue-400">나만의 프리미엄 관리 페이지</span>
+            <span className="text-blue-400">나만의 프리미엄<br className="sm:hidden" /> 관리 페이지</span>
           </h2>
           <p className="text-center text-white/38 text-sm leading-relaxed mb-6 max-w-lg mx-auto">
             STEPER가 회원별로 운동 프로그램, 맞춤 영상, 식단 설계, 활동 데이터를 제공하는 개인 관리 페이지입니다.
@@ -627,10 +628,10 @@ export default function Landing() {
                     회원관리, 재등록, 운영 시스템의 한계를 직접 경험했습니다.
                   </p>
                   <p>
-                    FIT STEP은<br />
-                    <span className="text-white/75 font-semibold">연 1억 5천 매출 운영 경험</span>과<br />
-                    <span className="text-white/75 font-semibold">자세체형교정 석사 및 의학박사 과정</span>의 전문성을 바탕으로,<br />
-                    STEPER와 강사가 더 오래, 더 체계적으로 성장할 수 있도록 만들었습니다.
+                    FIT STEP은{" "}
+                    <span className="text-white/75 font-semibold">연 1억 5천 매출 운영 경험</span>과{" "}
+                    <span className="text-white/75 font-semibold">자세체형교정 석사 및 의학박사 과정</span>의 전문성을
+                    바탕으로, STEPER와 강사가 더 오래, 더 체계적으로 성장할 수 있도록 만들었습니다.
                   </p>
                   <p className="text-blue-300/70 font-medium">
                     "혼자 버티는 업계가 아니라,<br />
