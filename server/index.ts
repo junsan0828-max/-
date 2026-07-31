@@ -214,11 +214,10 @@ app.post("/api/booking", async (req, res) => {
 // 자이언트짐++는 승인 시 이 API를 호출하고, 성공 응답을 받은 뒤에만 포인트를 차감해야
 // "연장은 됐는데 포인트가 안 깎임"(또는 그 반대) 상태를 피할 수 있다.
 const POINT_EXTENSION_MIN_BALANCE = 5000; // 이 미만이면 사용 불가 → 만료 시 재등록 유도
-const POINT_EXTENSION_UNIT_POINTS = 5000; // 1회 사용 단위
-const POINT_EXTENSION_UNIT_DAYS = 5;      // 1,000P = 1일
+const POINT_EXTENSION_POINTS_PER_DAY = 1000; // 1,000P = 1일 (사용은 1,000P 단위)
 
 app.post("/api/point-extension", async (req, res) => {
-  const { gymPlusMemberId, pointBalance, requestId, approvedBy } = req.body ?? {};
+  const { gymPlusMemberId, pointBalance, pointsToUse, requestId, approvedBy } = req.body ?? {};
   if (!gymPlusMemberId || !requestId) {
     return res.status(400).json({ error: "gymPlusMemberId와 requestId는 필수입니다." });
   }
@@ -226,12 +225,38 @@ app.post("/api/point-extension", async (req, res) => {
   if (!Number.isFinite(balance)) {
     return res.status(400).json({ error: "pointBalance가 올바르지 않습니다." });
   }
+  // 사용 기준선: 잔액이 5,000P 미만이면 아예 사용 불가(만료 시 재등록 유도).
   if (balance < POINT_EXTENSION_MIN_BALANCE) {
     return res.status(400).json({
       error: `포인트 ${POINT_EXTENSION_MIN_BALANCE.toLocaleString()}P 이상부터 사용할 수 있습니다. (현재 ${balance.toLocaleString()}P)`,
       code: "INSUFFICIENT_POINTS",
     });
   }
+  // 기준선을 넘으면 보유량만큼 쓸 수 있다(1,000P 단위). 미지정 시 사용 가능한 전액.
+  const usable = Math.floor(balance / POINT_EXTENSION_POINTS_PER_DAY) * POINT_EXTENSION_POINTS_PER_DAY;
+  const points = pointsToUse == null ? usable : Number(pointsToUse);
+  if (!Number.isFinite(points) || points <= 0) {
+    return res.status(400).json({ error: "pointsToUse가 올바르지 않습니다." });
+  }
+  if (points % POINT_EXTENSION_POINTS_PER_DAY !== 0) {
+    return res.status(400).json({
+      error: `포인트는 ${POINT_EXTENSION_POINTS_PER_DAY.toLocaleString()}P 단위로만 사용할 수 있습니다.`,
+      code: "INVALID_UNIT",
+    });
+  }
+  if (points < POINT_EXTENSION_MIN_BALANCE) {
+    return res.status(400).json({
+      error: `한 번에 ${POINT_EXTENSION_MIN_BALANCE.toLocaleString()}P 이상 사용해야 합니다.`,
+      code: "BELOW_MIN_USE",
+    });
+  }
+  if (points > balance) {
+    return res.status(400).json({
+      error: `보유 포인트(${balance.toLocaleString()}P)보다 많이 사용할 수 없습니다.`,
+      code: "EXCEEDS_BALANCE",
+    });
+  }
+  const extensionDays = points / POINT_EXTENSION_POINTS_PER_DAY;
 
   try {
     // 멱등성: 같은 신청(requestId)이 이미 처리됐으면 기존 결과를 그대로 돌려준다.
@@ -284,7 +309,7 @@ app.post("/api/point-extension", async (req, res) => {
     const base = baseEndStr && baseEndStr >= todayKst ? baseEndStr : todayKst;
     const [by, bm, bd] = base.split("-").map(Number);
     const endDate = new Date(Date.UTC(by, bm - 1, bd));
-    endDate.setUTCDate(endDate.getUTCDate() + POINT_EXTENSION_UNIT_DAYS);
+    endDate.setUTCDate(endDate.getUTCDate() + extensionDays);
     const newEnd = endDate.toISOString().substring(0, 10);
 
     // 이력 먼저 기록(UNIQUE requestId로 동시 중복 요청도 여기서 걸린다)
@@ -293,7 +318,7 @@ app.post("/api/point-extension", async (req, res) => {
        ("gymPlusMemberId","memberId","customerName","requestId","pointsUsed","extensionDays","previousEnd","newEnd","approvedBy","createdAt")
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [appMember.id, linkedMemberId, appMember.name ?? null, requestId,
-       POINT_EXTENSION_UNIT_POINTS, POINT_EXTENSION_UNIT_DAYS, baseEndStr, newEnd,
+       points, extensionDays, baseEndStr, newEnd,
        approvedBy ?? null, new Date().toISOString()]
     );
 
@@ -306,11 +331,11 @@ app.post("/api/point-extension", async (req, res) => {
     }
     await pool.query(`UPDATE gym_plus_members SET "membershipEnd" = $1 WHERE id = $2`, [newEnd, appMember.id]);
 
-    console.log(`🎁 포인트 연장: ${appMember.name ?? gymPlusMemberId} · ${POINT_EXTENSION_UNIT_DAYS}일 (${baseEndStr ?? "-"} → ${newEnd})`);
+    console.log(`🎁 포인트 연장: ${appMember.name ?? gymPlusMemberId} · ${points.toLocaleString()}P → ${extensionDays}일 (${baseEndStr ?? "-"} → ${newEnd})`);
     return res.json({
       success: true,
-      extensionDays: POINT_EXTENSION_UNIT_DAYS,
-      pointsUsed: POINT_EXTENSION_UNIT_POINTS,
+      extensionDays,
+      pointsUsed: points,
       newMembershipEnd: newEnd,
       memberId: linkedMemberId,
     });
