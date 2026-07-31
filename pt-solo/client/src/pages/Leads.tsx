@@ -3,7 +3,6 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Plus, Search, Phone, MessageSquare, CheckCircle2, UserCheck, ChevronLeft, ChevronRight, Zap, UserPlus, RefreshCw, ClipboardList, FileText, ClipboardCheck } from "lucide-react";
 import { useLocation } from "wouter";
-import TabBanner from "@/components/TabBanner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -528,7 +527,6 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-4">
-      <TabBanner tabKey="leads" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">상담실</h1>
@@ -537,7 +535,7 @@ export default function LeadsPage() {
         <div className="flex gap-2">
           <button
             onClick={openQuickModal}
-            className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             <Zap className="h-4 w-4" /> 바로등록
           </button>
@@ -749,7 +747,7 @@ export default function LeadsPage() {
             </div>
             <div className="px-4 pt-4 pb-safe-4 border-t border-border shrink-0 space-y-2">
               <button type="button" onClick={confirmRegistration} disabled={!agreedTerms || !agreedPrivacy || !signatureData}
-                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 동의 후 등록 진행
               </button>
               <button type="button" onClick={() => setShowContract(false)}
@@ -896,7 +894,7 @@ export default function LeadsPage() {
                         submitReregistration();
                       }
                     }}
-                    className="flex-1 bg-emerald-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40">
+                    className="flex-1 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-semibold hover:bg-primary/90 disabled:opacity-40">
                     {addPackageMutation.isPending ? "등록 중..." : (
                       <span className="flex items-center justify-center gap-1.5">
                         재등록 완료
@@ -1064,13 +1062,13 @@ export default function LeadsPage() {
             </div>
             <div className="px-4 pt-3 pb-safe-4 border-t border-border shrink-0 space-y-2">
               {isQuickReg && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+                <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs text-primary">
                   결제 정보가 포함되어 등록한 회원은 매출 통계에 반영됩니다.
                 </div>
               )}
               <button type="button" onClick={saveRegistration}
                 disabled={registerMutation.isPending || createMutation.isPending || updateMutation.isPending}
-                className="w-full bg-emerald-500 text-white rounded-xl py-3 text-sm font-semibold hover:bg-emerald-600 transition-colors disabled:opacity-50">
+                className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50">
                 {(createMutation.isPending || updateMutation.isPending) ? "계약 처리 중..." : registerMutation.isPending ? "등록 중..." : `등록 완료 및 회원 생성${featureInfo("new_contract").enabled ? ` (-${featureInfo("new_contract").cost}P)` : ""}`}
               </button>
               <button type="button" onClick={() => { setShowRegistration(false); setIsQuickReg(false); }}
