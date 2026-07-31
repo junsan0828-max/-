@@ -40,6 +40,16 @@
     /* prevent horizontal overflow on iOS */
     overflow-x: hidden;
   }
+
+  /* iOS Safari는 날짜/시간 인풋에 큰 고유 너비(intrinsic width)를 부여한다.
+     grid/flex 항목의 기본값인 min-width:auto와 만나면 트랙이 밀려나서
+     "생년월일 칸만 갑자기 커지는" 현상이 생기므로 전역으로 차단한다. */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"] {
+    min-width: 0;
+  }
 }
 
 /* ── iOS Safari / safe-area utilities ─────────────────────────────────────── */

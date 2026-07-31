@@ -6,7 +6,18 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["'Noto Sans KR'", "sans-serif"],
+        // Noto Sans KR을 먼저 쓰되, 폰트 로딩 실패/오프라인 시를 대비해
+        // 시스템 폰트 스택을 fallback으로 유지한다.
+        // (이게 빠져 있으면 iOS에서 generic sans-serif로 떨어져 글자 폭이 크게 달라진다)
+        sans: [
+          "'Noto Sans KR'",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "'Apple SD Gothic Neo'",
+          "'Malgun Gothic'",
+          "system-ui",
+          "sans-serif",
+        ],
       },
       colors: {
         border: "hsl(var(--border))",

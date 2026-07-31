@@ -797,7 +797,7 @@ function TrainerDashboard() {
           <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
             <UserPlus className="h-5 w-5 text-white" />
           </div>
-          <div>
+          <div className="pr-8">
             <p className="text-[16px] font-semibold text-white">회원 등록</p>
             <p className="text-[12px] text-white/65 mt-0.5">새 회원을 빠르게 등록</p>
           </div>
@@ -812,7 +812,7 @@ function TrainerDashboard() {
           <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
             <Dumbbell className="h-5 w-5 text-white" />
           </div>
-          <div>
+          <div className="pr-8">
             <p className="text-[16px] font-semibold text-white">수업 시작</p>
             <p className="text-[12px] text-white/65 mt-0.5">오늘 PT 바로 기록</p>
           </div>
