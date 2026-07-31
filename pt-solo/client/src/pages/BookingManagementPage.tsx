@@ -337,7 +337,7 @@ export default function BookingManagementPage() {
               {(saveRecurringMutation.isPending || generateMutation.isPending) ? "생성 중..." : "저장 후 슬롯 자동 생성"}
             </Button>
           </div>
-          {brand?.username && (
+          {brand?.username && brand?.brandIsPublic === 1 && (
             <button
               onClick={() => window.open(`${window.location.origin}/c/${encodeURIComponent(brand.username)}`, "_blank")}
               className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors">
