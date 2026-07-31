@@ -1368,6 +1368,34 @@ async function initDatabase() {
     console.error("삭제된 회원 잔여 락커/운동복 정리 오류:", e);
   }
 
+  // ── 미수금 수납했는데 원본 매출에 반영 안 된 건 보정 ────────────────────────
+  // 미수금 수납(collectUnpaidPayment)이 예전엔 pt_packages.revenueEntryId 링크로만 원본
+  // 매출을 찾았는데, gym.register로 만들어진 패키지는 이 링크가 비어 있다. 그래서 패키지
+  // 미수금은 줄었는데 매출 미수금은 그대로 남아, 미수금 목록/KPI에 계속 잡히는 사고가
+  // 있었다(안종현 사례). 지금은 링크가 없어도 회원 기준으로 찾아 처리한다.
+  // 아래는 이미 어긋난 기존 데이터 보정: "수납 기록(subType='미수금')이 실제로 존재하는
+  // 회원"에 한해, 매출 미수금을 패키지 미수금까지 낮춘다. 수납 증거가 있는 건만 대상이라
+  // 아직 안 받은 미수금을 임의로 지울 위험이 없다.
+  try {
+    const fixed = await pool.query(`
+      UPDATE revenue_entries r
+      SET "unpaidAmount" = p."unpaidAmount", "updatedAt" = now()::text
+      FROM pt_packages p
+      WHERE r."memberId" = p."memberId"
+        AND r.type = 'PT'
+        AND COALESCE(r."subType",'') <> '미수금'
+        AND COALESCE(r."unpaidAmount",0) > COALESCE(p."unpaidAmount",0)
+        AND r."startDate" IS NOT DISTINCT FROM p."startDate"
+        AND EXISTS (
+          SELECT 1 FROM revenue_entries c
+          WHERE c."memberId" = r."memberId" AND c."subType" = '미수금'
+        )
+    `);
+    if ((fixed.rowCount ?? 0) > 0) console.log(`💵 수납 반영 누락 미수금 보정: ${fixed.rowCount}건`);
+  } catch (e) {
+    console.error("미수금 수납 반영 보정 오류:", e);
+  }
+
   // ── PT 매출이 있으나 ptPackages 없는 회원에 패키지 자동 생성 ──────────────
   // revenueEntryId로 1:1 연결하여 서버 재시작 시 중복 생성 완전 방지
   try {

@@ -1851,10 +1851,24 @@ const ptRouter = t.router({
 
       // 연결된 원본 매출의 미수금도 같이 맞춘다 — 미수금 KPI/목록은 revenue_entries 기준이라
       // 패키지만 고치면 화면상 미수금이 안 줄어드는 불일치가 생긴다(김용근 사례).
-      if (pkg.revenueEntryId) {
+      // revenueEntryId가 비어 있는 패키지(gym.register 경로)도 있으므로 같은 회원의 미수금
+      // 매출로 폴백한다 — 안 그러면 이 화면에서 0으로 고쳐도 목록에 그대로 남는다.
+      let targetRevId: number | null = pkg.revenueEntryId ?? null;
+      if (!targetRevId) {
+        const candidates = await db.select({ id: revenueEntries.id, startDate: revenueEntries.startDate })
+          .from(revenueEntries)
+          .where(and(
+            eq(revenueEntries.memberId, pkg.memberId),
+            gt(revenueEntries.unpaidAmount, 0),
+            sql`COALESCE(${revenueEntries.subType},'') <> '미수금'`,
+          ))
+          .orderBy(desc(revenueEntries.unpaidAmount));
+        targetRevId = (candidates.find(c => pkg.startDate && c.startDate === pkg.startDate) ?? candidates[0])?.id ?? null;
+      }
+      if (targetRevId) {
         await db.update(revenueEntries)
           .set({ unpaidAmount: input.unpaidAmount, updatedAt: new Date().toISOString() })
-          .where(eq(revenueEntries.id, pkg.revenueEntryId));
+          .where(eq(revenueEntries.id, targetRevId));
       }
 
       return { success: true };
@@ -1893,11 +1907,25 @@ const ptRouter = t.router({
 
       await db.update(ptPackages).set({ unpaidAmount: newUnpaid }).where(eq(ptPackages.id, input.packageId));
 
-      // 원본 매출(있으면)의 미수금도 같이 줄인다 — "전체 미수금" KPI가 revenue_entries 기준이라
-      // 패키지만 고치면 화면상 미수금이 안 줄어든다.
-      const [origRevenue] = pkg.revenueEntryId
-        ? await db.select().from(revenueEntries).where(eq(revenueEntries.id, pkg.revenueEntryId)).limit(1)
-        : [];
+      // 원본 매출의 미수금도 같이 줄인다 — "전체 미수금" KPI/목록이 revenue_entries 기준이라
+      // 패키지만 고치면 화면상 미수금이 그대로 남는다.
+      // ⚠ gym.register 경로로 만들어진 패키지는 revenueEntryId가 비어 있다. 그래서 이 링크만
+      // 믿으면 원본을 못 찾아 미수금이 안 줄어드는 사고가 난다(안종현 사례). 링크가 없으면
+      // 같은 회원의 미수금이 남아있는 매출을 찾아 처리한다(시작일 일치 건 우선).
+      let origRevenue: typeof revenueEntries.$inferSelect | undefined;
+      if (pkg.revenueEntryId) {
+        [origRevenue] = await db.select().from(revenueEntries).where(eq(revenueEntries.id, pkg.revenueEntryId)).limit(1);
+      }
+      if (!origRevenue) {
+        const candidates = await db.select().from(revenueEntries)
+          .where(and(
+            eq(revenueEntries.memberId, pkg.memberId),
+            gt(revenueEntries.unpaidAmount, 0),
+            sql`COALESCE(${revenueEntries.subType},'') <> '미수금'`,
+          ))
+          .orderBy(desc(revenueEntries.unpaidAmount));
+        origRevenue = candidates.find(c => pkg.startDate && c.startDate === pkg.startDate) ?? candidates[0];
+      }
       if (origRevenue) {
         const origNewUnpaid = Math.max(0, (origRevenue.unpaidAmount ?? 0) - input.collectedAmount);
         await db.update(revenueEntries).set({ unpaidAmount: origNewUnpaid, updatedAt: new Date().toISOString() }).where(eq(revenueEntries.id, origRevenue.id));
