@@ -1104,7 +1104,7 @@ export function GymPlusProductsAdmin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
-    name: "", description: "", price: "", originalPrice: "",
+    name: "", description: "", price: "", originalPrice: "", pointPrice: "",
     category: "membership", imageUrl: "", badgeText: "",
     isActive: 1, sortOrder: 0,
   });
@@ -1125,13 +1125,14 @@ export function GymPlusProductsAdmin() {
   });
 
   function resetForm() {
-    setForm({ name: "", description: "", price: "", originalPrice: "", category: "membership", imageUrl: "", badgeText: "", isActive: 1, sortOrder: 0 });
+    setForm({ name: "", description: "", price: "", originalPrice: "", pointPrice: "", category: "membership", imageUrl: "", badgeText: "", isActive: 1, sortOrder: 0 });
   }
 
   function openEdit(p: any) {
     setForm({
       name: p.name, description: p.description ?? "", price: String(p.price),
       originalPrice: p.originalPrice ? String(p.originalPrice) : "",
+      pointPrice: p.pointPrice != null ? String(p.pointPrice) : "",
       category: p.category ?? "membership", imageUrl: p.imageUrl ?? "",
       badgeText: p.badgeText ?? "", isActive: p.isActive ?? 1, sortOrder: p.sortOrder ?? 0,
     });
@@ -1143,7 +1144,7 @@ export function GymPlusProductsAdmin() {
     if (!form.name.trim()) { toast.error("상품명은 필수입니다."); return; }
     const price = parseInt(form.price, 10);
     if (isNaN(price) || price < 0) { toast.error("가격을 올바르게 입력해주세요."); return; }
-    const payload = {
+    const basePayload = {
       name: form.name.trim(),
       description: form.description.trim() || undefined,
       price,
@@ -1154,10 +1155,12 @@ export function GymPlusProductsAdmin() {
       isActive: form.isActive,
       sortOrder: form.sortOrder,
     };
+    const pointPriceNum = form.pointPrice ? parseInt(form.pointPrice, 10) : undefined;
     if (editingId) {
-      updateMutation.mutate({ id: editingId, ...payload });
+      // 빈 값으로 지우면 null을 명시적으로 보내 포인트 구매를 비활성화한다
+      updateMutation.mutate({ id: editingId, ...basePayload, pointPrice: pointPriceNum ?? null });
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate({ ...basePayload, pointPrice: pointPriceNum });
     }
   }
 
@@ -1289,6 +1292,11 @@ export function GymPlusProductsAdmin() {
             <div>
               <Label className="text-xs text-muted-foreground">정가 (원) — 할인 전 가격 표시용</Label>
               <Input type="number" value={form.originalPrice} onChange={e => f("originalPrice", e.target.value)} placeholder="예: 100000 (선택사항)" className="mt-1 text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">포인트 가격 (P) — 비워두면 포인트 구매 불가</Label>
+              <Input type="number" value={form.pointPrice} onChange={e => f("pointPrice", e.target.value)} placeholder="예: 1000 (원 가격과 별도로 설정)" className="mt-1 text-sm" />
+              <p className="text-[10px] text-muted-foreground mt-1">원 가격과 무관하게 설정하세요. 회원권 연장(1,000P=1일) 등 다른 포인트 사용처와 가치가 어긋나지 않게 확인해주세요.</p>
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">상품 설명</Label>

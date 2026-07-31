@@ -555,6 +555,9 @@ export const gymPlusProducts = pgTable("gym_plus_products", {
   description: text("description"),
   price: integer("price").notNull(),
   originalPrice: integer("originalPrice"),
+  // 포인트로 구매 가능한 가격(P). null이면 포인트 구매 불가 — 원화 가격과 별도로 관리해
+  // 다른 포인트 사용처(회원권 연장 등)와 가격 정합성이 깨지지 않도록 한다.
+  pointPrice: integer("pointPrice"),
   category: text("category").notNull().default("membership"), // membership, pt, supplement, goods, other
   imageUrl: text("imageUrl"),
   badgeText: text("badgeText"),

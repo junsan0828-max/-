@@ -270,14 +270,9 @@ export default function GymPlusProfile() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState("points");
   const [purchaseNote, setPurchaseNote] = useState("");
-  const [showChargeModal, setShowChargeModal] = useState(false);
-  const [chargeDone, setChargeDone] = useState(false);
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [extendDone, setExtendDone] = useState(false);
   const [extendDays, setExtendDays] = useState(1);
-  const [chargeAmount, setChargeAmount] = useState("");
-  const [chargeMethod, setChargeMethod] = useState("");
-  const [chargeNote, setChargeNote] = useState("");
   const [showPurchaseDone, setShowPurchaseDone] = useState<{ status: string; productName: string } | null>(null);
 
   const requestPurchase = trpc.gymPlus.requestPurchase.useMutation({
@@ -287,11 +282,6 @@ export default function GymPlusProfile() {
       setSelectedProduct(null);
       setPurchaseNote("");
     },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const requestPointCharge = trpc.gymPlus.requestPointCharge.useMutation({
-    onSuccess: () => setChargeDone(true),
     onError: (e) => toast.error(e.message),
   });
 
@@ -307,21 +297,6 @@ export default function GymPlusProfile() {
     setShowExtendModal(false);
     setExtendDone(false);
     setExtendDays(1);
-  }
-
-  function closeChargeModal() {
-    setShowChargeModal(false);
-    setChargeDone(false);
-    setChargeAmount("");
-    setChargeMethod("");
-    setChargeNote("");
-  }
-
-  function submitChargeRequest() {
-    const amount = parseInt(chargeAmount);
-    if (!amount || amount < 1000) { toast.error("충전 금액을 1,000원 이상 입력해주세요."); return; }
-    if (!chargeMethod) { toast.error("결제 방법을 선택해주세요."); return; }
-    requestPointCharge.mutate({ requestedAmount: amount, paymentMethod: chargeMethod, note: chargeNote || undefined });
   }
 
   const [profileForm, setProfileForm] = useState({ name: "", phone: "", email: "" });
@@ -585,13 +560,8 @@ export default function GymPlusProfile() {
             </p>
             <p className="text-[11px] text-white/60 mt-1">{member?.name ?? "-"} 님의 보유 포인트</p>
           </div>
-          <button
-            onClick={() => setShowChargeModal(true)}
-            className="mt-1 bg-white/20 hover:bg-white/30 transition-colors text-white text-xs font-bold px-3 py-2 rounded-xl"
-          >
-            충전 신청
-          </button>
         </div>
+        {/* 현금 충전은 폐지 — 포인트는 출석·블로그·리뷰·추천으로만 적립된다 */}
         {/* 포인트로 회원권 기간 연장 — 소액으로 재등록을 계속 미루지 않도록 최소 보유 포인트 기준 이상만 가능 */}
         {(() => {
           const eligible = (member?.points ?? 0) >= MIN_POINTS_FOR_EXTENSION;
@@ -644,7 +614,7 @@ export default function GymPlusProfile() {
             {filtered.map((p) => (
               <button
                 key={p.id}
-                onClick={() => { setSelectedProduct(p); setPaymentMethod("points"); setPurchaseNote(""); }}
+                onClick={() => { setSelectedProduct(p); setPaymentMethod(p.pointPrice != null ? "points" : "cash"); setPurchaseNote(""); }}
                 className="w-full border border-border rounded-2xl overflow-hidden bg-card text-left hover:border-primary/40 hover:shadow-md transition-all"
               >
                 {p.imageUrl && (
@@ -680,6 +650,9 @@ export default function GymPlusProfile() {
                     </div>
                     <span className="text-xs text-primary font-semibold">구매 →</span>
                   </div>
+                  {p.pointPrice != null && (
+                    <p className="text-[10px] text-[#1D4ED8] font-medium mt-1">◈ {p.pointPrice.toLocaleString("ko-KR")}P로 구매 가능</p>
+                  )}
                 </div>
               </button>
             ))}
@@ -717,11 +690,11 @@ export default function GymPlusProfile() {
                 </div>
               </div>
 
-              {/* 결제 수단 선택 */}
+              {/* 결제 수단 선택 — 포인트 가격이 설정된 상품만 포인트 결제를 보여준다 */}
               <div>
                 <p className="text-xs font-semibold text-foreground mb-3">결제 수단</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {PAYMENT_METHODS.map(pm => (
+                  {PAYMENT_METHODS.filter(pm => pm.value !== "points" || selectedProduct.pointPrice != null).map(pm => (
                     <button
                       key={pm.value}
                       onClick={() => setPaymentMethod(pm.value)}
@@ -735,12 +708,12 @@ export default function GymPlusProfile() {
                       <p className="text-xs font-semibold mt-1 text-foreground">{pm.label}</p>
                       {pm.value === "points" && (
                         <p className={`text-[10px] mt-0.5 ${
-                          (member?.points ?? 0) >= selectedProduct.price
+                          (member?.points ?? 0) >= selectedProduct.pointPrice
                             ? "text-green-500"
                             : "text-red-400"
                         }`}>
-                          보유 {(member?.points ?? 0).toLocaleString("ko-KR")}P
-                          {(member?.points ?? 0) < selectedProduct.price && " (부족)"}
+                          {selectedProduct.pointPrice.toLocaleString("ko-KR")}P · 보유 {(member?.points ?? 0).toLocaleString("ko-KR")}P
+                          {(member?.points ?? 0) < selectedProduct.pointPrice && " (부족)"}
                         </p>
                       )}
                     </button>
@@ -749,19 +722,19 @@ export default function GymPlusProfile() {
               </div>
 
               {/* 포인트 결제 안내 */}
-              {paymentMethod === "points" && (
+              {paymentMethod === "points" && selectedProduct.pointPrice != null && (
                 <div className={`rounded-xl p-3 text-sm ${
-                  (member?.points ?? 0) >= selectedProduct.price
+                  (member?.points ?? 0) >= selectedProduct.pointPrice
                     ? "bg-green-500/10 border border-green-500/20"
                     : "bg-red-500/10 border border-red-500/20"
                 }`}>
-                  {(member?.points ?? 0) >= selectedProduct.price ? (
+                  {(member?.points ?? 0) >= selectedProduct.pointPrice ? (
                     <p className="text-green-600 text-xs font-medium">
-                      결제 후 잔여 포인트: {((member?.points ?? 0) - selectedProduct.price).toLocaleString("ko-KR")}P
+                      결제 포인트 {selectedProduct.pointPrice.toLocaleString("ko-KR")}P · 결제 후 잔여 {((member?.points ?? 0) - selectedProduct.pointPrice).toLocaleString("ko-KR")}P
                     </p>
                   ) : (
                     <p className="text-red-400 text-xs font-medium">
-                      포인트가 {(selectedProduct.price - (member?.points ?? 0)).toLocaleString("ko-KR")}P 부족합니다
+                      포인트가 {(selectedProduct.pointPrice - (member?.points ?? 0)).toLocaleString("ko-KR")}P 부족합니다
                     </p>
                   )}
                 </div>
@@ -796,7 +769,7 @@ export default function GymPlusProfile() {
                 </button>
                 <button
                   onClick={() => requestPurchase.mutate({ productId: selectedProduct.id, paymentMethod, note: purchaseNote || undefined })}
-                  disabled={requestPurchase.isPending || (paymentMethod === "points" && (member?.points ?? 0) < selectedProduct.price)}
+                  disabled={requestPurchase.isPending || (paymentMethod === "points" && (member?.points ?? 0) < selectedProduct.pointPrice)}
                   className="flex-1 py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold disabled:opacity-50"
                 >
                   {requestPurchase.isPending ? "처리 중..." : paymentMethod === "points" ? "포인트로 결제" : "구매 신청"}
@@ -924,69 +897,6 @@ export default function GymPlusProfile() {
           </div>
         );
       })()}
-
-      {/* 포인트 충전 신청 모달 */}
-      {showChargeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={closeChargeModal} />
-          <div className="relative bg-background rounded-2xl w-full max-w-xs p-5 space-y-4">
-            {chargeDone ? (
-              <>
-                <p className="font-bold text-base text-foreground">충전 신청 완료</p>
-                <div className="bg-muted/50 rounded-xl p-4 space-y-1.5 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">신청 금액</span><span className="font-bold">{parseInt(chargeAmount || "0").toLocaleString("ko-KR")}P</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">결제 방법</span><span className="font-medium">{chargeMethod}</span></div>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  카운터에서 결제 확인 후 포인트가 충전됩니다.<br />결제는 센터 방문 시 직원에게 진행해주세요.
-                </p>
-                <button onClick={closeChargeModal} className="w-full py-3 rounded-xl bg-[#1D4ED8] text-white text-sm font-bold">확인</button>
-              </>
-            ) : (
-              <>
-                <p className="font-bold text-base text-foreground">포인트 충전 신청</p>
-                <div className="bg-muted/50 rounded-xl p-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">현재 보유 포인트</span>
-                    <span className="font-bold">{(member?.points ?? 0).toLocaleString("ko-KR")}P</span>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">충전 금액 (원)</Label>
-                  <Input type="number" placeholder="예: 50000" value={chargeAmount}
-                    onChange={(e) => setChargeAmount(e.target.value)}
-                    className="bg-input border-border h-9 text-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">결제 방법</Label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {["카드", "현금", "계좌이체"].map((m) => (
-                      <button key={m} type="button" onClick={() => setChargeMethod(m)}
-                        className={`py-2 rounded-xl border text-xs font-medium transition-colors ${chargeMethod === m ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground"}`}
-                      >{m}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">메모 (선택)</Label>
-                  <Input placeholder="요청사항이 있으면 입력하세요" value={chargeNote}
-                    onChange={(e) => setChargeNote(e.target.value)}
-                    className="bg-input border-border h-9 text-sm" />
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  신청 후 카운터에서 결제를 완료하면 직원 확인 후 포인트가 충전됩니다.
-                </p>
-                <div className="flex gap-2 pt-1">
-                  <Button variant="outline" className="flex-1 h-9" onClick={closeChargeModal}>취소</Button>
-                  <Button className="flex-1 h-9" onClick={submitChargeRequest} disabled={requestPointCharge.isPending}>
-                    {requestPointCharge.isPending ? "신청 중..." : "충전 신청"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       </>)}
 

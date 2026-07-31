@@ -4187,6 +4187,7 @@ ${dataContext}
       description: z.string().optional(),
       price: z.number().int().min(0),
       originalPrice: z.number().int().min(0).optional(),
+      pointPrice: z.number().int().min(0).optional(),
       category: z.string().default("membership"),
       imageUrl: z.string().optional(),
       badgeText: z.string().optional(),
@@ -4207,6 +4208,7 @@ ${dataContext}
       description: z.string().optional(),
       price: z.number().int().min(0).optional(),
       originalPrice: z.number().int().min(0).optional(),
+      pointPrice: z.number().int().min(0).nullable().optional(),
       category: z.string().optional(),
       imageUrl: z.string().optional(),
       badgeText: z.string().optional(),
@@ -4268,37 +4270,24 @@ ${dataContext}
 
   // ─── 포인트 충전 신청 ────────────────────────────────────────────────────────
 
+  // 현금으로 포인트를 직접 충전하는 기능은 폐지했다. 포인트는 출석·블로그 댓글·영수증
+  // 리뷰·친구 추천으로만 적립되어야 하며, 현금 충전을 허용하면 "충전→회원권 연장"처럼
+  // 실제 상품 가격보다 싸게 우회 구매하는 경로가 생긴다. 엔드포인트는 기존 신청 이력
+  // 조회(getMyPointChargeRequests, admin_listPointChargeRequests)를 위해 남겨두되
+  // 새 신청만 막는다.
+  // 현금으로 포인트를 직접 충전하는 기능은 폐지했다. 포인트는 출석·블로그 댓글·영수증
+  // 리뷰·친구 추천으로만 적립되어야 하며, 현금 충전을 허용하면 "충전→회원권 연장"처럼
+  // 실제 상품 가격보다 싸게 우회 구매하는 경로가 생긴다. 엔드포인트 자체는 기존 신청
+  // 이력 조회(getMyPointChargeRequests, admin_listPointChargeRequests)를 위해 남겨두되
+  // 새 신청만 거부한다.
   requestPointCharge: gymPlusProtected
     .input(z.object({
       requestedAmount: z.number().int().min(1000).max(1000000),
       paymentMethod: z.string(),
       note: z.string().optional(),
     }))
-    .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      await db.insert(gymPlusPointChargeRequests).values({
-        gymPlusMemberId: ctx.gymPlusMemberId,
-        requestedAmount: input.requestedAmount,
-        paymentMethod: input.paymentMethod,
-        note: input.note,
-        status: "pending",
-      });
-
-      const chargeContact = await gymPlusMemberContact(ctx.gymPlusMemberId);
-      sendRequestNotification({
-        kind: "포인트 충전",
-        memberName: chargeContact.name,
-        memberPhone: chargeContact.phone,
-        rows: [
-          { label: "충전 금액", value: `${input.requestedAmount.toLocaleString("ko-KR")}P`, highlight: true },
-          { label: "결제 방법", value: input.paymentMethod },
-          ...(input.note ? [{ label: "메모", value: input.note }] : []),
-        ],
-        actionHint: "카운터에서 결제를 확인한 후 승인하면 포인트가 적립됩니다.",
-      }).catch(() => {});
-
-      return { success: true };
+    .mutation(async () => {
+      throw new TRPCError({ code: "FORBIDDEN", message: "포인트 현금 충전은 더 이상 지원하지 않습니다. 포인트는 출석·블로그 댓글·리뷰·추천으로 적립해주세요." });
     }),
 
   getMyPointChargeRequests: gymPlusProtected.query(async ({ ctx }) => {
@@ -4527,13 +4516,18 @@ ${dataContext}
 
       let pointsUsed = 0;
       if (input.paymentMethod === "points") {
+        // pointPrice가 설정되지 않은 상품은 포인트 구매 자체를 막는다 — 원화 가격을 그대로
+        // 포인트로 대체하면 다른 포인트 사용처(회원권 연장 등)와 가격이 어긋날 수 있다.
+        if (product.pointPrice == null)
+          throw new TRPCError({ code: "BAD_REQUEST", message: "포인트로 구매할 수 없는 상품입니다." });
+        const cost = product.pointPrice;
         const [member] = await db.select({ points: gymPlusMembers.points })
           .from(gymPlusMembers).where(eq(gymPlusMembers.id, ctx.gymPlusMemberId)).limit(1);
-        if (!member || (member.points ?? 0) < product.price) {
+        if (!member || (member.points ?? 0) < cost) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "포인트가 부족합니다." });
         }
-        pointsUsed = product.price;
-        const newBalance = (member.points ?? 0) - product.price;
+        pointsUsed = cost;
+        const newBalance = (member.points ?? 0) - cost;
         await db.update(gymPlusMembers).set({ points: newBalance })
           .where(eq(gymPlusMembers.id, ctx.gymPlusMemberId));
         const [req] = await db.insert(gymPlusPurchaseRequests).values({
@@ -4549,7 +4543,7 @@ ${dataContext}
         await db.insert(gymPlusPointLogs).values({
           gymPlusMemberId: ctx.gymPlusMemberId,
           type: "spend",
-          amount: -product.price,
+          amount: -cost,
           balanceAfter: newBalance,
           reason: `${product.name} 구매`,
           relatedId: req.id,
