@@ -76,7 +76,15 @@ export async function submitIfkArticleAsPending(
     proxy: proxyServer ? { server: proxyServer } : undefined,
   });
   try {
-    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    // 프록시를 명시해도 여전히 ERR_CONNECTION_RESET이 나서(2026-07-31 클라우드 진단), curl은
+    // 되는데 헤드리스 크롬만 막히는 상황 — 사이트/WAF가 헤드리스 크롬 특유의 User-Agent
+    // ("HeadlessChrome")로 자동화를 탐지해 연결을 끊는 것으로 추정된다. 일반 데스크톱 크롬처럼
+    // User-Agent를 지정해 우회를 시도한다.
+    const context = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    });
     const page = await context.newPage();
     await login(page);
     await page.goto("https://www.ifk.co.kr/nad/news/insert.php", { waitUntil: "networkidle" });
