@@ -81,6 +81,32 @@ function TabBannerManager() {
     onError: e => toast.error(e.message),
   });
 
+  // 지금 실제로 화면에 노출 중인 배너만 모아서 보여준다.
+  // ("탭별 배너는 다 껐는데 왜 계속 보이지?" — 원인이 대개 "전체(공통)" 배너라
+  //  개별 탭 목록만 봐서는 안 보이므로, 실노출 여부를 한 곳에 모아 보여줌)
+  const activeBanners = (allBanners ?? []).filter(b => b.isActive === 1 && (b.text || (b as any).imageUrl));
+
+  const deactivate = (row: NonNullable<typeof allBanners>[number]) => {
+    upsertMutation.mutate({
+      tabKey: row.tabKey,
+      text: row.text ?? "",
+      subText: row.subText ?? undefined,
+      link: row.link ?? undefined,
+      bgColor: row.bgColor ?? "#6366f1",
+      isActive: false,
+      imageUrl: (row as any).imageUrl ?? "",
+      bannerHeight: (row as any).bannerHeight ?? "medium",
+      textSize: (row as any).textSize ?? "medium",
+      textAlign: (row as any).textAlign ?? "left",
+    }, {
+      onSuccess: () => {
+        toast.success(`${TAB_OPTIONS.find(t => t.key === row.tabKey)?.label ?? row.tabKey} 배너를 껐습니다`);
+        utils.tabBanner.listAll.invalidate();
+        utils.tabBanner.getByTab.invalidate();
+      },
+    });
+  };
+
   const [selectedTabs, setSelectedTabs] = useState<Set<string>>(new Set(["all"]));
   const [editState, setEditState] = useState<FieldState>({
     text: "", subText: "", link: "", bgColor: "#6366f1",
@@ -190,6 +216,40 @@ function TabBannerManager() {
         <p className="text-xs text-muted-foreground">탭을 하나 또는 여러 개 선택하여 같은 배너를 한 번에 저장할 수 있습니다</p>
       </CardHeader>
       <CardContent className="space-y-4">
+
+        {/* 지금 실제로 노출 중인 배너 요약 — "다 껐는데 왜 계속 보이지?"를 여기서 바로 확인 */}
+        <div className="rounded-xl border border-border overflow-hidden">
+          <div className="px-3 py-2 bg-accent/20 text-xs font-semibold text-foreground/80">
+            지금 화면에 노출 중인 배너 ({activeBanners.length}개)
+          </div>
+          {activeBanners.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-muted-foreground">노출 중인 배너가 없습니다.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {activeBanners.map(row => (
+                <div key={row.tabKey} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="text-xs font-medium shrink-0">
+                      {TAB_OPTIONS.find(t => t.key === row.tabKey)?.label ?? row.tabKey}
+                    </span>
+                    {row.tabKey === "all" && (
+                      <span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full shrink-0">전체 탭에 노출</span>
+                    )}
+                    <span className="text-[11px] text-muted-foreground truncate">{row.text || "(이미지 배너)"}</span>
+                  </div>
+                  <button
+                    onClick={() => deactivate(row)}
+                    disabled={upsertMutation.isPending}
+                    className="shrink-0 text-[11px] px-2 py-1 rounded-lg border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/40 transition-colors"
+                  >
+                    끄기
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* 우선순위 안내 */}
         <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
